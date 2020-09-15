@@ -1,7 +1,11 @@
+/*
+ * Copyright Amazon.com Inc. or its affiliates.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.iot.evergreen.telemetry;
 
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
-import com.aws.iot.evergreen.telemetry.api.MetricDataBuilder;
 import com.aws.iot.evergreen.telemetry.impl.Metric;
 import com.aws.iot.evergreen.telemetry.impl.MetricFactory;
 import com.aws.iot.evergreen.telemetry.impl.TelemetryLoggerMessage;
@@ -37,9 +41,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
 public class MetricsAggregatorTest {
+    private static final ObjectMapper mapper = new ObjectMapper();
     @TempDir
     protected Path tempRootDir;
-    private static final ObjectMapper mapper = new ObjectMapper();;
 
     @BeforeEach
     public void setup() {
@@ -52,24 +56,22 @@ public class MetricsAggregatorTest {
         //Create a sample file with system metrics so we can test the freshness of the file and logs
         //with respect to the current timestamp
         long lastAgg = Instant.now().toEpochMilli();
-        Metric m = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.CpuUsage,
+        Metric m1 = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.CpuUsage,
                 TelemetryUnit.Percent, TelemetryAggregation.Sum);
-        MetricDataBuilder mdb1 = new MetricFactory(TelemetryNamespace.SystemMetrics.toString()).addMetric(m);
-        m = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.SystemMemUsage,
+        MetricFactory mf = new MetricFactory(TelemetryNamespace.SystemMetrics.toString());
+        Metric m2 = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.SystemMemUsage,
                 TelemetryUnit.Megabytes, TelemetryAggregation.Average);
-        MetricDataBuilder mdb2 = new MetricFactory(TelemetryNamespace.SystemMetrics.toString()).addMetric(m);
-        m = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.TotalNumberOfFDs,
+        Metric m3 = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.TotalNumberOfFDs,
                 TelemetryUnit.Count, TelemetryAggregation.Maximum);
-        MetricDataBuilder mdb3 = new MetricFactory(TelemetryNamespace.SystemMetrics.toString()).addMetric(m);
-        mdb1.putMetricData(10);
-        mdb2.putMetricData(2000);
-        mdb3.putMetricData(4000);
-        mdb1.putMetricData(20);
-        mdb2.putMetricData(3000);
-        mdb3.putMetricData(5000);
-        mdb1.putMetricData(30);
-        mdb2.putMetricData(4000);
-        mdb3.putMetricData(6000);
+        mf.putMetricData(m1,10);
+        mf.putMetricData(m2,2000);
+        mf.putMetricData(m3,4000);
+        mf.putMetricData(m1,20);
+        mf.putMetricData(m2,3000);
+        mf.putMetricData(m3,5000);
+        mf.putMetricData(m1,30);
+        mf.putMetricData(m2,4000);
+        mf.putMetricData(m3,6000);
         MetricsAggregator ma = new MetricsAggregator();
         long currTimestamp = Instant.now().toEpochMilli();
         ma.aggregateMetrics(lastAgg, currTimestamp);
@@ -114,22 +116,18 @@ public class MetricsAggregatorTest {
         //Create a sample file with aggregated metrics so we can test the freshness of the file and logs
         // with respect to the current timestamp
         long lastAgg = Instant.now().toEpochMilli();
-        Metric m = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.CpuUsage,
+        Metric m1 = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.CpuUsage,
                 TelemetryUnit.Percent, TelemetryAggregation.Sum);
-        MetricDataBuilder mdb1 = new MetricFactory(TelemetryNamespace.SystemMetrics.toString()).addMetric(m);
-        m = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.SystemMemUsage,
+        MetricFactory mf = new MetricFactory(TelemetryNamespace.SystemMetrics.toString());
+        Metric m2 = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.SystemMemUsage,
                 TelemetryUnit.Megabytes, TelemetryAggregation.Average);
-        MetricDataBuilder mdb2 = new MetricFactory(TelemetryNamespace.SystemMetrics.toString()).addMetric(m);
-
-        // Add null metric
-        new MetricFactory(TelemetryNamespace.SystemMetrics.toString()).addMetric(null);
 
         // Put null data
-        mdb1.putMetricData(null);
+        mf.putMetricData(m1,null);
 
         // Put invalid data for average aggregation
-        mdb2.putMetricData("banana");
-        mdb2.putMetricData(2000);
+        mf.putMetricData(m2,"banana");
+        mf.putMetricData(m2,2000);
         MetricsAggregator ma = new MetricsAggregator();
         // Aggregate values within 1 second interval at this timestamp with 1
         ma.aggregateMetrics(lastAgg, Instant.now().toEpochMilli());

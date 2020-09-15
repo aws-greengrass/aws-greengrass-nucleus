@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com Inc. or its affiliates.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.iot.evergreen.telemetry;
 
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -71,16 +76,14 @@ public class MetricsAggregator {
                     for (String log : logs) {
                         try {
                             /*
+                              {"thread":"pool-3-thread-4","level":"TRACE","eventType":null,
 
-                            {"thread":"main","level":"TRACE","eventType":null,
+                              "message":"{\"NS\":\"SystemMetrics\",\"N\":\"TotalNumberOfFDs\",\"U\":\"Count\",
 
-                            "message":"{\"M\":{\"NS\":\"SystemMetrics\",\"N\":\"CpuUsage\",\"U\":\"Percent\",
+                              \"A\":\"Average\",\"V\":4583,\"TS\":1600127641506}","contexts":{},
 
-                            \"A\":\"Average\"},\"V\":123,\"TS\":1599613654270}","contexts":{},
-
-                            "loggerName":"Metrics-french fries","timestamp":1599613654270,"cause":null}
-
-                            */
+                              "loggerName":"Metrics-SystemMetrics","timestamp":1600127641506,"cause":null}
+                             */
                             EvergreenStructuredLogMessage egLog = objectMapper.readValue(log,
                                     EvergreenStructuredLogMessage.class);
                             mdp = objectMapper.readValue(egLog.getMessage(), Metric.class);
@@ -159,7 +162,7 @@ public class MetricsAggregator {
      * @param currTimestamp timestamp at which the current publish is initiated.
      */
     protected Map<Long, List<MetricsAggregator.AggregatedMetric>> getMetricsToPublish(long lastPublish,
-                                                                                    long currTimestamp) {
+                                                                                      long currTimestamp) {
         Map<Long, List<MetricsAggregator.AggregatedMetric>> aggUploadMetrics = new HashMap<>();
         MetricsAggregator.AggregatedMetric am;
         try {
@@ -226,6 +229,7 @@ public class MetricsAggregator {
         private TelemetryNamespace metricNamespace;
         @JsonProperty("M")
         private List<Metric> metrics;
+
         @Data
         @NoArgsConstructor
         @AllArgsConstructor
@@ -239,6 +243,4 @@ public class MetricsAggregator {
             private TelemetryUnit metricUnit;
         }
     }
-
-
 }

@@ -1,7 +1,13 @@
+/*
+ * Copyright Amazon.com Inc. or its affiliates.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.iot.evergreen.telemetry;
 
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
+import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.KernelMetricsEmitter;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.PublishRequest;
@@ -60,7 +66,7 @@ public class MetricsAgentTest extends EGServiceTestUtil {
     @Mock
     private ScheduledExecutorService ses;
     @Mock
-    private KernelMetricsEmitter kme;
+    private Kernel kernel;
 
     @BeforeEach
     public void setup() {
@@ -79,7 +85,7 @@ public class MetricsAgentTest extends EGServiceTestUtil {
                 .thenReturn(lastPeriodicAggregateTime);
         Topic lastPeriodicPublishTime = Topic.of(context, getTELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC(),
                 Instant.now().toEpochMilli());
-        lenient().when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC,getTELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC()))
+        lenient().when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, getTELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC()))
                 .thenReturn(lastPeriodicPublishTime);
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
         when(config.lookup(DEVICE_PARAM_THING_NAME)).thenReturn(thingNameTopic);
@@ -89,7 +95,7 @@ public class MetricsAgentTest extends EGServiceTestUtil {
         when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, getTELEMETRY_METRICS_PUBLISH_TOPICS()))
                 .thenReturn(telemetryMetricsPublishTopic);
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
-        metricsAgent = spy(new MetricsAgent(config, mockMqttClient, mockDeviceConfiguration, ses,kme));
+        metricsAgent = spy(new MetricsAgent(config, mockMqttClient, mockDeviceConfiguration, kernel, ses));
     }
 
     @AfterEach
@@ -101,27 +107,22 @@ public class MetricsAgentTest extends EGServiceTestUtil {
     @Test
     public void GIVEN_Metrics_Agent_WHEN_starts_up_THEN_schedule_operations_on_metrics() throws InterruptedException {
         assertNull(metricsAgent.getPeriodicAggregateMetricsFuture());
-        assertNull(metricsAgent.getPeriodicEmitSystemMetricsFuture());
         assertNull(metricsAgent.getPeriodicPublishMetricsFuture());
 
         metricsAgent.startup();
         assertNotNull(metricsAgent.getPeriodicAggregateMetricsFuture());
-        assertNotNull(metricsAgent.getPeriodicEmitSystemMetricsFuture());
         assertNotNull(metricsAgent.getPeriodicPublishMetricsFuture());
     }
 
     @Test
     public void GIVEN_Metrics_Agent_WHEN_starts_up_THEN_periodically_schedule_operations() throws InterruptedException {
-        doNothing().when(metricsAgent).emitPeriodicSystemMetrics();
         doNothing().when(metricsAgent).aggregatePeriodicMetrics();
         doNothing().when(metricsAgent).publishPeriodicMetrics();
         metricsAgent.startup();
-        long milliSeconds = 3000;
+        long milliSeconds = 4000;
         Topic periodicAggregateMetricsIntervalSec = Topic.of(context, getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC(), "5");
         lenient().when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC()))
                 .thenReturn(periodicAggregateMetricsIntervalSec);
-        // emit metrics start with no delay.
-        verify(metricsAgent, timeout(milliSeconds).times(1)).emitPeriodicSystemMetrics();
         // aggregation starts at 5th second but we are checking only for 3 seconds
         verify(metricsAgent, timeout(milliSeconds).times(0)).aggregatePeriodicMetrics();
         // publish can start anytime between 0 to 3 seconds
@@ -131,8 +132,6 @@ public class MetricsAgentTest extends EGServiceTestUtil {
         lenient().when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC()))
                 .thenReturn(periodicAggregateMetricsIntervalSec);
 
-        // Emit metrics for at least 2 times - 0th and 2nd sec
-        verify(metricsAgent, timeout(milliSeconds).atLeast(2)).emitPeriodicSystemMetrics();
         // aggregation starts at least at the 2nd sec
         verify(metricsAgent, timeout(milliSeconds).atLeastOnce()).aggregatePeriodicMetrics();
     }

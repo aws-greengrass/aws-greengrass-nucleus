@@ -37,8 +37,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 @SuppressWarnings("PMD.CloseResource")
 @ExtendWith(EGExtension.class)
@@ -66,7 +66,7 @@ public class MetricsAgentTest extends BaseE2ETestCase {
 
     @Timeout(value = 3, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_finishes_THEN_fss_data_is_uploaded() throws
+    void GIVEN_kernel_running_WHEN_metrics_agent_starts_THEN_metrics_are_published_to_Cloud() throws
             InterruptedException, ExecutionException, TimeoutException, ServiceLoadException {
         /*
          Metrics agent is an auto-start service. It publishes data to the cloud irrespective of the deployments.
@@ -115,17 +115,16 @@ public class MetricsAgentTest extends BaseE2ETestCase {
                 }
             }
         }
-        if (mp != null) {
-            assertEquals("2020-07-30", mp.getSchema());
-            /*
-             In this test, aggregated metrics logs are emitted once every second.
-             So,for eg, if publishing the metrics starts randomly at the 3rd second, metrics that were aggregated in
-             1,2,3 seconds are published which contains a list of n entries each where n is the no of namespaces(3rd
-             second aggregations are not included if publishing thread starts before aggregation and hence the >=).
-            */
-            assertTrue(delay * TelemetryNamespace.values().length >= mp.getAggregatedMetricList().size());
-        } else {
-            fail("Telemetry data is not published in the given interval");
-        }
+        assertNotNull(mp, " Failed to publish telemetry data in the given interval");
+        assertEquals("2020-07-30", mp.getSchema());
+        /*
+         In this test, aggregated metrics logs are emitted once every second.
+         So,for eg, if publishing the metrics starts randomly at the 3rd second, metrics that were aggregated in
+         1,2,3 seconds are published which contains a list of n entries each where n is the no of namespaces(3rd
+         second aggregations are not included if publishing thread starts before aggregation and hence the >=).
+        */
+        System.out.println("delay " + delay);
+        System.out.println("size " + mp.getAggregatedMetricList().size());
+        assertTrue(delay * TelemetryNamespace.values().length >= mp.getAggregatedMetricList().size());
     }
 }
