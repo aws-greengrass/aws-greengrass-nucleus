@@ -11,5 +11,8 @@
   ],
   "Timestamp": 1592574829000,
   "FailureHandlingPolicy": "DO_NOTHING",
-  "DeploymentSafetyPolicy": "CHECK_SAFETY"
+  "ComponentUpdatePolicy": {
+    "Timeout": 60,
+    "ComponentUpdatePolicyAction": "NOTIFY_COMPONENTS"
+  }
 }

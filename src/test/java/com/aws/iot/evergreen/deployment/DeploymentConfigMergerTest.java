@@ -1,5 +1,6 @@
 package com.aws.iot.evergreen.deployment;
 
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.Crashable;
@@ -9,16 +10,17 @@ import com.aws.iot.evergreen.deployment.activator.DeploymentActivator;
 import com.aws.iot.evergreen.deployment.activator.DeploymentActivatorFactory;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
 import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
+import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
-import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Pair;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,7 +50,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
@@ -282,22 +283,25 @@ public class DeploymentConfigMergerTest {
 
         DeploymentDocument doc = new DeploymentDocument();
         doc.setDeploymentId("NoSafetyCheckDeploy");
-        doc.setDeploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK);
+        doc.setComponentUpdatePolicy(
+                new ComponentUpdatePolicy(0, ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS));
+
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
         verify(updateSystemSafelyService, times(0)).addUpdateAction(any(), any());
 
         doc.setDeploymentId("DeploymentId");
-        doc.setDeploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY);
+        doc.setComponentUpdatePolicy(
+                new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
-        verify(updateSystemSafelyService).addUpdateAction(eq("DeploymentId"), any());
+        verify(updateSystemSafelyService).addUpdateAction(any(), any());
     }
 
     @Test
     public void GIVEN_deployment_WHEN_task_cancelled_THEN_update_is_cancelled() throws Throwable {
-        ArgumentCaptor<Crashable> cancelledTaskCaptor = ArgumentCaptor.forClass(Crashable.class);
+        ArgumentCaptor<Pair<Integer,Crashable>> cancelledTaskCaptor = ArgumentCaptor.forClass(Pair.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
 
@@ -305,15 +309,17 @@ public class DeploymentConfigMergerTest {
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
-        when(doc.getDeploymentSafetyPolicy()).thenReturn(DeploymentSafetyPolicy.CHECK_SAFETY);
+        when(doc.getComponentUpdatePolicy()).thenReturn(
+                new ComponentUpdatePolicy(0, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
 
         Future<DeploymentResult> fut = merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
-        verify(updateSystemSafelyService).addUpdateAction(eq("DeploymentId"), cancelledTaskCaptor.capture());
+        verify(updateSystemSafelyService)
+                .addUpdateAction(any(), cancelledTaskCaptor.capture());
 
         // WHEN
         fut.cancel(true);
-        cancelledTaskCaptor.getValue().run();
+        cancelledTaskCaptor.getValue().getRight().run();
 
         // THEN
         verify(doc, times(0)).getFailureHandlingPolicy();
@@ -321,7 +327,7 @@ public class DeploymentConfigMergerTest {
 
     @Test
     public void GIVEN_deployment_WHEN_task_not_cancelled_THEN_update_is_continued() throws Throwable {
-        ArgumentCaptor<Crashable> taskCaptor = ArgumentCaptor.forClass(Crashable.class);
+        ArgumentCaptor<Pair<Integer,Crashable>> taskCaptor = ArgumentCaptor.forClass(Pair.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
         DeploymentActivatorFactory deploymentActivatorFactory = new DeploymentActivatorFactory(kernel);
@@ -335,15 +341,15 @@ public class DeploymentConfigMergerTest {
         // GIVEN
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
         DeploymentDocument doc = mock(DeploymentDocument.class);
-        when(doc.getDeploymentId()).thenReturn("DeploymentId");
-        when(doc.getDeploymentSafetyPolicy()).thenReturn(DeploymentSafetyPolicy.CHECK_SAFETY);
+        when(doc.getComponentUpdatePolicy()).thenReturn(
+                new ComponentUpdatePolicy(0, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
-        verify(updateSystemSafelyService).addUpdateAction(eq("DeploymentId"), taskCaptor.capture());
+        verify(updateSystemSafelyService).addUpdateAction(any(), taskCaptor.capture());
 
         // WHEN
-        taskCaptor.getValue().run();
+        taskCaptor.getValue().getRight().run();
 
         // THEN
         verify(defaultActivator, times(1)).activate(any(), any(), any());
