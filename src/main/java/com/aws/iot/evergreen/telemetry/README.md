@@ -33,13 +33,18 @@ Emitting a metric data point is nothing but assiging a value to the metric and w
 - The file to which the metric has to be written is specified using the `MetricFactory`. If nothing is specified, then the metrics are written to "generic.log" file.
     ```
     MetricFactory metricFactory = new MetricFactory("KernelComponents");
-    MetricDataBuilder mdb = metricFactory.add(metric);
     ```
-    You cannot reuse this metricFactory with another metric data object as it is bound to this metric data object(mdb). It is enough to do it just once.
-- Assigning a value to the metric and writing it to the file(emit) is done using `MetricDataBuilder`. You can now reuse this `MetricDataBuilder` as many times as you want to emit the data point.
+- Emitting a metric can be done in two ways. 
+1. Assign a value and timestamp to the metric before emitting it.
     ```
-    mdb.putMetricData(100).emit();
-    mdb.putMetricData(200).emit();
+    metric.setValue(10);
+    metric.setTimestamp(Instant.now().toEpochMilli());
+    
+    metricFactory.putMetricData(metric);
+    ```
+2. No need to assign the timestamp or value to the metric. Pass in the metric along with the value. Current timestamp will be assigned.
+    ```
+    metricFactory.putMetricData(metric,10);
     ```
 Sample contents of the file `Telemetry/KernelComponents.log`
 ```
@@ -47,7 +52,7 @@ Sample contents of the file `Telemetry/KernelComponents.log`
     "thread": "pool-1-thread-1",
     "level": "TRACE",
     "eventType": null,
-    "message": "{\"M\":{\"NS\":\"KernelComponents\",\"N\":\"NumberOfComponentsInstalled\",\"U\":\"Count\",\"A\":\"Average\"},\"V\":100,\"TS\":1599814408615}",
+    "message":"{\"NS\":\"KernelComponents\",\"N\":\"NumberOfComponentsInstalled\",\"U\":\"Count\",\"A\":\"Average\",\"V\":1,\"TS\":1600127551482}",
     "contexts": {},
     "loggerName": "Metrics-KernelComponents",
     "timestamp": 1599814408616,
@@ -56,14 +61,13 @@ Sample contents of the file `Telemetry/KernelComponents.log`
 ```
 Message part of the log corresponds to the following structure
 ```
-Metric data point
-|__ Metric
-|   |___ namespace
-|   |___ name
-|   |___ unit
-|   |__ Aggregation
-|__ Value
-|__ Timestamp
+Metric 
+|___ namespace
+|___ name
+|___ unit
+|___ Aggregation
+|___ value
+|___ timestamp
 ```
 ### Aggregating the emitted metrics
 Aggregation on the metric logs is performed based on the interval configured by the customer. By default, metrics are aggregated once in every one hour.
