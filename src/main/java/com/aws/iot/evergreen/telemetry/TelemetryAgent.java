@@ -28,9 +28,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 
-@ImplementsService(name = MetricsAgent.METRICS_AGENT_SERVICE_TOPICS, version = "1.0.0", autostart = true)
-public class MetricsAgent extends EvergreenService {
-    public static final String METRICS_AGENT_SERVICE_TOPICS = "MetricsAgent";
+@ImplementsService(name = TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS, version = "1.0.0", autostart = true)
+public class TelemetryAgent extends EvergreenService {
+    public static final String TELEMETRY_AGENT_SERVICE_TOPICS = "TelemetryAgent";
     public static final String DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC =
             "$aws/things/{thingName}/greengrassv2/health/json";
     @Getter // Used in e2e
@@ -87,7 +87,7 @@ public class MetricsAgent extends EvergreenService {
      * @param ses                 {@link ScheduledExecutorService}
      */
     @Inject
-    public MetricsAgent(Topics topics, MqttClient mqttClient, DeviceConfiguration deviceConfiguration, Kernel kernel,
+    public TelemetryAgent(Topics topics, MqttClient mqttClient, DeviceConfiguration deviceConfiguration, Kernel kernel,
                         ScheduledExecutorService ses) {
         super(topics);
         this.mqttClient = mqttClient;
@@ -216,9 +216,6 @@ public class MetricsAgent extends EvergreenService {
 
     @Override
     public void startup() throws InterruptedException {
-        for (PeriodicMetricsEmitter emitter : periodicMetricsEmitters) {
-            emitter.buildMetrics();
-        }
         config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .subscribe((why, newv) -> {

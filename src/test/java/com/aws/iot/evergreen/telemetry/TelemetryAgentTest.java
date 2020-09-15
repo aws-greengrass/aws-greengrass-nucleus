@@ -31,12 +31,12 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static com.aws.iot.evergreen.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
-import static com.aws.iot.evergreen.telemetry.MetricsAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC;
-import static com.aws.iot.evergreen.telemetry.MetricsAgent.getTELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC;
-import static com.aws.iot.evergreen.telemetry.MetricsAgent.getTELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC;
-import static com.aws.iot.evergreen.telemetry.MetricsAgent.getTELEMETRY_METRICS_PUBLISH_TOPICS;
-import static com.aws.iot.evergreen.telemetry.MetricsAgent.getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC;
-import static com.aws.iot.evergreen.telemetry.MetricsAgent.getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC;
+import static com.aws.iot.evergreen.telemetry.TelemetryAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC;
+import static com.aws.iot.evergreen.telemetry.TelemetryAgent.getTELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC;
+import static com.aws.iot.evergreen.telemetry.TelemetryAgent.getTELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC;
+import static com.aws.iot.evergreen.telemetry.TelemetryAgent.getTELEMETRY_METRICS_PUBLISH_TOPICS;
+import static com.aws.iot.evergreen.telemetry.TelemetryAgent.getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC;
+import static com.aws.iot.evergreen.telemetry.TelemetryAgent.getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -50,7 +50,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
-public class MetricsAgentTest extends EGServiceTestUtil {
+public class TelemetryAgentTest extends EGServiceTestUtil {
     @TempDir
     protected Path tempRootDir;
     @Mock
@@ -61,7 +61,7 @@ public class MetricsAgentTest extends EGServiceTestUtil {
     private ArgumentCaptor<PublishRequest> publishRequestArgumentCaptor;
     @Captor
     private ArgumentCaptor<MqttClientConnectionEvents> mqttClientConnectionEventsArgumentCaptor;
-    private MetricsAgent metricsAgent;
+    private TelemetryAgent telemetryAgent;
     @Mock
     private ScheduledExecutorService ses;
     @Mock
@@ -94,61 +94,61 @@ public class MetricsAgentTest extends EGServiceTestUtil {
         when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, getTELEMETRY_METRICS_PUBLISH_TOPICS()))
                 .thenReturn(telemetryMetricsPublishTopic);
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
-        metricsAgent = spy(new MetricsAgent(config, mockMqttClient, mockDeviceConfiguration, kernel, ses));
+        telemetryAgent = spy(new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, kernel, ses));
     }
 
     @AfterEach
     public void cleanUp() {
         ses.shutdownNow();
-        metricsAgent.shutdown();
+        telemetryAgent.shutdown();
     }
 
     @Test
-    public void GIVEN_Metrics_Agent_WHEN_starts_up_THEN_schedule_operations_on_metrics() throws InterruptedException {
-        assertNull(metricsAgent.getPeriodicAggregateMetricsFuture());
-        assertNull(metricsAgent.getPeriodicPublishMetricsFuture());
+    public void GIVEN_Telemetry_Agent_WHEN_starts_up_THEN_schedule_operations_on_metrics() throws InterruptedException {
+        assertNull(telemetryAgent.getPeriodicAggregateMetricsFuture());
+        assertNull(telemetryAgent.getPeriodicPublishMetricsFuture());
 
-        metricsAgent.startup();
-        assertNotNull(metricsAgent.getPeriodicAggregateMetricsFuture());
-        assertNotNull(metricsAgent.getPeriodicPublishMetricsFuture());
+        telemetryAgent.startup();
+        assertNotNull(telemetryAgent.getPeriodicAggregateMetricsFuture());
+        assertNotNull(telemetryAgent.getPeriodicPublishMetricsFuture());
     }
 
     @Test
-    public void GIVEN_Metrics_Agent_WHEN_starts_up_THEN_periodically_schedule_operations() throws InterruptedException {
-        doNothing().when(metricsAgent).aggregatePeriodicMetrics();
-        doNothing().when(metricsAgent).publishPeriodicMetrics();
-        metricsAgent.startup();
+    public void GIVEN_Telemetry_Agent_WHEN_starts_up_THEN_periodically_schedule_operations() throws InterruptedException {
+        doNothing().when(telemetryAgent).aggregatePeriodicMetrics();
+        doNothing().when(telemetryAgent).publishPeriodicMetrics();
+        telemetryAgent.startup();
         long milliSeconds = 4000;
         Topic periodicAggregateMetricsIntervalSec = Topic.of(context, getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC(), "5");
         lenient().when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC()))
                 .thenReturn(periodicAggregateMetricsIntervalSec);
         // aggregation starts at 5th second but we are checking only for 3 seconds
-        verify(metricsAgent, timeout(milliSeconds).times(0)).aggregatePeriodicMetrics();
+        verify(telemetryAgent, timeout(milliSeconds).times(0)).aggregatePeriodicMetrics();
         // publish can start anytime between 0 to 3 seconds
-        verify(metricsAgent, timeout(milliSeconds).atLeastOnce()).publishPeriodicMetrics();
-        reset(metricsAgent);
+        verify(telemetryAgent, timeout(milliSeconds).atLeastOnce()).publishPeriodicMetrics();
+        reset(telemetryAgent);
         periodicAggregateMetricsIntervalSec = Topic.of(context, getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC(), "2");
         lenient().when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC()))
                 .thenReturn(periodicAggregateMetricsIntervalSec);
 
         // aggregation starts at least at the 2nd sec
-        verify(metricsAgent, timeout(milliSeconds).atLeastOnce()).aggregatePeriodicMetrics();
+        verify(telemetryAgent, timeout(milliSeconds).atLeastOnce()).aggregatePeriodicMetrics();
     }
 
     @Test
-    public void GIVEN_Metrics_Agent_WHEN_mqtt_is_interrupted_THEN_aggregation_continues_but_publishing_stops()
+    public void GIVEN_Telemetry_Agent_WHEN_mqtt_is_interrupted_THEN_aggregation_continues_but_publishing_stops()
             throws InterruptedException {
         Topic periodicPublishMetricsIntervalSec = Topic.of(context, getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC(), "2");
         lenient().when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC()))
                 .thenReturn(periodicPublishMetricsIntervalSec);
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
-        metricsAgent.startup();
+        telemetryAgent.startup();
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
         //verify that nothing is published when mqtt is interrupted
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
-        long milliSeconds = 2000;
+        long milliSeconds = 3000;
         // aggregation is continued irrespective of the mqtt connection
-        verify(metricsAgent, timeout(milliSeconds).atLeast(1)).aggregatePeriodicMetrics();
+        verify(telemetryAgent, timeout(milliSeconds).atLeast(1)).aggregatePeriodicMetrics();
         //verify that metrics are published atleast once in the periodic interval when the connection resumes
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionResumed(true);
         verify(mockMqttClient, timeout(milliSeconds).atLeast(1)).publish(publishRequestArgumentCaptor.capture());

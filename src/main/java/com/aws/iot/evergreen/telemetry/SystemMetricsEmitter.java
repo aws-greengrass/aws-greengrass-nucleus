@@ -14,61 +14,41 @@ import com.aws.iot.evergreen.telemetry.models.TelemetryUnit;
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
 
-import java.util.HashMap;
-import java.util.Map;
-
 public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
     private static final int MB_CONVERTER = 1024 * 1024;
     private static final int PERCENTAGE_CONVERTER = 100;
     private static final String SYSTEM_METRICS_STORE = TelemetryNamespace.SystemMetrics.toString();
     private static final CentralProcessor cpu = new SystemInfo().getHardware().getProcessor();
     private static final SystemInfo systemInfo = new SystemInfo();
-    private final Map<TelemetryMetricName, Metric> map = new HashMap<>();
     private final MetricFactory mf = new MetricFactory(SYSTEM_METRICS_STORE);
     private long[] previousTicks = new long[CentralProcessor.TickType.values().length];
 
-    /**
-     * Build system metrics.
-     */
     @Override
-    public void buildMetrics() {
-        Metric systemMetric = Metric.builder()
+    public void emitMetrics() {
+        Metric metric = Metric.builder()
                 .namespace(TelemetryNamespace.SystemMetrics)
                 .name(TelemetryMetricName.CpuUsage)
                 .unit(TelemetryUnit.Percent)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        map.put(TelemetryMetricName.CpuUsage, systemMetric);
+        mf.putMetricData(metric,cpu.getSystemCpuLoadBetweenTicks(previousTicks) * PERCENTAGE_CONVERTER);
+        previousTicks = cpu.getSystemCpuLoadTicks();
 
-        systemMetric = Metric.builder()
+        metric = Metric.builder()
                 .namespace(TelemetryNamespace.SystemMetrics)
                 .name(TelemetryMetricName.TotalNumberOfFDs)
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
+        mf.putMetricData(metric,systemInfo.getHardware().getMemory().getVirtualMemory().getVirtualInUse()
+                / MB_CONVERTER);
 
-        map.put(TelemetryMetricName.TotalNumberOfFDs, systemMetric);
-
-        systemMetric = Metric.builder()
+        metric = Metric.builder()
                 .namespace(TelemetryNamespace.SystemMetrics)
                 .name(TelemetryMetricName.SystemMemUsage)
                 .unit(TelemetryUnit.Megabytes)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        map.put(TelemetryMetricName.SystemMemUsage, systemMetric);
+        mf.putMetricData(metric,systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors());
     }
-
-    @Override
-    public void emitMetrics() {
-        Metric m = map.get(TelemetryMetricName.CpuUsage);
-        mf.putMetricData(m,cpu.getSystemCpuLoadBetweenTicks(previousTicks) * PERCENTAGE_CONVERTER);
-        previousTicks = cpu.getSystemCpuLoadTicks();
-
-        m = map.get(TelemetryMetricName.SystemMemUsage);
-        mf.putMetricData(m,systemInfo.getHardware().getMemory().getVirtualMemory().getVirtualInUse() / MB_CONVERTER);
-
-        m = map.get(TelemetryMetricName.TotalNumberOfFDs);
-        mf.putMetricData(m,systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors());
-    }
-
 }

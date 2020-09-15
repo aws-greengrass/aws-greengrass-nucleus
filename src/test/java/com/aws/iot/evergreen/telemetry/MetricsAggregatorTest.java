@@ -75,8 +75,8 @@ public class MetricsAggregatorTest {
         MetricsAggregator ma = new MetricsAggregator();
         long currTimestamp = Instant.now().toEpochMilli();
         ma.aggregateMetrics(lastAgg, currTimestamp);
-        String path = TelemetryConfig.getTelemetryDirectory().toString() + "/AggregateMetrics.log";
-        List<String> list = Files.lines(Paths.get(path)).collect(Collectors.toList());
+        Path path = Paths.get(TelemetryConfig.getTelemetryDirectory().toString()).resolve("AggregateMetrics.log");
+        List<String> list = Files.lines(path).collect(Collectors.toList());
         assertEquals(TelemetryNamespace.values().length, list.size()); // Metrics are aggregated based on the namespace.
         for (String s : list) {
             MetricsAggregator.AggregatedMetric am = mapper.readValue(mapper.readTree(s).get("message").asText(),
@@ -99,7 +99,7 @@ public class MetricsAggregatorTest {
         long currentTimestamp = Instant.now().toEpochMilli();
         // Aggregate values within 1 second interval at this timestamp with 1
         ma.aggregateMetrics(lastAgg, currentTimestamp);
-        list = Files.lines(Paths.get(path)).collect(Collectors.toList());
+        list = Files.lines(path).collect(Collectors.toList());
         assertEquals(8, list.size()); // AggregateMetrics.log is appended with the latest aggregations.
         for (String s : list) {
             EvergreenStructuredLogMessage egLog = mapper.readValue(s, EvergreenStructuredLogMessage.class);
@@ -131,8 +131,8 @@ public class MetricsAggregatorTest {
         MetricsAggregator ma = new MetricsAggregator();
         // Aggregate values within 1 second interval at this timestamp with 1
         ma.aggregateMetrics(lastAgg, Instant.now().toEpochMilli());
-        String path = TelemetryConfig.getTelemetryDirectory().toString() + "/AggregateMetrics.log";
-        List<String> list = Files.lines(Paths.get(path)).collect(Collectors.toList());
+        Path path = Paths.get(TelemetryConfig.getTelemetryDirectory().toString()).resolve("AggregateMetrics.log");
+        List<String> list = Files.lines(path).collect(Collectors.toList());
         assertEquals(TelemetryNamespace.values().length, list.size()); // Metrics are aggregated based on the namespace.
         for (String s : list) {
             MetricsAggregator.AggregatedMetric am = mapper.readValue(mapper.readTree(s).get("message").asText(),

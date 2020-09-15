@@ -15,15 +15,12 @@ import com.aws.iot.evergreen.telemetry.models.TelemetryUnit;
 
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 
 public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
     public static final Logger logger = LogManager.getLogger(KernelMetricsEmitter.class);
     private static final String KERNEL_COMPONENT_METRIC_STORE = TelemetryNamespace.KernelComponents.toString();
-    private static Map<TelemetryMetricName, Metric> map = new HashMap<>();
-    private static Map<TelemetryMetricName, Integer> data = new HashMap<>();
     private final Kernel kernel;
     private final MetricFactory mf = new MetricFactory(KERNEL_COMPONENT_METRIC_STORE);
 
@@ -39,33 +36,11 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
     }
 
     /**
-     * Build kernel component metrics.
-     */
-    @Override
-    public void buildMetrics() {
-        List<TelemetryMetricName> telemetryMetricNames =
-                TelemetryMetricName.getMetricNamesOf(TelemetryNamespace.KernelComponents);
-        for (TelemetryMetricName telemetryMetricName : telemetryMetricNames) {
-            Metric metric = Metric.builder()
-                    .namespace(TelemetryNamespace.KernelComponents)
-                    .name(telemetryMetricName)
-                    .unit(TelemetryUnit.Count)
-                    .aggregation(TelemetryAggregation.Average)
-                    .build();
-            map.put(telemetryMetricName, metric);
-        }
-        for (TelemetryMetricName telemetryMetricName : telemetryMetricNames) {
-            data.put(telemetryMetricName, 0);
-        }
-    }
-
-    /**
      * Emit kernel component state metrics.
      */
     @Override
     public void emitMetrics() {
-        Metric metric;
-        Object value;
+        Map<TelemetryMetricName, Integer> data = new HashMap<>();
         Collection<EvergreenService> evergreenServices = kernel.orderedDependencies();
         for (EvergreenService evergreenService : evergreenServices) {
             /*
@@ -78,16 +53,82 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
             try {
                 TelemetryMetricName telemetryMetricName =
                         TelemetryMetricName.valueOf("NumberOfComponents" + serviceState);
-                data.put(telemetryMetricName, data.get(telemetryMetricName) + 1);
+                data.put(telemetryMetricName, data.getOrDefault(telemetryMetricName,0) + 1);
             } catch (IllegalArgumentException e) {
                 logger.atError().log("Unable to find the metric name.", e);
             }
         }
-        for (HashMap.Entry<TelemetryMetricName, Metric> m : map.entrySet()) {
-            metric = m.getValue();
-            value = data.get(m.getKey());
-            mf.putMetricData(metric, value);
-            data.put(m.getKey(), 0);
-        }
+
+        Metric metric = Metric.builder()
+                .namespace(TelemetryNamespace.KernelComponents)
+                .name(TelemetryMetricName.NumberOfComponentsStarting)
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsStarting));
+
+        metric = Metric.builder()
+                .namespace(TelemetryNamespace.KernelComponents)
+                .name(TelemetryMetricName.NumberOfComponentsInstalled)
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsInstalled));
+
+        metric = Metric.builder()
+                .namespace(TelemetryNamespace.KernelComponents)
+                .name(TelemetryMetricName.NumberOfComponentsStateless)
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsStateless));
+
+        metric = Metric.builder()
+                .namespace(TelemetryNamespace.KernelComponents)
+                .name(TelemetryMetricName.NumberOfComponentsStopping)
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsStopping));
+
+        metric = Metric.builder()
+                .namespace(TelemetryNamespace.KernelComponents)
+                .name(TelemetryMetricName.NumberOfComponentsBroken)
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsBroken));
+
+        metric = Metric.builder()
+                .namespace(TelemetryNamespace.KernelComponents)
+                .name(TelemetryMetricName.NumberOfComponentsRunning)
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsRunning));
+
+        metric = Metric.builder()
+                .namespace(TelemetryNamespace.KernelComponents)
+                .name(TelemetryMetricName.NumberOfComponentsErrored)
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsErrored));
+
+        metric = Metric.builder()
+                .namespace(TelemetryNamespace.KernelComponents)
+                .name(TelemetryMetricName.NumberOfComponentsNew)
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsNew));
+
+        metric = Metric.builder()
+                .namespace(TelemetryNamespace.KernelComponents)
+                .name(TelemetryMetricName.NumberOfComponentsFinished)
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsFinished));
     }
 }

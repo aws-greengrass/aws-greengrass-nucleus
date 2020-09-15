@@ -11,7 +11,7 @@ import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.SubscribeRequest;
-import com.aws.iot.evergreen.telemetry.MetricsAgent;
+import com.aws.iot.evergreen.telemetry.TelemetryAgent;
 import com.aws.iot.evergreen.telemetry.MetricsPayload;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SuppressWarnings("PMD.CloseResource")
 @ExtendWith(EGExtension.class)
 @Tag("E2E")
-public class MetricsAgentTest extends BaseE2ETestCase {
+public class TelemetryAgentTest extends BaseE2ETestCase {
     private static final ObjectMapper DESERIALIZER = new ObjectMapper();
 
     @AfterEach
@@ -80,12 +80,12 @@ public class MetricsAgentTest extends BaseE2ETestCase {
         long pubInterval = 5;
         MetricsPayload mp = null;
         Topics maTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
-                MetricsAgent.METRICS_AGENT_SERVICE_TOPICS);
-        maTopics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, MetricsAgent.getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC())
+                TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS);
+        maTopics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TelemetryAgent.getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC())
                 .withValue(aggInterval);
-        maTopics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, MetricsAgent.getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC())
+        maTopics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TelemetryAgent.getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC())
                 .withValue(pubInterval);
-        String telemetryTopic = MetricsAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC
+        String telemetryTopic = TelemetryAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC
                 .replace("{thingName}", thingInfo.getThingName());
         client.subscribe(SubscribeRequest.builder()
                 .topic(telemetryTopic)
@@ -94,10 +94,10 @@ public class MetricsAgentTest extends BaseE2ETestCase {
                     mqttMessagesList.get().add(m);
                 })
                 .build());
-        cdl.await(30, TimeUnit.SECONDS);
+        assertTrue(cdl.await(30, TimeUnit.SECONDS),"All messages published and received");
 
         // We expect that the Metrics Agent service to be available
-        MetricsAgent ma = (MetricsAgent) kernel.locate("MetricsAgent");
+        TelemetryAgent ma = (TelemetryAgent) kernel.locate("TelemetryAgent");
         assertEquals(ma.getState(), State.RUNNING);
 
         long delay = ma.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
