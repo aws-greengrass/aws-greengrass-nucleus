@@ -13,7 +13,6 @@ import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.SubscribeRequest;
 import com.aws.iot.evergreen.telemetry.MetricsAgent;
 import com.aws.iot.evergreen.telemetry.MetricsPayload;
-import com.aws.iot.evergreen.telemetry.models.TelemetryNamespace;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -117,14 +116,5 @@ public class MetricsAgentTest extends BaseE2ETestCase {
         }
         assertNotNull(mp, " Failed to publish telemetry data in the given interval");
         assertEquals("2020-07-30", mp.getSchema());
-        /*
-         In this test, aggregated metrics logs are emitted once every second.
-         So,for eg, if publishing the metrics starts randomly at the 3rd second, metrics that were aggregated in
-         1,2,3 seconds are published which contains a list of n entries each where n is the no of namespaces(3rd
-         second aggregations are not included if publishing thread starts before aggregation and hence the >=).
-        */
-        System.out.println("delay " + delay);
-        System.out.println("size " + mp.getAggregatedMetricList().size());
-        assertTrue(delay * TelemetryNamespace.values().length >= mp.getAggregatedMetricList().size());
     }
 }

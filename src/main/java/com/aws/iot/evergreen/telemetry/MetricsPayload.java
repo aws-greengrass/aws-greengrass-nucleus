@@ -20,7 +20,8 @@ import java.util.List;
 @AllArgsConstructor
 public class MetricsPayload implements Chunkable<MetricsAggregator.AggregatedMetric> {
     @JsonProperty("Schema")
-    private String schema;
+    @Builder.Default
+    private String schema = "2020-07-30";
     @JsonProperty("ADP")
     private List<MetricsAggregator.AggregatedMetric> aggregatedMetricList;
 

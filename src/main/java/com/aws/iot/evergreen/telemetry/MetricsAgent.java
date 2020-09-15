@@ -50,7 +50,6 @@ public class MetricsAgent extends EvergreenService {
     private static int periodicPublishMetricsIntervalSec = 0;
     private static int periodicAggregateMetricsIntervalSec = 0;
     private final MqttClient mqttClient;
-    private final Topics topics;
     private final MetricsAggregator metricsAggregator = new MetricsAggregator();
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
     private final Object periodicPublishMetricsInProgressLock = new Object();
@@ -91,7 +90,6 @@ public class MetricsAgent extends EvergreenService {
     public MetricsAgent(Topics topics, MqttClient mqttClient, DeviceConfiguration deviceConfiguration, Kernel kernel,
                         ScheduledExecutorService ses) {
         super(topics);
-        this.topics = topics;
         this.mqttClient = mqttClient;
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
@@ -147,8 +145,7 @@ public class MetricsAgent extends EvergreenService {
         if (isReconfiguredOrConnectionResumed) {
             synchronized (periodicPublishMetricsInProgressLock) {
                 Instant lastPeriodicPubTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicPublishTimeTopic()));
-                if (lastPeriodicPubTime.plusSeconds(periodicPublishMetricsIntervalSec)
-                        .isBefore(Instant.now())) {
+                if (lastPeriodicPubTime.plusSeconds(periodicPublishMetricsIntervalSec).isBefore(Instant.now())) {
                     publishPeriodicMetrics();
                 }
             }
@@ -187,8 +184,7 @@ public class MetricsAgent extends EvergreenService {
         getPeriodicPublishTimeTopic().withValue(timestamp);
         // Publish only if the collected metrics are not empty.
         if (!metricsToPublishMap.get(timestamp).isEmpty()) {
-            MetricsPayload aggregatedMetricsChunk = MetricsPayload.builder().schema("2020-07-30").build();
-            publisher.publish(aggregatedMetricsChunk, metricsToPublishMap.get(timestamp));
+            publisher.publish(MetricsPayload.builder().build(), metricsToPublishMap.get(timestamp));
         }
     }
 
@@ -223,7 +219,7 @@ public class MetricsAgent extends EvergreenService {
         for (PeriodicMetricsEmitter emitter : periodicMetricsEmitters) {
             emitter.buildMetrics();
         }
-        topics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
+        config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     periodicAggregateMetricsIntervalSec = Coerce.toInt(newv);
@@ -233,7 +229,7 @@ public class MetricsAgent extends EvergreenService {
                         }
                     }
                 });
-        topics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
+        config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     periodicPublishMetricsIntervalSec = Coerce.toInt(newv);
@@ -243,10 +239,10 @@ public class MetricsAgent extends EvergreenService {
                         }
                     }
                 });
-        topics.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_METRICS_PUBLISH_TOPICS)
+        config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_METRICS_PUBLISH_TOPICS)
                 .dflt(DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC)
                 .subscribe((why, newv) -> telemetryMetricsPublishTopic = Coerce.toString(newv));
-        topics.lookup(DeviceConfiguration.DEVICE_PARAM_THING_NAME)
+        config.lookup(DeviceConfiguration.DEVICE_PARAM_THING_NAME)
                 .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
         schedulePeriodicAggregateMetrics(false);
         schedulePeriodicPublishMetrics(false);
