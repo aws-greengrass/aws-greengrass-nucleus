@@ -12,5 +12,7 @@
   ],
   "Timestamp": 1592574829000,
   "FailureHandlingPolicy": "DO_NOTHING",
-  "DeploymentSafetyPolicy": "SKIP_SAFETY_CHECK"
+  "ComponentUpdatePolicy": {
+    "ComponentUpdatePolicyAction": "SKIP_NOTIFY_COMPONENTS"
+  }
 }

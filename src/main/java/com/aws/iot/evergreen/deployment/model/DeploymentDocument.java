@@ -49,7 +49,7 @@ public class DeploymentDocument {
     @JsonProperty("FailureHandlingPolicy")
     private FailureHandlingPolicy failureHandlingPolicy;
 
-    @JsonProperty("DeploymentSafetyPolicy")
-    private DeploymentSafetyPolicy deploymentSafetyPolicy;
+    @JsonProperty("ComponentUpdatePolicy")
+    private ComponentUpdatePolicy componentUpdatePolicy;
 
 }

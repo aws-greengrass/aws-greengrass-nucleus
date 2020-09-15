@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.integrationtests.deployment;
 
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.config.Configuration;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.WhatHappened;
@@ -12,7 +13,7 @@ import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
-import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
+import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.ipc.IPCClientImpl;
@@ -26,7 +27,6 @@ import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.GenericExternalService;
 import com.aws.iot.evergreen.kernel.GlobalStateChangeListener;
 import com.aws.iot.evergreen.kernel.Kernel;
-import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
@@ -464,9 +464,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
         IPCClientImpl ipcClient = new IPCClientImpl(nonDisruptable);
         Lifecycle lifecycle = new LifecycleImpl(ipcClient);
 
-        UpdateSystemSafelyService updateSystemSafelyService = kernel.getContext().get(UpdateSystemSafelyService.class);
-        updateSystemSafelyService.setDefaultTimeOutInMs(TimeUnit.SECONDS.toMillis(3));
-
         AtomicInteger deferCount = new AtomicInteger(0);
         AtomicInteger preComponentUpdateCount = new AtomicInteger(0);
         CountDownLatch postComponentUpdateRecieved = new CountDownLatch(1);
@@ -620,7 +617,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
     private Deployment testDeployment() {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
-                .deploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY).build();
+                .componentUpdatePolicy(
+                        new ComponentUpdatePolicy(3, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
+                .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
 
@@ -628,14 +627,18 @@ class DeploymentConfigMergingTest extends BaseITCase {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis())
                 .deploymentId("rollback_id")
                 .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK)
-                .deploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY).build();
+                .componentUpdatePolicy(
+                        new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
+                .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
 
     private Deployment testDeploymentWithSkipSafetyCheckConfig() {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
-                .deploymentSafetyPolicy(DeploymentSafetyPolicy.SKIP_SAFETY_CHECK).build();
+                .componentUpdatePolicy(
+                        new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS))
+                .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
 }

@@ -19,5 +19,9 @@
     }
   ],
   "Timestamp": 1592574829000,
-  "FailureHandlingPolicy": "ROLLBACK"
+  "FailureHandlingPolicy": "ROLLBACK",
+  "ComponentUpdatePolicy": {
+    "Timeout": 60,
+    "ComponentUpdatePolicyAction": "NOTIFY_COMPONENTS"
+  }
 }
