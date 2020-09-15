@@ -216,7 +216,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         // Main should be INSTALLED state and CustomerApp should be stopped and removed
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(getCloudDeployedComponent("RedSignal")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("RedSignal")::getState, eventuallyEval(is(State.FINISHED),
+                Duration.ofSeconds(10L)));
         assertThat(getCloudDeployedComponent("YellowSignal")::getState, eventuallyEval(is(State.FINISHED)));
         assertThrows(ServiceLoadException.class, () -> getCloudDeployedComponent("CustomerApp").getState());
         assertThrows(ServiceLoadException.class, () -> getCloudDeployedComponent("Mosquitto").getState());
