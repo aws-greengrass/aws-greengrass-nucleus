@@ -53,7 +53,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
             try {
                 TelemetryMetricName telemetryMetricName =
                         TelemetryMetricName.valueOf("NumberOfComponents" + serviceState);
-                data.put(telemetryMetricName, data.getOrDefault(telemetryMetricName,0) + 1);
+                data.put(telemetryMetricName, data.getOrDefault(telemetryMetricName, 0) + 1);
             } catch (IllegalArgumentException e) {
                 logger.atError().log("Unable to find the metric name.", e);
             }
@@ -65,7 +65,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsStarting));
+        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsStarting, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -73,7 +73,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsInstalled));
+        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsInstalled, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -81,7 +81,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsStateless));
+        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsStateless, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -89,7 +89,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsStopping));
+        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsStopping, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -97,7 +97,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsBroken));
+        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsBroken, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -105,7 +105,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsRunning));
+        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsRunning, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -113,7 +113,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsErrored));
+        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsErrored, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -121,7 +121,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsNew));
+        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsNew, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -129,6 +129,6 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric,data.get(TelemetryMetricName.NumberOfComponentsFinished));
+        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsFinished, 0));
     }
 }

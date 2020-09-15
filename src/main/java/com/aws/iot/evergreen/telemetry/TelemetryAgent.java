@@ -56,6 +56,7 @@ public class TelemetryAgent extends EvergreenService {
     private final Object periodicAggregateMetricsInProgressLock = new Object();
     private final MqttChunkedPayloadPublisher<MetricsAggregator.AggregatedMetric> publisher;
     private final ScheduledExecutorService ses;
+    private final List<PeriodicMetricsEmitter> periodicMetricsEmitters = new ArrayList<>();
     @Getter(AccessLevel.PACKAGE)
     private ScheduledFuture<?> periodicAggregateMetricsFuture = null;
     @Getter //used in e2e
@@ -72,7 +73,6 @@ public class TelemetryAgent extends EvergreenService {
             schedulePeriodicPublishMetrics(true);
         }
     };
-    private final List<PeriodicMetricsEmitter> periodicMetricsEmitters = new ArrayList<>();
     private String updateTopic;
     private String thingName;
     private String telemetryMetricsPublishTopic = DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC;
@@ -88,7 +88,7 @@ public class TelemetryAgent extends EvergreenService {
      */
     @Inject
     public TelemetryAgent(Topics topics, MqttClient mqttClient, DeviceConfiguration deviceConfiguration, Kernel kernel,
-                        ScheduledExecutorService ses) {
+                          ScheduledExecutorService ses) {
         super(topics);
         this.mqttClient = mqttClient;
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
@@ -207,8 +207,8 @@ public class TelemetryAgent extends EvergreenService {
     }
 
     private void cancelJob(ScheduledFuture<?> future, Object lock, boolean immediately) {
-        if (future != null) {
-            synchronized (lock) {
+        synchronized (lock) {
+            if (future != null) {
                 future.cancel(immediately);
             }
         }

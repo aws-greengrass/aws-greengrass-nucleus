@@ -63,15 +63,15 @@ public class MetricsAggregatorTest {
                 TelemetryUnit.Megabytes, TelemetryAggregation.Average);
         Metric m3 = new Metric(TelemetryNamespace.SystemMetrics, TelemetryMetricName.TotalNumberOfFDs,
                 TelemetryUnit.Count, TelemetryAggregation.Maximum);
-        mf.putMetricData(m1,10);
-        mf.putMetricData(m2,2000);
-        mf.putMetricData(m3,4000);
-        mf.putMetricData(m1,20);
-        mf.putMetricData(m2,3000);
-        mf.putMetricData(m3,5000);
-        mf.putMetricData(m1,30);
-        mf.putMetricData(m2,4000);
-        mf.putMetricData(m3,6000);
+        mf.putMetricData(m1, 10);
+        mf.putMetricData(m2, 2000);
+        mf.putMetricData(m3, 4000);
+        mf.putMetricData(m1, 20);
+        mf.putMetricData(m2, 3000);
+        mf.putMetricData(m3, 5000);
+        mf.putMetricData(m1, 30);
+        mf.putMetricData(m2, 4000);
+        mf.putMetricData(m3, 6000);
         MetricsAggregator ma = new MetricsAggregator();
         long currTimestamp = Instant.now().toEpochMilli();
         ma.aggregateMetrics(lastAgg, currTimestamp);
@@ -123,11 +123,11 @@ public class MetricsAggregatorTest {
                 TelemetryUnit.Megabytes, TelemetryAggregation.Average);
 
         // Put null data
-        mf.putMetricData(m1,null);
+        mf.putMetricData(m1, null);
 
         // Put invalid data for average aggregation
-        mf.putMetricData(m2,"banana");
-        mf.putMetricData(m2,2000);
+        mf.putMetricData(m2, "banana");
+        mf.putMetricData(m2, 2000);
         MetricsAggregator ma = new MetricsAggregator();
         // Aggregate values within 1 second interval at this timestamp with 1
         ma.aggregateMetrics(lastAgg, Instant.now().toEpochMilli());

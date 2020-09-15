@@ -81,7 +81,7 @@ public class MetricsAggregator {
                                 metrics.computeIfAbsent(mdp.getName(), k -> new ArrayList<>()).add(mdp);
                             }
                         } catch (IOException e) {
-                            logger.atError().cause(e).log();
+                            logger.atError().cause(e).log("Unable to parse the metric log.");
                         }
                     });
                 }
@@ -90,7 +90,7 @@ public class MetricsAggregator {
                 aggMetrics.setMetrics(doAggregation(metrics));
                 metricFactory.logMetrics(new TelemetryLoggerMessage(aggMetrics));
             } catch (IOException e) {
-                logger.atError().cause(e).log();
+                logger.atError().cause(e).log("Unable to parse the emitted metric log file.");
             }
         }
     }
@@ -186,12 +186,12 @@ public class MetricsAggregator {
                             aggUploadMetrics.computeIfAbsent(currTimestamp, k -> new ArrayList<>()).add(am);
                         }
                     } catch (IOException e) {
-                        logger.atError().cause(e).log();
+                        logger.atError().cause(e).log("Unable to parse the aggregated metric log.");
                     }
                 });
             }
         } catch (IOException e) {
-            logger.atError().cause(e).log();
+            logger.atError().cause(e).log("Unable to parse the aggregated metric log file.");
         }
         aggUploadMetrics.putIfAbsent(currTimestamp, Collections.EMPTY_LIST);
         return aggUploadMetrics;

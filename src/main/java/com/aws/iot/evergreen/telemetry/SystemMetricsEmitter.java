@@ -31,7 +31,7 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Percent)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric,cpu.getSystemCpuLoadBetweenTicks(previousTicks) * PERCENTAGE_CONVERTER);
+        mf.putMetricData(metric, cpu.getSystemCpuLoadBetweenTicks(previousTicks) * PERCENTAGE_CONVERTER);
         previousTicks = cpu.getSystemCpuLoadTicks();
 
         metric = Metric.builder()
@@ -40,7 +40,7 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric,systemInfo.getHardware().getMemory().getVirtualMemory().getVirtualInUse()
+        mf.putMetricData(metric, systemInfo.getHardware().getMemory().getVirtualMemory().getVirtualInUse()
                 / MB_CONVERTER);
 
         metric = Metric.builder()
@@ -49,6 +49,6 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Megabytes)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric,systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors());
+        mf.putMetricData(metric, systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors());
     }
 }
