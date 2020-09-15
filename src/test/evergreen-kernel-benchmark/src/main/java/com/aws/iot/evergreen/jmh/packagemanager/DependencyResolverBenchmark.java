@@ -7,6 +7,8 @@ package com.aws.iot.evergreen.jmh.packagemanager;
 
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.DeploymentService;
+import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
+import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
 import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
@@ -39,6 +41,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
+import static com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicyAction.*;
+
 public class DependencyResolverBenchmark {
 
     @BenchmarkMode(Mode.AverageTime)
@@ -51,7 +55,7 @@ public class DependencyResolverBenchmark {
                 Arrays.asList(
                         new DeploymentPackageConfiguration("boto3", true, "1.9.128", new HashMap<>()),
                         new DeploymentPackageConfiguration("awscli", true, "1.16.144", new HashMap<>())),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, DeploymentSafetyPolicy.CHECK_SAFETY);
+                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
 
         private DependencyResolver resolver;
         private List<PackageIdentifier> result;
