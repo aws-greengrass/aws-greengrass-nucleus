@@ -1,8 +1,5 @@
 package com.aws.iot.evergreen.easysetup;
 
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.deployment.exceptions.DeviceConfigurationException;
@@ -13,7 +10,10 @@ import com.aws.iot.evergreen.util.IotSdkClientFactory;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import software.amazon.awssdk.services.iam.IamClient;
+import software.amazon.awssdk.services.iam.model.AttachRolePolicyRequest;
+import software.amazon.awssdk.services.iam.model.CreatePolicyResponse;
 import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
+import software.amazon.awssdk.services.iam.model.EntityAlreadyExistsException;
 import software.amazon.awssdk.services.iam.model.GetRoleRequest;
 import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
@@ -48,8 +48,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
@@ -69,16 +68,10 @@ public class DeviceProvisioningHelper {
     // TODO : Remove once global components are implemented
     public static final String GCS_ENDPOINT = "https://nztb5z87k6.execute-api.us-east-1.amazonaws.com/Gamma";
 
-    private static final Map<String, String> FIRST_PARTY_COMPONENT_RECIPES = Collections
-            .singletonMap(TOKEN_EXCHANGE_SERVICE_TOPICS, "{\n" + "\t\"TemplateVersion\": \"2020-01-25\",\n"
-                    + "\t\"ComponentName\": \"TokenExchangeService\",\n"
-                    + "\t\"Description\": \"Enable Evergreen devices to interact with AWS services using certs\",\n"
-                    + "\t\"Publisher\": \"Evergreen\",\n\t\"Version\": \"1.0.0\"\n}");
     private final PrintStream outStream;
 
     private IotClient iotClient;
     private IamClient iamClient;
-    private AWSEvergreen cmsClient;
 
     /**
      * Constructor for a desired region.
@@ -89,8 +82,6 @@ public class DeviceProvisioningHelper {
     public DeviceProvisioningHelper(String awsRegion, PrintStream outStream) {
         this.iotClient = IotSdkClientFactory.getIotClient(awsRegion);
         this.iamClient = IamSdkClientFactory.getIamClient();
-        this.cmsClient = AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
-                new AwsClientBuilder.EndpointConfiguration(GCS_ENDPOINT, awsRegion)).build();
         this.outStream = outStream;
     }
 
@@ -100,13 +91,11 @@ public class DeviceProvisioningHelper {
      * @param outStream stream to provide customer feedback
      * @param iotClient iot client
      * @param iamClient iam client
-     * @param cmsClient cms client
      */
-    DeviceProvisioningHelper(PrintStream outStream, IotClient iotClient, IamClient iamClient, AWSEvergreen cmsClient) {
+    DeviceProvisioningHelper(PrintStream outStream, IotClient iotClient, IamClient iamClient) {
         this.outStream = outStream;
         this.iotClient = iotClient;
         this.iamClient = iamClient;
-        this.cmsClient = cmsClient;
     }
 
     /**
@@ -271,7 +260,6 @@ public class DeviceProvisioningHelper {
                                 + "      \"Principal\": {\n        \"Service\": \"credentials.iot.amazonaws.com\"\n"
                                 + "      },\n      \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}").build();
                 roleArn = iamClient.createRole(createRoleRequest).role().arn();
-                //TODO: Attach role policy that is passed in by customer
             }
 
             CreateRoleAliasRequest createRoleAliasRequest =
@@ -297,6 +285,35 @@ public class DeviceProvisioningHelper {
         AttachPolicyRequest attachPolicyRequest =
                 AttachPolicyRequest.builder().policyName(iotRolePolicyName).target(certificateArn).build();
         iotClient.attachPolicy(attachPolicyRequest);
+    }
+
+    /**
+     * Creates IAM policy using specified name and document. Attach the policy to given IAM role name.
+     *
+     * @param roleName           name of target role
+     * @param rolePolicyName     name of policy to create and attach
+     * @param rolePolicyDocument document of policy to create and attach
+     * @return ARN of created policy
+     */
+    public Optional<String> createAndAttachRolePolicy(String roleName, String rolePolicyName,
+                                                      String rolePolicyDocument) {
+        try {
+            String tesRolePolicyArn;
+            CreatePolicyResponse createPolicyResponse = iamClient.createPolicy(
+                    software.amazon.awssdk.services.iam.model.CreatePolicyRequest.builder().policyName(rolePolicyName)
+                            .policyDocument(rolePolicyDocument).build());
+            tesRolePolicyArn = createPolicyResponse.policy().arn();
+            outStream.printf("IAM role policy for TES \"%s\" created%n", rolePolicyName);
+            outStream.println("Attaching IAM role policy for TES to IAM role for TES...");
+            iamClient.attachRolePolicy(
+                    AttachRolePolicyRequest.builder().roleName(roleName).policyArn(tesRolePolicyArn).build());
+            return Optional.of(tesRolePolicyArn);
+        } catch (EntityAlreadyExistsException e) {
+            // TODO get and reuse the policy. non trivial because we can only get IAM policy by ARN
+            outStream.printf("IAM policy named \"%s\" already exists. Please attach it to the IAM role if not "
+                    + "already%n", rolePolicyName);
+            return Optional.empty();
+        }
     }
 
     /**

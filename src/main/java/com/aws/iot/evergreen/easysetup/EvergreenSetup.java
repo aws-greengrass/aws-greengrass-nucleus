@@ -6,10 +6,12 @@ import com.aws.iot.evergreen.kernel.KernelAlternatives;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.util.Coerce;
+import com.aws.iot.evergreen.util.Utils;
 import com.aws.iot.evergreen.util.orchestration.SystemServiceUtilsFactory;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,7 +32,10 @@ public class EvergreenSetup {
             + "\t—tes-role-name, -trn \tName of the IAM role to use for TokenExchangeService for the device to talk"
             + " to AWS services, if the role\n"
             + "\t\t\t\t\t\tdoes not exist then it will be created in your AWS account \n"
-            + "\t--tes-role-alias-name, -r\t\t\t\tName of the RoleAlias to attach to the IAM role for TES in the AWS "
+            + "\t--tes-role-policy-name, -trpn\tName of the IAM policy to create and attach to the TES role\n"
+            + "\t--tes-role-policy-doc, -trpd\tJSON policy document for the IAM policy to create and "
+            + "attach to the TES role\n"
+            + "\t--tes-role-alias-name, -tra\t\t\t\tName of the RoleAlias to attach to the IAM role for TES in the AWS "
             + "IoT cloud,"
             + " if the role alias does not exist \t\t\t\t\t\tthen it will be created in your AWS account\n"
             + "\t--provision, -p \t\t\tY/N Indicate if you want to register the device as an AWS IoT thing\n"
@@ -59,6 +64,12 @@ public class EvergreenSetup {
     private static final String TES_ROLE_NAME_ARG = "--tes-role-name";
     private static final String TES_ROLE_NAME_ARG_SHORT = "-trn";
     private static final String TES_ROLE_NAME_DEFAULT = "MyIotRoleForTes";
+
+    // no defaults. must user input
+    private static final String TES_ROLE_POLICY_NAME_ARG = "--tes-role-policy-name";
+    private static final String TES_ROLE_POLICY_NAME_ARG_SHORT = "-trpn";
+    private static final String TES_ROLE_POLICY_DOC_ARG = "--tes-role-policy-doc";
+    private static final String TES_ROLE_POLICY_DOC_ARG_SHORT = "-trpd";
 
     private static final String TES_ROLE_ALIAS_NAME_ARG = "--tes-role-alias-name";
     private static final String TES_ROLE_ALIAS_NAME_ARG_SHORT = "-tra";
@@ -103,6 +114,8 @@ public class EvergreenSetup {
     private String policyName = POLICY_NAME_DEFAULT;
     private String tesRoleName = TES_ROLE_NAME_DEFAULT;
     private String tesRoleAliasName = TES_ROLE_ALIAS_NAME_DEFAULT;
+    private String tesRolePolicyName;
+    private String tesRolePolicyDoc;
     private String awsRegion = AWS_REGION_DEFAULT;
     private boolean needProvisioning = NEED_PROVISIONING_DEFAULT;
     private boolean setupTes = SETUP_TES_DEFAULT;
@@ -228,6 +241,19 @@ public class EvergreenSetup {
                 case TES_ROLE_NAME_ARG_SHORT:
                     this.tesRoleName = getArg();
                     break;
+                case TES_ROLE_POLICY_NAME_ARG:
+                case TES_ROLE_POLICY_NAME_ARG_SHORT:
+                    this.tesRolePolicyName = getArg();
+                    break;
+                case TES_ROLE_POLICY_DOC_ARG:
+                case TES_ROLE_POLICY_DOC_ARG_SHORT:
+                    try {
+                        this.tesRolePolicyDoc = Utils.loadParamMaybeFile(getArg());
+                    } catch (URISyntaxException | IOException e) {
+                        throw new RuntimeException(
+                                String.format("Error loading TES role policy doc: %s", this.tesRolePolicyDoc), e);
+                    }
+                    break;
                 case TES_ROLE_ALIAS_NAME_ARG:
                 case TES_ROLE_ALIAS_NAME_ARG_SHORT:
                     this.tesRoleAliasName = getArg();
@@ -263,6 +289,12 @@ public class EvergreenSetup {
                     throw rte;
             }
         }
+
+        // validate args
+        if (this.tesRolePolicyName == null ^ this.tesRolePolicyDoc == null) {
+            throw new RuntimeException(String.format("%s and %s must be provided together", TES_ROLE_POLICY_NAME_ARG,
+                    TES_ROLE_POLICY_DOC_ARG));
+        }
     }
 
     @SuppressWarnings("PMD.NullAssignment")
@@ -287,6 +319,9 @@ public class EvergreenSetup {
         if (setupTes) {
             outStream.println("Setting up resources for TokenExchangeService...");
             deviceProvisioningHelper.setupIoTRoleForTes(tesRoleName, tesRoleAliasName, thingInfo.getCertificateArn());
+            if (tesRolePolicyName != null && tesRolePolicyDoc != null) {
+                deviceProvisioningHelper.createAndAttachRolePolicy(tesRoleName, tesRolePolicyName, tesRolePolicyDoc);
+            }
             outStream.println("Configuring kernel with TokenExchangeService role details...");
             deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, tesRoleAliasName);
             outStream.println("Successfully configured TokenExchangeService!");
