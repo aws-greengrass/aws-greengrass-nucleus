@@ -47,13 +47,9 @@ import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.iam.IamClient;
-import software.amazon.awssdk.services.iam.model.AttachRolePolicyRequest;
-import software.amazon.awssdk.services.iam.model.CreatePolicyRequest;
-import software.amazon.awssdk.services.iam.model.CreatePolicyResponse;
 import software.amazon.awssdk.services.iam.model.DeletePolicyRequest;
 import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
 import software.amazon.awssdk.services.iam.model.DetachRolePolicyRequest;
-import software.amazon.awssdk.services.iam.model.EntityAlreadyExistsException;
 import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
@@ -87,6 +83,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -127,7 +124,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static final Logger logger = LogManager.getLogger(BaseE2ETestCase.class);
 
     private static final String testComponentSuffix = "_" + UUID.randomUUID().toString();
-    protected static String tesRolePolicyArn;
+    protected static Optional<String> tesRolePolicyArn;
 
     protected final Set<String> createdIotJobIds = new HashSet<>();
     protected final Set<String> createdThingGroups = new HashSet<>();
@@ -402,27 +399,18 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     protected void setupTesRoleAndAlias() throws InterruptedException, ServiceLoadException {
-        try {
-            deviceProvisioningHelper
-                    .setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
-            deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, TES_ROLE_ALIAS_NAME);
-
-            CreatePolicyResponse createPolicyResponse = iamClient.createPolicy(
-                    CreatePolicyRequest.builder().policyName(TES_ROLE_POLICY_NAME)
-                            .policyDocument(TES_ROLE_POLICY_DOCUMENT)
-                            .description("Defines permissions to access AWS services for E2E test device TES role")
-                            .build());
-            tesRolePolicyArn = createPolicyResponse.policy().arn();
-            iamClient.attachRolePolicy(AttachRolePolicyRequest.builder().roleName(TES_ROLE_NAME)
-                    .policyArn(tesRolePolicyArn).build());
-        } catch (EntityAlreadyExistsException e) {
-            // No-op if resources already exist
+        deviceProvisioningHelper
+                .setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
+        if (tesRolePolicyArn == null || !tesRolePolicyArn.isPresent()) {
+            tesRolePolicyArn = deviceProvisioningHelper
+                    .createAndAttachRolePolicy(TES_ROLE_NAME, TES_ROLE_POLICY_NAME, TES_ROLE_POLICY_DOCUMENT);
         }
+        deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, TES_ROLE_ALIAS_NAME);
 
         // Force context to create TES now to that it subscribes to the role alias changes
         kernel.getContext().get(TokenExchangeService.class);
 
-        while(kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {
+        while (kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {
             logger.atInfo().kv("roleAlias", TES_ROLE_ALIAS_NAME)
                     .log("Waiting 5 seconds for TES to get credentials that work");
             Thread.sleep(5_000);
@@ -432,9 +420,13 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static void cleanUpTesRoleAndAlias() {
         try {
             iotClient.deleteRoleAlias(DeleteRoleAliasRequest.builder().roleAlias(TES_ROLE_ALIAS_NAME).build());
-            iamClient.detachRolePolicy(DetachRolePolicyRequest.builder().roleName(TES_ROLE_NAME).policyArn(tesRolePolicyArn).build());
+
+            if (tesRolePolicyArn.isPresent()) {
+                iamClient.detachRolePolicy(DetachRolePolicyRequest.builder().roleName(TES_ROLE_NAME).policyArn(tesRolePolicyArn.get()).build());
+                iamClient.deletePolicy(DeletePolicyRequest.builder().policyArn(tesRolePolicyArn.get()).build());
+            }
+
             iamClient.deleteRole(DeleteRoleRequest.builder().roleName(TES_ROLE_NAME).build());
-            iamClient.deletePolicy(DeletePolicyRequest.builder().policyArn(tesRolePolicyArn).build());
         } catch (ResourceNotFoundException | NoSuchEntityException e) {
             logger.atInfo().addKeyValue("error-message", e.getMessage()).log("Could not clean up TES resources");
         }
