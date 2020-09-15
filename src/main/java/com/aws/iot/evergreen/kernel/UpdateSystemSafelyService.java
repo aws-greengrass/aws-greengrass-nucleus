@@ -46,7 +46,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
     // String identifies the action, the pair consist of timeout and an action. The timeout
     // represents the value in seconds the kernel will wait for components to respond to
     // an precomponent update event
-    private final Map<String, Pair<Long, Crashable>> pendingActions = new LinkedHashMap<>();
+    private final Map<String, Pair<Integer, Crashable>> pendingActions = new LinkedHashMap<>();
     private final AtomicBoolean runningUpdateActions = new AtomicBoolean(false);
 
     @Inject
@@ -74,7 +74,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
      *               are suppressed.
      * @param pair   Pair of timeout and the action to be performed after the timeout.
      */
-    public synchronized void addUpdateAction(String tag, Pair<Long, Crashable> pair) {
+    public synchronized void addUpdateAction(String tag, Pair<Integer, Crashable> pair) {
         pendingActions.put(tag, pair);
         logger.atInfo().setEventType("register-service-update-action")
                 .addKeyValue("action", tag).log();
@@ -86,7 +86,7 @@ public class UpdateSystemSafelyService extends EvergreenService {
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     protected synchronized void runUpdateActions() {
         runningUpdateActions.set(true);
-        for (Map.Entry<String, Pair<Long, Crashable>> todo : pendingActions.entrySet()) {
+        for (Map.Entry<String, Pair<Integer, Crashable>> todo : pendingActions.entrySet()) {
             try {
                 todo.getValue().getRight().run();
                 logger.atDebug().setEventType("service-update-action").addKeyValue("action", todo.getKey()).log();
@@ -174,9 +174,9 @@ public class UpdateSystemSafelyService extends EvergreenService {
      deployments at the same time and pendingActions will have only one action to run at a time.
      */
     private long getMaxTimeoutInMillis() {
-        Optional<Long> maxTimeoutInSec = pendingActions.values().stream()
+        Optional<Integer> maxTimeoutInSec = pendingActions.values().stream()
                 .map(pair -> pair.getLeft())
-                .max(Long::compareTo);
+                .max(Integer::compareTo);
         return TimeUnit.SECONDS.toMillis(maxTimeoutInSec.get());
     }
 

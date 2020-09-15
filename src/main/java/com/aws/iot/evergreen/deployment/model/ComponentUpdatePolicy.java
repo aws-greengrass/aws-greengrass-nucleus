@@ -24,7 +24,7 @@ import lombok.ToString;
 @ToString
 public class ComponentUpdatePolicy {
     @JsonProperty("Timeout")
-    private long timeout;
+    private Integer timeout;
     @JsonProperty("ComponentUpdatePolicyAction")
     private ComponentUpdatePolicyAction componentUpdatePolicyAction;
 }

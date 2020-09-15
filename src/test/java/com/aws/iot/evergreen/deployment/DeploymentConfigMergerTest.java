@@ -301,7 +301,7 @@ public class DeploymentConfigMergerTest {
 
     @Test
     public void GIVEN_deployment_WHEN_task_cancelled_THEN_update_is_cancelled() throws Throwable {
-        ArgumentCaptor<Pair<Long,Crashable>> cancelledTaskCaptor = ArgumentCaptor.forClass(Pair.class);
+        ArgumentCaptor<Pair<Integer,Crashable>> cancelledTaskCaptor = ArgumentCaptor.forClass(Pair.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
 
@@ -327,7 +327,7 @@ public class DeploymentConfigMergerTest {
 
     @Test
     public void GIVEN_deployment_WHEN_task_not_cancelled_THEN_update_is_continued() throws Throwable {
-        ArgumentCaptor<Pair<Long,Crashable>> taskCaptor = ArgumentCaptor.forClass(Pair.class);
+        ArgumentCaptor<Pair<Integer,Crashable>> taskCaptor = ArgumentCaptor.forClass(Pair.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
         DeploymentActivatorFactory deploymentActivatorFactory = new DeploymentActivatorFactory(kernel);
