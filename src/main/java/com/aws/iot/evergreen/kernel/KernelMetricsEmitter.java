@@ -3,6 +3,7 @@
 
 package com.aws.iot.evergreen.kernel;
 
+import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
 import com.aws.iot.evergreen.telemetry.PeriodicMetricsEmitter;
@@ -40,23 +41,11 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
      */
     @Override
     public void emitMetrics() {
-        Map<TelemetryMetricName, Integer> data = new HashMap<>();
+        Map<State, Integer> data = new HashMap<>();
         Collection<EvergreenService> evergreenServices = kernel.orderedDependencies();
         for (EvergreenService evergreenService : evergreenServices) {
-            /*
-              State of the component returned is all caps("RUNNING") but the corresponding Metric name is of the
-              format "NumberOfComponentsRunning"; So we process the uppercase service state to sentence case
-              and concatenate it with "NumberOfComponents" to form the metric name;
-             */
-            String serviceState = evergreenService.getState().toString();
-            serviceState = serviceState.charAt(0) + serviceState.substring(1).toLowerCase();
-            try {
-                TelemetryMetricName telemetryMetricName =
-                        TelemetryMetricName.valueOf("NumberOfComponents" + serviceState);
-                data.put(telemetryMetricName, data.getOrDefault(telemetryMetricName, 0) + 1);
-            } catch (IllegalArgumentException e) {
-                logger.atError().log("Unable to find the metric name.", e);
-            }
+            State state = evergreenService.getState();
+            data.put(state, data.getOrDefault(state, 0) + 1);
         }
 
         Metric metric = Metric.builder()
@@ -65,7 +54,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsStarting, 0));
+        mf.putMetricData(metric, data.getOrDefault(State.STARTING, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -73,7 +62,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsInstalled, 0));
+        mf.putMetricData(metric, data.getOrDefault(State.INSTALLED, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -81,7 +70,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsStateless, 0));
+        mf.putMetricData(metric, data.getOrDefault(State.STATELESS, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -89,7 +78,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsStopping, 0));
+        mf.putMetricData(metric, data.getOrDefault(State.STOPPING, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -97,7 +86,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsBroken, 0));
+        mf.putMetricData(metric, data.getOrDefault(State.BROKEN, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -105,7 +94,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsRunning, 0));
+        mf.putMetricData(metric, data.getOrDefault(State.RUNNING, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -113,7 +102,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsErrored, 0));
+        mf.putMetricData(metric, data.getOrDefault(State.ERRORED, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -121,7 +110,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsNew, 0));
+        mf.putMetricData(metric, data.getOrDefault(State.NEW, 0));
 
         metric = Metric.builder()
                 .namespace(TelemetryNamespace.KernelComponents)
@@ -129,6 +118,6 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric, data.getOrDefault(TelemetryMetricName.NumberOfComponentsFinished, 0));
+        mf.putMetricData(metric, data.getOrDefault(State.FINISHED, 0));
     }
 }

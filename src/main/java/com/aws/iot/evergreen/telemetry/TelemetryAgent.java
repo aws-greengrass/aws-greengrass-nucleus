@@ -33,14 +33,12 @@ public class TelemetryAgent extends EvergreenService {
     public static final String TELEMETRY_AGENT_SERVICE_TOPICS = "TelemetryAgent";
     public static final String DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC =
             "$aws/things/{thingName}/greengrassv2/health/json";
-    @Getter // Used in e2e
-    private static final String TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC = "periodicAggregateMetricsIntervalSec";
+    public static final String TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC = "periodicAggregateMetricsIntervalSec";
+    public static final String TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicPublishMetricsIntervalSec";
     @Getter(AccessLevel.PACKAGE)
     private static final int DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC = 3_600;
     @Getter(AccessLevel.PACKAGE)
     private static final String TELEMETRY_METRICS_PUBLISH_TOPICS = "telemetryMetricsPublishTopic";
-    @Getter // Used in e2e
-    private static final String TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicPublishMetricsIntervalSec";
     @Getter(AccessLevel.PACKAGE)
     private static final String TELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC = "lastPeriodicPublishMetricsTime";
     @Getter(AccessLevel.PACKAGE)
@@ -56,6 +54,7 @@ public class TelemetryAgent extends EvergreenService {
     private final Object periodicAggregateMetricsInProgressLock = new Object();
     private final MqttChunkedPayloadPublisher<MetricsAggregator.AggregatedMetric> publisher;
     private final ScheduledExecutorService ses;
+    @Getter(AccessLevel.PACKAGE)
     private final List<PeriodicMetricsEmitter> periodicMetricsEmitters = new ArrayList<>();
     @Getter(AccessLevel.PACKAGE)
     private ScheduledFuture<?> periodicAggregateMetricsFuture = null;
@@ -103,6 +102,8 @@ public class TelemetryAgent extends EvergreenService {
 
     /**
      * Schedules the aggregation of metrics based on the configured aggregation interval.
+     *
+     * @param isReconfigured will be true if aggregation interval is reconfigured
      */
     private void schedulePeriodicAggregateMetrics(boolean isReconfigured) {
         for (PeriodicMetricsEmitter emitter : periodicMetricsEmitters) {
@@ -137,7 +138,11 @@ public class TelemetryAgent extends EvergreenService {
 
     /**
      * Schedules the publishing of metrics based on the configured publish interval or the mqtt connection status.
+     *
+     * @param isReconfiguredOrConnectionResumed will be true if the publish interval is reconfigured or when
+     *                                          the mqtt connection is resumed.
      */
+    //TODO : Publish accumulated data point for each namespace.
     private void schedulePeriodicPublishMetrics(boolean isReconfiguredOrConnectionResumed) {
         // If we missed to publish the metrics due to connection loss or if the publish interval is reconfigured,
         // cancel the previously scheduled job.

@@ -151,7 +151,7 @@ public class MetricsAggregatorTest {
     }
 
     @Test
-    public void GIVEN_aggregated_metrics_WHEN_publish_THEN_collect_only_the_lates_values() throws InterruptedException {
+    public void GIVEN_aggregated_metrics_WHEN_publish_THEN_collect_only_the_latest_values() throws InterruptedException {
         //Create a sample file with aggregated metrics so we can test the freshness of the file and logs
         // with respect to the current timestamp
         long lastPublish = Instant.now().toEpochMilli();

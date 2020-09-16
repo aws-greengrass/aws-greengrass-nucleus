@@ -102,35 +102,43 @@ public class MetricsAggregator {
             List<Metric> mdp = metric.getValue();
             TelemetryAggregation telemetryAggregation = mdp.get(0).getAggregation();
             double aggregation = 0;
-            if (telemetryAggregation.equals(TelemetryAggregation.Average)) {
-                aggregation = mdp
-                        .stream()
-                        .filter(Objects::nonNull)
-                        .mapToDouble(a -> Coerce.toDouble(a.getValue()))
-                        .sum();
-                if (!mdp.isEmpty()) {
-                    aggregation = aggregation / mdp.size();
-                }
-            } else if (telemetryAggregation.equals(TelemetryAggregation.Sum)) {
-                aggregation = mdp
-                        .stream()
-                        .filter(Objects::nonNull)
-                        .mapToDouble(a -> Coerce.toDouble(a.getValue()))
-                        .sum();
-            } else if (telemetryAggregation.equals(TelemetryAggregation.Maximum)) {
-                aggregation = mdp
-                        .stream()
-                        .filter(Objects::nonNull)
-                        .mapToDouble(a -> Coerce.toDouble(a.getValue()))
-                        .max()
-                        .getAsDouble();
-            } else if (telemetryAggregation.equals(TelemetryAggregation.Minimum)) {
-                aggregation = mdp
-                        .stream()
-                        .filter(Objects::nonNull)
-                        .mapToDouble(a -> Coerce.toDouble(a.getValue()))
-                        .min()
-                        .getAsDouble();
+            switch (telemetryAggregation) {
+                case Average:
+                    aggregation = mdp
+                            .stream()
+                            .filter(Objects::nonNull)
+                            .mapToDouble(a -> Coerce.toDouble(a.getValue()))
+                            .sum();
+                    if (!mdp.isEmpty()) {
+                        aggregation = aggregation / mdp.size();
+                    }
+                    break;
+                case Sum:
+                    aggregation = mdp
+                            .stream()
+                            .filter(Objects::nonNull)
+                            .mapToDouble(a -> Coerce.toDouble(a.getValue()))
+                            .sum();
+                    break;
+                case Maximum:
+                    aggregation = mdp
+                            .stream()
+                            .filter(Objects::nonNull)
+                            .mapToDouble(a -> Coerce.toDouble(a.getValue()))
+                            .max()
+                            .getAsDouble();
+                    break;
+                case Minimum:
+                    aggregation = mdp
+                            .stream()
+                            .filter(Objects::nonNull)
+                            .mapToDouble(a -> Coerce.toDouble(a.getValue()))
+                            .min()
+                            .getAsDouble();
+                    break;
+                default:
+                    logger.atError().log("Unknown aggregation type: {}", telemetryAggregation);
+                    break;
             }
             AggregatedMetric.Metric m = AggregatedMetric.Metric.builder()
                     .metricName(metricName)
