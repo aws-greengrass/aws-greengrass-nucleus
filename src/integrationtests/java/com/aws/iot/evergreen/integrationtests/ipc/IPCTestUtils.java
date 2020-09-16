@@ -7,8 +7,10 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.util.Coerce;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -38,9 +40,10 @@ public final class IPCTestUtils {
                         .getOnce())).build();
     }
 
-    public static Kernel prepareKernelFromConfigFile(String configFile, String serviceName, Class testClass) throws InterruptedException {
+    public static Kernel prepareKernelFromConfigFile(String configFile, String serviceName, Class testClass) throws InterruptedException, IOException {
         Kernel kernel = new Kernel();
-        kernel.parseArgs("-i", testClass.getResource(configFile).toString());
+        String rootDirectoryPath = Files.createTempDirectory("ipcCliTest").toString();
+        kernel.parseArgs("-i", testClass.getResource(configFile).toString(), "-r", rootDirectoryPath);
 
         // ensure awaitIpcServiceLatch starts
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);

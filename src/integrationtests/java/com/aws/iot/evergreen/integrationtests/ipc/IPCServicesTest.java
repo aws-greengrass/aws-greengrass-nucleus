@@ -75,7 +75,7 @@ class IPCServicesTest {
     private IPCClient client;
 
     @BeforeEach
-    void beforeEach(ExtensionContext context) throws InterruptedException {
+    void beforeEach(ExtensionContext context) throws InterruptedException, IOException {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
