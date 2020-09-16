@@ -6,6 +6,9 @@ package com.aws.iot.evergreen.config;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Coerce;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -37,7 +40,7 @@ public final class ConfigurationReader {
 
             for (l = in.readLine(); l != null; l = in.readLine()) {
                 try {
-                    Tlogline tlogline = Tlogline.fromStringInput(l);
+                    Tlogline tlogline = Coerce.toObject(l, new TypeReference<Tlogline>() {});
                     if (WhatHappened.changed.equals(tlogline.action)) {
                         Topic targetTopic = config.lookup(tlogline.topicPath);
                         if (mergeCondition != null && !mergeCondition.test(targetTopic)) {
@@ -59,7 +62,7 @@ public final class ConfigurationReader {
                         }
                     }
 
-                } catch (Tlogline.InvalidLogException e) {
+                } catch (JsonProcessingException e) {
                     logger.atError().setCause(e).log("Fail to parse log line");
                 }
             }
