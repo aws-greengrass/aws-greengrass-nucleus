@@ -81,9 +81,9 @@ public class TelemetryAgentTest extends BaseE2ETestCase {
         MetricsPayload mp = null;
         Topics telemetryRuntimeTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
                 TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS,RUNTIME_STORE_NAMESPACE_TOPIC);
-        telemetryRuntimeTopics.lookup(TelemetryAgent.getTELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC())
+        telemetryRuntimeTopics.lookup(TelemetryAgent.TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .withValue(aggInterval);
-        telemetryRuntimeTopics.lookup(TelemetryAgent.getTELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC())
+        telemetryRuntimeTopics.lookup(TelemetryAgent.TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .withValue(pubInterval);
         String telemetryTopic = TelemetryAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC
                 .replace("{thingName}", thingInfo.getThingName());
