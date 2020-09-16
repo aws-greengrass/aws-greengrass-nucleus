@@ -5,6 +5,7 @@ package com.aws.iot.evergreen.config;
 
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Commitable;
 import com.aws.iot.evergreen.util.CommitableWriter;
 import com.aws.iot.evergreen.util.Utils;
@@ -119,7 +120,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         }
 
         try {
-            tlogline.outputTo(out);
+            Coerce.appendParseableString(tlogline, out);
         } catch (IOException ex) {
             logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName()).setCause(ex)
                     .log();

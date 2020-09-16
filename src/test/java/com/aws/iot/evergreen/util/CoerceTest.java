@@ -6,6 +6,7 @@ package com.aws.iot.evergreen.util;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -15,18 +16,15 @@ import java.io.IOException;
 import java.util.List;
 
 import static com.aws.iot.evergreen.util.Coerce.appendParseableString;
-import static com.aws.iot.evergreen.util.Coerce.removed;
 import static com.aws.iot.evergreen.util.Coerce.toBoolean;
 import static com.aws.iot.evergreen.util.Coerce.toDouble;
 import static com.aws.iot.evergreen.util.Coerce.toEnum;
 import static com.aws.iot.evergreen.util.Coerce.toInt;
 import static com.aws.iot.evergreen.util.Coerce.toObject;
-import static com.aws.iot.evergreen.util.Coerce.toQuotedString;
 import static com.aws.iot.evergreen.util.Coerce.toStringArray;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -82,19 +80,6 @@ public class CoerceTest {
     }
 
     @Test
-    public void testToQuotedString() {
-        assertEquals("\"xx\"", toQuotedString("xx"));
-        assertEquals("\"x\\nx\"", toQuotedString("x\nx"));
-        assertEquals("\"x\\nx\\u0022\"", toQuotedString("x\nx\""));
-        assertEquals("\"abc\"", toQuotedString(Topic.of(mockContext, "test", "abc")));
-        assertEquals("\"abc\"", toQuotedString(Topic.of(mockContext, "test",
-                Topic.of(mockContext, "nested", "abc"))));
-        assertEquals("\"\"", toQuotedString(null));
-        assertEquals("\"removed\"", toQuotedString(removed));
-        assertEquals("\"x\\r\\tx\"", toQuotedString("x\r\tx"));
-    }
-
-    @Test
     public void testToEnum() {
         assertEquals(en.Green, toEnum(en.class, en.Green));
         assertEquals(en.Green, toEnum(en.class, 1));
@@ -132,15 +117,13 @@ public class CoerceTest {
     }
 
     @Test
-    public void testToObject() {
+    public void testToObject() throws JsonProcessingException {
         assertThat((List<String>) toObject("[]"), is(empty()));
         assertThat((List<String>) toObject("[  ]"), is(empty()));
-        assertThat((List<String>) toObject("[foo, bar, baz]"), containsInAnyOrder("foo", "bar", "baz"));
-        assertThat((List<String>) toObject("[ foo, bar, baz ]"), containsInAnyOrder("foo", "bar", "baz"));
-        assertThat((List<String>) toObject("[foo1, bar_2, baz-3]"), containsInAnyOrder("foo1", "bar_2", "baz-3"));
-        assertThat(toObject("foo, bar, baz]"), is(equalTo("foo, bar, baz]")));
-        assertThat(toObject("[foo, bar, baz"), is(equalTo("[foo, bar, baz")));
-        assertThat(toObject("foo, bar, baz"), is(equalTo("foo, bar, baz")));
+        assertThat((List<String>) toObject("[\"foo\", \"bar\", \"baz\"]"), containsInAnyOrder("foo", "bar", "baz"));
+        assertThat((List<String>) toObject("[ \"foo\", \"bar\", \"baz\" ]"), containsInAnyOrder("foo", "bar", "baz"));
+        assertThat((List<String>) toObject("[\"foo1\", \"bar_2\", \"baz-3\"]"),
+                containsInAnyOrder("foo1", "bar_2", "baz-3"));
         assertNull(toObject("null"));
         assertEquals("", toObject(null));
         assertEquals("", toObject(""));
@@ -153,7 +136,7 @@ public class CoerceTest {
     public void testAppendParseableString() throws IOException {
         StringBuilder sb = new StringBuilder();
         appendParseableString(Topic.of(mockContext, "test", null), sb);
-        assertEquals("null", sb.toString());
+        assertEquals("null\n", sb.toString());
     }
 
     enum en {Red, Green, Blue, Gross}
