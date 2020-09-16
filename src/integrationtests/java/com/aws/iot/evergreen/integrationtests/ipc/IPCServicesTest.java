@@ -81,7 +81,7 @@ class IPCServicesTest {
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
         ignoreExceptionOfType(context, InterruptedException.class);
-        kernel = prepareKernelFromConfigFile("ipc.yaml", TEST_SERVICE_NAME, this.getClass());
+        kernel = prepareKernelFromConfigFile("ipc.yaml", this.getClass(), TEST_SERVICE_NAME);
     }
 
     @AfterEach

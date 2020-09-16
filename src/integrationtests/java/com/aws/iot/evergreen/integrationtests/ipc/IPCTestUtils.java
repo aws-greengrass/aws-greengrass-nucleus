@@ -38,15 +38,19 @@ public final class IPCTestUtils {
                         .getOnce())).build();
     }
 
-    public static Kernel prepareKernelFromConfigFile(String configFile, String serviceName, Class testClass) throws InterruptedException {
+    public static Kernel prepareKernelFromConfigFile(String configFile, Class testClass, String... serviceNames) throws InterruptedException {
         Kernel kernel = new Kernel();
         kernel.parseArgs("-i", testClass.getResource(configFile).toString());
 
         // ensure awaitIpcServiceLatch starts
-        CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);
+        CountDownLatch awaitIpcServiceLatch = new CountDownLatch(serviceNames.length);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals(serviceName) && newState.equals(State.RUNNING)) {
-                awaitIpcServiceLatch.countDown();
+            if (serviceNames != null && serviceNames.length != 0) {
+                for (String serviceName:serviceNames) {
+                    if (service.getName().equals(serviceName) && newState.equals(State.RUNNING)) {
+                        awaitIpcServiceLatch.countDown();
+                    }
+                }
             }
         });
 
