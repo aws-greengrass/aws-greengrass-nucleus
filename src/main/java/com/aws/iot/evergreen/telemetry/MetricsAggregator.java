@@ -76,7 +76,8 @@ public class MetricsAggregator {
                                 Metric mdp = objectMapper.readValue(egLog.getMessage(), Metric.class);
                                 // Avoid the metrics that are emitted at/after the currTimestamp and before the
                                 // aggregation interval
-                                if (mdp != null && currTimestamp > mdp.getTimestamp() && mdp.getTimestamp() >= lastAgg) {
+                                if (mdp != null && currTimestamp > mdp.getTimestamp() && mdp.getTimestamp()
+                                        >= lastAgg) {
                                     metrics.computeIfAbsent(mdp.getName(), k -> new ArrayList<>()).add(mdp);
                                 }
                             } catch (IOException e) {

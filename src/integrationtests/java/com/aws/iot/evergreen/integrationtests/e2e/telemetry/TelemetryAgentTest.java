@@ -19,7 +19,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 
@@ -42,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@SuppressWarnings("PMD.CloseResource")
 @ExtendWith(EGExtension.class)
 @Tag("E2E")
 public class TelemetryAgentTest extends BaseE2ETestCase {
@@ -65,7 +65,6 @@ public class TelemetryAgentTest extends BaseE2ETestCase {
         kernel.launch();
     }
 
-    @Timeout(value = 3, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_kernel_running_WHEN_telemetry_agent_starts_THEN_metrics_are_published_to_Cloud() throws
             InterruptedException, ExecutionException, TimeoutException, ServiceLoadException {
