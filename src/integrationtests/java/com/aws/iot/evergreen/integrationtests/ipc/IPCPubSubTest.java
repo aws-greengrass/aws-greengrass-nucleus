@@ -79,7 +79,7 @@ class IPCPubSubTest {
 
     @Test
     void GIVEN_pubsubclient_WHEN_subscribe_and_publish_is_authorized_THEN_succeeds() throws Exception {
-        kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml", TEST_SERVICE_NAME, this.getClass());
+        kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml", this.getClass(), TEST_SERVICE_NAME);
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
         client = new IPCClientImpl(config);
         PubSub c = new PubSubImpl(client);
@@ -94,8 +94,7 @@ class IPCPubSubTest {
 
     @Test
     void GIVEN_pubsubclient_WHEN_subscribe_authorization_changes_to_authorized_THEN_succeeds() throws Exception {
-        kernel = prepareKernelFromConfigFile("pubsub_unauthorized_subscribe.yaml",
-                TEST_SERVICE_NAME, this.getClass());
+        kernel = prepareKernelFromConfigFile("pubsub_unauthorized_subscribe.yaml", this.getClass(), TEST_SERVICE_NAME);
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
         client = new IPCClientImpl(config);
         PubSub c = new PubSubImpl(client);
@@ -118,8 +117,7 @@ class IPCPubSubTest {
 
     @Test
     void GIVEN_pubsubclient_WHEN_authorized_THEN_ACL_child_removed_THEN_updates() throws Exception {
-        kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml",
-                TEST_SERVICE_NAME, this.getClass());
+        kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml", this.getClass(), TEST_SERVICE_NAME);
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
         client = new IPCClientImpl(config);
         PubSub c = new PubSubImpl(client);
@@ -147,8 +145,7 @@ class IPCPubSubTest {
     @Test
     void GIVEN_pubsubclient_WHEN_authorized_THEN_parameters_child_removed_THEN_updates(ExtensionContext context) throws Exception {
 
-        kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml",
-                TEST_SERVICE_NAME, this.getClass());
+        kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml", this.getClass(), TEST_SERVICE_NAME);
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
         client = new IPCClientImpl(config);
         PubSub c = new PubSubImpl(client);
@@ -174,8 +171,7 @@ class IPCPubSubTest {
 
     @Test
     void GIVEN_pubsubclient_WHEN_service_removed_and_added_THEN_fail_and_succeed() throws Exception {
-        kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml",
-                TEST_SERVICE_NAME, this.getClass());
+        kernel = prepareKernelFromConfigFile("pubsub_authorized.yaml", this.getClass(), TEST_SERVICE_NAME);
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
         client = new IPCClientImpl(config);
         PubSub c = new PubSubImpl(client);
@@ -216,8 +212,7 @@ class IPCPubSubTest {
 
     @Test
     void GIVEN_pubsubclient_WHEN_subscribe_is_not_authorized_THEN_Fail() throws Exception {
-        kernel = prepareKernelFromConfigFile("pubsub_unauthorized_subscribe.yaml",
-                TEST_SERVICE_NAME, this.getClass());
+        kernel = prepareKernelFromConfigFile("pubsub_unauthorized_subscribe.yaml", this.getClass(), TEST_SERVICE_NAME);
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
         client = new IPCClientImpl(config);
         PubSub c = new PubSubImpl(client);
@@ -231,8 +226,7 @@ class IPCPubSubTest {
 
     @Test
     void GIVEN_pubsubclient_WHEN_publish_is_not_authorized_THEN_Fail() throws Exception {
-        kernel = prepareKernelFromConfigFile("pubsub_unauthorized_publish.yaml",
-                TEST_SERVICE_NAME, this.getClass());
+        kernel = prepareKernelFromConfigFile("pubsub_unauthorized_publish.yaml", this.getClass(), TEST_SERVICE_NAME);
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
         client = new IPCClientImpl(config);
         PubSub c = new PubSubImpl(client);
