@@ -136,9 +136,7 @@ public class CLIService extends EvergreenService {
             reportState(State.RUNNING);
         } catch (IOException | UnauthenticatedException e) {
             logger.atError().setEventType("cli-ipc-info-generation-error")
-                    // CloseByInterrupt exception occurs in tests if the threads finish earlier than this method
-                    // fnishes generating the cli ipc info file. This not setting the cause here.
-                    .kv("errorMessage", e.getMessage())
+                    .setCause(e)
                     .log("Failed to create cli_ipc_info file");
         }
     }
@@ -147,20 +145,21 @@ public class CLIService extends EvergreenService {
             justification = "File is created in the same method")
     @SuppressWarnings("PMD.PrematureDeclaration")
     private void generateCliIpcInfo() throws UnauthenticatedException, IOException {
+
+        if (config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME) == null) {
+            logger.atWarn().log("Did not find IPC socket URL in the config. Not creating the cli ipc info file");
+            return;
+        }
+
         String cliAuthToken = authenticationHandler.registerAuthenticationTokenForExternalClient(
                 Coerce.toString(getPrivateConfig().find(SERVICE_UNIQUE_ID_KEY)),
                 GREENGRASS_CLI);
         Map<String, String> ipcInfo = new HashMap<>();
         ipcInfo.put(CLI_AUTH_TOKEN, cliAuthToken);
 
-        if (config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME) == null) {
-            logger.atWarn().log("Did not find IPC socket URL in the config. Not creating the cli ipc info file");
-            return;
-        } else {
-            //TODO: Change the URL as per the new IPC
-            ipcInfo.put(SOCKET_URL, Coerce.toString(
-                    config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME)));
-        }
+        //TODO: Change the URL as per the new IPC
+        ipcInfo.put(SOCKET_URL, Coerce.toString(
+                config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME)));
 
         Path filePath = kernel.getRootPath().resolve(CLI_IPC_INFO_FILENAME);
         Files.write(filePath, OBJECT_MAPPER.writeValueAsString(ipcInfo)

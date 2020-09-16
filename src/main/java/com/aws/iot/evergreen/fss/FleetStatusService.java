@@ -21,7 +21,6 @@ import com.aws.iot.evergreen.packagemanager.KernelConfigResolver;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.MqttChunkedPayloadPublisher;
 import lombok.Getter;
-import lombok.Setter;
 import org.apache.commons.lang3.RandomUtils;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
@@ -67,8 +66,7 @@ public class FleetStatusService extends EvergreenService {
     private final Kernel kernel;
     private final String architecture;
     private final String platform;
-    @Getter @Setter
-    private MqttChunkedPayloadPublisher<ComponentStatusDetails> publisher;
+    private final MqttChunkedPayloadPublisher<ComponentStatusDetails> publisher;
     private final DeploymentStatusKeeper deploymentStatusKeeper;
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
     private final AtomicBoolean isEventTriggeredUpdateInProgress = new AtomicBoolean(false);

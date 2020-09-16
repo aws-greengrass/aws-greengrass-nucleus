@@ -64,7 +64,7 @@ public class AuthenticationHandler implements InjectionActions {
     }
 
     /**
-     * Register an auth token for an external client which is not part of Evergreen. Only authenticate EG service can
+     * Register an auth token for an external client which is not part of Evergreen. Only authenticated EG service can
      * register such a token.
      * @param requestingAuthToken Auth token of the requesting service
      * @param clientIdentifier The identifier to identify the client for which the token is being requested
@@ -82,7 +82,10 @@ public class AuthenticationHandler implements InjectionActions {
                     .log("Invalid requesting auth token for service");
             throw new UnauthenticatedException("Invalid requesting auth token for service");
         }
+        return generateAuthenticationToken(clientIdentifier);
+    }
 
+    private String generateAuthenticationToken(String clientIdentifier) {
         String authenticationToken = Utils.generateRandomString(16).toUpperCase();
         Topics tokenTopics = config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC,
                 AUTHENTICATION_TOKEN_LOOKUP_KEY);
@@ -96,7 +99,7 @@ public class AuthenticationHandler implements InjectionActions {
             tokenTopic.withValue(clientIdentifier);
             return authenticationToken;
         } else {
-            return registerAuthenticationTokenForExternalClient(requestingAuthToken, clientIdentifier);
+            return generateAuthenticationToken(clientIdentifier);
         }
     }
 

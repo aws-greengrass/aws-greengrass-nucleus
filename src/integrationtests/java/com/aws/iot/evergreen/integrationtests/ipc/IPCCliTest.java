@@ -60,7 +60,6 @@ import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS;
-import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.iot.evergreen.ipc.modules.CLIService.CLI_AUTH_TOKEN;
 import static com.aws.iot.evergreen.ipc.modules.CLIService.CLI_IPC_INFO_FILENAME;
@@ -96,15 +95,7 @@ class IPCCliTest {
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
-        kernel = prepareKernelFromConfigFile("ipc.yaml", TEST_SERVICE_NAME, this.getClass());
-        //wait for CLI Service to be up and running
-        CountDownLatch cliServiceLatch = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((s, o, n)->{
-            if (s.getName().equals(CLI_SERVICE) && n == State.RUNNING) {
-                cliServiceLatch.countDown();
-            }
-        });
-        cliServiceLatch.countDown();
+        kernel = prepareKernelFromConfigFile("ipc.yaml", CLI_SERVICE, this.getClass());
     }
 
     @AfterEach
