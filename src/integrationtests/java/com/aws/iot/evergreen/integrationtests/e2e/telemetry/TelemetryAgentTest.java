@@ -1,6 +1,6 @@
 /*
- *  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *   SPDX-License-Identifier: Apache-2.0
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 package com.aws.iot.evergreen.integrationtests.e2e.telemetry;
@@ -11,11 +11,10 @@ import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.SubscribeRequest;
-import com.aws.iot.evergreen.telemetry.TelemetryAgent;
 import com.aws.iot.evergreen.telemetry.MetricsPayload;
+import com.aws.iot.evergreen.telemetry.TelemetryAgent;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -35,6 +34,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.telemetry.TelemetryAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC;
+import static com.aws.iot.evergreen.telemetry.TelemetryAgent.TELEMETRY_METRICS_PUBLISH_TOPICS;
+import static com.aws.iot.evergreen.telemetry.TelemetryAgent.TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC;
+import static com.aws.iot.evergreen.telemetry.TelemetryAgent.TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -80,13 +83,15 @@ public class TelemetryAgentTest extends BaseE2ETestCase {
         long pubInterval = 5;
         MetricsPayload mp = null;
         Topics telemetryRuntimeTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
-                TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS,RUNTIME_STORE_NAMESPACE_TOPIC);
-        telemetryRuntimeTopics.lookup(TelemetryAgent.TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
+                TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS, RUNTIME_STORE_NAMESPACE_TOPIC);
+        telemetryRuntimeTopics.lookup(TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .withValue(aggInterval);
-        telemetryRuntimeTopics.lookup(TelemetryAgent.TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
+        telemetryRuntimeTopics.lookup(TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .withValue(pubInterval);
-        String telemetryTopic = TelemetryAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC
-                .replace("{thingName}", thingInfo.getThingName());
+        // TODO Remove this when $aws topic is allowed in the end to end tests
+        String workingE2ETopic = DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("$aws", "aws");
+        telemetryRuntimeTopics.lookup(TELEMETRY_METRICS_PUBLISH_TOPICS).withValue(workingE2ETopic);
+        String telemetryTopic = workingE2ETopic.replace("{thingName}", thingInfo.getThingName());
         client.subscribe(SubscribeRequest.builder()
                 .topic(telemetryTopic)
                 .callback((m) -> {
@@ -94,7 +99,7 @@ public class TelemetryAgentTest extends BaseE2ETestCase {
                     mqttMessagesList.get().add(m);
                 })
                 .build());
-        assertTrue(cdl.await(30, TimeUnit.SECONDS),"All messages published and received");
+        assertTrue(cdl.await(30, TimeUnit.SECONDS), "All messages published and received");
 
         // We expect that the Metrics Agent service to be available
         TelemetryAgent ma = (TelemetryAgent) kernel.locate("TelemetryAgent");

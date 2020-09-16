@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.iot.evergreen.telemetry;
 
@@ -35,10 +37,9 @@ public class TelemetryAgent extends EvergreenService {
             "$aws/things/{thingName}/greengrass/health/json";
     public static final String TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC = "periodicAggregateMetricsIntervalSec";
     public static final String TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicPublishMetricsIntervalSec";
+    public static final String TELEMETRY_METRICS_PUBLISH_TOPICS = "telemetryMetricsPublishTopic";
     @Getter(AccessLevel.PACKAGE)
     private static final int DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC = 3_600;
-    @Getter(AccessLevel.PACKAGE)
-    private static final String TELEMETRY_METRICS_PUBLISH_TOPICS = "telemetryMetricsPublishTopic";
     @Getter(AccessLevel.PACKAGE)
     private static final String TELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC = "lastPeriodicPublishMetricsTime";
     @Getter(AccessLevel.PACKAGE)
@@ -93,11 +94,11 @@ public class TelemetryAgent extends EvergreenService {
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
         this.ses = ses;
+        this.thingName = Coerce.toString(deviceConfiguration.getThingName());
         periodicMetricsEmitters.add(new SystemMetricsEmitter());
         periodicMetricsEmitters.add(new KernelMetricsEmitter(kernel));
         getPeriodicAggregateTimeTopic();
         getPeriodicPublishTimeTopic();
-        updateThingNameAndPublishTopic(Coerce.toString(deviceConfiguration.getThingName()));
     }
 
     /**
@@ -243,9 +244,14 @@ public class TelemetryAgent extends EvergreenService {
                 });
         getRuntimeConfig().lookup(TELEMETRY_METRICS_PUBLISH_TOPICS)
                 .dflt(DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC)
-                .subscribe((why, newv) -> telemetryMetricsPublishTopic = Coerce.toString(newv));
+                .subscribe((why, newv) -> {
+                    telemetryMetricsPublishTopic = Coerce.toString(newv);
+                    //update topic with the existing thing name
+                    updateThingNameAndPublishTopic(thingName);
+                });
         config.lookup(DeviceConfiguration.DEVICE_PARAM_THING_NAME)
                 .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
+        updateThingNameAndPublishTopic(thingName);
         schedulePeriodicAggregateMetrics(false);
         schedulePeriodicPublishMetrics(false);
         mqttClient.addToCallbackEvents(callbacks);

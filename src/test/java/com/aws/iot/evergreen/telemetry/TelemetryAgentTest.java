@@ -1,5 +1,5 @@
 /*
- * Copyright Amazon.com Inc. or its affiliates.
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -32,11 +32,11 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import static com.aws.iot.evergreen.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.iot.evergreen.kernel.EvergreenService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.telemetry.TelemetryAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC;
+import static com.aws.iot.evergreen.telemetry.TelemetryAgent.TELEMETRY_METRICS_PUBLISH_TOPICS;
 import static com.aws.iot.evergreen.telemetry.TelemetryAgent.TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC;
 import static com.aws.iot.evergreen.telemetry.TelemetryAgent.TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC;
 import static com.aws.iot.evergreen.telemetry.TelemetryAgent.getTELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC;
 import static com.aws.iot.evergreen.telemetry.TelemetryAgent.getTELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC;
-import static com.aws.iot.evergreen.telemetry.TelemetryAgent.getTELEMETRY_METRICS_PUBLISH_TOPICS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -93,10 +93,10 @@ public class TelemetryAgentTest extends EGServiceTestUtil {
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
         when(config.lookup(DEVICE_PARAM_THING_NAME)).thenReturn(thingNameTopic);
         when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
-        Topic telemetryMetricsPublishTopic = Topic.of(context, getTELEMETRY_METRICS_PUBLISH_TOPICS(),
+        Topic telemetryMetricsPublishTopic = Topic.of(context, TELEMETRY_METRICS_PUBLISH_TOPICS,
                 DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC);
         when(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC)
-                .lookup(getTELEMETRY_METRICS_PUBLISH_TOPICS()))
+                .lookup(TELEMETRY_METRICS_PUBLISH_TOPICS))
                 .thenReturn(telemetryMetricsPublishTopic);
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         telemetryAgent = spy(new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, kernel, ses));
