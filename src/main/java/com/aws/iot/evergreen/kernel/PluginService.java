@@ -7,7 +7,6 @@ import com.aws.iot.evergreen.dependency.EZPlugins;
 import java.io.File;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.file.Path;
 import java.util.Map;
 import javax.inject.Inject;
 
