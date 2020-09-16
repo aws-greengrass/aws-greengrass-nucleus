@@ -1,12 +1,13 @@
 package com.aws.iot.evergreen.integrationtests.deployment;
 
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
 import com.aws.iot.evergreen.deployment.exceptions.DynamicConfigurationValidationException;
+import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
-import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
 import com.aws.iot.evergreen.integrationtests.BaseITCase;
 import com.aws.iot.evergreen.ipc.IPCClient;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -41,6 +43,7 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NA
 import static com.aws.iot.evergreen.kernel.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -55,7 +58,8 @@ public class DynamicComponentConfigurationValidationTest extends BaseITCase {
     private DeploymentConfigMerger deploymentConfigMerger;
 
     @BeforeEach
-    void before() throws Exception {
+    void before(ExtensionContext context) throws Exception {
+        ignoreExceptionWithMessage(context, "Connection reset by peer");
         kernel = new Kernel();
         deploymentConfigMerger = new DeploymentConfigMerger(kernel);
         kernel.parseArgs("-i",
@@ -134,11 +138,11 @@ public class DynamicComponentConfigurationValidationTest extends BaseITCase {
         CountDownLatch eventReceivedByClient = new CountDownLatch(1);
         configStore.subscribeToValidateConfiguration((configMap) -> {
             assertThat(configMap, IsMapContaining.hasEntry("ConfigKey1", "ConfigValue2"));
-            eventReceivedByClient.countDown();
             try {
                 configStore.sendConfigurationValidityReport(ConfigurationValidityStatus.VALID, null);
             } catch (ConfigStoreIPCException e) {
             }
+            eventReceivedByClient.countDown();
         });
 
         // Attempt changing the configuration for the running service
@@ -205,7 +209,9 @@ public class DynamicComponentConfigurationValidationTest extends BaseITCase {
     private Deployment createTestDeployment() {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .timestamp(System.currentTimeMillis() + 20).failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
-                .deploymentSafetyPolicy(DeploymentSafetyPolicy.CHECK_SAFETY).build();
+                .componentUpdatePolicy(
+                        new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
+                .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
 }

@@ -10,6 +10,7 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.Crashable;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.deployment.DeploymentConfigMerger;
+import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.FailureHandlingPolicy;
@@ -42,6 +43,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
@@ -419,6 +421,7 @@ public class ServiceDependencyLifecycleTest {
     }
 
     private Deployment createMockDeployment(DeploymentDocument doc) {
+        when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
         Deployment deployment = mock(Deployment.class);
         doReturn(doc).when(deployment).getDeploymentDocumentObj();
         return deployment;

@@ -145,7 +145,7 @@ public class KernelAlternatives {
                 .toURI()).toPath().getParent();
         if (parentDir == null || ! Files.exists(parentDir)
                 || parentDir.getFileName() != null && !KERNEL_LIB_DIR.equals(parentDir.getFileName().toString())) {
-            throw new IOException("Unable to locate the parent directory of Kernel Jar file");
+            throw new IOException("Unable to locate the unpack directory of Kernel Jar file");
         }
         Path unpackDir = parentDir.getParent();
         if (unpackDir == null || ! Files.exists(unpackDir) || !Files.isDirectory(unpackDir.resolve(KERNEL_BIN_DIR))) {

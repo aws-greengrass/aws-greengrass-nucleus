@@ -17,6 +17,8 @@ import com.aws.iot.evergreen.fss.OverallStatus;
 import com.aws.iot.evergreen.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.iot.evergreen.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
+import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
+import com.aws.iot.evergreen.logging.impl.Slf4jLogAdapter;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.SubscribeRequest;
 import com.aws.iot.evergreen.util.Coerce;
@@ -38,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.kernel.KernelVersion.KERNEL_VERSION;
@@ -56,6 +59,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
     private static final ObjectMapper DESERIALIZER = new ObjectMapper();
     private static final String FLEET_STATUS_ARN_SERVICE = "greengrass";
     private static final String FLEET_STATUS_ARN_PARTITION = "aws";
+    private Consumer<EvergreenStructuredLogMessage> logListener;
 
     @AfterEach
     void afterEach() {
@@ -65,6 +69,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
             }
         } finally {
             // Cleanup all IoT thing resources we created
+            Slf4jLogAdapter.removeGlobalListener(logListener);
             cleanup();
         }
     }
@@ -97,6 +102,14 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
                     mqttMessagesList.get().add(m);
                 }).build());
 
+        CountDownLatch fssPublishLatch = new CountDownLatch(2);
+        logListener = eslm -> {
+            if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
+                    && eslm.getMessage().equals("Status update published to FSS")) {
+                fssPublishLatch.countDown();
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(logListener);
         // First Deployment to have some services running in Kernel which can be removed later
         SetConfigurationRequest setRequest1 = new SetConfigurationRequest()
                 .withTargetName(thingGroupName)
@@ -105,7 +118,6 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
                         .withConfiguration("{\"sampleText\":\"FCS integ test\"}"))
                 .addPackagesEntry("SomeService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
-
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
@@ -135,7 +147,7 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
         assertThrows(ServiceLoadException.class, () -> getCloudDeployedComponent("SomeService").getState());
-
+        fssPublishLatch.await(30, TimeUnit.SECONDS);
         assertTrue(cdl.await(1, TimeUnit.MINUTES), "All messages published and received");
         assertEquals(2, mqttMessagesList.get().size());
         String accountId = Coerce.toString(Arn.fromString(thingInfo.getThingArn()).getAccountId());

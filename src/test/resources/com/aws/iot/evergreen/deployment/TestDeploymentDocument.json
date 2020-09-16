@@ -5,5 +5,9 @@
       "rootComponent": true,
       "version": "1.0.0"
     }
+  },
+  "componentUpdatePolicy": {
+    "timeout": 60,
+    "action": "SKIP_NOTIFY_COMPONENTS"
   }
 }

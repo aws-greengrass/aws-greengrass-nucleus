@@ -11,12 +11,15 @@ import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.ipc.services.lifecycle.PostComponentUpdateEvent;
 import com.aws.iot.evergreen.ipc.services.lifecycle.PreComponentUpdateEvent;
+import com.aws.iot.evergreen.util.Pair;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -40,12 +43,17 @@ import javax.inject.Singleton;
 @ImplementsService(name = "SafeSystemUpdate", autostart = true)
 @Singleton
 public class UpdateSystemSafelyService extends EvergreenService {
-    private final Map<String, Crashable> pendingActions = new LinkedHashMap<>();
+    // String identifies the action, the pair consist of timeout and an action. The timeout
+    // represents the value in seconds the kernel will wait for components to respond to
+    // an precomponent update event
+    private final Map<String, Pair<Integer, Crashable>> pendingActions = new LinkedHashMap<>();
     private final AtomicBoolean runningUpdateActions = new AtomicBoolean(false);
-    private long defaultTimeOutInMs = TimeUnit.SECONDS.toMillis(60);
 
     @Inject
     private LifecycleIPCAgent lifecycleIPCAgent;
+
+    @Inject
+    private Clock clock;
 
     /**
      * Constructor for injection.
@@ -64,11 +72,12 @@ public class UpdateSystemSafelyService extends EvergreenService {
      *               the action is installing a new config file, the tag should probably be the
      *               URL of the config.  If a key is duplicated by subsequent actions, they
      *               are suppressed.
-     * @param action The action to be performed.
+     * @param pair   Pair of timeout and the action to be performed after the timeout.
      */
-    public synchronized void addUpdateAction(String tag, Crashable action) {
-        pendingActions.put(tag, action);
-        logger.atInfo().setEventType("register-service-update-action").addKeyValue("action", tag).log();
+    public synchronized void addUpdateAction(String tag, Pair<Integer, Crashable> pair) {
+        pendingActions.put(tag, pair);
+        logger.atInfo().setEventType("register-service-update-action")
+                .addKeyValue("action", tag).log();
         synchronized (pendingActions) {
             pendingActions.notifyAll();
         }
@@ -77,9 +86,9 @@ public class UpdateSystemSafelyService extends EvergreenService {
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     protected synchronized void runUpdateActions() {
         runningUpdateActions.set(true);
-        for (Map.Entry<String, Crashable> todo : pendingActions.entrySet()) {
+        for (Map.Entry<String, Pair<Integer, Crashable>> todo : pendingActions.entrySet()) {
             try {
-                todo.getValue().run();
+                todo.getValue().getRight().run();
                 logger.atDebug().setEventType("service-update-action").addKeyValue("action", todo.getKey()).log();
             } catch (Throwable t) {
                 logger.atError().setEventType("service-update-action-error").addKeyValue("action", todo.getKey())
@@ -104,9 +113,9 @@ public class UpdateSystemSafelyService extends EvergreenService {
     /**
      * Discard a pending action if update actions are not already running.
      *
-     * @param tag tag to identify an update action
-     * @return true if all update actions are pending and requested action could be discarded, false if update actions
-     *         were already in progress so it's not safe to discard the requested action
+     * @param  tag tag to identify an update action
+     * @return true if all update actions are pending and requested action could be discarded,
+     *         false if update actions were already in progress so it's not safe to discard the requested action
      */
     public boolean discardPendingUpdateAction(String tag) {
         if (runningUpdateActions.get()) {
@@ -139,39 +148,10 @@ public class UpdateSystemSafelyService extends EvergreenService {
             List<Future<DeferUpdateRequest>> deferRequestFutures = new ArrayList<>();
             lifecycleIPCAgent.sendPreComponentUpdateEvent(preComponentUpdateEvent, deferRequestFutures);
 
-            // TODO: should really use an injected clock to support simulation-time
-            //      it's a big project and would affect many parts of the system.
-            final long currentTimeMillis = System.currentTimeMillis();
-            long maxTimeToReCheck = currentTimeMillis;
-            while ((System.currentTimeMillis() - currentTimeMillis) < defaultTimeOutInMs
-                    && !deferRequestFutures.isEmpty()) {
-                Iterator<Future<DeferUpdateRequest>> iterator = deferRequestFutures.iterator();
-                while (iterator.hasNext()) {
-                    Future<DeferUpdateRequest> fut = iterator.next();
-                    if (fut.isDone()) {
-                        try {
-                            DeferUpdateRequest deferRequest = fut.get();
-                            long timeToRecheck = currentTimeMillis + deferRequest.getRecheckTimeInMs();
-                            if (timeToRecheck > maxTimeToReCheck) {
-                                maxTimeToReCheck = timeToRecheck;
-                                logger.atInfo().setEventType("service-update-deferred")
-                                        .log("deferred by {} for {} millis with message {}",
-                                                deferRequest.getMessage(), deferRequest.getRecheckTimeInMs(),
-                                                deferRequest.getMessage());
-                            }
-                        } catch (ExecutionException e) {
-                            logger.error("Failed to process component update request", e);
-                        }
-                        iterator.remove();
-                    }
-                }
-                Thread.sleep(TimeUnit.SECONDS.toMillis(1));
-            }
-
-            if (maxTimeToReCheck > currentTimeMillis) {
-                logger.atDebug().setEventType("service-update-pending")
-                        .addKeyValue("waitInMS", maxTimeToReCheck - currentTimeMillis).log();
-                Thread.sleep(maxTimeToReCheck - currentTimeMillis);
+            long timeToReCheck = getTimeToReCheck(getMaxTimeoutInMillis(), deferRequestFutures);
+            if (timeToReCheck > 0) {
+                logger.atDebug().setEventType("service-update-pending").addKeyValue("waitInMS", timeToReCheck).log();
+                Thread.sleep(timeToReCheck);
             } else {
                 lifecycleIPCAgent.discardDeferComponentUpdateFutures();
                 logger.atDebug().setEventType("service-update-scheduled").log();
@@ -189,9 +169,44 @@ public class UpdateSystemSafelyService extends EvergreenService {
         }
     }
 
-    //only for testing
-    public void setDefaultTimeOutInMs(long defaultTimeOutInMs) {
-        this.defaultTimeOutInMs = defaultTimeOutInMs;
+    /*
+     If multiple updates are present, get the max time-out. As of now, kernel does not process multiple
+     deployments at the same time and pendingActions will have only one action to run at a time.
+     */
+    private long getMaxTimeoutInMillis() {
+        Optional<Integer> maxTimeoutInSec = pendingActions.values().stream()
+                .map(pair -> pair.getLeft())
+                .max(Integer::compareTo);
+        return TimeUnit.SECONDS.toMillis(maxTimeoutInSec.get());
     }
 
+    private long getTimeToReCheck(long timeout, List<Future<DeferUpdateRequest>> deferRequestFutures)
+            throws InterruptedException {
+        final long currentTimeMillis = clock.millis();
+        long maxTimeToReCheck = currentTimeMillis;
+        while ((clock.millis() - currentTimeMillis) < timeout && !deferRequestFutures.isEmpty()) {
+            Iterator<Future<DeferUpdateRequest>> iterator = deferRequestFutures.iterator();
+            while (iterator.hasNext()) {
+                Future<DeferUpdateRequest> fut = iterator.next();
+                if (fut.isDone()) {
+                    try {
+                        DeferUpdateRequest deferRequest = fut.get();
+                        long timeToRecheck = currentTimeMillis + deferRequest.getRecheckTimeInMs();
+                        if (timeToRecheck > maxTimeToReCheck) {
+                            maxTimeToReCheck = timeToRecheck;
+                            logger.atInfo().setEventType("service-update-deferred")
+                                    .log("deferred by {} for {} millis with message {}",
+                                            deferRequest.getMessage(), deferRequest.getRecheckTimeInMs(),
+                                            deferRequest.getMessage());
+                        }
+                    } catch (ExecutionException e) {
+                        logger.error("Failed to process component update request", e);
+                    }
+                    iterator.remove();
+                }
+            }
+            Thread.sleep(TimeUnit.SECONDS.toMillis(1));
+        }
+        return maxTimeToReCheck - currentTimeMillis;
+    }
 }
