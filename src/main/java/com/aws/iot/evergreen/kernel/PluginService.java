@@ -4,8 +4,10 @@ import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.EZPlugins;
 
+import java.io.File;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Path;
 import java.util.Map;
 import javax.inject.Inject;
 
@@ -56,7 +58,7 @@ public class PluginService extends EvergreenService {
             // If the plugin is loaded from the plugins/trusted directory, then consider it as if it were builtin
             URL[] urls = ((URLClassLoader) getClass().getClassLoader()).getURLs();
             for (URL u : urls) {
-                if (u.toString().contains(ezPlugins.getTrustedCacheDirectory().toString())) {
+                if (new File(u.getFile()).toString().contains(ezPlugins.getTrustedCacheDirectory().toString())) {
                     return true;
                 }
             }
