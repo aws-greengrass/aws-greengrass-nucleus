@@ -42,7 +42,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SuppressWarnings("PMD.CloseResource")
 @ExtendWith(EGExtension.class)
 @Tag("E2E")
 public class TelemetryAgentTest extends BaseE2ETestCase {

@@ -18,6 +18,7 @@ import com.aws.iot.evergreen.telemetry.models.TelemetryNamespace;
 import com.aws.iot.evergreen.telemetry.models.TelemetryUnit;
 import com.aws.iot.evergreen.util.Coerce;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -33,7 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class MetricsAggregator {
     public static final Logger logger = LogManager.getLogger(MetricsAggregator.class);
@@ -51,49 +52,51 @@ public class MetricsAggregator {
         for (TelemetryNamespace namespace : TelemetryNamespace.values()) {
             AggregatedMetric aggMetrics = new AggregatedMetric();
             HashMap<TelemetryMetricName, List<Metric>> metrics = new HashMap<>();
-            try {
-                List<Path> paths = Files
-                        .walk(TelemetryConfig.getTelemetryDirectory())
-                        .filter(Files::isRegularFile)
-                        .filter((path) -> Coerce.toString(path.getFileName()).startsWith(namespace.toString()))
-                        .collect(Collectors.toList());
-                for (Path path : paths) {
-                    // Read from the Telemetry/namespace*.log file.
-                    // TODO : Read only those files that are modified after the last aggregation.
-                    // file.lastModified() behavior is platform dependent.
-                    Files.lines(path).forEach((log) -> {
-                        try {
-                            /*
-                              {"thread":"pool-3-thread-4","level":"TRACE","eventType":null,
+            // Read from the Telemetry/namespace*.log file.
+            // TODO : Read only those files that are modified after the last aggregation.
+            // file.lastModified() behavior is platform dependent.
+            try (Stream<Path> paths = Files
+                    .walk(TelemetryConfig.getTelemetryDirectory())
+                    .filter(Files::isRegularFile)
+                    .filter((path) -> Coerce.toString(path.getFileName()).startsWith(namespace.toString()))
+            ) {
+                paths.forEach(path -> {
+                    try (Stream<String> logs = Files.lines(path)) {
+                        logs.forEach((log) -> {
+                            try {
+                                /* {"thread":"pool-3-thread-4","level":"TRACE","eventType":null,"message":"{\"NS\":
 
-                              "message":"{\"NS\":\"SystemMetrics\",\"N\":\"TotalNumberOfFDs\",\"U\":\"Count\",
+                                \"SystemMetrics\",\"N\":\"TotalNumberOfFDs\",\"U\":\"Count\",\"A\":\"Average\",\"V\"
 
-                              \"A\":\"Average\",\"V\":4583,\"TS\":1600127641506}","contexts":{},
+                                :4583,\"TS\":1600127641506}","contexts":{},"loggerName":"Metrics-SystemMetrics",
 
-                              "loggerName":"Metrics-SystemMetrics","timestamp":1600127641506,"cause":null}
-                             */
-                            EvergreenStructuredLogMessage egLog = objectMapper.readValue(log,
-                                    EvergreenStructuredLogMessage.class);
-                            Metric mdp = objectMapper.readValue(egLog.getMessage(), Metric.class);
-                            // Avoid the metrics that are emitted at/after the currTimestamp and before the
-                            // aggregation interval
-                            if (mdp != null && currTimestamp > mdp.getTimestamp() && mdp.getTimestamp() >= lastAgg) {
-                                metrics.computeIfAbsent(mdp.getName(), k -> new ArrayList<>()).add(mdp);
+                                "timestamp":1600127641506,"cause":null} */
+                                EvergreenStructuredLogMessage egLog = objectMapper.readValue(log,
+                                        EvergreenStructuredLogMessage.class);
+                                Metric mdp = objectMapper.readValue(egLog.getMessage(), Metric.class);
+                                // Avoid the metrics that are emitted at/after the currTimestamp and before the
+                                // aggregation interval
+                                if (mdp != null && currTimestamp > mdp.getTimestamp() && mdp.getTimestamp() >= lastAgg) {
+                                    metrics.computeIfAbsent(mdp.getName(), k -> new ArrayList<>()).add(mdp);
+                                }
+                            } catch (IOException e) {
+                                logger.atError().cause(e).log("Unable to parse the metric log.");
                             }
-                        } catch (IOException e) {
-                            logger.atError().cause(e).log("Unable to parse the metric log.");
-                        }
-                    });
-                }
-                aggMetrics.setMetricNamespace(namespace);
-                aggMetrics.setTimestamp(currTimestamp);
-                aggMetrics.setMetrics(doAggregation(metrics));
-                metricFactory.logMetrics(new TelemetryLoggerMessage(aggMetrics));
+                        });
+                    } catch (IOException e) {
+                        logger.atError().cause(e).log("Unable to parse the emitted metric log file.");
+                    }
+                });
             } catch (IOException e) {
-                logger.atError().cause(e).log("Unable to parse the emitted metric log file.");
+                logger.atError().cause(e).log("Unable to read metric files from the directory");
             }
+            aggMetrics.setMetricNamespace(namespace);
+            aggMetrics.setTimestamp(currTimestamp);
+            aggMetrics.setMetrics(doAggregation(metrics));
+            metricFactory.logMetrics(new TelemetryLoggerMessage(aggMetrics));
         }
     }
+
 
     private List<AggregatedMetric.Metric> doAggregation(Map<TelemetryMetricName, List<Metric>> metrics) {
         List<AggregatedMetric.Metric> aggMetrics = new ArrayList<>();
@@ -160,46 +163,44 @@ public class MetricsAggregator {
     protected Map<Long, List<MetricsAggregator.AggregatedMetric>> getMetricsToPublish(long lastPublish,
                                                                                       long currTimestamp) {
         Map<Long, List<MetricsAggregator.AggregatedMetric>> aggUploadMetrics = new HashMap<>();
-        try {
-            List<Path> paths = Files
-                    .walk(TelemetryConfig.getTelemetryDirectory())
-                    .filter(Files::isRegularFile)
-                    .filter((path) -> Coerce.toString(path.getFileName()).startsWith(AGGREGATE_METRICS_FILE))
-                    .collect(Collectors.toList());
-            for (Path path : paths) {
-                // Read from the Telemetry/AggregatedMetrics.log file.
-                // TODO : Read only those files that are modified after the last publish.
-                Files.lines(path).forEach((log) -> {
-                    try {
-                        /*
+        // Read from the Telemetry/AggregatedMetrics.log file.
+        // TODO : Read only those files that are modified after the last publish.
+        try (Stream<Path> paths = Files
+                .walk(TelemetryConfig.getTelemetryDirectory())
+                .filter(Files::isRegularFile)
+                .filter((path) -> Coerce.toString(path.getFileName()).startsWith(AGGREGATE_METRICS_FILE))) {
+            paths.forEach(path -> {
+                try (Stream<String> logs = Files.lines(path)) {
+                    logs.forEach(log -> {
+                        try {
+                            /* {"thread":"main","level":"TRACE","eventType":null,
 
-                        {"thread":"main","level":"TRACE","eventType":null,
+                            "message":"{\"TS\":1599617227533,\"NS\":\"SystemMetrics\",\"M\":[{\"N\":\"CpuUsage\",
 
-                        "message":"{\"TS\":1599617227533,\"NS\":\"SystemMetrics\",\"M\":[{\"N\":\"CpuUsage\",
+                            \"V\":60.0,\"U\":\"Percent\"},{\"N\":\"TotalNumberOfFDs\",\"V\":6000.0,\"U\":\"Count\"},
 
-                        \"V\":60.0,\"U\":\"Percent\"},{\"N\":\"TotalNumberOfFDs\",\"V\":6000.0,\"U\":\"Count\"},
+                            {\"N\":\"SystemMemUsage\",\"V\":3000.0,\"U\":\"Megabytes\"}]}","contexts":{},"loggerName":
 
-                        {\"N\":\"SystemMemUsage\",\"V\":3000.0,\"U\":\"Megabytes\"}]}","contexts":{},"loggerName":
-
-                        "Metrics-AggregateMetrics","timestamp":1599617227595,"cause":null}
-
-                         */
-                        EvergreenStructuredLogMessage egLog = objectMapper.readValue(log,
-                                EvergreenStructuredLogMessage.class);
-                        MetricsAggregator.AggregatedMetric am = objectMapper.readValue(egLog.getMessage(),
-                                MetricsAggregator.AggregatedMetric.class);
-                        // Avoid the metrics that are aggregated at/after the currTimestamp and before the
-                        // upload interval
-                        if (am != null && currTimestamp > am.getTimestamp() && am.getTimestamp() >= lastPublish) {
-                            aggUploadMetrics.computeIfAbsent(currTimestamp, k -> new ArrayList<>()).add(am);
+                            "Metrics-AggregateMetrics","timestamp":1599617227595,"cause":null} */
+                            EvergreenStructuredLogMessage egLog = objectMapper.readValue(log,
+                                    EvergreenStructuredLogMessage.class);
+                            MetricsAggregator.AggregatedMetric am = objectMapper.readValue(egLog.getMessage(),
+                                    MetricsAggregator.AggregatedMetric.class);
+                            // Avoid the metrics that are aggregated at/after the currTimestamp and before the
+                            // upload interval
+                            if (am != null && currTimestamp > am.getTimestamp() && am.getTimestamp() >= lastPublish) {
+                                aggUploadMetrics.computeIfAbsent(currTimestamp, k -> new ArrayList<>()).add(am);
+                            }
+                        } catch (JsonProcessingException e) {
+                            logger.atError().cause(e).log("Unable to parse the aggregated metric log.");
                         }
-                    } catch (IOException e) {
-                        logger.atError().cause(e).log("Unable to parse the aggregated metric log.");
-                    }
-                });
-            }
+                    });
+                } catch (IOException e) {
+                    logger.atError().cause(e).log("Unable to parse the aggregated metric log file.");
+                }
+            });
         } catch (IOException e) {
-            logger.atError().cause(e).log("Unable to parse the aggregated metric log file.");
+            logger.atError().cause(e).log("Unable to read the aggregated metric files from the directory");
         }
         aggUploadMetrics.putIfAbsent(currTimestamp, Collections.EMPTY_LIST);
         return aggUploadMetrics;
