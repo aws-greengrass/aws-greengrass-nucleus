@@ -1,15 +1,15 @@
 # Telemetry
 
-Metrics agent(MA) is a service that is responsible for publishing telemetry data from the device to the IoT cloud via an MQTT topic. MA periodically aggregates and publishes various types of metrics related to kernel, system, mqtt and so on based on the telemetric configuration set by the customer.
+Telemetry agent(TA) is a service that is responsible for publishing telemetry data from the device to the IoT cloud via an MQTT topic. TA periodically aggregates and publishes various types of metrics related to kernel, system, mqtt and so on based on the telemetric configuration set by the customer.
 
 ## Workflow
-There are three major steps involved in order for the MA to publish the telemetry data.
+There are three major steps involved in order for the TA to publish the telemetry data.
   - Creating a metric and emitting the data points
   - Aggregating the emitted metrics
   - Publishing the aggregated metrics
 
 ### Creating a metric and emitting the data points
-Typically, metric creation and emission are component/service specific(excluding system metrcis. MA takes care of System metrics).
+Typically, metric creation and emission are component/service specific(excluding system /kernel component state metrics).
 ##### Create a metric
 Each metric has to be specified with its name, namespace it belongs to, aggregation type that we want to perform on it and unit of the metric. It is enough to create a metric just once.
 ```
@@ -110,5 +110,4 @@ Publishing the aggregated metrics is performed based on the interval configured 
 - Read `AggregateMetrics.log` present in the Telemetry directory.
 - Publish only those metrics that are aggregated after the last publish and before the current time. This is essentially list of the above aggregated metrics.
 - There will be mn entries in this list where n is the number of namespaces and m is the number of times the aggregation is performed. Ideally, there will be 24n entries as metrics are aggregated 24 times in a day before the publish.
-
-
+- There is an additional point which is the accumulation of these aggregated points. So, there will be 24n + 1 points at the time of publishing data once a day. 
