@@ -25,6 +25,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -42,6 +43,7 @@ import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICE_LIFECYCLE_NA
 import static com.aws.iot.evergreen.kernel.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -56,7 +58,8 @@ public class DynamicComponentConfigurationValidationTest extends BaseITCase {
     private DeploymentConfigMerger deploymentConfigMerger;
 
     @BeforeEach
-    void before() throws Exception {
+    void before(ExtensionContext context) throws Exception {
+        ignoreExceptionWithMessage(context, "Connection reset by peer");
         kernel = new Kernel();
         deploymentConfigMerger = new DeploymentConfigMerger(kernel);
         kernel.parseArgs("-i",

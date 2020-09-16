@@ -8,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
+import lombok.Getter;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -31,6 +32,7 @@ public class EZPlugins implements Closeable {
     public static final String JAR_FILE_EXTENSION = ".jar";
     private final List<Consumer<FastClasspathScanner>> matchers = new ArrayList<>();
     private Path cacheDirectory;
+    @Getter
     private Path trustedCacheDirectory;
     private Path untrustedCacheDirectory;
     private volatile ClassLoader root = this.getClass().getClassLoader();
