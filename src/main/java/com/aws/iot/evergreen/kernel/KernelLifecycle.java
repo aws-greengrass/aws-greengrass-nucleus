@@ -15,7 +15,6 @@ import com.aws.iot.evergreen.ipc.modules.AuthorizationService;
 import com.aws.iot.evergreen.ipc.modules.ConfigStoreIPCService;
 import com.aws.iot.evergreen.ipc.modules.LifecycleIPCService;
 import com.aws.iot.evergreen.ipc.modules.PubSubIPCService;
-import com.aws.iot.evergreen.ipc.modules.ServiceDiscoveryService;
 import com.aws.iot.evergreen.kernel.exceptions.InputValidationException;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
@@ -62,8 +61,7 @@ public class KernelLifecycle {
     // setter for unit testing
     @Setter(AccessLevel.PACKAGE)
     private List<Class<? extends Startable>> startables = Arrays.asList(IPCService.class, AuthorizationService.class,
-            ConfigStoreIPCService.class, LifecycleIPCService.class, PubSubIPCService.class,
-            ServiceDiscoveryService.class);
+            ConfigStoreIPCService.class, LifecycleIPCService.class, PubSubIPCService.class);
     private ConfigurationWriter tlog;
     private EvergreenService mainService;
     private final AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
@@ -244,6 +242,7 @@ public class KernelLifecycle {
     @SuppressFBWarnings("DM_EXIT")
     public void shutdown(int timeoutSeconds, int exitCode) {
         shutdown(timeoutSeconds);
+        logger.atInfo("system-shutdown").kv("exitCode", exitCode).log();
         System.exit(exitCode);
     }
 

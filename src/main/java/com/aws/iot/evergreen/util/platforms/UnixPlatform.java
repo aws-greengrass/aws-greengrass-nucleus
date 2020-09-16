@@ -40,13 +40,13 @@ public class UnixPlatform extends Platform {
         String[] cmd = {"pkill", "-" + (force ? SIGKILL : SIGINT), "-P", Integer.toString(pp.getPid())};
         Process proc = Runtime.getRuntime().exec(cmd);
         proc.waitFor();
-        if (proc.exitValue() != 1) {
+        if (proc.exitValue() != 0) {
             logger.atWarn()
                     .kv("pid", pp.getPid())
                     .kv("exit-code", proc.exitValue())
                     .kv("stdout", inputStreamToString(proc.getInputStream()))
                     .kv("stderr", inputStreamToString(proc.getErrorStream()))
-                    .log("pkill exited non-one (process not found or other error)");
+                    .log("pkill exited non-zero (process not found or other error)");
         }
 
         // If forcible, then also kill the parent (the shell)

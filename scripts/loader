@@ -49,7 +49,7 @@ elif [ -L "${GG_ROOT}/alts/broken" ] && [ -d "${GG_ROOT}/alts/broken" ]; then
     flip_link ${GG_ROOT}/alts/old ${LAUNCH_DIR}
   fi
 
-  CONFIG_FILE="$GG_ROOT/deployments/ongoing/rollback.tlog"
+  CONFIG_FILE="$GG_ROOT/deployments/ongoing/rollback_snapshot.tlog"
 fi
 
 # Launch Kernel with max 3 retries

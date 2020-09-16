@@ -13,6 +13,7 @@ import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
 import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.deployment.activator.KernelUpdateActivator;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
+import com.aws.iot.evergreen.deployment.model.ComponentUpdatePolicy;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentPackageConfiguration;
@@ -49,13 +50,16 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static com.aws.iot.evergreen.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.iot.evergreen.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.iot.evergreen.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -66,7 +70,7 @@ import static org.mockito.Mockito.verify;
 public class PluginComponentTest extends BaseITCase {
     private static final String componentName = "plugin";
     private Kernel kernel;
-    private PackageIdentifier componentId;
+    private final PackageIdentifier componentId = new PackageIdentifier(componentName, new Semver("1.0.0"));
 
     @BeforeEach
     void beforeEach() {
@@ -90,6 +94,21 @@ public class PluginComponentTest extends BaseITCase {
                 Coerce.toString(eg.getServiceConfig().findLeafChild(VERSION_CONFIG_KEY)));
         kernel.getContext().get(EZPlugins.class)
                 .forName("com.aws.iot.evergreen.integrationtests.kernel.resource.PluginDependency");
+        assertFalse(eg.isBuiltin());
+    }
+
+    @Test
+    void GIVEN_kernel_with_plugin_WHEN_locate_plugin_THEN_plugin_is_loaded_into_JVM_and_is_builtin() throws Exception {
+        Path localStoreContentPath = Paths.get(getClass().getResource("local_store_content").toURI());
+        Path trustedPluginDirectory = tempRootDir.resolve("plugins").resolve("trusted");
+        FileUtils.copyDirectory(localStoreContentPath.toAbsolutePath().resolve("artifacts").resolve(componentName)
+                .resolve(componentId.getVersion().toString()).toFile(), trustedPluginDirectory.toFile());
+
+        kernel.parseArgs().launch();
+
+        EvergreenService eg = kernel.locate(componentName);
+        assertEquals("com.aws.iot.evergreen.integrationtests.kernel.resource.APluginService", eg.getClass().getName());
+        assertTrue(eg.isBuiltin());
     }
 
     @Test
@@ -127,7 +146,8 @@ public class PluginComponentTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_kernel_WHEN_deploy_updated_plugin_THEN_request_kernel_restart(ExtensionContext context) throws Exception {
+    void GIVEN_kernel_WHEN_deploy_updated_plugin_THEN_request_kernel_restart(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         ignoreExceptionOfType(context, IOException.class);
         setupPackageStore();
@@ -138,9 +158,10 @@ public class PluginComponentTest extends BaseITCase {
         kernelSpy.getContext().put(KernelAlternatives.class, kernelAltsSpy);
         // In actual workflow, DeploymentService will setup deployment artifacts directory per deployment before
         // submitting task. Here in test, it's called explicitly because the directory is required by snapshot file.
-        kernelSpy.getContext().get(DeploymentDirectoryManager.class).createNewDeploymentDirectoryIfNotExists(deploymentId);
-        kernelSpy.getContext().put(KernelUpdateActivator.class, new KernelUpdateActivator(kernelSpy,
-                kernelSpy.getContext().get(BootstrapManager.class)));
+        kernelSpy.getContext().get(DeploymentDirectoryManager.class)
+                .createNewDeploymentDirectoryIfNotExists(deploymentId);
+        kernelSpy.getContext().put(KernelUpdateActivator.class,
+                new KernelUpdateActivator(kernelSpy, kernelSpy.getContext().get(BootstrapManager.class)));
 
         // launch kernel
         kernelSpy.launch();
@@ -167,8 +188,8 @@ public class PluginComponentTest extends BaseITCase {
 
         doNothing().when(kernelSpy).shutdown(anyInt(), eq(REQUEST_RESTART));
         // Second deployment to add plugin-1.1.0 to kernel which should enter kernel restart workflow
-        assertThrows(TimeoutException.class, () -> submitSampleJobDocument(getPluginDeploymentDocument(
-                System.currentTimeMillis(), "1.1.0", deploymentId2), kernelSpy)
+        assertThrows(TimeoutException.class, () -> submitSampleJobDocument(
+                getPluginDeploymentDocument(System.currentTimeMillis(), "1.1.0", deploymentId2), kernelSpy)
                 .get(10, TimeUnit.SECONDS));
         verify(kernelSpy).shutdown(eq(30), eq(REQUEST_RESTART));
     }
@@ -178,12 +199,10 @@ public class PluginComponentTest extends BaseITCase {
         Path e2eTestPkgStoreDir = tempRootDir.resolve("eteTestPkgStore");
         FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
         PackageStore e2eTestPackageStore = new PackageStore(e2eTestPkgStoreDir);
-
-        componentId = new PackageIdentifier(componentName, new Semver("1.0.0"));
         Path jarFilePath = e2eTestPackageStore.resolveArtifactDirectoryPath(componentId).resolve("plugin-tests.jar");
         // Copy over the same jar file as the plugin-1.1.0 artifact
-        FileUtils.copyFile(jarFilePath.toFile(), e2eTestPackageStore.resolveArtifactDirectoryPath(
-                new PackageIdentifier(componentName, new Semver("1.1.0")))
+        FileUtils.copyFile(jarFilePath.toFile(), e2eTestPackageStore
+                .resolveArtifactDirectoryPath(new PackageIdentifier(componentName, new Semver("1.1.0")))
                 .resolve(componentName + JAR_FILE_EXTENSION).toFile());
         // Rename artifact for plugin-1.0.0
         Files.move(jarFilePath, e2eTestPackageStore.resolveArtifactDirectoryPath(componentId)
@@ -194,11 +213,13 @@ public class PluginComponentTest extends BaseITCase {
     private DeploymentDocument getPluginDeploymentDocument(Long timestamp, String version, String deploymentId) {
         return DeploymentDocument.builder().timestamp(timestamp).deploymentId(deploymentId)
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).rootPackages(Arrays.asList(componentName))
-                .groupName("ANY").deploymentPackageConfigurationList(Arrays.asList(
-                        new DeploymentPackageConfiguration(componentName, true, version, null))).build();
+                .componentUpdatePolicy(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS)).groupName("ANY")
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(new DeploymentPackageConfiguration(componentName, true, version, null))).build();
     }
 
-    private static Future<DeploymentResult> submitSampleJobDocument(DeploymentDocument sampleJobDocument, Kernel kernel) {
+    private static Future<DeploymentResult> submitSampleJobDocument(DeploymentDocument sampleJobDocument,
+                                                                    Kernel kernel) {
         PackageManager packageManager = kernel.getContext().get(PackageManager.class);
         DependencyResolver dependencyResolver = kernel.getContext().get(DependencyResolver.class);
         KernelConfigResolver kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);

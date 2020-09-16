@@ -40,7 +40,7 @@ public class DeploymentJobHelper {
                         .creationTimestamp(System.currentTimeMillis())
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                         .componentUpdatePolicy(new ComponentUpdatePolicy()
-                                .withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
+                                .withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS).withTimeout(60))
                         .packages(Collections.singletonMap(getTestComponentNameInCloud(targetPkgName),
                                 new PackageInfo(true, "1.0.0", null)))
                         .build()

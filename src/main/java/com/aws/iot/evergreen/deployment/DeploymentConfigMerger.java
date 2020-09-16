@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.deployment;
 
+import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.config.UpdateBehaviorTree;
 import com.aws.iot.evergreen.dependency.State;
@@ -14,13 +15,13 @@ import com.aws.iot.evergreen.deployment.exceptions.ServiceUpdateException;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.deployment.model.DeploymentDocument;
 import com.aws.iot.evergreen.deployment.model.DeploymentResult;
-import com.aws.iot.evergreen.deployment.model.DeploymentSafetyPolicy;
 import com.aws.iot.evergreen.kernel.EvergreenService;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.UpdateSystemSafelyService;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.util.Pair;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -64,10 +65,12 @@ public class DeploymentConfigMerger {
         CompletableFuture<DeploymentResult> totallyCompleteFuture = new CompletableFuture<>();
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
 
-        if (DeploymentSafetyPolicy.CHECK_SAFETY.equals(deploymentDocument.getDeploymentSafetyPolicy())) {
+        if (ComponentUpdatePolicyAction.NOTIFY_COMPONENTS
+                .equals(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction())) {
             kernel.getContext().get(UpdateSystemSafelyService.class)
                     .addUpdateAction(deploymentDocument.getDeploymentId(),
-                            () -> updateActionForDeployment(newConfig, deployment, totallyCompleteFuture));
+                            new Pair<>(deploymentDocument.getComponentUpdatePolicy().getTimeout(),
+                                    () -> updateActionForDeployment(newConfig, deployment, totallyCompleteFuture)));
         } else {
             logger.atInfo().log("Deployment is configured to skip safety check, not waiting for safe time to update");
             updateActionForDeployment(newConfig, deployment, totallyCompleteFuture);

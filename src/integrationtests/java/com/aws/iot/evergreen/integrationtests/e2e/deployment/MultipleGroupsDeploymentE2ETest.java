@@ -125,7 +125,6 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.FAILED));
 
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThat("Incorrect component version running",
                 getCloudDeployedComponent("CustomerApp").getServiceConfig().find(VERSION_CONFIG_KEY).getOnce().toString(),
                 is("0.9.1"));

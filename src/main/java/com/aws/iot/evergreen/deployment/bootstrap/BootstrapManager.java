@@ -226,6 +226,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         try {
             int exitCode = kernel.locate(next.getComponentName()).bootstrap();
             next.setStatus(DONE);
+            next.setExitCode(exitCode);
             return exitCode;
         } catch (InterruptedException | TimeoutException | ServiceLoadException e) {
             throw new ServiceUpdateException(e);
