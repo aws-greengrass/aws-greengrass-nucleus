@@ -138,11 +138,11 @@ public class DynamicComponentConfigurationValidationTest extends BaseITCase {
         CountDownLatch eventReceivedByClient = new CountDownLatch(1);
         configStore.subscribeToValidateConfiguration((configMap) -> {
             assertThat(configMap, IsMapContaining.hasEntry("ConfigKey1", "ConfigValue2"));
-            eventReceivedByClient.countDown();
             try {
                 configStore.sendConfigurationValidityReport(ConfigurationValidityStatus.VALID, null);
             } catch (ConfigStoreIPCException e) {
             }
+            eventReceivedByClient.countDown();
         });
 
         // Attempt changing the configuration for the running service

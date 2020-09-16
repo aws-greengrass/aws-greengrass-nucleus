@@ -1,12 +1,16 @@
 package com.aws.iot.evergreen.ipc.modules;
 
 import com.aws.iot.evergreen.builtin.services.cli.CLIServiceAgent;
+import com.aws.iot.evergreen.config.Topic;
+import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.deployment.DeploymentStatusKeeper;
 import com.aws.iot.evergreen.deployment.model.Deployment;
+import com.aws.iot.evergreen.ipc.AuthenticationHandler;
 import com.aws.iot.evergreen.ipc.ConnectionContext;
 import com.aws.iot.evergreen.ipc.IPCRouter;
 import com.aws.iot.evergreen.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.iot.evergreen.ipc.common.FrameReader;
+import com.aws.iot.evergreen.ipc.exceptions.UnauthenticatedException;
 import com.aws.iot.evergreen.ipc.services.cli.CliClientOpCodes;
 import com.aws.iot.evergreen.ipc.services.cli.exceptions.ComponentNotFoundError;
 import com.aws.iot.evergreen.ipc.services.cli.exceptions.GenericCliIpcServerException;
@@ -34,6 +38,7 @@ import com.aws.iot.evergreen.ipc.services.cli.models.StopComponentRequest;
 import com.aws.iot.evergreen.ipc.services.cli.models.StopComponentResponse;
 import com.aws.iot.evergreen.ipc.services.cli.models.UpdateRecipesAndArtifactsRequest;
 import com.aws.iot.evergreen.ipc.services.common.ApplicationMessage;
+import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,34 +47,52 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static com.aws.iot.evergreen.builtin.services.cli.CLIServiceAgent.LOCAL_DEPLOYMENT_RESOURCE;
+import static com.aws.iot.evergreen.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
+import static com.aws.iot.evergreen.ipc.modules.CLIService.CLI_AUTH_TOKEN;
+import static com.aws.iot.evergreen.ipc.modules.CLIService.CLI_IPC_INFO_FILENAME;
 import static com.aws.iot.evergreen.ipc.modules.CLIService.CLI_SERVICE;
+import static com.aws.iot.evergreen.ipc.modules.CLIService.GREENGRASS_CLI;
+import static com.aws.iot.evergreen.ipc.modules.CLIService.OBJECT_MAPPER;
+import static com.aws.iot.evergreen.ipc.modules.CLIService.SOCKET_URL;
 import static com.aws.iot.evergreen.ipc.services.cli.models.CliGenericResponse.MessageType.APPLICATION_ERROR;
+import static com.aws.iot.evergreen.kernel.EvergreenService.PRIVATE_STORE_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.iot.evergreen.kernel.EvergreenService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, EGExtension.class})
+@SuppressWarnings("PMD.CouplingBetweenObjects")
 public class CLIServiceTest extends EGServiceTestUtil {
 
     private static final String SERVICEA = "ServiceA";
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
     private static final String MOCK_DEPLOYMENT_ID = "MockId";
-
+    private static final String MOCK_AUTH_TOKEN = "CliAuthToken";
+    private static final Object MOCK_SOCKET_URL = "tcp://127.0.0.1:5667";
 
     @Mock
     private CLIServiceAgent agent;
@@ -77,15 +100,29 @@ public class CLIServiceTest extends EGServiceTestUtil {
     private IPCRouter router;
     @Mock
     private DeploymentStatusKeeper deploymentStatusKeeper;
+    @Mock
+    private AuthenticationHandler authenticationHandler;
+    @Mock
+    private Kernel kernel;
+    @TempDir
+    Path kernelRootPath;
 
     private ConnectionContext connectionContext;
     private CLIService cliService;
+    private Topics serviceConfigSpy;
+    private Topics cliConfigSpy;
+    private Topics privateConfigSpy;
 
     @BeforeEach
-    public void setup() {
+    public void setup() throws UnauthenticatedException {
         serviceFullName = CLI_SERVICE;
         initializeMockedConfig();
-        cliService = new CLIService(config, router, agent, deploymentStatusKeeper);
+        serviceConfigSpy = spy(Topics.of(context, SERVICES_NAMESPACE_TOPIC, null));
+        cliConfigSpy = spy(Topics.of(context, CLI_SERVICE, serviceConfigSpy));
+        privateConfigSpy = spy(Topics.of(context, PRIVATE_STORE_NAMESPACE_TOPIC, cliConfigSpy));
+
+        cliService = new CLIService(cliConfigSpy, privateConfigSpy, router, agent, deploymentStatusKeeper,
+                authenticationHandler, kernel);
         cliService.postInject();
         connectionContext = new ConnectionContext(SERVICEA, new InetSocketAddress(1), router);
     }
@@ -98,10 +135,32 @@ public class CLIServiceTest extends EGServiceTestUtil {
     }
 
     @Test
+    public void testStartup() throws Exception {
+        when(authenticationHandler.registerAuthenticationTokenForExternalClient(anyString(), anyString())).thenReturn(
+                MOCK_AUTH_TOKEN);
+        when(kernel.getRootPath()).thenReturn(kernelRootPath);
+        Topic mockSocketUrlTopic = mock(Topic.class);
+        when(mockSocketUrlTopic.getOnce()).thenReturn(MOCK_SOCKET_URL);
+        Topics mockRootTopics = mock(Topics.class);
+        when(mockRootTopics.find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME))
+                .thenReturn(mockSocketUrlTopic);
+        when(cliConfigSpy.getRoot()).thenReturn(mockRootTopics);
+        cliService.startup();
+        verify(authenticationHandler).registerAuthenticationTokenForExternalClient
+                (anyString(), eq(GREENGRASS_CLI));
+        assertTrue(Files.exists(kernelRootPath.resolve(CLI_IPC_INFO_FILENAME)));
+        Map<String, String> ipcInfo =
+                OBJECT_MAPPER.readValue(Files.readAllBytes(kernelRootPath.resolve(CLI_IPC_INFO_FILENAME)),
+                        Map.class);
+        assertEquals(MOCK_SOCKET_URL, ipcInfo.get(SOCKET_URL));
+        assertEquals(MOCK_AUTH_TOKEN, ipcInfo.get(CLI_AUTH_TOKEN));
+    }
+
+    @Test
     public void testDeploymentStatusChanged_calls() {
         Map<String, Object> deploymentDetails = new HashMap<>();
         cliService.deploymentStatusChanged(deploymentDetails);
-        verify(agent).persistLocalDeployment(config, deploymentDetails);
+        verify(agent).persistLocalDeployment(cliConfigSpy, deploymentDetails);
     }
 
     @Test
@@ -371,7 +430,7 @@ public class CLIServiceTest extends EGServiceTestUtil {
                 CreateLocalDeploymentResponse.builder()
                         .deploymentId(MOCK_DEPLOYMENT_ID)
                         .build();
-        when(agent.createLocalDeployment(eq(config), eq(request))).thenReturn(response);
+        when(agent.createLocalDeployment(eq(cliConfigSpy), eq(request))).thenReturn(response);
         FrameReader.Message message =  cliService.handleMessage(new FrameReader.Message(
                 ApplicationMessage.builder().version(1).opCode(CliClientOpCodes.CREATE_LOCAL_DEPLOYMENT.ordinal())
                         .payload(CBOR_MAPPER.writeValueAsBytes(request)).build().toByteArray()), connectionContext)
@@ -387,7 +446,7 @@ public class CLIServiceTest extends EGServiceTestUtil {
         ignoreExceptionOfType(context, RuntimeException.class);
         CreateLocalDeploymentRequest request = CreateLocalDeploymentRequest.builder().build();
 
-        when(agent.createLocalDeployment(eq(config), eq(request))).thenThrow(new RuntimeException("Error"));
+        when(agent.createLocalDeployment(eq(cliConfigSpy), eq(request))).thenThrow(new RuntimeException("Error"));
         FrameReader.Message message =  cliService.handleMessage(new FrameReader.Message(
                 ApplicationMessage.builder().version(1).opCode(CliClientOpCodes.CREATE_LOCAL_DEPLOYMENT.ordinal())
                         .payload(CBOR_MAPPER.writeValueAsBytes(request)).build().toByteArray()), connectionContext)
@@ -407,7 +466,7 @@ public class CLIServiceTest extends EGServiceTestUtil {
                         .deployment(LocalDeployment.builder().deploymentId(MOCK_DEPLOYMENT_ID)
                                 .status(DeploymentStatus.SUCCEEDED).build())
                         .build();
-        when(agent.getLocalDeploymentStatus(config, request)).thenReturn(response);
+        when(agent.getLocalDeploymentStatus(cliConfigSpy, request)).thenReturn(response);
         FrameReader.Message message =  cliService.handleMessage(new FrameReader.Message(
                 ApplicationMessage.builder().version(1).opCode(CliClientOpCodes.GET_LOCAL_DEPLOYMENT_STATUS.ordinal())
                         .payload(CBOR_MAPPER.writeValueAsBytes(request)).build().toByteArray()), connectionContext)
@@ -422,7 +481,7 @@ public class CLIServiceTest extends EGServiceTestUtil {
     public void testGetLocalDeploymentCall_deploymentId_invalid_format() throws Exception {
         GetLocalDeploymentStatusRequest request = GetLocalDeploymentStatusRequest.builder().build();
 
-        when(agent.getLocalDeploymentStatus(config, request))
+        when(agent.getLocalDeploymentStatus(cliConfigSpy, request))
                 .thenThrow(new InvalidArgumentsError("DeploymentId is not UUID"));
         FrameReader.Message message =  cliService.handleMessage(new FrameReader.Message(
                 ApplicationMessage.builder().version(1).opCode(CliClientOpCodes.GET_LOCAL_DEPLOYMENT_STATUS.ordinal())
@@ -440,7 +499,7 @@ public class CLIServiceTest extends EGServiceTestUtil {
         GetLocalDeploymentStatusRequest request = GetLocalDeploymentStatusRequest.builder().build();
         ResourceNotFoundError error = new ResourceNotFoundError("Deployment not found",
                 LOCAL_DEPLOYMENT_RESOURCE, MOCK_DEPLOYMENT_ID);
-        when(agent.getLocalDeploymentStatus(config, request))
+        when(agent.getLocalDeploymentStatus(cliConfigSpy, request))
                 .thenThrow(error);
         FrameReader.Message message =  cliService.handleMessage(new FrameReader.Message(
                 ApplicationMessage.builder().version(1).opCode(CliClientOpCodes.GET_LOCAL_DEPLOYMENT_STATUS.ordinal())
@@ -458,7 +517,7 @@ public class CLIServiceTest extends EGServiceTestUtil {
         ignoreExceptionOfType(context, RuntimeException.class);
         GetLocalDeploymentStatusRequest request = GetLocalDeploymentStatusRequest.builder().build();
 
-        when(agent.getLocalDeploymentStatus(config, request)).thenThrow(new RuntimeException("Error"));
+        when(agent.getLocalDeploymentStatus(cliConfigSpy, request)).thenThrow(new RuntimeException("Error"));
         FrameReader.Message message =  cliService.handleMessage(new FrameReader.Message(
                 ApplicationMessage.builder().version(1).opCode(CliClientOpCodes.GET_LOCAL_DEPLOYMENT_STATUS.ordinal())
                         .payload(CBOR_MAPPER.writeValueAsBytes(request)).build().toByteArray()), connectionContext)
@@ -478,7 +537,7 @@ public class CLIServiceTest extends EGServiceTestUtil {
                 ListLocalDeploymentResponse.builder()
                         .localDeployments(listOflocalDeployments)
                         .build();
-        when(agent.listLocalDeployments(config)).thenReturn(response);
+        when(agent.listLocalDeployments(cliConfigSpy)).thenReturn(response);
         FrameReader.Message message =  cliService.handleMessage(new FrameReader.Message(
                 ApplicationMessage.builder().version(1).opCode(CliClientOpCodes.LIST_LOCAL_DEPLOYMENTS.ordinal())
                         .payload(CBOR_MAPPER.writeValueAsBytes(request)).build().toByteArray()), connectionContext)
@@ -493,7 +552,7 @@ public class CLIServiceTest extends EGServiceTestUtil {
     public void testListLocalDeploymentCall_runtime_exception(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, RuntimeException.class);
         GetComponentDetailsRequest request = GetComponentDetailsRequest.builder().build();
-        when(agent.listLocalDeployments(config)).thenThrow(new RuntimeException("Error"));
+        when(agent.listLocalDeployments(cliConfigSpy)).thenThrow(new RuntimeException("Error"));
         FrameReader.Message message =  cliService.handleMessage(new FrameReader.Message(
                 ApplicationMessage.builder().version(1).opCode(CliClientOpCodes.LIST_LOCAL_DEPLOYMENTS.ordinal())
                         .payload(CBOR_MAPPER.writeValueAsBytes(request)).build().toByteArray()), connectionContext)

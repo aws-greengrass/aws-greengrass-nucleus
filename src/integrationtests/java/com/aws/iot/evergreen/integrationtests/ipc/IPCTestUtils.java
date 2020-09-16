@@ -53,6 +53,6 @@ public final class IPCTestUtils {
         kernel.launch();
         assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
         return kernel;
-
     }
+
 }
