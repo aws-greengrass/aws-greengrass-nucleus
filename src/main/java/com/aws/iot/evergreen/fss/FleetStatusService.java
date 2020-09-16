@@ -354,6 +354,7 @@ public class FleetStatusService extends EvergreenService {
                 .sequenceNumber(sequenceNumber)
                 .build();
         publisher.publish(fleetStatusDetails, components);
+        logger.atInfo().event("fss-status-update-published").log("Status update published to FSS");
     }
 
     private Topic getSequenceNumberTopic() {
@@ -409,4 +410,5 @@ public class FleetStatusService extends EvergreenService {
     void clearEvergreenServiceSet() {
         updatedEvergreenServiceSet.clear();
     }
+
 }

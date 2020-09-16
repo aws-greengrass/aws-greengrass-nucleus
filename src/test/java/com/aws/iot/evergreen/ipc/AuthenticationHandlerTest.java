@@ -38,6 +38,7 @@ import java.util.concurrent.ExecutorService;
 import static com.aws.iot.evergreen.ipc.AuthenticationHandler.AUTHENTICATION_API_VERSION;
 import static com.aws.iot.evergreen.ipc.AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY;
 import static com.aws.iot.evergreen.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.iot.evergreen.ipc.modules.CLIService.CLI_SERVICE;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreException;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -117,6 +118,58 @@ class AuthenticationHandlerTest {
 
         assertNotNull(authContext);
         assertEquals(SERVICE_NAME, authContext.getServiceName());
+    }
+
+    @Test
+    public void GIVEN_cli_service_WHEN_register_auth_token_for_external_client_THEN_client_can_be_authenticated_with_token() throws Exception {
+        context = new Context();
+        Configuration config = new Configuration(context);
+        config.context.put(ExecutorService.class, mock(ExecutorService.class));
+
+        EvergreenService testCliService = new EvergreenService(
+                config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, CLI_SERVICE));
+        AuthenticationHandler.registerAuthenticationToken(testCliService);
+        Object authToken = testCliService.getPrivateConfig().find(SERVICE_UNIQUE_ID_KEY).getOnce();
+
+        assertNotNull(authToken);
+        assertEquals(CLI_SERVICE, config.find(EvergreenService.SERVICES_NAMESPACE_TOPIC, AUTHENTICATION_TOKEN_LOOKUP_KEY, (String) authToken)
+                .getOnce());
+
+        AuthenticationHandler authenticationHandler = new AuthenticationHandler(config, mock(IPCRouter.class));
+        String externalAuthToken =
+                authenticationHandler.registerAuthenticationTokenForExternalClient(authToken.toString(),
+                "externalClient");
+        AuthenticationRequest authRequest = new AuthenticationRequest((String) externalAuthToken);
+        ApplicationMessage applicationMessage =
+                ApplicationMessage.builder().payload(IPCUtil.encode(authRequest)).version(AUTHENTICATION_API_VERSION).build();
+
+        ConnectionContext authContext =
+                authenticationHandler.doAuthentication(new FrameReader.Message(applicationMessage.toByteArray()), mock(SocketAddress.class));
+
+        assertNotNull(authContext);
+        assertEquals("externalClient", authContext.getServiceName());
+    }
+
+    @Test
+    public void GIVEN_non_cli_service_WHEN_register_auth_token_for_external_client_THEN_UnauthenticatedException() throws Exception {
+        context = new Context();
+        Configuration config = new Configuration(context);
+        config.context.put(ExecutorService.class, mock(ExecutorService.class));
+
+        EvergreenService testService = new EvergreenService(
+                config.lookupTopics(EvergreenService.SERVICES_NAMESPACE_TOPIC, SERVICE_NAME));
+        AuthenticationHandler.registerAuthenticationToken(testService);
+        Object authToken = testService.getPrivateConfig().find(SERVICE_UNIQUE_ID_KEY).getOnce();
+
+        assertNotNull(authToken);
+        assertEquals(SERVICE_NAME, config.find(EvergreenService.SERVICES_NAMESPACE_TOPIC, AUTHENTICATION_TOKEN_LOOKUP_KEY,
+                (String) authToken)
+                .getOnce());
+
+        AuthenticationHandler authenticationHandler = new AuthenticationHandler(config, mock(IPCRouter.class));
+        assertThrows(UnauthenticatedException.class,
+                ()->{authenticationHandler.registerAuthenticationTokenForExternalClient(authToken.toString(),
+                        "externalClient");});
     }
 
     @Test
