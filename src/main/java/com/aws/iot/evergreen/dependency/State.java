@@ -117,6 +117,6 @@ public enum State {
     }
 
     public boolean isClosable() {
-        return this.equals(ERRORED) || this.equals(BROKEN) || this.equals(FINISHED);
+        return this.equals(ERRORED) || this.equals(BROKEN) || this.equals(FINISHED) || this.equals(NEW);
     }
 }
