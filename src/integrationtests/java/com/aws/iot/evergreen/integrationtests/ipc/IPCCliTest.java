@@ -18,6 +18,8 @@ import com.aws.iot.evergreen.ipc.services.cli.models.CreateLocalDeploymentRespon
 import com.aws.iot.evergreen.ipc.services.cli.models.DeploymentStatus;
 import com.aws.iot.evergreen.ipc.services.cli.models.GetComponentDetailsRequest;
 import com.aws.iot.evergreen.ipc.services.cli.models.GetComponentDetailsResponse;
+import com.aws.iot.evergreen.ipc.services.cli.models.GetLocalDeploymentStatusRequest;
+import com.aws.iot.evergreen.ipc.services.cli.models.GetLocalDeploymentStatusResponse;
 import com.aws.iot.evergreen.ipc.services.cli.models.ListComponentsResponse;
 import com.aws.iot.evergreen.ipc.services.cli.models.ListLocalDeploymentResponse;
 import com.aws.iot.evergreen.ipc.services.cli.models.RequestStatus;
@@ -48,6 +50,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -60,6 +63,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS;
+import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.iot.evergreen.ipc.modules.CLIService.CLI_AUTH_TOKEN;
 import static com.aws.iot.evergreen.ipc.modules.CLIService.CLI_IPC_INFO_FILENAME;
@@ -77,6 +81,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(EGExtension.class)
 class IPCCliTest {
@@ -95,7 +100,7 @@ class IPCCliTest {
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
-        kernel = prepareKernelFromConfigFile("ipc.yaml", CLI_SERVICE, this.getClass());
+        kernel = prepareKernelFromConfigFile("ipc.yaml", this.getClass(), CLI_SERVICE, TEST_SERVICE_NAME);
     }
 
     @AfterEach
@@ -158,7 +163,7 @@ class IPCCliTest {
         List<String> components =
                 response.getComponents().stream().map(cd->cd.getComponentName()).collect(Collectors.toList());
         assertTrue(components.contains("mqtt"));
-        assertTrue(components.contains("ServiceName"));
+        assertTrue(components.contains(TEST_SERVICE_NAME));
         assertFalse(components.contains("main"));
     }
 
@@ -169,11 +174,11 @@ class IPCCliTest {
         Cli cli = new CliImpl(client);
 
         GetComponentDetailsResponse response = cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName(
-                "ServiceName").build());
+                TEST_SERVICE_NAME).build());
         assertEquals(RUNNING, response.getComponentDetails().getState());
-        CountDownLatch serviceLatch = waitForServiceToComeInState("ServiceName", State.STARTING);
+        CountDownLatch serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.STARTING);
         RestartComponentResponse restartComponentResponse =
-                cli.restartComponent(RestartComponentRequest.builder().componentName("ServiceName").build());
+                cli.restartComponent(RestartComponentRequest.builder().componentName(TEST_SERVICE_NAME).build());
         assertEquals(RequestStatus.SUCCEEDED, restartComponentResponse.getRequestStatus());
         assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_MINUTES, TimeUnit.MINUTES));
     }
@@ -184,17 +189,17 @@ class IPCCliTest {
         client = new IPCClientImpl(config);
         Cli cli = new CliImpl(client);
         GetComponentDetailsResponse response = cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName(
-                "ServiceName").build());
+                TEST_SERVICE_NAME).build());
         assertEquals(RUNNING, response.getComponentDetails().getState());
 
-        CountDownLatch stoppingLatch = waitForServiceToComeInState("ServiceName", State.STOPPING);
+        CountDownLatch stoppingLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.STOPPING);
         StopComponentResponse stopComponentResponse =
-                cli.stopComponent(StopComponentRequest.builder().componentName("ServiceName").build());
+                cli.stopComponent(StopComponentRequest.builder().componentName(TEST_SERVICE_NAME).build());
         assertEquals(RequestStatus.SUCCEEDED, stopComponentResponse.getRequestStatus());
         assertTrue(stoppingLatch.await(SERVICE_STATE_CHECK_TIMEOUT_MINUTES, TimeUnit.MINUTES));
         // To verify get component details for the service in STOPPING state
         response = cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName(
-                "ServiceName").build());
+                TEST_SERVICE_NAME).build());
     }
 
     @Test
@@ -212,9 +217,9 @@ class IPCCliTest {
                 .build();
         cli.updateRecipesAndArtifacts(request);
         CreateLocalDeploymentRequest deploymentRequest = CreateLocalDeploymentRequest.builder()
-                .rootComponentVersionsToAdd(Collections.singletonMap("ServiceName", "1.0.1"))
+                .rootComponentVersionsToAdd(Collections.singletonMap(TEST_SERVICE_NAME, "1.0.1"))
                 .build();
-        CountDownLatch serviceLatch = waitForServiceToComeInState("ServiceName", State.RUNNING);
+        CountDownLatch serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.RUNNING);
         CreateLocalDeploymentResponse deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId1 = deploymentResponse.getDeploymentId();
         CountDownLatch deploymentLatch = waitForDeploymentToBeSuccessful(deploymentId1);
@@ -222,20 +227,21 @@ class IPCCliTest {
         assertTrue(deploymentLatch.await(LOCAL_DEPLOYMENT_TIMEOUT_MINUTES, TimeUnit.MINUTES));
 
         GetComponentDetailsResponse response = cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName(
-                "ServiceName").build());
+                TEST_SERVICE_NAME).build());
         assertEquals("1.0.1", response.getComponentDetails().getVersion());
 
         // Deployment to remove a component
         deploymentRequest = CreateLocalDeploymentRequest.builder()
-                .rootComponentsToRemove(Arrays.asList("ServiceName"))
+                .rootComponentsToRemove(Arrays.asList(TEST_SERVICE_NAME))
                 .build();
-        serviceLatch = waitForServiceToComeInState("ServiceName", State.FINISHED);
+        serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.FINISHED);
         deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId2 = deploymentResponse.getDeploymentId();
         assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_MINUTES, TimeUnit.MINUTES));
         ignoreExceptionOfType(context, ServiceLoadException.class);
+        eventuallySuccessfulDeployment(cli, deploymentId2, 60);
         assertThrows(ComponentNotFoundError.class,
-                ()->cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName("ServiceName").build()));
+                ()->cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName(TEST_SERVICE_NAME).build()));
 
         // List local deployments
         ListLocalDeploymentResponse localDeploymentResponse = cli.listLocalDeployments();
@@ -243,6 +249,19 @@ class IPCCliTest {
                 localDeploymentResponse.getLocalDeployments().stream().map(ld->ld.getDeploymentId())
                         .collect(Collectors.toList());
         assertThat(localDeploymentIds, containsInAnyOrder(deploymentId1, deploymentId2));
+    }
+
+    private void eventuallySuccessfulDeployment(Cli cli, String deploymentId, int timeoutInSeconds) throws Exception {
+        LocalTime startTime = LocalTime.now();
+        while (LocalTime.now().isBefore(startTime.plusSeconds(timeoutInSeconds))) {
+            GetLocalDeploymentStatusResponse response =
+                    cli.getLocalDeploymentStatus(GetLocalDeploymentStatusRequest.builder().deploymentId(deploymentId).build());
+            if (response.getDeployment().getStatus() == DeploymentStatus.SUCCEEDED) {
+                return;
+            }
+            Thread.sleep(1000);
+        }
+        fail(String.format("Deployment %s not successful in given time %d seconds", deploymentId, timeoutInSeconds));
     }
 
 
