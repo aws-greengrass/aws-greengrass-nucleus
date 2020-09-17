@@ -20,6 +20,7 @@ OPTIONS
 	--config, -i			Path to the configuration file to start Evergreen kernel with
 	--root, -r			Path to the directory to use as the root for Evergreen
 	--thing-name, -tn		Desired thing name to register the device with in AWS IoT cloud, ignored if --provision option is false/not specified
+    --thing-group-name, -tgn    Desired thing group to add the IoT Thing into
 	--policy-name, -pn 		Desired name for IoT thing policy, ignored if --provision option is false/not specified
 	—-tes-role-name, -trn 	        Name of the IAM role to use for TokenExchangeService for the device to talk to
                                         AWS services, if the role does not exist then it will be created in your AWS

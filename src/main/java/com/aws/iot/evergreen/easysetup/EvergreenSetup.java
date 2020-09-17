@@ -22,27 +22,29 @@ import static com.aws.iot.evergreen.easysetup.DeviceProvisioningHelper.ThingInfo
  */
 public class EvergreenSetup {
     private static final String SHOW_HELP_RESPONSE = "\n" + "DESCRIPTION\n"
-            + "\tInstall Evergreen kernel on your device, register the device as IoT thing, create certificates and "
-            + "attach role for TES to them, install the Evergreen device CLI. Please set the AWS credentials"
-            + " in the environment variables\n\n" + "\n" + "OPTIONS\n"
-            + "\t--config, -i\t\t\tPath to the configuration file to start Evergreen kernel with\n"
-            + "\t--root, -r\t\t\t\tPath to the directory to use as the root for Evergreen\n"
+            + "\tInstall Evergreen kernel on your device, register the device as IoT thing,\n"
+            + "\tcreate certificates and attach role for TES to them, install the Evergreen\n"
+            + "\tdevice CLI. Please set the AWS credentials in the environment variables\n"
+            + "\nOPTIONS\n"
+            + "\t--config, -i\t\tPath to the configuration file to start Evergreen kernel with\n"
+            + "\t--root, -r\t\tPath to the directory to use as the root for Evergreen\n"
             + "\t--thing-name, -tn\t\tDesired thing name to register the device with in AWS IoT cloud\n"
-            + "\t--policy-name, -pn \t\tDesired name for IoT thing policy\n"
-            + "\t—tes-role-name, -trn \tName of the IAM role to use for TokenExchangeService for the device to talk"
-            + " to AWS services, if the role\n"
-            + "\t\t\t\t\t\tdoes not exist then it will be created in your AWS account \n"
-            + "\t--tes-role-policy-name, -trpn\tName of the IAM policy to create and attach to the TES role\n"
-            + "\t--tes-role-policy-doc, -trpd\tJSON policy document for the IAM policy to create and "
-            + "attach to the TES role\n"
-            + "\t--tes-role-alias-name, -tra\t\t\t\tName of the RoleAlias to attach to the IAM role for TES in the AWS "
-            + "IoT cloud,"
-            + " if the role alias does not exist \t\t\t\t\t\tthen it will be created in your AWS account\n"
-            + "\t--provision, -p \t\t\tY/N Indicate if you want to register the device as an AWS IoT thing\n"
+            + "\t--thing-group-name, -tgn\t\tDesired thing group to add the IoT Thing into\n"
+            + "\t--policy-name, -pn\t\tDesired name for IoT thing policy\n"
+            + "\t—tes-role-name, -trn\t\tName of the IAM role to use for TokenExchangeService for the device to talk\n"
+            + "\t\t\tto AWS services, if the role does not exist then it will be created in your AWS account\n"
+            + "\t--tes-role-policy-name, -trpn\t\tName of the IAM policy to create and attach to the TES role\n"
+            + "\t--tes-role-policy-doc, -trpd\t\tJSON policy document for the IAM policy to create and attach to the "
+            + "TES role\n"
+            + "\t--tes-role-alias-name, -tra\t\tName of the RoleAlias to attach to the IAM role for TES in the AWS\n"
+            + "\t\t\tIoT cloud, if the role alias does not exist then it will be created in your AWS account\n"
+            + "\t--provision, -p\t\tY/N Indicate if you want to register the device as an AWS IoT thing\n"
             + "\t--aws-region, -ar\t\tAWS region where the resources should be looked for/created\n"
-            + "\t--setup-tes, -t \t\t\tY/N Indicate if you want to use Token Exchange Service to talk to"
-            + "AWS services using the device certificate\n"
-            + "\t--install-cli, -ic \t\t\tY/N Indicate if you want to install Evergreen device CLI";
+            + "\t--setup-tes, -t\t\tY/N Indicate if you want to use Token Exchange Service to talk to"
+            + " AWS services using the device certificate\n"
+            + "\t--install-cli, -ic\t\tY/N Indicate if you want to install Evergreen device CLI\n"
+            + "\t--setup-system-service, -ss\t\tY/N Indicate if you want to setup Evergreen as a system service\n";
+
     private static final String HELP_ARG = "--help";
     private static final String HELP_ARG_SHORT = "-h";
 
@@ -54,6 +56,10 @@ public class EvergreenSetup {
     private static final String THING_NAME_ARG = "--thing-name";
     private static final String THING_NAME_ARG_SHORT = "-tn";
     private static final String THING_NAME_DEFAULT = "MyIotThing";
+
+    private static final String THING_GROUP_NAME_ARG = "--thing-group-name";
+    private static final String THING_GROUP_NAME_ARG_SHORT = "-tgn";
+    private static final String THING_GROUP_NAME_DEFAULT = "MyIotThingGroup";
 
     private static final String POLICY_NAME_ARG = "--policy-name";
     private static final String POLICY_NAME_ARG_SHORT = "-pn";
@@ -111,6 +117,7 @@ public class EvergreenSetup {
     private String arg;
     private boolean showHelp = false;
     private String thingName = THING_NAME_DEFAULT;
+    private String thingGroupName = THING_GROUP_NAME_DEFAULT;
     private String policyName = POLICY_NAME_DEFAULT;
     private String tesRoleName = TES_ROLE_NAME_DEFAULT;
     private String tesRoleAliasName = TES_ROLE_ALIAS_NAME_DEFAULT;
@@ -216,12 +223,12 @@ public class EvergreenSetup {
     }
 
     void parseArgs() {
-        while (getArg() != null) {
+        loop: while (getArg() != null) {
             switch (arg.toLowerCase()) {
                 case HELP_ARG:
                 case HELP_ARG_SHORT:
                     this.showHelp = true;
-                    break;
+                    break loop;
                 case KERNEL_CONFIG_ARG:
                 case KERNEL_CONFIG_ARG_SHORT:
                 case KERNEL_ROOT_ARG:
@@ -232,6 +239,10 @@ public class EvergreenSetup {
                 case THING_NAME_ARG:
                 case THING_NAME_ARG_SHORT:
                     this.thingName = getArg();
+                    break;
+                case THING_GROUP_NAME_ARG:
+                case THING_GROUP_NAME_ARG_SHORT:
+                    this.thingGroupName = getArg();
                     break;
                 case POLICY_NAME_ARG:
                 case POLICY_NAME_ARG_SHORT:
@@ -303,13 +314,17 @@ public class EvergreenSetup {
     }
 
     void provision(Kernel kernel) throws IOException, DeviceConfigurationException {
-        outStream.println(
-                String.format("Provisioning AWS IoT resources for the device with IoT Thing Name: [%s]...", thingName));
-        ThingInfo thingInfo =
+        outStream.printf("Provisioning AWS IoT resources for the device with IoT Thing Name: [%s]...%n", thingName);
+        final ThingInfo thingInfo =
                 deviceProvisioningHelper.createThing(deviceProvisioningHelper.getIotClient(), policyName, thingName);
-        outStream.println(
-                String.format("Successfully provisioned AWS IoT resources for the device with IoT Thing Name: [%s]!",
-                        thingName));
+        outStream.printf("Successfully provisioned AWS IoT resources for the device with IoT Thing Name: [%s]!%n",
+                thingName);
+        if (!Utils.isEmpty(thingGroupName)) {
+            outStream.printf("Adding IoT Thing [%s] into Thing Group: [%s]...%n", thingName, thingGroupName);
+                deviceProvisioningHelper.addThingToGroup(deviceProvisioningHelper.getIotClient(), thingName,
+                        thingGroupName);
+            outStream.printf("Successfully added Thing into Thing Group: [%s]%n", thingGroupName);
+        }
 
         outStream.println("Configuring kernel with provisioned resource details...");
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion);
