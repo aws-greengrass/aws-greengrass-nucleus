@@ -17,6 +17,7 @@ import software.amazon.awssdk.services.iam.model.EntityAlreadyExistsException;
 import software.amazon.awssdk.services.iam.model.GetRoleRequest;
 import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
+import software.amazon.awssdk.services.iot.model.AddThingToThingGroupRequest;
 import software.amazon.awssdk.services.iot.model.AttachPolicyRequest;
 import software.amazon.awssdk.services.iot.model.AttachThingPrincipalRequest;
 import software.amazon.awssdk.services.iot.model.CertificateStatus;
@@ -24,6 +25,7 @@ import software.amazon.awssdk.services.iot.model.CreateKeysAndCertificateRequest
 import software.amazon.awssdk.services.iot.model.CreateKeysAndCertificateResponse;
 import software.amazon.awssdk.services.iot.model.CreatePolicyRequest;
 import software.amazon.awssdk.services.iot.model.CreateRoleAliasRequest;
+import software.amazon.awssdk.services.iot.model.CreateThingGroupRequest;
 import software.amazon.awssdk.services.iot.model.CreateThingRequest;
 import software.amazon.awssdk.services.iot.model.DeleteCertificateRequest;
 import software.amazon.awssdk.services.iot.model.DeletePolicyRequest;
@@ -36,6 +38,7 @@ import software.amazon.awssdk.services.iot.model.GetPolicyRequest;
 import software.amazon.awssdk.services.iot.model.KeyPair;
 import software.amazon.awssdk.services.iot.model.ListAttachedPoliciesRequest;
 import software.amazon.awssdk.services.iot.model.Policy;
+import software.amazon.awssdk.services.iot.model.ResourceAlreadyExistsException;
 import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.UpdateCertificateRequest;
 
@@ -325,6 +328,23 @@ public class DeviceProvisioningHelper {
     public void updateKernelConfigWithTesRoleInfo(Kernel kernel, String roleAliasName) {
         Topics tesTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS);
         tesTopics.lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).withValue(roleAliasName);
+    }
+
+    /**
+     * Add an existing Thing into a Thing Group which may or may not exist.
+     *
+     * @param iotClient client
+     * @param thingName thing name
+     * @param thingGroupName group to add the thing into
+     */
+    public void addThingToGroup(IotClient iotClient, String thingName, String thingGroupName) {
+        try {
+            iotClient.createThingGroup(CreateThingGroupRequest.builder().thingGroupName(thingGroupName).build());
+        } catch (ResourceAlreadyExistsException e) {
+            outStream.printf("IoT Thing Group \"%s\" already existed, reusing it%n", thingGroupName);
+        }
+        iotClient.addThingToThingGroup(AddThingToThingGroupRequest.builder()
+                .thingName(thingName).thingGroupName(thingGroupName).build());
     }
 
     @AllArgsConstructor
