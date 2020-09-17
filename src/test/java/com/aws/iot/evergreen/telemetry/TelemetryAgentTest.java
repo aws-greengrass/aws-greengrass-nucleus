@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.telemetry;
 
+import ch.qos.logback.classic.LoggerContext;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.Kernel;
@@ -66,6 +67,7 @@ public class TelemetryAgentTest extends EGServiceTestUtil {
     private ScheduledExecutorService ses;
     @Mock
     private Kernel kernel;
+    private final LoggerContext loggerContext = new LoggerContext();
 
     @BeforeEach
     public void setup() {
@@ -104,6 +106,9 @@ public class TelemetryAgentTest extends EGServiceTestUtil {
 
     @AfterEach
     public void cleanUp() {
+        loggerContext.getLogger("Metrics-KernelComponents").detachAndStopAllAppenders();
+        loggerContext.getLogger("Metrics-SystemMetrics").detachAndStopAllAppenders();
+        loggerContext.getLogger("Metrics-AggregateMetrics").detachAndStopAllAppenders();
         ses.shutdownNow();
         telemetryAgent.shutdown();
     }

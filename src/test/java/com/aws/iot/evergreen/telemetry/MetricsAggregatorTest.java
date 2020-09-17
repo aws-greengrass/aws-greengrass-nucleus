@@ -5,6 +5,7 @@
 
 package com.aws.iot.evergreen.telemetry;
 
+import ch.qos.logback.classic.LoggerContext;
 import com.aws.iot.evergreen.logging.impl.EvergreenStructuredLogMessage;
 import com.aws.iot.evergreen.telemetry.impl.Metric;
 import com.aws.iot.evergreen.telemetry.impl.MetricFactory;
@@ -17,6 +18,7 @@ import com.aws.iot.evergreen.telemetry.models.TelemetryUnit;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,10 +47,16 @@ public class MetricsAggregatorTest {
     private static final ObjectMapper mapper = new ObjectMapper();
     @TempDir
     protected Path tempRootDir;
+    private final LoggerContext loggerContext = new LoggerContext();
 
     @BeforeEach
     public void setup() {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
+    }
+
+    @AfterEach
+    public void cleanup() {
+        loggerContext.getLogger("Metrics-AggregateMetrics").detachAndStopAllAppenders();
     }
 
     @Test
