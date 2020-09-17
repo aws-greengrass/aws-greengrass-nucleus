@@ -55,6 +55,10 @@ public class MqttReconnectTest extends BaseE2ETestCase {
     private static final Duration DNS_CACHE_TTL = Duration.ofSeconds(10);
     private String dnsCacheTtlValue;
 
+    protected MqttReconnectTest() throws Exception {
+        super();
+    }
+
     @BeforeEach
     void beforeEach() throws Exception {
         // Setting the JVM TTL for DNS Name Lookups. By default it's set to -1, i.e. DNS entries are never
