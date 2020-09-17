@@ -104,5 +104,8 @@ public abstract class ArtifactDownloader {
     public abstract File downloadToPath(ComponentIdentifier componentIdentifier, ComponentArtifact artifact,
                                         Path saveToPath)
             throws IOException, PackageDownloadException, InvalidArtifactUriException;
+
+    public abstract long getSize(ComponentIdentifier packageIdentifier, ComponentArtifact artifact)
+            throws InvalidArtifactUriException, PackageDownloadException, IOException;
 }
 

@@ -14,11 +14,14 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.S3SdkClientFactory;
 import com.aws.greengrass.util.Utils;
+import lombok.AllArgsConstructor;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.File;
@@ -60,9 +63,9 @@ public class S3Downloader extends ArtifactDownloader {
                 .addKeyValue("artifactUri", artifact.getArtifactUri()).log();
 
         // Parse artifact path
-        Matcher s3PathMatcher = getS3PathMatcherForURI(artifact.getArtifactUri(), componentIdentifier);
-        String bucket = s3PathMatcher.group(1);
-        String key = s3PathMatcher.group(2);
+        S3ObjectPath s3ObjectPath = getS3PathForURI(artifact.getArtifactUri(), componentIdentifier);
+        String bucket = s3ObjectPath.bucket;
+        String key = s3ObjectPath.key;
 
         InputStream artifactObject = null;
         try {
@@ -97,6 +100,27 @@ public class S3Downloader extends ArtifactDownloader {
         }
     }
 
+    /**
+     * Get the size of artifact from S3.
+     *
+     * @param packageIdentifier package info
+     * @param artifact artifact info
+     * @return ContentLength in bytes
+     * @throws InvalidArtifactUriException if provided info results in invalid URI
+     */
+    @Override
+    public long getSize(ComponentIdentifier packageIdentifier, ComponentArtifact artifact)
+            throws InvalidArtifactUriException {
+        logger.atInfo().setEventType("get-artifact-size-from-s3")
+                .addKeyValue("packageIdentifier", packageIdentifier)
+                .addKeyValue("artifactUri", artifact.getArtifactUri().toString()).log();
+        S3ObjectPath s3ObjectPath = getS3PathForURI(artifact.getArtifactUri(), packageIdentifier);
+        HeadObjectRequest headObjectRequest =
+                HeadObjectRequest.builder().bucket(s3ObjectPath.bucket).key(s3ObjectPath.key).build();
+        HeadObjectResponse headObjectResponse = s3Client.headObject(headObjectRequest);
+        return headObjectResponse.contentLength();
+    }
+
     @SuppressWarnings("PMD.CloseResource")
     private InputStream getObject(String bucket, String key, ComponentArtifact artifact,
                                   ComponentIdentifier componentIdentifier) throws PackageDownloadException {
@@ -117,7 +141,7 @@ public class S3Downloader extends ArtifactDownloader {
         }
     }
 
-    private Matcher getS3PathMatcherForURI(URI artifactURI, ComponentIdentifier componentIdentifier)
+    private S3ObjectPath getS3PathForURI(URI artifactURI, ComponentIdentifier componentIdentifier)
             throws InvalidArtifactUriException {
         Matcher s3PathMatcher = S3_PATH_REGEX.matcher(artifactURI.toString());
         if (!s3PathMatcher.matches()) {
@@ -126,12 +150,21 @@ public class S3Downloader extends ArtifactDownloader {
                     String.format(ARTIFACT_DOWNLOAD_EXCEPTION_FMT, artifactURI, componentIdentifier.getName(),
                             componentIdentifier.getVersion().toString(), "Invalid artifact URI"));
         }
-        return s3PathMatcher;
+
+        // Parse artifact path
+        String bucket = s3PathMatcher.group(1);
+        String key = s3PathMatcher.group(2);
+        return new S3ObjectPath(bucket, key);
     }
 
     private String extractFileName(String objectKey) {
         String[] pathStrings = objectKey.split("/");
         return pathStrings[pathStrings.length - 1];
     }
-}
 
+    @AllArgsConstructor
+    private static class S3ObjectPath {
+        String bucket;
+        String key;
+    }
+}

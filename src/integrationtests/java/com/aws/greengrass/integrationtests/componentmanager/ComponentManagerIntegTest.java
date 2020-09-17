@@ -70,7 +70,7 @@ class ComponentManagerIntegTest extends BaseITCase {
               .preparePackages(Collections.singletonList(ident))
               .get(10, TimeUnit.SECONDS);
 
-        Path zipPath = store.resolveAndSetupArtifactsUnpackDirectory(ident).resolve("zip");
+        Path zipPath = store.resolveAndSetupArtifactsDecompressedDirectory(ident).resolve("zip");
         assertThat(zipPath.toFile(), anExistingDirectory());
         assertThat(zipPath.resolve("zip").toFile(), anExistingDirectory());
         assertThat(zipPath.resolve("zip").resolve("1").toFile(), anExistingFile());
