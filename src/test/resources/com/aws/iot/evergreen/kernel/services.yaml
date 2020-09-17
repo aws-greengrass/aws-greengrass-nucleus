@@ -1,0 +1,32 @@
+---
+services:
+  A:
+    Lifecycle:
+    Dependencies:
+        - B:HARD
+        - C:SOFT
+        - D
+  B:
+    Lifecycle:
+    Dependencies:
+  C:
+    Lifecycle:
+    Dependencies:
+  D:
+    Lifecycle:
+    Dependencies:
+  E:
+    Lifecycle:
+    Dependencies:
+
+  main:
+    Lifecycle:
+      run: |-
+        echo $PATH
+        pwd
+        printenv
+        while true; do
+        date; sleep 5; echo RUNNING
+        done
+    Dependencies:
+        - A
