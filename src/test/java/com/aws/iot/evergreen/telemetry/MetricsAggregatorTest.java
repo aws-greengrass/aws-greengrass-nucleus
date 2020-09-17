@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.aws.iot.evergreen.telemetry.MetricsAggregator.AGGREGATE_METRICS_FILE;
 import static com.aws.iot.evergreen.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -76,20 +77,23 @@ public class MetricsAggregatorTest {
         long currTimestamp = Instant.now().toEpochMilli();
         ma.aggregateMetrics(lastAgg, currTimestamp);
         Path path = Paths.get(TelemetryConfig.getTelemetryDirectory().toString()).resolve("AggregateMetrics.log");
-        List<String> list = Files.lines(path).collect(Collectors.toList());
-        assertEquals(TelemetryNamespace.values().length, list.size()); // Metrics are aggregated based on the namespace.
-        for (String s : list) {
-            MetricsAggregator.AggregatedMetric am = mapper.readValue(mapper.readTree(s).get("message").asText(),
-                    MetricsAggregator.AggregatedMetric.class);
-            if (am.getMetricNamespace().equals(TelemetryNamespace.SystemMetrics)) {
-                assertEquals(3, am.getMetrics().size()); // Three system metrics
-                for (MetricsAggregator.AggregatedMetric.Metric metrics : am.getMetrics()) {
-                    if (metrics.getMetricName().equals(TelemetryMetricName.CpuUsage)) {
-                        assertEquals((double) 60, metrics.getValue());
-                    } else if (metrics.getMetricName().equals(TelemetryMetricName.SystemMemUsage)) {
-                        assertEquals((double) 3000, metrics.getValue());
-                    } else if (metrics.getMetricName().equals(TelemetryMetricName.TotalNumberOfFDs)) {
-                        assertEquals((double) 6000, (double) metrics.getValue());
+        List<String> list;
+        try (Stream<String> listing = Files.lines(path)) {
+            list = listing.collect(Collectors.toList());
+            assertEquals(TelemetryNamespace.values().length, list.size()); // Metrics are aggregated based on the namespace.
+            for (String s : list) {
+                MetricsAggregator.AggregatedMetric am = mapper.readValue(mapper.readTree(s).get("message").asText(),
+                        MetricsAggregator.AggregatedMetric.class);
+                if (am.getMetricNamespace().equals(TelemetryNamespace.SystemMetrics)) {
+                    assertEquals(3, am.getMetrics().size()); // Three system metrics
+                    for (MetricsAggregator.AggregatedMetric.Metric metrics : am.getMetrics()) {
+                        if (metrics.getMetricName().equals(TelemetryMetricName.CpuUsage)) {
+                            assertEquals((double) 60, metrics.getValue());
+                        } else if (metrics.getMetricName().equals(TelemetryMetricName.SystemMemUsage)) {
+                            assertEquals((double) 3000, metrics.getValue());
+                        } else if (metrics.getMetricName().equals(TelemetryMetricName.TotalNumberOfFDs)) {
+                            assertEquals((double) 6000, (double) metrics.getValue());
+                        }
                     }
                 }
             }
@@ -99,14 +103,16 @@ public class MetricsAggregatorTest {
         long currentTimestamp = Instant.now().toEpochMilli();
         // Aggregate values within 1 second interval at this timestamp with 1
         ma.aggregateMetrics(lastAgg, currentTimestamp);
-        list = Files.lines(path).collect(Collectors.toList());
-        assertEquals(8, list.size()); // AggregateMetrics.log is appended with the latest aggregations.
-        for (String s : list) {
-            EvergreenStructuredLogMessage egLog = mapper.readValue(s, EvergreenStructuredLogMessage.class);
-            MetricsAggregator.AggregatedMetric am = mapper.readValue(egLog.getMessage(),
-                    MetricsAggregator.AggregatedMetric.class);
-            if (am.getTimestamp() == currentTimestamp && am.getMetricNamespace().equals(TelemetryNamespace.SystemMetrics)) {
-                assertEquals(0, am.getMetrics().size()); // There is no aggregation as there are no latest values
+        try (Stream<String> listing = Files.lines(path)) {
+            list = listing.collect(Collectors.toList());
+            assertEquals(8, list.size()); // AggregateMetrics.log is appended with the latest aggregations.
+            for (String s : list) {
+                EvergreenStructuredLogMessage egLog = mapper.readValue(s, EvergreenStructuredLogMessage.class);
+                MetricsAggregator.AggregatedMetric am = mapper.readValue(egLog.getMessage(),
+                        MetricsAggregator.AggregatedMetric.class);
+                if (am.getTimestamp() == currentTimestamp && am.getMetricNamespace().equals(TelemetryNamespace.SystemMetrics)) {
+                    assertEquals(0, am.getMetrics().size()); // There is no aggregation as there are no latest values
+                }
             }
         }
     }
@@ -132,18 +138,20 @@ public class MetricsAggregatorTest {
         // Aggregate values within 1 second interval at this timestamp with 1
         ma.aggregateMetrics(lastAgg, Instant.now().toEpochMilli());
         Path path = Paths.get(TelemetryConfig.getTelemetryDirectory().toString()).resolve("AggregateMetrics.log");
-        List<String> list = Files.lines(path).collect(Collectors.toList());
-        assertEquals(TelemetryNamespace.values().length, list.size()); // Metrics are aggregated based on the namespace.
-        for (String s : list) {
-            MetricsAggregator.AggregatedMetric am = mapper.readValue(mapper.readTree(s).get("message").asText(),
-                    MetricsAggregator.AggregatedMetric.class);
-            if (am.getMetricNamespace().equals(TelemetryNamespace.SystemMetrics)) {
-                assertEquals(2, am.getMetrics().size()); // Two system metrics, one of them is null
-                for (MetricsAggregator.AggregatedMetric.Metric metrics : am.getMetrics()) {
-                    if (metrics.getMetricName().equals(TelemetryMetricName.CpuUsage)) {
-                        assertEquals((double) 0, metrics.getValue()); //No valid data point to aggregate
-                    } else if (metrics.getMetricName().equals(TelemetryMetricName.SystemMemUsage)) {
-                        assertEquals((double) 1000, metrics.getValue()); // ignore the invalid value
+        try (Stream<String> listing = Files.lines(path)) {
+            List<String> list = listing.collect(Collectors.toList());
+            assertEquals(TelemetryNamespace.values().length, list.size()); // Metrics are aggregated based on the namespace.
+            for (String s : list) {
+                MetricsAggregator.AggregatedMetric am = mapper.readValue(mapper.readTree(s).get("message").asText(),
+                        MetricsAggregator.AggregatedMetric.class);
+                if (am.getMetricNamespace().equals(TelemetryNamespace.SystemMetrics)) {
+                    assertEquals(2, am.getMetrics().size()); // Two system metrics, one of them is null
+                    for (MetricsAggregator.AggregatedMetric.Metric metrics : am.getMetrics()) {
+                        if (metrics.getMetricName().equals(TelemetryMetricName.CpuUsage)) {
+                            assertEquals((double) 0, metrics.getValue()); //No valid data point to aggregate
+                        } else if (metrics.getMetricName().equals(TelemetryMetricName.SystemMemUsage)) {
+                            assertEquals((double) 1000, metrics.getValue()); // ignore the invalid value
+                        }
                     }
                 }
             }
