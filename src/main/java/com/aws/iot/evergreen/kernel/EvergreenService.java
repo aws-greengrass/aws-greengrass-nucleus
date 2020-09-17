@@ -62,7 +62,7 @@ public class EvergreenService implements InjectionActions {
     @Getter
     public Context context;
 
-    protected final Lifecycle lifecycle;
+    private final Lifecycle lifecycle;
     private final Object dependersExitedLock = new Object();
     private Throwable error;
     private final Periodicity periodicityInformation;

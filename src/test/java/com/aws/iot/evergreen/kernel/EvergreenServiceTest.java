@@ -12,6 +12,7 @@ import com.aws.iot.evergreen.dependency.Context;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.kernel.exceptions.ServiceLoadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -70,6 +71,11 @@ public class EvergreenServiceTest extends EGServiceTestUtil {
         lenient().when(kernel.locate("E")).thenReturn(eService);
         aService = spy(new EvergreenService(root.findTopics(SERVICES_NAMESPACE_TOPIC, "A")));
 
+    }
+
+    @AfterEach
+    void afterEach() throws IOException {
+        context.close();
     }
 
     @Test

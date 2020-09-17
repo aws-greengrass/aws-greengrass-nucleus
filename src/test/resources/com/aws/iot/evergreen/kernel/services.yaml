@@ -21,12 +21,5 @@ services:
 
   main:
     Lifecycle:
-      run: |-
-        echo $PATH
-        pwd
-        printenv
-        while true; do
-        date; sleep 5; echo RUNNING
-        done
     Dependencies:
         - A
