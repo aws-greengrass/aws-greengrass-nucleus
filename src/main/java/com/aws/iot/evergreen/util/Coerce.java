@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 
 import static com.aws.iot.evergreen.util.Utils.isEmpty;
 
@@ -140,6 +141,7 @@ public final class Coerce {
      * @param o object to convert.
      * @return resulting string.
      */
+    @Nullable
     public static String toString(Object o) {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
