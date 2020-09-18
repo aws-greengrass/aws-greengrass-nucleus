@@ -1,8 +1,8 @@
-# Evergreen Developer Guide
-The purpose of this guide is to get you up to speed with developing Evergreen.
+# Greengrass Developer Guide
+The purpose of this guide is to get you up to speed with developing Greengrass.
 
 ## Pull Down Repositories From GitHub
-To begin developing with Evergreen you will need to clone the repositories. 
+To begin developing with Greengrass you will need to clone the repositories. 
 
 1. You will need permission to download from GitHub using SSH.
     1. Go to GitHub and then click on your picture -> Settings -> SSH and GPG keys
@@ -33,7 +33,7 @@ The `config.yaml` file contains keys for platforms, launchers, and services. The
 a `main` service. Detailed config schema is in `README_CONFIG_SCHEMA.md`
 
 ### Plugins
-Plugins like the internalhttp server can be installed simply by placing the jar file that it generates into the
+Plugins like the httpdebugview server can be installed simply by placing the jar file that it generates into the
 root dir/plugins/trusted. The plugin will be injected immediately when the kernel starts up.
 
 
@@ -50,7 +50,7 @@ Run both: `mvn verify`
 ### End-To-End Tests
 End-To-End (E2E) tests differ from our integration tests in that they require AWS credentials and network
 access. In order to run these tests, first you must put AWS credentials into your environment such as by using
-Isengard and copying the credentials for your own, or the Evergreen dev account. Once you have credentials
+Isengard and copying the credentials for your own, or the Greengrass dev account. Once you have credentials
 with Iot:* access, you can then use our E2E tests. 
 
 To run only the E2E tests, run the following commands:

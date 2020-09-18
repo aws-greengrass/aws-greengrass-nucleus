@@ -111,5 +111,5 @@ jobs:
       - run: sudo apt-get install -y awscli
       - name: Upload to S3
         run: |
-          aws s3 cp target/Evergreen.jar s3://gg-evergreen-releases/${{github.repository}}/${{github.ref}}/evergreen-${{github.sha}}.jar
-          aws s3 cp target/GreengrassCore-2.0.0.zip s3://gg-evergreen-releases/${{github.repository}}-zip/${{github.ref}}/evergreen-${{github.sha}}.zip
+          aws s3 cp target/Greengrass.jar s3://gg-evergreen-releases/${{github.repository}}/${{github.ref}}/evergreen-${{github.sha}}.jar
+          aws s3 cp target/aws.greengrass.nucleus.2.0.0.zip s3://gg-evergreen-releases/${{github.repository}}-zip/${{github.ref}}/evergreen-${{github.sha}}.zip

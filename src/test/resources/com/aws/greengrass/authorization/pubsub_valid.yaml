@@ -1,0 +1,26 @@
+---
+services:
+  main:
+    dependencies:
+      - mqtt
+      - ServiceName
+    lifecycle:
+
+  mqtt:
+    lifecycle:
+    parameters:
+      accessControl:
+        '{"aws.greengrass.ipc.pubsub":[{"policyId2":{"policyDescription":"access to pubsub topics","operations":["publish","subscribe"],"resources":["/topic/1/#","/longer/topic/example/"]}}]}'
+
+  ServiceName:
+    resources:
+      - http-resource
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 100
+        posix:
+          sleep 100
+    parameters:
+      accessControl:
+       '{"aws.greengrass.ipc.pubsub":[{"policyId1":{"policyDescription":"access to pubsub topics","operations":["publish","subscribe"],"resources":["/topic/1/#","/longer/topic/example/","*"]}}]}'
