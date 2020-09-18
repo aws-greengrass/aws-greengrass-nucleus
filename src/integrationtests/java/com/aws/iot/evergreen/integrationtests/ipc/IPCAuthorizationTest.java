@@ -11,6 +11,7 @@ import com.aws.iot.evergreen.ipc.config.KernelIPCClientConfig;
 import com.aws.iot.evergreen.ipc.exceptions.UnauthorizedException;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,13 +43,21 @@ class IPCAuthorizationTest {
     private IPCClient client;
     private AuthorizationClient authorizationClient;
 
+    @BeforeAll
+    static void beforeAll() throws InterruptedException {
+        kernel = prepareKernelFromConfigFile("ipc.yaml", IPCAuthorizationTest.class, TEST_SERVICE_NAME);
+    }
+
+    @AfterAll
+    static void afterAll() {
+        kernel.shutdown();
+    }
+
     @BeforeEach
     void beforeEach(ExtensionContext context) throws Exception  {
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
-
-        kernel = prepareKernelFromConfigFile("ipc.yaml", this.getClass(), TEST_SERVICE_NAME);
         KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
         client = new IPCClientImpl(config);
         authorizationClient = new AuthorizationClient(client);
@@ -62,7 +71,6 @@ class IPCAuthorizationTest {
     @AfterEach
     void afterEach() throws IOException {
         client.disconnect();
-        kernel.shutdown();
     }
 
     @Test

@@ -4,16 +4,26 @@ services:
     dependencies:
       - mqtt
       - ServiceName
+      - ServiceToBeRestarted
+      - ServiceToBeStopped
   mqtt:
-    resources:
-      - evergreen_1._mqtt._tcp.local
-      - evergreen_1._http._tcp.local
     lifecycle:
     version: 1.0.0
-
   ServiceName:
-    resources:
-      - http-resource
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 100
+        posix:
+          sleep 100
+  ServiceToBeRestarted:
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 100
+        posix:
+          sleep 100
+  ServiceToBeStopped:
     lifecycle:
       run:
         windows:
