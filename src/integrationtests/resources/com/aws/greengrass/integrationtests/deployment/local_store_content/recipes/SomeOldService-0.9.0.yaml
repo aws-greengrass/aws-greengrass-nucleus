@@ -1,0 +1,14 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: SomeOldService
+ComponentDescription: A random service to run in Evergreen
+ComponentPublisher: Me
+ComponentVersion: '0.9.0'
+Manifests:
+  - Platform:
+    Lifecycle:
+      run:
+        echo "Hello Greengrass. Don't mind me I'm going to be removed soon"
+    Dependencies:
+      Mosquitto:
+        VersionRequirement: "=0.9.0"

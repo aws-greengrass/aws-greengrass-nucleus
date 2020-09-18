@@ -69,7 +69,7 @@ ComponentVersion: 1.0.0
 ### Component Description
 Text description of component
 ```yaml
-ComponentDescription: Hello World App for Evergreen
+ComponentDescription: Hello World App
 ```
 ### Component Publisher
 Publisher of component

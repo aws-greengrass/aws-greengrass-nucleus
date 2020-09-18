@@ -35,7 +35,7 @@ jobs:
           -foe true
           -jvmArgs "-Xms1m -Xmx64m -XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -XX:GCTimeRatio=19
           -XX:NativeMemoryTracking=summary -Xss232k"
-          -prof com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler
+          -prof com.aws.greengrass.jmh.profilers.ForcedGcMemoryProfiler
       - name: Upload JMH Result
         uses: actions/upload-artifact@v1.0.0
         with:
