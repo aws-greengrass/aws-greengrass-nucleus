@@ -102,7 +102,7 @@ public class EvergreenServiceTest extends EGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_service_WHEN_dependencies_change_THEN_service_restarts() {
+    void GIVEN_service_WHEN_dependencies_change_THEN_service_dependencies_updates() {
         //GIVEN service A with dependencies B,C,D
         // provided in the beforeEach
       

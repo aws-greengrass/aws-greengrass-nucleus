@@ -96,8 +96,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 class IPCCliTest {
 
     private static Kernel kernel;
-    private static int LOCAL_DEPLOYMENT_TIMEOUT_MINUTES = 5;
-    private static int SERVICE_STATE_CHECK_TIMEOUT_MINUTES = 5;
+    private static int LOCAL_DEPLOYMENT_TIMEOUT_SECONDS = 15;
+    private static int SERVICE_STATE_CHECK_TIMEOUT_SECONDS = 15;
     private IPCClient client;
     private static ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
@@ -193,7 +193,7 @@ class IPCCliTest {
         RestartComponentResponse restartComponentResponse =
                 cli.restartComponent(RestartComponentRequest.builder().componentName("ServiceToBeRestarted").build());
         assertEquals(RequestStatus.SUCCEEDED, restartComponentResponse.getRequestStatus());
-        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_MINUTES, TimeUnit.MINUTES));
+        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
     @Test
@@ -210,7 +210,7 @@ class IPCCliTest {
         StopComponentResponse stopComponentResponse =
                 cli.stopComponent(StopComponentRequest.builder().componentName("ServiceToBeStopped").build());
         assertEquals(RequestStatus.SUCCEEDED, stopComponentResponse.getRequestStatus());
-        assertTrue(stoppingLatch.await(SERVICE_STATE_CHECK_TIMEOUT_MINUTES, TimeUnit.MINUTES));
+        assertTrue(stoppingLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
     @Test
@@ -235,8 +235,8 @@ class IPCCliTest {
         CreateLocalDeploymentResponse deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId1 = deploymentResponse.getDeploymentId();
         CountDownLatch deploymentLatch = waitForDeploymentToBeSuccessful(deploymentId1);
-        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_MINUTES, TimeUnit.MINUTES));
-        assertTrue(deploymentLatch.await(LOCAL_DEPLOYMENT_TIMEOUT_MINUTES, TimeUnit.MINUTES));
+        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertTrue(deploymentLatch.await(LOCAL_DEPLOYMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
 
         GetComponentDetailsResponse response = cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName(
                 TEST_SERVICE_NAME).build());
@@ -249,7 +249,7 @@ class IPCCliTest {
         serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.FINISHED);
         deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId2 = deploymentResponse.getDeploymentId();
-        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_MINUTES, TimeUnit.MINUTES));
+        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         ignoreExceptionOfType(context, ServiceLoadException.class);
         eventuallySuccessfulDeployment(cli, deploymentId2, 60);
         assertThrows(ComponentNotFoundError.class,
@@ -291,8 +291,8 @@ class IPCCliTest {
         String deploymentId1 = deploymentResponse.getDeploymentId();
         CountDownLatch waitForComponent1ToRun = waitForServiceToComeInState("Component1", State.RUNNING);
         CountDownLatch waitFordeploymentId1 = waitForDeploymentToBeSuccessful(deploymentId1);
-        assertTrue(waitForComponent1ToRun.await(15, TimeUnit.SECONDS));
-        assertTrue(waitFordeploymentId1.await(15, TimeUnit.SECONDS));
+        assertTrue(waitForComponent1ToRun.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertTrue(waitFordeploymentId1.await(LOCAL_DEPLOYMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
     @Test
@@ -337,8 +337,8 @@ class IPCCliTest {
         String deploymentId1 = deploymentResponse.getDeploymentId();
         CountDownLatch deploymentLatch = waitForDeploymentToBeSuccessful(deploymentId1);
 
-        assertTrue(deploymentLatch.await(15, TimeUnit.SECONDS));
-        assertTrue(serviceLatch.await(15, TimeUnit.SECONDS));
+        assertTrue(deploymentLatch.await(LOCAL_DEPLOYMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertTrue(stdoutLatch.await(10, TimeUnit.SECONDS));
 
         //Get configuration in component details
