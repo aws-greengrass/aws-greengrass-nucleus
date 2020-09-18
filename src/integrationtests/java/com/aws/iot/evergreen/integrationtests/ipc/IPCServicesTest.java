@@ -20,7 +20,9 @@ import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,23 +62,32 @@ class IPCServicesTest {
     @TempDir
     static Path tempRootDir;
 
-    private Kernel kernel;
+    private static Kernel kernel;
     private IPCClient client;
 
-    @BeforeEach
-    void beforeEach(ExtensionContext context) throws InterruptedException, IOException {
+    @BeforeAll
+    static void beforeAll() throws InterruptedException {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
+        kernel = prepareKernelFromConfigFile("ipc.yaml", IPCServicesTest.class, TEST_SERVICE_NAME);
+    }
+
+    @AfterAll
+    static void afterAll() {
+        kernel.shutdown();
+    }
+
+    @BeforeEach
+    void beforeEach(ExtensionContext context) {
+
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
         ignoreExceptionOfType(context, InterruptedException.class);
-        kernel = prepareKernelFromConfigFile("ipc.yaml", this.getClass(), TEST_SERVICE_NAME);
     }
 
     @AfterEach
     void afterEach() throws IOException {
         client.disconnect();
-        kernel.shutdown();
     }
 
 

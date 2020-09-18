@@ -4,6 +4,7 @@
 package com.aws.iot.evergreen.integrationtests.ipc;
 
 import com.aws.iot.evergreen.dependency.State;
+import com.aws.iot.evergreen.deployment.DeploymentService;
 import com.aws.iot.evergreen.deployment.DeploymentStatusKeeper;
 import com.aws.iot.evergreen.deployment.model.Deployment;
 import com.aws.iot.evergreen.ipc.IPCClient;
@@ -37,9 +38,14 @@ import com.aws.iot.evergreen.packagemanager.exceptions.PackageDownloadException;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
@@ -50,6 +56,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.Collections;
@@ -61,6 +68,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static com.aws.iot.evergreen.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID;
 import static com.aws.iot.evergreen.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS;
 import static com.aws.iot.evergreen.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
@@ -84,23 +92,36 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(EGExtension.class)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class IPCCliTest {
 
     private static Kernel kernel;
-    private static int LOCAL_DEPLOYMENT_TIMEOUT_MINUTES = 5;
-    private static int SERVICE_STATE_CHECK_TIMEOUT_MINUTES = 5;
+    private static int LOCAL_DEPLOYMENT_TIMEOUT_SECONDS = 15;
+    private static int SERVICE_STATE_CHECK_TIMEOUT_SECONDS = 15;
     private IPCClient client;
     private static ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
+    @BeforeAll
+    static void beforeAll() throws InterruptedException, ServiceLoadException {
+        kernel = prepareKernelFromConfigFile("ipc.yaml", IPCCliTest.class, CLI_SERVICE, TEST_SERVICE_NAME);
+        DeploymentService deploymentService = (DeploymentService) kernel.locate(DEPLOYMENT_SERVICE_TOPICS);
+        deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
+    }
+
+    @AfterAll
+    static void afterAll() {
+        kernel.shutdown();
+    }
+
     @BeforeEach
-    void beforeEach(ExtensionContext context) throws InterruptedException, IOException {
+    void beforeEach(ExtensionContext context) {
         ignoreExceptionOfType(context, ConnectException.class);
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
-        kernel = prepareKernelFromConfigFile("ipc.yaml", this.getClass(), CLI_SERVICE, TEST_SERVICE_NAME);
+
     }
 
     @AfterEach
@@ -108,10 +129,10 @@ class IPCCliTest {
         if (client != null) {
             client.disconnect();
         }
-        kernel.shutdown();
     }
 
     @Test
+    @Order(1)
     public void GIVEN_component_running_WHEN_get_component_request_made_THEN_service_details_sent() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
@@ -122,18 +143,8 @@ class IPCCliTest {
         assertEquals("1.0.0", response.getComponentDetails().getVersion());
     }
 
-    private KernelIPCClientConfig getIPCConfigForCli() throws IOException, URISyntaxException {
-        Path filepath = kernel.getRootPath().resolve(CLI_IPC_INFO_FILENAME);
-        Map<String, String> ipcInfo = OBJECT_MAPPER.readValue(Files.readAllBytes(filepath), Map.class);
-        URI serverUri = new URI(ipcInfo.get(SOCKET_URL));
-        int port = serverUri.getPort();
-        String address = serverUri.getHost();
-        String token = ipcInfo.get(CLI_AUTH_TOKEN);
-        return KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token(token).build();
-    }
-
     @Test
+    @Order(2)
     public void GIVEN_get_component_request_made_WHEN_component_not_exist_THEN_error_sent(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, ServiceLoadException.class);
         KernelIPCClientConfig config = getIPCConfigForCli();
@@ -144,6 +155,7 @@ class IPCCliTest {
     }
 
     @Test
+    @Order(3)
     public void GIVEN_get_component_request_made_WHEN_empty_component_name_THEN_error_sent(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, ServiceLoadException.class);
         KernelIPCClientConfig config = getIPCConfigForCli();
@@ -154,6 +166,7 @@ class IPCCliTest {
     }
 
     @Test
+    @Order(4)
     public void GIVEN_kernel_running_WHEN_list_component_request_made_THEN_components_details_sent() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
@@ -168,41 +181,40 @@ class IPCCliTest {
     }
 
     @Test
-    public void GIVEN_kernel_running_WHEN_restart_component_request_made_THEN_components_details_sent() throws Exception {
+    @Order(5)
+    public void GIVEN_kernel_running_WHEN_restart_component_request_made_THEN_components_restarts() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
         Cli cli = new CliImpl(client);
-
         GetComponentDetailsResponse response = cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName(
-                TEST_SERVICE_NAME).build());
+                "ServiceToBeRestarted").build());
         assertEquals(RUNNING, response.getComponentDetails().getState());
-        CountDownLatch serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.STARTING);
+        CountDownLatch serviceLatch = waitForServiceToComeInState("ServiceToBeRestarted", State.STARTING);
         RestartComponentResponse restartComponentResponse =
-                cli.restartComponent(RestartComponentRequest.builder().componentName(TEST_SERVICE_NAME).build());
+                cli.restartComponent(RestartComponentRequest.builder().componentName("ServiceToBeRestarted").build());
         assertEquals(RequestStatus.SUCCEEDED, restartComponentResponse.getRequestStatus());
-        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_MINUTES, TimeUnit.MINUTES));
+        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
     @Test
-    public void GIVEN_kernel_running_WHEN_stop_component_request_made_THEN_components_details_sent() throws Exception {
+    @Order(6)
+    public void GIVEN_kernel_running_WHEN_stop_component_request_made_THEN_components_stops() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
         Cli cli = new CliImpl(client);
         GetComponentDetailsResponse response = cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName(
-                TEST_SERVICE_NAME).build());
+                "ServiceToBeStopped").build());
         assertEquals(RUNNING, response.getComponentDetails().getState());
 
-        CountDownLatch stoppingLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.STOPPING);
+        CountDownLatch stoppingLatch = waitForServiceToComeInState("ServiceToBeStopped", State.STOPPING);
         StopComponentResponse stopComponentResponse =
-                cli.stopComponent(StopComponentRequest.builder().componentName(TEST_SERVICE_NAME).build());
+                cli.stopComponent(StopComponentRequest.builder().componentName("ServiceToBeStopped").build());
         assertEquals(RequestStatus.SUCCEEDED, stopComponentResponse.getRequestStatus());
-        assertTrue(stoppingLatch.await(SERVICE_STATE_CHECK_TIMEOUT_MINUTES, TimeUnit.MINUTES));
-        // To verify get component details for the service in STOPPING state
-        response = cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName(
-                TEST_SERVICE_NAME).build());
+        assertTrue(stoppingLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
     @Test
+    @Order(7)
     public void GIVEN_kernel_running_WHEN_create_deployment_after_recipe_update_THEN_kernel_runs_latest_recipe(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
@@ -223,8 +235,8 @@ class IPCCliTest {
         CreateLocalDeploymentResponse deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId1 = deploymentResponse.getDeploymentId();
         CountDownLatch deploymentLatch = waitForDeploymentToBeSuccessful(deploymentId1);
-        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_MINUTES, TimeUnit.MINUTES));
-        assertTrue(deploymentLatch.await(LOCAL_DEPLOYMENT_TIMEOUT_MINUTES, TimeUnit.MINUTES));
+        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertTrue(deploymentLatch.await(LOCAL_DEPLOYMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
 
         GetComponentDetailsResponse response = cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName(
                 TEST_SERVICE_NAME).build());
@@ -237,7 +249,7 @@ class IPCCliTest {
         serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.FINISHED);
         deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId2 = deploymentResponse.getDeploymentId();
-        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_MINUTES, TimeUnit.MINUTES));
+        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         ignoreExceptionOfType(context, ServiceLoadException.class);
         eventuallySuccessfulDeployment(cli, deploymentId2, 60);
         assertThrows(ComponentNotFoundError.class,
@@ -251,21 +263,8 @@ class IPCCliTest {
         assertThat(localDeploymentIds, containsInAnyOrder(deploymentId1, deploymentId2));
     }
 
-    private void eventuallySuccessfulDeployment(Cli cli, String deploymentId, int timeoutInSeconds) throws Exception {
-        LocalTime startTime = LocalTime.now();
-        while (LocalTime.now().isBefore(startTime.plusSeconds(timeoutInSeconds))) {
-            GetLocalDeploymentStatusResponse response =
-                    cli.getLocalDeploymentStatus(GetLocalDeploymentStatusRequest.builder().deploymentId(deploymentId).build());
-            if (response.getDeployment().getStatus() == DeploymentStatus.SUCCEEDED) {
-                return;
-            }
-            Thread.sleep(1000);
-        }
-        fail(String.format("Deployment %s not successful in given time %d seconds", deploymentId, timeoutInSeconds));
-    }
-
-
     @Test
+    @Order(8)
     public void GIVEN_kernel_running_WHEN_update_artifacts_and_deployment_THEN_kernel_copies_artifacts_correctly(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
@@ -287,15 +286,17 @@ class IPCCliTest {
                 .groupName("NewGroup")
                 .rootComponentVersionsToAdd(Collections.singletonMap("Component1", "1.0.0"))
                 .build();
+
         CreateLocalDeploymentResponse deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId1 = deploymentResponse.getDeploymentId();
-        assertTrue(waitForServiceToComeInState("Component1", State.RUNNING)
-                .await(SERVICE_STATE_CHECK_TIMEOUT_MINUTES, TimeUnit.MINUTES));
-        assertTrue(waitForDeploymentToBeSuccessful(deploymentId1).await(LOCAL_DEPLOYMENT_TIMEOUT_MINUTES,
-                TimeUnit.MINUTES));
+        CountDownLatch waitForComponent1ToRun = waitForServiceToComeInState("Component1", State.RUNNING);
+        CountDownLatch waitFordeploymentId1 = waitForDeploymentToBeSuccessful(deploymentId1);
+        assertTrue(waitForComponent1ToRun.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertTrue(waitFordeploymentId1.await(LOCAL_DEPLOYMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
     @Test
+    @Order(9)
     public void GIVEN_kernel_running_WHEN_change_configuration_and_deployment_THEN_kernel_copies_artifacts_correctly(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
@@ -336,8 +337,8 @@ class IPCCliTest {
         String deploymentId1 = deploymentResponse.getDeploymentId();
         CountDownLatch deploymentLatch = waitForDeploymentToBeSuccessful(deploymentId1);
 
-        assertTrue(deploymentLatch.await(LOCAL_DEPLOYMENT_TIMEOUT_MINUTES, TimeUnit.MINUTES));
-        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_MINUTES, TimeUnit.MINUTES));
+        assertTrue(deploymentLatch.await(LOCAL_DEPLOYMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertTrue(stdoutLatch.await(10, TimeUnit.SECONDS));
 
         //Get configuration in component details
@@ -348,22 +349,46 @@ class IPCCliTest {
     }
 
 
+    private KernelIPCClientConfig getIPCConfigForCli() throws IOException, URISyntaxException {
+        Path filepath = kernel.getRootPath().resolve(CLI_IPC_INFO_FILENAME);
+        Map<String, String> ipcInfo = OBJECT_MAPPER.readValue(Files.readAllBytes(filepath), Map.class);
+        URI serverUri = new URI(ipcInfo.get(SOCKET_URL));
+        int port = serverUri.getPort();
+        String address = serverUri.getHost();
+        String token = ipcInfo.get(CLI_AUTH_TOKEN);
+        return KernelIPCClientConfig.builder().hostAddress(address).port(port)
+                .token(token).build();
+    }
+
+    private void eventuallySuccessfulDeployment(Cli cli, String deploymentId, int timeoutInSeconds) throws Exception {
+        LocalTime startTime = LocalTime.now();
+        while (LocalTime.now().isBefore(startTime.plusSeconds(timeoutInSeconds))) {
+            GetLocalDeploymentStatusResponse response =
+                    cli.getLocalDeploymentStatus(GetLocalDeploymentStatusRequest.builder().deploymentId(deploymentId).build());
+            if (response.getDeployment().getStatus() == DeploymentStatus.SUCCEEDED) {
+                return;
+            }
+            Thread.sleep(1000);
+        }
+        fail(String.format("Deployment %s not successful in given time %d seconds", deploymentId, timeoutInSeconds));
+    }
+
     private CountDownLatch waitForDeploymentToBeSuccessful(String deploymentId) {
         CountDownLatch deploymentLatch = new CountDownLatch(1);
         DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
-        deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.LOCAL,
-                (deploymentDetails)->{
-                    String receivedDeploymentId =
-                            deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID).toString();
-                    if (receivedDeploymentId.equals(deploymentId)) {
-                        DeploymentStatus status = (DeploymentStatus) deploymentDetails
-                                .get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS);
-                        if (status == DeploymentStatus.SUCCEEDED) {
-                            deploymentLatch.countDown();
-                        }
-                    }
-                    return true;
-                }, IPCCliTest.class.getSimpleName());
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.LOCAL, (deploymentDetails) ->
+        {
+            String receivedDeploymentId =
+                    deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID).toString();
+            if (receivedDeploymentId.equals(deploymentId)) {
+                DeploymentStatus status = (DeploymentStatus) deploymentDetails
+                        .get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS);
+                if (status == DeploymentStatus.SUCCEEDED) {
+                    deploymentLatch.countDown();
+                }
+            }
+            return true;
+        }, deploymentId);
         return deploymentLatch;
     }
 
