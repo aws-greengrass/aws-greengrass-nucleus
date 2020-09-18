@@ -7,6 +7,7 @@ package com.aws.greengrass.authorization;
 
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -98,9 +99,8 @@ public class AuthorizationModuleTest {
                 fail("Encountered exception ", e);
             }
         });
-        String componentToRemove = "ComponentB";
-        module.deletePermissionsWithDestination(componentToRemove);
-        assertEquals(module.permissions.get("ComponentB").size(), 0);
+        module.deleteAllPermissions();
+        assertEquals(module.permissions.size(), 0);
     }
 
     @Test

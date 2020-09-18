@@ -42,13 +42,10 @@ public class AuthorizationModule {
     }
 
     /**
-     * Clear the permission list for a given destination. This is used when updating policies for a component.
-     * @param destination destination value
+     * Clear the permission list. This is used before reloading all policies.
      */
-    public void deletePermissionsWithDestination(String destination) {
-        if (permissions.containsKey(destination) && !Utils.isEmpty(permissions.get(destination))) {
-            permissions.get(destination).clear();
-        }
+    public void deleteAllPermissions() {
+        permissions.clear();
     }
 
     /**

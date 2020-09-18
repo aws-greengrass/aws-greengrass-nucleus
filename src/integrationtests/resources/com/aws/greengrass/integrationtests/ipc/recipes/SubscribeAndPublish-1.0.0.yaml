@@ -1,0 +1,24 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: SubscribeAndPublish
+ComponentVersion: '1.0.0'
+ComponentDescription: SubscribeAndPublish
+ComponentPublisher: Amazon
+Manifests:
+  - Parameters:
+      - Name: accessControl
+        Value: >-
+          {"aws.greengrass.ipc.pubsub":
+            [
+              {
+                "policyId1": {
+                  "policyDescription":"access to pubsub topics",
+                  "operations":["*"],"resources":["*"]
+                }
+              }
+            ]
+          }
+        Type: STRING
+    Lifecycle:
+      Run: >-
+        sleep 100

@@ -3,10 +3,7 @@
 
 package com.aws.greengrass.integrationtests.ipc;
 
-import com.aws.greengrass.authorization.AuthorizationModule;
-import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.config.Topic;
-import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
@@ -16,7 +13,7 @@ import com.aws.greengrass.ipc.services.pubsub.PubSubImpl;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Pair;
-import org.junit.jupiter.api.AfterAll;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +23,6 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
@@ -36,16 +32,14 @@ import java.util.function.Consumer;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
-import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTROL_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(GGExtension.class)
 class IPCPubSubTest {
@@ -59,25 +53,21 @@ class IPCPubSubTest {
     @BeforeAll
     static void startKernel() throws InterruptedException {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
-        kernel = prepareKernelFromConfigFile("pubsub.yaml", IPCPubSubTest.class, "SubscribeAndPublish");
     }
 
-    @AfterAll
-    static void stopKernel() {
+    @AfterEach
+    void stopKernel() throws IOException {
+        client.disconnect();
         kernel.shutdown();
     }
 
     @BeforeEach
-    void beforeEach(ExtensionContext context) {
+    void beforeEach(ExtensionContext context) throws InterruptedException {
         ignoreExceptionOfType(context, InterruptedException.class);
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
-    }
-
-    @AfterEach
-    void afterEach() throws IOException {
-        client.disconnect();
+        kernel = prepareKernelFromConfigFile("pubsub.yaml", IPCPubSubTest.class, "SubscribeAndPublish");
     }
 
     @Test
@@ -150,100 +140,6 @@ class IPCPubSubTest {
         //Block until events are completed
         kernel.getContext().runOnPublishQueueAndWait(() -> {
         });
-        c.subscribeToTopic("a", cb.getRight()); //now this should succeed
-        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
-    }
-
-    @Test
-    void GIVEN_pubsubclient_WHEN_authorized_THEN_ACL_child_removed_THEN_updates() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("DoAll1", kernel);
-        client = new IPCClientImpl(config);
-        PubSub c = new PubSubImpl(client);
-
-        Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
-            assertEquals("some message", new String(m, StandardCharsets.UTF_8));
-        });
-        c.subscribeToTopic("a", cb.getRight()); //this should succeed
-        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
-
-        Topics serviceTopic = kernel.findServiceTopic("DoAll1");
-        Topics parameters = serviceTopic.findTopics(PARAMETERS_CONFIG_KEY);
-        Topic acl = parameters.find(ACCESS_CONTROL_NAMESPACE_TOPIC);
-        if (acl != null) {
-            acl.remove();
-        }
-        //Block until events are completed
-        kernel.getContext().runOnPublishQueueAndWait(() -> {
-        });
-        //Now the authorization policies should have been removed and these should fail
-        assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
-        assertThrows(PubSubException.class, () -> c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8)));
-    }
-
-    @Test
-    void GIVEN_pubsubclient_WHEN_authorized_THEN_parameters_child_removed_THEN_updates() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("DoAll2", kernel);
-        client = new IPCClientImpl(config);
-        PubSub c = new PubSubImpl(client);
-
-        Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
-            assertEquals("some message", new String(m, StandardCharsets.UTF_8));
-        });
-        c.subscribeToTopic("a", cb.getRight()); //this should succeed
-        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
-
-        Topics serviceTopic = kernel.findServiceTopic("DoAll2");
-        Topics parameters = serviceTopic.findTopics(PARAMETERS_CONFIG_KEY);
-        if (parameters != null) {
-            parameters.remove();
-        }
-        //Block until events are completed
-        kernel.getContext().runOnPublishQueueAndWait(() -> {
-        });
-        //Now the authorization policies should have been removed and these should fail
-        assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
-        assertThrows(PubSubException.class, () -> c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8)));
-    }
-
-    @Test
-    void GIVEN_pubsubclient_WHEN_service_removed_and_added_THEN_fail_and_succeed() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("SubscribeAndPublish", kernel);
-        client = new IPCClientImpl(config);
-        PubSub c = new PubSubImpl(client);
-        Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
-            assertEquals("some message", new String(m, StandardCharsets.UTF_8));
-        }, -1);
-        Permission policyId1 =
-                Permission.builder().principal("SubscribeAndPublish").operation("*").resource("*").build();
-        Permission policyId2 =
-                Permission.builder().principal("PublishNotSubscribe").operation("publish").resource("*").build();
-        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId1));
-        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId2));
-        c.subscribeToTopic("a", cb.getRight());
-        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
-
-        // Remove the service topic
-        Topics serviceTopic = kernel.findServiceTopic("SubscribeAndPublish");
-        if (serviceTopic != null) {
-            serviceTopic.remove();
-        }
-        kernel.getContext().runOnPublishQueueAndWait(() -> {
-        });
-        assertFalse(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId1));
-        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId2));
-        assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
-        assertThrows(PubSubException.class, () -> c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8)));
-
-        // Reload the kernel with the service and correct authorization policy
-        kernel.getConfig().read(new URL(IPCPubSubTest.class.getResource("pubsub.yaml").toString()), false);
-        kernel.getContext().runOnPublishQueueAndWait(() -> {
-        });
-        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId1));
-        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId2));
         c.subscribeToTopic("a", cb.getRight()); //now this should succeed
         c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
         cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);

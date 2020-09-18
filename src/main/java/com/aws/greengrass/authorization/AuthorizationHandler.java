@@ -12,6 +12,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Utils;
+import lombok.Synchronized;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -67,13 +68,11 @@ public class AuthorizationHandler  {
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
         for (Map.Entry<String, List<AuthorizationPolicy>> acl : componentNameToPolicies.entrySet()) {
-            this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), false);
+            this.loadAuthorizationPolicies(acl.getKey(), acl.getValue());
         }
 
-        //Load default policy for TES
-        this.loadAuthorizationPolicies(TOKEN_EXCHANGE_SERVICE_TOPICS,
-                getDefaultPolicyForService(AUTHZ_TES_OPERATION),
-                false);
+        //Load default policies
+        addDefaultPolicies();
 
         //Subscribe to future auth config updates
         this.kernel.getConfig().getRoot().subscribe(
@@ -81,6 +80,7 @@ public class AuthorizationHandler  {
                     if (newv == null) {
                         return;
                     }
+                    logger.atInfo(newv.toString());
 
                     //If there is a childChanged event, it has to be the 'accessControl' Topic that has bubbled up
                     //If there is a childRemoved event, it could be the component is removed, or either the
@@ -107,10 +107,18 @@ public class AuthorizationHandler  {
                     //TODO: Add more sophisticated logic to specifically update policies scoped to this component,
                     // instead of reloading everything on every update.
                     // https://issues-iad.amazon.com/issues/V243584397
-                    Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
+
+                    final Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
                             .parseAllAuthorizationPolicies(kernel);
+
+                    //Delete all policies before reloading
+                    clearPolicies();
+
+                    //Add back in the relevant default policies
+                    addDefaultPolicies();
+
                     for (Map.Entry<String, List<AuthorizationPolicy>> acl : reloadedPolicies.entrySet()) {
-                        this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), true);
+                        this.loadAuthorizationPolicies(acl.getKey(), acl.getValue());
                     }
                 });
     }
@@ -126,6 +134,7 @@ public class AuthorizationHandler  {
      * @return whether the input combination is a valid flow.
      * @throws AuthorizationException when flow is not authorized.
      */
+    @Synchronized
     public boolean isAuthorized(String destination, Permission permission) throws AuthorizationException {
         String principal = permission.getPrincipal();
         String operation = permission.getOperation();
@@ -200,9 +209,9 @@ public class AuthorizationHandler  {
      * @param policies      List of policies. All policies are treated as separate
      *                      and no merging or joins happen. Duplicated policies would result in duplicated
      *                      permissions but would not impact functionality.
-     * @param isUpdate      If this load request is to update existing policies for a component.
      */
-    public void loadAuthorizationPolicies(String componentName, List<AuthorizationPolicy> policies, boolean isUpdate) {
+    @Synchronized
+    public void loadAuthorizationPolicies(String componentName, List<AuthorizationPolicy> policies) {
         if (policies == null) {
             return;
         }
@@ -243,9 +252,6 @@ public class AuthorizationHandler  {
                 continue;
             }
         }
-        if (isUpdate) {
-            authModule.deletePermissionsWithDestination(componentName);
-        }
         // now start adding the policies as permissions
         for (AuthorizationPolicy policy : policies) {
             try {
@@ -259,6 +265,8 @@ public class AuthorizationHandler  {
         }
 
         this.componentToAuthZConfig.put(componentName, policies);
+        logger.atInfo("load-authorization-config-success")
+                .log("Successfully loaded authorization config for {}", componentName);
 
     }
 
@@ -358,5 +366,17 @@ public class AuthorizationHandler  {
                 .principals(new HashSet<>(Arrays.asList("*")))
                 .operations(new HashSet<>(Arrays.asList(serviceName)))
                 .build());
+    }
+
+    private void addDefaultPolicies() {
+        //Load the default policy for TES back in
+        this.loadAuthorizationPolicies(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                getDefaultPolicyForService(AUTHZ_TES_OPERATION));
+    }
+
+    @Synchronized
+    private void clearPolicies() {
+        componentToAuthZConfig.clear();
+        authModule.deleteAllPermissions();
     }
 }

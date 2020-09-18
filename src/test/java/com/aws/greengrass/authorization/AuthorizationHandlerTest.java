@@ -13,6 +13,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -177,14 +178,12 @@ public class AuthorizationHandlerTest {
         setupLogListener("load-authorization-config-invalid-component");
 
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
-        authorizationHandler.loadAuthorizationPolicies(null, Collections.singletonList(getAuthZPolicy())
-                , false);
+        authorizationHandler.loadAuthorizationPolicies(null, Collections.singletonList(getAuthZPolicy()));
 
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
         setupLogListener("load-authorization-config-invalid-component");
-        authorizationHandler.loadAuthorizationPolicies("", Collections.singletonList(getAuthZPolicy())
-                , false);
+        authorizationHandler.loadAuthorizationPolicies("", Collections.singletonList(getAuthZPolicy()));
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
     }
 
@@ -233,9 +232,9 @@ public class AuthorizationHandlerTest {
         authorizationHandler.registerComponent("ServiceB", serviceOpsB);
 
         authorizationHandler.loadAuthorizationPolicies("ServiceA",
-                Collections.singletonList(getAuthZPolicy()), false);
+                Collections.singletonList(getAuthZPolicy()));
         authorizationHandler.loadAuthorizationPolicies("ServiceB",
-                Collections.singletonList(getAuthZPolicyB()), false);
+                Collections.singletonList(getAuthZPolicyB()));
 
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
                 Permission.builder().principal("compA").operation("OpA").resource(null).build()));
@@ -301,8 +300,7 @@ public class AuthorizationHandlerTest {
         authorizationHandler.registerComponent("ServiceB", serviceOps);
 
         AuthorizationPolicy policy = getStarOperationsAuthZPolicy();
-        authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy)
-                , false);
+        authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy));
         // All registered Operations are allowed now
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
                 Permission.builder().principal("compA").operation("OpA").resource(null).build()));
@@ -344,8 +342,7 @@ public class AuthorizationHandlerTest {
         authorizationHandler.registerComponent("ServiceA", serviceOps);
 
         AuthorizationPolicy policy = getStarResourceAuthZPolicy();
-        authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy)
-                , false);
+        authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
                 Permission.builder().principal("compA").operation("OpA").resource("*").build()));
 
@@ -366,8 +363,7 @@ public class AuthorizationHandlerTest {
         authorizationHandler.registerComponent("ServiceB", serviceOps);
 
         AuthorizationPolicy policy = getStarSourcesAuthZPolicy();
-        authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy),
-                false);
+        authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
                 Permission.builder().principal("compA").operation("OpA").resource(null).build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
@@ -411,13 +407,13 @@ public class AuthorizationHandlerTest {
         // invalid component fails
         authorizationHandler
                 .loadAuthorizationPolicies("",
-                        Collections.singletonList(getAuthZPolicy()), false);
+                        Collections.singletonList(getAuthZPolicy()));
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
         setupLogListener("load-authorization-config-invalid-component");
         authorizationHandler.loadAuthorizationPolicies(
                 null,
-                Collections.singletonList(getAuthZPolicy()), false);
+                Collections.singletonList(getAuthZPolicy()));
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
         //TODO:Add component registration logic back in along with this assertion:
@@ -435,7 +431,7 @@ public class AuthorizationHandlerTest {
         setupLogListener("load-authorization-config-invalid-principal");
         authorizationHandler.loadAuthorizationPolicies(
                 "ServiceA",
-                Collections.singletonList(getAuthZPolicyWithEmptyPrincipal()), false);
+                Collections.singletonList(getAuthZPolicyWithEmptyPrincipal()));
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
         // Now let the mock return null
@@ -444,7 +440,7 @@ public class AuthorizationHandlerTest {
         setupLogListener("load-authorization-config-invalid-principal");
         authorizationHandler.loadAuthorizationPolicies(
                 "ServiceA",
-                Collections.singletonList(getAuthZPolicy()), false);
+                Collections.singletonList(getAuthZPolicy()));
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
         // Now let the mock return mock topics
@@ -460,19 +456,19 @@ public class AuthorizationHandlerTest {
         setupLogListener("load-authorization-config-invalid-operation");
         authorizationHandler.loadAuthorizationPolicies(
                 "ServiceA",
-                Collections.singletonList(getAuthZPolicyWithEmptyOp()), false);
+                Collections.singletonList(getAuthZPolicyWithEmptyOp()));
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
         // duplicate policyId should fails
         setupLogListener("load-authorization-config-invalid-policy");
         authorizationHandler.loadAuthorizationPolicies("ServiceA",
-                getAuthZPolicyWithDuplicateId(), false);
+                getAuthZPolicyWithDuplicateId());
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
         // empty policy Id should fail
         setupLogListener("load-authorization-config-invalid-policy");
         authorizationHandler.loadAuthorizationPolicies("ServiceA",
-                Collections.singletonList(getAuthZPolicyWithEmptyPolicyId()), false);
+                Collections.singletonList(getAuthZPolicyWithEmptyPolicyId()));
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
     }
