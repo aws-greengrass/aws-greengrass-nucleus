@@ -367,6 +367,6 @@ public class KernelConfigResolver {
             return Optional.empty();
         }
         Topic parameterConfig = serviceTopics.find(PARAMETERS_CONFIG_KEY, parameterName);
-        return parameterConfig == null ? Optional.empty() : Optional.of(Coerce.toString(parameterConfig));
+        return parameterConfig == null ? Optional.empty() : Optional.ofNullable(Coerce.toString(parameterConfig));
     }
 }

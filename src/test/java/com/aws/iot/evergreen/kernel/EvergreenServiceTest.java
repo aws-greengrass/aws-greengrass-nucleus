@@ -105,7 +105,7 @@ public class EvergreenServiceTest extends EGServiceTestUtil {
     void GIVEN_service_WHEN_dependencies_change_THEN_service_restarts() {
         //GIVEN service A with dependencies B,C,D
         // provided in the beforeEach
-
+      
         //WHEN D is removed and E is added
         Topic topic = aService.getConfig().find(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
         topic.withNewerValue(System.currentTimeMillis(), Arrays.asList("B", "C", "E"));
