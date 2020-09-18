@@ -76,7 +76,6 @@ import static com.aws.iot.evergreen.packagemanager.KernelConfigResolver.VERSION_
 @SuppressWarnings("PMD.CouplingBetweenObjects")
 public class Kernel {
     private static final Logger logger = LogManager.getLogger(Kernel.class);
-
     protected static final String CONTEXT_SERVICE_IMPLEMENTERS = "service-implementers";
     public static final String SERVICE_CLASS_TOPIC_KEY = "class";
     public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
@@ -112,6 +111,9 @@ public class Kernel {
     @Getter
     @Setter(AccessLevel.PACKAGE)
     private Path deploymentsPath;
+    @Getter
+    @Setter(AccessLevel.PACKAGE)
+    private Path telemetryPath;
 
     @Setter(AccessLevel.PACKAGE)
     private KernelCommandLine kernelCommandLine;

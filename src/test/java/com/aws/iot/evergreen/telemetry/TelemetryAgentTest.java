@@ -5,12 +5,12 @@
 
 package com.aws.iot.evergreen.telemetry;
 
-import ch.qos.logback.classic.LoggerContext;
 import com.aws.iot.evergreen.config.Topic;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.mqtt.PublishRequest;
+import com.aws.iot.evergreen.telemetry.impl.config.TelemetryConfig;
 import com.aws.iot.evergreen.testcommons.testutilities.EGExtension;
 import com.aws.iot.evergreen.testcommons.testutilities.EGServiceTestUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -67,7 +67,6 @@ public class TelemetryAgentTest extends EGServiceTestUtil {
     private ScheduledExecutorService ses;
     @Mock
     private Kernel kernel;
-    private final LoggerContext loggerContext = new LoggerContext();
 
     @BeforeEach
     public void setup() {
@@ -101,14 +100,12 @@ public class TelemetryAgentTest extends EGServiceTestUtil {
                 .lookup(TELEMETRY_METRICS_PUBLISH_TOPICS))
                 .thenReturn(telemetryMetricsPublishTopic);
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
+        TelemetryConfig.setRoot(tempRootDir);
         telemetryAgent = spy(new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, kernel, ses));
     }
 
     @AfterEach
     public void cleanUp() {
-        loggerContext.getLogger("Metrics-KernelComponents").detachAndStopAllAppenders();
-        loggerContext.getLogger("Metrics-SystemMetrics").detachAndStopAllAppenders();
-        loggerContext.getLogger("Metrics-AggregateMetrics").detachAndStopAllAppenders();
         ses.shutdownNow();
         telemetryAgent.shutdown();
     }
@@ -163,12 +160,15 @@ public class TelemetryAgentTest extends EGServiceTestUtil {
         //verify that nothing is published when mqtt is interrupted
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
         reset(telemetryAgent);
+        Topic.of(context, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC, "2");
+        lenient().when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC))
+                .thenReturn(periodicPublishMetricsIntervalSec);
         long milliSeconds = 3000;
         // aggregation is continued irrespective of the mqtt connection
-        verify(telemetryAgent, timeout(milliSeconds).atLeast(1)).aggregatePeriodicMetrics();
+        verify(telemetryAgent, timeout(milliSeconds).atLeastOnce()).aggregatePeriodicMetrics();
         //verify that metrics are published atleast once in the periodic interval when the connection resumes
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionResumed(true);
-        verify(mockMqttClient, timeout(milliSeconds).atLeast(1)).publish(publishRequestArgumentCaptor.capture());
+        verify(mockMqttClient, timeout(milliSeconds).atLeastOnce()).publish(publishRequestArgumentCaptor.capture());
         PublishRequest request = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, request.getQos());
         assertEquals("$aws/things/testThing/greengrass/health/json", request.getTopic());

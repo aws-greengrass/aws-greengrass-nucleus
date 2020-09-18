@@ -9,6 +9,7 @@ import com.aws.iot.evergreen.deployment.DeploymentDirectoryManager;
 import com.aws.iot.evergreen.deployment.bootstrap.BootstrapManager;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.telemetry.impl.config.TelemetryConfig;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.Exec;
 import com.aws.iot.evergreen.util.Utils;
@@ -61,6 +62,7 @@ public class KernelCommandLine {
     private static final String packageStorePathName = "~root/packages";
     private static final String kernelAltsPathName = "~root/alts";
     private static final String deploymentsPathName = "~root/deployments";
+    private static final String telemetryPathName = "~root/telemetry";
 
     public static void main(String[] args) {
         new Kernel().parseArgs(args).launch();
@@ -128,6 +130,9 @@ public class KernelCommandLine {
         kernel.setPackageStorePath(Paths.get(deTilde(packageStorePathName)).toAbsolutePath());
         kernel.setKernelAltsPath(Paths.get(deTilde(kernelAltsPathName)).toAbsolutePath());
         kernel.setDeploymentsPath(Paths.get(deTilde(deploymentsPathName)).toAbsolutePath());
+        kernel.setTelemetryPath(Paths.get(deTilde(telemetryPathName)).toAbsolutePath());
+        //set telemetry path for the logger
+        TelemetryConfig.getInstance().setRoot(kernel.getTelemetryPath());
         try {
             Utils.createPaths(kernel.getRootPath(), kernel.getConfigPath(), kernel.getClitoolPath(),
                     kernel.getWorkPath(), kernel.getPackageStorePath(), kernel.getKernelAltsPath(),
