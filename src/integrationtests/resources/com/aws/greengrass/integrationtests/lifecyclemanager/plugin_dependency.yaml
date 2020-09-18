@@ -1,0 +1,14 @@
+---
+services:
+  plugin:
+    version: 1.0.0
+    componentType: PLUGIN
+  plugin-dependency:
+    class: com.aws.greengrass.integrationtests.lifecyclemanager.resource.PluginDependencyService
+    version: 1.0.0
+    dependencies:
+      - plugin
+  main:
+    lifecycle: {}
+    dependencies:
+      - plugin-dependency

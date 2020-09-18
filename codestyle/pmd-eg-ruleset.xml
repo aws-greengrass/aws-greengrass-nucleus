@@ -10,7 +10,7 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
     <description>
-        Evergreen Custom Rules
+        Custom Rules
     </description>
 
     <exclude-pattern>.*Test.*</exclude-pattern>
@@ -93,7 +93,7 @@
             <property name="xpath">
                 <value>
                     <![CDATA[
-//PrimaryExpression[PrimaryPrefix[pmd-java:typeIs("com.aws.iot.evergreen.logging.api.Logger")] and PrimarySuffix[last()-1][@Image!="log"]]
+//PrimaryExpression[PrimaryPrefix[pmd-java:typeIs("com.aws.greengrass.logging.api.Logger")] and PrimarySuffix[last()-1][@Image!="log"]]
 ]]>
                 </value>
             </property>

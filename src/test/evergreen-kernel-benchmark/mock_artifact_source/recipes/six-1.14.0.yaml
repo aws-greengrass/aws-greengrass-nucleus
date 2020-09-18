@@ -1,8 +1,8 @@
 ---
 RecipeFormatVersion: '2020-01-25'
 ComponentName: six
-ComponentDescription: Test recipe for Evergreen packages
-ComponentPublisher: EvergreenBenchmarkTest
+ComponentDescription: Test recipe for Greengrass Components
+ComponentPublisher: Publisher
 ComponentVersion: '1.14.0'
 manifests:
   - lifecycle: {}
