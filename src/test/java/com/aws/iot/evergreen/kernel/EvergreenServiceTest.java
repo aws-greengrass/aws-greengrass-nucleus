@@ -36,8 +36,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -118,11 +116,5 @@ public class EvergreenServiceTest extends EGServiceTestUtil {
         assertEquals(aService.dependencies.size(), 3);
         assertNull(aService.dependencies.get(dService));
         assertNotNull(aService.dependencies.get(eService));
-
-        aService.getState();
-        //verify service is restarted
-        // clearODcache is called 3 times when B,C,D is added, once when D is removed and 2 times when B,C was retained
-        //and once when E is added.
-        verify(kernel, times(7)).clearODcache();
     }
 }
