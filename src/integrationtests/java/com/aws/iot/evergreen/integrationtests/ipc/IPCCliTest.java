@@ -291,10 +291,8 @@ class IPCCliTest {
         String deploymentId1 = deploymentResponse.getDeploymentId();
         CountDownLatch waitForComponent1ToRun = waitForServiceToComeInState("Component1", State.RUNNING);
         CountDownLatch waitFordeploymentId1 = waitForDeploymentToBeSuccessful(deploymentId1);
-        assertTrue(waitForComponent1ToRun
-                .await(15, TimeUnit.SECONDS));
-        assertTrue(waitFordeploymentId1.await(15,
-                TimeUnit.SECONDS));
+        assertTrue(waitForComponent1ToRun.await(15, TimeUnit.SECONDS));
+        assertTrue(waitFordeploymentId1.await(15, TimeUnit.SECONDS));
     }
 
     @Test

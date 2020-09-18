@@ -67,6 +67,7 @@ class IPCServicesTest {
 
     @BeforeAll
     static void beforeAll() throws InterruptedException {
+        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCServicesTest.class, TEST_SERVICE_NAME);
     }
 
@@ -76,8 +77,8 @@ class IPCServicesTest {
     }
 
     @BeforeEach
-    void beforeEach(ExtensionContext context) throws InterruptedException {
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
+    void beforeEach(ExtensionContext context) {
+
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
