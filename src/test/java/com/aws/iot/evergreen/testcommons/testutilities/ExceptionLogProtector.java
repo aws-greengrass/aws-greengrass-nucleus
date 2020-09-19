@@ -149,6 +149,8 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
     @SneakyThrows
     public void afterEach(ExtensionContext context) throws Exception {
         Slf4jLogAdapter.removeGlobalListener(getListener(context));
+        //Stop the telemetry logger context after each test so we can delete the telemetry log files that are created
+        // during the test.
         TelemetryConfig.getInstance().close();
         List<Throwable> exceptions = getExceptions(context);
         try {

@@ -111,9 +111,6 @@ public class Kernel {
     @Getter
     @Setter(AccessLevel.PACKAGE)
     private Path deploymentsPath;
-    @Getter
-    @Setter(AccessLevel.PACKAGE)
-    private Path telemetryPath;
 
     @Setter(AccessLevel.PACKAGE)
     private KernelCommandLine kernelCommandLine;

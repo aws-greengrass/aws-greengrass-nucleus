@@ -10,23 +10,19 @@ import com.aws.iot.evergreen.config.Topics;
 import com.aws.iot.evergreen.dependency.ImplementsService;
 import com.aws.iot.evergreen.deployment.DeviceConfiguration;
 import com.aws.iot.evergreen.kernel.EvergreenService;
-import com.aws.iot.evergreen.kernel.Kernel;
 import com.aws.iot.evergreen.kernel.KernelMetricsEmitter;
 import com.aws.iot.evergreen.mqtt.MqttClient;
 import com.aws.iot.evergreen.util.Coerce;
 import com.aws.iot.evergreen.util.MqttChunkedPayloadPublisher;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.Setter;
 import org.apache.commons.lang3.RandomUtils;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -41,21 +37,15 @@ public class TelemetryAgent extends EvergreenService {
     public static final String TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC = "periodicAggregateMetricsIntervalSec";
     public static final String TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicPublishMetricsIntervalSec";
     public static final String TELEMETRY_METRICS_PUBLISH_TOPICS = "telemetryMetricsPublishTopic";
-    @Getter
-    @Setter
-    private static final Set<String> TELEMETRY_NAMESPACES = new HashSet<>();
-    @Getter(AccessLevel.PACKAGE)
-    private static final int DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC = 3_600;
-    @Getter(AccessLevel.PACKAGE)
-    private static final String TELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC = "lastPeriodicPublishMetricsTime";
-    @Getter(AccessLevel.PACKAGE)
-    private static final String TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC = "lastPeriodicAggregationMetricsTime";
+    static final int DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC = 3_600;
+    static final String TELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC = "lastPeriodicPublishMetricsTime";
+    static final String TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC = "lastPeriodicAggregationMetricsTime";
     private static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 86_400;
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
     private static int periodicPublishMetricsIntervalSec = 0;
     private static int periodicAggregateMetricsIntervalSec = 0;
     private final MqttClient mqttClient;
-    private final MetricsAggregator metricsAggregator = new MetricsAggregator();
+    private final MetricsAggregator metricsAggregator;
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
     private final Object periodicPublishMetricsInProgressLock = new Object();
     private final Object periodicAggregateMetricsInProgressLock = new Object();
@@ -84,25 +74,28 @@ public class TelemetryAgent extends EvergreenService {
     private String telemetryMetricsPublishTopic = DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC;
 
     /**
-     * Constructor for metrics agent.
-     *
-     * @param topics              root configuration topic for this service
-     * @param mqttClient          {@link MqttClient}
-     * @param deviceConfiguration {@link DeviceConfiguration}
-     * @param kernel              {@link Kernel}
-     * @param ses                 {@link ScheduledExecutorService}
+     * Constructor for the class.
+     * @param topics                root configuration topic for this service
+     * @param mqttClient            {@link MqttClient}
+     * @param deviceConfiguration   {@link DeviceConfiguration}
+     * @param ma                    {@link MetricsAggregator}
+     * @param sme                   {@link SystemMetricsEmitter}
+     * @param kme                   {@link KernelMetricsEmitter}
+     * @param ses                   {@link ScheduledExecutorService}
      */
     @Inject
-    public TelemetryAgent(Topics topics, MqttClient mqttClient, DeviceConfiguration deviceConfiguration, Kernel kernel,
+    public TelemetryAgent(Topics topics, MqttClient mqttClient, DeviceConfiguration deviceConfiguration,
+                          MetricsAggregator ma, SystemMetricsEmitter sme, KernelMetricsEmitter kme,
                           ScheduledExecutorService ses) {
         super(topics);
         this.mqttClient = mqttClient;
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
         this.ses = ses;
+        this.metricsAggregator = ma;
         this.thingName = Coerce.toString(deviceConfiguration.getThingName());
-        periodicMetricsEmitters.add(new SystemMetricsEmitter());
-        periodicMetricsEmitters.add(new KernelMetricsEmitter(kernel));
+        periodicMetricsEmitters.add(sme);
+        periodicMetricsEmitters.add(kme);
         getPeriodicAggregateTimeTopic();
         getPeriodicPublishTimeTopic();
     }

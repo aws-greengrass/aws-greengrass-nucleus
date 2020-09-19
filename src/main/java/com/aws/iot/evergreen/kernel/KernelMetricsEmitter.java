@@ -6,9 +6,8 @@ package com.aws.iot.evergreen.kernel;
 import com.aws.iot.evergreen.dependency.State;
 import com.aws.iot.evergreen.logging.api.Logger;
 import com.aws.iot.evergreen.logging.impl.LogManager;
+import com.aws.iot.evergreen.telemetry.NamespaceSet;
 import com.aws.iot.evergreen.telemetry.PeriodicMetricsEmitter;
-import com.aws.iot.evergreen.telemetry.TelemetryAgent;
-import com.aws.iot.evergreen.telemetry.impl.InvalidMetricException;
 import com.aws.iot.evergreen.telemetry.impl.Metric;
 import com.aws.iot.evergreen.telemetry.impl.MetricFactory;
 import com.aws.iot.evergreen.telemetry.models.TelemetryAggregation;
@@ -29,12 +28,13 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
      * Constructor for kernel metrics emitter.
      *
      * @param kernel {@link Kernel}
+     * @param namespaceSet {@link NamespaceSet}
      */
     @Inject
-    public KernelMetricsEmitter(Kernel kernel) {
+    public KernelMetricsEmitter(Kernel kernel, NamespaceSet namespaceSet) {
         super();
         this.kernel = kernel;
-        TelemetryAgent.getTELEMETRY_NAMESPACES().add(NAMESPACE);
+        namespaceSet.addNamespace(NAMESPACE);
     }
 
     /**
@@ -47,80 +47,76 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
         for (EvergreenService evergreenService : evergreenServices) {
             stateCount.put(evergreenService.getState(), stateCount.getOrDefault(evergreenService.getState(), 0) + 1);
         }
-        try {
-            Metric metric = Metric.builder()
-                    .namespace(NAMESPACE)
-                    .name("NumberOfComponentsStarting")
-                    .unit(TelemetryUnit.Count)
-                    .aggregation(TelemetryAggregation.Average)
-                    .build();
-            mf.putMetricData(metric, stateCount.getOrDefault(State.STARTING, 0));
+        Metric metric = Metric.builder()
+                .namespace(NAMESPACE)
+                .name("NumberOfComponentsStarting")
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric, stateCount.getOrDefault(State.STARTING, 0));
 
-            metric = Metric.builder()
-                    .namespace(NAMESPACE)
-                    .name("NumberOfComponentsInstalled")
-                    .unit(TelemetryUnit.Count)
-                    .aggregation(TelemetryAggregation.Average)
-                    .build();
-            mf.putMetricData(metric, stateCount.getOrDefault(State.INSTALLED, 0));
+        metric = Metric.builder()
+                .namespace(NAMESPACE)
+                .name("NumberOfComponentsInstalled")
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric, stateCount.getOrDefault(State.INSTALLED, 0));
 
-            metric = Metric.builder()
-                    .namespace(NAMESPACE)
-                    .name("NumberOfComponentsStateless")
-                    .unit(TelemetryUnit.Count)
-                    .aggregation(TelemetryAggregation.Average)
-                    .build();
-            mf.putMetricData(metric, stateCount.getOrDefault(State.STATELESS, 0));
+        metric = Metric.builder()
+                .namespace(NAMESPACE)
+                .name("NumberOfComponentsStateless")
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric, stateCount.getOrDefault(State.STATELESS, 0));
 
-            metric = Metric.builder()
-                    .namespace(NAMESPACE)
-                    .name("NumberOfComponentsStopping")
-                    .unit(TelemetryUnit.Count)
-                    .aggregation(TelemetryAggregation.Average)
-                    .build();
-            mf.putMetricData(metric, stateCount.getOrDefault(State.STOPPING, 0));
+        metric = Metric.builder()
+                .namespace(NAMESPACE)
+                .name("NumberOfComponentsStopping")
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric, stateCount.getOrDefault(State.STOPPING, 0));
 
-            metric = Metric.builder()
-                    .namespace(NAMESPACE)
-                    .name("NumberOfComponentsBroken")
-                    .unit(TelemetryUnit.Count)
-                    .aggregation(TelemetryAggregation.Average)
-                    .build();
-            mf.putMetricData(metric, stateCount.getOrDefault(State.BROKEN, 0));
+        metric = Metric.builder()
+                .namespace(NAMESPACE)
+                .name("NumberOfComponentsBroken")
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric, stateCount.getOrDefault(State.BROKEN, 0));
 
-            metric = Metric.builder()
-                    .namespace(NAMESPACE)
-                    .name("NumberOfComponentsRunning")
-                    .unit(TelemetryUnit.Count)
-                    .aggregation(TelemetryAggregation.Average)
-                    .build();
-            mf.putMetricData(metric, stateCount.getOrDefault(State.RUNNING, 0));
+        metric = Metric.builder()
+                .namespace(NAMESPACE)
+                .name("NumberOfComponentsRunning")
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric, stateCount.getOrDefault(State.RUNNING, 0));
 
-            metric = Metric.builder()
-                    .namespace(NAMESPACE)
-                    .name("NumberOfComponentsErrored")
-                    .unit(TelemetryUnit.Count)
-                    .aggregation(TelemetryAggregation.Average)
-                    .build();
-            mf.putMetricData(metric, stateCount.getOrDefault(State.ERRORED, 0));
+        metric = Metric.builder()
+                .namespace(NAMESPACE)
+                .name("NumberOfComponentsErrored")
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric, stateCount.getOrDefault(State.ERRORED, 0));
 
-            metric = Metric.builder()
-                    .namespace(NAMESPACE)
-                    .name("NumberOfComponentsNew")
-                    .unit(TelemetryUnit.Count)
-                    .aggregation(TelemetryAggregation.Average)
-                    .build();
-            mf.putMetricData(metric, stateCount.getOrDefault(State.NEW, 0));
+        metric = Metric.builder()
+                .namespace(NAMESPACE)
+                .name("NumberOfComponentsNew")
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric, stateCount.getOrDefault(State.NEW, 0));
 
-            metric = Metric.builder()
-                    .namespace(NAMESPACE)
-                    .name("NumberOfComponentsFinished")
-                    .unit(TelemetryUnit.Count)
-                    .aggregation(TelemetryAggregation.Average)
-                    .build();
-            mf.putMetricData(metric, stateCount.getOrDefault(State.FINISHED, 0));
-        } catch (InvalidMetricException e) {
-            logger.atError().cause(e).log("The metric passed in is invalid.");
-        }
+        metric = Metric.builder()
+                .namespace(NAMESPACE)
+                .name("NumberOfComponentsFinished")
+                .unit(TelemetryUnit.Count)
+                .aggregation(TelemetryAggregation.Average)
+                .build();
+        mf.putMetricData(metric, stateCount.getOrDefault(State.FINISHED, 0));
     }
 }
