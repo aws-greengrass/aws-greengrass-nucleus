@@ -39,7 +39,7 @@ public class DeploymentStatusKeeperTest {
     @Mock
     private DeploymentService deploymentService;
 
-    private static final Function<Map<String, Object>, Boolean> DUMMY_CONSUMER = (details) -> false;
+    private static final Function<Map<Object, Object>, Boolean> DUMMY_CONSUMER = (details) -> false;
     private static final String DUMMY_SERVICE_NAME = "dummyService";
     private DeploymentStatusKeeper deploymentStatusKeeper;
     private Topics processedDeployments;
@@ -77,13 +77,13 @@ public class DeploymentStatusKeeperTest {
 
     @Test
     public void WHEN_deployment_status_update_received_THEN_consumers_called_with_update() {
-        final Map<String, Object> updateOfTypeJobs = new HashMap<>();
+        final Map<Object, Object> updateOfTypeJobs = new HashMap<>();
         deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> {
             updateOfTypeJobs.putAll(details);
             return true;
         }, DUMMY_SERVICE_NAME);
 
-        final Map<String, Object> updateOfTypeLocal = new HashMap<>();
+        final Map<Object, Object> updateOfTypeLocal = new HashMap<>();
         deploymentStatusKeeper.registerDeploymentStatusConsumer(LOCAL, (details) -> {
             updateOfTypeLocal.putAll(details);
             return true;

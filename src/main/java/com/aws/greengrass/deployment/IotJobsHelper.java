@@ -281,7 +281,7 @@ public class IotJobsHelper implements InjectionActions {
         }
     }
 
-    private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
+    private Boolean deploymentStatusChanged(Map<Object, Object> deploymentDetails) {
         DeploymentDetailsIotJobs deploymentDetailsIotJobs = OBJECT_MAPPER.convertValue(deploymentDetails,
                 DeploymentDetailsIotJobs.class);
         String jobId = deploymentDetailsIotJobs.getJobId();
@@ -566,8 +566,8 @@ public class IotJobsHelper implements InjectionActions {
          * Returns a map of string to object representing the deployment details.
          * @return Map of string to object
          */
-        public Map<String, Object> convertToMapOfObjects() {
-            Map<String, Object> deploymentDetails = new HashMap<>();
+        public Map<Object, Object> convertToMapOfObjects() {
+            Map<Object, Object> deploymentDetails = new HashMap<>();
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, jobId);
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, jobStatus);
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS, statusDetails);

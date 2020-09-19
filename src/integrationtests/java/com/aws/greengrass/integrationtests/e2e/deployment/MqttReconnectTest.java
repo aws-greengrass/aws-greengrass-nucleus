@@ -10,12 +10,14 @@ import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.greengrass.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.greengrass.integrationtests.e2e.util.NetworkUtils;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Coerce;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -28,15 +30,12 @@ import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.componentmanager.ComponentStore.CONTEXT_PACKAGE_STORE_DIRECTORY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PROCESSED_DEPLOYMENTS_TOPICS;
 import static com.aws.greengrass.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG;
@@ -111,18 +110,17 @@ public class MqttReconnectTest extends BaseE2ETestCase {
         Topics processedDeployments =
                 deploymentServiceTopics.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC, PROCESSED_DEPLOYMENTS_TOPICS);
         processedDeployments.subscribe((whatHappened, newValue) -> {
-            if (!(newValue instanceof Topic)) {
-                return;
-            }
-            Map<String, Object> deploymentDetails = (HashMap) ((Topic) newValue).getOnce();
-            if (!deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString().equals(jobId)) {
-                return;
-            }
-            String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
-            if (JobStatus.IN_PROGRESS.toString().equals(status)) {
-                jobInProgress.countDown();
-            } else if (jobInProgress.getCount() <= 0 && JobStatus.SUCCEEDED.toString().equals(status)) {
-                jobCompleted.countDown();
+            if (whatHappened == WhatHappened.childChanged && newValue instanceof Topic) {
+                Topic child = (Topic)newValue;
+                if (child.getName().equals(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS)
+                        && Coerce.toEnum(JobStatus.class, child).equals(JobStatus.IN_PROGRESS)) {
+                    jobInProgress.countDown();
+                }
+                if (child.getName().equals(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS)
+                        && Coerce.toEnum(JobStatus.class, child).equals(JobStatus.SUCCEEDED)
+                        && jobInProgress.getCount() <= 0) {
+                    jobCompleted.countDown();
+                }
             }
         });
 

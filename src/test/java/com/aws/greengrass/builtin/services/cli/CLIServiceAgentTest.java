@@ -38,6 +38,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.File;
 import java.io.IOException;
@@ -314,9 +315,9 @@ public class CLIServiceAgentTest {
         when(deploymentsQueue.offer(any())).thenReturn(true);
         Topics mockServiceConfig = mock(Topics.class);
         Topics mockLocalDeployments = mock(Topics.class);
-        Topic mockDeploymentTopic = mock(Topic.class);
+        Topics mockDeploymentTopic = mock(Topics.class);
         when(mockServiceConfig.lookupTopics(eq(PERSISTENT_LOCAL_DEPLOYMENTS))).thenReturn(mockLocalDeployments);
-        when(mockLocalDeployments.lookup(any())).thenReturn(mockDeploymentTopic);
+        when(mockLocalDeployments.lookupTopics(any())).thenReturn(mockDeploymentTopic);
         cliServiceAgent.createLocalDeployment(mockServiceConfig, request);
         ArgumentCaptor<Deployment> argumentCaptor = ArgumentCaptor.forClass(Deployment.class);
         verify(deploymentsQueue).offer(argumentCaptor.capture());
@@ -340,9 +341,9 @@ public class CLIServiceAgentTest {
         when(deploymentsQueue.offer(any())).thenReturn(true);
         Topics mockServiceConfig = mock(Topics.class);
         Topics mockLocalDeployments = mock(Topics.class);
-        Topic mockDeploymentTopic = mock(Topic.class);
+        Topics mockDeploymentTopic = mock(Topics.class);
         when(mockServiceConfig.lookupTopics(eq(PERSISTENT_LOCAL_DEPLOYMENTS))).thenReturn(mockLocalDeployments);
-        when(mockLocalDeployments.lookup(any())).thenReturn(mockDeploymentTopic);
+        when(mockLocalDeployments.lookupTopics(any())).thenReturn(mockDeploymentTopic);
         cliServiceAgent.createLocalDeployment(mockServiceConfig, request);
         ArgumentCaptor<Deployment> argumentCaptor = ArgumentCaptor.forClass(Deployment.class);
         verify(deploymentsQueue).offer(argumentCaptor.capture());
@@ -361,12 +362,13 @@ public class CLIServiceAgentTest {
                 GetLocalDeploymentStatusRequest.builder().deploymentId(MOCK_DEPLOYMENT_ID).build();
         Topics mockServiceConfig = mock(Topics.class);
         Topics mockLocalDeployments = mock(Topics.class);
-        Topic mockDeploymentTopic = mock(Topic.class);
+        Topics mockDeploymentTopics = mock(Topics.class);
         when(mockServiceConfig.findTopics(eq(PERSISTENT_LOCAL_DEPLOYMENTS))).thenReturn(mockLocalDeployments);
-        when(mockLocalDeployments.find(eq(MOCK_DEPLOYMENT_ID))).thenReturn(mockDeploymentTopic);
-        Map<String, Object> deploymentDetails = new HashMap<>();
-        deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS, DeploymentStatus.IN_PROGRESS);
-        when(mockDeploymentTopic.getOnce()).thenReturn(deploymentDetails);
+        when(mockLocalDeployments.findTopics(eq(MOCK_DEPLOYMENT_ID))).thenReturn(mockDeploymentTopics);
+        Topic deploymentStatusTopic = mock(Topic.class);
+        when(deploymentStatusTopic.getOnce()).thenReturn(JobStatus.IN_PROGRESS);
+        when(mockDeploymentTopics.find(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS))
+                .thenReturn(deploymentStatusTopic);
         GetLocalDeploymentStatusResponse response = cliServiceAgent.getLocalDeploymentStatus(mockServiceConfig,
                 request);
         assertEquals(DeploymentStatus.IN_PROGRESS, response.getDeployment().getStatus());
@@ -388,7 +390,7 @@ public class CLIServiceAgentTest {
         Topics mockServiceConfig = mock(Topics.class);
         Topics mockLocalDeployments = mock(Topics.class);
         when(mockServiceConfig.findTopics(eq(PERSISTENT_LOCAL_DEPLOYMENTS))).thenReturn(mockLocalDeployments);
-        when(mockLocalDeployments.find(eq(MOCK_DEPLOYMENT_ID))).thenReturn(null);
+        when(mockLocalDeployments.findTopics(eq(MOCK_DEPLOYMENT_ID))).thenReturn(null);
         try {
             cliServiceAgent.getLocalDeploymentStatus(mockServiceConfig, request);
         } catch (ResourceNotFoundError e) {
@@ -401,14 +403,14 @@ public class CLIServiceAgentTest {
     public void testListLocalDeployments_success() throws Exception {
         Topics mockServiceConfig = mock(Topics.class);
         Topics mockLocalDeployments = Topics.of(context, PERSISTENT_LOCAL_DEPLOYMENTS, null);
-        Map<String, Object> deploymentDetails = new HashMap<>();
+        Map<Object, Object> deploymentDetails = new HashMap<>();
         deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS, DeploymentStatus.IN_PROGRESS);
-        Map<String, Object> deploymentDetails2 = new HashMap<>();
+        Map<Object, Object> deploymentDetails2 = new HashMap<>();
         deploymentDetails2.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS, DeploymentStatus.IN_PROGRESS);
-        Topic mockDeploymentTopic = mockLocalDeployments.lookup(MOCK_DEPLOYMENT_ID);
-        mockDeploymentTopic.withValue(deploymentDetails);
-        Topic mockDeploymentTopic2 = mockLocalDeployments.lookup(MOCK_DEPLOYMENT_ID2);
-        mockDeploymentTopic2.withValue(deploymentDetails2);
+        Topics mockDeploymentTopic = mockLocalDeployments.lookupTopics(MOCK_DEPLOYMENT_ID);
+        mockDeploymentTopic.replaceAndWait(deploymentDetails);
+        Topics mockDeploymentTopic2 = mockLocalDeployments.lookupTopics(MOCK_DEPLOYMENT_ID2);
+        mockDeploymentTopic2.replaceAndWait(deploymentDetails2);
         when(mockServiceConfig.findTopics(eq(PERSISTENT_LOCAL_DEPLOYMENTS))).thenReturn(mockLocalDeployments);
         ListLocalDeploymentResponse response = cliServiceAgent.listLocalDeployments(mockServiceConfig);
         LocalDeployment expectedLocalDeployment = LocalDeployment.builder().deploymentId(MOCK_DEPLOYMENT_ID)

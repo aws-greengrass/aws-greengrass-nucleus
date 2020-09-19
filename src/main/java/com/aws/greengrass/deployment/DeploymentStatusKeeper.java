@@ -1,12 +1,12 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.builtin.services.cli.CLIServiceAgent;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import lombok.Setter;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
@@ -38,7 +38,7 @@ public class DeploymentStatusKeeper {
 
     private Topics processedDeployments;
 
-    private final Map<DeploymentType, Map<String, Function<Map<String, Object>, Boolean>>> deploymentStatusConsumerMap
+    private final Map<DeploymentType, Map<String, Function<Map<Object, Object>, Boolean>>> deploymentStatusConsumerMap
             = new ConcurrentHashMap<>();
 
     /**
@@ -50,9 +50,9 @@ public class DeploymentStatusKeeper {
      * @return true if call back is registered.
      */
     public boolean registerDeploymentStatusConsumer(DeploymentType type,
-                                                    Function<Map<String, Object>, Boolean> consumer,
+                                                    Function<Map<Object, Object>, Boolean> consumer,
                                                     String serviceName) {
-        Map<String, Function<Map<String, Object>, Boolean>> map = deploymentStatusConsumerMap
+        Map<String, Function<Map<Object, Object>, Boolean>> map = deploymentStatusConsumerMap
                 .getOrDefault(type, new ConcurrentHashMap<>());
         map.putIfAbsent(serviceName, consumer);
         return deploymentStatusConsumerMap.put(type, map) == null;
@@ -75,7 +75,7 @@ public class DeploymentStatusKeeper {
             logger.atDebug().kv(JOB_ID_LOG_KEY_NAME, deploymentId).kv("JobStatus", status).log("Storing job status");
             // TODO: Consider making DeploymentDetailsIotJobs and LocalDeploymentDetails inherit from the same base
             //  class with deployment type as common parameter and store those objects directly instead of Map
-            Map<String, Object> deploymentDetails = null;
+            Map<Object, Object> deploymentDetails = null;
             if (deploymentType == DeploymentType.IOT_JOBS) {
                 IotJobsHelper.DeploymentDetailsIotJobs deploymentDetailsIotJobs =
                         new IotJobsHelper.DeploymentDetailsIotJobs();
@@ -94,8 +94,8 @@ public class DeploymentStatusKeeper {
             }
             //Each status update is uniquely stored
             Topics processedDeployments = getProcessedDeployments();
-            Topic thisJob = processedDeployments.createLeafChild(String.valueOf(System.currentTimeMillis()));
-            thisJob.withValue(deploymentDetails);
+            Topics thisJob = processedDeployments.createInteriorChild(String.valueOf(System.currentTimeMillis()));
+            thisJob.replaceAndWait(deploymentDetails);
         }
         publishPersistedStatusUpdates(deploymentType);
     }
@@ -110,13 +110,13 @@ public class DeploymentStatusKeeper {
     public void publishPersistedStatusUpdates(DeploymentType type) {
         synchronized (type) {
             Topics processedDeployments = getProcessedDeployments();
-            ArrayList<Topic> deployments = new ArrayList<>();
-            processedDeployments.forEach(topic -> {
-                Map<String, Object> deploymentDetails = (HashMap) ((Topic) topic).getOnce();
-                DeploymentType deploymentType = (DeploymentType) deploymentDetails
-                        .get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE);
+            ArrayList<Topics> deployments = new ArrayList<>();
+            processedDeployments.forEach(topics -> {
+                Topics deploymentDetails = (Topics) topics;
+                DeploymentType deploymentType = Coerce.toEnum(DeploymentType.class, deploymentDetails
+                        .find(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE));
                 if (deploymentType.equals(type)) {
-                    deployments.add((Topic) topic);
+                    deployments.add((Topics) topics);
                 }
             });
             // Topics are stored as ConcurrentHashMaps which do not guarantee ordering of elements
@@ -125,7 +125,7 @@ public class DeploymentStatusKeeper {
             // processes multiple deployments in the order in which they come. Additionally, a customer workflow can
             // depend on this order. If Group2 gets successfully updated before Group1 then customer workflow may
             // error out.
-            List<Topic> sortedByTimestamp = deployments.stream().sorted((o1, o2) -> {
+            List<Topics> sortedByTimestamp = deployments.stream().sorted((o1, o2) -> {
                 if (Long.valueOf(o1.getModtime()) > Long.valueOf(o2.getModtime())) {
                     return 1;
                 }
@@ -134,8 +134,8 @@ public class DeploymentStatusKeeper {
 
             Iterator iterator = sortedByTimestamp.iterator();
             while (iterator.hasNext()) {
-                Topic topic = (Topic) iterator.next();
-                Map<String, Object> deploymentDetails = (HashMap) topic.getOnce();
+                Topics topics = (Topics) iterator.next();
+                Map<Object, Object> deploymentDetails = new HashMap<>(topics.toPOJO());
                 DeploymentType deploymentType = (DeploymentType) deploymentDetails
                         .get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE);
 
@@ -146,7 +146,7 @@ public class DeploymentStatusKeeper {
                     logger.atDebug().log("Unable to update status of persisted deployments. Retry later");
                     break;
                 }
-                processedDeployments.remove(topic);
+                processedDeployments.remove(topics);
             }
         }
     }
@@ -157,7 +157,7 @@ public class DeploymentStatusKeeper {
      * @param type the type of deployment. {@link DeploymentType}
      * @return list of callback functions.
      */
-    protected List<Function<Map<String, Object>, Boolean>> getConsumersForDeploymentType(DeploymentType type) {
+    protected List<Function<Map<Object, Object>, Boolean>> getConsumersForDeploymentType(DeploymentType type) {
         return new ArrayList<>(deploymentStatusConsumerMap.get(type).values());
     }
 

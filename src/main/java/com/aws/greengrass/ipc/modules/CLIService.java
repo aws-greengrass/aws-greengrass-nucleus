@@ -179,7 +179,7 @@ public class CLIService extends GreengrassService {
     }
 
     @SuppressWarnings("PMD.EmptyIfStmt")
-    protected Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
+    protected Boolean deploymentStatusChanged(Map<Object, Object> deploymentDetails) {
         agent.persistLocalDeployment(config, deploymentDetails);
         return true;
     }
