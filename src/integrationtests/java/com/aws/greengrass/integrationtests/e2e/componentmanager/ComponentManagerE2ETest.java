@@ -113,8 +113,8 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
         try(Context context = new Context()) {
             Topics groupToRootPackagesTopics =
                     Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-            rootPackageList.stream().forEach(pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookup(pkg)
-                    .withValue(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
+            rootPackageList.stream().forEach(pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookupTopics(pkg)
+                    .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
             List<ComponentIdentifier> resolutionResult =
                     dependencyResolver.resolveDependencies(testDeploymentDocument, groupToRootPackagesTopics);
             Future<Void> testFuture = componentManager.preparePackages(resolutionResult);
@@ -151,8 +151,8 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
         try (Context context = new Context()) {
             Topics groupToRootPackagesTopics =
                     Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-            rootPackageList.stream().forEach(pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookup(pkg)
-                    .withValue(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
+            rootPackageList.stream().forEach(pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookupTopics(pkg)
+                    .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
             List<ComponentIdentifier> resolutionResult =
                     dependencyResolver.resolveDependencies(testDeploymentDocument, groupToRootPackagesTopics);
             Future<Void> testFuture = componentManager.preparePackages(resolutionResult);

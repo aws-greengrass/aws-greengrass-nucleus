@@ -26,7 +26,6 @@ import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -54,8 +53,6 @@ class ShellRunnerTest extends GGServiceTestUtil {
         when(servicePrivateTopics.findLeafChild(SERVICE_UNIQUE_ID_KEY)).thenReturn(uniqueId);
         when(servicePrivateTopics.createLeafChild(anyString())).thenReturn(mockTopic);
         when(mockTopic.withParentNeedsToKnow(false)).thenReturn(mockTopic);
-        when(mockTopic.withValue(any())).thenReturn(mockTopic);
-        when(mockTopic.addValidator(any())).thenReturn(mockTopic);
 
         when(kernel.getWorkPath()).thenReturn(tempDir);
         greengrassService = new GreengrassService(config);

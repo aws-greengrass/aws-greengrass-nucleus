@@ -36,6 +36,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
@@ -381,8 +382,8 @@ class IPCCliTest {
             String receivedDeploymentId =
                     deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID).toString();
             if (receivedDeploymentId.equals(deploymentId)) {
-                DeploymentStatus status = (DeploymentStatus) deploymentDetails
-                        .get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS);
+                DeploymentStatus status = Coerce.toEnum(DeploymentStatus.class, deploymentDetails
+                        .get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS));
                 if (status == DeploymentStatus.SUCCEEDED) {
                     deploymentLatch.countDown();
                 }

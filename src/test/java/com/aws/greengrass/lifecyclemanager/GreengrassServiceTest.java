@@ -13,6 +13,7 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
+import com.aws.greengrass.util.Coerce;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -96,9 +97,8 @@ public class GreengrassServiceTest extends GGServiceTestUtil {
 
         //verify state is NEW
         Topic stateTopic = aService.getConfig().find(PRIVATE_STORE_NAMESPACE_TOPIC, Lifecycle.STATE_TOPIC_NAME);
-        assertEquals(stateTopic.getOnce(), State.NEW);
+        assertEquals(State.NEW, Coerce.toEnum(State.class, stateTopic));
         assertFalse(stateTopic.parentNeedsToKnow());
-
     }
 
     @Test
@@ -108,7 +108,7 @@ public class GreengrassServiceTest extends GGServiceTestUtil {
 
         //WHEN D is removed and E is added
         Topic topic = aService.getConfig().find(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
-        topic.withNewerValue(System.currentTimeMillis(), Arrays.asList("B", "C", "E"));
+        topic.withValue(Arrays.asList("B", "C", "E"));
         context.runOnPublishQueueAndWait(() -> {
         });
         // THEN

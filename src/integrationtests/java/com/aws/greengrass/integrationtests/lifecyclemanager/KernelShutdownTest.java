@@ -10,6 +10,7 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.util.Coerce;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,7 +58,7 @@ class KernelShutdownTest extends BaseITCase {
 
         CountDownLatch mainRunningLatch = new CountDownLatch(1);
         kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
-            if (((State) t.getOnce()).isRunning()) {
+            if (Coerce.toEnum(State.class, t).isRunning()) {
                 mainRunningLatch.countDown();
             }
         });
