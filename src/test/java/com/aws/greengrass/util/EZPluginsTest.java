@@ -1,0 +1,67 @@
+/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 */
+
+package com.aws.greengrass.util;
+
+import com.aws.greengrass.dependency.EZPlugins;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+import java.io.IOException;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
+
+@SuppressWarnings("PMD.AvoidCatchingThrowable")
+@ExtendWith(GGExtension.class)
+public class EZPluginsTest {
+    int hits;
+
+    private static Throwable cause(Throwable t) {
+        Throwable c = t.getCause();
+        return c == null ? t : cause(c);
+    }
+
+    @Test
+    public void testMatch() throws Exception {
+        try (EZPlugins pl = new EZPlugins(Utils.homePath(".pluginsTest"))) {
+            pl.implementing(Foo.class, f -> {
+                System.out.println(f.getCanonicalName());
+                try {
+                    hits++;
+                    f.newInstance().p("Hello");
+                } catch (Throwable ex) {
+                    cause(ex).printStackTrace(System.out);
+                    fail(ex.toString());
+                }
+            });
+            try {
+                pl.loadCache();
+            } catch (IOException ex) {
+                cause(ex).printStackTrace(System.out);
+                fail(ex.toString());
+            }
+            assertEquals(2, hits);
+        }
+    }
+
+    private interface Foo {
+        void p(String s);
+    }
+
+    public static class A implements Foo {
+        @Override
+        public void p(String s) {
+            System.out.println("A:" + s);
+        }
+    }
+
+    public static class B implements Foo {
+        @Override
+        public void p(String s) {
+            System.out.println("B:" + s);
+        }
+
+    }
+}

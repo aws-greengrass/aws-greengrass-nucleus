@@ -1,4 +1,4 @@
-# Evergreen Kernel Configuration Schema
+# Greengrass Kernel Configuration Schema
 Detailed doc in https://quip-amazon.com/35xMAtuSgvha
 
 ## Resolve config workflow
@@ -111,7 +111,7 @@ services:
 
 ### Dependency
 
-Detailed documentation is at [Evergreen Service Hot-pluggable Dependencies](https://quip-amazon.com/y29dAC02fUBu)
+Detailed documentation is at [Greengrass Service Hot-pluggable Dependencies](https://quip-amazon.com/y29dAC02fUBu)
 
 ```
 myCustomService:
@@ -122,17 +122,9 @@ myCustomService:
 **DependencyType**
 DependencyType is either **SOFT or HARD**
 
-### Resource
-Service can reserve topic for resources:
-```
-resources:
-      - evergreen_1._mqtt._tcp.local
-      - evergreen_1._http._tcp.local
-```
-
 ### Logging
 
-Detailed design doc at: [[Design] Evergreen Logging Service](https://quip-amazon.com/QbwaANkaR95C)
+Detailed design doc at: [[Design] Greengrass Logging Service](https://quip-amazon.com/QbwaANkaR95C)
 
 ### Custom configuration
 
@@ -142,7 +134,7 @@ Any custom configuration locates in ‘custom’ field. Custom config field are 
 
 All changes in custom fields will not restart service. Details of how configuration change push/listening can be supported is detailed in [Configuration IPC Application](https://quip-amazon.com/xtNNAdaAl9ZA).
 
-Detail of dynamic load config is at [Dynamically reload config without restarting Evergreen service](https://quip-amazon.com/mld0ATVx17YK)
+Detail of dynamic load config is at [Dynamically reload config without restarting Greengrass service](https://quip-amazon.com/mld0ATVx17YK)
 
 ```
 myCustomService: 

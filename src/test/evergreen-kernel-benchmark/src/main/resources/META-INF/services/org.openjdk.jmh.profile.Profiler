@@ -1,1 +1,1 @@
-com.aws.iot.evergreen.jmh.profilers.ForcedGcMemoryProfiler
+com.aws.greengrass.jmh.profilers.ForcedGcMemoryProfiler

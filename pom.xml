@@ -494,11 +494,11 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <finalName>${evergreenjar.name}</finalName>
+                            <finalName>${greengrassjar.name}</finalName>
                             <transformers>
                                 <transformer
                                         implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.aws.iot.evergreen.easysetup.EvergreenSetup</mainClass>
+                                    <mainClass>com.aws.greengrass.easysetup.GreengrassSetup</mainClass>
                                 </transformer>
                                 <transformer
                                         implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
@@ -540,7 +540,7 @@
                             <compileSourceRoots><compileSourceRoot>
                                 src/integrationtests/resources/
                             </compileSourceRoot></compileSourceRoots>
-                            <includes><include>**/integrationtests/kernel/resource/*</include></includes>
+                            <includes><include>**/integrationtests/lifecyclemanager/resource/*</include></includes>
                             <outputDirectory>target/test-resource-classes</outputDirectory>
                         </configuration>
                     </execution>
@@ -564,13 +564,13 @@
                         <id>generate-test-resource-jar</id>
                         <configuration>
                             <includes>
-                                <include>**/integrationtests/kernel/resource/*</include>
+                                <include>**/integrationtests/lifecyclemanager/resource/*</include>
                             </includes>
                             <testClassesDirectory>target/test-resource-classes</testClassesDirectory>
                             <classifier></classifier>
                             <finalName>plugin</finalName>
                             <outputDirectory>
-                                src/integrationtests/resources/com/aws/iot/evergreen/integrationtests/kernel/local_store_content/artifacts/plugin/1.0.0
+                                src/integrationtests/resources/com/aws/greengrass/integrationtests/lifecyclemanager/local_store_content/artifacts/plugin/1.0.0
                             </outputDirectory>
                         </configuration>
                     </execution>
@@ -579,7 +579,7 @@
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
-                    <finalName>GreengrassCore-2.0.0</finalName>
+                    <finalName>aws.greengrass.nucleus.2.0.0</finalName>
                     <descriptors>
                         <descriptor>${basedir}/assembly.xml</descriptor>
                     </descriptors>
@@ -605,7 +605,7 @@
         <skipTests>false</skipTests>
         <excludedGroups>E2E,E2E-INTRUSIVE</excludedGroups>
         <groups></groups>
-        <evergreenjar.name>Evergreen</evergreenjar.name>
+        <greengrassjar.name>Greengrass</greengrassjar.name>
     </properties>
     <distributionManagement>
         <snapshotRepository>
