@@ -1,7 +1,6 @@
 package com.aws.greengrass.builtin.services.cli;
 
 import com.aws.greengrass.componentmanager.ComponentStore;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
@@ -304,14 +303,15 @@ public class CLIServiceAgent {
             throws InvalidArgumentsError, ResourceNotFoundError {
         validateGetLocalDeploymentStatusRequest(request);
         Topics localDeployments = serviceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
-        if (localDeployments == null || localDeployments.find(request.getDeploymentId()) == null) {
+        if (localDeployments == null || localDeployments.find(request.getDeploymentId(),
+                PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS) == null) {
             throw new ResourceNotFoundError("Cannot find deployment", LOCAL_DEPLOYMENT_RESOURCE,
                     request.getDeploymentId());
         } else {
-            Topic deployment = localDeployments.find(request.getDeploymentId());
-            Map<String, Object> deploymentDetails = (Map<String, Object>) deployment.getOnce();
+            Topics deployment = localDeployments.findTopics(request.getDeploymentId());
             DeploymentStatus status =
-                    (DeploymentStatus) deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS);
+                    Coerce.toEnum(DeploymentStatus.class,
+                            deployment.find(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS));
             return GetLocalDeploymentStatusResponse.builder()
                     .deployment(LocalDeployment.builder().deploymentId(request.getDeploymentId())
                             .status(status).build()).build();
@@ -326,12 +326,12 @@ public class CLIServiceAgent {
     public ListLocalDeploymentResponse listLocalDeployments(Topics serviceConfig) {
         List<LocalDeployment> persistedDeployments = new ArrayList<>();
         Topics localDeployments = serviceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
-        localDeployments.deepForEachTopic(topic -> {
-            Map<String, Object> deploymentDetails = (Map<String, Object>) topic.getOnce();
+        localDeployments.forEach(topics -> {
+            Topics deploymentDetails = (Topics) topics;
             persistedDeployments.add(LocalDeployment.builder()
-                    .deploymentId((String) deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID))
-                    .status((DeploymentStatus) deploymentDetails.get(
-                            PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS))
+                    .deploymentId(Coerce.toString(deploymentDetails.find(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID)))
+                    .status(Coerce.toEnum(DeploymentStatus.class, deploymentDetails.find(
+                            PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS)))
                     .build());
         });
         return ListLocalDeploymentResponse.builder().localDeployments(persistedDeployments).build();
@@ -345,8 +345,8 @@ public class CLIServiceAgent {
     public void persistLocalDeployment(Topics serviceConfig, Map<String, Object> deploymentDetails) {
         Topics localDeployments = serviceConfig.lookupTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
         String deploymentId = (String) deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID);
-        Topic localDeploymentDetails = localDeployments.lookup(deploymentId);
-        localDeploymentDetails.withValue(deploymentDetails);
+        Topics localDeploymentDetails = localDeployments.lookupTopics(deploymentId);
+        localDeploymentDetails.replaceAndWait(deploymentDetails);
         // TODO: Remove the succeeded deployments if the number of deployments have exceeded max limit
     }
 
