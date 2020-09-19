@@ -47,7 +47,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
     }
 
     @Override
-    public void activate(Map<Object, Object> newConfig, Deployment deployment,
+    public void activate(Map<String, Object> newConfig, Deployment deployment,
                          CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         if (!takeConfigSnapshot(totallyCompleteFuture)) {
             return;

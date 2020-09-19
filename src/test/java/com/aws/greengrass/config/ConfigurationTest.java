@@ -273,7 +273,7 @@ public class ConfigurationTest {
 
     @Test
     public void GIVEN_config_to_merge_WHEN_resolved_platform_is_not_a_map_THEN_reject() {
-        Map<Object, Object> toMerge = new HashMap<Object, Object>() {{
+        Map<String, Object> toMerge = new HashMap<String, Object>() {{
             put("ubuntu", "This is not a map");
         }};
         assertThrows(IllegalArgumentException.class, () -> config.mergeMap(1, toMerge));
@@ -335,7 +335,7 @@ public class ConfigurationTest {
                 + "  nodeUnchanged: unchanged\n"
                 + "  leafToBeUpdated: updatedValue";
 
-        Map<Object, Object> initConfigMap;
+        Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
             initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -371,7 +371,7 @@ public class ConfigurationTest {
         });
 
         // WHEN
-        Map<Object, Object> updateConfigMap;
+        Map<String, Object> updateConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -412,7 +412,7 @@ public class ConfigurationTest {
                 + "  nodeUnchanged: unchanged\n"
                 + "  leafToBeUpdated: updatedValue";
 
-        Map<Object, Object> initConfigMap;
+        Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
             initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -427,7 +427,7 @@ public class ConfigurationTest {
         });
 
         // WHEN
-        Map<Object, Object> updateConfigMap;
+        Map<String, Object> updateConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -440,7 +440,7 @@ public class ConfigurationTest {
         );
         config.updateMap(System.currentTimeMillis(), updateConfigMap, updateBehavior);
 
-        Map<Object, Object> expectedConfig = new HashMap<>(updateConfigMap);
+        Map<String, Object> expectedConfig = new HashMap<>(updateConfigMap);
         ((Map) ((Map)expectedConfig.get("foo")).get("nodeToBeMerged")).put("key1", "val1");
 
         // THEN
@@ -483,7 +483,7 @@ public class ConfigurationTest {
                 + "  nodeUnchanged:\n"
                 + "    key1: val1\n";
 
-        Map<Object, Object> initConfigMap;
+        Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
             initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -506,7 +506,7 @@ public class ConfigurationTest {
         });
 
         // WHEN
-        Map<Object, Object> updateConfigMap;
+        Map<String, Object> updateConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -522,7 +522,7 @@ public class ConfigurationTest {
         config.updateMap(System.currentTimeMillis(), updateConfigMap, updateBehavior);
 
         // THEN
-        Map<Object, Object> expectedConfig;
+        Map<String, Object> expectedConfig;
         try (InputStream inputStream = new ByteArrayInputStream(expectedResult.getBytes())) {
             expectedConfig = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -565,7 +565,7 @@ public class ConfigurationTest {
                 + "      subKey2: subVal2\n"
                 + "nodeToBeAdded: val\n";
 
-        Map<Object, Object> initConfigMap;
+        Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
             initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -573,7 +573,7 @@ public class ConfigurationTest {
         config.context.runOnPublishQueueAndWait(() -> {});
 
         // WHEN
-        Map<Object, Object> updateConfigMap;
+        Map<String, Object> updateConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -592,7 +592,7 @@ public class ConfigurationTest {
         config.updateMap(System.currentTimeMillis(), updateConfigMap, updateBehavior);
 
         // THEN
-        Map<Object, Object> expectedConfig;
+        Map<String, Object> expectedConfig;
         try (InputStream inputStream = new ByteArrayInputStream(expectedResult.getBytes())) {
             expectedConfig = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }

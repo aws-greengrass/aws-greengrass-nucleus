@@ -124,7 +124,7 @@ public class DependencyResolver {
                 groupTopics.forEach(pkgTopic -> {
                     rootPackagesToResolve.add(pkgTopic.getName());
                     packageNameToVersionConstraints.putIfAbsent(pkgTopic.getName(), new HashMap<>());
-                    Map<Object, Object> pkgDetails = (Map) pkgTopic.toPOJO();
+                    Map<String, Object> pkgDetails = (Map) pkgTopic.toPOJO();
                     packageNameToVersionConstraints.get(pkgTopic.getName())
                             .putIfAbsent(groupName, pkgDetails.get(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY).toString());
                 });
