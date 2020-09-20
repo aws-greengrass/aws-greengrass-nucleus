@@ -44,6 +44,7 @@ public class KernelCommandLine {
     private static final String PACKAGE_DIR_PREFIX = "~packages/";
 
     private final Kernel kernel;
+    private final DeviceConfiguration deviceConfiguration;
 
     @Getter(AccessLevel.PACKAGE)
     private DeploymentDirectoryManager deploymentDirectoryManager;
@@ -73,6 +74,7 @@ public class KernelCommandLine {
 
     public KernelCommandLine(Kernel kernel) {
         this.kernel = kernel;
+        this.deviceConfiguration = new DeviceConfiguration(kernel);
     }
 
     /**
@@ -86,7 +88,6 @@ public class KernelCommandLine {
         // Get root path from System Property/JVM argument. Default handled after 'while'
         String rootAbsolutePath = System.getProperty("root");
 
-        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
         while (getArg() != null) {
             switch (arg.toLowerCase()) {
                 case "--config":
