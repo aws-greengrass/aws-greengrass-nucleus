@@ -48,6 +48,7 @@ import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.RoleAliasDescription;
 import software.amazon.awssdk.services.iot.model.UpdateCertificateRequest;
 
+import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.util.Collections;
 
@@ -222,12 +223,13 @@ public class DeviceProvisioningHelperTest {
     }
 
     @Test
-    public void GIVEN_iot_client_factory_WHEN_test_get_iot_client_THEN_client_is_built_with_appropriate_configuration() {
-        assertNotNull(IotSdkClientFactory.getIotClient(TEST_REGION));
+    public void GIVEN_iot_client_factory_WHEN_test_get_iot_client_THEN_client_is_built_with_appropriate_configuration() throws URISyntaxException {
+        assertNotNull(IotSdkClientFactory.getIotClient(TEST_REGION, IotSdkClientFactory.EnvironmentStage.PROD));
 
         assertNotNull(IotSdkClientFactory.getIotClient(Region.US_EAST_1,
                 StaticCredentialsProvider.create(AwsSessionCredentials.create("Test", "Test", "Test"))));
 
-        assertNotNull(IotSdkClientFactory.getIotClient(TEST_REGION, Collections.singleton(Exception.class)));
+        assertNotNull(IotSdkClientFactory.getIotClient(TEST_REGION, IotSdkClientFactory.EnvironmentStage.PROD,
+                Collections.singleton(Exception.class)));
     }
 }

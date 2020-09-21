@@ -37,8 +37,10 @@ public class GreengrassSetupTest {
                         "mock_root", "--thing-name", "mock_thing_name", "--policy-name", "mock_policy_name",
                         "--tes-role-name", "mock_tes_role_name", "--tes-role-alias-name", "mock_tes_role_alias_name",
                         "--provision", "y", "--setup-tes", "y", "--install-cli", "y", "--aws-region", "us-east-1",
-                        "--tes-role-policy-name", "mock_policy_name", "--tes-role-policy-doc", "mock_policy_doc_json");
+                        "--env-stage", "gamma", "--tes-role-policy-name", "mock_policy_name", "--tes-role-policy-doc",
+                        "mock_policy_doc_json");
         greengrassSetup.parseArgs();
+        greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());
@@ -55,8 +57,10 @@ public class GreengrassSetupTest {
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, "--config", "mock_config_path", "--root",
                         "mock_root", "--thing-name", "mock_thing_name", "--policy-name", "mock_policy_name",
                         "--tes-role-name", "mock_tes_role_name", "--tes-role-alias-name", "mock_tes_role_alias_name",
-                        "--provision", "y", "--setup-tes", "y", "--install-cli", "y", "--aws-region", "us-east-1");
+                        "--provision", "y", "--setup-tes", "y", "--install-cli", "y", "--aws-region", "us-east-1",
+                        "--env-stage", "gamma");
         greengrassSetup.parseArgs();
+        greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any());
@@ -73,8 +77,9 @@ public class GreengrassSetupTest {
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, "-i", "mock_config_path", "-r", "mock_root",
                         "-tn", "mock_thing_name", "-pn", "mock_policy_name", "-trn", "mock_tes_role_name", "-tra",
                         "mock_tes_role_alias_name", "-p", "y", "-t", "y", "-ic", "y", "-ar", "us-east-1",
-                        "-trpn", "mock_policy_name", "-trpd", "mock_policy_doc_json");
+                        "-es", "gamma", "-trpn", "mock_policy_name", "-trpd", "mock_policy_doc_json");
         greengrassSetup.parseArgs();
+        greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());
@@ -108,8 +113,10 @@ public class GreengrassSetupTest {
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, "--config", "mock_config_path", "--root",
                         "mock_root", "--thing-name", "mock_thing_name", "--policy-name", "mock_policy_name",
                         "--tes-role-name", "mock_tes_role_name", "--tes-role-alias-name", "mock_tes_role_alias_name",
-                        "--provision", "y", "--setup-tes", "n", "--install-cli", "y", "--aws-region", "us-east-1");
+                        "--provision", "y", "--setup-tes", "n", "--install-cli", "y", "--aws-region", "us-east-1",
+                        "--env-stage", "gamma");
         greengrassSetup.parseArgs();
+        greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());

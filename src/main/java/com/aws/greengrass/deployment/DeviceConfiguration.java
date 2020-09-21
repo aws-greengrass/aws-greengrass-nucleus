@@ -82,7 +82,6 @@ public class DeviceConfiguration {
         this.kernel = kernel;
         deTildeValidator = getDeTildeValidator(kernel);
         regionValidator = getRegionValidator();
-
         getThingName().withValue(thingName);
         getIotDataEndpoint().withValue(iotDataEndpoint);
         getIotCredentialEndpoint().withValue(iotCredEndpoint);

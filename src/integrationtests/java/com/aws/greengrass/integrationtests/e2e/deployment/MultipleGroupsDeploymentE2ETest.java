@@ -43,7 +43,7 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
 
     private CreateThingGroupResponse secondThingGroupResponse;
 
-    public MultipleGroupsDeploymentE2ETest() {
+    public MultipleGroupsDeploymentE2ETest() throws Exception {
         super();
     }
 
