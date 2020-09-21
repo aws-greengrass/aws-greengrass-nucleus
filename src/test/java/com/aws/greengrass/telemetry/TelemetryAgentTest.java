@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.concurrent.ScheduledExecutorService;
@@ -74,6 +75,7 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
     public void setup() {
         serviceFullName = "MetricsAgentService";
         initializeMockedConfig();
+        TelemetryConfig.getInstance().setRoot(tempRootDir.resolve("telemetry"));
         ses = new ScheduledThreadPoolExecutor(3);
         context = new Context();
         sme = context.get(SystemMetricsEmitter.class);
@@ -104,15 +106,14 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
                 DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC);
         when(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC).lookup(TELEMETRY_METRICS_PUBLISH_TOPICS))
                 .thenReturn(telemetryMetricsPublishTopic);
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
-        TelemetryConfig.getInstance().setRoot(tempRootDir);
         telemetryAgent = spy(new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses));
     }
 
     @AfterEach
-    public void cleanUp() {
+    public void cleanUp() throws IOException {
         ses.shutdownNow();
         telemetryAgent.shutdown();
+        context.close();
     }
 
     @Test

@@ -226,7 +226,7 @@ public class MetricsAggregator {
      * @param aggList list of {@link AggregatedMetric}
      * @return a list of {@link AggregatedMetric}
      */
-    List<AggregatedMetric> getAggForThePublishInterval(List<AggregatedMetric> aggList, long currTimestamp) {
+    private List<AggregatedMetric> getAggForThePublishInterval(List<AggregatedMetric> aggList, long currTimestamp) {
         List<AggregatedMetric> list = new ArrayList<>();
         for (String namespace : getNamespaceSet().getNamespaces()) {
             HashMap<String, List<AggregatedMetric.Metric>> metrics = new HashMap<>();
@@ -263,7 +263,7 @@ public class MetricsAggregator {
      * @param map metric name -> aggregated metric
      * @return list of {@link AggregatedMetric.Metric }
      */
-    List<AggregatedMetric.Metric> doAggregationForPublish(Map<String, List<AggregatedMetric.Metric>> map) {
+    private List<AggregatedMetric.Metric> doAggregationForPublish(Map<String, List<AggregatedMetric.Metric>> map) {
         List<AggregatedMetric.Metric> aggMetrics = new ArrayList<>();
         for (Map.Entry<String, List<AggregatedMetric.Metric>> metric : map.entrySet()) {
             List<AggregatedMetric.Metric> metrics = metric.getValue();
