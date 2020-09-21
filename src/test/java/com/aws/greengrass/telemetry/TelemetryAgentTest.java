@@ -75,7 +75,7 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
     public void setup() {
         serviceFullName = "MetricsAgentService";
         initializeMockedConfig();
-        TelemetryConfig.getInstance().setRoot(tempRootDir.resolve("telemetry"));
+        TelemetryConfig.getInstance().setRoot(tempRootDir);
         ses = new ScheduledThreadPoolExecutor(3);
         context = new Context();
         sme = context.get(SystemMetricsEmitter.class);

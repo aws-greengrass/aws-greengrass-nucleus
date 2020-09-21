@@ -49,7 +49,7 @@ public class MetricsAggregatorTest {
 
     @BeforeEach
     void setup() {
-        TelemetryConfig.getInstance().setRoot(tempRootDir.resolve("telemetry"));
+        TelemetryConfig.getInstance().setRoot(tempRootDir);
         namespaceSet.addNamespace(sm);
         ma = new MetricsAggregator(namespaceSet);
     }
