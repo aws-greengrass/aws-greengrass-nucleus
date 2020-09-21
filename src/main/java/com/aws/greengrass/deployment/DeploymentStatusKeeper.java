@@ -38,7 +38,7 @@ public class DeploymentStatusKeeper {
 
     private Topics processedDeployments;
 
-    private final Map<DeploymentType, Map<String, Function<Map<Object, Object>, Boolean>>> deploymentStatusConsumerMap
+    private final Map<DeploymentType, Map<String, Function<Map<String, Object>, Boolean>>> deploymentStatusConsumerMap
             = new ConcurrentHashMap<>();
 
     /**
@@ -50,9 +50,9 @@ public class DeploymentStatusKeeper {
      * @return true if call back is registered.
      */
     public boolean registerDeploymentStatusConsumer(DeploymentType type,
-                                                    Function<Map<Object, Object>, Boolean> consumer,
+                                                    Function<Map<String, Object>, Boolean> consumer,
                                                     String serviceName) {
-        Map<String, Function<Map<Object, Object>, Boolean>> map = deploymentStatusConsumerMap
+        Map<String, Function<Map<String, Object>, Boolean>> map = deploymentStatusConsumerMap
                 .getOrDefault(type, new ConcurrentHashMap<>());
         map.putIfAbsent(serviceName, consumer);
         return deploymentStatusConsumerMap.put(type, map) == null;
@@ -75,7 +75,7 @@ public class DeploymentStatusKeeper {
             logger.atDebug().kv(JOB_ID_LOG_KEY_NAME, deploymentId).kv("JobStatus", status).log("Storing job status");
             // TODO: Consider making DeploymentDetailsIotJobs and LocalDeploymentDetails inherit from the same base
             //  class with deployment type as common parameter and store those objects directly instead of Map
-            Map<Object, Object> deploymentDetails = null;
+            Map<String, Object> deploymentDetails = null;
             if (deploymentType == DeploymentType.IOT_JOBS) {
                 IotJobsHelper.DeploymentDetailsIotJobs deploymentDetailsIotJobs =
                         new IotJobsHelper.DeploymentDetailsIotJobs();
@@ -135,7 +135,7 @@ public class DeploymentStatusKeeper {
             Iterator iterator = sortedByTimestamp.iterator();
             while (iterator.hasNext()) {
                 Topics topics = (Topics) iterator.next();
-                Map<Object, Object> deploymentDetails = new HashMap<>(topics.toPOJO());
+                Map<String, Object> deploymentDetails = new HashMap<>(topics.toPOJO());
                 DeploymentType deploymentType = (DeploymentType) deploymentDetails
                         .get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE);
 
@@ -157,7 +157,7 @@ public class DeploymentStatusKeeper {
      * @param type the type of deployment. {@link DeploymentType}
      * @return list of callback functions.
      */
-    protected List<Function<Map<Object, Object>, Boolean>> getConsumersForDeploymentType(DeploymentType type) {
+    protected List<Function<Map<String, Object>, Boolean>> getConsumersForDeploymentType(DeploymentType type) {
         return new ArrayList<>(deploymentStatusConsumerMap.get(type).values());
     }
 

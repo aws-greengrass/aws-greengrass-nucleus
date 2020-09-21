@@ -222,7 +222,7 @@ public class FleetStatusService extends GreengrassService {
         }
     }
 
-    private Boolean deploymentStatusChanged(Map<Object, Object> deploymentDetails) {
+    private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
         Deployment.DeploymentType type = (Deployment.DeploymentType) deploymentDetails
                 .get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE);
         if (type == IOT_JOBS) {

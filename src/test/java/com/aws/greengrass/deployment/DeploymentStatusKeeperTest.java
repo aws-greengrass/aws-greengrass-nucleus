@@ -39,7 +39,7 @@ public class DeploymentStatusKeeperTest {
     @Mock
     private DeploymentService deploymentService;
 
-    private static final Function<Map<Object, Object>, Boolean> DUMMY_CONSUMER = (details) -> false;
+    private static final Function<Map<String, Object>, Boolean> DUMMY_CONSUMER = (details) -> false;
     private static final String DUMMY_SERVICE_NAME = "dummyService";
     private DeploymentStatusKeeper deploymentStatusKeeper;
     private Topics processedDeployments;

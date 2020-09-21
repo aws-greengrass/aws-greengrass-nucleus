@@ -158,7 +158,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
 
     @Test
     public void testDeploymentStatusChanged_calls() {
-        Map<Object, Object> deploymentDetails = new HashMap<>();
+        Map<String, Object> deploymentDetails = new HashMap<>();
         cliService.deploymentStatusChanged(deploymentDetails);
         verify(agent).persistLocalDeployment(cliConfigSpy, deploymentDetails);
     }

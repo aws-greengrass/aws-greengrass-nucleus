@@ -341,7 +341,7 @@ public class CLIServiceAgent {
      * @param serviceConfig CLI service configuration
      * @param deploymentDetails Details of the local deployment to save
      */
-    public void persistLocalDeployment(Topics serviceConfig, Map<Object, Object> deploymentDetails) {
+    public void persistLocalDeployment(Topics serviceConfig, Map<String, Object> deploymentDetails) {
         Topics localDeployments = serviceConfig.lookupTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
         String deploymentId = (String) deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID);
         Topics localDeploymentDetails = localDeployments.lookupTopics(deploymentId);
@@ -399,8 +399,8 @@ public class CLIServiceAgent {
          *  Returns a map of string to object representing the deployment details.
          * @return Map of string to object
          */
-        public Map<Object, Object> convertToMapOfObject() {
-            Map<Object,Object> deploymentDetails = new HashMap<>();
+        public Map<String, Object> convertToMapOfObject() {
+            Map<String,Object> deploymentDetails = new HashMap<>();
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID, deploymentId);
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS, status);
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, deploymentType);

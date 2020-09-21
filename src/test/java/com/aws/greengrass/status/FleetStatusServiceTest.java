@@ -96,7 +96,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
     @Mock
     private DeploymentService mockDeploymentService;
     @Captor
-    private ArgumentCaptor<Function<Map<Object, Object>, Boolean>> consumerArgumentCaptor;
+    private ArgumentCaptor<Function<Map<String, Object>, Boolean>> consumerArgumentCaptor;
     @Captor
     private ArgumentCaptor<PublishRequest> publishRequestArgumentCaptor;
     @Captor
@@ -171,7 +171,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
-        HashMap<Object, Object> map = new HashMap<>();
+        HashMap<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
@@ -249,7 +249,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
-        HashMap<Object, Object> map = new HashMap<>();
+        HashMap<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
@@ -301,7 +301,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         // Update the state of an EG service.
         addGlobalStateChangeListenerArgumentCaptor.getValue()
                 .globalServiceStateChanged(mockGreengrassService1, State.INSTALLED, State.RUNNING);
-        HashMap<Object, Object> map = new HashMap<>();
+        HashMap<String, Object> map = new HashMap<>();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
@@ -331,7 +331,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
                 mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
         fleetStatusService.startup();
 
-        HashMap<Object, Object> map = new HashMap<>();
+        HashMap<String, Object> map = new HashMap<>();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
@@ -432,7 +432,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
-        HashMap<Object, Object> map = new HashMap<>();
+        HashMap<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
@@ -541,7 +541,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
-        HashMap<Object, Object> map = new HashMap<>();
+        HashMap<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
         consumerArgumentCaptor.getValue().apply(map);
@@ -591,7 +591,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
-        HashMap<Object, Object> map = new HashMap<>();
+        HashMap<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
         consumerArgumentCaptor.getValue().apply(map);
@@ -743,7 +743,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
-        HashMap<Object, Object> map = new HashMap<>();
+        HashMap<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);

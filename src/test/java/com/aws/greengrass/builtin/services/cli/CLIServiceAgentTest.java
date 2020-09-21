@@ -403,9 +403,9 @@ public class CLIServiceAgentTest {
     public void testListLocalDeployments_success() throws Exception {
         Topics mockServiceConfig = mock(Topics.class);
         Topics mockLocalDeployments = Topics.of(context, PERSISTENT_LOCAL_DEPLOYMENTS, null);
-        Map<Object, Object> deploymentDetails = new HashMap<>();
+        Map<String, Object> deploymentDetails = new HashMap<>();
         deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS, DeploymentStatus.IN_PROGRESS);
-        Map<Object, Object> deploymentDetails2 = new HashMap<>();
+        Map<String, Object> deploymentDetails2 = new HashMap<>();
         deploymentDetails2.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS, DeploymentStatus.IN_PROGRESS);
         Topics mockDeploymentTopic = mockLocalDeployments.lookupTopics(MOCK_DEPLOYMENT_ID);
         mockDeploymentTopic.replaceAndWait(deploymentDetails);
