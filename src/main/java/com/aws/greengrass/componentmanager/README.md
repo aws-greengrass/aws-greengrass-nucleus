@@ -26,6 +26,6 @@ public Package getRecipe(PackageIdentifier pkg) {
 ### KernelConfigResolver
 This class resolves a kernel configuration map by exposing:
 ```java
-public Map<Object, Object> resolve(List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
+public Map<String, Object> resolve(List<PackageIdentifier> packagesToDeploy, DeploymentDocument document,
                                        List<String> rootPackages) 
 ```

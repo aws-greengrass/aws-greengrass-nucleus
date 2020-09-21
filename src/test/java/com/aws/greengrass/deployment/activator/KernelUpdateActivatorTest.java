@@ -61,7 +61,7 @@ public class KernelUpdateActivatorTest {
     @Mock
     Deployment deployment;
     @Mock
-    Map<Object, Object> newConfig;
+    Map<String, Object> newConfig;
 
     KernelUpdateActivator kernelUpdateActivator;
 

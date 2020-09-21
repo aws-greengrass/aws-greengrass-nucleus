@@ -26,7 +26,7 @@ public class DeploymentActivatorFactory {
      * @return DeploymentActivator instance
      * @throws ServiceUpdateException if processing new configuration for activation fails
      */
-    public DeploymentActivator getDeploymentActivator(Map<Object, Object> newConfig) throws ServiceUpdateException {
+    public DeploymentActivator getDeploymentActivator(Map<String, Object> newConfig) throws ServiceUpdateException {
         BootstrapManager bootstrapManager = kernel.getContext().get(BootstrapManager.class);
         if (bootstrapManager.isBootstrapRequired(newConfig)) {
             return kernel.getContext().get(KernelUpdateActivator.class);

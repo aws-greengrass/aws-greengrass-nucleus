@@ -200,17 +200,17 @@ public final class PlatformResolver {
 
     @Deprecated // Still used in source code for existing tests that use multi-platform config.yaml when kernel starts.
     // TODO Remove from source code and put into test utils
-    public static Object resolvePlatform(Map<Object, Object> input) {
+    public static Object resolvePlatform(Map<String, Object> input) {
         return resolvePlatform(RANKS.get(), input);
     }
 
-    private static Object resolvePlatform(Map<String, Integer> ranks, Map<Object, Object> input) {
+    private static Object resolvePlatform(Map<String, Integer> ranks, Map<String, Object> input) {
         int bestrank = -1;
         boolean platformResolved = false;
         Object bestRankNode = null;
 
         // assuming that either All or None of the children nodes are platform specific fields.
-        for (Map.Entry<Object, Object> entry : input.entrySet()) {
+        for (Map.Entry<String, Object> entry : input.entrySet()) {
             if (!SUPPORTED_PLATFORMS.contains(entry.getKey())) {
                 continue;
             }
@@ -222,10 +222,10 @@ public final class PlatformResolver {
             }
         }
         if (!platformResolved) {
-            Map<Object, Object> outputMap = new HashMap<>();
-            for (Map.Entry<Object, Object> entry : input.entrySet()) {
+            Map<String, Object> outputMap = new HashMap<>();
+            for (Map.Entry<String, Object> entry : input.entrySet()) {
                 if (entry.getValue() instanceof Map) {
-                    Object resolvedValue = resolvePlatform(ranks, (Map<Object, Object>) entry.getValue());
+                    Object resolvedValue = resolvePlatform(ranks, (Map<String, Object>) entry.getValue());
                     if (resolvedValue != null) {
                         outputMap.put(entry.getKey(), resolvedValue);
                     }
@@ -245,7 +245,7 @@ public final class PlatformResolver {
             return null;
         }
         if (bestRankNode instanceof Map) {
-            return resolvePlatform((Map<Object, Object>) bestRankNode);
+            return resolvePlatform((Map<String, Object>) bestRankNode);
         }
         return bestRankNode;
         */
