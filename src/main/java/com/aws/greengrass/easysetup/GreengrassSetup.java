@@ -6,8 +6,12 @@ import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.aws.greengrass.util.orchestration.SystemServiceUtilsFactory;
+import lombok.Setter;
+import software.amazon.awssdk.regions.Region;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -40,6 +44,8 @@ public class GreengrassSetup {
             + "\t\t\tIoT cloud, if the role alias does not exist then it will be created in your AWS account\n"
             + "\t--provision, -p\t\tY/N Indicate if you want to register the device as an AWS IoT thing\n"
             + "\t--aws-region, -ar\t\tAWS region where the resources should be looked for/created\n"
+            + "\t--env-stage, -es\t\tEnvironment stage (beta/prod/gamma) in which to configure the device. "
+            + "Corresponding Iot environment stage will be used.\n"
             + "\t--setup-tes, -t\t\tY/N Indicate if you want to use Token Exchange Service to talk to"
             + " AWS services using the device certificate\n"
             + "\t--install-cli, -ic\t\tY/N Indicate if you want to install Greengrass device CLI\n"
@@ -93,6 +99,10 @@ public class GreengrassSetup {
     private static final String AWS_REGION_ARG_SHORT = "-ar";
     private static final String AWS_REGION_DEFAULT = "us-east-1";
 
+    private static final String ENV_STAGE_ARG = "--env-stage";
+    private static final String ENV_STAGE_ARG_SHORT = "-es";
+    private static final String ENV_STAGE_DEFAULT = "prod";
+
     private static final String INSTALL_CLI_ARG = "--install-cli";
     private static final String INSTALL_CLI_ARG_SHORT = "-ic";
     private static final boolean INSTALL_CLI_ARG_DEFAULT = false;
@@ -110,7 +120,8 @@ public class GreengrassSetup {
     private static final Logger logger = LogManager.getLogger(GreengrassSetup.class);
     private final String[] setupArgs;
     private final List<String> kernelArgs = new ArrayList<>();
-    private final DeviceProvisioningHelper deviceProvisioningHelper;
+    @Setter
+    DeviceProvisioningHelper deviceProvisioningHelper;
     private final PrintStream outStream;
     private final PrintStream errStream;
     private int argpos = 0;
@@ -124,6 +135,7 @@ public class GreengrassSetup {
     private String tesRolePolicyName;
     private String tesRolePolicyDoc;
     private String awsRegion = AWS_REGION_DEFAULT;
+    private String environmentStage = ENV_STAGE_DEFAULT;
     private boolean needProvisioning = NEED_PROVISIONING_DEFAULT;
     private boolean setupTes = SETUP_TES_DEFAULT;
     private boolean installCli = INSTALL_CLI_ARG_DEFAULT;
@@ -141,7 +153,6 @@ public class GreengrassSetup {
         this.setupArgs = setupArgs;
         this.outStream = outStream;
         this.errStream = errStream;
-        this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, this.outStream);
     }
 
     /**
@@ -222,7 +233,7 @@ public class GreengrassSetup {
         outStream.println("Launched kernel successfully.");
     }
 
-    void parseArgs() {
+    void parseArgs() throws InvalidEnvironmentStageException, URISyntaxException, InvalidEnvironmentStageException {
         loop: while (getArg() != null) {
             switch (arg.toLowerCase()) {
                 case HELP_ARG:
@@ -272,6 +283,15 @@ public class GreengrassSetup {
                 case AWS_REGION_ARG:
                 case AWS_REGION_ARG_SHORT:
                     this.awsRegion = getArg();
+                    kernelArgs.add(arg);
+                    kernelArgs.add(awsRegion);
+                    break;
+
+                case ENV_STAGE_ARG:
+                case ENV_STAGE_ARG_SHORT:
+                    this.environmentStage = getArg();
+                    kernelArgs.add(arg);
+                    kernelArgs.add(environmentStage.toLowerCase());
                     break;
                 case PROVISION_THING_ARG:
                 case PROVISION_THING_ARG_SHORT:
@@ -306,6 +326,19 @@ public class GreengrassSetup {
             throw new RuntimeException(String.format("%s and %s must be provided together", TES_ROLE_POLICY_NAME_ARG,
                     TES_ROLE_POLICY_DOC_ARG));
         }
+
+        if (Region.of(awsRegion) == null) {
+            throw new RuntimeException(String.format("%s is invalid AWS region", awsRegion));
+        }
+
+        try {
+            IotSdkClientFactory.EnvironmentStage.fromString(environmentStage);
+        } catch (InvalidEnvironmentStageException e) {
+            throw new RuntimeException(e);
+        }
+
+        //initialize the device provisioning helper
+        this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, environmentStage, this.outStream);
     }
 
     @SuppressWarnings("PMD.NullAssignment")

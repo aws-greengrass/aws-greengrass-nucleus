@@ -31,6 +31,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.BindException;
 import java.net.HttpURLConnection;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -72,6 +73,7 @@ class TESTest extends BaseITCase {
     private static final String AWS_CREDENTIALS_PATTERN =
             "\\{\"AccessKeyId\":\".+\",\"SecretAccessKey\":\".+\"," + "\"Expiration\":\".+\",\"Token\":\".+\"\\}";
     private static final Logger logger = LogManager.getLogger(TESTest.class);
+    private static final IotSdkClientFactory.EnvironmentStage envStage = IotSdkClientFactory.EnvironmentStage.GAMMA;
     @TempDir
     static Path tempDir;
 
@@ -79,8 +81,10 @@ class TESTest extends BaseITCase {
     static void setupKernel() throws Exception {
         System.setProperty("root", tempDir.toAbsolutePath().toString());
         kernel = new Kernel();
-        kernel.parseArgs("-i", TESTest.class.getResource("tesExample.yaml").toString());
-        deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION, System.out);
+        kernel.parseArgs("-i", TESTest.class.getResource("tesExample.yaml").toString(), "-ar", AWS_REGION, "-es",
+                envStage.toString());
+        deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION,
+                envStage.toString(), System.out);
         roleId = UUID.randomUUID().toString();
         roleName = TES_ROLE_NAME + roleId;
         roleAliasName = TES_ROLE_ALIAS_NAME + roleId;
@@ -104,16 +108,17 @@ class TESTest extends BaseITCase {
     }
 
     @AfterAll
-    static void tearDown() {
+    static void tearDown() throws URISyntaxException {
         try {
             kernel.shutdown();
         } finally {
             deviceProvisioningHelper.cleanThing(
-                    IotSdkClientFactory.getIotClient(AWS_REGION, Collections.singleton(InvalidRequestException.class)),
+                    IotSdkClientFactory.getIotClient(AWS_REGION, envStage,
+                            Collections.singleton(InvalidRequestException.class)),
                     thingInfo);
-            IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION),
+            IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION, envStage),
                     IamSdkClientFactory.getIamClient(), roleName, roleAliasName, thingInfo.getCertificateArn());
-            IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION),
+            IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION, envStage),
                     IamSdkClientFactory.getIamClient(), roleName, newRoleAliasName, thingInfo.getCertificateArn());
         }
     }

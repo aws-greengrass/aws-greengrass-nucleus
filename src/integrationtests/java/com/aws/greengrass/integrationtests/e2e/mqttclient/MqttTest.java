@@ -33,6 +33,10 @@ public class MqttTest extends BaseE2ETestCase {
     public static final int NUM_MESSAGES = 50;
     private Kernel kernel;
 
+    protected MqttTest() throws Exception {
+        super();
+    }
+
     @AfterEach
     void afterEach() {
         try {
