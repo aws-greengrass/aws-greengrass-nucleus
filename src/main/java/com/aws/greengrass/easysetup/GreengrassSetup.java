@@ -10,7 +10,6 @@ import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.aws.greengrass.util.orchestration.SystemServiceUtilsFactory;
-import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.regions.Region;
 
