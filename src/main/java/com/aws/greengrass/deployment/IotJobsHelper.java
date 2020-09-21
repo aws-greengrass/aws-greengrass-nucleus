@@ -219,7 +219,7 @@ public class IotJobsHelper implements InjectionActions {
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
             executorService.execute(() -> {
-                subscribeToJobsTopics();
+                requestNextPendingJobDocument();
                 deploymentStatusKeeper.publishPersistedStatusUpdates(DeploymentType.IOT_JOBS);
             });
         }
