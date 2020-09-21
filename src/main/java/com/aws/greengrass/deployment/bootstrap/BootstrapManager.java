@@ -79,7 +79,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      * @throws ServiceUpdateException if parsing bootstrap tasks from new configuration fails
      */
     @SuppressWarnings("PMD.PrematureDeclaration")
-    public boolean isBootstrapRequired(Map<Object, Object> newConfig) throws ServiceUpdateException {
+    public boolean isBootstrapRequired(Map<String, Object> newConfig) throws ServiceUpdateException {
         bootstrapTaskStatusList.clear();
         cursor = 0;
 

@@ -191,9 +191,9 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
             jobSucceededLatch.await(10, TimeUnit.SECONDS);
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
-            ArgumentCaptor<Map<Object, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
+            ArgumentCaptor<Map<String, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
             verify(mockGroupPackages).replaceAndWait(mapCaptor.capture());
-            Map<Object, Object> groupToRootPackages = mapCaptor.getValue();
+            Map<String, Object> groupToRootPackages = mapCaptor.getValue();
             assertThat("Missing group to root package entries",
                     groupToRootPackages != null || !groupToRootPackages.isEmpty());
             assertThat("Expected root package not found",
@@ -237,9 +237,9 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
                             eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
-            ArgumentCaptor<Map<Object, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
+            ArgumentCaptor<Map<String, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
             verify(componentToGroupsTopics).replaceAndWait(mapCaptor.capture());
-            Map<Object, Object> groupToRootPackages = mapCaptor.getValue();
+            Map<String, Object> groupToRootPackages = mapCaptor.getValue();
             assertThat(groupToRootPackages, is(IsNull.notNullValue()));
             assertThat(groupToRootPackages.entrySet(), IsNot.not(IsEmptyCollection.empty()));
             assertThat(groupToRootPackages, hasKey(EXPECTED_ROOT_PACKAGE_NAME));
@@ -308,9 +308,9 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
             verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
-            ArgumentCaptor<Map<Object, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
+            ArgumentCaptor<Map<String, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
             verify(mockComponentsToGroupPackages).replaceAndWait(mapCaptor.capture());
-            Map<Object, Object> groupToRootPackages = mapCaptor.getValue();
+            Map<String, Object> groupToRootPackages = mapCaptor.getValue();
             assertThat(groupToRootPackages, is(IsNull.notNullValue()));
             assertThat(groupToRootPackages.entrySet(), IsNot.not(IsEmptyCollection.empty()));
             assertThat(groupToRootPackages, hasKey(EXPECTED_ROOT_PACKAGE_NAME));

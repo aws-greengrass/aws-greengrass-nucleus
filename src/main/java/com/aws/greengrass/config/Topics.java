@@ -230,7 +230,7 @@ public class Topics extends Node implements Iterable<Node> {
      * @param mergeBehavior mergeBehavior
      */
     @SuppressFBWarnings("NP_NULL_ON_SOME_PATH")
-    public void updateFromMap(long lastModified, Map<Object, Object> map, @NonNull UpdateBehaviorTree mergeBehavior) {
+    public void updateFromMap(long lastModified, Map<String, Object> map, @NonNull UpdateBehaviorTree mergeBehavior) {
         if (map == null) {
             logger.atInfo().kv("node", getFullName()).log("Null map received in updateFromMap(), ignoring.");
             return;
@@ -238,7 +238,7 @@ public class Topics extends Node implements Iterable<Node> {
         Set<CaseInsensitiveString> childrenToRemove = new HashSet<>(children.keySet());
 
         map.forEach((okey, value) -> {
-            CaseInsensitiveString key = new CaseInsensitiveString(okey.toString());
+            CaseInsensitiveString key = new CaseInsensitiveString(okey);
             childrenToRemove.remove(key);
             updateChild(lastModified, key, value, mergeBehavior);
         });
@@ -370,7 +370,7 @@ public class Topics extends Node implements Iterable<Node> {
      * Clears all the children nodes and replaces with the provided new map. Waits for replace to finish
      * @param newValue Map of new values for this topics
      */
-    public void replaceAndWait(Map<Object, Object> newValue) {
+    public void replaceAndWait(Map<String, Object> newValue) {
         context.runOnPublishQueueAndWait(() ->
                 updateFromMap(System.currentTimeMillis(), newValue,
                         new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE))

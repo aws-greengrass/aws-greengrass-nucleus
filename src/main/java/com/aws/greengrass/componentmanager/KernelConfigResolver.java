@@ -106,11 +106,11 @@ public class KernelConfigResolver {
      * @return a kernel config map
      * @throws PackageLoadingException if any service package was unable to be loaded
      */
-    public Map<Object, Object> resolve(List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
+    public Map<String, Object> resolve(List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
                                        List<String> rootPackages) throws PackageLoadingException {
         Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache =
                 new ConcurrentHashMap<>();
-        Map<Object, Object> servicesConfig = new HashMap<>();
+        Map<String, Object> servicesConfig = new HashMap<>();
         for (ComponentIdentifier packageToDeploy : packagesToDeploy) {
             servicesConfig.put(packageToDeploy.getName(),
                     getServiceConfig(packageToDeploy, document, packagesToDeploy, parameterAndDependencyCache));
@@ -124,7 +124,7 @@ public class KernelConfigResolver {
     /*
      * Processes lifecycle section of each package and add it to the config.
      */
-    private Map<Object, Object> getServiceConfig(ComponentIdentifier componentIdentifier, DeploymentDocument document,
+    private Map<String, Object> getServiceConfig(ComponentIdentifier componentIdentifier, DeploymentDocument document,
                                                  List<ComponentIdentifier> packagesToDeploy,
                                                  Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>>
                                                          parameterAndDependencyCache)
@@ -135,7 +135,7 @@ public class KernelConfigResolver {
         parameterAndDependencyCache
                 .put(componentIdentifier, new Pair<>(resolvedParams, componentRecipe.getDependencies().keySet()));
 
-        Map<Object, Object> resolvedServiceConfig = new HashMap<>();
+        Map<String, Object> resolvedServiceConfig = new HashMap<>();
 
         // Interpolate parameters
         resolvedServiceConfig.put(GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
@@ -176,7 +176,7 @@ public class KernelConfigResolver {
         }
         if (configValue instanceof Map) {
             Map<String, Object> childConfigMap = (Map<String, Object>) configValue;
-            Map<Object, Object> resolvedChildConfig = new HashMap<>();
+            Map<String, Object> resolvedChildConfig = new HashMap<>();
             for (Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
                 resolvedChildConfig.put(childLifecycle.getKey(),
                         interpolate(childLifecycle.getValue(), componentIdentifier, packagesToDeploy, document,
@@ -276,8 +276,8 @@ public class KernelConfigResolver {
     /*
      * Compute the config for main service
      */
-    private Map<Object, Object> getMainConfig(List<String> rootPackages) {
-        Map<Object, Object> mainServiceConfig = new HashMap<>();
+    private Map<String, Object> getMainConfig(List<String> rootPackages) {
+        Map<String, Object> mainServiceConfig = new HashMap<>();
         ArrayList<String> mainDependencies = new ArrayList<>(rootPackages);
         kernel.getMain().getDependencies().forEach((greengrassService, dependencyType) -> {
             // Add all autostart dependencies
