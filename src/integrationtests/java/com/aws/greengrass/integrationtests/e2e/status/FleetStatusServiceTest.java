@@ -61,6 +61,10 @@ public class FleetStatusServiceTest extends BaseE2ETestCase {
     private static final String FLEET_STATUS_ARN_PARTITION = "aws";
     private Consumer<GreengrassLogMessage> logListener;
 
+    protected FleetStatusServiceTest() throws Exception {
+        super();
+    }
+
     @AfterEach
     void afterEach() {
         try {

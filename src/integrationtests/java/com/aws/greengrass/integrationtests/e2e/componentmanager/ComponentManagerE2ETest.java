@@ -49,6 +49,10 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
     private static Path componentStorePath;
     private final String kernelIntegTestPkgName = getTestComponentNameInCloud("KernelIntegTest");
 
+    protected ComponentManagerE2ETest() throws Exception {
+        super();
+    }
+
     @BeforeEach
     void setupKernel() throws Exception {
         // The integration test will pick up credentials from the default provider chain
