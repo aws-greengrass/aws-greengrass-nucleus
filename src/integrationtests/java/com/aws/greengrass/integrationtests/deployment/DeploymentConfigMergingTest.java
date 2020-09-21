@@ -114,7 +114,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
         });
         deploymentConfigMerger.mergeInNewConfig(testDeployment(),
-                (Map<Object, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml")))
+                (Map<String, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml")))
                 .get(60, TimeUnit.SECONDS);
 
         // THEN
@@ -156,10 +156,10 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
         });
 
-        deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                put("main", new HashMap<Object, Object>() {{
-                    put(SETENV_CONFIG_NAMESPACE, new HashMap<Object, Object>() {{
+        deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("main", new HashMap<String, Object>() {{
+                    put(SETENV_CONFIG_NAMESPACE, new HashMap<String, Object>() {{
                         put("HELLO", "redefined");
                     }});
                 }});
@@ -208,15 +208,15 @@ class DeploymentConfigMergingTest extends BaseITCase {
         List<String> serviceList = kernel.getMain().getDependencies().keySet().stream().map(GreengrassService::getName)
                 .collect(Collectors.toList());
         serviceList.add("new_service");
-        deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                put("main", new HashMap<Object, Object>() {{
+        deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("main", new HashMap<String, Object>() {{
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, serviceList);
                 }});
 
-                put("new_service", new HashMap<Object, Object>() {{
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                put("new_service", new HashMap<String, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(LIFECYCLE_RUN_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                             put("script", "echo done");
                         }});
                     }});
@@ -268,21 +268,21 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 .collect(Collectors.toList());
         serviceList.add("new_service");
 
-        deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                put("main", new HashMap<Object, Object>() {{
+        deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("main", new HashMap<String, Object>() {{
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, serviceList);
                 }});
 
-                put("new_service", new HashMap<Object, Object>() {{
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                put("new_service", new HashMap<String, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo done");
                     }});
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList("new_service2"));
                 }});
 
-                put("new_service2", new HashMap<Object, Object>() {{
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                put("new_service2", new HashMap<String, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo done");
                     }});
                 }});
@@ -304,21 +304,21 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
-        HashMap<Object, Object> newConfig = new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                put("main", new HashMap<Object, Object>() {{
+        HashMap<String, Object> newConfig = new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("main", new HashMap<String, Object>() {{
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList("new_service"));
                 }});
 
-                put("new_service", new HashMap<Object, Object>() {{
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                put("new_service", new HashMap<String, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo done");
                     }});
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList("new_service2"));
                 }});
 
-                put("new_service2", new HashMap<Object, Object>() {{
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                put("new_service2", new HashMap<String, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo done");
                     }});
                 }});
@@ -408,7 +408,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         //wait for main to run
         assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS));
 
-        Map<Object, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
+        Map<String, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
         Map<String, Map> servicesConfig = (Map<String, Map>) currentConfig.get(SERVICES_NAMESPACE_TOPIC);
 
         //removing all services in the current kernel config except sleeperB and main
@@ -487,7 +487,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
         });
 
-        Map<Object, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
+        Map<String, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
         Future<DeploymentResult> future =
                 deploymentConfigMerger.mergeInNewConfig(testDeployment(), currentConfig);
 
@@ -517,10 +517,10 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         // WHEN
         // merge broken config
-        HashMap<Object, Object> brokenConfig = new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                put("sleeperB", new HashMap<Object, Object>() {{
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+        HashMap<String, Object> brokenConfig = new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("sleeperB", new HashMap<String, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                         put(LIFECYCLE_STARTUP_NAMESPACE_TOPIC, "exit 1");
                     }});
                 }});
@@ -596,10 +596,10 @@ class DeploymentConfigMergingTest extends BaseITCase {
         };
         Slf4jLogAdapter.addGlobalListener(listener);
         deploymentConfigMerger
-                .mergeInNewConfig(testDeploymentWithSkipSafetyCheckConfig(), new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                put("main", new HashMap<Object, Object>() {{
-                    put(SETENV_CONFIG_NAMESPACE, new HashMap<Object, Object>() {{
+                .mergeInNewConfig(testDeploymentWithSkipSafetyCheckConfig(), new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("main", new HashMap<String, Object>() {{
+                    put(SETENV_CONFIG_NAMESPACE, new HashMap<String, Object>() {{
                         put("HELLO", "redefined");
                     }});
                 }});

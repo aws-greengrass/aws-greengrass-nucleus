@@ -100,7 +100,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             preparePackagesFuture = componentManager.preparePackages(desiredPackages);
             preparePackagesFuture.get();
 
-            Map<Object, Object> newConfig =
+            Map<String, Object> newConfig =
                     kernelConfigResolver.resolve(desiredPackages, deploymentDocument, new ArrayList<>(rootPackages));
             if (Thread.currentThread().isInterrupted()) {
                 logger.atInfo().log("Received interrupt before attempting deployment merge, skipping merge");

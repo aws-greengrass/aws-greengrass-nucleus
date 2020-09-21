@@ -124,7 +124,7 @@ public class Configuration {
      * @param timestamp last modified time for the configuration values
      * @param map       map to merge
      */
-    public void mergeMap(long timestamp, Map<Object, Object> map) {
+    public void mergeMap(long timestamp, Map<String, Object> map) {
         this.updateMap(timestamp, map, new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE));
     }
 
@@ -135,12 +135,12 @@ public class Configuration {
      * @param map           map to merge
      * @param updateBehavior the updateBehavior of each node to be merged in
      */
-    public void updateMap(long timestamp, Map<Object, Object> map, UpdateBehaviorTree updateBehavior) {
+    public void updateMap(long timestamp, Map<String, Object> map, UpdateBehaviorTree updateBehavior) {
         Object resolvedPlatformMap = PlatformResolver.resolvePlatform(map);
         if (!(resolvedPlatformMap instanceof Map)) {
             throw new IllegalArgumentException("Invalid config after resolving platform: " + resolvedPlatformMap);
         }
-        root.updateFromMap(timestamp, (Map<Object, Object>) resolvedPlatformMap, updateBehavior);
+        root.updateFromMap(timestamp, (Map<String, Object>) resolvedPlatformMap, updateBehavior);
     }
 
     public Map<String, Object> toPOJO() {
