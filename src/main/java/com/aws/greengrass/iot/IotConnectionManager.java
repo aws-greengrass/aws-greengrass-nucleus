@@ -8,6 +8,7 @@ import com.aws.greengrass.deployment.exceptions.AWSIotException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.ProxyUtils;
 import software.amazon.awssdk.crt.http.HttpClientConnection;
 import software.amazon.awssdk.crt.http.HttpClientConnectionManager;
 import software.amazon.awssdk.crt.http.HttpClientConnectionManagerOptions;
@@ -62,6 +63,7 @@ public class IotConnectionManager implements Closeable {
             tlsCtxOptions.overrideDefaultTrustStoreFromPath(null, caPath);
             return HttpClientConnectionManager
                     .create(new HttpClientConnectionManagerOptions().withClientBootstrap(clientBootstrap)
+                            .withProxyOptions(ProxyUtils.getHttpProxyOptions(deviceConfiguration))
                             .withSocketOptions(new SocketOptions()).withTlsContext(new TlsContext(tlsCtxOptions))
                             .withPort(IOT_PORT).withUri(URI.create(
                                     "https://" + Coerce.toString(deviceConfiguration.getIotCredentialEndpoint()))));

@@ -42,6 +42,13 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
 
+    public static final String DEVICE_NETWORK_PROXY_NAMESPACE = "networkProxy";
+    public static final String DEVICE_PROXY_NAMESPACE = "proxy";
+    public static final String DEVICE_PARAM_NO_PROXY_ADDRESSES = "noProxyAddresses";
+    public static final String DEVICE_PARAM_PROXY_URL = "url";
+    public static final String DEVICE_PARAM_PROXY_USERNAME = "username";
+    public static final String DEVICE_PARAM_PROXY_PASSWORD = "password";
+
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
@@ -151,6 +158,30 @@ public class DeviceConfiguration {
 
     public Topics getMQTTNamespace() {
         return getTopics(DEVICE_MQTT_NAMESPACE);
+    }
+
+    public Topics getNetworkProxyNamespace() {
+        return getTopics(DEVICE_NETWORK_PROXY_NAMESPACE);
+    }
+
+    public Topics getProxyNamespace() {
+        return getNetworkProxyNamespace().lookupTopics(DEVICE_PROXY_NAMESPACE);
+    }
+
+    public String getNoProxyAddresses() {
+        return Coerce.toString(getNetworkProxyNamespace().findOrDefault("", DEVICE_PARAM_NO_PROXY_ADDRESSES));
+    }
+
+    public String getProxyUrl() {
+        return Coerce.toString(getProxyNamespace().findOrDefault("", DEVICE_PARAM_PROXY_URL));
+    }
+
+    public String getProxyUsername() {
+        return Coerce.toString(getProxyNamespace().findOrDefault("", DEVICE_PARAM_PROXY_USERNAME));
+    }
+
+    public String getProxyPassword() {
+        return Coerce.toString(getProxyNamespace().findOrDefault("", DEVICE_PARAM_PROXY_PASSWORD));
     }
 
     public void onAnyChange(ChildChanged cc) {

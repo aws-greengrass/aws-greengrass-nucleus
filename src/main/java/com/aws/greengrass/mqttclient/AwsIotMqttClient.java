@@ -13,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
 import software.amazon.awssdk.crt.CRT;
+import software.amazon.awssdk.crt.auth.credentials.X509CredentialsProvider;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
@@ -43,6 +44,7 @@ class AwsIotMqttClient implements Closeable {
             .dfltKv(MqttClient.CLIENT_ID_KEY, (Supplier<String>) this::getClientId);
 
     private final Provider<AwsIotMqttConnectionBuilder> builderProvider;
+    private final X509CredentialsProvider credentialsProvider;
     @Getter
     private final String clientId;
     @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
@@ -85,10 +87,12 @@ class AwsIotMqttClient implements Closeable {
     private final Map<String, QualityOfService> subscriptionTopics = new ConcurrentHashMap<>();
 
     AwsIotMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
+                     X509CredentialsProvider credentialsProvider,
                      Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler,
                      String clientId, Topics mqttTopics,
                      CallbackEventManager callbackEventManager) {
         this.builderProvider = builderProvider;
+        this.credentialsProvider = credentialsProvider;
         this.clientId = clientId;
         this.mqttTopics = mqttTopics;
         this.messageHandler = messageHandler.apply(this);
@@ -135,6 +139,9 @@ class AwsIotMqttClient implements Closeable {
         // Always use the builder provider here so that the builder is updated with whatever
         // the latest device config is
         try (AwsIotMqttConnectionBuilder builder = builderProvider.get()) {
+            if (credentialsProvider != null) {
+                builder.withWebsocketCredentialsProvider(credentialsProvider);
+            }
             builder.withConnectionEventCallbacks(connectionEventCallback);
             builder.withClientId(clientId);
 

@@ -9,6 +9,7 @@ import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.IPCService;
 import com.aws.greengrass.ipc.Startable;
 import com.aws.greengrass.ipc.modules.AuthorizationService;
@@ -19,6 +20,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.ProxyUtils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Setter;
@@ -104,6 +106,10 @@ public class KernelLifecycle {
         });
 
         kernel.writeEffectiveConfig();
+
+        ProxyUtils.setSystemProxyProperties(kernel.getConfig().lookupTopics(DeviceConfiguration.SYSTEM_NAMESPACE_KEY,
+                DeviceConfiguration.DEVICE_NETWORK_PROXY_NAMESPACE));
+
         logger.atInfo().setEventType("system-start").addKeyValue("main", kernel.getMain()).log();
         startupAllServices();
     }

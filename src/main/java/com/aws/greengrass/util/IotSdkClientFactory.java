@@ -53,6 +53,7 @@ public final class IotSdkClientFactory {
      */
     public static IotClient getIotClient(String awsRegion, EnvironmentStage stage) throws URISyntaxException {
         IotClientBuilder iotClientBuilder = IotClient.builder().region(Region.of(awsRegion))
+                .httpClient(ProxyUtils.getSdkHttpClient())
                 .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build());
         if (stage != EnvironmentStage.PROD) {
             URI endpoint = new URI(String.format(IOT_CONTROL_PLANE_ENDPOINT_FORMAT, stage.value, awsRegion));
@@ -69,8 +70,11 @@ public final class IotSdkClientFactory {
      * @return IotClient instance
      */
     public static IotClient getIotClient(Region awsRegion, AwsCredentialsProvider credentialsProvider) {
-        return IotClient.builder().region(awsRegion).credentialsProvider(credentialsProvider)
-                .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build()).build();
+        return IotClient.builder().region(awsRegion)
+                .httpClient(ProxyUtils.getSdkHttpClient())
+                .credentialsProvider(credentialsProvider)
+                .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build())
+                .build();
     }
 
     /**
@@ -88,8 +92,9 @@ public final class IotSdkClientFactory {
         Set<Class<? extends Exception>> allExceptionsToRetryOn = new HashSet<>();
         allExceptionsToRetryOn.addAll(retryableIoTExceptions);
         allExceptionsToRetryOn.addAll(additionalRetryableExceptions);
-        IotClientBuilder iotClientBuilder = IotClient.builder().region(Region.of(awsRegion)).overrideConfiguration(
-                ClientOverrideConfiguration.builder().retryPolicy(
+        IotClientBuilder iotClientBuilder = IotClient.builder().region(Region.of(awsRegion))
+                .httpClient(ProxyUtils.getSdkHttpClient())
+                .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(
                         RetryPolicy.builder().numRetries(5).backoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
                                 .retryCondition(OrRetryCondition.create(RetryCondition.defaultRetryCondition(),
                                         RetryOnExceptionsCondition.create(allExceptionsToRetryOn))).build()).build());
