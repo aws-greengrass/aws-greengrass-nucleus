@@ -12,13 +12,16 @@ import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.util.Utils;
 import lombok.SneakyThrows;
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolver;
 
+import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -152,6 +155,7 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         //Stop the telemetry logger context after each test so we can delete the telemetry log files that are created
         // during the test.
         TelemetryConfig.getInstance().close();
+        deleteTelemetryDirectory(TelemetryConfig.getInstance().getRoot());
         List<Throwable> exceptions = getExceptions(context);
         try {
             if (!exceptions.isEmpty()) {
@@ -179,5 +183,9 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
     @Override
     public Object resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext) {
         return extensionContext;
+    }
+
+    private void deleteTelemetryDirectory(Path p) throws IOException {
+        FileUtils.deleteDirectory(p.toFile());
     }
 }
