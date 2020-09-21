@@ -64,6 +64,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("E2E")
 class DeploymentE2ETest extends BaseE2ETestCase {
 
+    protected DeploymentE2ETest() throws Exception {
+        super();
+    }
+
     @AfterEach
     void afterEach() {
         if (kernel != null) {

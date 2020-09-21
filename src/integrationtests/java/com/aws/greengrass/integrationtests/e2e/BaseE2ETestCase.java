@@ -73,6 +73,7 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -88,6 +89,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.STAGE_TO_ENDPOINT_FORMAT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -97,7 +99,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @ExtendWith(GGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
-    private static final String FCS_ENDPOINT = "https://bp5p2uvbx6.execute-api.us-east-1.amazonaws.com/Gamma";
     protected static final Region GAMMA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
     private static final String TES_ROLE_NAME = "E2ETestsTesRole" + UUID.randomUUID().toString();
@@ -125,6 +126,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     private static final String testComponentSuffix = "_" + UUID.randomUUID().toString();
     protected static Optional<String> tesRolePolicyArn;
+    protected static final IotSdkClientFactory.EnvironmentStage envStage = IotSdkClientFactory.EnvironmentStage.GAMMA;
 
     protected final Set<String> createdIotJobIds = new HashSet<>();
     protected final Set<String> createdThingGroups = new HashSet<>();
@@ -133,7 +135,8 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected CreateThingGroupResponse thingGroupResp;
 
     protected DeviceProvisioningHelper deviceProvisioningHelper =
-            new DeviceProvisioningHelper(GAMMA_REGION.toString(), System.out);
+            new DeviceProvisioningHelper(GAMMA_REGION.toString(), envStage.toString(),
+                    System.out);
 
     @TempDir
     protected Path tempRootDir;
@@ -145,13 +148,23 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected Kernel kernel;
 
-    protected static final IotClient iotClient = IotSdkClientFactory.getIotClient(GAMMA_REGION.toString(),
-            new HashSet<>(Arrays.asList(InvalidRequestException.class, DeleteConflictException.class)));
-    private static AWSEvergreen fcsClient;
-    protected static final AWSEvergreen cmsClient = AWSEvergreenClientBuilder.standard()
+    protected static IotClient iotClient;
+
+    static {
+        try {
+            iotClient = IotSdkClientFactory.getIotClient(GAMMA_REGION.toString(),
+                        envStage,
+                        new HashSet<>(Arrays.asList(InvalidRequestException.class, DeleteConflictException.class)));
+        } catch (URISyntaxException e) {
+            logger.atError().setCause(e).log("Caught exception while initializing Iot client");
+            throw new RuntimeException(e);
+        }
+    };
+
+    protected static final AWSEvergreen greengrassClient = AWSEvergreenClientBuilder.standard()
                                                                              .withEndpointConfiguration(
                                                                                      new AwsClientBuilder.EndpointConfiguration(
-                                                                                             DeviceProvisioningHelper.GCS_ENDPOINT,
+                                                                                             String.format(STAGE_TO_ENDPOINT_FORMAT.get(envStage), GAMMA_REGION.toString()),
                                                                                              GAMMA_REGION.toString()))
                                                                              .build();
     protected static final IamClient iamClient = IamSdkClientFactory.getIamClient();
@@ -192,7 +205,7 @@ public class BaseE2ETestCase implements AutoCloseable {
             List<ComponentIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInS3));
             for (ComponentIdentifier component : allComponents) {
                 DeleteComponentResult result = ComponentServiceHelper
-                        .deleteComponent(cmsClient, component.getName(), component.getVersion().toString());
+                        .deleteComponent(greengrassClient, component.getName(), component.getVersion().toString());
                 assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
             }
         } finally {
@@ -201,7 +214,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    protected BaseE2ETestCase() {
+    protected BaseE2ETestCase() throws Exception {
         thingInfo = deviceProvisioningHelper.createThingForE2ETests();
         thingGroupResp = IotJobsUtils.createThingGroupAndAddThing(iotClient, thingInfo);
         thingGroupName = thingGroupResp.thingGroupName();
@@ -210,7 +223,8 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected void initKernel()
             throws IOException, DeviceConfigurationException, InterruptedException, ServiceLoadException {
-        kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
+        kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString(), "-ar", GAMMA_REGION.toString()
+                , "-es", envStage.toString());
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString());
         setupTesRoleAndAlias();
     }
@@ -279,7 +293,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));
 
         CreateComponentResult createComponentResult =
-                ComponentServiceHelper.createComponent(cmsClient, testRecipePath);
+                ComponentServiceHelper.createComponent(greengrassClient, testRecipePath);
         assertEquals(pkgIdCloud.getName(), createComponentResult.getName(), createComponentResult.toString());
         assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getVersion());
     }
@@ -337,19 +351,8 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    private static synchronized AWSEvergreen getFcsClient() {
-        if (fcsClient == null) {
-            AwsClientBuilder.EndpointConfiguration endpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
-                    FCS_ENDPOINT, GAMMA_REGION.toString());
-            fcsClient = AWSEvergreenClientBuilder.standard()
-                    .withEndpointConfiguration(endpointConfiguration).build();
-        }
-        return fcsClient;
-    }
-
     @SuppressWarnings("PMD.LinguisticNaming")
     protected PublishConfigurationResult setAndPublishFleetConfiguration(SetConfigurationRequest setRequest) {
-        AWSEvergreen client = getFcsClient();
 
         // update package name with random suffix to avoid conflict in cloud
         Map<String, PackageMetaData> updatedPkgMetadata = new HashMap<>();
@@ -367,7 +370,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
 
         logger.atInfo().kv("setRequest", setRequest).log();
-        SetConfigurationResult setResult = client.setConfiguration(setRequest);
+        SetConfigurationResult setResult = greengrassClient.setConfiguration(setRequest);
         logger.atInfo().kv("setResult", setResult).log();
 
         PublishConfigurationRequest publishRequest = new PublishConfigurationRequest()
@@ -375,7 +378,7 @@ public class BaseE2ETestCase implements AutoCloseable {
                 .withTargetType(setRequest.getTargetType())
                 .withRevisionId(setResult.getRevisionId());
         logger.atInfo().kv("publishRequest", publishRequest).log();
-        PublishConfigurationResult publishResult = client.publishConfiguration(publishRequest);
+        PublishConfigurationResult publishResult = greengrassClient.publishConfiguration(publishRequest);
         logger.atInfo().kv("publishResult", publishResult).log();
         createdIotJobIds.add(publishResult.getJobId());
         return publishResult;
@@ -434,10 +437,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        if (fcsClient != null) {
-            fcsClient.shutdown();
-        }
-        cmsClient.shutdown();
+        greengrassClient.shutdown();
         iotClient.close();
         iamClient.close();
         s3Client.close();

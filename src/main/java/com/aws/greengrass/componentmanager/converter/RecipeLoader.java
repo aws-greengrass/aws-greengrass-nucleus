@@ -13,6 +13,7 @@ import com.aws.greengrass.componentmanager.models.ComponentParameter;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.PlatformResolver;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -46,7 +47,9 @@ public final class RecipeLoader {
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe;
         try {
             componentRecipe =
-                    SerializerFactory.getRecipeSerializer().readValue(recipeFileContent,
+                    SerializerFactory.getRecipeSerializer()
+                            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                            .readValue(recipeFileContent,
                             com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
         } catch (JsonProcessingException e) {
             //TODO move this to common model

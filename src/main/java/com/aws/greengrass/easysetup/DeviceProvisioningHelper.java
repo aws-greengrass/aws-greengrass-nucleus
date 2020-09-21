@@ -7,8 +7,11 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.util.CommitableFile;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
+import com.aws.greengrass.util.IotSdkClientFactory.EnvironmentStage;
+import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.apache.commons.lang3.StringUtils;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.AttachRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.CreatePolicyResponse;
@@ -41,16 +44,19 @@ import software.amazon.awssdk.services.iot.model.Policy;
 import software.amazon.awssdk.services.iot.model.ResourceAlreadyExistsException;
 import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.UpdateCertificateRequest;
+import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -64,26 +70,44 @@ import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE
  */
 @Getter
 public class DeviceProvisioningHelper {
+
+    public static final Map<EnvironmentStage, String> STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
+            EnvironmentStage.PROD, "evergreen.%s.amazonaws.com",
+            EnvironmentStage.GAMMA, "evergreen-gamma.%s.amazonaws.com",
+            EnvironmentStage.BETA, "evergreen-beta.%s.amazonaws.com"
+    );
+
     private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
     private static final String IOT_ROLE_POLICY_NAME_PREFIX = "GreengrassTESCertificatePolicy";
     private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
     private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
-    // TODO : Remove once global components are implemented
-    public static final String GCS_ENDPOINT = "https://nztb5z87k6.execute-api.us-east-1.amazonaws.com/Gamma";
+
+    private EnvironmentStage envStage = EnvironmentStage.PROD;
+    private final Map<EnvironmentStage, String> tesServiceEndpoints = ImmutableMap.of(
+            EnvironmentStage.PROD, "credentials.iot.amazonaws.com",
+            EnvironmentStage.GAMMA, "credentials.iot.test.amazonaws.com",
+            EnvironmentStage.BETA, "credentials.iot.test.amazonaws.com"
+    );
 
     private final PrintStream outStream;
 
-    private IotClient iotClient;
-    private IamClient iamClient;
+    private final IotClient iotClient;
+    private final IamClient iamClient;
 
     /**
-     * Constructor for a desired region.
+     * Constructor for a desired region and stage.
      *
      * @param awsRegion aws region
      * @param outStream stream used to provide customer feedback
+     * @param environmentStage {@link EnvironmentStage}
+     * @throws URISyntaxException when Iot endpoint is malformed
+     * @throws InvalidEnvironmentStageException when the environmentStage passes is invalid
      */
-    public DeviceProvisioningHelper(String awsRegion, PrintStream outStream) {
-        this.iotClient = IotSdkClientFactory.getIotClient(awsRegion);
+    public DeviceProvisioningHelper(String awsRegion, String environmentStage, PrintStream outStream)
+            throws URISyntaxException, InvalidEnvironmentStageException {
+        this.envStage = StringUtils.isEmpty(environmentStage)
+                ? EnvironmentStage.PROD : EnvironmentStage.fromString(environmentStage);
+        this.iotClient = IotSdkClientFactory.getIotClient(awsRegion, envStage);
         this.iamClient = IamSdkClientFactory.getIamClient();
         this.outStream = outStream;
     }
@@ -260,8 +284,9 @@ public class DeviceProvisioningHelper {
                         "Role for Greengrass IoT things to interact with AWS services using token exchange service")
                         .assumeRolePolicyDocument("{\n  \"Version\": \"2012-10-17\",\n"
                                 + "  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n"
-                                + "      \"Principal\": {\n        \"Service\": \"credentials.iot.amazonaws.com\"\n"
-                                + "      },\n      \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}").build();
+                                + "      \"Principal\": {\n       \"Service\": \""
+                                + tesServiceEndpoints.get(envStage)
+                                + "\"\n      },\n      \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}").build();
                 roleArn = iamClient.createRole(createRoleRequest).role().arn();
             }
 
