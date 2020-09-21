@@ -219,7 +219,7 @@ public class IotJobsHelper implements InjectionActions {
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
             executorService.execute(() -> {
-                subscribeToJobsTopics();
+                requestNextPendingJobDocument();
                 deploymentStatusKeeper.publishPersistedStatusUpdates(DeploymentType.IOT_JOBS);
             });
         }
@@ -356,7 +356,13 @@ public class IotJobsHelper implements InjectionActions {
         try {
             iotJobsClient.PublishUpdateJobExecution(updateJobRequest, QualityOfService.AT_LEAST_ONCE).get();
         } catch (ExecutionException e) {
-            gotResponse.completeExceptionally(e.getCause());
+            try {
+                unwrapExecutionException(e);
+            } catch (ExecutionException e1) {
+                gotResponse.completeExceptionally(e1.getCause());
+            } catch (TimeoutException | InterruptedException e1) {
+                gotResponse.completeExceptionally(e1);
+            }
         }
 
         try {
@@ -450,11 +456,15 @@ public class IotJobsHelper implements InjectionActions {
         CompletableFuture<Integer> subscribed = iotJobsClient
                 .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
                         QualityOfService.AT_LEAST_ONCE, consumerAccept);
-        subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
-        subscribed = iotJobsClient.SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
-                QualityOfService.AT_LEAST_ONCE, consumerReject);
-        subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
-        logger.atInfo().log("Subscribed to deployment job execution update.");
+        try {
+            subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+            subscribed = iotJobsClient.SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
+                    QualityOfService.AT_LEAST_ONCE, consumerReject);
+            subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+            logger.atInfo().log("Subscribed to deployment job execution update.");
+        } catch (ExecutionException e) {
+            unwrapExecutionException(e);
+        }
     }
 
     /**
@@ -472,8 +482,24 @@ public class IotJobsHelper implements InjectionActions {
         request.thingName = Coerce.toString(deviceConfiguration.getThingName());
         CompletableFuture<Integer> subscribed = iotJobsClient
                 .SubscribeToJobExecutionsChangedEvents(request, QualityOfService.AT_LEAST_ONCE, eventHandler);
-        subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+        try {
+            subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            unwrapExecutionException(e);
+        }
         logger.atInfo().log("Subscribed to deployment job event notifications.");
+    }
+
+    private static void unwrapExecutionException(ExecutionException e)
+            throws TimeoutException, InterruptedException, ExecutionException {
+        Throwable cause = e.getCause();
+        if (cause instanceof TimeoutException) {
+            throw (TimeoutException) cause;
+        }
+        if (cause instanceof InterruptedException) {
+            throw (InterruptedException) cause;
+        }
+        throw e;
     }
 
     private void evaluateCancellationAndCancelDeploymentIfNeeded() {
