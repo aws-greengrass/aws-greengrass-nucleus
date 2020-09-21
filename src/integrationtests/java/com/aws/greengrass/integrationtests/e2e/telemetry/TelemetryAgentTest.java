@@ -47,6 +47,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class TelemetryAgentTest extends BaseE2ETestCase {
     private static final ObjectMapper DESERIALIZER = new ObjectMapper();
 
+    protected TelemetryAgentTest() throws Exception {
+        super();
+    }
+
     @AfterEach
     void afterEach() {
         try {
