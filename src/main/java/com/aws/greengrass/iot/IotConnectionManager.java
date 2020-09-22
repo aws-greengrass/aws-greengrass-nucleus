@@ -101,6 +101,12 @@ public class IotConnectionManager implements Closeable {
         clientBootstrap.close();
         resolver.close();
         eventLoopGroup.close();
+        try {
+            eventLoopGroup.getShutdownCompleteFuture().get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            LOGGER.atError().log("Error shutting down event loop", e);
+        }
     }
-
 }

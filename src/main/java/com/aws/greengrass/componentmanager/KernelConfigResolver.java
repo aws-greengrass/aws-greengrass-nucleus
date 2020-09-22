@@ -142,7 +142,8 @@ public class KernelConfigResolver {
                 interpolate(componentRecipe.getLifecycle(), componentIdentifier, packagesToDeploy, document,
                         parameterAndDependencyCache));
 
-        resolvedServiceConfig.put(SERVICE_TYPE_TOPIC_KEY, componentRecipe.getComponentType());
+        resolvedServiceConfig.put(SERVICE_TYPE_TOPIC_KEY,
+                componentRecipe.getComponentType() == null ? null : componentRecipe.getComponentType().name());
 
         // Generate dependencies
         List<String> dependencyConfig = new ArrayList<>();
