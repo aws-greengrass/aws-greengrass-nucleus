@@ -14,7 +14,7 @@ Typically, metric creation and emission are component/service specific(excluding
 Each metric has to be specified with its name, namespace it belongs to, aggregation type that we want to perform on it and unit of the metric. It is enough to create a metric just once.
 ```
     Metric metric = Metric.builder()
-            .namespace("KernelComponents")
+            .namespace("GreengrassComponents")
             .name("NumberOfComponentsInstalled")
             .unit(TelemetryUnit.Count)
             .aggregation(TelemetryAggregation.Average)
@@ -26,13 +26,13 @@ Emitting a metric data point is nothing but assiging a value to the metric and w
 ```
     Telemetry
     |___ generic.log
-    |___ KernelComponents.log
+    |___ GreengrassComponents.log
     |___ SystemMetrics.log
     |___ ...
 ```
 - The file to which the metric has to be written is specified using the `MetricFactory`. If nothing is specified, then the metrics are written to "generic.log" file.
     ```
-    MetricFactory metricFactory = new MetricFactory("KernelComponents");
+    MetricFactory metricFactory = new MetricFactory("GreengrassComponents");
     ```
 - Emitting a metric can be done in two ways. 
 1. Assign a value and timestamp to the metric before emitting it.
@@ -46,15 +46,15 @@ Emitting a metric data point is nothing but assiging a value to the metric and w
     ```
     metricFactory.putMetricData(metric,10);
     ```
-Sample contents of the file `telemetryKernelComponents.log`
+Sample contents of the file `telemetryGreengrassComponents.log`
 ```
 {
     "thread": "pool-1-thread-1",
     "level": "TRACE",
     "eventType": null,
-    "message":"{\"NS\":\"KernelComponents\",\"N\":\"NumberOfComponentsInstalled\",\"U\":\"Count\",\"A\":\"Average\",\"Average":1,\"TS\":1600127551482}",
+    "message":"{\"NS\":\"GreengrassComponents\",\"N\":\"NumberOfComponentsInstalled\",\"U\":\"Count\",\"A\":\"Average\",\"Average":1,\"TS\":1600127551482}",
     "contexts": {},
-    "loggerName": "Metrics-KernelComponents",
+    "loggerName": "Metrics-GreengrassComponents",
     "timestamp": 1599814408616,
     "cause": null
 }
@@ -74,14 +74,14 @@ Aggregation on the metric logs is performed based on the interval configured by 
 
 - Read the log files present in the Telemetry directory.
 - Aggregate only those metrics that are emitted after the last aggregation and before the current time. This aggregation is metric specific.
-- Example: The metric `NumberOfComponentsInstalled` has 100 occurrences in the `telemetryKernelComponents.log` file out of which 70 are emitted after the last aggregation. Based on the aggregation type of the metric specified, here `Average`, we need to perform average on all of these 70 values. So, we make a map with `NumberOfComponentsInstalled` as the key and the list of these 70 entries as the value and pass this list to a function where aggregation is performed(average,sum,max..)
+- Example: The metric `NumberOfComponentsInstalled` has 100 occurrences in the `telemetryGreengrassComponents.log` file out of which 70 are emitted after the last aggregation. Based on the aggregation type of the metric specified, here `Average`, we need to perform average on all of these 70 values. So, we make a map with `NumberOfComponentsInstalled` as the key and the list of these 70 entries as the value and pass this list to a function where aggregation is performed(average,sum,max..)
 - Once the metrics are aggregated for that interval, group them based on their namespace and write them to a file called `telemetryAggregateMetrics.log`.
 ```
 {
     "thread": "pool-3-thread-3",
     "level": "TRACE",
     "eventType": null,
-    "message": "{\"TS\":1599790572560,\"NS\":\"KernelComponents\",\"M\":[{\"N\":\"NumberOfComponentsStopping\",\"Average\":0.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsFinished\",\"Average\":1.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsRunning\",\"Average\":11.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsNew\",\"Average\":0.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsBroken\",\"Average":0.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsErrored\",\"Average":0.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsStarting\",\"Average":0.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsInstalled\",\"Average":0.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsStateless\",\"Average":0.0,\"U\":\"Count\"}]}",
+    "message": "{\"TS\":1599790572560,\"NS\":\"GreengrassComponents\",\"M\":[{\"N\":\"NumberOfComponentsStopping\",\"Average\":0.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsFinished\",\"Average\":1.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsRunning\",\"Average\":11.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsNew\",\"Average\":0.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsBroken\",\"Average":0.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsErrored\",\"Average":0.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsStarting\",\"Average":0.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsInstalled\",\"Average":0.0,\"U\":\"Count\"},{\"N\":\"NumberOfComponentsStateless\",\"Average":0.0,\"U\":\"Count\"}]}",
     "contexts": {},
     "loggerName": "Metrics-AggregateMetrics",
     "timestamp": 1599790572565,
@@ -92,7 +92,7 @@ Message part of the log corresponds to the following structure.
 ```
 Aggregated metric data point
 |__ Timestamp
-|__ Namespace(KernelComponents)
+|__ Namespace(GreengrassComponents)
 |___List
     |__ Metric 1 (NumberOfComponentsNew)
     |   |__ name

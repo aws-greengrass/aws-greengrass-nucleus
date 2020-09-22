@@ -110,11 +110,11 @@ public class MetricsAggregator {
      * Example:
      * Input:
      * NumOfComponentsInstalled
-     * |___KernelComponents,NumOfComponentsInstalled,Count,Average,10,1234567890
-     * |___KernelComponents,NumOfComponentsInstalled,Count,Average,15,1234567891
+     * |___GreengrassComponents,NumOfComponentsInstalled,Count,Average,10,1234567890
+     * |___GreengrassComponents,NumOfComponentsInstalled,Count,Average,15,1234567891
      * NumOfComponentsBroken
-     * |___KernelComponents,NumOfComponentsBroken,Count,Average,10,1234567890
-     * |___KernelComponents,NumOfComponentsBroken,Count,Average,20,1234567891
+     * |___GreengrassComponents,NumOfComponentsBroken,Count,Average,10,1234567890
+     * |___GreengrassComponents,NumOfComponentsBroken,Count,Average,20,1234567891
      * Output:
      * |___N -  NumOfComponentsInstalled,Average - 12.5,U - Count
      * |___N -  NumOfComponentsBroken,Average - 15,U - Count
@@ -210,16 +210,16 @@ public class MetricsAggregator {
      * Example:
      * Input:
      * TS:123456
-     * NS:KernelComponents
+     * NS:GreengrassComponents
      * |___N -  NumOfComponentsInstalled,Average - 20,U - Count
      * |___N -  NumOfComponentsBroken,Average - 5,U - Count
      * TS:123457
-     * NS:KernelComponents
+     * NS:GreengrassComponents
      * |___N -  NumOfComponentsInstalled,Average - 10,U - Count
      * |___N -  NumOfComponentsBroken,Average - 15,U - Count
      * Output:
      * TS:123457
-     * NS:KernelComponents
+     * NS:GreengrassComponents
      * |___N -  NumOfComponentsInstalled,Average - 15,U - Count
      * |___N -  NumOfComponentsBroken,Average - 10,U - Count
      *
