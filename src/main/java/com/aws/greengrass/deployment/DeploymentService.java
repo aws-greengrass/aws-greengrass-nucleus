@@ -479,7 +479,7 @@ public class DeploymentService extends GreengrassService {
                     pendingComponentsList.add(greengrassService1.getName());
                     Map<String, Object> groupNamesForDependentComponent =
                             (Map<String, Object>) componentsToGroupsMappingCache
-                                    .getOrDefault(greengrassService1.getName(), new HashMap());
+                                    .getOrDefault(greengrassService1.getName(), new HashMap<>());
                     groupNamesForDependentComponent.putAll(groupNamesForComponent);
                     componentsToGroupsMappingCache.put(greengrassService1.getName(),
                             groupNamesForDependentComponent);

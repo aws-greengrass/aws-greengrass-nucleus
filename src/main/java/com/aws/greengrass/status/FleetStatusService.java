@@ -223,8 +223,8 @@ public class FleetStatusService extends GreengrassService {
     }
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
-        Deployment.DeploymentType type = (Deployment.DeploymentType) deploymentDetails
-                .get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE);
+        Deployment.DeploymentType type = Coerce.toEnum(Deployment.DeploymentType.class, deploymentDetails
+                .get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE));
         if (type == IOT_JOBS) {
             String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
             if (JobStatus.IN_PROGRESS.toString().equals(status)) {

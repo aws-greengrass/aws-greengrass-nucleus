@@ -93,8 +93,8 @@ class DeploymentTaskTest {
     @BeforeEach
     void setup() {
         mockGroupToRootConfig = Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-        mockGroupToRootConfig.lookupTopics("group1").lookup(COMPONENT_2_ROOT_PACKAGE_NAME)
-                .withValue(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        mockGroupToRootConfig.lookupTopics("group1", COMPONENT_2_ROOT_PACKAGE_NAME)
+                .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
 
         when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS)))
                 .thenReturn(mockGroupToRootConfig);

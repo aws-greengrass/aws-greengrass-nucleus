@@ -30,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -91,7 +92,7 @@ public class DynamicComponentConfigurationValidationTest extends BaseITCase {
         List<String> serviceList = kernel.getMain().getDependencies().keySet().stream().map(GreengrassService::getName)
                 .collect(Collectors.toList());
         serviceList.add("OldService");
-        HashMap<String, Object> newConfig = new HashMap<String, Object>() {{
+        Map<String, Object> newConfig = new HashMap<String, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put("main", new HashMap<String, Object>() {{
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, serviceList);
@@ -146,7 +147,7 @@ public class DynamicComponentConfigurationValidationTest extends BaseITCase {
         });
 
         // Attempt changing the configuration for the running service
-        HashMap<String, Object> newConfig = new HashMap<String, Object>() {{
+        Map<String, Object> newConfig = new HashMap<String, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put("main", kernel.getMain().getServiceConfig().toPOJO());
                 put("OldService", new HashMap<String, Object>() {{
@@ -182,7 +183,7 @@ public class DynamicComponentConfigurationValidationTest extends BaseITCase {
         });
 
         // Attempt changing the configuration for the running service
-        HashMap<String, Object> newConfig = new HashMap<String, Object>() {{
+        Map<String, Object> newConfig = new HashMap<String, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put("main", kernel.getMain().getServiceConfig().toPOJO());
                 put("OldService", new HashMap<String, Object>() {{

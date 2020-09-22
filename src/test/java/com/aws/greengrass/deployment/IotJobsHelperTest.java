@@ -505,10 +505,10 @@ public class IotJobsHelperTest {
     }
 
     @Test
-    public void WHEN_mqttConnection_resumes_THEN_jobsclient_resubscribes_and_call_publish_persisted_deployment_status() {
+    public void WHEN_mqttConnection_resumes_THEN_jobsclient_doesnt_resub_and_call_publish_persisted_deployment_status() {
         verify(mockIotJobsClient, times(1)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         iotJobsHelper.getCallbacks().onConnectionResumed(false);
-        verify(mockIotJobsClient, times(2)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
+        verify(mockIotJobsClient, times(1)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(deploymentStatusKeeper).publishPersistedStatusUpdates(eq(IOT_JOBS));
     }
 

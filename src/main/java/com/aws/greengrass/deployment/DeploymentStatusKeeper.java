@@ -1,18 +1,16 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.builtin.services.cli.CLIServiceAgent;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import lombok.Setter;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,7 +29,7 @@ public class DeploymentStatusKeeper {
     public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS = "Status";
     public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID = "deploymentId";
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
-    private static Logger logger = LogManager.getLogger(DeploymentStatusKeeper.class);
+    private static final Logger logger = LogManager.getLogger(DeploymentStatusKeeper.class);
 
     @Setter
     private DeploymentService deploymentService;
@@ -94,8 +92,8 @@ public class DeploymentStatusKeeper {
             }
             //Each status update is uniquely stored
             Topics processedDeployments = getProcessedDeployments();
-            Topic thisJob = processedDeployments.createLeafChild(String.valueOf(System.currentTimeMillis()));
-            thisJob.withValue(deploymentDetails);
+            Topics thisJob = processedDeployments.createInteriorChild(String.valueOf(System.currentTimeMillis()));
+            thisJob.replaceAndWait(deploymentDetails);
         }
         publishPersistedStatusUpdates(deploymentType);
     }
@@ -110,13 +108,13 @@ public class DeploymentStatusKeeper {
     public void publishPersistedStatusUpdates(DeploymentType type) {
         synchronized (type) {
             Topics processedDeployments = getProcessedDeployments();
-            ArrayList<Topic> deployments = new ArrayList<>();
-            processedDeployments.forEach(topic -> {
-                Map<String, Object> deploymentDetails = (HashMap) ((Topic) topic).getOnce();
-                DeploymentType deploymentType = (DeploymentType) deploymentDetails
-                        .get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE);
+            ArrayList<Topics> deployments = new ArrayList<>();
+            processedDeployments.forEach(node -> {
+                Topics deploymentDetails = (Topics) node;
+                DeploymentType deploymentType = Coerce.toEnum(DeploymentType.class, deploymentDetails
+                        .find(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE));
                 if (deploymentType.equals(type)) {
-                    deployments.add((Topic) topic);
+                    deployments.add(deploymentDetails);
                 }
             });
             // Topics are stored as ConcurrentHashMaps which do not guarantee ordering of elements
@@ -125,28 +123,26 @@ public class DeploymentStatusKeeper {
             // processes multiple deployments in the order in which they come. Additionally, a customer workflow can
             // depend on this order. If Group2 gets successfully updated before Group1 then customer workflow may
             // error out.
-            List<Topic> sortedByTimestamp = deployments.stream().sorted((o1, o2) -> {
-                if (Long.valueOf(o1.getModtime()) > Long.valueOf(o2.getModtime())) {
+            List<Topics> sortedByTimestamp = deployments.stream().sorted((o1, o2) -> {
+                if (o1.getModtime() > o2.getModtime()) {
                     return 1;
                 }
                 return -1;
             }).collect(Collectors.toList());
 
-            Iterator iterator = sortedByTimestamp.iterator();
-            while (iterator.hasNext()) {
-                Topic topic = (Topic) iterator.next();
-                Map<String, Object> deploymentDetails = (HashMap) topic.getOnce();
-                DeploymentType deploymentType = (DeploymentType) deploymentDetails
-                        .get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE);
+            for (Topics topics : sortedByTimestamp) {
+                DeploymentType deploymentType =
+                        Coerce.toEnum(DeploymentType.class,
+                                topics.find(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE));
 
                 boolean allConsumersUpdated = getConsumersForDeploymentType(deploymentType).stream()
-                        .allMatch(consumer -> consumer.apply(deploymentDetails));
+                        .allMatch(consumer -> consumer.apply(topics.toPOJO()));
                 if (!allConsumersUpdated) {
                     // If one deployment update fails, exit the loop to ensure the update order.
                     logger.atDebug().log("Unable to update status of persisted deployments. Retry later");
                     break;
                 }
-                processedDeployments.remove(topic);
+                processedDeployments.remove(topics);
             }
         }
     }

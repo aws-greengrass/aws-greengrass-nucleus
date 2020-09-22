@@ -455,7 +455,7 @@ public class LifecycleTest {
 
     private void initLifecycleState(Lifecycle lf, State initState) {
         Topic stateTopic = lf.getStateTopic();
-        stateTopic.withValue(initState);
+        stateTopic.withValue(initState.ordinal());
     }
 
 

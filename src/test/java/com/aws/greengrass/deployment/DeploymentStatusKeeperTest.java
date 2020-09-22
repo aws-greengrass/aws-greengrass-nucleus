@@ -3,8 +3,10 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.util.Coerce;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -95,13 +97,19 @@ public class DeploymentStatusKeeperTest {
         assertEquals(4, updateOfTypeJobs.size());
         assertEquals(3, updateOfTypeLocal.size());
         assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID), "iot_deployment");
-        assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS), JobStatus.SUCCEEDED);
+        assertEquals(Coerce.toEnum(JobStatus.class, updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS)),
+                JobStatus.SUCCEEDED);
         assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS), new HashMap<>());
-        assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE), IOT_JOBS);
+        assertEquals(Coerce.toEnum(Deployment.DeploymentType.class,
+                updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE)),
+                IOT_JOBS);
         assertEquals("local_deployment", updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID));
-        assertEquals(LOCAL, updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE));
+        assertEquals(LOCAL,
+                Coerce.toEnum(Deployment.DeploymentType.class,
+                        updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE)));
         assertEquals(DeploymentStatus.SUCCEEDED,
-                updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS));
+                Coerce.toEnum(DeploymentStatus.class,
+                        updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS)));
     }
 
     @Test

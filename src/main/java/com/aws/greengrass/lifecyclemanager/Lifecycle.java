@@ -205,7 +205,7 @@ public class Lifecycle {
     }
 
     protected State getState() {
-        return (State) stateTopic.getOnce();
+        return State.values()[Coerce.toInt(stateTopic)];
     }
 
     protected Topic getStateTopic()  {
@@ -215,12 +215,7 @@ public class Lifecycle {
     private Topic initStateTopic(final Topics topics) {
         Topic state = topics.createLeafChild(STATE_TOPIC_NAME);
         state.withParentNeedsToKnow(false);
-        state.withValue(State.NEW);
-        state.addValidator((newStateObj, oldStateObj) -> {
-            State newState = Coerce.toEnum(State.class, newStateObj);
-            return newState == null ? oldStateObj : newStateObj;
-        });
-
+        state.withValue(State.NEW.ordinal());
         return state;
     }
 
@@ -367,7 +362,7 @@ public class Lifecycle {
         // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged
         // are consistent across different services.
         synchronized (State.class) {
-            stateTopic.withValue(newState);
+            stateTopic.withValue(newState.ordinal());
             greengrassService.getContext().globalNotifyStateChanged(greengrassService, current, newState);
         }
     }

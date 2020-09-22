@@ -11,6 +11,7 @@ import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.UnsupportedInputTypeException;
 import com.aws.greengrass.config.Watcher;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.ipc.ConnectionContext;
@@ -253,7 +254,12 @@ public class ConfigStoreIPCAgent {
         String[] keyPath = request.getKeyPath().toArray(new String[0]);
         Node node = configTopics.findNode(keyPath);
         if (node == null) {
-            configTopics.lookup(keyPath).withValue(request.getNewValue());
+            try {
+                configTopics.lookup(keyPath).withValueChecked(request.getNewValue());
+            } catch (UnsupportedInputTypeException e) {
+                return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest)
+                        .errorMessage(e.getMessage()).build();
+            }
             return response.responseStatus(ConfigStoreResponseStatus.Success).build();
         }
         // TODO : Does not support updating internal nodes, at least yet, will need to decide if that
@@ -276,11 +282,17 @@ public class ConfigStoreIPCAgent {
                     .build();
         }
 
-        Topic updatedNode = topic.withNewerValue(request.getTimestamp(), request.getNewValue());
-        if (request.getTimestamp() != updatedNode.getModtime() && !request.getNewValue()
-                .equals(updatedNode.getOnce())) {
-            return response.responseStatus(ConfigStoreResponseStatus.FailedUpdateConditionCheck)
-                    .errorMessage("Proposed timestamp is older than the config's latest modified timestamp").build();
+        try {
+            Topic updatedNode = topic.withValueChecked(request.getTimestamp(), request.getNewValue());
+            if (request.getTimestamp() != updatedNode.getModtime() && !request.getNewValue()
+                    .equals(updatedNode.getOnce())) {
+                return response.responseStatus(ConfigStoreResponseStatus.FailedUpdateConditionCheck)
+                        .errorMessage("Proposed timestamp is older than the config's latest modified timestamp")
+                        .build();
+            }
+        } catch (UnsupportedInputTypeException e) {
+            return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest)
+                    .errorMessage(e.getMessage()).build();
         }
 
         response.responseStatus(ConfigStoreResponseStatus.Success);

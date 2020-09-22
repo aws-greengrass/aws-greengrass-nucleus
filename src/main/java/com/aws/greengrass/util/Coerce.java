@@ -211,6 +211,15 @@ public final class Coerce {
      * @return enum value or default.
      */
     public static <T extends Enum<?>> T toEnum(Class<T> clazz, Object o, T dflt) {
+        if (o == null) {
+            return dflt;
+        }
+        if (o instanceof Topic) {
+            o = ((Topic) o).getOnce();
+            if (o == null) {
+                return dflt;
+            }
+        }
         if (clazz.isAssignableFrom(o.getClass())) {
             return (T) o;
         }

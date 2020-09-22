@@ -282,15 +282,15 @@ public class GreengrassSetup {
                     break;
                 case AWS_REGION_ARG:
                 case AWS_REGION_ARG_SHORT:
-                    this.awsRegion = getArg();
                     kernelArgs.add(arg);
+                    this.awsRegion = getArg();
                     kernelArgs.add(awsRegion);
                     break;
 
                 case ENV_STAGE_ARG:
                 case ENV_STAGE_ARG_SHORT:
-                    this.environmentStage = getArg();
                     kernelArgs.add(arg);
+                    this.environmentStage = getArg();
                     kernelArgs.add(environmentStage.toLowerCase());
                     break;
                 case PROVISION_THING_ARG:
