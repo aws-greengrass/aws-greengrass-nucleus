@@ -69,23 +69,23 @@ public final class IPCTestUtils {
     public static CountDownLatch waitForDeploymentToBeSuccessful(String deploymentId, Kernel kernel) {
         CountDownLatch deploymentLatch = new CountDownLatch(1);
         DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
-        deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.LOCAL,
-                (deploymentDetails)->{
-                    String receivedDeploymentId =
-                            deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID).toString();
-                    if (receivedDeploymentId.equals(deploymentId)) {
-                        DeploymentStatus status = (DeploymentStatus) deploymentDetails
-                                .get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS);
-                        if (status == DeploymentStatus.SUCCEEDED) {
-                            deploymentLatch.countDown();
-                        }
-                    }
-                    return true;
-                }, IPCCliTest.class.getSimpleName());
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.LOCAL, (deploymentDetails) ->
+        {
+            String receivedDeploymentId =
+                    deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID).toString();
+            if (receivedDeploymentId.equals(deploymentId)) {
+                DeploymentStatus status = DeploymentStatus.valueOf(deploymentDetails
+                        .get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS).toString());
+                if (status == DeploymentStatus.SUCCEEDED) {
+                    deploymentLatch.countDown();
+                }
+            }
+            return true;
+        }, deploymentId);
         return deploymentLatch;
     }
 
-    public static CountDownLatch waitForServiceToComeInState(String serviceName, State state, Kernel kernel) throws InterruptedException {
+    public static CountDownLatch waitForServiceToComeInState(String serviceName, State state, Kernel kernel) {
         // wait for service to come up
         CountDownLatch awaitServiceLatch = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {

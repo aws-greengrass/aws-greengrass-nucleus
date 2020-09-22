@@ -71,7 +71,7 @@ class IPCPubSubRemovalTest {
     private static IPCClient client;
 
     @BeforeAll
-    static void startKernel() throws InterruptedException {
+    static void startKernel() {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
     }
 

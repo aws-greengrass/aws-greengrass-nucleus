@@ -12,7 +12,6 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Utils;
-import lombok.Synchronized;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -21,6 +20,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -51,6 +52,7 @@ public class AuthorizationHandler  {
     private final Kernel kernel;
 
     private final AuthorizationModule authModule;
+    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     /**
      * Constructor for AuthZ.
@@ -68,7 +70,7 @@ public class AuthorizationHandler  {
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
         for (Map.Entry<String, List<AuthorizationPolicy>> acl : componentNameToPolicies.entrySet()) {
-            this.loadAuthorizationPolicies(acl.getKey(), acl.getValue());
+            this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), false);
         }
 
         //Load default policies
@@ -80,7 +82,6 @@ public class AuthorizationHandler  {
                     if (newv == null) {
                         return;
                     }
-                    logger.atInfo(newv.toString());
 
                     //If there is a childChanged event, it has to be the 'accessControl' Topic that has bubbled up
                     //If there is a childRemoved event, it could be the component is removed, or either the
@@ -103,22 +104,34 @@ public class AuthorizationHandler  {
                         return;
                     }
 
-                    //Reload all policies
-                    //TODO: Add more sophisticated logic to specifically update policies scoped to this component,
-                    // instead of reloading everything on every update.
-                    // https://issues-iad.amazon.com/issues/V243584397
+                    try {
+                        rwLock.writeLock().lock();
 
-                    final Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
-                            .parseAllAuthorizationPolicies(kernel);
+                        //Reload all policies
+                        //TODO: Add more sophisticated logic to specifically update policies scoped to this component,
+                        // instead of reloading everything on every update.
+                        // https://issues-iad.amazon.com/issues/V243584397
+                        Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
+                                .parseAllAuthorizationPolicies(kernel);
 
-                    //Delete all policies before reloading
-                    clearPolicies();
+                        for (Map.Entry<String, List<AuthorizationPolicy>> masterPolicyList :
+                                componentToAuthZConfig.entrySet()) {
+                            String policyType = masterPolicyList.getKey();
+                            if (!reloadedPolicies.containsKey(policyType)) {
+                                //If the policyType already exists and was not reparsed correctly and/or removed from
+                                //the newly parsed list, delete it from our store since it is now an unwanted relic
+                                componentToAuthZConfig.remove(policyType);
+                                authModule.deletePermissionsWithDestination(policyType);
+                            }
+                        }
 
-                    //Add back in the relevant default policies
-                    addDefaultPolicies();
+                        //Now we reload the policies that reflect the current state of the kernel config
+                        for (Map.Entry<String, List<AuthorizationPolicy>> acl : reloadedPolicies.entrySet()) {
+                            this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), true);
+                        }
 
-                    for (Map.Entry<String, List<AuthorizationPolicy>> acl : reloadedPolicies.entrySet()) {
-                        this.loadAuthorizationPolicies(acl.getKey(), acl.getValue());
+                    } finally {
+                        rwLock.writeLock().unlock();
                     }
                 });
     }
@@ -134,7 +147,6 @@ public class AuthorizationHandler  {
      * @return whether the input combination is a valid flow.
      * @throws AuthorizationException when flow is not authorized.
      */
-    @Synchronized
     public boolean isAuthorized(String destination, Permission permission) throws AuthorizationException {
         String principal = permission.getPrincipal();
         String operation = permission.getOperation();
@@ -154,20 +166,24 @@ public class AuthorizationHandler  {
                 {destination, ANY_REGEX, ANY_REGEX, resource},
                 {destination, ANY_REGEX, ANY_REGEX, ANY_REGEX},
         };
-
-        for (String[] combination : combinations) {
-            if (authModule.isPresent(combination[0],
-                    Permission.builder()
-                            .principal(combination[1])
-                            .operation(combination[2])
-                            .resource(combination[3])
-                            .build())) {
-                logger.atDebug().log("Hit policy with principal {}, operation {}, resource {}",
-                        combination[1],
-                        combination[2],
-                        combination[3]);
-                return true;
+        try {
+            rwLock.readLock().lock();
+            for (String[] combination : combinations) {
+                if (authModule.isPresent(combination[0],
+                        Permission.builder()
+                                .principal(combination[1])
+                                .operation(combination[2])
+                                .resource(combination[3])
+                                .build())) {
+                    logger.atDebug().log("Hit policy with principal {}, operation {}, resource {}",
+                            combination[1],
+                            combination[2],
+                            combination[3]);
+                    return true;
+                }
             }
+        } finally {
+            rwLock.readLock().unlock();
         }
         throw new AuthorizationException(
                 String.format("Principal %s is not authorized to perform %s:%s on resource %s",
@@ -209,9 +225,9 @@ public class AuthorizationHandler  {
      * @param policies      List of policies. All policies are treated as separate
      *                      and no merging or joins happen. Duplicated policies would result in duplicated
      *                      permissions but would not impact functionality.
+     * @param isUpdate      If this load request is to update existing policies for a component.
      */
-    @Synchronized
-    public void loadAuthorizationPolicies(String componentName, List<AuthorizationPolicy> policies) {
+    public void loadAuthorizationPolicies(String componentName, List<AuthorizationPolicy> policies, boolean isUpdate) {
         if (policies == null) {
             return;
         }
@@ -251,6 +267,9 @@ public class AuthorizationHandler  {
                                 policy.getPolicyId());
                 continue;
             }
+        }
+        if (isUpdate) {
+            authModule.deletePermissionsWithDestination(componentName);
         }
         // now start adding the policies as permissions
         for (AuthorizationPolicy policy : policies) {
@@ -369,14 +388,8 @@ public class AuthorizationHandler  {
     }
 
     private void addDefaultPolicies() {
-        //Load the default policy for TES back in
+        //Load the default policy for TES
         this.loadAuthorizationPolicies(TOKEN_EXCHANGE_SERVICE_TOPICS,
-                getDefaultPolicyForService(AUTHZ_TES_OPERATION));
-    }
-
-    @Synchronized
-    private void clearPolicies() {
-        componentToAuthZConfig.clear();
-        authModule.deleteAllPermissions();
+                getDefaultPolicyForService(AUTHZ_TES_OPERATION), false);
     }
 }

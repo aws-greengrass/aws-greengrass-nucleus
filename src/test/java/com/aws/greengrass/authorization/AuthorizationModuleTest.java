@@ -99,8 +99,9 @@ public class AuthorizationModuleTest {
                 fail("Encountered exception ", e);
             }
         });
-        module.deleteAllPermissions();
-        assertEquals(module.permissions.size(), 0);
+        String componentToRemove = "ComponentB";
+        module.deletePermissionsWithDestination(componentToRemove);
+        assertEquals(module.permissions.get("ComponentB").size(), 0);
     }
 
     @Test

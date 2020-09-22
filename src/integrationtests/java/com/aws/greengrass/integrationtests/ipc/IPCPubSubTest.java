@@ -14,9 +14,8 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Pair;
 
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -48,26 +47,22 @@ class IPCPubSubTest {
     static Path tempRootDir;
     private static int TIMEOUT_FOR_PUBSUB_SECONDS = 2;
     private static Kernel kernel;
-    private IPCClient client;
+    private static IPCClient client;
 
     @BeforeAll
-    static void startKernel() throws InterruptedException {
+    static void beforeEach(ExtensionContext context) throws InterruptedException {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
-    }
-
-    @AfterEach
-    void stopKernel() throws IOException {
-        client.disconnect();
-        kernel.shutdown();
-    }
-
-    @BeforeEach
-    void beforeEach(ExtensionContext context) throws InterruptedException {
         ignoreExceptionOfType(context, InterruptedException.class);
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
         kernel = prepareKernelFromConfigFile("pubsub.yaml", IPCPubSubTest.class, "SubscribeAndPublish");
+    }
+
+    @AfterAll
+    static void stopKernel() throws IOException {
+        client.disconnect();
+        kernel.shutdown();
     }
 
     @Test
