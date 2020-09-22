@@ -31,7 +31,9 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.DependencyOrder;
+import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
@@ -62,11 +64,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
+import static com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory.CONTEXT_COMPONENT_SERVICE_ENDPOINT;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
+import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.STAGE_TO_ENDPOINT_FORMAT;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -530,7 +534,25 @@ public class Kernel {
         kernelCommandLine.parseArgs(args);
         config.lookupTopics(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         kernelLifecycle.initConfigAndTlog();
+        setupCloudEndpoint();
         return this;
+    }
+
+    private void setupCloudEndpoint() {
+        DeviceConfiguration deviceConfiguration = context.get(DeviceConfiguration.class);
+        IotSdkClientFactory.EnvironmentStage stage;
+        try {
+            stage = IotSdkClientFactory.EnvironmentStage
+                    .fromString(Coerce.toString(deviceConfiguration.getEnvironmentStage()));
+        } catch (InvalidEnvironmentStageException e) {
+            logger.atError().setCause(e).log("Caught exception while parsing kernel args");
+            throw new RuntimeException(e);
+        }
+
+        String region = Coerce.toString(deviceConfiguration.getAWSRegion());
+        String endpoint = String.format(STAGE_TO_ENDPOINT_FORMAT.get(stage), region);
+        logger.atInfo().log("Configured to use Greengrass endpoint: {}", endpoint);
+        context.put(CONTEXT_COMPONENT_SERVICE_ENDPOINT, endpoint);
     }
 
     /*
