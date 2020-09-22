@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Utils;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,14 +47,14 @@ class KernelCommandLineTest {
 
     @Test
     void GIVEN_missing_parameter_to_argument_WHEN_parseArgs_THEN_throw_RuntimeException() {
-        KernelCommandLine kcl = new KernelCommandLine(mock(Kernel.class));
+        KernelCommandLine kcl = new KernelCommandLine(mock(Kernel.class), mock(DeviceConfiguration.class));
         RuntimeException ex = assertThrows(RuntimeException.class, () -> kcl.parseArgs("-i"));
         assertThat(ex.getMessage(), is("-i or --config requires an argument"));
     }
 
     @Test
     void GIVEN_invalid_command_line_argument_WHEN_parseArgs_THEN_throw_RuntimeException(ExtensionContext context) {
-        KernelCommandLine kernel = new KernelCommandLine(mock(Kernel.class));
+        KernelCommandLine kernel = new KernelCommandLine(mock(Kernel.class), mock(DeviceConfiguration.class));
         String exceptionSubstring = "Undefined command line argument";
         ignoreExceptionWithMessageSubstring(context, exceptionSubstring);
         RuntimeException thrown =
@@ -94,7 +95,7 @@ class KernelCommandLineTest {
         when(mockKernel.getComponentStorePath()).thenReturn(tempRootDir.resolve("packages"));
         when(mockKernel.getRootPath()).thenReturn(tempRootDir.resolve("root"));
 
-        KernelCommandLine kcl = new KernelCommandLine(mockKernel);
+        KernelCommandLine kcl = new KernelCommandLine(mockKernel, mock(DeviceConfiguration.class));
 
         assertEquals(Paths.get(System.getProperty("user.home"), "test").toString(), kcl.deTilde("~/test"));
         assertEquals(tempRootDir.resolve("bin/test").toString(), kcl.deTilde("~bin/test"));
@@ -108,7 +109,7 @@ class KernelCommandLineTest {
         Kernel mockKernel = mock(Kernel.class);
         when(mockKernel.getClitoolPath()).thenReturn(tempRootDir.resolve("bin"));
 
-        KernelCommandLine kcl = new KernelCommandLine(mockKernel);
+        KernelCommandLine kcl = new KernelCommandLine(mockKernel, mock(DeviceConfiguration.class));
         Utils.createPaths(tempRootDir.resolve("bin"));
         File f = tempRootDir.resolve("bin/config.yaml").toFile();
         assertThat(f, not(anExistingFile()));

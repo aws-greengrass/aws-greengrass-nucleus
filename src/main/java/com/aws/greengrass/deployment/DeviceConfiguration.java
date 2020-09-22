@@ -41,6 +41,8 @@ public class DeviceConfiguration {
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
+    private static final String DEVICE_PARAM_ENV_STAGE = "envStage";
+    private static final String DEFAULT_ENV_STAGE = "prod";
 
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
@@ -52,14 +54,14 @@ public class DeviceConfiguration {
     private final Validator regionValidator;
 
     /**
-     * Constructor used to read device cinfiguration from the config store.
+     * Constructor used to read device configuration from the config store.
      *
      * @param kernel Kernel to get config from
      */
     @Inject
     public DeviceConfiguration(Kernel kernel) {
         this.kernel = kernel;
-        deTildeValidator = getDeTildeValidator(kernel);
+        deTildeValidator = getDeTildeValidator();
         regionValidator = getRegionValidator();
     }
 
@@ -80,7 +82,7 @@ public class DeviceConfiguration {
                                String privateKeyPath, String certificateFilePath, String rootCaFilePath,
                                String awsRegion) throws DeviceConfigurationException {
         this.kernel = kernel;
-        deTildeValidator = getDeTildeValidator(kernel);
+        deTildeValidator = getDeTildeValidator();
         regionValidator = getRegionValidator();
         getThingName().withValue(thingName);
         getIotDataEndpoint().withValue(iotDataEndpoint);
@@ -93,7 +95,7 @@ public class DeviceConfiguration {
         validate();
     }
 
-    private Validator getDeTildeValidator(Kernel kernel) {
+    private Validator getDeTildeValidator() {
         return (newV, old) -> kernel.deTilde(Coerce.toString(newV));
     }
 
@@ -152,6 +154,17 @@ public class DeviceConfiguration {
 
     public Topic getAWSRegion() {
         return getTopic(DEVICE_PARAM_AWS_REGION).addValidator(regionValidator);
+    }
+
+    // Why have this method as well as the one above? The reason is that the validator
+    // is called immediately, so the initial call will have a null region which will make
+    // the validator use the default region provider chain to do a lookup which isn't necessary.
+    public void setAWSRegion(String region) {
+        getTopic(DEVICE_PARAM_AWS_REGION).withValue(region).addValidator(regionValidator);
+    }
+
+    public Topic getEnvironmentStage() {
+        return getTopic(DEVICE_PARAM_ENV_STAGE).withNewerValue(1, DEFAULT_ENV_STAGE);
     }
 
     public Topics getMQTTNamespace() {
