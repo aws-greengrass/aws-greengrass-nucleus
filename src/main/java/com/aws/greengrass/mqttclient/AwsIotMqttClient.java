@@ -95,19 +95,29 @@ class AwsIotMqttClient implements Closeable {
         this.callbackEventManager = callbackEventManager;
     }
 
-    void subscribe(String topic, QualityOfService qos)
-            throws ExecutionException, InterruptedException, TimeoutException {
-        connect().get(getTimeout(), TimeUnit.MILLISECONDS);
-        logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name()).log("Subscribing to topic");
-        connection.subscribe(topic, qos).get(getTimeout(), TimeUnit.MILLISECONDS);
-        subscriptionTopics.put(topic, qos);
+    // Notes about the CRT MQTT client:
+    // client has no timeouts if the connection is dropped, then we do get an exception
+    // so we need to retry ourselves. If offline, client waits to be online then tries to subscribe
+
+    CompletableFuture<Integer> subscribe(String topic, QualityOfService qos) {
+        return connect().thenCompose((b) -> {
+            logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name()).log("Subscribing to topic");
+            return connection.subscribe(topic, qos).thenApply((i) -> {
+                subscriptionTopics.put(topic, qos);
+                return i;
+            });
+        });
     }
 
-    void unsubscribe(String topic) throws ExecutionException, InterruptedException, TimeoutException {
-        connect().get(getTimeout(), TimeUnit.MILLISECONDS);
-        logger.atDebug().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
-        connection.unsubscribe(topic).get(getTimeout(), TimeUnit.MILLISECONDS);
-        subscriptionTopics.remove(topic);
+    CompletableFuture<Integer> unsubscribe(String topic) {
+        return connect().thenCompose((b) -> {
+            logger.atDebug().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
+            return connection.unsubscribe(topic).thenApply((i) -> {
+                subscriptionTopics.remove(topic);
+                return i;
+            });
+        });
+
     }
 
     CompletableFuture<Integer> publish(MqttMessage message, QualityOfService qos, boolean retain) {
@@ -155,7 +165,7 @@ class AwsIotMqttClient implements Closeable {
         }
     }
 
-    private int getTimeout() {
+    int getTimeout() {
         return Coerce.toInt(mqttTopics.findOrDefault(
                 MqttClient.DEFAULT_MQTT_OPERATION_TIMEOUT, MqttClient.MQTT_OPERATION_TIMEOUT_KEY));
     }
@@ -163,7 +173,7 @@ class AwsIotMqttClient implements Closeable {
     private void resubscribe() {
         subscriptionTopics.forEach((key, value) -> {
             try {
-                subscribe(key, value);
+                subscribe(key, value).get(getTimeout(), TimeUnit.MILLISECONDS);
             } catch (ExecutionException | InterruptedException | TimeoutException e) {
                 logger.atError().kv(TOPIC_KEY, key).kv(QOS_KEY, value.name()).log("Unable to resubscribe to topic");
             }
