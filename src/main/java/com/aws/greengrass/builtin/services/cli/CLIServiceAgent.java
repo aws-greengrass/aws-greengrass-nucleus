@@ -1,7 +1,6 @@
 package com.aws.greengrass.builtin.services.cli;
 
 import com.aws.greengrass.componentmanager.ComponentStore;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
@@ -73,15 +72,15 @@ public class CLIServiceAgent {
 
     public static final String PERSISTENT_LOCAL_DEPLOYMENTS = "LocalDeployments";
     public static final String LOCAL_DEPLOYMENT_RESOURCE = "LocalDeployment";
-    private static ObjectMapper OBJECT_MAPPER = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper OBJECT_MAPPER =
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private final Kernel kernel;
 
     private final LinkedBlockingQueue<Deployment> deploymentsQueue;
 
-    private static Logger logger = LogManager.getLogger(CLIServiceAgent.class);
+    private static final Logger logger = LogManager.getLogger(CLIServiceAgent.class);
 
     @Inject
     public CLIServiceAgent(Kernel kernel, @Named(DEPLOYMENTS_QUEUE) LinkedBlockingQueue<Deployment> deploymentsQueue) {
@@ -91,9 +90,10 @@ public class CLIServiceAgent {
 
     /**
      * Get the details of a component with the given name.
+     *
      * @param request {@link GetComponentDetailsRequest}
      * @return {@link GetComponentDetailsResponse}
-     * @throws InvalidArgumentsError thrown when empty component name is received
+     * @throws InvalidArgumentsError  thrown when empty component name is received
      * @throws ComponentNotFoundError Thrown when given component does not exist
      */
     @SuppressWarnings("PMD.PreserveStackTrace")
@@ -105,54 +105,54 @@ public class CLIServiceAgent {
         try {
             service = kernel.locate(componentName);
         } catch (ServiceLoadException e) {
-            logger.atError().kv("ComponentName", componentName)
-                    .setCause(e)
+            logger.atError().kv("ComponentName", componentName).setCause(e)
                     .log("Did not find the component with the given name in Greengrass");
             throw new ComponentNotFoundError("Component with name " + componentName + " not found in Greengrass");
         }
         ComponentDetails componentDetails = ComponentDetails.builder().componentName(service.getName())
-                .state(LifecycleState.valueOf(service.getState().toString()))
-                .build();
+                .state(LifecycleState.valueOf(service.getState().toString())).build();
         if (service.getServiceConfig().find(VERSION_CONFIG_KEY) != null) {
             componentDetails.setVersion(Coerce.toString(service.getServiceConfig().find(VERSION_CONFIG_KEY).getOnce()));
         }
         if (service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY) != null) {
-            componentDetails.setConfiguration(service.getServiceConfig()
-                    .findInteriorChild(PARAMETERS_CONFIG_KEY).toPOJO());
+            componentDetails
+                    .setConfiguration(service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY).toPOJO());
         }
         return GetComponentDetailsResponse.builder().componentDetails(componentDetails).build();
     }
 
     /**
      * Returns the list of all the components running in the Greengrass.
+     *
      * @return {@link ListComponentsResponse}
      */
     public ListComponentsResponse listComponents() {
         Collection<GreengrassService> services = kernel.orderedDependencies();
-        List<ComponentDetails> listOfComponents = services.stream()
-                .filter(service -> !service.getName().equals(kernel.getMain().getName()))
-                .map(service -> {
-            ComponentDetails componentDetails = ComponentDetails.builder().componentName(service.getName())
-                    .state(LifecycleState.valueOf(service.getState().toString()))
-                    .build();
-            if (service.getServiceConfig().find(VERSION_CONFIG_KEY) != null) {
-                componentDetails.setVersion(Coerce.toString(service.getServiceConfig()
-                        .find(VERSION_CONFIG_KEY).getOnce()));
-            }
-            if (service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY) != null) {
-                componentDetails.setConfiguration(service.getServiceConfig()
-                    .findInteriorChild(PARAMETERS_CONFIG_KEY).toPOJO());
-            }
-            return componentDetails;
-        }).collect(Collectors.toList());
+        List<ComponentDetails> listOfComponents =
+                services.stream().filter(service -> !service.getName().equals(kernel.getMain().getName()))
+                        .map(service -> {
+                            ComponentDetails componentDetails =
+                                    ComponentDetails.builder().componentName(service.getName())
+                                            .state(LifecycleState.valueOf(service.getState().toString())).build();
+                            if (service.getServiceConfig().find(VERSION_CONFIG_KEY) != null) {
+                                componentDetails.setVersion(
+                                        Coerce.toString(service.getServiceConfig().find(VERSION_CONFIG_KEY).getOnce()));
+                            }
+                            if (service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY) != null) {
+                                componentDetails.setConfiguration(
+                                        service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY).toPOJO());
+                            }
+                            return componentDetails;
+                        }).collect(Collectors.toList());
         return ListComponentsResponse.builder().components(listOfComponents).build();
     }
 
     /**
      * Restart a component with the given name.
+     *
      * @param request {@link RestartComponentRequest}
      * @return {@link RestartComponentResponse}
-     * @throws InvalidArgumentsError thrown when empty component name is received
+     * @throws InvalidArgumentsError  thrown when empty component name is received
      * @throws ComponentNotFoundError thrown when component does not exist
      */
     @SuppressWarnings("PMD.PreserveStackTrace")
@@ -166,8 +166,7 @@ public class CLIServiceAgent {
             // Success of this request means restart was triggered successfully
             service.requestRestart();
         } catch (ServiceLoadException e) {
-            logger.atError().kv("ComponentName", componentName)
-                    .setCause(e)
+            logger.atError().kv("ComponentName", componentName).setCause(e)
                     .log("Did not find the component with the given name in Greengrass");
             throw new ComponentNotFoundError("Component with name " + componentName + " not found in Greengrass");
         }
@@ -176,9 +175,10 @@ public class CLIServiceAgent {
 
     /**
      * Stop a component with the given name.
+     *
      * @param request {@link StopComponentRequest}
      * @return {@link StopComponentResponse}
-     * @throws InvalidArgumentsError thrown when empty component name is received
+     * @throws InvalidArgumentsError  thrown when empty component name is received
      * @throws ComponentNotFoundError thrown when component does not exist
      */
     @SuppressWarnings("PMD.PreserveStackTrace")
@@ -192,8 +192,7 @@ public class CLIServiceAgent {
             // Success of this request means stop was triggered successfully
             service.requestStop();
         } catch (ServiceLoadException e) {
-            logger.atError().kv("ComponentName", componentName)
-                    .setCause(e)
+            logger.atError().kv("ComponentName", componentName).setCause(e)
                     .log("Did not find the component with the given name in Greengrass");
             throw new ComponentNotFoundError("Component with name " + componentName + " not found in Greengrass");
         }
@@ -202,12 +201,13 @@ public class CLIServiceAgent {
 
     /**
      * Copy the recipes and artifacts from given directory path to the kernel package store.
+     *
      * @param request {@link UpdateRecipesAndArtifactsRequest}
-     * @throws InvalidArgumentsError thrown when both arguments are empty
-     * @throws InvalidRecipesDirectoryPathError thrown when the recipe directory path is invalid or kernel does not
-     *         have permissions to access it.
-     * @throws InvalidArtifactsDirectoryPathError thrown when the artifacts directory path is invalid or kernel does
-     *         not have permissions to access it.
+     * @throws InvalidArgumentsError              thrown when both arguments are empty
+     * @throws InvalidRecipesDirectoryPathError   thrown when the recipe directory path is invalid or kernel does not
+     *                                            have permissions to access it.
+     * @throws InvalidArtifactsDirectoryPathError thrown when the artifacts directory path is invalid or kernel does not
+     *                                            have permissions to access it.
      */
     @SuppressWarnings("PMD.PreserveStackTrace")
     public void updateRecipesAndArtifacts(UpdateRecipesAndArtifactsRequest request)
@@ -242,8 +242,9 @@ public class CLIServiceAgent {
 
     /**
      * Creates a local deployment.
+     *
      * @param serviceConfig Service config for CLI
-     * @param request {@link CreateLocalDeploymentRequest}
+     * @param request       {@link CreateLocalDeploymentRequest}
      * @return {@link CreateLocalDeploymentResponse}
      * @throws ServiceError thrown when deployment cannot be queued
      */
@@ -257,14 +258,12 @@ public class CLIServiceAgent {
 
         LocalOverrideRequest localOverrideRequest = LocalOverrideRequest.builder().requestId(deploymentId)
                 .componentsToMerge(request.getRootComponentVersionsToAdd())
-                .componentsToRemove(request.getRootComponentsToRemove())
-                .requestTimestamp(System.currentTimeMillis())
-                .groupName(request.getGroupName() == null || request.getGroupName()
-                        .isEmpty() ? DEFAULT_GROUP_NAME : request.getGroupName())
-                .componentNameToConfig(request.getComponentToConfiguration()).build();
+                .componentsToRemove(request.getRootComponentsToRemove()).requestTimestamp(System.currentTimeMillis())
+                .groupName(request.getGroupName() == null || request.getGroupName().isEmpty() ? DEFAULT_GROUP_NAME
+                        : request.getGroupName()).componentNameToConfig(request.getComponentToConfiguration()).build();
         String deploymentDocument;
         try {
-             deploymentDocument = OBJECT_MAPPER.writeValueAsString(localOverrideRequest);
+            deploymentDocument = OBJECT_MAPPER.writeValueAsString(localOverrideRequest);
         } catch (JsonProcessingException e) {
             logger.atError().setCause(e).log("Caught exception while parsing local deployment request");
             throw new ServiceError(e.getMessage());
@@ -293,7 +292,8 @@ public class CLIServiceAgent {
 
     /**
      * Get status of local deployment with the given deploymentId.
-     * @param request {@link GetLocalDeploymentStatusRequest}
+     *
+     * @param request       {@link GetLocalDeploymentStatusRequest}
      * @param serviceConfig Cli service configuration
      * @return {@link GetLocalDeploymentStatusResponse}
      * @throws InvalidArgumentsError thrown when invalid deploymentId format is received
@@ -304,49 +304,48 @@ public class CLIServiceAgent {
             throws InvalidArgumentsError, ResourceNotFoundError {
         validateGetLocalDeploymentStatusRequest(request);
         Topics localDeployments = serviceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
-        if (localDeployments == null || localDeployments.find(request.getDeploymentId()) == null) {
+        if (localDeployments == null || localDeployments.findTopics(request.getDeploymentId()) == null) {
             throw new ResourceNotFoundError("Cannot find deployment", LOCAL_DEPLOYMENT_RESOURCE,
                     request.getDeploymentId());
         } else {
-            Topic deployment = localDeployments.find(request.getDeploymentId());
-            Map<String, Object> deploymentDetails = (Map<String, Object>) deployment.getOnce();
-            DeploymentStatus status =
-                    (DeploymentStatus) deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS);
-            return GetLocalDeploymentStatusResponse.builder()
-                    .deployment(LocalDeployment.builder().deploymentId(request.getDeploymentId())
-                            .status(status).build()).build();
+            Topics deployment = localDeployments.findTopics(request.getDeploymentId());
+            DeploymentStatus status = Coerce.toEnum(DeploymentStatus.class,
+                    deployment.find(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS));
+            return GetLocalDeploymentStatusResponse.builder().deployment(
+                    LocalDeployment.builder().deploymentId(request.getDeploymentId()).status(status).build()).build();
         }
     }
 
     /**
      * Lists last 5 local deployments.
+     *
      * @param serviceConfig CLI service configuration
      * @return {@link ListLocalDeploymentResponse}
      */
     public ListLocalDeploymentResponse listLocalDeployments(Topics serviceConfig) {
         List<LocalDeployment> persistedDeployments = new ArrayList<>();
         Topics localDeployments = serviceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
-        localDeployments.deepForEachTopic(topic -> {
-            Map<String, Object> deploymentDetails = (Map<String, Object>) topic.getOnce();
+        localDeployments.forEach(topic -> {
+            Topics topics = (Topics) topic;
             persistedDeployments.add(LocalDeployment.builder()
-                    .deploymentId((String) deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID))
-                    .status((DeploymentStatus) deploymentDetails.get(
-                            PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS))
-                    .build());
+                    .deploymentId(topics.getName())
+                    .status(Coerce.toEnum(DeploymentStatus.class,
+                            topics.find(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS))).build());
         });
         return ListLocalDeploymentResponse.builder().localDeployments(persistedDeployments).build();
     }
 
     /**
      * Persists the local deployment details in the config.
-     * @param serviceConfig CLI service configuration
+     *
+     * @param serviceConfig     CLI service configuration
      * @param deploymentDetails Details of the local deployment to save
      */
     public void persistLocalDeployment(Topics serviceConfig, Map<String, Object> deploymentDetails) {
         Topics localDeployments = serviceConfig.lookupTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
         String deploymentId = (String) deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID);
-        Topic localDeploymentDetails = localDeployments.lookup(deploymentId);
-        localDeploymentDetails.withValue(deploymentDetails);
+        Topics localDeploymentDetails = localDeployments.lookupTopics(deploymentId);
+        localDeploymentDetails.replaceAndWait(deploymentDetails);
         // TODO: Remove the succeeded deployments if the number of deployments have exceeded max limit
     }
 
@@ -397,14 +396,15 @@ public class CLIServiceAgent {
         private Deployment.DeploymentType deploymentType;
 
         /**
-         *  Returns a map of string to object representing the deployment details.
+         * Returns a map of string to object representing the deployment details.
+         *
          * @return Map of string to object
          */
         public Map<String, Object> convertToMapOfObject() {
-            Map<String,Object> deploymentDetails = new HashMap<>();
+            Map<String, Object> deploymentDetails = new HashMap<>();
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID, deploymentId);
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS, status);
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, deploymentType);
+            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS, Coerce.toString(status));
+            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, Coerce.toString(deploymentType));
             return deploymentDetails;
         }
     }

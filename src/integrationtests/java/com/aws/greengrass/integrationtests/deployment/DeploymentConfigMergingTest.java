@@ -31,6 +31,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterEach;
@@ -400,7 +401,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         CountDownLatch mainRunningLatch = new CountDownLatch(1);
         kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
-            if (((State) t.getOnce()).isRunning()) {
+            if (Coerce.toEnum(State.class, t).isRunning()) {
                 mainRunningLatch.countDown();
             }
         });
@@ -453,7 +454,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         CountDownLatch mainFinished = new CountDownLatch(1);
         kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
-            if (t.getOnce().equals(State.FINISHED)) {
+            if (Coerce.toEnum(State.class, t).equals(State.FINISHED)) {
                 mainFinished.countDown();
             }
         });

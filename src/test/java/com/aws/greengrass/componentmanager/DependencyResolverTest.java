@@ -183,8 +183,8 @@ class DependencyResolverTest {
                     .singletonList(new DeploymentPackageConfiguration(pkgA, true, v1_0_0.toString(), new HashMap<>())),
                     "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
 
-            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgA)
-                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookupTopics(pkgA)
+                    .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
             context.runOnPublishQueueAndWait(
                     () -> System.out.println("Waiting for queue to finish updating the config"));
             List<ComponentIdentifier> result = resolver.resolveDependencies(doc, groupToRootPackagesTopics);
@@ -248,10 +248,10 @@ class DependencyResolverTest {
                             new DeploymentPackageConfiguration(pkgB2, true, v1_1_0.toString(), new HashMap<>())),
                     "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
 
-            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgA)
-                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
-            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgB2)
-                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
+            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookupTopics(pkgA)
+                    .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookupTopics(pkgB2)
+                    .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
             context.runOnPublishQueueAndWait(
                     () -> System.out.println("Waiting for queue to finish updating the config"));
             List<ComponentIdentifier> result = resolver.resolveDependencies(doc, groupToRootPackagesTopics);
@@ -342,10 +342,10 @@ class DependencyResolverTest {
                             new DeploymentPackageConfiguration(pkgB2, true, v1_1_0.toString(), new HashMap<>())),
                     "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
 
-            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgA)
-                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
-            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgB2)
-                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
+            groupToRootPackagesTopics.lookupTopics("mockGroup1", pkgA)
+                    .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+            groupToRootPackagesTopics.lookupTopics("mockGroup1", pkgB2)
+                    .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
             context.runOnPublishQueueAndWait(
                     () -> System.out.println("Waiting for queue to finish updating the config"));
             Exception thrown = assertThrows(ComponentVersionConflictException.class,
@@ -428,12 +428,12 @@ class DependencyResolverTest {
                             new DeploymentPackageConfiguration(pkgB1, true, v1_1_0.toString(), new HashMap<>())),
                     "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
 
-            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgA)
-                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
-            groupToRootPackagesTopics.lookupTopics("mockGroup1").lookup(pkgB1)
-                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
-            groupToRootPackagesTopics.lookupTopics("mockGroup2").lookup(pkgB2)
-                    .withValue(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+            groupToRootPackagesTopics.lookupTopics("mockGroup1", pkgA)
+                    .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+            groupToRootPackagesTopics.lookupTopics("mockGroup1", pkgB1)
+                    .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
+            groupToRootPackagesTopics.lookupTopics("mockGroup2" ,pkgB2)
+                    .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
             context.runOnPublishQueueAndWait(
                     () -> System.out.println("Waiting for queue to finish updating the config"));
 

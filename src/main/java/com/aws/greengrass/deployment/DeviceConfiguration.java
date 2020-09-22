@@ -100,24 +100,29 @@ public class DeviceConfiguration {
     @SuppressWarnings("PMD.NullAssignment")
     private Validator getRegionValidator() {
         return (newV, old) -> {
+            String region = null;
+            if (newV == null || newV instanceof String) {
+                region = (String) newV;
+            }
+
             // If the region value is empty/null, then try to get the region from the SDK lookup path
-            if (!(newV instanceof String) || Utils.isEmpty((String) newV)) {
+            if (!(newV instanceof String) || Utils.isEmpty(region)) {
                 try {
-                    newV = new DefaultAwsRegionProviderChain().getRegion();
+                    region = new DefaultAwsRegionProviderChain().getRegion();
                 } catch (SdkClientException ex) {
-                    newV = null;
+                    region = null;
                     logger.atWarn().log("Error looking up AWS region", ex);
                 }
             }
-            if (Utils.isEmpty((String) newV)) {
+            if (Utils.isEmpty(region)) {
                 logger.atWarn().log("No AWS region found, falling back to default: {}", FALLBACK_DEFAULT_REGION);
-                newV = FALLBACK_DEFAULT_REGION;
+                region = FALLBACK_DEFAULT_REGION;
             }
 
-            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_DEFAULT_REGION").withValue(newV);
-            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_REGION").withValue(newV);
+            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_DEFAULT_REGION").withValue(region);
+            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_REGION").withValue(region);
 
-            return newV;
+            return region;
         };
     }
 

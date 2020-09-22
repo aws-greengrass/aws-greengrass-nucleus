@@ -28,7 +28,6 @@ import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -114,7 +113,13 @@ public class MqttReconnectTest extends BaseE2ETestCase {
             if (!(newValue instanceof Topic)) {
                 return;
             }
-            Map<String, Object> deploymentDetails = (HashMap) ((Topic) newValue).getOnce();
+            if (newValue.childOf(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS)) {
+                newValue = newValue.parent;
+            } else {
+                return;
+            }
+
+            Map<String, Object> deploymentDetails = ((Topics) newValue).toPOJO();
             if (!deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString().equals(jobId)) {
                 return;
             }

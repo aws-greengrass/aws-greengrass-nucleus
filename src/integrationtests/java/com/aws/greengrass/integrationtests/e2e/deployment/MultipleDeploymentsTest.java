@@ -8,7 +8,6 @@ package com.aws.greengrass.integrationtests.e2e.deployment;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.greengrass.integrationtests.e2e.util.DeploymentJobHelper;
@@ -25,7 +24,6 @@ import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -147,10 +145,10 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
                 .lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS,
                         RUNTIME_STORE_NAMESPACE_TOPIC, PROCESSED_DEPLOYMENTS_TOPICS);
         processedDeployments.subscribe((whatHappened, newValue) -> {
-            if (!(newValue instanceof Topic)) {
+            if (!(newValue instanceof Topics)) {
                 return;
             }
-            Map<String, Object> deploymentDetails = (HashMap) ((Topic) newValue).getOnce();
+            Map<String, Object> deploymentDetails = ((Topics) newValue).toPOJO();
             String jobId = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString();
             String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
 
