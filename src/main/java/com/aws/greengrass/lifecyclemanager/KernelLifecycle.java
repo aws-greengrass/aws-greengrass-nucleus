@@ -19,6 +19,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Setter;
@@ -255,6 +256,8 @@ public class KernelLifecycle {
             return;
         }
         close(tlog);
+        //close the telemetry logger context
+        TelemetryConfig.getInstance().closeContext();
         try {
             logger.atInfo().setEventType("system-shutdown").addKeyValue("main", getMain()).log();
             stopAllServices(timeoutSeconds);

@@ -31,6 +31,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
@@ -71,6 +72,8 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
     private SystemMetricsEmitter sme;
     private KernelMetricsEmitter kme;
     private MetricsAggregator ma;
+    @Mock
+    private Context context;
 
     @BeforeEach
     public void setup() {
@@ -111,10 +114,13 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
     }
 
     @AfterEach
-    public void cleanUp() throws IOException {
-        ses.shutdownNow();
+    public void cleanUp() throws IOException, InterruptedException {
+        TelemetryConfig.getInstance().closeContext();
         telemetryAgent.shutdown();
+        ses.shutdown();
+        Thread.sleep(500);
         context.close();
+        ses.awaitTermination(1000, TimeUnit.MILLISECONDS);
     }
 
     @Test
@@ -141,7 +147,7 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
         telemetryAgent.startup();
         long milliSeconds = 4000;
         Topic periodicAggregateMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC, "5");
-        lenient().when(config.lookup(TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC))
+        lenient().when(config.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC))
                 .thenReturn(periodicAggregateMetricsIntervalSec);
         // aggregation starts at 5th second but we are checking only for 3 seconds
         verify(telemetryAgent, timeout(milliSeconds).times(0)).aggregatePeriodicMetrics();
@@ -149,7 +155,7 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
         verify(telemetryAgent, timeout(milliSeconds).atLeastOnce()).publishPeriodicMetrics();
         reset(telemetryAgent);
         periodicAggregateMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC, "2");
-        lenient().doReturn(periodicAggregateMetricsIntervalSec).when(config).lookup(
+        lenient().doReturn(periodicAggregateMetricsIntervalSec).when(config).lookup(PARAMETERS_CONFIG_KEY,
                 TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC);
         // aggregation starts at least at the 2nd sec
         verify(telemetryAgent, timeout(milliSeconds).atLeastOnce()).aggregatePeriodicMetrics();
@@ -158,25 +164,23 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
     @Test
     public void GIVEN_Telemetry_Agent_WHEN_mqtt_is_interrupted_THEN_aggregation_continues_but_publishing_stops()
             throws InterruptedException {
+        doNothing().when(telemetryAgent).aggregatePeriodicMetrics();
         Topic periodicPublishMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC, "2");
-        lenient().doReturn(periodicPublishMetricsIntervalSec).when(config).lookup(
+        lenient().doReturn(periodicPublishMetricsIntervalSec).when(config).lookup(PARAMETERS_CONFIG_KEY,
                 TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC);
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
         telemetryAgent.startup();
         long milliSeconds = 3000;
+        verify(mockMqttClient, timeout(milliSeconds).atLeastOnce()).publish(publishRequestArgumentCaptor.capture());
+        PublishRequest request = publishRequestArgumentCaptor.getValue();
+        assertEquals(QualityOfService.AT_LEAST_ONCE, request.getQos());
+        assertEquals("$aws/things/testThing/greengrass/health/json", request.getTopic());
+        reset(telemetryAgent, mockMqttClient);
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
         //verify that nothing is published when mqtt is interrupted
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
         // aggregation is continued irrespective of the mqtt connection
         verify(telemetryAgent, timeout(milliSeconds).atLeastOnce()).aggregatePeriodicMetrics();
-        reset(telemetryAgent);
-        //verify that metrics are published at least once in the periodic interval when the connection resumes
-        mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionResumed(true);
-        Thread.sleep(100);
-        verify(mockMqttClient, timeout(milliSeconds).atLeastOnce()).publish(publishRequestArgumentCaptor.capture());
-        PublishRequest request = publishRequestArgumentCaptor.getValue();
-        assertEquals(QualityOfService.AT_LEAST_ONCE, request.getQos());
-        assertEquals("$aws/things/testThing/greengrass/health/json", request.getTopic());
     }
 }
 

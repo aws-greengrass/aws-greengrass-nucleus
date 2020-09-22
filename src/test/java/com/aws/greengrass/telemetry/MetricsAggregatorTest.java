@@ -15,6 +15,7 @@ import com.aws.greengrass.telemetry.models.TelemetryUnit;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,6 +53,11 @@ public class MetricsAggregatorTest {
         TelemetryConfig.getInstance().setRoot(tempRootDir);
         namespaceSet.addNamespace(sm);
         ma = new MetricsAggregator(namespaceSet);
+    }
+
+    @AfterEach
+    void cleanup() {
+        TelemetryConfig.getInstance().closeContext();
     }
 
     @Test
