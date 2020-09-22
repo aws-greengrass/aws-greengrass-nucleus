@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_METRICS_PUBLISH_TOPICS;
@@ -84,15 +84,15 @@ public class TelemetryAgentTest extends BaseE2ETestCase {
         long aggInterval = 1;
         long pubInterval = 5;
         MetricsPayload mp = null;
-        Topics telemetryRuntimeTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
-                TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS, RUNTIME_STORE_NAMESPACE_TOPIC);
-        telemetryRuntimeTopics.lookup(TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
+        Topics telemetryTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
+                TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS, PARAMETERS_CONFIG_KEY);
+        telemetryTopics.lookup(TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .withValue(aggInterval);
-        telemetryRuntimeTopics.lookup(TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
+        telemetryTopics.lookup(TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .withValue(pubInterval);
         // TODO Remove this when $aws topic is allowed in the end to end tests
         String workingE2ETopic = DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("$aws", "aws");
-        telemetryRuntimeTopics.lookup(TELEMETRY_METRICS_PUBLISH_TOPICS).withValue(workingE2ETopic);
+        telemetryTopics.lookup(TELEMETRY_METRICS_PUBLISH_TOPICS).withValue(workingE2ETopic);
         String telemetryTopic = workingE2ETopic.replace("{thingName}", thingInfo.getThingName());
         client.subscribe(SubscribeRequest.builder()
                 .topic(telemetryTopic)

@@ -29,6 +29,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+
 @ImplementsService(name = TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS, version = "1.0.0", autostart = true)
 public class TelemetryAgent extends GreengrassService {
     public static final String TELEMETRY_AGENT_SERVICE_TOPICS = "TelemetryAgent";
@@ -75,13 +77,14 @@ public class TelemetryAgent extends GreengrassService {
 
     /**
      * Constructor for the class.
-     * @param topics                root configuration topic for this service
-     * @param mqttClient            {@link MqttClient}
-     * @param deviceConfiguration   {@link DeviceConfiguration}
-     * @param ma                    {@link MetricsAggregator}
-     * @param sme                   {@link SystemMetricsEmitter}
-     * @param kme                   {@link KernelMetricsEmitter}
-     * @param ses                   {@link ScheduledExecutorService}
+     *
+     * @param topics              root configuration topic for this service
+     * @param mqttClient          {@link MqttClient}
+     * @param deviceConfiguration {@link DeviceConfiguration}
+     * @param ma                  {@link MetricsAggregator}
+     * @param sme                 {@link SystemMetricsEmitter}
+     * @param kme                 {@link KernelMetricsEmitter}
+     * @param ses                 {@link ScheduledExecutorService}
      */
     @Inject
     public TelemetryAgent(Topics topics, MqttClient mqttClient, DeviceConfiguration deviceConfiguration,
@@ -221,7 +224,7 @@ public class TelemetryAgent extends GreengrassService {
 
     @Override
     public void startup() throws InterruptedException {
-        getRuntimeConfig().lookup(TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
+        config.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     periodicAggregateMetricsIntervalSec = Coerce.toInt(newv);
@@ -231,7 +234,7 @@ public class TelemetryAgent extends GreengrassService {
                         }
                     }
                 });
-        getRuntimeConfig().lookup(TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
+        config.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     periodicPublishMetricsIntervalSec = Coerce.toInt(newv);
@@ -241,7 +244,7 @@ public class TelemetryAgent extends GreengrassService {
                         }
                     }
                 });
-        getRuntimeConfig().lookup(TELEMETRY_METRICS_PUBLISH_TOPICS)
+        config.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_METRICS_PUBLISH_TOPICS)
                 .dflt(DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC)
                 .subscribe((why, newv) -> {
                     telemetryMetricsPublishTopic = Coerce.toString(newv);

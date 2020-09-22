@@ -32,6 +32,7 @@ import java.time.Instant;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC;
@@ -82,12 +83,12 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
         kme = context.get(KernelMetricsEmitter.class);
         ma = context.get(MetricsAggregator.class);
         Topic periodicAggregateMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC, "1");
-        lenient().when(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC)
-                .lookup(TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC))
+        lenient().when(config
+                .lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC))
                 .thenReturn(periodicAggregateMetricsIntervalSec);
         Topic periodicPublishMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC, "3");
-        lenient().when(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC)
-                .lookup(TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC))
+        lenient().when(config
+                .lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC))
                 .thenReturn(periodicPublishMetricsIntervalSec);
         Topic lastPeriodicAggregateTime = Topic.of(context, TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC,
                 Instant.now().toEpochMilli());
@@ -104,7 +105,7 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
         when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
         Topic telemetryMetricsPublishTopic = Topic.of(context, TELEMETRY_METRICS_PUBLISH_TOPICS,
                 DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC);
-        when(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC).lookup(TELEMETRY_METRICS_PUBLISH_TOPICS))
+        when(config.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_METRICS_PUBLISH_TOPICS))
                 .thenReturn(telemetryMetricsPublishTopic);
         telemetryAgent = spy(new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses));
     }
@@ -140,7 +141,7 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
         telemetryAgent.startup();
         long milliSeconds = 4000;
         Topic periodicAggregateMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC, "5");
-        lenient().when(config.lookup(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC))
+        lenient().when(config.lookup(TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC))
                 .thenReturn(periodicAggregateMetricsIntervalSec);
         // aggrGGation starts at 5th second but we are checking only for 3 seconds
         verify(telemetryAgent, timeout(milliSeconds).times(0)).aggregatePeriodicMetrics();
@@ -148,7 +149,7 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
         verify(telemetryAgent, timeout(milliSeconds).atLeastOnce()).publishPeriodicMetrics();
         reset(telemetryAgent);
         periodicAggregateMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC, "2");
-        lenient().doReturn(periodicAggregateMetricsIntervalSec).when(config).lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
+        lenient().doReturn(periodicAggregateMetricsIntervalSec).when(config).lookup(
                 TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC);
         // aggrGGation starts at least at the 2nd sec
         verify(telemetryAgent, timeout(milliSeconds).atLeastOnce()).aggregatePeriodicMetrics();
@@ -158,7 +159,7 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
     public void GIVEN_Telemetry_Agent_WHEN_mqtt_is_interrupted_THEN_aggrGGation_continues_but_publishing_stops()
             throws InterruptedException {
         Topic periodicPublishMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC, "2");
-        lenient().doReturn(periodicPublishMetricsIntervalSec).when(config).lookup(RUNTIME_STORE_NAMESPACE_TOPIC,
+        lenient().doReturn(periodicPublishMetricsIntervalSec).when(config).lookup(
                 TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC);
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
         telemetryAgent.startup();
