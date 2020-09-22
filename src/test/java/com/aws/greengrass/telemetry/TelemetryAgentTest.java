@@ -143,7 +143,7 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
         Topic periodicAggregateMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC, "5");
         lenient().when(config.lookup(TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC))
                 .thenReturn(periodicAggregateMetricsIntervalSec);
-        // aggrGGation starts at 5th second but we are checking only for 3 seconds
+        // aggregation starts at 5th second but we are checking only for 3 seconds
         verify(telemetryAgent, timeout(milliSeconds).times(0)).aggregatePeriodicMetrics();
         // publish can start anytime between 0 to 3 seconds
         verify(telemetryAgent, timeout(milliSeconds).atLeastOnce()).publishPeriodicMetrics();
@@ -151,12 +151,12 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
         periodicAggregateMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC, "2");
         lenient().doReturn(periodicAggregateMetricsIntervalSec).when(config).lookup(
                 TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC);
-        // aggrGGation starts at least at the 2nd sec
+        // aggregation starts at least at the 2nd sec
         verify(telemetryAgent, timeout(milliSeconds).atLeastOnce()).aggregatePeriodicMetrics();
     }
 
     @Test
-    public void GIVEN_Telemetry_Agent_WHEN_mqtt_is_interrupted_THEN_aggrGGation_continues_but_publishing_stops()
+    public void GIVEN_Telemetry_Agent_WHEN_mqtt_is_interrupted_THEN_aggregation_continues_but_publishing_stops()
             throws InterruptedException {
         Topic periodicPublishMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC, "2");
         lenient().doReturn(periodicPublishMetricsIntervalSec).when(config).lookup(
@@ -167,10 +167,10 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
         //verify that nothing is published when mqtt is interrupted
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
-        // aggrGGation is continued irrespective of the mqtt connection
+        // aggregation is continued irrespective of the mqtt connection
         verify(telemetryAgent, timeout(milliSeconds).atLeastOnce()).aggregatePeriodicMetrics();
         reset(telemetryAgent);
-        //verify that metrics are published atleast once in the periodic interval when the connection resumes
+        //verify that metrics are published at least once in the periodic interval when the connection resumes
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionResumed(true);
         Thread.sleep(100);
         verify(mockMqttClient, timeout(milliSeconds).atLeastOnce()).publish(publishRequestArgumentCaptor.capture());
