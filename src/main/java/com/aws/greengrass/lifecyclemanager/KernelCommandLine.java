@@ -13,9 +13,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
-import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.Utils;
-import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import lombok.AccessLevel;
 import lombok.Getter;
 
@@ -30,8 +28,6 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Objects;
 
 import static com.aws.greengrass.componentmanager.ComponentStore.CONTEXT_PACKAGE_STORE_DIRECTORY;
-import static com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory.CONTEXT_COMPONENT_SERVICE_ENDPOINT;
-import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.STAGE_TO_ENDPOINT_FORMAT;
 import static com.aws.greengrass.util.Utils.HOME_PATH;
 
 public class KernelCommandLine {
@@ -56,8 +52,6 @@ public class KernelCommandLine {
 
     @Getter
     private String providedConfigPathName;
-    private String awsRegion = "us-east-1";
-    private String envStage = "prod";
     private String[] args;
     private String arg;
     private int argpos = 0;
@@ -74,8 +68,12 @@ public class KernelCommandLine {
     }
 
     public KernelCommandLine(Kernel kernel) {
+        this(kernel, kernel.getContext().get(DeviceConfiguration.class));
+    }
+
+    KernelCommandLine(Kernel kernel, DeviceConfiguration deviceConfiguration) {
         this.kernel = kernel;
-        this.deviceConfiguration = new DeviceConfiguration(kernel);
+        this.deviceConfiguration = deviceConfiguration;
     }
 
     /**
@@ -104,11 +102,11 @@ public class KernelCommandLine {
                     break;
                 case "--aws-region":
                 case "-ar":
-                    deviceConfiguration.getAWSRegion().withValue(getArg());
+                    deviceConfiguration.setAWSRegion(getArg());
                     break;
                 case "--env-stage":
                 case "-es":
-                    envStage = getArg();
+                    deviceConfiguration.getEnvironmentStage().withValue(getArg());
                     break;
                 default:
                     RuntimeException rte =
@@ -124,19 +122,6 @@ public class KernelCommandLine {
 
         kernel.getConfig().lookup("system", "rootpath").dflt(rootAbsolutePath)
                 .subscribe((whatHappened, topic) -> initPaths(Coerce.toString(topic)));
-
-        if (deviceConfiguration.getAWSRegion() != null) {
-            awsRegion = Coerce.toString(deviceConfiguration.getAWSRegion());
-        }
-        IotSdkClientFactory.EnvironmentStage stage;
-        try {
-            stage = IotSdkClientFactory.EnvironmentStage.fromString(envStage);
-        } catch (InvalidEnvironmentStageException e) {
-            logger.atError().setCause(e).log("Caught exception while parsing kernel args");
-            throw new RuntimeException(e);
-        }
-        kernel.getContext().put(CONTEXT_COMPONENT_SERVICE_ENDPOINT,
-                String.format(STAGE_TO_ENDPOINT_FORMAT.get(stage), awsRegion));
     }
 
     private void initPaths(String rootAbsolutePath) {

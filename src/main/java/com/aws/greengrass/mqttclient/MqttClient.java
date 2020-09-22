@@ -351,6 +351,13 @@ public class MqttClient implements Closeable {
         clientBootstrap.close();
         hostResolver.close();
         eventLoopGroup.close();
+        try {
+            eventLoopGroup.getShutdownCompleteFuture().get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            logger.atError().log("Error shutting down event loop", e);
+        }
     }
 
     public void addToCallbackEvents(MqttClientConnectionEvents callbacks) {
