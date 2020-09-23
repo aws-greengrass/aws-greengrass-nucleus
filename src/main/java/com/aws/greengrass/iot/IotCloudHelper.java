@@ -107,9 +107,9 @@ public class IotCloudHelper {
 
             @Override
             public void onResponseComplete(HttpStream httpStream, int errorCode) {
-                reqCompleted.complete(errorCode);
                 response.setStatusCode(httpStream.getResponseStatusCode());
                 httpStream.close();
+                reqCompleted.complete(errorCode);
             }
         };
     }
