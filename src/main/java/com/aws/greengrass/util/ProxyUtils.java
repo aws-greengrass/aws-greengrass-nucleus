@@ -6,9 +6,7 @@ package com.aws.greengrass.util;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.ProxyAuthenticationMethod;
-import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
-import org.apache.commons.lang3.StringUtils;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
@@ -115,12 +113,12 @@ public final class ProxyUtils {
      */
     public static String getProxyUsername(String proxyUrl, String proxyUsername) {
         String auth = getAuthFromProxyUrl(proxyUrl);
-        if (StringUtils.isNotEmpty(auth)) {
+        if (Utils.isNotEmpty(auth)) {
             String[] tokens = auth.split(":");
             return tokens[0];
         }
 
-        if (StringUtils.isNotEmpty(proxyUsername)) {
+        if (Utils.isNotEmpty(proxyUsername)) {
             return proxyUsername;
         }
 
@@ -139,14 +137,14 @@ public final class ProxyUtils {
      */
     public static String getProxyPassword(String proxyUrl, String proxyPassword) {
         String auth = getAuthFromProxyUrl(proxyUrl);
-        if (StringUtils.isNotEmpty(auth)) {
+        if (Utils.isNotEmpty(auth)) {
             String[] tokens = auth.split(":");
             if (tokens.length > 1) {
                 return tokens[1];
             }
         }
 
-        if (StringUtils.isNotEmpty(proxyPassword)) {
+        if (Utils.isNotEmpty(proxyPassword)) {
             return proxyPassword;
         }
 
@@ -167,12 +165,12 @@ public final class ProxyUtils {
         String proxyUsername = getProxyUsername(deviceConfiguration.getProxyUrl(),
                 deviceConfiguration.getProxyUsername());
 
-        if (StringUtils.isNotEmpty(proxyUrl)) {
+        if (Utils.isNotEmpty(proxyUrl)) {
             httpProxyOptions = new HttpProxyOptions();
             httpProxyOptions.setHost(ProxyUtils.getHostFromProxyUrl(proxyUrl));
             httpProxyOptions.setPort(ProxyUtils.getPortFromProxyUrl(proxyUrl));
 
-            if (StringUtils.isNotEmpty(proxyUsername)) {
+            if (Utils.isNotEmpty(proxyUsername)) {
                 httpProxyOptions.setAuthorizationType(HttpProxyOptions.HttpProxyAuthorizationType.Basic);
                 httpProxyOptions.setAuthorizationUsername(proxyUsername);
                 httpProxyOptions.setAuthorizationPassword(getProxyPassword(deviceConfiguration.getProxyUrl(),
@@ -184,28 +182,19 @@ public final class ProxyUtils {
     }
 
     /**
-     * <p>Sets the GREENGRASS_PROXY_* system properties with values from the networkProxy topic.</p>
+     * <p>Sets the GREENGRASS_PROXY_* system properties with values from the device configuration.</p>
      *
-     * @param networkProxyNamespace networkProxy topic
+     * @param deviceConfiguration contains user specified system proxy values
      */
-    public static void setSystemProxyProperties(Topics networkProxyNamespace) {
-        if (networkProxyNamespace == null) {
+    public static void setSystemProxyProperties(DeviceConfiguration deviceConfiguration) {
+        if (deviceConfiguration == null) {
             return;
         }
 
-        String noProxyAddresses = Coerce.toString(networkProxyNamespace.findOrDefault("",
-                DeviceConfiguration.DEVICE_PARAM_NO_PROXY_ADDRESSES));
-        Topics proxyNamespace = networkProxyNamespace.lookupTopics(DeviceConfiguration.DEVICE_PROXY_NAMESPACE);
-        String url = Coerce.toString(proxyNamespace.findOrDefault("", DeviceConfiguration.DEVICE_PARAM_PROXY_URL));
-        String username = Coerce.toString(proxyNamespace.findOrDefault("",
-                DeviceConfiguration.DEVICE_PARAM_PROXY_USERNAME));
-        String password = Coerce.toString(proxyNamespace.findOrDefault("",
-                DeviceConfiguration.DEVICE_PARAM_PROXY_PASSWORD));
-
-        System.setProperty(GREENGRASS_PROXY_URL_KEY, url);
-        System.setProperty(GREENGRASS_PROXY_USERNAME_KEY, username);
-        System.setProperty(GREENGRASS_PROXY_PASSWORD_KEY, password);
-        System.setProperty(GREENGRASS_PROXY_NOPROXYADDRESSES_KEY, noProxyAddresses);
+        System.setProperty(GREENGRASS_PROXY_URL_KEY, deviceConfiguration.getProxyUrl());
+        System.setProperty(GREENGRASS_PROXY_USERNAME_KEY, deviceConfiguration.getProxyUsername());
+        System.setProperty(GREENGRASS_PROXY_PASSWORD_KEY, deviceConfiguration.getProxyPassword());
+        System.setProperty(GREENGRASS_PROXY_NOPROXYADDRESSES_KEY, deviceConfiguration.getNoProxyAddresses());
     }
 
     /**
@@ -255,7 +244,7 @@ public final class ProxyUtils {
         String passwordFromConfig = System.getProperty(GREENGRASS_PROXY_PASSWORD_KEY);
         String noProxyAddresses = System.getProperty(GREENGRASS_PROXY_NOPROXYADDRESSES_KEY);
 
-        if (StringUtils.isEmpty(url)) {
+        if (Utils.isEmpty(url)) {
             return null;
         }
 
@@ -266,7 +255,7 @@ public final class ProxyUtils {
         String password = getProxyPassword(url, passwordFromConfig);
 
         Set<String> nonProxyHosts = Collections.emptySet();
-        if (StringUtils.isNotEmpty(noProxyAddresses)) {
+        if (Utils.isNotEmpty(noProxyAddresses)) {
             nonProxyHosts = Arrays.stream(noProxyAddresses.split(",")).collect(Collectors.toSet());
         }
 
@@ -315,7 +304,7 @@ public final class ProxyUtils {
 
         ClientConfiguration clientConfiguration = new ClientConfiguration();
 
-        if (StringUtils.isEmpty(url)) {
+        if (Utils.isEmpty(url)) {
             return clientConfiguration;
         }
 
@@ -324,13 +313,13 @@ public final class ProxyUtils {
         clientConfiguration.setProxyPort(getPortFromProxyUrl(url));
 
         String username = getProxyUsername(url, usernameFromConfig);
-        if (StringUtils.isNotEmpty(username)) {
+        if (Utils.isNotEmpty(username)) {
             clientConfiguration.setProxyAuthenticationMethods(Arrays.asList(ProxyAuthenticationMethod.BASIC));
             clientConfiguration.setProxyUsername(username);
             clientConfiguration.setProxyPassword(getProxyPassword(url, passwordFromConfig));
         }
 
-        if (StringUtils.isNotEmpty(noProxyAddresses)) {
+        if (Utils.isNotEmpty(noProxyAddresses)) {
             // The SDK expects the same delimiter as the http.nonProxyHosts property (i.e. |)
             clientConfiguration.setNonProxyHosts(noProxyAddresses.replace(",", "|"));
         }

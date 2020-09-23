@@ -106,6 +106,10 @@ public final class Utils {
         return true;
     }
 
+    public static boolean isNotEmpty(String s) {
+        return !isEmpty(s);
+    }
+
     public static String nullEmpty(String s) {
         return isEmpty(s) ? null : s;
     }
