@@ -7,8 +7,6 @@ import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentService;
-import com.aws.greengrass.deployment.DeploymentStatusKeeper;
-import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
@@ -36,7 +34,6 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
@@ -70,10 +67,10 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
+import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.waitForDeploymentToBeSuccessful;
+import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.waitForServiceToComeInState;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_AUTH_TOKEN;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_IPC_INFO_FILENAME;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_SERVICE;
@@ -190,7 +187,7 @@ class IPCCliTest {
         GetComponentDetailsResponse response = cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName(
                 "ServiceToBeRestarted").build());
         assertEquals(RUNNING, response.getComponentDetails().getState());
-        CountDownLatch serviceLatch = waitForServiceToComeInState("ServiceToBeRestarted", State.STARTING);
+        CountDownLatch serviceLatch = waitForServiceToComeInState("ServiceToBeRestarted", State.STARTING, kernel);
         RestartComponentResponse restartComponentResponse =
                 cli.restartComponent(RestartComponentRequest.builder().componentName("ServiceToBeRestarted").build());
         assertEquals(RequestStatus.SUCCEEDED, restartComponentResponse.getRequestStatus());
@@ -207,7 +204,7 @@ class IPCCliTest {
                 "ServiceToBeStopped").build());
         assertEquals(RUNNING, response.getComponentDetails().getState());
 
-        CountDownLatch stoppingLatch = waitForServiceToComeInState("ServiceToBeStopped", State.STOPPING);
+        CountDownLatch stoppingLatch = waitForServiceToComeInState("ServiceToBeStopped", State.STOPPING, kernel);
         StopComponentResponse stopComponentResponse =
                 cli.stopComponent(StopComponentRequest.builder().componentName("ServiceToBeStopped").build());
         assertEquals(RequestStatus.SUCCEEDED, stopComponentResponse.getRequestStatus());
@@ -232,10 +229,10 @@ class IPCCliTest {
         CreateLocalDeploymentRequest deploymentRequest = CreateLocalDeploymentRequest.builder()
                 .rootComponentVersionsToAdd(Collections.singletonMap(TEST_SERVICE_NAME, "1.0.1"))
                 .build();
-        CountDownLatch serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.RUNNING);
+        CountDownLatch serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.RUNNING, kernel);
         CreateLocalDeploymentResponse deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId1 = deploymentResponse.getDeploymentId();
-        CountDownLatch deploymentLatch = waitForDeploymentToBeSuccessful(deploymentId1);
+        CountDownLatch deploymentLatch = waitForDeploymentToBeSuccessful(deploymentId1, kernel);
         assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertTrue(deploymentLatch.await(LOCAL_DEPLOYMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
 
@@ -247,7 +244,7 @@ class IPCCliTest {
         deploymentRequest = CreateLocalDeploymentRequest.builder()
                 .rootComponentsToRemove(Arrays.asList(TEST_SERVICE_NAME))
                 .build();
-        serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.FINISHED);
+        serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.FINISHED, kernel);
         deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId2 = deploymentResponse.getDeploymentId();
         assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -282,7 +279,7 @@ class IPCCliTest {
                 .build();
         cli.updateRecipesAndArtifacts(request);
         assertTrue(Files.exists(kernel.getComponentStorePath().resolve(ComponentStore.ARTIFACT_DIRECTORY)
-                        .resolve("Component1").resolve("1.0.0").resolve("run.sh")));
+                .resolve("Component1").resolve("1.0.0").resolve("run.sh")));
         CreateLocalDeploymentRequest deploymentRequest = CreateLocalDeploymentRequest.builder()
                 .groupName("NewGroup")
                 .rootComponentVersionsToAdd(Collections.singletonMap("Component1", "1.0.0"))
@@ -290,8 +287,8 @@ class IPCCliTest {
 
         CreateLocalDeploymentResponse deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId1 = deploymentResponse.getDeploymentId();
-        CountDownLatch waitForComponent1ToRun = waitForServiceToComeInState("Component1", State.RUNNING);
-        CountDownLatch waitFordeploymentId1 = waitForDeploymentToBeSuccessful(deploymentId1);
+        CountDownLatch waitForComponent1ToRun = waitForServiceToComeInState("Component1", State.RUNNING, kernel);
+        CountDownLatch waitFordeploymentId1 = waitForDeploymentToBeSuccessful(deploymentId1, kernel);
         assertTrue(waitForComponent1ToRun.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertTrue(waitFordeploymentId1.await(LOCAL_DEPLOYMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
@@ -324,7 +321,7 @@ class IPCCliTest {
                 .componentToConfiguration(componentToConfiguration)
                 .rootComponentVersionsToAdd(Collections.singletonMap("Component1", "1.0.0"))
                 .build();
-        CountDownLatch serviceLatch = waitForServiceToComeInState("Component1", State.RUNNING);
+        CountDownLatch serviceLatch = waitForServiceToComeInState("Component1", State.RUNNING, kernel);
         CountDownLatch stdoutLatch = new CountDownLatch(1);
         Consumer<GreengrassLogMessage> logListener = m -> {
             if ("shell-runner-stdout".equals(m.getEventType())) {
@@ -336,7 +333,7 @@ class IPCCliTest {
         Slf4jLogAdapter.addGlobalListener(logListener);
         CreateLocalDeploymentResponse deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId1 = deploymentResponse.getDeploymentId();
-        CountDownLatch deploymentLatch = waitForDeploymentToBeSuccessful(deploymentId1);
+        CountDownLatch deploymentLatch = waitForDeploymentToBeSuccessful(deploymentId1, kernel);
 
         assertTrue(deploymentLatch.await(LOCAL_DEPLOYMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -372,35 +369,5 @@ class IPCCliTest {
             Thread.sleep(1000);
         }
         fail(String.format("Deployment %s not successful in given time %d seconds", deploymentId, timeoutInSeconds));
-    }
-
-    private CountDownLatch waitForDeploymentToBeSuccessful(String deploymentId) {
-        CountDownLatch deploymentLatch = new CountDownLatch(1);
-        DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
-        deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.LOCAL, (deploymentDetails) ->
-        {
-            String receivedDeploymentId =
-                    deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID).toString();
-            if (receivedDeploymentId.equals(deploymentId)) {
-                DeploymentStatus status = Coerce.toEnum(DeploymentStatus.class, deploymentDetails
-                        .get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS));
-                if (status == DeploymentStatus.SUCCEEDED) {
-                    deploymentLatch.countDown();
-                }
-            }
-            return true;
-        }, deploymentId);
-        return deploymentLatch;
-    }
-
-    private CountDownLatch waitForServiceToComeInState(String serviceName, State state) throws InterruptedException {
-        // wait for service to come up
-        CountDownLatch awaitServiceLatch = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals(serviceName) && newState.equals(state)) {
-                awaitServiceLatch.countDown();
-            }
-        });
-        return awaitServiceLatch;
     }
 }
