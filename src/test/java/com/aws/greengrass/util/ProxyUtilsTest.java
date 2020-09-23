@@ -13,7 +13,7 @@ import software.amazon.awssdk.crt.http.HttpProxyOptions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 public class ProxyUtilsTest {
