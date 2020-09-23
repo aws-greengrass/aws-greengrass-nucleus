@@ -44,6 +44,7 @@ public class MetricsAggregatorTest {
     private static final ObjectMapper mapper = new ObjectMapper();
     private static final String sm = "SystemMetrics";
     private final NamespaceSet namespaceSet = new NamespaceSet();
+    private final MetricFactory mf = new MetricFactory(sm);
     @TempDir
     protected Path tempRootDir;
     private MetricsAggregator ma;
@@ -61,12 +62,11 @@ public class MetricsAggregatorTest {
     }
 
     @Test
-    public void GIVEN_system_metrics_WHEN_aggregate_THEN_aggregate_only_the_latest_values()
+    void GIVEN_system_metrics_WHEN_aggregate_THEN_aggregate_only_the_latest_values()
             throws InterruptedException, IOException {
         //Create a sample file with system metrics so we can test the freshness of the file and logs
         //with respect to the current timestamp
         long lastAgg = Instant.now().toEpochMilli();
-        MetricFactory mf = new MetricFactory("SystemMetrics");
         Metric m1 = new Metric(sm, "CpuUsage", TelemetryUnit.Percent, TelemetryAggregation.Sum);
         Metric m2 = new Metric(sm, "SystemMemUsage", TelemetryUnit.Megabytes, TelemetryAggregation.Average);
         Metric m3 = new Metric(sm, "TotalNumberOfFDs", TelemetryUnit.Count, TelemetryAggregation.Maximum);
@@ -82,7 +82,8 @@ public class MetricsAggregatorTest {
         Thread.sleep(100);
         long currTimestamp = Instant.now().toEpochMilli();
         ma.aggregateMetrics(lastAgg, currTimestamp);
-        Path path = Paths.get(TelemetryConfig.getTelemetryDirectory().toString()).resolve("AggregateMetrics.log");
+        Path path = Paths.get(TelemetryConfig.getTelemetryDirectory().toString()).resolve(
+                "AggregateMetrics.log");
         List<String> list = Files.readAllLines(path);
         assertEquals(ma.getNamespaceSet().getNamespaces().size(), list.size()); // Metrics are aggregated based on the namespace.
         for (String s : list) {
@@ -126,7 +127,6 @@ public class MetricsAggregatorTest {
         ignoreExceptionOfType(exContext, MismatchedInputException.class);
         long lastAgg = Instant.now().toEpochMilli();
         Metric m1 = new Metric(sm, "CpuUsage", TelemetryUnit.Percent, TelemetryAggregation.Sum);
-        MetricFactory mf = new MetricFactory(sm);
         Metric m2 = new Metric(sm, "SystemMemUsage", TelemetryUnit.Megabytes, TelemetryAggregation.Average);
         // Put null data
         mf.putMetricData(m1, null);
