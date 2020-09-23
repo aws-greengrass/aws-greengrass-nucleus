@@ -27,7 +27,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETER
 public class TokenExchangeService extends GreengrassService implements AwsCredentialsProvider {
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
     public static final String PORT_TOPIC = "port";
-    public static final String TOKEN_EXCHANGE_SERVICE_TOPICS = "TokenExchangeService";
+    public static final String TOKEN_EXCHANGE_SERVICE_TOPICS = "aws.greengrass.TokenExchangeService";
     public static final String TES_URI_ENV_VARIABLE_NAME = "AWS_CONTAINER_CREDENTIALS_FULL_URI";
     public static final String AUTHZ_TES_OPERATION = "getCredentials";
     private static final String TES_CONFIG_ERROR_STR = "%s parameter is either empty or not configured for TES";
