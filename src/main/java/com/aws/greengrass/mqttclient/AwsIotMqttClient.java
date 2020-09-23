@@ -37,7 +37,7 @@ import javax.inject.Provider;
  * Do not use except through {@link MqttClient}.
  */
 class AwsIotMqttClient implements Closeable {
-    private static final String TOPIC_KEY = "topic";
+    static final String TOPIC_KEY = "topic";
     private static final String QOS_KEY = "qos";
     private final Logger logger = LogManager.getLogger(AwsIotMqttClient.class).createChild()
             .dfltKv(MqttClient.CLIENT_ID_KEY, (Supplier<String>) this::getClientId);
@@ -172,11 +172,11 @@ class AwsIotMqttClient implements Closeable {
 
     private void resubscribe() {
         subscriptionTopics.forEach((key, value) -> {
-            try {
-                subscribe(key, value).get(getTimeout(), TimeUnit.MILLISECONDS);
-            } catch (ExecutionException | InterruptedException | TimeoutException e) {
-                logger.atError().kv(TOPIC_KEY, key).kv(QOS_KEY, value.name()).log("Unable to resubscribe to topic");
-            }
+            subscribe(key, value).whenComplete((i, t) -> {
+                if (t != null) {
+                    logger.atError().kv(TOPIC_KEY, key).kv(QOS_KEY, value.name()).log("Unable to resubscribe to topic");
+                }
+            });
         });
     }
 

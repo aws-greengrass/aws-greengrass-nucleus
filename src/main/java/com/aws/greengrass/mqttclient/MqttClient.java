@@ -50,6 +50,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
+import static com.aws.greengrass.mqttclient.AwsIotMqttClient.TOPIC_KEY;
 
 public class MqttClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(MqttClient.class);
@@ -201,6 +202,7 @@ public class MqttClient implements Closeable {
                             subscriptionTopics.put(new MqttTopic(request.getTopic()), finalConnection);
                         } else {
                             subscriptions.remove(request);
+                            logger.atError().kv(TOPIC_KEY, request.getTopic()).log("Error subscribing", t);
                         }
                     }).get(connection.getTimeout(), TimeUnit.MILLISECONDS);
                 }
@@ -243,25 +245,28 @@ public class MqttClient implements Closeable {
                     .collect(Collectors.toSet());
             if (!deadSubscriptionTopics.isEmpty()) {
                 for (Map.Entry<MqttTopic, AwsIotMqttClient> sub : deadSubscriptionTopics) {
-                    sub.getValue().unsubscribe(sub.getKey().getTopic())
-                            .thenAccept((i) -> {
-                                subscriptionTopics.remove(sub.getKey());
+                    sub.getValue().unsubscribe(sub.getKey().getTopic()).whenComplete((i, t) -> {
+                        if (t == null) {
+                            subscriptionTopics.remove(sub.getKey());
 
-                                // Since we changed the cloud subscriptions, we need to recalculate the client to use
-                                // for each subscription, since it may have changed
-                                subscriptions.entrySet().stream()
-                                        // if the cloud clients are the same, and the removed topic covered the topic
-                                        // that we're looking at, then recalculate that topic's client
-                                        .filter(s -> s.getValue() == sub.getValue() && sub.getKey()
-                                                .isSupersetOf(new MqttTopic(s.getKey().getTopic()))).forEach(e -> {
-                                    // recalculate and replace the client
-                                    Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> subscriberForTopic =
-                                            findExistingSubscriberForTopic(e.getKey().getTopic());
-                                    if (subscriberForTopic.isPresent()) {
-                                        subscriptions.put(e.getKey(), subscriberForTopic.get().getValue());
-                                    }
-                                });
-                            }).get(sub.getValue().getTimeout(), TimeUnit.MILLISECONDS);
+                            // Since we changed the cloud subscriptions, we need to recalculate the client to use
+                            // for each subscription, since it may have changed
+                            subscriptions.entrySet().stream()
+                                    // if the cloud clients are the same, and the removed topic covered the topic
+                                    // that we're looking at, then recalculate that topic's client
+                                    .filter(s -> s.getValue() == sub.getValue() && sub.getKey()
+                                            .isSupersetOf(new MqttTopic(s.getKey().getTopic()))).forEach(e -> {
+                                // recalculate and replace the client
+                                Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> subscriberForTopic =
+                                        findExistingSubscriberForTopic(e.getKey().getTopic());
+                                if (subscriberForTopic.isPresent()) {
+                                    subscriptions.put(e.getKey(), subscriberForTopic.get().getValue());
+                                }
+                            });
+                        } else {
+                            logger.atError().kv(TOPIC_KEY, sub.getKey().getTopic()).log("Error unsubscribing", t);
+                        }
+                    }).get(sub.getValue().getTimeout(), TimeUnit.MILLISECONDS);
                 }
             }
         }
@@ -312,7 +317,7 @@ public class MqttClient implements Closeable {
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     Consumer<MqttMessage> getMessageHandlerForClient(AwsIotMqttClient client) {
         return (message) -> {
-            logger.atTrace().kv(CLIENT_ID_KEY, client.getClientId()).kv("topic", message.getTopic())
+            logger.atTrace().kv(CLIENT_ID_KEY, client.getClientId()).kv(TOPIC_KEY, message.getTopic())
                     .log("Received MQTT message");
 
             // Each subscription is associated with a single AWSIotMqttClient even if this
@@ -327,7 +332,7 @@ public class MqttClient implements Closeable {
                             .topicIsSupersetOf(s.getKey().getTopic(), message.getTopic())).map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
             if (subs.isEmpty()) {
-                logger.atError().kv("topic", message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
+                logger.atError().kv(TOPIC_KEY, message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
                         .log("Somehow got message from topic that no one subscribed to");
                 return;
             }
