@@ -11,11 +11,11 @@ import lombok.Setter;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 
@@ -123,14 +123,8 @@ public class DeploymentStatusKeeper {
             // processes multiple deployments in the order in which they come. Additionally, a customer workflow can
             // depend on this order. If Group2 gets successfully updated before Group1 then customer workflow may
             // error out.
-            List<Topics> sortedByTimestamp = deployments.stream().sorted((o1, o2) -> {
-                if (o1.getModtime() > o2.getModtime()) {
-                    return 1;
-                }
-                return -1;
-            }).collect(Collectors.toList());
-
-            for (Topics topics : sortedByTimestamp) {
+            Collections.sort(deployments);
+            for (Topics topics : deployments) {
                 DeploymentType deploymentType =
                         Coerce.toEnum(DeploymentType.class,
                                 topics.find(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE));

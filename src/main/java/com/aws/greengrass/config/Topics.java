@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 
-public class Topics extends Node implements Iterable<Node> {
+public class Topics extends Node implements Iterable<Node>, Comparable<Topics> {
     public final Map<CaseInsensitiveString, Node> children = new ConcurrentHashMap<>();
 
     private static final Logger logger = LogManager.getLogger(Topics.class);
@@ -314,6 +314,11 @@ public class Topics extends Node implements Iterable<Node> {
             }
             createLeafChild(key).withNewerValue(lastModified, value);
         }
+    }
+
+    @Override
+    public int compareTo(final Topics other) {
+        return Long.compare(getModtime(), other.getModtime());
     }
 
     @Override

@@ -46,12 +46,12 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Collectors;
@@ -325,25 +325,19 @@ public class CLIServiceAgent {
      * @return {@link ListLocalDeploymentResponse}
      */
     public ListLocalDeploymentResponse listLocalDeployments(Topics serviceConfig) {
-        List<LocalDeployment> persistedDeployments = new ArrayList<>();
         Topics localDeployments = serviceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
-        if (Objects.nonNull(localDeployments)) {
-            StreamSupport.stream(localDeployments.spliterator(), false)
-                    .sorted((left, right) -> {
-                        if (left.getModtime() > right.getModtime()) {
-                            return 1;
-                        }
-                        return -1;
-                    })
-                    .forEach(topic -> {
+        List<LocalDeployment> persistedDeployments = Optional.ofNullable(localDeployments)
+                .map(deployments -> StreamSupport.stream(deployments.spliterator(), false).sorted()
+                        .map(topic -> {
                             Topics topics = (Topics) topic;
-                            persistedDeployments.add(LocalDeployment.builder()
+                            return LocalDeployment.builder()
                                     .deploymentId(topics.getName())
                                     .status(Coerce.toEnum(DeploymentStatus.class,
                                             topics.find(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS)))
-                                    .build());
-                    });
-        }
+                                    .build();
+                        })
+                        .collect(Collectors.toList()))
+                .orElseGet(Collections::emptyList);
         return ListLocalDeploymentResponse.builder().localDeployments(persistedDeployments).build();
     }
 
