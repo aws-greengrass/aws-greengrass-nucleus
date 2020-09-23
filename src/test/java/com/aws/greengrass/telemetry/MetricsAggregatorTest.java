@@ -48,12 +48,13 @@ public class MetricsAggregatorTest {
     @TempDir
     protected Path tempRootDir;
     private MetricsAggregator ma;
+    private final MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
 
     @BeforeEach
     void setup() {
-        TelemetryConfig.getInstance().setRoot(tempRootDir);
         namespaceSet.addNamespace(sm);
         ma = new MetricsAggregator(namespaceSet);
+        TelemetryConfig.getInstance().setRoot(tempRootDir);
     }
 
     @AfterEach
@@ -163,7 +164,7 @@ public class MetricsAggregatorTest {
         //Create a sample file with aggregated metrics so we can test the freshness of the file and logs
         // with respect to the current timestamp
         long lastPublish = Instant.now().toEpochMilli();
-        MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
+//        MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
         long currentTimestamp = Instant.now().toEpochMilli();
         List<AggregatedMetric.Metric> metricList = new ArrayList<>();
         Map<String, Object> map = new HashMap<>();
@@ -216,7 +217,6 @@ public class MetricsAggregatorTest {
         //Create a sample file with aggregated metrics so we can test the freshness of the file and logs
         // with respect to the current timestamp
         long lastPublish = Instant.now().toEpochMilli();
-        MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
         long currentTimestamp = Instant.now().toEpochMilli();
         List<AggregatedMetric.Metric> metricList = new ArrayList<>();
         Map<String, Object> map1 = new HashMap<>();
