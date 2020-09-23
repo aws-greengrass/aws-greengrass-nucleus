@@ -12,7 +12,6 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Pair;
-import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +43,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
@@ -76,6 +76,7 @@ class MqttClientTest {
 
     @BeforeEach
     void beforeEach() {
+        config.lookup("data", MqttClient.MQTT_OPERATION_TIMEOUT_KEY).withValue(0);
         when(deviceConfiguration.getMQTTNamespace()).thenReturn(config.lookupTopics("data"));
         lenient().when(builder.build()).thenReturn(mockConnection);
         lenient().when(mockConnection.connect()).thenReturn(CompletableFuture.completedFuture(false));
@@ -91,7 +92,6 @@ class MqttClientTest {
         executorService.shutdown();
     }
 
-    @SneakyThrows
     @Test
     void GIVEN_multiple_subset_subscriptions_WHEN_subscribe_or_unsubscribe_THEN_only_subscribes_and_unsubscribes_once()
             throws ExecutionException, InterruptedException, TimeoutException {
@@ -117,6 +117,25 @@ class MqttClientTest {
     }
 
     @Test
+    void GIVEN_connection_WHEN_subscribe_timesout_but_then_completes_THEN_subsequent_subscribe_calls_dont_call_cloud()
+            throws ExecutionException, InterruptedException, TimeoutException {
+        MqttClient client = new MqttClient(deviceConfiguration, (c) -> builder, executorService);
+        assertFalse(client.connected());
+        CompletableFuture<Integer> cf = new CompletableFuture<>();
+        lenient().when(mockConnection.subscribe(any(), any())).thenReturn(cf);
+
+        assertThrows(TimeoutException.class,
+                () -> client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build()));
+        cf.complete(0);
+
+        // This subscribe call won't result in a cloud call because the previous subscribe succeeded _after_
+        // the timeout
+        client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
+        verify(mockConnection).connect();
+        verify(mockConnection).subscribe(eq("A/B/+"), eq(QualityOfService.AT_LEAST_ONCE));
+    }
+
+    @Test
     void GIVEN_connection_WHEN_settings_change_THEN_reconnects()
             throws ExecutionException, InterruptedException, TimeoutException {
         ArgumentCaptor<ChildChanged> cc = ArgumentCaptor.forClass(ChildChanged.class);
@@ -124,6 +143,7 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
 
         AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
+        when(iClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(client.getNewMqttClient()).thenReturn(iClient1);
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
@@ -141,6 +161,8 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
         AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient iClient2 = mock(AwsIotMqttClient.class);
+        when(iClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(iClient2.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(client.getNewMqttClient()).thenReturn(iClient1).thenReturn(iClient2);
         when(iClient1.canAddNewSubscription()).thenReturn(false);
 
@@ -157,6 +179,8 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
         AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient iClient2 = mock(AwsIotMqttClient.class);
+        when(iClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(iClient2.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(client.getNewMqttClient()).thenReturn(iClient1).thenReturn(iClient2);
         when(iClient1.canAddNewSubscription()).thenReturn(false);
         when(iClient1.subscriptionCount()).thenReturn(1);
@@ -193,6 +217,7 @@ class MqttClientTest {
             throws ExecutionException, InterruptedException, TimeoutException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
         AwsIotMqttClient mockIndividual = mock(AwsIotMqttClient.class);
+        when(mockIndividual.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(client.getNewMqttClient()).thenReturn(mockIndividual);
         assertFalse(client.connected());
 
@@ -237,6 +262,8 @@ class MqttClientTest {
         assertFalse(client.connected());
         AwsIotMqttClient mockIndividual1 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient mockIndividual2 = mock(AwsIotMqttClient.class);
+        when(mockIndividual1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIndividual2.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(client.getNewMqttClient()).thenReturn(mockIndividual1).thenReturn(mockIndividual2);
         when(mockIndividual1.canAddNewSubscription()).thenReturn(false);
         when(mockIndividual2.canAddNewSubscription()).thenReturn(true);
@@ -281,11 +308,11 @@ class MqttClientTest {
 
     @Test
     void GIVEN_incoming_message_WHEN_received_and_subscriber_throws_THEN_still_calls_remaining_subscriptions(
-            ExtensionContext context)
-            throws ExecutionException, InterruptedException, TimeoutException {
+            ExtensionContext context) throws ExecutionException, InterruptedException, TimeoutException {
         ignoreExceptionWithMessage(context, "Uncaught!");
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, executorService));
         AwsIotMqttClient mockIndividual = mock(AwsIotMqttClient.class);
+        when(mockIndividual.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(client.getNewMqttClient()).thenReturn(mockIndividual);
         assertFalse(client.connected());
 

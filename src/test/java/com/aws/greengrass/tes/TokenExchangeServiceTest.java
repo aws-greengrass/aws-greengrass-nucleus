@@ -11,6 +11,7 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Set;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -58,7 +60,7 @@ public class TokenExchangeServiceTest extends GGServiceTestUtil {
     @BeforeEach
     public void setup() {
         // initialize Greengrass service specific mocks
-        serviceFullName = "TokenExchangeService";
+        serviceFullName = TOKEN_EXCHANGE_SERVICE_TOPICS;
         initializeMockedConfig();
         when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
     }
@@ -112,7 +114,7 @@ public class TokenExchangeServiceTest extends GGServiceTestUtil {
         assertEquals(MOCK_ROLE_ALIAS, stringArgumentCaptor.getValue());
 
         verify(mockAuthZHandler).registerComponent(stringArgumentCaptor.capture(), operationsCaptor.capture());
-        assertEquals(TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS, stringArgumentCaptor.getValue());
+        assertEquals(TOKEN_EXCHANGE_SERVICE_TOPICS, stringArgumentCaptor.getValue());
         assertTrue(operationsCaptor.getValue().contains(TokenExchangeService.AUTHZ_TES_OPERATION));
 
     }

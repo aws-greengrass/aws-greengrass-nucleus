@@ -11,15 +11,19 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -50,6 +54,7 @@ public class AuthorizationHandler  {
     private final Kernel kernel;
 
     private final AuthorizationModule authModule;
+    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     /**
      * Constructor for AuthZ.
@@ -66,14 +71,13 @@ public class AuthorizationHandler  {
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
+
+        //Load default policies
+        componentNameToPolicies.putAll(getDefaultPolicies());
+
         for (Map.Entry<String, List<AuthorizationPolicy>> acl : componentNameToPolicies.entrySet()) {
             this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), false);
         }
-
-        //Load default policy for TES
-        this.loadAuthorizationPolicies(TOKEN_EXCHANGE_SERVICE_TOPICS,
-                getDefaultPolicyForService(AUTHZ_TES_OPERATION),
-                false);
 
         //Subscribe to future auth config updates
         this.kernel.getConfig().getRoot().subscribe(
@@ -109,8 +113,27 @@ public class AuthorizationHandler  {
                     // https://issues-iad.amazon.com/issues/V243584397
                     Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
                             .parseAllAuthorizationPolicies(kernel);
-                    for (Map.Entry<String, List<AuthorizationPolicy>> acl : reloadedPolicies.entrySet()) {
-                        this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), true);
+
+                    //Load default policies
+                    reloadedPolicies.putAll(getDefaultPolicies());
+
+                    try (LockScope scope = LockScope.lock(rwLock.writeLock())) {
+
+                        for (Map.Entry<String, List<AuthorizationPolicy>> masterPolicyList :
+                                componentToAuthZConfig.entrySet()) {
+                            String policyType = masterPolicyList.getKey();
+                            if (!reloadedPolicies.containsKey(policyType)) {
+                                //If the policyType already exists and was not reparsed correctly and/or removed from
+                                //the newly parsed list, delete it from our store since it is now an unwanted relic
+                                componentToAuthZConfig.remove(policyType);
+                                authModule.deletePermissionsWithDestination(policyType);
+                            }
+                        }
+
+                        //Now we reload the policies that reflect the current state of the kernel config
+                        for (Map.Entry<String, List<AuthorizationPolicy>> acl : reloadedPolicies.entrySet()) {
+                            this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), true);
+                        }
                     }
                 });
     }
@@ -145,19 +168,20 @@ public class AuthorizationHandler  {
                 {destination, ANY_REGEX, ANY_REGEX, resource},
                 {destination, ANY_REGEX, ANY_REGEX, ANY_REGEX},
         };
-
-        for (String[] combination : combinations) {
-            if (authModule.isPresent(combination[0],
-                    Permission.builder()
-                            .principal(combination[1])
-                            .operation(combination[2])
-                            .resource(combination[3])
-                            .build())) {
-                logger.atDebug().log("Hit policy with principal {}, operation {}, resource {}",
-                        combination[1],
-                        combination[2],
-                        combination[3]);
-                return true;
+        try (LockScope scope = LockScope.lock(rwLock.readLock())) {
+            for (String[] combination : combinations) {
+                if (authModule.isPresent(combination[0],
+                        Permission.builder()
+                                .principal(combination[1])
+                                .operation(combination[2])
+                                .resource(combination[3])
+                                .build())) {
+                    logger.atDebug().log("Hit policy with principal {}, operation {}, resource {}",
+                            combination[1],
+                            combination[2],
+                            combination[3]);
+                    return true;
+                }
             }
         }
         throw new AuthorizationException(
@@ -259,6 +283,8 @@ public class AuthorizationHandler  {
         }
 
         this.componentToAuthZConfig.put(componentName, policies);
+        logger.atInfo("load-authorization-config-success")
+                .log("Successfully loaded authorization config for {}", componentName);
 
     }
 
@@ -358,5 +384,15 @@ public class AuthorizationHandler  {
                 .principals(new HashSet<>(Arrays.asList("*")))
                 .operations(new HashSet<>(Arrays.asList(serviceName)))
                 .build());
+    }
+
+    private Map<String, List<AuthorizationPolicy>> getDefaultPolicies() {
+        Map<String, List<AuthorizationPolicy>> allDefaultPolicies = new HashMap<>();
+
+        //Create the default policy for TES
+        allDefaultPolicies.put(TOKEN_EXCHANGE_SERVICE_TOPICS, getDefaultPolicyForService(AUTHZ_TES_OPERATION));
+
+        return allDefaultPolicies;
+
     }
 }

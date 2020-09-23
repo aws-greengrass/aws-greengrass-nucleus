@@ -12,6 +12,7 @@ import com.aws.greengrass.iot.model.IotCloudResponse;
 import com.aws.greengrass.ipc.AuthenticationHandler;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

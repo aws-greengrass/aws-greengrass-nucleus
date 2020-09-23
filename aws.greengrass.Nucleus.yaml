@@ -3,7 +3,7 @@ RecipeFormatVersion: '2020-01-25'
 ComponentName: aws.greengrass.Nucleus
 ComponentDescription: Core functionality for device side orchestration of deployments and lifecycle management for execution of Greengrass components and applications.
 ComponentPublisher: AWS
-ComponentVersion: '2.0.0'
+ComponentVersion: '0.0.0'
 Manifests:
   - Platform:
       os: macos
@@ -13,15 +13,14 @@ Manifests:
         value: -Xms512m -Xmx512m
         type: STRING
     Artifacts:
-      # TODO: set correct URI
-      - URI: S3:aws.greengrass.nucleus.2.0.0.zip
+      - URI: s3://gg-dev-artifacts/$componentName/$version/aws.greengrass.nucleus.zip
         Unarchive: zip
     Lifecycle:
       bootstrap:
           script: |-
             set -eu
             KERNEL_ROOT="{{kernel:rootPath}}"
-            UNPACK_DIR="{{artifacts:decompressedPath}}/aws.greengrass.nucleus.2.0.0"
+            UNPACK_DIR="{{artifacts:decompressedPath}}/aws.greengrass.nucleus"
             # TODO: Use builtin unpack functionality with permission preserved if available
             chmod +x "$UNPACK_DIR/bin/loader"
 
@@ -32,22 +31,21 @@ Manifests:
             exit 100
 
   - Platform:
-      os: ubuntu
+      os: linux
     Parameters:
       - name: jvmOptions
         # TODO: consider change to nested structure
         value: -Xms512m -Xmx512m
         type: STRING
     Artifacts:
-      # TODO: set correct URI
-      - URI: S3:aws.greengrass.nucleus.2.0.0.zip
+      - URI: s3://gg-dev-artifacts/$componentName/$version/aws.greengrass.nucleus.zip
         Unarchive: zip
     Lifecycle:
       bootstrap:
         script: |-
           set -eu
           KERNEL_ROOT="{{kernel:rootPath}}"
-          UNPACK_DIR="{{artifacts:decompressedPath}}/aws.greengrass.nucleus.2.0.0"
+          UNPACK_DIR="{{artifacts:decompressedPath}}/aws.greengrass.nucleus"
           # TODO: Use builtin unpack functionality with permission preserved if available
           chmod +x "$UNPACK_DIR/bin/loader"
 

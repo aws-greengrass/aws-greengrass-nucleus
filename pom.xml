@@ -574,7 +574,7 @@
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
-                    <finalName>aws.greengrass.nucleus.2.0.0</finalName>
+                    <finalName>aws.greengrass.nucleus</finalName>
                     <descriptors>
                         <descriptor>${basedir}/assembly.xml</descriptor>
                     </descriptors>
