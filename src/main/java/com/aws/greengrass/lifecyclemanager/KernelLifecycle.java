@@ -107,8 +107,7 @@ public class KernelLifecycle {
 
         kernel.writeEffectiveConfig();
 
-        ProxyUtils.setSystemProxyProperties(kernel.getConfig().lookupTopics(DeviceConfiguration.SYSTEM_NAMESPACE_KEY,
-                DeviceConfiguration.DEVICE_NETWORK_PROXY_NAMESPACE));
+        ProxyUtils.setSystemProxyProperties(kernel.getContext().get(DeviceConfiguration.class));
 
         logger.atInfo().setEventType("system-start").addKeyValue("main", kernel.getMain()).log();
         startupAllServices();
