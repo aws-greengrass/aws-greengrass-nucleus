@@ -13,6 +13,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -171,20 +172,21 @@ public class AuthorizationHandlerTest {
 
 
     @Test
-    void GIVEN_AuthZ_handler_WHEN_authz_policy_with_invalid_component_THEN_load_fails(ExtensionContext context) throws InterruptedException {
+    void GIVEN_AuthZ_handler_WHEN_authz_policy_with_invalid_component_THEN_load_fails(ExtensionContext context)
+            throws InterruptedException {
 
         ignoreExceptionOfType(context, AuthorizationException.class);
         setupLogListener("load-authorization-config-invalid-component");
 
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
-        authorizationHandler.loadAuthorizationPolicies(null, Collections.singletonList(getAuthZPolicy())
-                , false);
+        authorizationHandler.loadAuthorizationPolicies(null, Collections.singletonList(getAuthZPolicy()),
+                false);
 
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
         setupLogListener("load-authorization-config-invalid-component");
-        authorizationHandler.loadAuthorizationPolicies("", Collections.singletonList(getAuthZPolicy())
-                , false);
+        authorizationHandler.loadAuthorizationPolicies("", Collections.singletonList(getAuthZPolicy()),
+                false);
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
     }
 
@@ -209,17 +211,19 @@ public class AuthorizationHandlerTest {
 
     @ParameterizedTest
     @NullAndEmptySource
-    void GIVEN_AuthZ_handler_WHEN_component_registered_with_empty_name_THEN_errors(String componentName) throws AuthorizationException {
+    void GIVEN_AuthZ_handler_WHEN_component_registered_with_empty_name_THEN_errors(String componentName) {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         final Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerComponent(componentName, serviceOps));
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerComponent(componentName,
+                serviceOps));
     }
 
     @Test
     void GIVEN_AuthZ_handler_WHEN_component_registered_without_operation_THEN_errors() throws AuthorizationException {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         final Set<String> emptyOps = new HashSet<>();
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerComponent("ServiceA", emptyOps));
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.registerComponent(
+                "ServiceA", emptyOps));
     }
 
     @Test
@@ -301,8 +305,8 @@ public class AuthorizationHandlerTest {
         authorizationHandler.registerComponent("ServiceB", serviceOps);
 
         AuthorizationPolicy policy = getStarOperationsAuthZPolicy();
-        authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy)
-                , false);
+        authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy),
+                false);
         // All registered Operations are allowed now
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
                 Permission.builder().principal("compA").operation("OpA").resource(null).build()));
@@ -344,8 +348,8 @@ public class AuthorizationHandlerTest {
         authorizationHandler.registerComponent("ServiceA", serviceOps);
 
         AuthorizationPolicy policy = getStarResourceAuthZPolicy();
-        authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy)
-                , false);
+        authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy),
+                false);
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
                 Permission.builder().principal("compA").operation("OpA").resource("*").build()));
 
@@ -402,7 +406,8 @@ public class AuthorizationHandlerTest {
     }
 
     @Test
-    void GIVEN_authZ_handler_WHEN_loaded_incorrect_config_THEN_load_fails(ExtensionContext context) throws InterruptedException {
+    void GIVEN_authZ_handler_WHEN_loaded_incorrect_config_THEN_load_fails(ExtensionContext context)
+            throws InterruptedException {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
 
         ignoreExceptionOfType(context, AuthorizationException.class);
