@@ -51,9 +51,11 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import javax.inject.Inject;
 import javax.inject.Named;
 
@@ -325,13 +327,23 @@ public class CLIServiceAgent {
     public ListLocalDeploymentResponse listLocalDeployments(Topics serviceConfig) {
         List<LocalDeployment> persistedDeployments = new ArrayList<>();
         Topics localDeployments = serviceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
-        localDeployments.forEach(topic -> {
-            Topics topics = (Topics) topic;
-            persistedDeployments.add(LocalDeployment.builder()
-                    .deploymentId(topics.getName())
-                    .status(Coerce.toEnum(DeploymentStatus.class,
-                            topics.find(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS))).build());
-        });
+        if (Objects.nonNull(localDeployments)) {
+            StreamSupport.stream(localDeployments.spliterator(), false)
+                    .sorted((left, right) -> {
+                        if (left.getModtime() > right.getModtime()) {
+                            return 1;
+                        }
+                        return -1;
+                    })
+                    .forEach(topic -> {
+                            Topics topics = (Topics) topic;
+                            persistedDeployments.add(LocalDeployment.builder()
+                                    .deploymentId(topics.getName())
+                                    .status(Coerce.toEnum(DeploymentStatus.class,
+                                            topics.find(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS)))
+                                    .build());
+                    });
+        }
         return ListLocalDeploymentResponse.builder().localDeployments(persistedDeployments).build();
     }
 
