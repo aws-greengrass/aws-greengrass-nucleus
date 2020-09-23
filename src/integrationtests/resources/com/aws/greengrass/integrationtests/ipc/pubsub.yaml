@@ -33,9 +33,9 @@ services:
     lifecycle:
       run:
         windows:
-          powershell -command sleep 100
+          powershell -command sleep 1
         posix:
-          sleep 100
+          sleep 1
     parameters:
       accessControl:
         '{
@@ -57,9 +57,9 @@ services:
     lifecycle:
       run:
         windows:
-          powershell -command sleep 100
+          powershell -command sleep 1
         posix:
-          sleep 100
+          sleep 1
     parameters:
       accessControl:
         '{
@@ -83,9 +83,9 @@ services:
     lifecycle:
       run:
         windows:
-          powershell -command sleep 100
+          powershell -command sleep 1
         posix:
-          sleep 100
+          sleep 1
     parameters:
       accessControl:
         '{
@@ -109,9 +109,9 @@ services:
     lifecycle:
       run:
         windows:
-          powershell -command sleep 100
+          powershell -command sleep 1
         posix:
-          sleep 100
+          sleep 1
     parameters:
       accessControl:
         '{
@@ -133,9 +133,9 @@ services:
     lifecycle:
       run:
         windows:
-          powershell -command sleep 100
+          powershell -command sleep 1
         posix:
-          sleep 100
+          sleep 1
     parameters:
       accessControl:
         '{
@@ -153,4 +153,3 @@ services:
               }
               ]
             }'
-
