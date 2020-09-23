@@ -15,7 +15,9 @@ import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.crt.auth.credentials.StaticCredentialsProvider;
 
+import java.nio.charset.Charset;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
@@ -54,6 +56,25 @@ public class LazyCredentialProvider implements AWSCredentialsProvider, AwsCreden
             AwsSessionCredentials credentials = (AwsSessionCredentials) resolveCredentials();
             return new BasicSessionCredentials(credentials.accessKeyId(), credentials.secretAccessKey(),
                     credentials.sessionToken());
+        } catch (SdkClientException e) {
+            throw new AmazonClientException(e);
+        }
+    }
+
+    /**
+     * Provides a StaticCredentialsProvider containing credentials obtained from TES.
+     *
+     * @return StaticCredentialsProvider containing TES credentials
+     * @throws AmazonClientException if there was a problem fetching credentials from TES
+     */
+    public StaticCredentialsProvider getFreshStaticCredentialsProvider() {
+        try {
+            AwsSessionCredentials credentials = (AwsSessionCredentials) resolveCredentials();
+            return new StaticCredentialsProvider.StaticCredentialsProviderBuilder()
+                    .withAccessKeyId(credentials.accessKeyId().getBytes(Charset.forName("UTF-8")))
+                    .withSecretAccessKey(credentials.secretAccessKey().getBytes(Charset.forName("UTF-8")))
+                    .withSessionToken(credentials.sessionToken().getBytes(Charset.forName("UTF-8")))
+                    .build();
         } catch (SdkClientException e) {
             throw new AmazonClientException(e);
         }

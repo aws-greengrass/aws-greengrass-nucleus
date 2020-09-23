@@ -8,12 +8,12 @@ package com.aws.greengrass.mqttclient;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.tes.LazyCredentialProvider;
 import com.aws.greengrass.util.Coerce;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
 import software.amazon.awssdk.crt.CRT;
-import software.amazon.awssdk.crt.auth.credentials.X509CredentialsProvider;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import javax.inject.Provider;
 
 /**
@@ -44,7 +45,7 @@ class AwsIotMqttClient implements Closeable {
             .dfltKv(MqttClient.CLIENT_ID_KEY, (Supplier<String>) this::getClientId);
 
     private final Provider<AwsIotMqttConnectionBuilder> builderProvider;
-    private final X509CredentialsProvider credentialsProvider;
+    private final LazyCredentialProvider lazyCredentialProvider;
     @Getter
     private final String clientId;
     @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
@@ -87,12 +88,12 @@ class AwsIotMqttClient implements Closeable {
     private final Map<String, QualityOfService> subscriptionTopics = new ConcurrentHashMap<>();
 
     AwsIotMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
-                     X509CredentialsProvider credentialsProvider,
+                     @Nullable LazyCredentialProvider lazyCredentialProvider,
                      Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler,
                      String clientId, Topics mqttTopics,
                      CallbackEventManager callbackEventManager) {
         this.builderProvider = builderProvider;
-        this.credentialsProvider = credentialsProvider;
+        this.lazyCredentialProvider = lazyCredentialProvider;
         this.clientId = clientId;
         this.mqttTopics = mqttTopics;
         this.messageHandler = messageHandler.apply(this);
@@ -139,8 +140,8 @@ class AwsIotMqttClient implements Closeable {
         // Always use the builder provider here so that the builder is updated with whatever
         // the latest device config is
         try (AwsIotMqttConnectionBuilder builder = builderProvider.get()) {
-            if (credentialsProvider != null) {
-                builder.withWebsocketCredentialsProvider(credentialsProvider);
+            if (lazyCredentialProvider != null) {
+                builder.withWebsocketCredentialsProvider(lazyCredentialProvider.getFreshStaticCredentialsProvider());
             }
             builder.withConnectionEventCallbacks(connectionEventCallback);
             builder.withClientId(clientId);

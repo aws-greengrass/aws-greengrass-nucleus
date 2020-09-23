@@ -10,17 +10,15 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.tes.LazyCredentialProvider;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.ProxyUtils;
-import software.amazon.awssdk.crt.auth.credentials.X509CredentialsProvider;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
-import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
@@ -65,7 +63,6 @@ public class MqttClient implements Closeable {
     public static final int DEFAULT_MQTT_PORT = 8883;
     public static final String MQTT_PORT_KEY = "port";
     private static final String MQTT_SOCKET_TIMEOUT_KEY = "socketTimeoutMs";
-    private static final String MQTT_CREDENTIAL_ROLE_ALIAS_KEY = "credentialRoleAlias";
     // Default taken from AWS SDK
     private static final int DEFAULT_MQTT_SOCKET_TIMEOUT = (int) Duration.ofSeconds(3).toMillis();
     static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
@@ -80,7 +77,7 @@ public class MqttClient implements Closeable {
     private final AtomicReference<Future<?>> reconfigureFuture = new AtomicReference<>();
     @SuppressWarnings("PMD.ImmutableField")
     private Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider;
-    private X509CredentialsProvider credentialsProvider;
+    private LazyCredentialProvider lazyCredentialProvider;
     private final List<AwsIotMqttClient> connections = new CopyOnWriteArrayList<>();
     private final Map<SubscribeRequest, AwsIotMqttClient> subscriptions = new ConcurrentHashMap<>();
     private final Map<MqttTopic, AwsIotMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
@@ -98,51 +95,36 @@ public class MqttClient implements Closeable {
     /**
      * Constructor for injection.
      *
-     * @param deviceConfiguration device configuration
-     * @param executorService     executor service
+     * @param deviceConfiguration    device configuration
+     * @param executorService        executor service
+     * @param lazyCredentialProvider credential provider for proxy support
      */
     @Inject
     @SuppressWarnings("PMD.ConfusingTernary")
-    public MqttClient(DeviceConfiguration deviceConfiguration, ExecutorService executorService) {
+    public MqttClient(DeviceConfiguration deviceConfiguration, ExecutorService executorService,
+                      LazyCredentialProvider lazyCredentialProvider) {
         this(deviceConfiguration, null, executorService);
         HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
 
         if (httpProxyOptions != null) {
-            try (TlsContextOptions x509TlsOptions = TlsContextOptions.createWithMtlsFromPath(
-                    Coerce.toString(deviceConfiguration.getCertificateFilePath()),
-                    Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))) {
+            this.lazyCredentialProvider = lazyCredentialProvider;
 
-                x509TlsOptions.withCertificateAuthorityFromPath(null,
-                        Coerce.toString(deviceConfiguration.getRootCAFilePath()));
-
-                try (ClientTlsContext x509TlsContext = new ClientTlsContext(x509TlsOptions)) {
-                    this.credentialsProvider = new X509CredentialsProvider.X509CredentialsProviderBuilder()
-                            .withClientBootstrap(clientBootstrap)
-                            .withTlsContext(x509TlsContext)
-                            .withEndpoint(Coerce.toString(deviceConfiguration.getIotCredentialEndpoint()))
-                            .withRoleAlias(Coerce.toString(mqttTopics.find(MQTT_CREDENTIAL_ROLE_ALIAS_KEY)))
-                            .withThingName(Coerce.toString(deviceConfiguration.getThingName()))
-                            .withProxyOptions(httpProxyOptions)
-                            .build();
-                }
-
-                this.builderProvider = (clientBootstrap) -> AwsIotMqttConnectionBuilder
-                        .newMtlsBuilderFromPath(null, null)
-                        .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
-                        .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
-                        .withCleanSession(false)
-                        .withBootstrap(clientBootstrap)
-                        .withKeepAliveMs(Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
-                                MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
-                        .withPingTimeoutMs(Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT,
-                                MQTT_PING_TIMEOUT_KEY)))
-                        .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(mqttTopics.findOrDefault(
-                                DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)))
-                        .withClientId(Coerce.toString(deviceConfiguration.getThingName()))
-                        .withWebsockets(true)
-                        .withWebsocketSigningRegion(Coerce.toString(deviceConfiguration.getAWSRegion()))
-                        .withWebsocketProxyOptions(httpProxyOptions);
-            }
+            this.builderProvider = (clientBootstrap) -> AwsIotMqttConnectionBuilder
+                    .newMtlsBuilderFromPath(null, null)
+                    .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
+                    .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
+                    .withCleanSession(false)
+                    .withBootstrap(clientBootstrap)
+                    .withKeepAliveMs(Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
+                            MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
+                    .withPingTimeoutMs(Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT,
+                            MQTT_PING_TIMEOUT_KEY)))
+                    .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(mqttTopics.findOrDefault(
+                            DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)))
+                    .withClientId(Coerce.toString(deviceConfiguration.getThingName()))
+                    .withWebsockets(true)
+                    .withWebsocketSigningRegion(Coerce.toString(deviceConfiguration.getAWSRegion()))
+                    .withWebsocketProxyOptions(httpProxyOptions);
         } else {
             this.builderProvider = (clientBootstrap) -> AwsIotMqttConnectionBuilder
                     .newMtlsBuilderFromPath(Coerce.toString(deviceConfiguration.getCertificateFilePath()),
@@ -386,7 +368,7 @@ public class MqttClient implements Closeable {
         // Name client by thingName-<number> except for the first connection which will just be thingName
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
                 : "-" + connections.size() + 1);
-        return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), credentialsProvider,
+        return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), lazyCredentialProvider,
                 this::getMessageHandlerForClient, clientId, mqttTopics, callbackEventManager);
     }
 
