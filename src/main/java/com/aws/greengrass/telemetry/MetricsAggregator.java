@@ -19,7 +19,6 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -41,7 +40,7 @@ public class MetricsAggregator {
     protected static final String AGGREGATE_METRICS_FILE = "AggregateMetrics";
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
-    @Getter(AccessLevel.PACKAGE)
+    @Getter
     private final NamespaceSet namespaceSet;
 
     @Inject
@@ -238,7 +237,7 @@ public class MetricsAggregator {
                     }
                 }
             }
-            newAgg.setNamespace("Acc-" + namespace);
+            newAgg.setNamespace(namespace);
             newAgg.setTimestamp(currTimestamp);
             newAgg.setMetrics(doAggregationForPublish(metrics));
             list.add(newAgg);

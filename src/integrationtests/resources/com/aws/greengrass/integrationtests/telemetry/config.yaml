@@ -7,4 +7,4 @@ services:
   TelemetryAgent:
     parameters:
       periodicAggregateMetricsIntervalSec: 3
-      periodicPublishMetricsIntervalSec: 10
+      periodicPublishMetricsIntervalSec: 2
