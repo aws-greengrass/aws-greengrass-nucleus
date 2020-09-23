@@ -6,7 +6,6 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.telemetry.NamespaceSet;
 import com.aws.greengrass.telemetry.PeriodicMetricsEmitter;
 import com.aws.greengrass.telemetry.impl.Metric;
 import com.aws.greengrass.telemetry.impl.MetricFactory;
@@ -28,13 +27,11 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
      * Constructor for kernel metrics emitter.
      *
      * @param kernel {@link Kernel}
-     * @param namespaceSet {@link NamespaceSet}
      */
     @Inject
-    public KernelMetricsEmitter(Kernel kernel, NamespaceSet namespaceSet) {
+    public KernelMetricsEmitter(Kernel kernel) {
         super();
         this.kernel = kernel;
-        namespaceSet.addNamespace(NAMESPACE);
     }
 
     /**

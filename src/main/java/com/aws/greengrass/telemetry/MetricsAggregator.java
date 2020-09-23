@@ -22,7 +22,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.io.IOException;
@@ -30,22 +29,35 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
-import javax.inject.Inject;
 
 public class MetricsAggregator {
     public static final Logger logger = LogManager.getLogger(MetricsAggregator.class);
     protected static final String AGGREGATE_METRICS_FILE = "AggregateMetrics";
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
-    @Getter
-    private final NamespaceSet namespaceSet;
 
-    @Inject
-    public MetricsAggregator(NamespaceSet ns) {
-        this.namespaceSet = ns;
+    /**
+     * Get the set of all the namespaces created using MetricsFactory. This method assumes that MetricFactory will be
+     * used only to emit and aggregate metrics.
+     *
+     * @return namespace set
+     */
+    public static Set<String> getNamespaceSet() {
+        Set<String> namespaces = new HashSet<>();
+        for (ch.qos.logback.classic.Logger logger : TelemetryConfig.getInstance().getContext().getLoggerList()) {
+            String loggerName = logger.getName();
+            //Skip if the logger is ROOT or Metrics-AggregateMetrics
+            if (!loggerName.equals(logger.ROOT_LOGGER_NAME)
+                    && !loggerName.equals(MetricFactory.METRIC_LOGGER_PREFIX + AGGREGATE_METRICS_FILE)) {
+                namespaces.add(loggerName.substring(MetricFactory.METRIC_LOGGER_PREFIX.length()));
+            }
+        }
+        return namespaces;
     }
 
     /**
@@ -55,7 +67,7 @@ public class MetricsAggregator {
      * @param currTimestamp timestamp at which the current aggregation is initiated.
      */
     protected void aggregateMetrics(long lastAgg, long currTimestamp) {
-        for (String namespace : getNamespaceSet().getNamespaces()) {
+        for (String namespace : getNamespaceSet()) {
             AggregatedMetric aggMetrics = new AggregatedMetric();
             HashMap<String, List<Metric>> metrics = new HashMap<>();
             // Read from the Telemetry/namespace*.log file.
@@ -196,6 +208,7 @@ public class MetricsAggregator {
         aggUploadMetrics.putIfAbsent(currTimestamp, new ArrayList<>());
         //Along with the aggregated data points, we need to collect an additional data point for each metric which is
         // like the aggregation of aggregated data points.
+        // TODO : Do cumulative average rather than performing average on average
         aggUploadMetrics.compute(currTimestamp, (k, v) -> {
             v.addAll(getAggForThePublishInterval(aggUploadMetrics.get(currTimestamp), currTimestamp));
             return v;
@@ -227,7 +240,7 @@ public class MetricsAggregator {
      */
     private List<AggregatedMetric> getAggForThePublishInterval(List<AggregatedMetric> aggList, long currTimestamp) {
         List<AggregatedMetric> list = new ArrayList<>();
-        for (String namespace : getNamespaceSet().getNamespaces()) {
+        for (String namespace : getNamespaceSet()) {
             HashMap<String, List<AggregatedMetric.Metric>> metrics = new HashMap<>();
             AggregatedMetric newAgg = new AggregatedMetric();
             for (AggregatedMetric am : aggList) {

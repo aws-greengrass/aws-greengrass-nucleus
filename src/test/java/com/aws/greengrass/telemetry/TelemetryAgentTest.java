@@ -174,7 +174,7 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
         verify(mockMqttClient, timeout(milliSeconds).atLeastOnce()).publish(publishRequestArgumentCaptor.capture());
         PublishRequest request = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, request.getQos());
-        assertEquals("$aws/things/testThing/greengrassv2/health/json", request.getTopic());
+        assertEquals("$aws/things/testThing/greengrass/health/json", request.getTopic());
         reset(telemetryAgent, mockMqttClient);
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
         //verify that nothing is published when mqtt is interrupted

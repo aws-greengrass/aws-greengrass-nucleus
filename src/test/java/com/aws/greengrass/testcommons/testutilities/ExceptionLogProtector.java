@@ -9,7 +9,6 @@ import com.aws.greengrass.ipc.IPCService;
 import com.aws.greengrass.ipc.common.ServiceEventHelper;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
-import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.util.Utils;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.extension.AfterEachCallback;
@@ -149,9 +148,6 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
     @SneakyThrows
     public void afterEach(ExtensionContext context) throws Exception {
         Slf4jLogAdapter.removeGlobalListener(getListener(context));
-        //Stop the telemetry logger context after each test so we can delete the telemetry log files that are created
-        // during the test.
-        TelemetryConfig.getInstance().closeContext();
         List<Throwable> exceptions = getExceptions(context);
         try {
             if (!exceptions.isEmpty()) {

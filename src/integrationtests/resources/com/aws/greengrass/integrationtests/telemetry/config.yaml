@@ -6,5 +6,5 @@ services:
         all: echo All installed
   TelemetryAgent:
     parameters:
-      periodicAggregateMetricsIntervalSec: 3
-      periodicPublishMetricsIntervalSec: 2
+      periodicAggregateMetricsIntervalSec: 2
+      periodicPublishMetricsIntervalSec: 4

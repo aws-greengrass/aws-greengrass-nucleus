@@ -35,7 +35,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETER
 public class TelemetryAgent extends GreengrassService {
     public static final String TELEMETRY_AGENT_SERVICE_TOPICS = "TelemetryAgent";
     public static final String DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC =
-            "$aws/things/{thingName}/greengrassv2/health/json";
+            "$aws/things/{thingName}/greengrass/health/json";
     public static final String TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC = "periodicAggregateMetricsIntervalSec";
     public static final String TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicPublishMetricsIntervalSec";
     public static final String TELEMETRY_METRICS_PUBLISH_TOPICS = "telemetryMetricsPublishTopic";
@@ -44,8 +44,8 @@ public class TelemetryAgent extends GreengrassService {
     public static final String TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC = "lastPeriodicAggregationMetricsTime";
     private static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 86_400;
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
-    private static int periodicPublishMetricsIntervalSec = 0;
-    private static int periodicAggregateMetricsIntervalSec = 0;
+    private static int periodicPublishMetricsIntervalSec;
+    private static int periodicAggregateMetricsIntervalSec;
     private final MqttClient mqttClient;
     private final MetricsAggregator metricsAggregator;
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
@@ -68,7 +68,6 @@ public class TelemetryAgent extends GreengrassService {
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
             isConnected.set(true);
-            schedulePeriodicPublishMetrics(true);
         }
     };
     private String updateTopic;
@@ -142,15 +141,14 @@ public class TelemetryAgent extends GreengrassService {
     /**
      * Schedules the publishing of metrics based on the configured publish interval or the mqtt connection status.
      *
-     * @param isReconfiguredOrConnectionResumed will be true if the publish interval is reconfigured or when
+     * @param isReconfigured will be true if the publish interval is reconfigured or when
      *                                          the mqtt connection is resumed.
      */
-    //TODO : Publish accumulated data point for each namespace.
-    private void schedulePeriodicPublishMetrics(boolean isReconfiguredOrConnectionResumed) {
+    private void schedulePeriodicPublishMetrics(boolean isReconfigured) {
         // If we missed to publish the metrics due to connection loss or if the publish interval is reconfigured,
         // cancel the previously scheduled job.
         cancelJob(periodicPublishMetricsFuture, periodicPublishMetricsInProgressLock, false);
-        if (isReconfiguredOrConnectionResumed) {
+        if (isReconfigured) {
             synchronized (periodicPublishMetricsInProgressLock) {
                 Instant lastPeriodicPubTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicPublishTimeTopic()));
                 if (lastPeriodicPubTime.plusSeconds(periodicPublishMetricsIntervalSec).isBefore(Instant.now())) {
@@ -159,8 +157,8 @@ public class TelemetryAgent extends GreengrassService {
             }
         }
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it, we don't want
-        // all the devices to send the periodic publish of metrics at the same time.
-        long initialDelay = RandomUtils.nextLong(1, periodicPublishMetricsIntervalSec + 1);
+        // all the devices to publish metrics at the same time.
+        long initialDelay = RandomUtils.nextLong(0, periodicPublishMetricsIntervalSec + 1);
         synchronized (periodicPublishMetricsInProgressLock) {
             periodicPublishMetricsFuture = ses.scheduleWithFixedDelay(this::publishPeriodicMetrics, initialDelay,
                     periodicPublishMetricsIntervalSec, TimeUnit.SECONDS);

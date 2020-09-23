@@ -43,17 +43,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 public class MetricsAggregatorTest {
     private static final ObjectMapper mapper = new ObjectMapper();
     private static final String sm = "SystemMetrics";
-    private final NamespaceSet namespaceSet = new NamespaceSet();
     private final MetricFactory mf = new MetricFactory(sm);
+    private final MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
     @TempDir
     protected Path tempRootDir;
-    private MetricsAggregator ma;
-    private final MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
+    private final MetricsAggregator ma = new MetricsAggregator();
 
     @BeforeEach
     void setup() {
-        namespaceSet.addNamespace(sm);
-        ma = new MetricsAggregator(namespaceSet);
         TelemetryConfig.getInstance().setRoot(tempRootDir);
     }
 
@@ -86,7 +83,7 @@ public class MetricsAggregatorTest {
         Path path = Paths.get(TelemetryConfig.getTelemetryDirectory().toString()).resolve(
                 "AggregateMetrics.log");
         List<String> list = Files.readAllLines(path);
-        assertEquals(ma.getNamespaceSet().getNamespaces().size(), list.size()); // Metrics are aggregated based on the namespace.
+        assertEquals(MetricsAggregator.getNamespaceSet().size(), list.size()); // Metrics are aggregated based on the namespace.
         for (String s : list) {
             AggregatedMetric am = mapper.readValue(mapper.readTree(s).get("message").asText(),
                     AggregatedMetric.class);
@@ -142,7 +139,7 @@ public class MetricsAggregatorTest {
         ma.aggregateMetrics(lastAgg, Instant.now().toEpochMilli());
         Path path = Paths.get(TelemetryConfig.getTelemetryDirectory().toString()).resolve("AggregateMetrics.log");
         List<String> list = Files.readAllLines(path);
-        assertEquals(ma.getNamespaceSet().getNamespaces().size(), list.size()); // Metrics are aggregated based on the namespace.
+        assertEquals(MetricsAggregator.getNamespaceSet().size(), list.size()); // Metrics are aggregated based on the namespace.
         for (String s : list) {
             AggregatedMetric am = mapper.readValue(mapper.readTree(s).get("message").asText(),
                     AggregatedMetric.class);

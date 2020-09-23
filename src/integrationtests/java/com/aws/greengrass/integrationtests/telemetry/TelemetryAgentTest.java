@@ -43,7 +43,7 @@ import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_PERIODIC_AGG
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
@@ -63,7 +63,6 @@ class TelemetryAgentTest extends BaseITCase {
     @AfterEach
     void after() {
         if (kernel != null) {
-            mqttClient.close();
             kernel.shutdown();
         }
     }
@@ -73,7 +72,7 @@ class TelemetryAgentTest extends BaseITCase {
             ServiceLoadException {
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("config.yaml").toString());
-        CountDownLatch mainRunning = new CountDownLatch(2);
+        CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
                 mainRunning.countDown();
@@ -82,37 +81,43 @@ class TelemetryAgentTest extends BaseITCase {
         kernel.getContext().put(MqttClient.class, mqttClient);
         //WHEN
         kernel.launch();
-
+        CountDownLatch telemetryRunning = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("TelemetryAgent") && service.getState().equals(State.RUNNING)) {
+                telemetryRunning.countDown();
+            }
+        });
+        telemetryRunning.await(10, TimeUnit.SECONDS);
         Topics parameterTopics = kernel.getConfig()
                 .lookupTopics(SERVICES_NAMESPACE_TOPIC, TELEMETRY_AGENT_SERVICE_TOPICS, PARAMETERS_CONFIG_KEY);
         int aggregateInterval = Coerce.toInt(parameterTopics.find(TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC));
         int periodicInterval = Coerce.toInt(parameterTopics.find(TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC));
+        TelemetryAgent ma = (TelemetryAgent) kernel.locate("TelemetryAgent");
+        long delay = ma.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
+        assertTrue(delay <= periodicInterval);
         //telemetry configurations are set correctly
-        assertEquals(3, aggregateInterval);
-        assertEquals(2, periodicInterval);
+        assertEquals(2, aggregateInterval);
+        assertEquals(4, periodicInterval);
         Topics runtimeTopics = kernel.getConfig()
                 .lookupTopics(SERVICES_NAMESPACE_TOPIC, TELEMETRY_AGENT_SERVICE_TOPICS, RUNTIME_STORE_NAMESPACE_TOPIC);
         long lastAgg = Coerce.toLong(runtimeTopics.find(TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC));
 
-        //wait for at least 4 seconds as the first aggregation occurs at 3rd second.
-        Thread.sleep(4000);
+        //wait till the first publish
+        TimeUnit.SECONDS.sleep(periodicInterval + 1);
         assertTrue(Coerce.toLong(runtimeTopics.find(TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC)) > lastAgg);
 
-        TelemetryAgent ma = (TelemetryAgent) kernel.locate("TelemetryAgent");
-        long delay = ma.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
-        assertTrue(delay < periodicInterval);
+
         // telemetry logs are always written to ~root/telemetry
         assertEquals(kernel.getRootPath().resolve("telemetry"), TelemetryConfig.getTelemetryDirectory());
         // THEN
-        verify(mqttClient, timeout(1000).atLeastOnce()).publish(captor.capture());
+        verify(mqttClient, atLeastOnce()).publish(captor.capture());
         List<PublishRequest> prs = captor.getAllValues();
         for (PublishRequest pr : prs) {
             try {
                 MetricsPayload mp = new ObjectMapper().readValue(pr.getPayload(), MetricsPayload.class);
-                //There will be nothing to aggregate as publish happens at 1st second and aggregation at 2nd second.
-                // So, there will only one accumulated data point for each namespace during the first publish
-                assertEquals(kernel.getContext().get(MetricsAggregator.class)
-                        .getNamespaceSet().getNamespaces().size(), mp.getAggregatedMetricList().size());
+                int count = (int) (delay / aggregateInterval + 1) * MetricsAggregator.getNamespaceSet().size();
+                // > is in the cases where delay < aggregate interval
+                assertTrue(count >= mp.getAggregatedMetricList().size());
                 assertEquals(QualityOfService.AT_LEAST_ONCE, pr.getQos());
                 assertEquals(DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", ""), pr.getTopic());
                 assertEquals("2020-07-30", mp.getSchema());

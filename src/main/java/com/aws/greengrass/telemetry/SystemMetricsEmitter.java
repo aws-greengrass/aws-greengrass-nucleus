@@ -14,8 +14,6 @@ import com.aws.greengrass.telemetry.models.TelemetryUnit;
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
 
-import javax.inject.Inject;
-
 public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
     public static final Logger logger = LogManager.getLogger(SystemMetricsEmitter.class);
     private static final int MB_CONVERTER = 1024 * 1024;
@@ -25,16 +23,6 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
     private static final SystemInfo systemInfo = new SystemInfo();
     private final MetricFactory mf = new MetricFactory(NAMESPACE);
     private long[] previousTicks = new long[CentralProcessor.TickType.values().length];
-
-    /**
-     * Constructor for the class.
-     * @param namespaceSet {@link NamespaceSet}
-     */
-    @Inject
-    public SystemMetricsEmitter(NamespaceSet namespaceSet) {
-        super();
-        namespaceSet.addNamespace(NAMESPACE);
-    }
 
     @Override
     public void emitMetrics() {

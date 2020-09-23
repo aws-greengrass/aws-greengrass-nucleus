@@ -256,8 +256,6 @@ public class KernelLifecycle {
             return;
         }
         close(tlog);
-        //close the telemetry logger context
-        TelemetryConfig.getInstance().closeContext();
         try {
             logger.atInfo().setEventType("system-shutdown").addKeyValue("main", getMain()).log();
             stopAllServices(timeoutSeconds);
@@ -274,6 +272,9 @@ public class KernelLifecycle {
             executorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             scheduledExecutorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             logger.atInfo("executor-service-shutdown-complete").log();
+            //Stop the telemetry logger context after each test so we can delete the telemetry log files that are
+            // created during the test.
+            TelemetryConfig.getInstance().closeContext();
             logger.atInfo("context-shutdown-initiated").log();
             kernel.getContext().close();
             logger.atInfo("context-shutdown-complete").log();
