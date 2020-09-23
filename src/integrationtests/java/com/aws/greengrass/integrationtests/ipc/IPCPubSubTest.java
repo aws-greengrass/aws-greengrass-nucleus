@@ -3,6 +3,8 @@
 
 package com.aws.greengrass.integrationtests.ipc;
 
+import com.aws.greengrass.authorization.AuthorizationModule;
+import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
@@ -32,6 +34,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETER
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTROL_NAMESPACE_TOPIC;
+import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
@@ -39,6 +42,7 @@ import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssert
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(GGExtension.class)
 class IPCPubSubTest {
@@ -48,6 +52,8 @@ class IPCPubSubTest {
     private static int TIMEOUT_FOR_PUBSUB_SECONDS = 2;
     private static Kernel kernel;
     private static IPCClient client;
+    public static Permission TES_DEFAULT_POLICY =
+            Permission.builder().principal("*").operation("getCredentials").resource(null).build();
 
     @BeforeAll
     static void beforeEach(ExtensionContext context) throws InterruptedException {
@@ -108,6 +114,8 @@ class IPCPubSubTest {
         client = new IPCClientImpl(config);
         PubSub c = new PubSubImpl(client);
 
+        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+
         Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
             assertEquals("some message", new String(m, StandardCharsets.UTF_8));
         });
@@ -135,6 +143,9 @@ class IPCPubSubTest {
         //Block until events are completed
         kernel.getContext().runOnPublishQueueAndWait(() -> {
         });
+
+        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+
         c.subscribeToTopic("a", cb.getRight()); //now this should succeed
         c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
         cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);

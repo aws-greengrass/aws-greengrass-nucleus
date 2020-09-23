@@ -11,9 +11,11 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -69,12 +71,13 @@ public class AuthorizationHandler  {
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
+
+        //Load default policies
+        componentNameToPolicies.putAll(getDefaultPolicies());
+
         for (Map.Entry<String, List<AuthorizationPolicy>> acl : componentNameToPolicies.entrySet()) {
             this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), false);
         }
-
-        //Load default policies
-        addDefaultPolicies();
 
         //Subscribe to future auth config updates
         this.kernel.getConfig().getRoot().subscribe(
@@ -104,15 +107,17 @@ public class AuthorizationHandler  {
                         return;
                     }
 
-                    try {
-                        rwLock.writeLock().lock();
+                    //Reload all policies
+                    //TODO: Add more sophisticated logic to specifically update policies scoped to this component,
+                    // instead of reloading everything on every update.
+                    // https://issues-iad.amazon.com/issues/V243584397
+                    Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
+                            .parseAllAuthorizationPolicies(kernel);
 
-                        //Reload all policies
-                        //TODO: Add more sophisticated logic to specifically update policies scoped to this component,
-                        // instead of reloading everything on every update.
-                        // https://issues-iad.amazon.com/issues/V243584397
-                        Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
-                                .parseAllAuthorizationPolicies(kernel);
+                    //Load default policies
+                    reloadedPolicies.putAll(getDefaultPolicies());
+
+                    try (LockScope scope = LockScope.lock(rwLock.writeLock())) {
 
                         for (Map.Entry<String, List<AuthorizationPolicy>> masterPolicyList :
                                 componentToAuthZConfig.entrySet()) {
@@ -129,9 +134,6 @@ public class AuthorizationHandler  {
                         for (Map.Entry<String, List<AuthorizationPolicy>> acl : reloadedPolicies.entrySet()) {
                             this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), true);
                         }
-
-                    } finally {
-                        rwLock.writeLock().unlock();
                     }
                 });
     }
@@ -166,8 +168,7 @@ public class AuthorizationHandler  {
                 {destination, ANY_REGEX, ANY_REGEX, resource},
                 {destination, ANY_REGEX, ANY_REGEX, ANY_REGEX},
         };
-        try {
-            rwLock.readLock().lock();
+        try (LockScope scope = LockScope.lock(rwLock.readLock())) {
             for (String[] combination : combinations) {
                 if (authModule.isPresent(combination[0],
                         Permission.builder()
@@ -182,8 +183,6 @@ public class AuthorizationHandler  {
                     return true;
                 }
             }
-        } finally {
-            rwLock.readLock().unlock();
         }
         throw new AuthorizationException(
                 String.format("Principal %s is not authorized to perform %s:%s on resource %s",
@@ -387,9 +386,13 @@ public class AuthorizationHandler  {
                 .build());
     }
 
-    private void addDefaultPolicies() {
-        //Load the default policy for TES
-        this.loadAuthorizationPolicies(TOKEN_EXCHANGE_SERVICE_TOPICS,
-                getDefaultPolicyForService(AUTHZ_TES_OPERATION), false);
+    private Map<String, List<AuthorizationPolicy>> getDefaultPolicies() {
+        Map<String, List<AuthorizationPolicy>> allDefaultPolicies = new HashMap<>();
+
+        //Create the default policy for TES
+        allDefaultPolicies.put(TOKEN_EXCHANGE_SERVICE_TOPICS, getDefaultPolicyForService(AUTHZ_TES_OPERATION));
+
+        return allDefaultPolicies;
+
     }
 }
