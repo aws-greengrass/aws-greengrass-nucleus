@@ -26,6 +26,7 @@ import org.apache.commons.io.FileUtils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -46,24 +47,24 @@ public class ComponentStore {
     public static final String ARTIFACTS_DECOMPRESSED_DIRECTORY = "artifacts-decompressed";
     private static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
 
+    private final Path componentStoreDirectory;
     private final Path recipeDirectory;
-
     private final Path artifactDirectory;
-
     private final Path artifactsDecompressedDirectory;
 
     /**
-     * Constructor. It will initialize recipe, artifact and artifact unpack directory.
+     * Constructor. It will initialize recipe, artifact and artifact decompressed directory.
      *
-     * @param packageStoreDirectory the root path for package store.
+     * @param componentStoreDirectory the root path for package store.
      * @throws PackagingException if fails to create recipe or artifact directory.
      */
     @Inject
-    public ComponentStore(@Named(CONTEXT_PACKAGE_STORE_DIRECTORY) @NonNull Path packageStoreDirectory)
+    public ComponentStore(@Named(CONTEXT_PACKAGE_STORE_DIRECTORY) @NonNull Path componentStoreDirectory)
             throws PackagingException {
-        this.recipeDirectory = packageStoreDirectory.resolve(RECIPE_DIRECTORY);
-        this.artifactDirectory = packageStoreDirectory.resolve(ARTIFACT_DIRECTORY);
-        this.artifactsDecompressedDirectory = packageStoreDirectory.resolve(ARTIFACTS_DECOMPRESSED_DIRECTORY);
+        this.componentStoreDirectory = componentStoreDirectory;
+        this.recipeDirectory = componentStoreDirectory.resolve(RECIPE_DIRECTORY);
+        this.artifactDirectory = componentStoreDirectory.resolve(ARTIFACT_DIRECTORY);
+        this.artifactsDecompressedDirectory = componentStoreDirectory.resolve(ARTIFACTS_DECOMPRESSED_DIRECTORY);
         try {
             Utils.createPaths(recipeDirectory, artifactDirectory, artifactsDecompressedDirectory);
         } catch (IOException e) {
@@ -136,6 +137,25 @@ public class ComponentStore {
         }
 
         return optionalPackage.get();
+    }
+
+    /**
+     * Delete the package recipe and all artifacts from disk.
+     *
+     * @param pkgId package identifier
+     */
+    void deletePackage(@NonNull ComponentIdentifier pkgId) throws PackagingException {
+        Path recipePath = resolveRecipePath(pkgId.getName(), pkgId.getVersion());
+        Path artifactDirPath = resolveArtifactDirectoryPath(pkgId);
+        Path artifactDecompressedDirPath = resolveArtifactsDecompressedDirectory(pkgId);
+
+        try {
+            Files.deleteIfExists(recipePath);
+            FileUtils.deleteDirectory(artifactDirPath.toFile());
+            FileUtils.deleteDirectory(artifactDecompressedDirPath.toFile());
+        } catch (IOException e) {
+            throw new PackagingException("Failed to delete package " + pkgId, e);
+        }
     }
 
     /**
@@ -216,23 +236,59 @@ public class ComponentStore {
     }
 
     /**
-     * Resolve the artifact unpack directory path and creates the directory if absent.
+     * Resolve the artifact decompressed directory.
      *
-     * @param componentIdentifier packageIdentifier
-     * @return artifact unpack directory path
-     * @throws PackageLoadingException if un-able to create artifact unpack directory path
+     * @param componentIdentifier componentIdentifier
+     * @return artifact decompressed directory path
      */
-    public Path resolveAndSetupArtifactsUnpackDirectory(@NonNull ComponentIdentifier componentIdentifier)
+    public Path resolveArtifactsDecompressedDirectory(@NonNull ComponentIdentifier componentIdentifier) {
+        return artifactsDecompressedDirectory.resolve(componentIdentifier.getName())
+                .resolve(componentIdentifier.getVersion().getValue());
+    }
+
+    /**
+     * Resolve the artifact decompressed directory path and creates the directory if absent.
+     *
+     * @param componentIdentifier componentIdentifier
+     * @return artifact decompressed directory path
+     * @throws PackageLoadingException if un-able to create artifact decompressed directory path
+     */
+    public Path resolveAndSetupArtifactsDecompressedDirectory(@NonNull ComponentIdentifier componentIdentifier)
             throws PackageLoadingException {
-        Path path = artifactsDecompressedDirectory.resolve(componentIdentifier.getName())
-                                                  .resolve(componentIdentifier.getVersion().getValue());
+        Path path = resolveArtifactsDecompressedDirectory(componentIdentifier);
         try {
             Utils.createPaths(path);
             return path;
         } catch (IOException e) {
             throw new PackageLoadingException(
-                    "Failed to create artifact unpack directory for " + componentIdentifier.toString(), e);
+                    "Failed to create artifact decompressed directory for " + componentIdentifier.toString(), e);
         }
+    }
+
+    /**
+     * Get the total size of files in the package store by recursively walking the package store directory. Provides an
+     * estimate of the package store's disk usage.
+     *
+     * @return total length of files in bytes
+     * @throws UnexpectedPackagingException if unable to access the package store directory
+     */
+    public long getContentSize() throws UnexpectedPackagingException {
+        try {
+            return Files.walk(this.componentStoreDirectory).map(Path::toFile)
+                    .filter(File::isFile).mapToLong(File::length).sum();
+        } catch (IOException e) {
+            throw new UnexpectedPackagingException("Failed to access package store", e);
+        }
+    }
+
+    /**
+     * Get remaining usable bytes for the package store.
+     * @return usable bytes
+     * @throws IOException if I/O error occurred
+     */
+    public long getUsableSpace() throws IOException {
+        FileStore filestore = Files.getFileStore(this.componentStoreDirectory);
+        return filestore.getUsableSpace();
     }
 
     private static String parsePackageNameFromFileName(String filename) {

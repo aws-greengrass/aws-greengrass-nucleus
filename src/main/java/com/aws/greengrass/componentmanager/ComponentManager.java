@@ -233,8 +233,9 @@ public class ComponentManager implements InjectionActions {
 
             if (downloadedFile != null && !unarchive.equals(Unarchive.NONE)) {
                 try {
-                    Path unarchivePath = componentStore.resolveAndSetupArtifactsUnpackDirectory(componentIdentifier)
-                            .resolve(getFileName(downloadedFile));
+                    Path unarchivePath =
+                            componentStore.resolveAndSetupArtifactsDecompressedDirectory(componentIdentifier)
+                                    .resolve(getFileName(downloadedFile));
                     Utils.createPaths(unarchivePath);
                     unarchiver.unarchive(unarchive, downloadedFile, unarchivePath);
                 } catch (IOException e) {

@@ -119,7 +119,7 @@ class KernelConfigResolverTest {
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
         when(componentStore.getPackageRecipe(dependencyComponentIdentifier)).thenReturn(dependencyComponentRecipe);
-        when(componentStore.resolveAndSetupArtifactsUnpackDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
+        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(mainService.getName()).thenReturn("main");
@@ -170,7 +170,7 @@ class KernelConfigResolverTest {
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
-        when(componentStore.resolveAndSetupArtifactsUnpackDirectory(rootComponentIdentifier)).thenReturn(
+        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(rootComponentIdentifier)).thenReturn(
                 DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
@@ -218,7 +218,7 @@ class KernelConfigResolverTest {
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
-        when(componentStore.resolveAndSetupArtifactsUnpackDirectory(rootComponentIdentifier)).thenReturn(
+        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(rootComponentIdentifier)).thenReturn(
                 DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
@@ -298,7 +298,7 @@ class KernelConfigResolverTest {
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
         when(componentStore.getPackageRecipe(package2)).thenReturn(package2Recipe);
         when(componentStore.getPackageRecipe(package3)).thenReturn(package3Recipe);
-        when(componentStore.resolveAndSetupArtifactsUnpackDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
+        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(mainService.getName()).thenReturn("main");
@@ -347,7 +347,7 @@ class KernelConfigResolverTest {
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
-        when(componentStore.resolveAndSetupArtifactsUnpackDirectory(rootComponentIdentifier)).thenReturn(
+        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(rootComponentIdentifier)).thenReturn(
                 DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);

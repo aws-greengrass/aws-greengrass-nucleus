@@ -25,12 +25,14 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private static final Logger logger = LogManager.getLogger(GreengrassRepositoryDownloader.class);
-    private static final String CONTENT_DISPOSITION = "Content-Disposition";
+    private static final String HTTP_HEADER_CONTENT_DISPOSITION = "Content-Disposition";
+    private static final String HTTP_HEADER_CONTENT_LENGTH = "Content-Length";
     private static final String HTTP_HEADER_LOCATION = "Location";
     private static final String ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT =
             "Failed to download artifact %s for package %s-%s";
@@ -60,7 +62,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                 int responseCode = httpConn.getResponseCode();
 
                 if (responseCode == HttpURLConnection.HTTP_OK) {
-                    String disposition = httpConn.getHeaderField(CONTENT_DISPOSITION);
+                    String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
                     String filename = extractFilename(url, disposition);
 
                     try (InputStream inputStream = httpConn.getInputStream()) {
@@ -101,6 +103,38 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             return saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
         }
         return null;
+    }
+
+    /**
+     * Get the size of artifact from greengrass repo by sending HTTP HEAD request.
+     *
+     * @param packageIdentifier package info
+     * @param artifact artifact info
+     * @return ContentLength in bytes
+     */
+    @Override
+    public long getSize(ComponentIdentifier packageIdentifier, ComponentArtifact artifact)
+            throws IOException, PackageDownloadException {
+        logger.atInfo().setEventType("get-artifact-size-from-greengrass-repo")
+                .addKeyValue("packageIdentifier", packageIdentifier)
+                .addKeyValue("artifactUri", artifact.getArtifactUri().toString()).log();
+
+        String preSignedUrl =
+                getArtifactDownloadURL(packageIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
+        URL url = new URL(preSignedUrl);
+        HttpURLConnection conn = connect(url);
+        conn.setRequestMethod("HEAD");
+        Map<String, List<String>> headers = conn.getHeaderFields();
+        // TODO verify this works by trying on a real package
+        if (!headers.containsKey(HTTP_HEADER_CONTENT_LENGTH) || headers.get(HTTP_HEADER_CONTENT_LENGTH).size() != 1) {
+            throw new PackageDownloadException(HTTP_HEADER_CONTENT_LENGTH + " not found in response " + "header");
+        }
+
+        try {
+            return Long.parseLong(headers.get(HTTP_HEADER_CONTENT_LENGTH).get(0));
+        } catch (NumberFormatException e) {
+            throw new PackageDownloadException("Got mal-formed Content-Length", e);
+        }
     }
 
     HttpURLConnection connect(URL url) throws IOException {
