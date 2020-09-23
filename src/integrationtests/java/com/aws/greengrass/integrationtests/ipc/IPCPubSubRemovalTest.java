@@ -25,7 +25,6 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Pair;
 
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,7 +56,6 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -67,15 +65,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class IPCPubSubRemovalTest {
 
     @TempDir
-    static Path tempRootDir;
-    private static int TIMEOUT_FOR_PUBSUB_SECONDS = 2;
+    protected Path tempRootDir;
+    private static final int TIMEOUT_FOR_PUBSUB_SECONDS = 2;
     private static Kernel kernel;
     private static IPCClient client;
-
-    @BeforeAll
-    static void startKernel() {
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
-    }
 
     @AfterEach
     void stopKernel() throws IOException {
@@ -89,6 +82,8 @@ class IPCPubSubRemovalTest {
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
+
+        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = prepareKernelFromConfigFile("pubsub.yaml", IPCPubSubTest.class, "SubscribeAndPublish");
     }
 
