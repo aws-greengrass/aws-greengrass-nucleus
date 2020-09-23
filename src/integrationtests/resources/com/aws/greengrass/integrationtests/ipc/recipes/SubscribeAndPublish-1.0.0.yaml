@@ -20,5 +20,8 @@ Manifests:
           }
         Type: STRING
     Lifecycle:
-      Run: >-
-        sleep 100
+      Run:
+        windows:
+          powershell -command sleep 1
+        posix:
+          sleep 1
