@@ -1,0 +1,10 @@
+---
+services:
+  main:
+    lifecycle:
+      install:
+        all: echo All installed
+  TelemetryAgent:
+    parameters:
+      periodicAggregateMetricsIntervalSec: 3
+      periodicPublishMetricsIntervalSec: 10
