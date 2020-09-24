@@ -173,10 +173,6 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
         // aggregation is continued irrespective of the mqtt connection
         verify(telemetryAgent, timeout(milliSeconds).atLeastOnce()).aggregatePeriodicMetrics();
-        telemetryAgent.getPeriodicAggregateMetricsFuture().cancel(true);
-        telemetryAgent.getPeriodicPublishMetricsFuture().cancel(true);
-        kme.future.cancel(true);
-        sme.future.cancel(true);
     }
 }
 
