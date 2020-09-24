@@ -42,20 +42,27 @@ public class MetricsAggregator {
     private final MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
 
     /**
-     * Get the set of all the namespaces created using MetricsFactory. This method assumes that MetricFactory will be
-     * used only to emit and aggregate metrics.
+     * Read namespaces from files.
+     * Telemetry log files format : fileName + "_%d{yyyy_MM_dd_HH}_%i" + "." + prefix
      *
      * @return namespace set
      */
     public static Set<String> getNamespaceSet() {
         Set<String> namespaces = new HashSet<>();
-        for (ch.qos.logback.classic.Logger logger : TelemetryConfig.getInstance().getContext().getLoggerList()) {
-            String loggerName = logger.getName();
-            //Skip if the logger is ROOT or Metrics-AggregateMetrics
-            if (!loggerName.equals(logger.ROOT_LOGGER_NAME)
-                    && !loggerName.equals(MetricFactory.METRIC_LOGGER_PREFIX + AGGREGATE_METRICS_FILE)) {
-                namespaces.add(loggerName.substring(MetricFactory.METRIC_LOGGER_PREFIX.length()));
-            }
+        try (Stream<Path> paths = Files
+                .walk(TelemetryConfig.getTelemetryDirectory())
+                .filter(Files::isRegularFile)) {
+            paths.forEach((p) -> {
+                String fileName = Coerce.toString(p.getFileName()).split(".log")[0];
+                if (fileName.contains("_")) {
+                    fileName = fileName.split("_")[0];
+                }
+                if (!fileName.equalsIgnoreCase(AGGREGATE_METRICS_FILE)) {
+                    namespaces.add(fileName);
+                }
+            });
+        } catch (IOException e) {
+            logger.atError().cause(e).log("Unable to read files from the telemetry directory");
         }
         return namespaces;
     }

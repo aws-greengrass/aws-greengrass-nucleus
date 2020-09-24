@@ -76,18 +76,16 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
     void setup() {
         serviceFullName = "MetricsAgent";
         initializeMockedConfig();
+        TelemetryConfig.getInstance().setRoot(tempRootDir);
         kme = new KernelMetricsEmitter(mock(Kernel.class));
         sme = new SystemMetricsEmitter();
         ma = new MetricsAggregator();
-        TelemetryConfig.getInstance().setRoot(tempRootDir);
         ses = new ScheduledThreadPoolExecutor(3);
         Topic periodicAggregateMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC, "1");
-        lenient().when(config
-                .lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC))
+        lenient().when(config.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC))
                 .thenReturn(periodicAggregateMetricsIntervalSec);
         Topic periodicPublishMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC, "3");
-        lenient().when(config
-                .lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC))
+        lenient().when(config.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC))
                 .thenReturn(periodicPublishMetricsIntervalSec);
         Topic lastPeriodicAggregateTime = Topic.of(context, TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC,
                 Instant.now().toEpochMilli());

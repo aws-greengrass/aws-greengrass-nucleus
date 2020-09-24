@@ -72,12 +72,6 @@ class TelemetryAgentTest extends BaseITCase {
             ServiceLoadException {
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("config.yaml").toString());
-        CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
-            }
-        });
         kernel.getContext().put(MqttClient.class, mqttClient);
         //WHEN
         kernel.launch();
@@ -87,7 +81,7 @@ class TelemetryAgentTest extends BaseITCase {
                 telemetryRunning.countDown();
             }
         });
-        telemetryRunning.await(10, TimeUnit.SECONDS);
+        assertTrue(telemetryRunning.await(1, TimeUnit.MINUTES), "TelemetryAgent is in RUNNING state.");
         Topics parameterTopics = kernel.getConfig()
                 .lookupTopics(SERVICES_NAMESPACE_TOPIC, TELEMETRY_AGENT_SERVICE_TOPICS, PARAMETERS_CONFIG_KEY);
         int aggregateInterval = Coerce.toInt(parameterTopics.find(TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC));

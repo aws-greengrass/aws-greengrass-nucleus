@@ -109,9 +109,8 @@ public class MetricsAggregatorTest {
         //with the latest aggregations.
         for (String s : list) {
             GreengrassLogMessage egLog = mapper.readValue(s, GreengrassLogMessage.class);
-            AggregatedMetric am = mapper.readValue(egLog.getMessage(),
-                    AggregatedMetric.class);
-            if (am.getTimestamp() == currTimestamp && am.getNamespace().equals("SystemMetrics")) {
+            AggregatedMetric am = mapper.readValue(egLog.getMessage(), AggregatedMetric.class);
+            if (am.getTimestamp() == currTimestamp && am.getNamespace().equals(sm)) {
                 assertEquals(0, am.getMetrics().size()); // There is no aggregation as there are no latest values
             }
         }
@@ -141,8 +140,8 @@ public class MetricsAggregatorTest {
         List<String> list = Files.readAllLines(path);
         assertEquals(MetricsAggregator.getNamespaceSet().size(), list.size()); // Metrics are aggregated based on the namespace.
         for (String s : list) {
-            AggregatedMetric am = mapper.readValue(mapper.readTree(s).get("message").asText(),
-                    AggregatedMetric.class);
+            GreengrassLogMessage egLog = mapper.readValue(s, GreengrassLogMessage.class);
+            AggregatedMetric am = mapper.readValue(egLog.getMessage(), AggregatedMetric.class);
             if (am.getNamespace().equals(sm)) {
                 assertEquals(2, am.getMetrics().size()); // Two system metrics, one of them is null
                 for (AggregatedMetric.Metric metrics : am.getMetrics()) {
