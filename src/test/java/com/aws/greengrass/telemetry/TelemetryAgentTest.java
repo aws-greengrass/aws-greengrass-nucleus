@@ -8,6 +8,7 @@ package com.aws.greengrass.telemetry;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelMetricsEmitter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
@@ -46,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
@@ -68,22 +70,24 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
     @Mock
     private ScheduledExecutorService ses;
     private TelemetryAgent telemetryAgent;
+    @Mock
     private SystemMetricsEmitter sme;
+    @Mock
     private KernelMetricsEmitter kme;
+    @Mock
     private MetricsAggregator ma;
     @Mock
     private Context context;
 
     @BeforeEach
     public void setup() {
-        serviceFullName = "MetricsAgentService";
+        serviceFullName = "MetricsAgent";
         initializeMockedConfig();
+        kme = new KernelMetricsEmitter(mock(Kernel.class));
+        sme = new SystemMetricsEmitter();
+        ma = new MetricsAggregator();
         TelemetryConfig.getInstance().setRoot(tempRootDir);
         ses = new ScheduledThreadPoolExecutor(3);
-        context = new Context();
-        sme = context.get(SystemMetricsEmitter.class);
-        kme = context.get(KernelMetricsEmitter.class);
-        ma = context.get(MetricsAggregator.class);
         Topic periodicAggregateMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC, "1");
         lenient().when(config
                 .lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC))
@@ -114,7 +118,6 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
 
     @AfterEach
     public void cleanUp() throws IOException {
-        TelemetryConfig.getInstance().closeContext();
         telemetryAgent.shutdown();
         ses.shutdownNow();
         context.close();
@@ -161,7 +164,6 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
     @Test
     public void GIVEN_Telemetry_Agent_WHEN_mqtt_is_interrupted_THEN_aggregation_continues_but_publishing_stops()
             throws InterruptedException {
-        doNothing().when(telemetryAgent).aggregatePeriodicMetrics();
         Topic periodicPublishMetricsIntervalSec = Topic.of(context, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC, "2");
         lenient().doReturn(periodicPublishMetricsIntervalSec).when(config).lookup(PARAMETERS_CONFIG_KEY,
                 TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC);
@@ -178,6 +180,10 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
         // aggregation is continued irrespective of the mqtt connection
         verify(telemetryAgent, timeout(milliSeconds).atLeastOnce()).aggregatePeriodicMetrics();
+        telemetryAgent.getPeriodicAggregateMetricsFuture().cancel(true);
+        telemetryAgent.getPeriodicPublishMetricsFuture().cancel(true);
+        kme.future.cancel(true);
+        sme.future.cancel(true);
     }
 }
 
