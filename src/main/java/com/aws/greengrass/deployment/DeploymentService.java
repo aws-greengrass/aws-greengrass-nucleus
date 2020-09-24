@@ -5,6 +5,7 @@ package com.aws.greengrass.deployment;
 
 
 import com.amazonaws.util.CollectionUtils;
+import com.amazonaws.util.StringUtils;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
@@ -68,6 +69,7 @@ public class DeploymentService extends GreengrassService {
     public static final String COMPONENTS_TO_GROUPS_TOPICS = "ComponentToGroups";
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN = "groupConfigArn";
+    public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_NAME = "groupConfigName";
 
     public static final String DEPLOYMENTS_QUEUE = "deploymentsQueue";
     protected static final ObjectMapper OBJECT_MAPPER =
@@ -243,6 +245,8 @@ public class DeploymentService extends GreengrassService {
                             pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
                             pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
                                     deploymentDocument.getDeploymentId());
+                            pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_NAME,
+                                    deploymentDocument.getGroupName());
                             deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
                         }
                     });
@@ -460,9 +464,12 @@ public class DeploymentService extends GreengrassService {
             Topic groupConfigTopic = componentTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN);
             String groupConfig = Coerce.toString(groupConfigTopic);
 
+            Topic groupNameTopic = componentTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_NAME);
+            String groupName = Coerce.toString(groupNameTopic);
+
             Map<String, Object> groupDeploymentIdSet = (Map<String, Object>) componentsToGroupsMappingCache
                     .getOrDefault(componentTopics.getName(), new HashMap<>());
-            groupDeploymentIdSet.putIfAbsent(groupConfig, true);
+            groupDeploymentIdSet.putIfAbsent(groupConfig, groupName);
             componentsToGroupsMappingCache.put(componentTopics.getName(), groupDeploymentIdSet);
             pendingComponentsList.add(componentTopics.getName());
         });
@@ -502,14 +509,19 @@ public class DeploymentService extends GreengrassService {
      * @param componentName The name of the component.
      * @return The list of groups the component is a part of.
      */
-    public Set<String> getGroupConfigsForUserComponent(String componentName) {
+    public Set<String> getGroupNamesForUserComponent(String componentName) {
         Topics componentsToGroupsTopics = config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
 
         Set<String> componentGroups = new HashSet<>();
         if (componentsToGroupsTopics != null) {
             Topics groupsTopics = componentsToGroupsTopics.lookupTopics(componentName);
-            groupsTopics.children.values().stream().map(n -> (Topic) n).map(Topic::getName)
-                    .forEach(componentGroups::add);
+            groupsTopics.children.values().stream().map(n -> (Topic) n)
+                    .forEach(topic -> {
+                        String groupName = Coerce.toString(topic);
+                        if (!StringUtils.isNullOrEmpty(groupName)) {
+                            componentGroups.add(groupName);
+                        }
+                    });
         }
         return componentGroups;
     }
@@ -518,18 +530,23 @@ public class DeploymentService extends GreengrassService {
      * Gets the list of all the groups that the thing is a part of.
      * @return All the group configs.
      */
-    public Set<String> getAllGroupConfigs() {
+    public Set<String> getAllGroupNames() {
         Topics componentsToGroupsTopics = config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
 
-        Set<String> componentGroups = new HashSet<>();
+        Set<String> allGroupNames = new HashSet<>();
         if (componentsToGroupsTopics != null) {
             componentsToGroupsTopics.iterator().forEachRemaining(node -> {
                 Topics groupsTopics = (Topics) node;
-                groupsTopics.children.values().stream().map(n -> (Topic) n).map(Topic::getName)
-                        .forEach(componentGroups::add);
+                groupsTopics.children.values().stream().map(n -> (Topic) n)
+                        .forEach(topic -> {
+                            String groupName = Coerce.toString(topic);
+                            if (!StringUtils.isNullOrEmpty(groupName)) {
+                                allGroupNames.add(groupName);
+                            }
+                        });
 
             });
         }
-        return componentGroups;
+        return allGroupNames;
     }
 }
