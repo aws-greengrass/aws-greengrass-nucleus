@@ -74,6 +74,26 @@ public final class IotSdkClientFactory {
     }
 
     /**
+     * Build IotClient for desired region, stage and credentials.
+     *
+     * @param awsRegion           aws region
+     * @param stage               {@link EnvironmentStage}
+     * @param credentialsProvider credentials provider
+     * @return
+     */
+    public static IotClient getIotClient(String awsRegion, EnvironmentStage stage,
+                                         AwsCredentialsProvider credentialsProvider) throws URISyntaxException {
+        IotClientBuilder iotClientBuilder = IotClient.builder().region(Region.of(awsRegion))
+                .credentialsProvider(credentialsProvider)
+                .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build());
+        if (stage != EnvironmentStage.PROD) {
+            URI endpoint = new URI(String.format(IOT_CONTROL_PLANE_ENDPOINT_FORMAT, stage.value, awsRegion));
+            iotClientBuilder.endpointOverride(endpoint);
+        }
+        return iotClientBuilder.build();
+    }
+
+    /**
      * Build IotClient for tests with custom retry logic.
      *
      * @param awsRegion                     aws region
