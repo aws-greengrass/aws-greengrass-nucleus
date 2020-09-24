@@ -114,13 +114,11 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
     }
 
     @AfterEach
-    public void cleanUp() throws IOException, InterruptedException {
+    public void cleanUp() throws IOException {
         TelemetryConfig.getInstance().closeContext();
         telemetryAgent.shutdown();
-        ses.shutdown();
-        Thread.sleep(500);
+        ses.shutdownNow();
         context.close();
-        ses.awaitTermination(1000, TimeUnit.MILLISECONDS);
     }
 
     @Test
