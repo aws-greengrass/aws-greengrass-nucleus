@@ -26,12 +26,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.telemetry.MetricsAggregator.AGGREGATE_METRICS_FILE;
 import static com.aws.greengrass.telemetry.MetricsAggregator.AggregatedMetric;
@@ -45,9 +45,9 @@ public class MetricsAggregatorTest {
     private static final String sm = "SystemMetrics";
     private final MetricFactory mf = new MetricFactory(sm);
     private final MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
+    private final MetricsAggregator ma = new MetricsAggregator();
     @TempDir
     protected Path tempRootDir;
-    private final MetricsAggregator ma = new MetricsAggregator();
 
     @BeforeEach
     void setup() {
@@ -77,11 +77,10 @@ public class MetricsAggregatorTest {
         mf.putMetricData(m1, 30);
         mf.putMetricData(m2, 4000);
         mf.putMetricData(m3, 6000);
-        Thread.sleep(100);
+        TimeUnit.MILLISECONDS.sleep(100);
         long currTimestamp = Instant.now().toEpochMilli();
         ma.aggregateMetrics(lastAgg, currTimestamp);
-        Path path = Paths.get(TelemetryConfig.getTelemetryDirectory().toString()).resolve(
-                "AggregateMetrics.log");
+        Path path = TelemetryConfig.getTelemetryDirectory().resolve("AggregateMetrics.log");
         List<String> list = Files.readAllLines(path);
         assertEquals(MetricsAggregator.getNamespaceSet().size(), list.size()); // Metrics are aggregated based on the namespace.
         for (String s : list) {
@@ -101,12 +100,13 @@ public class MetricsAggregatorTest {
             }
         }
         lastAgg = currTimestamp;
-        Thread.sleep(1000);
+        TimeUnit.SECONDS.sleep(1);
         currTimestamp = Instant.now().toEpochMilli();
         // Aggregate values within 1 second interval at this timestamp with 1
         ma.aggregateMetrics(lastAgg, currTimestamp);
         list = Files.readAllLines(path);
-        assertEquals(2, list.size()); // AggregateMetrics.log is appended with the latest aggregations.
+        assertEquals(2 * MetricsAggregator.getNamespaceSet().size(), list.size()); // AggregateMetrics.log is appended
+        //with the latest aggregations.
         for (String s : list) {
             GreengrassLogMessage egLog = mapper.readValue(s, GreengrassLogMessage.class);
             AggregatedMetric am = mapper.readValue(egLog.getMessage(),
@@ -134,10 +134,10 @@ public class MetricsAggregatorTest {
         mf.putMetricData(m2, 2000);
         //put invalid metric
         mf.logMetrics(new TelemetryLoggerMessage("alfredo"));
-        Thread.sleep(100);
+        TimeUnit.MILLISECONDS.sleep(100);
         // Aggregate values within 1 second interval at this timestamp with 1
         ma.aggregateMetrics(lastAgg, Instant.now().toEpochMilli());
-        Path path = Paths.get(TelemetryConfig.getTelemetryDirectory().toString()).resolve("AggregateMetrics.log");
+        Path path = TelemetryConfig.getTelemetryDirectory().resolve("AggregateMetrics.log");
         List<String> list = Files.readAllLines(path);
         assertEquals(MetricsAggregator.getNamespaceSet().size(), list.size()); // Metrics are aggregated based on the namespace.
         for (String s : list) {
@@ -161,7 +161,6 @@ public class MetricsAggregatorTest {
         //Create a sample file with aggregated metrics so we can test the freshness of the file and logs
         // with respect to the current timestamp
         long lastPublish = Instant.now().toEpochMilli();
-//        MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
         long currentTimestamp = Instant.now().toEpochMilli();
         List<AggregatedMetric.Metric> metricList = new ArrayList<>();
         Map<String, Object> map = new HashMap<>();
@@ -175,37 +174,36 @@ public class MetricsAggregatorTest {
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
-        Thread.sleep(100);
+        TimeUnit.MILLISECONDS.sleep(100);
         // Create an instance of the metrics uploader to get the aggregated metrics
         Map<Long, List<AggregatedMetric>> list = ma.getMetricsToPublish(lastPublish, currentTimestamp);
 
         //We perform aggregation on the aggregated data points at the time of publish and get n additional metrics with
-        // the current timestamp where n = no of namespaces. In this test, we have only 1 namespace i.e SystemMetrics
-        assertEquals(1, list.get(currentTimestamp).size());
+        // the current timestamp where n = no of namespaces.
+        assertEquals(MetricsAggregator.getNamespaceSet().size(), list.get(currentTimestamp).size());
         currentTimestamp = Instant.now().toEpochMilli();
         list = ma.getMetricsToPublish(lastPublish, currentTimestamp);
         lastPublish = currentTimestamp;
         // we only have one list of the metrics collected
         assertEquals(1, list.size());
 
-        //we have 3 entries of the aggregated metrics before this latest TS + 1 entry which is the aggregation of those
-        // 3 entries
-        assertEquals(4, list.get(currentTimestamp).size());
+        //we have 3 entries of the aggregated metrics before this latest TS + one metric for each namespace
+        assertEquals(3 + MetricsAggregator.getNamespaceSet().size(), list.get(currentTimestamp).size());
 
-        Thread.sleep(1000);
+        TimeUnit.SECONDS.sleep(1);
         currentTimestamp = Instant.now().toEpochMilli();
         aggregatedMetric = new AggregatedMetric(currentTimestamp, sm, metricList);
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
-        Thread.sleep(100);
+        TimeUnit.MILLISECONDS.sleep(100);
         currentTimestamp = Instant.now().toEpochMilli();
         list = ma.getMetricsToPublish(lastPublish, currentTimestamp);
 
         // we only have one list of the metrics collected
         assertEquals(1, list.size());
 
-        // Will not collect the first 3 entries as they are stale. Latest 2 + 1 accumulated data point
-        assertEquals(3, list.get(currentTimestamp).size());
+        // Will not collect the first 3 entries as they are stale. Latest 2 + n accumulated data point
+        assertEquals(2 + MetricsAggregator.getNamespaceSet().size(), list.get(currentTimestamp).size());
     }
 
     @Test
@@ -236,7 +234,7 @@ public class MetricsAggregatorTest {
         metricFactory.logMetrics(new TelemetryLoggerMessage("buffaloWildWings")); // will be ignored
         metricFactory.logMetrics(new TelemetryLoggerMessage(null)); // will be ignored
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
-        Thread.sleep(100);
+        TimeUnit.MILLISECONDS.sleep(100);
         currentTimestamp = Instant.now().toEpochMilli();
         Map<Long, List<AggregatedMetric>> metricsMap = ma.getMetricsToPublish(lastPublish, currentTimestamp);
 
@@ -244,13 +242,16 @@ public class MetricsAggregatorTest {
         assertFalse(metricsMap.get(currentTimestamp).contains(null));
 
         // Out of 6 aggregated metrics, only 4 are published plus there is one accumulated point for each namespace
-        // during publish,here we have 1 namespace - SystemMetrics
-        assertEquals(5, metricsMap.get(currentTimestamp).size());
+        assertEquals(4 + MetricsAggregator.getNamespaceSet().size(), metricsMap.get(currentTimestamp).size());
 
-        //The accumulated data point will always be the last one of the list and has the same ts as publish
+        //The accumulated data points will always be at end the of the list and has the same ts as publish. Acc data
+        // points begin from index 4 as first 4 are aggregated metrics
         assertEquals(currentTimestamp, metricsMap.get(currentTimestamp).get(4).getTimestamp());
-
-        // There are 3 metrics in the our system metrics namespace.
-        assertEquals(3, metricsMap.get(currentTimestamp).get(4).getMetrics().size());
+        for (AggregatedMetric amet : metricsMap.get(currentTimestamp)) {
+            if (amet.getNamespace().equals("SystemMetrics")) {
+                // There are 3 metrics in system metrics namespace.
+                assertEquals(3, amet.getMetrics().size());
+            }
+        }
     }
 }
