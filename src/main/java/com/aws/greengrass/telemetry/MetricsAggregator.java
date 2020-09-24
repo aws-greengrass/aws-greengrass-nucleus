@@ -38,7 +38,7 @@ import java.util.stream.Stream;
 public class MetricsAggregator {
     public static final Logger logger = LogManager.getLogger(MetricsAggregator.class);
     protected static final String AGGREGATE_METRICS_FILE = "AggregateMetrics";
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper objectMapper = new ObjectMapper();
     private final MetricFactory metricFactory = new MetricFactory(AGGREGATE_METRICS_FILE);
 
     /**

@@ -31,6 +31,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
@@ -108,11 +109,12 @@ public class TelemetryAgentTest extends GGServiceTestUtil {
     }
 
     @AfterEach
-    void cleanUp() throws IOException {
+    void cleanUp() throws IOException, InterruptedException {
         TelemetryConfig.getInstance().closeContext();
         telemetryAgent.shutdown();
-        ses.shutdownNow();
+        ses.shutdown();
         context.close();
+        ses.awaitTermination(2, TimeUnit.SECONDS);
     }
 
     @Test
