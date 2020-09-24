@@ -6,7 +6,9 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
+import com.amazonaws.services.evergreen.model.ComponentContent;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
+import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
@@ -19,6 +21,7 @@ import com.aws.greengrass.componentmanager.plugins.GreengrassRepositoryDownloade
 import com.aws.greengrass.componentmanager.plugins.S3Downloader;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.InjectionActions;
+import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
@@ -32,6 +35,7 @@ import com.vdurmont.semver4j.Semver;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -42,6 +46,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
@@ -72,20 +77,19 @@ public class ComponentManager implements InjectionActions {
     /**
      * PackageManager constructor.
      *
-     * @param s3ArtifactsDownloader          s3ArtifactsDownloader
-     * @param greengrassArtifactDownloader   greengrassArtifactDownloader
-     * @param componentServiceHelper greengrassPackageServiceHelper
-     * @param executorService                executorService
-     * @param componentStore                   componentStore
-     * @param kernel                         kernel
-     * @param unarchiver                     unarchiver
+     * @param s3ArtifactsDownloader        s3ArtifactsDownloader
+     * @param greengrassArtifactDownloader greengrassArtifactDownloader
+     * @param componentServiceHelper       greengrassPackageServiceHelper
+     * @param executorService              executorService
+     * @param componentStore               componentStore
+     * @param kernel                       kernel
+     * @param unarchiver                   unarchiver
      */
     @Inject
     public ComponentManager(S3Downloader s3ArtifactsDownloader,
                             GreengrassRepositoryDownloader greengrassArtifactDownloader,
-                            ComponentServiceHelper componentServiceHelper,
-                            ExecutorService executorService, ComponentStore componentStore, Kernel kernel,
-                            Unarchiver unarchiver) {
+                            ComponentServiceHelper componentServiceHelper, ExecutorService executorService,
+                            ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver) {
         this.s3ArtifactsDownloader = s3ArtifactsDownloader;
         this.greengrassArtifactDownloader = greengrassArtifactDownloader;
         this.componentServiceHelper = componentServiceHelper;
@@ -131,18 +135,100 @@ public class ComponentManager implements InjectionActions {
         }
 
         try {
-            componentMetadataList.addAll(
-                    componentServiceHelper.listAvailableComponentMetadata(packageName, versionRequirement));
+            componentMetadataList
+                    .addAll(componentServiceHelper.listAvailableComponentMetadata(packageName, versionRequirement));
         } catch (PackageDownloadException e) {
-            logger.atInfo("list-package-versions")
-                  .addKeyValue(PACKAGE_NAME_KEY, packageName)
-                  .log("Failed when calling Component Management Service to list available versions", e);
+            logger.atInfo("list-package-versions").addKeyValue(PACKAGE_NAME_KEY, packageName)
+                    .log("Failed when calling Component Management Service to list available versions", e);
         }
 
         logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
                 .addKeyValue("packageMetadataList", componentMetadataList)
                 .log("Found possible versions for dependency package");
         return componentMetadataList.iterator();
+    }
+
+    ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements)
+            throws PackagingException {
+        // acquire ever possible local best candidate
+        Optional<ComponentIdentifier> localCandidateOptional =
+                findLocalBestCandidate(componentName, versionRequirements);
+        logger.atDebug().kv("componentName", componentName).kv("localCandidate", localCandidateOptional.orElse(null))
+                .log("Resolve to local version");
+        if (versionRequirements.containsKey(Deployment.DeploymentType.LOCAL.toString())) {
+            // keep using local version if the component is meant to be local override
+            logger.atDebug().kv("componentName", componentName).log("Keep local version if it's local override");
+            ComponentIdentifier localCandidateId = localCandidateOptional.orElseThrow(
+                    () -> new NoAvailableComponentVersionException(
+                            String.format("Component %s is meant to be local override, but no version can satisfy %s",
+                                    componentName, versionRequirements)));
+            return componentStore.getPackageMetadata(localCandidateId);
+        } else {
+            // otherwise use cloud determined version
+            logger.atDebug().kv("componentName", componentName).kv("versionRequirement", versionRequirements)
+                    .log("Negotiate version with cloud");
+            return negotiateVersionWithCloud(componentName, versionRequirements, localCandidateOptional.orElse(null));
+        }
+    }
+
+    private ComponentMetadata negotiateVersionWithCloud(String componentName,
+                                                        Map<String, Requirement> versionRequirements,
+                                                        ComponentIdentifier localCandidate) throws PackagingException {
+        ComponentContent componentContent;
+
+        try {
+            componentContent = componentServiceHelper
+                    .resolveComponentVersion(componentName, localCandidate == null ? null : localCandidate.getVersion(),
+                            versionRequirements);
+        } catch (NoAvailableComponentVersionException e) {
+            if (localCandidate != null) {
+                // if it's builtin service, it's not required to have components registered in registry
+                ComponentMetadata componentMetadata =
+                        getBuiltinComponentMetadata(localCandidate.getName(), localCandidate.getVersion());
+                if (componentMetadata != null) {
+                    logger.atDebug().kv("componentMetadata", componentMetadata)
+                            .log("Builtin service and no available" + " version in registry, keep using local version");
+                    return componentMetadata;
+                }
+            }
+            throw e;
+        }
+        ComponentIdentifier resolvedComponentId =
+                new ComponentIdentifier(componentContent.getName(), new Semver(componentContent.getVersion()));
+        String downloadedRecipeContent = StandardCharsets.UTF_8.decode(componentContent.getRecipe()).toString();
+
+        boolean saveContent = true;
+        Optional<String> recipeContentOnDevice = componentStore.findComponentRecipeContent(resolvedComponentId);
+
+        if (recipeContentOnDevice.filter(recipe -> recipe.equals(downloadedRecipeContent)).isPresent()) {
+            saveContent = false;
+        }
+
+        if (saveContent) {
+            componentStore.savePackageRecipe(resolvedComponentId, downloadedRecipeContent);
+        }
+
+        return componentStore.getPackageMetadata(resolvedComponentId);
+    }
+
+    private Optional<ComponentIdentifier> findLocalBestCandidate(String componentName,
+                                                                 Map<String, Requirement> versionRequirements)
+            throws PackagingException {
+        Requirement req = mergeVersionRequirements(versionRequirements);
+
+        Optional<ComponentIdentifier> optionalActiveComponentId = findActiveAndSatisfiedComponent(componentName, req);
+
+        // use active one if compatible, otherwise check local available ones
+        if (optionalActiveComponentId.isPresent()) {
+            return optionalActiveComponentId;
+        } else {
+            return componentStore.findBestMatchAvailableComponent(componentName, req);
+        }
+    }
+
+    private Requirement mergeVersionRequirements(Map<String, Requirement> versionRequirements) {
+        return Requirement.buildNPM(
+                versionRequirements.values().stream().map(Requirement::toString).collect(Collectors.joining(" ")));
     }
 
     /**
@@ -299,7 +385,7 @@ public class ComponentManager implements InjectionActions {
      * Find the package metadata for a package if it's active version satisfies the requirement.
      *
      * @param componentName the component name
-     * @param requirement the version requirement
+     * @param requirement   the version requirement
      * @return Optional of the package metadata for the package; empty if this package doesn't have active version or
      *         the active version doesn't satisfy the requirement.
      * @throws PackagingException if fails to find the target recipe or parse the recipe
@@ -322,8 +408,8 @@ public class ComponentManager implements InjectionActions {
         // If the component is builtin, then we won't be able to get the metadata from the filesystem,
         // so in that case we will try getting it from builtin. If that fails too, then we just rethrow.
         try {
-            return Optional.of(componentStore.getPackageMetadata(
-                    new ComponentIdentifier(componentName, activeVersion)));
+            return Optional
+                    .of(componentStore.getPackageMetadata(new ComponentIdentifier(componentName, activeVersion)));
         } catch (PackagingException e) {
             ComponentMetadata md = getBuiltinComponentMetadata(componentName, activeVersion);
             if (md != null) {
@@ -331,6 +417,32 @@ public class ComponentManager implements InjectionActions {
             }
             throw e;
         }
+    }
+
+    ComponentMetadata getActiveAndSatisfiedComponentMetadata(String componentName,
+                                                             Map<String, Requirement> requirementMap)
+            throws PackagingException {
+        return getActiveAndSatisfiedComponentMetadata(componentName, mergeVersionRequirements(requirementMap));
+    }
+
+    private ComponentMetadata getActiveAndSatisfiedComponentMetadata(String componentName, Requirement requirement)
+            throws PackagingException {
+        Optional<ComponentMetadata> componentMetadataOptional =
+                findActiveAndSatisfiedPackageMetadata(componentName, requirement);
+        if (!componentMetadataOptional.isPresent()) {
+            throw new NoAvailableComponentVersionException(
+                    String.format("There is no version of component %s satisfying %s", componentName, requirement));
+        }
+
+        return componentMetadataOptional.get();
+    }
+
+    private Optional<ComponentIdentifier> findActiveAndSatisfiedComponent(String componentName,
+                                                                          Requirement requirement) {
+        Optional<Semver> activeVersionOptional = findActiveVersion(componentName);
+
+        return activeVersionOptional.filter(requirement::isSatisfiedBy)
+                .map(version -> new ComponentIdentifier(componentName, version));
     }
 
     @Nullable

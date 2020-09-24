@@ -7,7 +7,10 @@ package com.aws.greengrass.componentmanager;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.evergreen.AWSEvergreen;
+import com.amazonaws.services.evergreen.model.ComponentCandidate;
+import com.amazonaws.services.evergreen.model.ComponentContent;
 import com.amazonaws.services.evergreen.model.ComponentNameVersion;
+import com.amazonaws.services.evergreen.model.ComponentPlatform;
 import com.amazonaws.services.evergreen.model.CreateComponentRequest;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
 import com.amazonaws.services.evergreen.model.DeleteComponentRequest;
@@ -17,7 +20,12 @@ import com.amazonaws.services.evergreen.model.FindComponentVersionsByPlatformRes
 import com.amazonaws.services.evergreen.model.GetComponentRequest;
 import com.amazonaws.services.evergreen.model.GetComponentResult;
 import com.amazonaws.services.evergreen.model.RecipeFormatType;
+import com.amazonaws.services.evergreen.model.ResolveComponentVersionsRequest;
+import com.amazonaws.services.evergreen.model.ResolveComponentVersionsResult;
 import com.amazonaws.services.evergreen.model.ResolvedComponent;
+import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
+import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
+import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
@@ -26,6 +34,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
+import org.apache.commons.lang3.Validate;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -33,7 +42,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -88,6 +99,42 @@ public class ComponentServiceHelper {
         }
         ret.sort(null);
         return ret;
+    }
+
+    // Even though the cloud API signature can take a list of components at the same dependency level to resolve, the
+    // algorithm is going through the dependencies node by node, so one time one component got resolved.
+    ComponentContent resolveComponentVersion(String componentName, Semver localCandidateVersion,
+                                             Map<String, Requirement> versionRequirements)
+            throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
+
+        ComponentPlatform platform = new ComponentPlatform().withOs(PlatformResolver.CURRENT_PLATFORM.getOs().getName())
+                .withArchitecture(PlatformResolver.CURRENT_PLATFORM.getArchitecture().getName());
+        Map<String, String> versionRequirementsInString = versionRequirements.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().toString()));
+        ComponentCandidate candidate = new ComponentCandidate().withName(componentName)
+                .withVersion(localCandidateVersion == null ? null : localCandidateVersion.getValue())
+                .withVersionRequirements(versionRequirementsInString);
+        ResolveComponentVersionsRequest request = new ResolveComponentVersionsRequest().withPlatform(platform)
+                .withComponentCandidates(Collections.singletonList(candidate));
+
+        ResolveComponentVersionsResult result;
+        try {
+            result = evgCmsClient.resolveComponentVersions(request);
+        } catch (ResourceNotFoundException e) {
+            logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements).log(
+                    "No available version when resolving component");
+            throw new NoAvailableComponentVersionException(String.format("No applicable version of component %s "
+                    + "found in cloud registry satisfying %s", componentName, versionRequirements), e);
+        } catch (AmazonClientException e) {
+            logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements).log(
+                    "Server error when resolving component");
+            throw new ComponentVersionNegotiationException(String.format("Component service error when resolving %s",
+                    componentName), e);
+        }
+
+        Validate.isTrue(result.getComponents() != null && result.getComponents().size() == 1, "Component service "
+                + "invalid response, it should contain resolved component version");
+        return result.getComponents().get(0);
     }
 
     /**
