@@ -19,6 +19,7 @@ import com.aws.greengrass.ipc.services.lifecycle.LifecycleImpl;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.net.Socket;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
@@ -45,6 +47,9 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETER
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
+import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
@@ -88,7 +93,9 @@ class IPCServicesTest {
 
     @AfterEach
     void afterEach() throws IOException {
-        client.disconnect();
+        if (client != null) {
+            client.disconnect();
+        }
     }
 
 
@@ -265,5 +272,53 @@ class IPCServicesTest {
             startupService.close().get();
         }
     }
+
+    @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_LifeCycleEventStreamClient_WHEN_update_state_THEN_service_state_changes() throws Exception {
+        Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, TEST_SERVICE_NAME,
+                PRIVATE_STORE_NAMESPACE_TOPIC);
+        String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+        //Wait for event stream IPC Server to start
+        Thread.sleep(5000);
+        Socket clientSocket = IPCTestUtils.connectClientForEventStreamIpc(authToken);
+        CountDownLatch cdl = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState ) ->{
+
+            if(TEST_SERVICE_NAME.equals(service.getName())){
+                if(newState.equals(State.ERRORED) && oldState.equals(State.RUNNING)){
+                    cdl.countDown();
+                }
+            }
+        });
+        // sendUpdateStateRequest(clientSocket);
+        clientSocket.close();
+        assertTrue(cdl.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
+    }
+
+//    private void sendUpdateStateRequest(Socket clientSocket) throws IOException {
+//        if (clientSocket == null) {
+//            return;
+//        }
+//        Header messageType = Header.createHeader(":message-type", (int) MessageType.ApplicationMessage.getEnumValue());
+//        Header messageFlags = Header.createHeader(":message-flags", 0);
+//        Header streamId = Header.createHeader(":stream-id", 1);
+//
+//        List<Header> messageHeaders = new ArrayList<>(3);
+//        messageHeaders.add(messageType);
+//        messageHeaders.add(messageFlags);
+//        messageHeaders.add(streamId);
+//
+//        UpdateStateRequest updateStateRequest = new UpdateStateRequest();
+//        //updateStateRequest.setServiceName(TEST_SERVICE_NAME);
+//        updateStateRequest.setState(LifecycleState.ERRORED);
+//        String payload = OBJECT_MAPPER.writeValueAsString(updateStateRequest);
+//        Message updateStateMessage = new Message(messageHeaders, payload.getBytes());
+//        ByteBuffer updateMessageBuf = updateStateMessage.getMessageBuffer();
+//        byte[] toSend = new byte[updateMessageBuf.remaining()];
+//        updateMessageBuf.get(toSend);
+//        updateStateMessage.close();
+//        System.out.println("Client sending update message...");
+//        clientSocket.getOutputStream().write(toSend);
+//    }
 
 }

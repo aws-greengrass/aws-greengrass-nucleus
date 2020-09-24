@@ -6,14 +6,14 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.builtin.services.lifecycle.DeferUpdateRequest;
-import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCAgent;
+import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Crashable;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
-import com.aws.greengrass.ipc.services.lifecycle.PostComponentUpdateEvent;
-import com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent;
 import com.aws.greengrass.util.Pair;
+import generated.software.amazon.awssdk.iot.greengrass.model.PostComponentUpdateEvent;
+import generated.software.amazon.awssdk.iot.greengrass.model.PreComponentUpdateEvent;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -52,7 +52,7 @@ public class UpdateSystemSafelyService extends GreengrassService {
     private final AtomicBoolean runningUpdateActions = new AtomicBoolean(false);
 
     @Inject
-    private LifecycleIPCAgent lifecycleIPCAgent;
+    private LifecycleIPCEventStreamAgent lifecycleIPCAgent;
 
     @Inject
     private Clock clock;
@@ -144,8 +144,8 @@ public class UpdateSystemSafelyService extends GreengrassService {
                     .log();
 
             //TODO: set isGgcRestarting to true if the updates involves kernel restart
-            PreComponentUpdateEvent preComponentUpdateEvent = PreComponentUpdateEvent.builder()
-                    .isGgcRestarting(false).build();
+            PreComponentUpdateEvent preComponentUpdateEvent = new PreComponentUpdateEvent();
+            preComponentUpdateEvent.setIsGgcRestarting(false);
             List<Future<DeferUpdateRequest>> deferRequestFutures = new ArrayList<>();
             lifecycleIPCAgent.sendPreComponentUpdateEvent(preComponentUpdateEvent, deferRequestFutures);
 
