@@ -86,7 +86,7 @@ public class KernelConfigResolver {
         artifactNamespace.put(PATH_KEY,
                 (id) -> componentStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
         artifactNamespace.put(DECOMPRESSED_PATH_KEY,
-                (id) -> componentStore.resolveAndSetupArtifactsUnpackDirectory(id).toAbsolutePath().toString());
+                (id) -> componentStore.resolveAndSetupArtifactsDecompressedDirectory(id).toAbsolutePath().toString());
         systemParameters.put(ARTIFACTS_NAMESPACE, artifactNamespace);
 
         HashMap<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> kernelNamespace

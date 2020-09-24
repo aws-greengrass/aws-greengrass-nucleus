@@ -153,7 +153,7 @@ class ComponentManagerTest {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
-        when(componentStore.resolveAndSetupArtifactsUnpackDirectory(pkgId)).thenReturn(tempDir);
+        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(pkgId)).thenReturn(tempDir);
         when(artifactDownloader.downloadToPath(any(), any(), any())).thenReturn(new File("binary1"));
 
         componentManager.prepareArtifacts(pkgId,
