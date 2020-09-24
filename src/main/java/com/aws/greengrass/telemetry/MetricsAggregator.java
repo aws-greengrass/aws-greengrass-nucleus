@@ -12,17 +12,9 @@ import com.aws.greengrass.telemetry.impl.Metric;
 import com.aws.greengrass.telemetry.impl.MetricFactory;
 import com.aws.greengrass.telemetry.impl.TelemetryLoggerMessage;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
-import com.aws.greengrass.telemetry.models.TelemetryUnit;
 import com.aws.greengrass.util.Coerce;
-import com.fasterxml.jackson.annotation.JsonAnyGetter;
-import com.fasterxml.jackson.annotation.JsonAnySetter;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -75,7 +67,7 @@ public class MetricsAggregator {
      */
     protected void aggregateMetrics(long lastAgg, long currTimestamp) {
         for (String namespace : getNamespaceSet()) {
-            AggregatedMetric aggMetrics = new AggregatedMetric();
+            AggregatedMetricList aggMetrics = new AggregatedMetricList();
             HashMap<String, List<Metric>> metrics = new HashMap<>();
             // Read from the Telemetry/namespace*.log file.
             // TODO : Read only those files that are modified after the last aggregation.
@@ -138,10 +130,10 @@ public class MetricsAggregator {
      * |___N -  NumOfComponentsBroken,Average - 15,U - Count
      *
      * @param map metric name -> metric
-     * @return a list of {@link AggregatedMetric.Metric}
+     * @return a list of {@link AggregatedMetric}
      */
-    private List<AggregatedMetric.Metric> doAggregation(Map<String, List<Metric>> map) {
-        List<AggregatedMetric.Metric> aggMetrics = new ArrayList<>();
+    private List<AggregatedMetric> doAggregation(Map<String, List<Metric>> map) {
+        List<AggregatedMetric> aggMetrics = new ArrayList<>();
         for (Map.Entry<String, List<Metric>> metric : map.entrySet()) {
             String metricName = metric.getKey();
             List<Metric> metrics = metric.getValue();
@@ -153,7 +145,7 @@ public class MetricsAggregator {
             double aggregation = values.isEmpty() ? 0 : getAggregatedValue(values, aggregationType);
             Map<String, Object> value = new HashMap<>();
             value.put(aggregationType, aggregation);
-            AggregatedMetric.Metric m = AggregatedMetric.Metric.builder()
+            AggregatedMetric m = AggregatedMetric.builder()
                     .name(metricName)
                     .unit(metrics.get(0).getUnit())
                     .value(value)
@@ -171,9 +163,9 @@ public class MetricsAggregator {
      * @param lastPublish   timestamp at which the last publish was done.
      * @param currTimestamp timestamp at which the current publish is initiated.
      */
-    protected Map<Long, List<AggregatedMetric>> getMetricsToPublish(long lastPublish, long currTimestamp) {
-        Map<Long, List<AggregatedMetric>> aggUploadMetrics = new HashMap<>();
-        // Read from the Telemetry/AggregatedMetrics.log file.
+    protected Map<Long, List<AggregatedMetricList>> getMetricsToPublish(long lastPublish, long currTimestamp) {
+        Map<Long, List<AggregatedMetricList>> aggUploadMetrics = new HashMap<>();
+        // Read from the Telemetry/AggregatedMetricLists.log file.
         // TODO : Read only those files that are modified after the last publish.
         try (Stream<Path> paths = Files
                 .walk(TelemetryConfig.getTelemetryDirectory())
@@ -194,8 +186,8 @@ public class MetricsAggregator {
                             "Metrics-AggregateMetrics","timestamp":1599617227595,"cause":null} */
                             GreengrassLogMessage egLog = objectMapper.readValue(log,
                                     GreengrassLogMessage.class);
-                            AggregatedMetric am = objectMapper.readValue(egLog.getMessage(),
-                                    AggregatedMetric.class);
+                            AggregatedMetricList am = objectMapper.readValue(egLog.getMessage(),
+                                    AggregatedMetricList.class);
                             // Avoid the metrics that are aggregated at/after the currTimestamp and before the
                             // upload interval
                             if (am != null && currTimestamp > am.getTimestamp() && am.getTimestamp() >= lastPublish) {
@@ -215,7 +207,7 @@ public class MetricsAggregator {
         aggUploadMetrics.putIfAbsent(currTimestamp, new ArrayList<>());
         //Along with the aggregated data points, we need to collect an additional data point for each metric which is
         // like the aggregation of aggregated data points.
-        // TODO : Do cumulative average rather than performing average on average
+        // TODO : Get accumulated data points during aggregation and cache it to the disk.
         aggUploadMetrics.compute(currTimestamp, (k, v) -> {
             v.addAll(getAggForThePublishInterval(aggUploadMetrics.get(currTimestamp), currTimestamp));
             return v;
@@ -242,17 +234,18 @@ public class MetricsAggregator {
      * |___N -  NumOfComponentsInstalled,Average - 15,U - Count
      * |___N -  NumOfComponentsBroken,Average - 10,U - Count
      *
-     * @param aggList list of {@link AggregatedMetric}
-     * @return a list of {@link AggregatedMetric}
+     * @param aggList list of {@link AggregatedMetricList}
+     * @return a list of {@link AggregatedMetricList}
      */
-    private List<AggregatedMetric> getAggForThePublishInterval(List<AggregatedMetric> aggList, long currTimestamp) {
-        List<AggregatedMetric> list = new ArrayList<>();
+    private List<AggregatedMetricList> getAggForThePublishInterval(List<AggregatedMetricList> aggList,
+                                                                   long currTimestamp) {
+        List<AggregatedMetricList> list = new ArrayList<>();
         for (String namespace : getNamespaceSet()) {
-            HashMap<String, List<AggregatedMetric.Metric>> metrics = new HashMap<>();
-            AggregatedMetric newAgg = new AggregatedMetric();
-            for (AggregatedMetric am : aggList) {
+            HashMap<String, List<AggregatedMetric>> metrics = new HashMap<>();
+            AggregatedMetricList newAgg = new AggregatedMetricList();
+            for (AggregatedMetricList am : aggList) {
                 if (am.getNamespace().equals(namespace)) {
-                    for (AggregatedMetric.Metric m : am.getMetrics()) {
+                    for (AggregatedMetric m : am.getMetrics()) {
                         metrics.computeIfAbsent(m.getName(), k -> new ArrayList<>()).add(m);
                     }
                 }
@@ -280,18 +273,18 @@ public class MetricsAggregator {
      * |___N - NumOfComponentsBroken,Average - 15,U - Count
      *
      * @param map metric name -> aggregated metric
-     * @return list of {@link AggregatedMetric.Metric }
+     * @return list of {@link AggregatedMetric }
      */
-    private List<AggregatedMetric.Metric> doAggregationForPublish(Map<String, List<AggregatedMetric.Metric>> map) {
-        List<AggregatedMetric.Metric> aggMetrics = new ArrayList<>();
-        for (Map.Entry<String, List<AggregatedMetric.Metric>> metric : map.entrySet()) {
-            List<AggregatedMetric.Metric> metrics = metric.getValue();
+    private List<AggregatedMetric> doAggregationForPublish(Map<String, List<AggregatedMetric>> map) {
+        List<AggregatedMetric> aggMetrics = new ArrayList<>();
+        for (Map.Entry<String, List<AggregatedMetric>> metric : map.entrySet()) {
+            List<AggregatedMetric> metrics = metric.getValue();
             List<Double> values = new ArrayList<>();
             metrics.get(0).getValue().forEach((aggType, aggValue) -> {
                 metrics.forEach((v) -> values.add(Coerce.toDouble(v.getValue().get(aggType))));
                 Map<String, Object> value = new HashMap<>();
                 value.put(aggType, values.isEmpty() ? 0 : getAggregatedValue(values, aggType));
-                AggregatedMetric.Metric m = AggregatedMetric.Metric.builder()
+                AggregatedMetric m = AggregatedMetric.builder()
                         .name(metric.getKey())
                         .unit(metrics.get(0).getUnit())
                         .value(value)
@@ -333,43 +326,5 @@ public class MetricsAggregator {
         }
         return aggregation;
     }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class AggregatedMetric {
-        @JsonProperty("TS")
-        private Long timestamp;
-        @JsonProperty("NS")
-        private String namespace;
-        @JsonProperty("M")
-        private List<Metric> metrics;
-
-        @Data
-        @NoArgsConstructor
-        @AllArgsConstructor
-        @Builder
-        public static class Metric {
-            @JsonProperty("N")
-            private String name;
-            private Map<String, Object> value = new HashMap<>();
-            @JsonProperty("U")
-            private TelemetryUnit unit;
-
-            @JsonAnyGetter
-            public Map<String, Object> getValue() {
-                return value;
-            }
-
-            public void setValue(Map<String, Object> value) {
-                this.value = value;
-            }
-
-            @JsonAnySetter
-            public void jsonAggregationValue(final String name, final Object value) {
-                this.value.put(name, value);
-            }
-        }
-    }
 }
+

@@ -18,15 +18,15 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class MetricsPayload implements Chunkable<MetricsAggregator.AggregatedMetric> {
+public class MetricsPayload implements Chunkable<AggregatedMetricList> {
     @JsonProperty("Schema")
     @Builder.Default
     private String schema = "2020-07-30";
     @JsonProperty("ADP")
-    private List<MetricsAggregator.AggregatedMetric> aggregatedMetricList;
+    private List<AggregatedMetricList> aggregatedMetricList;
 
     @Override
-    public void setVariablePayload(List<MetricsAggregator.AggregatedMetric> variablePayload) {
+    public void setVariablePayload(List<AggregatedMetricList> variablePayload) {
         this.setAggregatedMetricList(variablePayload);
     }
 }

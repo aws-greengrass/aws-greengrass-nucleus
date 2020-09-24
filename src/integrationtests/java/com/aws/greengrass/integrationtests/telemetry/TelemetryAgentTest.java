@@ -43,6 +43,7 @@ import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_PERIODIC_AGG
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 
@@ -56,7 +57,6 @@ class TelemetryAgentTest extends BaseITCase {
 
     @BeforeEach
     void before(TestInfo testInfo) {
-        System.out.println("Running test: " + testInfo.getDisplayName());
         kernel = new Kernel();
     }
 
@@ -81,7 +81,7 @@ class TelemetryAgentTest extends BaseITCase {
                 telemetryRunning.countDown();
             }
         });
-        assertTrue(telemetryRunning.await(1, TimeUnit.MINUTES), "TelemetryAgent is in RUNNING state.");
+        assertTrue(telemetryRunning.await(1, TimeUnit.MINUTES), "TelemetryAgent is not in RUNNING state.");
         Topics parameterTopics = kernel.getConfig()
                 .lookupTopics(SERVICES_NAMESPACE_TOPIC, TELEMETRY_AGENT_SERVICE_TOPICS, PARAMETERS_CONFIG_KEY);
         int aggregateInterval = Coerce.toInt(parameterTopics.find(TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC));
@@ -118,7 +118,7 @@ class TelemetryAgentTest extends BaseITCase {
                 // enough to verify the first message of type MetricsPayload
                 break;
             } catch (IOException e) {
-                System.out.println("Ignore if the publish message is not of MetricsPayload type");
+                fail("The meessage received at this topic is not of MetricsPaylod type.");
             }
         }
     }

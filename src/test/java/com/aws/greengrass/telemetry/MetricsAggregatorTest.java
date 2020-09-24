@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.telemetry.MetricsAggregator.AGGREGATE_METRICS_FILE;
-import static com.aws.greengrass.telemetry.MetricsAggregator.AggregatedMetric;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -84,11 +83,11 @@ public class MetricsAggregatorTest {
         List<String> list = Files.readAllLines(path);
         assertEquals(MetricsAggregator.getNamespaceSet().size(), list.size()); // Metrics are aggregated based on the namespace.
         for (String s : list) {
-            AggregatedMetric am = mapper.readValue(mapper.readTree(s).get("message").asText(),
-                    AggregatedMetric.class);
+            AggregatedMetricList am = mapper.readValue(mapper.readTree(s).get("message").asText(),
+                    AggregatedMetricList.class);
             if (am.getNamespace().equals(sm)) {
                 assertEquals(3, am.getMetrics().size()); // Three system metrics
-                for (AggregatedMetric.Metric metrics : am.getMetrics()) {
+                for (AggregatedMetric metrics : am.getMetrics()) {
                     if (metrics.getName().equals("CpuUsage")) {
                         assertEquals((double) 60, metrics.getValue().get("Sum"));
                     } else if (metrics.getName().equals("SystemMemUsage")) {
@@ -109,7 +108,7 @@ public class MetricsAggregatorTest {
         //with the latest aggregations.
         for (String s : list) {
             GreengrassLogMessage egLog = mapper.readValue(s, GreengrassLogMessage.class);
-            AggregatedMetric am = mapper.readValue(egLog.getMessage(), AggregatedMetric.class);
+            AggregatedMetricList am = mapper.readValue(egLog.getMessage(), AggregatedMetricList.class);
             if (am.getTimestamp() == currTimestamp && am.getNamespace().equals(sm)) {
                 assertEquals(0, am.getMetrics().size()); // There is no aggregation as there are no latest values
             }
@@ -141,10 +140,10 @@ public class MetricsAggregatorTest {
         assertEquals(MetricsAggregator.getNamespaceSet().size(), list.size()); // Metrics are aggregated based on the namespace.
         for (String s : list) {
             GreengrassLogMessage egLog = mapper.readValue(s, GreengrassLogMessage.class);
-            AggregatedMetric am = mapper.readValue(egLog.getMessage(), AggregatedMetric.class);
+            AggregatedMetricList am = mapper.readValue(egLog.getMessage(), AggregatedMetricList.class);
             if (am.getNamespace().equals(sm)) {
                 assertEquals(2, am.getMetrics().size()); // Two system metrics, one of them is null
-                for (AggregatedMetric.Metric metrics : am.getMetrics()) {
+                for (AggregatedMetric metrics : am.getMetrics()) {
                     if (metrics.getName().equals("CpuUsage")) {
                         assertEquals((double) 0, metrics.getValue().get("Sum")); //No valid data point to aggregate
                     } else if (metrics.getName().equals("SystemMemUsage")) {
@@ -161,21 +160,21 @@ public class MetricsAggregatorTest {
         // with respect to the current timestamp
         long lastPublish = Instant.now().toEpochMilli();
         long currentTimestamp = Instant.now().toEpochMilli();
-        List<AggregatedMetric.Metric> metricList = new ArrayList<>();
+        List<AggregatedMetric> metricList = new ArrayList<>();
         Map<String, Object> map = new HashMap<>();
         map.put("Average", 4000);
-        metricList.add(new AggregatedMetric.Metric("TotalNumberOfFDs", map, TelemetryUnit.Count));
+        metricList.add(new AggregatedMetric("TotalNumberOfFDs", map, TelemetryUnit.Count));
         map.put("Average", 15);
-        metricList.add(new AggregatedMetric.Metric("CpuUsage", map, TelemetryUnit.Percent));
+        metricList.add(new AggregatedMetric("CpuUsage", map, TelemetryUnit.Percent));
         map.put("Average", 9000);
-        metricList.add(new AggregatedMetric.Metric("SystemMemUsage", map, TelemetryUnit.Megabytes));
-        AggregatedMetric aggregatedMetric = new AggregatedMetric(currentTimestamp, sm, metricList);
+        metricList.add(new AggregatedMetric("SystemMemUsage", map, TelemetryUnit.Megabytes));
+        AggregatedMetricList aggregatedMetric = new AggregatedMetricList(currentTimestamp, sm, metricList);
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         TimeUnit.MILLISECONDS.sleep(100);
         // Create an instance of the metrics uploader to get the aggregated metrics
-        Map<Long, List<AggregatedMetric>> list = ma.getMetricsToPublish(lastPublish, currentTimestamp);
+        Map<Long, List<AggregatedMetricList>> list = ma.getMetricsToPublish(lastPublish, currentTimestamp);
 
         //We perform aggregation on the aggregated data points at the time of publish and get n additional metrics with
         // the current timestamp where n = no of namespaces.
@@ -191,7 +190,7 @@ public class MetricsAggregatorTest {
 
         TimeUnit.SECONDS.sleep(1);
         currentTimestamp = Instant.now().toEpochMilli();
-        aggregatedMetric = new AggregatedMetric(currentTimestamp, sm, metricList);
+        aggregatedMetric = new AggregatedMetricList(currentTimestamp, sm, metricList);
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         TimeUnit.MILLISECONDS.sleep(100);
@@ -212,20 +211,20 @@ public class MetricsAggregatorTest {
         // with respect to the current timestamp
         long lastPublish = Instant.now().toEpochMilli();
         long currentTimestamp = Instant.now().toEpochMilli();
-        List<AggregatedMetric.Metric> metricList = new ArrayList<>();
+        List<AggregatedMetric> metricList = new ArrayList<>();
         Map<String, Object> map1 = new HashMap<>();
         map1.put("Average", 4000);
-        AggregatedMetric.Metric am = new AggregatedMetric.Metric("TotalNumberOfFDs", map1, TelemetryUnit.Count);
+        AggregatedMetric am = new AggregatedMetric("TotalNumberOfFDs", map1, TelemetryUnit.Count);
         metricList.add(am);
         Map<String, Object> map2 = new HashMap<>();
         map2.put("Average", 15);
-        am = new AggregatedMetric.Metric("CpuUsage", map2, TelemetryUnit.Percent);
+        am = new AggregatedMetric("CpuUsage", map2, TelemetryUnit.Percent);
         metricList.add(am);
         Map<String, Object> map3 = new HashMap<>();
         map3.put("Average", 9000);
-        am = new AggregatedMetric.Metric("SystemMemUsage", map3, TelemetryUnit.Megabytes);
+        am = new AggregatedMetric("SystemMemUsage", map3, TelemetryUnit.Megabytes);
         metricList.add(am);
-        AggregatedMetric aggregatedMetric = new AggregatedMetric(currentTimestamp, sm, metricList);
+        AggregatedMetricList aggregatedMetric = new AggregatedMetricList(currentTimestamp, sm, metricList);
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
@@ -235,7 +234,7 @@ public class MetricsAggregatorTest {
         metricFactory.logMetrics(new TelemetryLoggerMessage(aggregatedMetric));
         TimeUnit.MILLISECONDS.sleep(100);
         currentTimestamp = Instant.now().toEpochMilli();
-        Map<Long, List<AggregatedMetric>> metricsMap = ma.getMetricsToPublish(lastPublish, currentTimestamp);
+        Map<Long, List<AggregatedMetricList>> metricsMap = ma.getMetricsToPublish(lastPublish, currentTimestamp);
 
         // The published metrics will not contain the null aggregated metric
         assertFalse(metricsMap.get(currentTimestamp).contains(null));
@@ -246,7 +245,7 @@ public class MetricsAggregatorTest {
         //The accumulated data points will always be at end the of the list and has the same ts as publish. Acc data
         // points begin from index 4 as first 4 are aggregated metrics
         assertEquals(currentTimestamp, metricsMap.get(currentTimestamp).get(4).getTimestamp());
-        for (AggregatedMetric amet : metricsMap.get(currentTimestamp)) {
+        for (AggregatedMetricList amet : metricsMap.get(currentTimestamp)) {
             if (amet.getNamespace().equals("SystemMetrics")) {
                 // There are 3 metrics in system metrics namespace.
                 assertEquals(3, amet.getMetrics().size());
