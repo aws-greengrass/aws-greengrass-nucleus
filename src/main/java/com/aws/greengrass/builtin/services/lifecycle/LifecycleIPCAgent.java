@@ -79,6 +79,7 @@ public class LifecycleIPCAgent {
         return lifecycleGenericResponse;
     }
 
+
     /**
      * handle component request to subscribe to component update events.
      *

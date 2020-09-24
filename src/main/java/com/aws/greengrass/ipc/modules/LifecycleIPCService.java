@@ -2,6 +2,7 @@ package com.aws.greengrass.ipc.modules;
 
 
 import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCAgent;
+import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.ipc.ConnectionContext;
 import com.aws.greengrass.ipc.IPCRouter;
@@ -19,6 +20,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
+import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
@@ -34,6 +36,12 @@ public class LifecycleIPCService implements Startable, InjectionActions {
 
     @Inject
     private LifecycleIPCAgent agent;
+
+    @Inject
+    private LifecycleIPCEventStreamAgent eventStreamAgent;
+
+    @Inject
+    private GreengrassCoreIPCService greengrassCoreIPCService;
 
     @Override
     public void postInject() {
@@ -112,5 +120,11 @@ public class LifecycleIPCService implements Startable, InjectionActions {
 
     @Override
     public void startup() {
+        greengrassCoreIPCService.setUpdateStateHandler(
+                (context) -> eventStreamAgent.getUpdateStateOperationHandler(context));
+        greengrassCoreIPCService.setSubscribeToComponentUpdatesHandler(
+                (context) -> eventStreamAgent.getSubscribeToComponentUpdateHandler(context));
+        greengrassCoreIPCService.setDeferComponentUpdateHandler(
+                (context) -> eventStreamAgent.getDeferComponentHandler(context));
     }
 }
