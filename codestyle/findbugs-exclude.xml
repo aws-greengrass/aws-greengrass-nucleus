@@ -17,4 +17,12 @@
             <Bug pattern="EI_EXPOSE_REP2"/>
         </Or>
     </Match>
+    <Match>
+        <Or>
+            <Package name="generated.software.amazon.awssdk.iot.greengrass"/>
+            <Package name="generated.software.amazon.awssdk.iot.greengrass.model"/>
+            <Package name="software.amazon.eventstream.iot"/>
+            <Package name="software.amazon.eventstream.iot.server"/>
+        </Or>
+    </Match>
 </FindBugsFilter>
