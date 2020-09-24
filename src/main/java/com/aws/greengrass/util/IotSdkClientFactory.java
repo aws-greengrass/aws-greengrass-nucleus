@@ -79,11 +79,12 @@ public final class IotSdkClientFactory {
      * @param awsRegion           aws region
      * @param stage               {@link EnvironmentStage}
      * @param credentialsProvider credentials provider
-     * @return
+     * @return IotClient instance
+     * @throws URISyntaxException when Iot endpoint is malformed
      */
-    public static IotClient getIotClient(String awsRegion, EnvironmentStage stage,
+    public static IotClient getIotClient(Region awsRegion, EnvironmentStage stage,
                                          AwsCredentialsProvider credentialsProvider) throws URISyntaxException {
-        IotClientBuilder iotClientBuilder = IotClient.builder().region(Region.of(awsRegion))
+        IotClientBuilder iotClientBuilder = IotClient.builder().region(awsRegion)
                 .credentialsProvider(credentialsProvider)
                 .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build());
         if (stage != EnvironmentStage.PROD) {
