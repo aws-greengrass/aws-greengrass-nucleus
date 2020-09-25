@@ -16,6 +16,7 @@ import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport;
 import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus;
 import com.aws.greengrass.ipc.services.lifecycle.Lifecycle;
 import com.aws.greengrass.ipc.services.lifecycle.LifecycleImpl;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Pair;
@@ -72,7 +73,7 @@ class IPCServicesTest {
     }
 
     @AfterAll
-    static void afterAll() {
+    static void afterAll() throws InterruptedException {
         kernel.shutdown();
     }
 
@@ -230,6 +231,39 @@ class IPCServicesTest {
         Lifecycle lifecycle = new LifecycleImpl(client);
         lifecycle.updateState("ERRORED");
         assertTrue(cdl.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void GIVEN_LifecycleClient_WHEN_update_state_and_service_dies_THEN_service_errored() throws Exception {
+        KernelIPCClientConfig config = getIPCConfigForService("StartupService", kernel);
+        client = new IPCClientImpl(config);
+        CountDownLatch cdl = new CountDownLatch(2);
+        CountDownLatch started = new CountDownLatch(1);
+
+        GreengrassService startupService = kernel.locate("StartupService");
+        try {
+            startupService.requestStart();
+
+            kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+                if ("StartupService".equals(service.getName())) {
+                    if (newState.equals(State.STARTING)) {
+                        started.countDown();
+                    }
+                    if (newState.equals(State.RUNNING) && oldState.equals(State.STARTING)) {
+                        cdl.countDown();
+                    }
+                    if (newState.equals(State.ERRORED) && oldState.equals(State.RUNNING)) {
+                        cdl.countDown();
+                    }
+                }
+            });
+            assertTrue(started.await(10, TimeUnit.SECONDS));
+            Lifecycle lifecycle = new LifecycleImpl(client);
+            lifecycle.updateState("RUNNING");
+            assertTrue(cdl.await(10, TimeUnit.SECONDS));
+        } finally {
+            startupService.close().get();
+        }
     }
 
 }
