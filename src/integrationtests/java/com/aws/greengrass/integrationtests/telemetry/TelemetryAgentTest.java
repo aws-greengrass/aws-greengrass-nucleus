@@ -102,6 +102,7 @@ class TelemetryAgentTest extends BaseITCase {
         TimeUnit.SECONDS.sleep(periodicInterval + 1);
         assertTrue(Coerce.toLong(telTopics.find(RUNTIME_STORE_NAMESPACE_TOPIC,
                 TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC)) > lastAgg);
+        assertNotNull(ta.getPeriodicPublishMetricsFuture(), "periodic publish future is not scheduled.");
         long delay = ta.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
         assertTrue(delay <= periodicInterval);
         // telemetry logs are always written to ~root/telemetry
