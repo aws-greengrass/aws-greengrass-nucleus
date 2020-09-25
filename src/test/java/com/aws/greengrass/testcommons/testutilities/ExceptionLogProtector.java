@@ -148,7 +148,6 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
     @SneakyThrows
     public void afterEach(ExtensionContext context) throws Exception {
         Slf4jLogAdapter.removeGlobalListener(getListener(context));
-
         List<Throwable> exceptions = getExceptions(context);
         try {
             if (!exceptions.isEmpty()) {
