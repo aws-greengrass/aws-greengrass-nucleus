@@ -457,6 +457,14 @@ public class DeploymentService extends GreengrassService {
         List<String> pendingComponentsList = new LinkedList<>();
         Map<String, Object> componentsToGroupsMappingCache = new ConcurrentHashMap<>();
         Topics componentsToGroupsTopics = getConfig().lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
+        /*
+         * Structure of COMPONENTS_TO_GROUPS_TOPICS is:
+         * COMPONENTS_TO_GROUPS_TOPICS :
+         * |_ <componentName> :
+         *     |_ <deploymentID> : <GroupName>
+         * This stores all the components with the list of deployment IDs associated to it along with the thing group
+         * (if available) to be associated to the deployment.
+         */
         // Get all the groups associated to the root components.
         groupsToRootComponents.iterator().forEachRemaining(groupNode -> {
             Topics componentTopics = (Topics) groupNode;
