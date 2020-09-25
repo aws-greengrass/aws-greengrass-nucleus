@@ -20,7 +20,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -56,7 +55,7 @@ class TelemetryAgentTest extends BaseITCase {
     private ArgumentCaptor<PublishRequest> captor;
 
     @BeforeEach
-    void before(TestInfo testInfo) {
+    void before() {
         kernel = new Kernel();
     }
 
@@ -111,7 +110,7 @@ class TelemetryAgentTest extends BaseITCase {
                 MetricsPayload mp = new ObjectMapper().readValue(pr.getPayload(), MetricsPayload.class);
                 int count = (int) (delay / aggregateInterval + 1) * MetricsAggregator.getNamespaceSet().size();
                 // > is in the cases where delay < aggregate interval
-                assertTrue(count >= mp.getAggregatedMetricList().size());
+                assertTrue(count >= mp.getAggregatedNamespaceData().size());
                 assertEquals(QualityOfService.AT_LEAST_ONCE, pr.getQos());
                 assertEquals(DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", ""), pr.getTopic());
                 assertEquals("2020-07-30", mp.getSchema());

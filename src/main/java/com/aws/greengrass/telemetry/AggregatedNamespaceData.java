@@ -1,3 +1,6 @@
+/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.greengrass.telemetry;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -12,7 +15,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AggregatedMetricList {
+public class AggregatedNamespaceData {
     @JsonProperty("TS")
     private Long timestamp;
     @JsonProperty("NS")

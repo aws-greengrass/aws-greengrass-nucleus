@@ -51,7 +51,7 @@ public class TelemetryAgent extends GreengrassService {
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
     private final Object periodicPublishMetricsInProgressLock = new Object();
     private final Object periodicAggregateMetricsInProgressLock = new Object();
-    private final MqttChunkedPayloadPublisher<AggregatedMetricList> publisher;
+    private final MqttChunkedPayloadPublisher<AggregatedNamespaceData> publisher;
     private final ScheduledExecutorService ses;
     @Getter(AccessLevel.PACKAGE)
     private final List<PeriodicMetricsEmitter> periodicMetricsEmitters = new ArrayList<>();
@@ -185,7 +185,7 @@ public class TelemetryAgent extends GreengrassService {
         }
         long timestamp = Instant.now().toEpochMilli();
         long lastPublish = Coerce.toLong(getPeriodicPublishTimeTopic());
-        Map<Long, List<AggregatedMetricList>> metricsToPublishMap =
+        Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap =
                 metricsAggregator.getMetricsToPublish(lastPublish, timestamp);
         getPeriodicPublishTimeTopic().withValue(timestamp);
         // Publish only if the collected metrics are not empty.

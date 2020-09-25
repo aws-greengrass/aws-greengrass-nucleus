@@ -67,7 +67,7 @@ public class MetricsAggregator {
      */
     protected void aggregateMetrics(long lastAgg, long currTimestamp) {
         for (String namespace : getNamespaceSet()) {
-            AggregatedMetricList aggMetrics = new AggregatedMetricList();
+            AggregatedNamespaceData aggMetrics = new AggregatedNamespaceData();
             HashMap<String, List<Metric>> metrics = new HashMap<>();
             // Read from the Telemetry/namespace*.log file.
             // TODO : Read only those files that are modified after the last aggregation.
@@ -163,9 +163,9 @@ public class MetricsAggregator {
      * @param lastPublish   timestamp at which the last publish was done.
      * @param currTimestamp timestamp at which the current publish is initiated.
      */
-    protected Map<Long, List<AggregatedMetricList>> getMetricsToPublish(long lastPublish, long currTimestamp) {
-        Map<Long, List<AggregatedMetricList>> aggUploadMetrics = new HashMap<>();
-        // Read from the Telemetry/AggregatedMetricLists.log file.
+    protected Map<Long, List<AggregatedNamespaceData>> getMetricsToPublish(long lastPublish, long currTimestamp) {
+        Map<Long, List<AggregatedNamespaceData>> aggUploadMetrics = new HashMap<>();
+        // Read from the Telemetry/AggregatedNamespaceDatas.log file.
         // TODO : Read only those files that are modified after the last publish.
         try (Stream<Path> paths = Files
                 .walk(TelemetryConfig.getTelemetryDirectory())
@@ -186,8 +186,8 @@ public class MetricsAggregator {
                             "Metrics-AggregateMetrics","timestamp":1599617227595,"cause":null} */
                             GreengrassLogMessage egLog = objectMapper.readValue(log,
                                     GreengrassLogMessage.class);
-                            AggregatedMetricList am = objectMapper.readValue(egLog.getMessage(),
-                                    AggregatedMetricList.class);
+                            AggregatedNamespaceData am = objectMapper.readValue(egLog.getMessage(),
+                                    AggregatedNamespaceData.class);
                             // Avoid the metrics that are aggregated at/after the currTimestamp and before the
                             // upload interval
                             if (am != null && currTimestamp > am.getTimestamp() && am.getTimestamp() >= lastPublish) {
@@ -234,16 +234,16 @@ public class MetricsAggregator {
      * |___N -  NumOfComponentsInstalled,Average - 15,U - Count
      * |___N -  NumOfComponentsBroken,Average - 10,U - Count
      *
-     * @param aggList list of {@link AggregatedMetricList}
-     * @return a list of {@link AggregatedMetricList}
+     * @param aggList list of {@link AggregatedNamespaceData}
+     * @return a list of {@link AggregatedNamespaceData}
      */
-    private List<AggregatedMetricList> getAggForThePublishInterval(List<AggregatedMetricList> aggList,
+    private List<AggregatedNamespaceData> getAggForThePublishInterval(List<AggregatedNamespaceData> aggList,
                                                                    long currTimestamp) {
-        List<AggregatedMetricList> list = new ArrayList<>();
+        List<AggregatedNamespaceData> list = new ArrayList<>();
         for (String namespace : getNamespaceSet()) {
             HashMap<String, List<AggregatedMetric>> metrics = new HashMap<>();
-            AggregatedMetricList newAgg = new AggregatedMetricList();
-            for (AggregatedMetricList am : aggList) {
+            AggregatedNamespaceData newAgg = new AggregatedNamespaceData();
+            for (AggregatedNamespaceData am : aggList) {
                 if (am.getNamespace().equals(namespace)) {
                     for (AggregatedMetric m : am.getMetrics()) {
                         metrics.computeIfAbsent(m.getName(), k -> new ArrayList<>()).add(m);
