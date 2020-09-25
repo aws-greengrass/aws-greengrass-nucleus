@@ -30,3 +30,10 @@ services:
           powershell -command sleep 100
         posix:
           sleep 100
+  StartupService:
+    lifecycle:
+      startup:
+        windows:
+          powershell -command "& { sleep 2; exit 1 }"
+        posix:
+          sleep 2 && exit 1

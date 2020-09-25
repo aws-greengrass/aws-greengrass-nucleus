@@ -132,4 +132,4 @@ jobs:
           artifactDirectoryPath: target/artifacts
           endpoint: https://evergreen-gamma.us-east-1.amazonaws.com
           autoBumpVersion: true
-          publishAsPublic: false
+          publishAsPublic: true

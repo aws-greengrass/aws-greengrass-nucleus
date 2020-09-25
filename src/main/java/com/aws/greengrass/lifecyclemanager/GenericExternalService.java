@@ -210,10 +210,12 @@ public class GenericExternalService extends GreengrassService {
             // the reportStates outside of the callback
             synchronized (this) {
                 logger.atInfo().kv("exitCode", exit).log("Startup script exited");
-                if (startingStateGeneration == getStateGeneration() && State.STARTING.equals(getState())) {
-                    if (exit == 0) {
+                State state = getState();
+                if (startingStateGeneration == getStateGeneration()
+                        && State.STARTING.equals(state) || State.RUNNING.equals(state)) {
+                    if (exit == 0 && State.STARTING.equals(state)) {
                         reportState(State.RUNNING);
-                    } else {
+                    } else if (exit != 0) {
                         serviceErrored("Non-zero exit code in startup");
                     }
                 }
