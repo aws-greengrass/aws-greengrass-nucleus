@@ -92,8 +92,6 @@ class TelemetryAgentTest extends BaseITCase {
                 TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC));
         int periodicInterval = Coerce.toInt(telTopics.find(PARAMETERS_CONFIG_KEY,
                 TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC));
-        long delay = ta.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
-        assertTrue(delay <= periodicInterval);
         //telemetry configurations are set correctly
         assertEquals(2, aggregateInterval);
         assertEquals(4, periodicInterval);
@@ -104,7 +102,8 @@ class TelemetryAgentTest extends BaseITCase {
         TimeUnit.SECONDS.sleep(periodicInterval + 1);
         assertTrue(Coerce.toLong(telTopics.find(RUNTIME_STORE_NAMESPACE_TOPIC,
                 TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC)) > lastAgg);
-
+        long delay = ta.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
+        assertTrue(delay <= periodicInterval);
         // telemetry logs are always written to ~root/telemetry
         assertEquals(kernel.getRootPath().resolve("telemetry"), TelemetryConfig.getTelemetryDirectory());
         // THEN
