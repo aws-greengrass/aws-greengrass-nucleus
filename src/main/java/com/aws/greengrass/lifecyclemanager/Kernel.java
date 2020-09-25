@@ -537,6 +537,7 @@ public class Kernel {
 
     private void setupCloudEndpoint() {
         DeviceConfiguration deviceConfiguration = context.get(DeviceConfiguration.class);
+        /*
         IotSdkClientFactory.EnvironmentStage stage;
         try {
             stage = IotSdkClientFactory.EnvironmentStage
@@ -545,6 +546,8 @@ public class Kernel {
             logger.atError().setCause(e).log("Caught exception while parsing kernel args");
             throw new RuntimeException(e);
         }
+        */
+        IotSdkClientFactory.EnvironmentStage stage = IotSdkClientFactory.EnvironmentStage.BETA;
 
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
         String endpoint = String.format(STAGE_TO_ENDPOINT_FORMAT.get(stage), region);
