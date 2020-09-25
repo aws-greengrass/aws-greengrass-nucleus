@@ -108,9 +108,14 @@ public final class IotSdkClientFactory {
         allExceptionsToRetryOn.addAll(retryableIoTExceptions);
         allExceptionsToRetryOn.addAll(additionalRetryableExceptions);
 
+        int numRetries = 5;
+        if (additionalRetryableExceptions.isEmpty()) {
+            numRetries = 10;
+        }
+
         RetryCondition retryCondition = OrRetryCondition.create(RetryCondition.defaultRetryCondition(),
                 RetryOnExceptionsCondition.create(allExceptionsToRetryOn));
-        RetryPolicy retryPolicy = RetryPolicy.builder().numRetries(10)
+        RetryPolicy retryPolicy = RetryPolicy.builder().numRetries(numRetries)
                 .backoffStrategy(BackoffStrategy.defaultThrottlingStrategy()).retryCondition(retryCondition).build();
         IotClientBuilder iotClientBuilder = IotClient.builder().region(awsRegion).overrideConfiguration(
                 ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build());
