@@ -82,7 +82,6 @@ import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE
 @SuppressWarnings("PMD.CouplingBetweenObjects")
 public class Kernel {
     private static final Logger logger = LogManager.getLogger(Kernel.class);
-
     protected static final String CONTEXT_SERVICE_IMPLEMENTERS = "service-implementers";
     public static final String SERVICE_CLASS_TOPIC_KEY = "class";
     public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
@@ -183,7 +182,6 @@ public class Kernel {
         DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
         KernelAlternatives kernelAlts = kernelCommandLine.getKernelAlternatives();
         DeploymentStage stage = kernelAlts.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager);
-
         switch (stage) {
             case BOOTSTRAP:
                 logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
@@ -571,4 +569,5 @@ public class Kernel {
     public String deTilde(String filename) {
         return kernelCommandLine.deTilde(filename);
     }
+
 }
