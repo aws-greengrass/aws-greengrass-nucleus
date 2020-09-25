@@ -26,16 +26,16 @@ import org.apache.commons.io.FileUtils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.Set;
 import javax.inject.Inject;
 
 public class ComponentStore {
@@ -126,20 +126,24 @@ public class ComponentStore {
     }
 
     /**
-     * Delete the package recipe and all artifacts from disk.
+     * Delete the component recipe, artifacts, and decompressed files from disk.
      *
-     * @param pkgId package identifier
+     * @param compId component identifier
+     * @throws PackageLoadingException if deletion of the component failed
      */
-    void deletePackage(@NonNull ComponentIdentifier pkgId) throws PackagingException {
+    void deleteComponent(@NonNull ComponentIdentifier compId) throws PackageLoadingException {
+        logger.atInfo("delete-component-start").kv("componentIdentifier", compId).log();
         IOException exception = null;
+        // delete recipe
         try {
-            Path recipePath = resolveRecipePath(pkgId.getName(), pkgId.getVersion());
+            Path recipePath = resolveRecipePath(compId.getName(), compId.getVersion());
             Files.deleteIfExists(recipePath);
         } catch (IOException e) {
             exception = e;
         }
+        // delete artifacts
         try {
-            Path artifactDirPath = resolveArtifactDirectoryPath(pkgId);
+            Path artifactDirPath = resolveArtifactDirectoryPath(compId);
             FileUtils.deleteDirectory(artifactDirPath.toFile());
         } catch (IOException e) {
             if (exception == null) {
@@ -148,8 +152,9 @@ public class ComponentStore {
                 exception.addSuppressed(e);
             }
         }
+        // delete decompressed files
         try {
-            Path artifactDecompressedDirPath = nucleusPaths.unarchiveArtifactPath(pkgId);
+            Path artifactDecompressedDirPath = nucleusPaths.unarchiveArtifactPath(compId);
             FileUtils.deleteDirectory(artifactDecompressedDirPath.toFile());
         } catch (IOException e) {
             if (exception == null) {
@@ -159,8 +164,9 @@ public class ComponentStore {
             }
         }
         if (exception != null) {
-            throw new PackagingException("Failed to delete package " + pkgId, exception);
+            throw new PackageLoadingException("Failed to delete package " + compId, exception);
         }
+        logger.atInfo("delete-component-finish").kv("componentIdentifier", compId).log();
     }
 
     /**
@@ -211,6 +217,33 @@ public class ComponentStore {
         }
         componentMetadataList.sort(null);
         return componentMetadataList;
+    }
+
+    /**
+     * Get all locally available component-version by checking the existence of its artifact directory.
+     *
+     * @return map from component name to a set of version strings in Semver format
+     */
+    public Map<String, Set<String>> listArtifactAvailableComponents() {
+        Map<String, Set<String>> result = new HashMap<>();
+        File[] compDirs = nucleusPaths.artifactPath().toFile().listFiles(File::isDirectory);
+        if (compDirs == null || compDirs.length == 0) {
+            return result;
+        }
+
+        for (File compDir : compDirs) {
+            Set<String> versions = new HashSet<>();
+            File[] versionDirs = compDir.listFiles(File::isDirectory);
+            if (versionDirs == null) {
+                continue;
+            }
+            for (File versionDir : versionDirs) {
+                versions.add(versionDir.getName());
+            }
+            result.put(compDir.getName(), versions);
+        }
+
+        return result;
     }
 
     Optional<ComponentIdentifier> findBestMatchAvailableComponent(@NonNull String componentName,
@@ -283,29 +316,41 @@ public class ComponentStore {
      * estimate of the package store's disk usage.
      *
      * @return total length of files in bytes
-     * @throws UnexpectedPackagingException if unable to access the package store directory
+     * @throws PackageLoadingException if unable to access the package store directory
      */
-    public long getContentSize() throws UnexpectedPackagingException {
+    public long getContentSize() throws PackageLoadingException {
         try {
-            try (Stream<Path> s = Files.walk(nucleusPaths.componentStorePath())) {
-                return s.map(Path::toFile)
-                        .filter(File::isFile)
-                        .mapToLong(File::length)
-                        .sum();
-            }
+            return Files.walk(nucleusPaths.componentStorePath()).map(Path::toFile)
+                    .filter(File::isFile).mapToLong(File::length).sum();
         } catch (IOException e) {
-            throw new UnexpectedPackagingException("Failed to access package store", e);
+            throw new PackageLoadingException("Failed to access package store", e);
         }
     }
 
     /**
      * Get remaining usable bytes for the package store.
      * @return usable bytes
-     * @throws IOException if I/O error occurred
+     * @throws PackageLoadingException if I/O error occurred
      */
-    public long getUsableSpace() throws IOException {
-        FileStore filestore = Files.getFileStore(nucleusPaths.componentStorePath());
-        return filestore.getUsableSpace();
+    public long getUsableSpace() throws PackageLoadingException {
+        try {
+            return Files.getFileStore(nucleusPaths.componentStorePath()).getUsableSpace();
+        } catch (IOException e) {
+            throw new PackageLoadingException("Failed to get usable disk space", e);
+        }
+    }
+
+    /**
+     * Get remaining usable bytes for the package store.
+     * @return usable bytes
+     * @throws PackageLoadingException if I/O error occurred
+     */
+    public long getTotalSpace() throws PackageLoadingException {
+        try {
+            return Files.getFileStore(nucleusPaths.componentStorePath()).getTotalSpace();
+        } catch (IOException e) {
+            throw new PackageLoadingException("Failed to get usable disk space", e);
+        }
     }
 
     private static String parsePackageNameFromFileName(String filename) {

@@ -112,6 +112,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
             logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE).setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .log("Finished deployment task");
+
+            componentManager.cleanupStaleVersions();
             return result;
         } catch (IOException | NoAvailableComponentVersionException | UnexpectedPackagingException e) {
             throw new NonRetryableDeploymentTaskFailureException(e);

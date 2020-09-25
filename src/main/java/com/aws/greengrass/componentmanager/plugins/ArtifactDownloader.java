@@ -64,7 +64,7 @@ public abstract class ArtifactDownloader {
     }
 
     static boolean needsDownload(ComponentArtifact artifact, Path saveToPath)
-            throws PackageDownloadException, IOException {
+            throws PackageDownloadException {
         // Local recipes don't have digest or algorithm and that's expected, in such case, use the
         // locally present artifact. On the other hand, recipes downloaded from cloud will always
         // have digest and algorithm
@@ -105,7 +105,18 @@ public abstract class ArtifactDownloader {
                                         Path saveToPath)
             throws IOException, PackageDownloadException, InvalidArtifactUriException;
 
-    public abstract long getSize(ComponentIdentifier packageIdentifier, ComponentArtifact artifact)
-            throws InvalidArtifactUriException, PackageDownloadException, IOException;
+    /**
+     * Get the file size of an artifact. Returns 0 if it is found locally.
+     *
+     * @param componentIdentifier package info
+     * @param artifact artifact info
+     * @param saveToPath expected path if the artifact is downloaded. Should be the same one as calling downloadToPath
+     * @return size of the artifact in bytes
+     * @throws InvalidArtifactUriException if provided info results in invalid URI
+     * @throws PackageDownloadException if error encountered
+     */
+    public abstract long getDownloadSize(ComponentIdentifier componentIdentifier, ComponentArtifact artifact,
+                                         Path saveToPath)
+            throws InvalidArtifactUriException, PackageDownloadException;
 }
 

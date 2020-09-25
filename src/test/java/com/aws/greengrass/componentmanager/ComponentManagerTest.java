@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiatio
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
+import com.aws.greengrass.componentmanager.exceptions.SizeLimitException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
@@ -101,6 +102,8 @@ class ComponentManagerTest {
     private static final Semver v1_2_0 = new Semver("1.2.0");
     private static final Semver v1_0_0 = new Semver("1.0.0");
     private static final String componentA = "A";
+    private static final long TEN_TERA_BYTES = 10_000_000_000_000L;
+    private static final long TEN_BYTES = 10L;
 
     @TempDir
     Path tempDir;
@@ -129,10 +132,11 @@ class ComponentManagerTest {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws PackageLoadingException {
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         componentManager = new ComponentManager(s3Downloader, artifactDownloader, packageServiceHelper,
                 executor, componentStore, kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
+        lenient().when(componentStore.getUsableSpace()).thenReturn(100_000_000L);
     }
 
     @AfterEach
@@ -527,6 +531,51 @@ class ComponentManagerTest {
         verify(componentStore, never()).findComponentRecipeContent(any());
         verify(componentStore, never()).savePackageRecipe(any(), anyString());
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
+    }
+
+    @Test
+    void GIVEN_component_WHEN_disk_space_critical_and_prepare_components_THEN_throws_exception(ExtensionContext context)
+            throws Exception {
+        // mock get recipe
+        ComponentIdentifier pkgId = new ComponentIdentifier("SimpleApp", new Semver("1.0.0"), SCOPE);
+        when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
+        String fileName = "SimpleApp-1.0.0.yaml";
+        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
+        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
+        ComponentRecipe componentRecipe = RecipeLoader.loadFromFile(sourceRecipeString).get();
+        when(packageServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(sourceRecipeString);
+        when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
+
+        // mock very limited space left
+        when(componentStore.getUsableSpace()).thenReturn(TEN_BYTES);
+
+        ignoreExceptionUltimateCauseOfType(context, SizeLimitException.class);
+        Future<Void> future = componentManager.preparePackages(Collections.singletonList(pkgId));
+        assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+        verify(artifactDownloader, never()).downloadToPath(any(), any(), any());
+    }
+
+    @Test
+    void GIVEN_component_WHEN_component_store_full_and_prepare_components_THEN_throws_exception(ExtensionContext context)
+            throws Exception {
+        // mock get recipe
+        ComponentIdentifier pkgId = new ComponentIdentifier("SimpleApp", new Semver("1.0.0"), SCOPE);
+        when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
+        String fileName = "SimpleApp-1.0.0.yaml";
+        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
+        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
+        ComponentRecipe componentRecipe = RecipeLoader.loadFromFile(sourceRecipeString).get();
+        when(packageServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(sourceRecipeString);
+        when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
+
+        // mock very large component store size
+        when(componentStore.getContentSize()).thenReturn(TEN_TERA_BYTES);
+        when(artifactDownloader.getDownloadSize(any(), any(), any())).thenReturn(TEN_BYTES);
+
+        ignoreExceptionUltimateCauseOfType(context, SizeLimitException.class);
+        Future<Void> future = componentManager.preparePackages(Collections.singletonList(pkgId));
+        assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+        verify(artifactDownloader, never()).downloadToPath(any(), any(), any());
     }
 
     private static Map<String, String> getExpectedDependencies(Semver version) {

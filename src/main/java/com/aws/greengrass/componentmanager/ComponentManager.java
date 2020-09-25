@@ -13,6 +13,7 @@ import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersio
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
+import com.aws.greengrass.componentmanager.exceptions.SizeLimitException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
@@ -42,16 +43,21 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PRIVATE_SCOPE;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
 
 public class ComponentManager implements InjectionActions {
@@ -62,16 +68,14 @@ public class ComponentManager implements InjectionActions {
     private static final String PACKAGE_NAME_KEY = "packageName";
     private static final String PACKAGE_IDENTIFIER = "packageIdentifier";
 
+    private static final long DEFAULT_MAX_STORE_SIZE_BYTES = 10_000_000_000L;  // TODO for dev only. make configurable
+    private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 1_000_000L;
+
     private final S3Downloader s3ArtifactsDownloader;
-
     private final GreengrassRepositoryDownloader greengrassArtifactDownloader;
-
     private final ComponentServiceHelper componentServiceHelper;
-
     private final ExecutorService executorService;
-
     private final ComponentStore componentStore;
-
     private final Kernel kernel;
     private final Unarchiver unarchiver;
     private final NucleusPaths nucleusPaths;
@@ -292,6 +296,9 @@ public class ComponentManager implements InjectionActions {
             ComponentRecipe pkg = findRecipeDownloadIfNotExisted(componentIdentifier);
             prepareArtifacts(componentIdentifier, pkg.getArtifacts());
             logger.atInfo("prepare-package-finished").kv(PACKAGE_IDENTIFIER, componentIdentifier).log();
+        } catch (SizeLimitException e) {
+            logger.atError().log("Size limit reached", e);
+            throw e;
         } catch (PackageLoadingException | PackageDownloadException e) {
             logger.atError().log("Failed to prepare package {}", componentIdentifier, e);
             throw e;
@@ -330,7 +337,20 @@ public class ComponentManager implements InjectionActions {
                 .addKeyValue(PACKAGE_IDENTIFIER, componentIdentifier).log();
 
         for (ComponentArtifact artifact : artifacts) {
+            // check disk space before download
+            //TODO refactor to check total artifacts size in preparePackages before download anything
+            // because all artifacts must fit otherwise the deployment still can fail.
+            // also revise entire download flow to check existence first
+            if (componentStore.getUsableSpace() < DEFAULT_MIN_DISK_AVAIL_BYTES) {
+                throw new SizeLimitException("Disk space critical");
+            }
+
             ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
+            long downloadSize = downloader.getDownloadSize(componentIdentifier, artifact, packageArtifactDirectory);
+            if (componentStore.getContentSize() + downloadSize > DEFAULT_MAX_STORE_SIZE_BYTES) {
+                throw new SizeLimitException("Component store size limit reached");
+            }
+
             File downloadedFile;
             try {
                 downloadedFile = downloader.downloadToPath(componentIdentifier, artifact, packageArtifactDirectory);
@@ -356,6 +376,55 @@ public class ComponentManager implements InjectionActions {
                 }
             }
         }
+    }
+
+    /**
+     * Delete stale versions from local store.
+     *
+     * @throws PackageLoadingException if I/O exception during deletion
+     */
+    public void cleanupStaleVersions() throws PackageLoadingException {
+        logger.atInfo("cleanup-stale-versions-start").log();
+        Map<String, Set<String>> keepVersions = getNonStaleComponentVersionsOnce();
+        Map<String, Set<String>> localComponentVersions = componentStore.listArtifactAvailableComponents();
+        // remove all local versions that does not present in keepVersions
+        for (Map.Entry<String, Set<String>> localVersions : localComponentVersions.entrySet()) {
+            String compName = localVersions.getKey();
+            if (keepVersions.containsKey(compName)) {
+                Set<String> removeVersions = new HashSet<>(localVersions.getValue());
+                removeVersions.removeAll(keepVersions.get(compName));
+                for (String compVersion : removeVersions) {
+                    componentStore
+                            .deleteComponent(new ComponentIdentifier(compName, new Semver(compVersion), PRIVATE_SCOPE));
+                }
+            }
+        }
+        logger.atInfo("cleanup-stale-versions-finish").log();
+    }
+
+    /**
+     * Query service config to obtain non-stale versions of components which should not be cleaned up.
+     *
+     * @return mapping from component name string to collection of non-stale version strings
+     */
+    public Map<String, Set<String>> getNonStaleComponentVersionsOnce() {
+        // TODO maybe subscribe to service topics instead of getOnce every time
+        Map<String, Set<String>> result = new HashMap<>();
+        for (GreengrassService service : kernel.orderedDependencies()) {
+            Set<String> nonStaleVersions = new HashSet<>();
+            Topic versionTopic = service.getServiceConfig().find(VERSION_CONFIG_KEY);
+            Topic prevVersionTopic = service.getServiceConfig().find(PREV_VERSION_CONFIG_KEY);
+            if (versionTopic != null) {
+                String version = (String) versionTopic.getOnce();
+                nonStaleVersions.add(version);
+            }
+            if (prevVersionTopic != null) {
+                String version = (String) prevVersionTopic.getOnce();
+                nonStaleVersions.add(version);
+            }
+            result.put(service.getName(), nonStaleVersions);
+        }
+        return result;
     }
 
     private ArtifactDownloader selectArtifactDownloader(URI artifactUri) throws PackageLoadingException {
@@ -397,7 +466,7 @@ public class ComponentManager implements InjectionActions {
      * @return the package version from the active Greengrass service
      */
     Semver getPackageVersionFromService(final GreengrassService service) {
-        Topic versionTopic = service.getServiceConfig().findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY);
+        Topic versionTopic = service.getServiceConfig().findLeafChild(VERSION_CONFIG_KEY);
 
         if (versionTopic == null) {
             return null;

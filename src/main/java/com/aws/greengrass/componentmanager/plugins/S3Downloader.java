@@ -100,39 +100,47 @@ public class S3Downloader extends ArtifactDownloader {
         }
     }
 
-    /**
-     * Get the size of artifact from S3.
-     *
-     * @param packageIdentifier package info
-     * @param artifact artifact info
-     * @return ContentLength in bytes
-     * @throws InvalidArtifactUriException if provided info results in invalid URI
-     */
     @Override
-    public long getSize(ComponentIdentifier packageIdentifier, ComponentArtifact artifact)
-            throws InvalidArtifactUriException {
-        logger.atInfo().setEventType("get-artifact-size-from-s3")
-                .addKeyValue("packageIdentifier", packageIdentifier)
+    public long getDownloadSize(ComponentIdentifier componentIdentifier, ComponentArtifact artifact, Path saveToPath)
+            throws InvalidArtifactUriException, PackageDownloadException {
+        logger.atInfo().setEventType("get-download-size-from-s3")
+                .addKeyValue("componentIdentifier", componentIdentifier)
                 .addKeyValue("artifactUri", artifact.getArtifactUri().toString()).log();
-        S3ObjectPath s3ObjectPath = getS3PathForURI(artifact.getArtifactUri(), packageIdentifier);
-        HeadObjectRequest headObjectRequest =
-                HeadObjectRequest.builder().bucket(s3ObjectPath.bucket).key(s3ObjectPath.key).build();
-        HeadObjectResponse headObjectResponse = s3Client.headObject(headObjectRequest);
-        return headObjectResponse.contentLength();
+
+        // Parse artifact path
+        S3ObjectPath s3ObjectPath = getS3PathForURI(artifact.getArtifactUri(), componentIdentifier);
+        String key = s3ObjectPath.key;
+
+        // check already downloaded
+        Path filePath = saveToPath.resolve(extractFileName(key));
+        if (!needsDownload(artifact, filePath)) {
+            return 0;
+        }
+
+        String bucket = s3ObjectPath.bucket;
+        try (S3Client regionClient = getRegionClientForBucket(bucket)) {
+            HeadObjectRequest headObjectRequest = HeadObjectRequest.builder().bucket(bucket).key(key).build();
+            HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
+            return headObjectResponse.contentLength();
+        } catch (SdkClientException | S3Exception e) {
+            throw new PackageDownloadException(String.format(ARTIFACT_DOWNLOAD_EXCEPTION_FMT, artifact.getArtifactUri(),
+                    componentIdentifier.getName(), componentIdentifier.getVersion().toString(),
+                    "Failed to head artifact object from S3"), e);
+        }
+    }
+
+    private S3Client getRegionClientForBucket(String bucket) {
+        GetBucketLocationRequest getBucketLocationRequest = GetBucketLocationRequest.builder().bucket(bucket).build();
+        String region = s3Client.getBucketLocation(getBucketLocationRequest).locationConstraintAsString();
+        // If the region is empty, it is us-east-1
+        return s3ClientFactory.getClientForRegion(Utils.isEmpty(region) ? Region.US_EAST_1 : Region.of(region));
     }
 
     @SuppressWarnings("PMD.CloseResource")
     private InputStream getObject(String bucket, String key, ComponentArtifact artifact,
                                   ComponentIdentifier componentIdentifier) throws PackageDownloadException {
-        try {
-            GetBucketLocationRequest getBucketLocationRequest =
-                    GetBucketLocationRequest.builder().bucket(bucket).build();
-            String region = s3Client.getBucketLocation(getBucketLocationRequest).locationConstraintAsString();
-            // If the region is empty, it is us-east-1
-            S3Client regionClient =
-                    s3ClientFactory.getClientForRegion(Utils.isEmpty(region) ? Region.US_EAST_1 : Region.of(region));
+        try (S3Client regionClient = getRegionClientForBucket(bucket)) {
             GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucket).key(key).build();
-
             return regionClient.getObject(getObjectRequest);
         } catch (SdkClientException | S3Exception e) {
             throw new PackageDownloadException(String.format(ARTIFACT_DOWNLOAD_EXCEPTION_FMT, artifact.getArtifactUri(),

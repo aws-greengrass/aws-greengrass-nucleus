@@ -57,6 +57,7 @@ import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -187,6 +188,8 @@ class PluginComponentTest extends BaseITCase {
         kernelSpy.getContext().get(EZPlugins.class)
                 .forName("com.aws.greengrass.integrationtests.lifecyclemanager.resource.PluginDependency");
 
+        // setup again because local files removed by cleanup in the previous deployment
+        setupPackageStore();
         String deploymentId2 = "deployment2";
         // No need to actually verify directory setup or make directory changes here.
         doReturn(true).when(kernelAltsSpy).isLaunchDirSetup();
@@ -214,7 +217,7 @@ class PluginComponentTest extends BaseITCase {
                 .resolve(componentName + JAR_FILE_EXTENSION).toFile());
         // Rename artifact for plugin-1.0.0
         Files.move(jarFilePath, e2ETestComponentStore.resolveArtifactDirectoryPath(componentId)
-                .resolve(componentName + JAR_FILE_EXTENSION));
+                .resolve(componentName + JAR_FILE_EXTENSION), REPLACE_EXISTING);
         kernel.getContext().put(ComponentStore.class, e2ETestComponentStore);
     }
 

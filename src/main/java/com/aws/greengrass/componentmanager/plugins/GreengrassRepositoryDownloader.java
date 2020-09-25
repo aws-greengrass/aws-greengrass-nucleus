@@ -105,35 +105,37 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         return null;
     }
 
-    /**
-     * Get the size of artifact from greengrass repo by sending HTTP HEAD request.
-     *
-     * @param packageIdentifier package info
-     * @param artifact artifact info
-     * @return ContentLength in bytes
-     */
     @Override
-    public long getSize(ComponentIdentifier packageIdentifier, ComponentArtifact artifact)
-            throws IOException, PackageDownloadException {
-        logger.atInfo().setEventType("get-artifact-size-from-greengrass-repo")
-                .addKeyValue("packageIdentifier", packageIdentifier)
+    public long getDownloadSize(ComponentIdentifier componentIdentifier, ComponentArtifact artifact, Path saveToPath)
+            throws PackageDownloadException {
+        logger.atInfo().setEventType("get-download-size-from-greengrass-repo")
+                .addKeyValue("componentIdentifier", componentIdentifier)
                 .addKeyValue("artifactUri", artifact.getArtifactUri().toString()).log();
 
-        String preSignedUrl =
-                getArtifactDownloadURL(packageIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
-        URL url = new URL(preSignedUrl);
-        HttpURLConnection conn = connect(url);
-        conn.setRequestMethod("HEAD");
-        Map<String, List<String>> headers = conn.getHeaderFields();
-        // TODO verify this works by trying on a real package
-        if (!headers.containsKey(HTTP_HEADER_CONTENT_LENGTH) || headers.get(HTTP_HEADER_CONTENT_LENGTH).size() != 1) {
-            throw new PackageDownloadException(HTTP_HEADER_CONTENT_LENGTH + " not found in response " + "header");
-        }
-
         try {
+            String preSignedUrl =
+                    getArtifactDownloadURL(componentIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
+            URL url = new URL(preSignedUrl);
+            HttpURLConnection conn = connect(url);
+            conn.setRequestMethod("HEAD");
+            Map<String, List<String>> headers = conn.getHeaderFields();
+            // TODO verify this works by trying on a real package
+            if (!headers.containsKey(HTTP_HEADER_CONTENT_LENGTH)
+                    || headers.get(HTTP_HEADER_CONTENT_LENGTH).size() != 1) {
+                throw new PackageDownloadException(HTTP_HEADER_CONTENT_LENGTH + " not found in response " + "header");
+            }
             return Long.parseLong(headers.get(HTTP_HEADER_CONTENT_LENGTH).get(0));
+        } catch (PackageDownloadException e) {
+            if (!saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile().exists()) {
+                throw e;
+            }
+            logger.atInfo("get-download-size-from-greengrass-repo")
+                    .log("Failed to download artifact, but found it locally", e);
+            return 0;
         } catch (NumberFormatException e) {
             throw new PackageDownloadException("Got mal-formed Content-Length", e);
+        } catch (IOException e) {
+            throw new PackageDownloadException("Failed to get size", e);
         }
     }
 
