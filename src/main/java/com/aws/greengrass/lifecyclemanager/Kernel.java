@@ -82,7 +82,6 @@ import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE
 @SuppressWarnings("PMD.CouplingBetweenObjects")
 public class Kernel {
     private static final Logger logger = LogManager.getLogger(Kernel.class);
-
     protected static final String CONTEXT_SERVICE_IMPLEMENTERS = "service-implementers";
     public static final String SERVICE_CLASS_TOPIC_KEY = "class";
     public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
@@ -153,7 +152,6 @@ public class Kernel {
         context.put(DeploymentActivatorFactory.class, new DeploymentActivatorFactory(this));
         context.put(Clock.class, Clock.systemUTC());
         Map<String, String> typeToClassMap = new ConcurrentHashMap<>();
-        typeToClassMap.put("generic", GenericExternalService.class.getName());
         typeToClassMap.put("lambda", "com.aws.greengrass.lambdamanager.UserLambdaService");
         context.put(SERVICE_TYPE_TO_CLASS_MAP_KEY, typeToClassMap);
     }
@@ -183,7 +181,6 @@ public class Kernel {
         DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
         KernelAlternatives kernelAlts = kernelCommandLine.getKernelAlternatives();
         DeploymentStage stage = kernelAlts.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager);
-
         switch (stage) {
             case BOOTSTRAP:
                 logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
@@ -216,7 +213,7 @@ public class Kernel {
             case KERNEL_ACTIVATION:
             case KERNEL_ROLLBACK:
                 logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
-                LinkedBlockingQueue<Deployment> deploymentsQueue = new LinkedBlockingQueue();
+                LinkedBlockingQueue<Deployment> deploymentsQueue = new LinkedBlockingQueue<>();
                 context.put(DEPLOYMENTS_QUEUE, deploymentsQueue);
                 try {
                     Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
@@ -571,4 +568,5 @@ public class Kernel {
     public String deTilde(String filename) {
         return kernelCommandLine.deTilde(filename);
     }
+
 }

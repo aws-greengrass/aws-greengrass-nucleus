@@ -168,6 +168,7 @@ public class CLIService extends GreengrassService {
         //  other platforms.
         File ipcInfoFile = new File(filePath.toString());
         ipcInfo.clear();
+        ipcInfoFile.setReadable(false, false);
         ipcInfoFile.setReadable(true, true);
         ipcInfoFile.setWritable(true, true);
     }
