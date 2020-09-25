@@ -21,6 +21,7 @@ import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -48,6 +49,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -80,6 +82,14 @@ public class IotJobsHelper implements InjectionActions {
     public static final String UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG = "Timed out while updating the job status";
     public static final String UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG = "Caught exception while updating job status";
     public static final String UPDATE_DEPLOYMENT_STATUS_ACCEPTED = "Job status update was accepted";
+    protected static final String SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE =
+            "No connection available during subscribing to Iot Jobs descriptions topic. Will retry in sometime";
+    protected static final String SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED =
+            "Interrupted while subscribing to Iot Jobs descriptions topic";
+    protected static final String SUBSCRIPTION_EVENT_NOTIFICATIONS_RETRY =
+            "No connection available during subscribing to Iot jobs event notifications topic. Will retry in sometime";
+    protected static final String SUBSCRIPTION_EVENT_NOTIFICATIONS_INTERRUPTED =
+            "Interrupted while subscribing to Iot jobs event notifications topic";
 
     //The time within which device expects an acknowledgement from Iot cloud after publishing an MQTT message
     //This value needs to be revisited and set to more realistic numbers
@@ -97,6 +107,7 @@ public class IotJobsHelper implements InjectionActions {
     private static final LatestQueuedJobs latestQueuedJobs = new LatestQueuedJobs();
 
     private static final Logger logger = LogManager.getLogger(IotJobsHelper.class);
+    private static final long WAIT_TIME_MS_TO_SUBSCRIBE_AGAIN = Duration.ofMinutes(2).toMillis();
 
     @Inject
     private DeviceConfiguration deviceConfiguration;
@@ -129,6 +140,8 @@ public class IotJobsHelper implements InjectionActions {
 
     private IotJobsClient iotJobsClient;
     private MqttClientConnection connection;
+    @Setter (AccessLevel.PACKAGE) // For tests
+    private long waitTimeToSubscribeAgain = WAIT_TIME_MS_TO_SUBSCRIBE_AGAIN;
 
     private final Consumer<JobExecutionsChangedEvent> eventHandler = event -> {
         /*
@@ -402,35 +415,12 @@ public class IotJobsHelper implements InjectionActions {
      * @throws ConnectionUnavailableException When connection to cloud is not available
      *
      */
-    public void subscribeToJobsTopics()   {
-        try {
-            //TODO: Add retry in case of Throttling, Timeout and LimitExceed exception
-            subscribeToEventNotifications(eventHandler);
-            subscribeToGetNextJobDescription(describeJobExecutionResponseConsumer, rejectedError -> {
-                logger.error("Job subscription got rejected", rejectedError);
-                //TODO: Add retry logic for subscribing
-            });
-            requestNextPendingJobDocument();
-        } catch (ExecutionException e) {
-            //TODO: If network is not available then it will throw MqttException
-            // If there is any other problem like thingName is not specified in the request then also
-            // it throws Mqtt exception. Need to distinguish between what is cause due to network unavailability
-            // and what is caused by other non-transient causes like invalid parameters
-            if (e.getCause() instanceof MqttException) {
-                logger.atWarn().setCause(e).log("No connection available during subscribing to topic. "
-                        + "Will retry when connection is available");
-                return;
-            }
-            //Device will run in offline mode if it is not able to subscribe to Iot Jobs topics
-            logger.atError().setCause(e).log("Caught exception while subscribing to Iot Jobs topics");
-        } catch (TimeoutException e) {
-            //After the max retries have been exhausted
-            logger.atWarn().setCause(e).log("No connection available during subscribing to topic. "
-                    + "Will retry when connection is available");
-        } catch (InterruptedException e) {
-            //Since this method can run as runnable cannot throw exception so handling exceptions here
-            logger.atWarn().log("Interrupted while running deployment service");
-        }
+    public void subscribeToJobsTopics() {
+        subscribeToEventNotifications(eventHandler);
+        subscribeToGetNextJobDescription(describeJobExecutionResponseConsumer, rejectedError -> {
+            logger.error("Job subscription got rejected", rejectedError);
+        });
+        requestNextPendingJobDocument();
     }
 
     /**
@@ -445,25 +435,54 @@ public class IotJobsHelper implements InjectionActions {
      * @throws TimeoutException     if the operation does not complete within the given time
      */
     protected void subscribeToGetNextJobDescription(Consumer<DescribeJobExecutionResponse> consumerAccept,
-                                                    Consumer<RejectedError> consumerReject)
-            throws ExecutionException, InterruptedException, TimeoutException {
+                                                    Consumer<RejectedError> consumerReject) {
 
-        logger.atInfo().log("Subscribing to deployment job execution update.");
+        logger.atDebug().log("Subscribing to deployment job execution update.");
         DescribeJobExecutionSubscriptionRequest describeJobExecutionSubscriptionRequest =
                 new DescribeJobExecutionSubscriptionRequest();
         describeJobExecutionSubscriptionRequest.thingName = Coerce.toString(deviceConfiguration.getThingName());
         describeJobExecutionSubscriptionRequest.jobId = "$next";
-        CompletableFuture<Integer> subscribed = iotJobsClient
-                .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
-                        QualityOfService.AT_LEAST_ONCE, consumerAccept);
-        try {
-            subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
-            subscribed = iotJobsClient.SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
-                    QualityOfService.AT_LEAST_ONCE, consumerReject);
-            subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
-            logger.atInfo().log("Subscribed to deployment job execution update.");
-        } catch (ExecutionException e) {
-            unwrapExecutionException(e);
+
+        while (true) {
+            CompletableFuture<Integer> subscribed = iotJobsClient
+                    .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
+                            QualityOfService.AT_LEAST_ONCE, consumerAccept);
+            try {
+                subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+                subscribed = iotJobsClient
+                        .SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
+                                QualityOfService.AT_LEAST_ONCE, consumerReject);
+                subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+                logger.atInfo().log("Subscribed to deployment job execution update.");
+                break;
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof MqttException || cause instanceof TimeoutException) {
+                    //TODO: If network is not available then it will throw MqttException
+                    // If there is any other problem like thingName is not specified in the request then also
+                    // it throws Mqtt exception. This can be identified based on error code. Currently error code is not
+                    // exposed. Will make required change in CRT package to expose the error code and then update this
+                    logger.atWarn().setCause(cause).log(SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE);
+                }
+                if (cause instanceof InterruptedException) {
+                    logger.atWarn().log(SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED);
+                    break;
+                }
+            } catch (TimeoutException e) {
+                logger.atWarn().setCause(e).log(SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE);
+            } catch (InterruptedException e) {
+                logger.atWarn().log(SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED);
+                break;
+            }
+
+            try {
+                // Wait for sometime and then try to subscribe again
+                Random jitter = new Random();
+                Thread.sleep(waitTimeToSubscribeAgain + jitter.nextInt(10_000));
+            } catch (InterruptedException interruptedException) {
+                logger.atWarn().log(SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED);
+                break;
+            }
         }
     }
 
@@ -475,19 +494,48 @@ public class IotJobsHelper implements InjectionActions {
      * @throws InterruptedException When this thread was interrupted
      * @throws TimeoutException     if the operation does not complete within the given time
      */
-    protected void subscribeToEventNotifications(Consumer<JobExecutionsChangedEvent> eventHandler)
-            throws ExecutionException, InterruptedException, TimeoutException {
-        logger.atInfo().log("Subscribing to deployment job event notifications.");
+    protected void subscribeToEventNotifications(Consumer<JobExecutionsChangedEvent> eventHandler) {
+
+        logger.atDebug().log("Subscribing to deployment job event notifications.");
         JobExecutionsChangedSubscriptionRequest request = new JobExecutionsChangedSubscriptionRequest();
         request.thingName = Coerce.toString(deviceConfiguration.getThingName());
-        CompletableFuture<Integer> subscribed = iotJobsClient
-                .SubscribeToJobExecutionsChangedEvents(request, QualityOfService.AT_LEAST_ONCE, eventHandler);
-        try {
-            subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
-        } catch (ExecutionException e) {
-            unwrapExecutionException(e);
+
+        while (true) {
+            CompletableFuture<Integer> subscribed = iotJobsClient.SubscribeToJobExecutionsChangedEvents(request,
+                    QualityOfService.AT_LEAST_ONCE, eventHandler);
+            try {
+                subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+                logger.atInfo().log("Subscribed to deployment job event notifications.");
+                break;
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof MqttException || cause instanceof TimeoutException) {
+                    //TODO: If network is not available then it will throw MqttException
+                    // If there is any other problem like thingName is not specified in the request then also
+                    // it throws Mqtt exception. This can be identified based on error code. Currently error code is not
+                    // exposed. Will make required change in CRT package to expose the error code and then update this
+                    logger.atWarn().setCause(cause).log(SUBSCRIPTION_EVENT_NOTIFICATIONS_RETRY);
+                }
+                if (cause instanceof InterruptedException) {
+                    logger.atWarn().log(SUBSCRIPTION_EVENT_NOTIFICATIONS_INTERRUPTED);
+                    break;
+                }
+            } catch (InterruptedException e) {
+                logger.atWarn().log(SUBSCRIPTION_EVENT_NOTIFICATIONS_INTERRUPTED);
+                break;
+            } catch (TimeoutException e) {
+                logger.atWarn().setCause(e).log(SUBSCRIPTION_EVENT_NOTIFICATIONS_RETRY);
+            }
+
+            try {
+                // Wait for sometime and then try to subscribe again
+                Random jitter = new Random();
+                Thread.sleep(waitTimeToSubscribeAgain + jitter.nextInt(10_000));
+            } catch (InterruptedException interruptedException) {
+                logger.atWarn().log(SUBSCRIPTION_EVENT_NOTIFICATIONS_INTERRUPTED);
+                break;
+            }
         }
-        logger.atInfo().log("Subscribed to deployment job event notifications.");
     }
 
     private static void unwrapExecutionException(ExecutionException e)
