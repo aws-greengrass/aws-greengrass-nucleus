@@ -456,7 +456,7 @@ public class ComponentManager implements InjectionActions {
             Map<String, String> deps = new HashMap<>();
             service.forAllDependencies(d -> deps.put(d.getServiceName(), ANY_VERSION));
 
-            return new ComponentMetadata(new ComponentIdentifier(packageName, activeVersion, PUBLIC_SCOPE), deps);
+            return new ComponentMetadata(new ComponentIdentifier(packageName, activeVersion), deps);
         } catch (ServiceLoadException e) {
             return null;
         }

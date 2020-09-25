@@ -153,7 +153,8 @@ public class SimplifiedDependencyResolver {
         Map<String, ComponentIdentifier> resolvedComponents = new HashMap<>();
         while (componentsToResolve.size() != 0) {
             String componentToResolve = componentsToResolve.poll();
-            Map<String, Requirement> versionConstraints = componentNameToVersionConstraints.get(componentToResolve);
+            Map<String, Requirement> versionConstraints =
+                    new HashMap<>(componentNameToVersionConstraints.get(componentToResolve));
             ComponentMetadata resolvedVersion = componentResolver.resolve(componentToResolve, versionConstraints);
             logger.atDebug().kv("resolvedVersion", resolvedVersion).log("Resolved component");
             resolvedComponents.put(componentToResolve, resolvedVersion.getComponentIdentifier());
