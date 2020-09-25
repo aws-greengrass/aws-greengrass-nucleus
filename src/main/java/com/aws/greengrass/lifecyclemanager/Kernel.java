@@ -152,7 +152,6 @@ public class Kernel {
         context.put(DeploymentActivatorFactory.class, new DeploymentActivatorFactory(this));
         context.put(Clock.class, Clock.systemUTC());
         Map<String, String> typeToClassMap = new ConcurrentHashMap<>();
-        typeToClassMap.put("generic", GenericExternalService.class.getName());
         typeToClassMap.put("lambda", "com.aws.greengrass.lambdamanager.UserLambdaService");
         context.put(SERVICE_TYPE_TO_CLASS_MAP_KEY, typeToClassMap);
     }
@@ -214,7 +213,7 @@ public class Kernel {
             case KERNEL_ACTIVATION:
             case KERNEL_ROLLBACK:
                 logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
-                LinkedBlockingQueue<Deployment> deploymentsQueue = new LinkedBlockingQueue();
+                LinkedBlockingQueue<Deployment> deploymentsQueue = new LinkedBlockingQueue<>();
                 context.put(DEPLOYMENTS_QUEUE, deploymentsQueue);
                 try {
                     Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
