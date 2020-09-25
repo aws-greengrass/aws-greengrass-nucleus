@@ -4,8 +4,6 @@
 package com.aws.greengrass.deployment;
 
 
-import com.amazonaws.util.CollectionUtils;
-import com.amazonaws.util.StringUtils;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
@@ -418,7 +416,7 @@ public class DeploymentService extends GreengrassService {
                             .forEach(t -> rootComponentsInRequestedGroup.add(t.getName()));
                     //TODO: pulling the versions from kernel. Can pull it from the config itself.
                     // Confirm if pulling from config should not break any use case for local
-                    if (!CollectionUtils.isNullOrEmpty(rootComponentsInRequestedGroup)) {
+                    if (!Utils.isEmpty(rootComponentsInRequestedGroup)) {
                         rootComponentsInRequestedGroup.forEach(c -> {
                             Topics serviceTopic = kernel.findServiceTopic(c);
                             if (serviceTopic != null) {
@@ -526,7 +524,7 @@ public class DeploymentService extends GreengrassService {
             groupsTopics.children.values().stream().map(n -> (Topic) n)
                     .forEach(topic -> {
                         String groupName = Coerce.toString(topic);
-                        if (!StringUtils.isNullOrEmpty(groupName)) {
+                        if (!Utils.isEmpty(groupName)) {
                             componentGroups.add(groupName);
                         }
                     });
@@ -548,7 +546,7 @@ public class DeploymentService extends GreengrassService {
                 groupsTopics.children.values().stream().map(n -> (Topic) n)
                         .forEach(topic -> {
                             String groupName = Coerce.toString(topic);
-                            if (!StringUtils.isNullOrEmpty(groupName)) {
+                            if (!Utils.isEmpty(groupName)) {
                                 allGroupNames.add(groupName);
                             }
                         });
