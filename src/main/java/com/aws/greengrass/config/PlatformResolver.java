@@ -70,7 +70,8 @@ public final class PlatformResolver {
         // TODO: use better way to determine if a field is platform specific. Eg: using 'platform$' prefix.
         ranks.put("all", 0);
         ranks.put("any", 0);
-        if (Files.exists(Paths.get("/bin/bash")) || Files.exists(Paths.get("/usr/bin/bash"))) {
+        if (Files.exists(Paths.get("/bin/sh")) || Files.exists(Paths.get("/bin/bash"))
+                || Files.exists(Paths.get("/usr/bin/bash"))) {
             ranks.put("unix", 3);
             ranks.put("posix", 3);
         }
