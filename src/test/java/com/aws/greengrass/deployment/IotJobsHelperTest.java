@@ -7,6 +7,7 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -14,6 +15,7 @@ import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -39,13 +41,18 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCAL;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -175,6 +182,66 @@ public class IotJobsHelperTest {
         eventChangeResponseCaptor.getValue().accept(event);
         verify(mockIotJobsClient, times(2)).PublishDescribeJobExecution(any(),
                 eq(QualityOfService.AT_LEAST_ONCE));
+    }
+
+    @Test
+    public void GIVEN_not_connected_to_iot_WHEN_subscribe_to_eventnotifications_topic_timesout_THEN_retry(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, TimeoutException.class);
+        CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
+        CompletableFuture<Integer> exceptionallyCompletedFuture = new CompletableFuture<>();
+        exceptionallyCompletedFuture.completeExceptionally(new TimeoutException());
+        AtomicInteger count = new AtomicInteger();
+        when(mockIotJobsClient.SubscribeToJobExecutionsChangedEvents(any()
+                , eq(QualityOfService.AT_LEAST_ONCE), any())).thenAnswer(invMocks -> {
+                if (count.incrementAndGet() > 1) {
+                    return integerCompletableFuture;
+                } else {
+                    return exceptionallyCompletedFuture;
+                }
+        });
+        CountDownLatch timeoutLogLatch = new CountDownLatch(1);
+        Slf4jLogAdapter.addGlobalListener(l->{
+            if (l.getMessage().contains(IotJobsHelper.SUBSCRIPTION_EVENT_NOTIFICATIONS_RETRY)) {
+                timeoutLogLatch.countDown();
+            }
+        });
+        iotJobsHelper.setWaitTimeToSubscribeAgain(1000);
+        iotJobsHelper.subscribeToJobsTopics();
+        timeoutLogLatch.await(2, TimeUnit.SECONDS);
+        verify(mockIotJobsClient, times(3)).SubscribeToJobExecutionsChangedEvents(any(), eq(
+                QualityOfService.AT_LEAST_ONCE), eventChangeResponseCaptor.capture());
+    }
+
+    @Test
+    public void GIVEN_not_connected_to_iot_WHEN_subscribe_to_jobDescriptions_topic_timesout_THEN_retry(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, TimeoutException.class);
+        CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
+        CompletableFuture<Integer> exceptionallyCompletedFuture = new CompletableFuture<>();
+        exceptionallyCompletedFuture.completeExceptionally(new TimeoutException());
+        AtomicInteger count = new AtomicInteger();
+        when(mockIotJobsClient.SubscribeToDescribeJobExecutionAccepted(any()
+                , eq(QualityOfService.AT_LEAST_ONCE), any())).thenAnswer(invMocks -> {
+            if (count.incrementAndGet() > 1) {
+                return integerCompletableFuture;
+            } else {
+                return exceptionallyCompletedFuture;
+            }
+        });
+        CountDownLatch timeoutLogLatch = new CountDownLatch(1);
+        Slf4jLogAdapter.addGlobalListener(l->{
+            if (l.getMessage().contains(IotJobsHelper.SUBSCRIPTION_EVENT_NOTIFICATIONS_RETRY)) {
+                timeoutLogLatch.countDown();
+            }
+        });
+        iotJobsHelper.setWaitTimeToSubscribeAgain(1000);
+        iotJobsHelper.subscribeToJobsTopics();
+        timeoutLogLatch.await(2, TimeUnit.SECONDS);
+        verify(mockIotJobsClient, times(2)).SubscribeToJobExecutionsChangedEvents(any(), eq(
+                QualityOfService.AT_LEAST_ONCE), eventChangeResponseCaptor.capture());
+        verify(mockIotJobsClient, times(3)).SubscribeToDescribeJobExecutionAccepted(any(), eq(
+                QualityOfService.AT_LEAST_ONCE), describeJobResponseCaptor.capture());
     }
 
     @Test
