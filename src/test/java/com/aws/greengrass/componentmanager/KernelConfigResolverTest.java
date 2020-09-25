@@ -44,6 +44,7 @@ import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -85,6 +86,9 @@ class KernelConfigResolverTest {
     void setupMocks() {
         path = Paths.get("Artifacts", TEST_INPUT_PACKAGE_A);
         lenient().when(componentStore.resolveArtifactDirectoryPath(any())).thenReturn(path.toAbsolutePath());
+        Topics mockRunnnigServiceConfig = mock(Topics.class);
+        lenient().when(alreadyRunningService.getConfig()).thenReturn(mockRunnnigServiceConfig);
+        lenient().when(mockRunnnigServiceConfig.toPOJO()).thenReturn(Collections.emptyMap());
     }
 
     @Test

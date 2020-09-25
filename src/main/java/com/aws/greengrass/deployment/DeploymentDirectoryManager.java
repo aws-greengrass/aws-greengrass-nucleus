@@ -177,6 +177,11 @@ public class DeploymentDirectoryManager {
         return getDeploymentDirectoryPath().resolve(TARGET_CONFIG_FILE);
     }
 
+
+    public Path getTmpConfigFilePath() throws IOException {
+        return getDeploymentDirectoryPath().resolve("tmp.tlog");
+    }
+
     /**
      * Resolve file path to persisted bootstrap task list of an ongoing deployment.
      *

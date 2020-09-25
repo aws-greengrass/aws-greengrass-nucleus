@@ -43,7 +43,7 @@ import static com.aws.greengrass.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STAT
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
-import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessageSubstring;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(GGExtension.class)
@@ -89,8 +89,8 @@ class MqttReconnectTest extends BaseE2ETestCase {
     void GIVEN_new_deployment_while_device_online_WHEN_mqtt_disconnects_and_reconnects_THEN_job_executes_successfully(
             ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, MqttException.class);
-        ignoreExceptionWithMessage(context,
-                "No valid versions were found for this package based on provided requirement");
+        ignoreExceptionWithMessageSubstring(context,
+                "No valid versions were found for this component based on provided requirement");
 
         CountDownLatch jobInProgress = new CountDownLatch(1);
         CountDownLatch jobCompleted = new CountDownLatch(1);

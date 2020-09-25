@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_MERGE_BEHAVIOR;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_ERROR_LOG_EVENT_KEY;
 
 public abstract class DeploymentActivator {
@@ -47,6 +48,10 @@ public abstract class DeploymentActivator {
                     DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
             return false;
         }
+    }
+
+    protected void updateKernelConfig(long timestamp, Map<String, Object> newConfig) {
+        kernel.getConfig().updateMap(timestamp, newConfig, DEPLOYMENT_MERGE_BEHAVIOR);
     }
 
     protected long rollbackConfig(CompletableFuture<DeploymentResult> totallyCompleteFuture, Throwable failureCause) {

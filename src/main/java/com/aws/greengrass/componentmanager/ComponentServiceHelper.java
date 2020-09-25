@@ -84,7 +84,8 @@ public class ComponentServiceHelper {
         } catch (AmazonClientException e) {
             // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
             throw new PackageDownloadException(
-                    "No valid versions were found for this package based on provided requirement", e);
+                    "No valid versions were found for this component based on provided requirement: "
+                            + findComponentRequest, e);
         }
         ret.sort(null);
         return ret;

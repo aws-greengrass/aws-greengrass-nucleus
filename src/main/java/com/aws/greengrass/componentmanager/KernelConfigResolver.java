@@ -115,6 +115,13 @@ public class KernelConfigResolver {
             servicesConfig.put(packageToDeploy.getName(),
                     getServiceConfig(packageToDeploy, document, packagesToDeploy, parameterAndDependencyCache));
         }
+        kernel.getMain().getDependencies().forEach((greengrassService, dependencyType) -> {
+            // Add all builtin dependencies
+            if (greengrassService.isBuiltin()) {
+                servicesConfig.putIfAbsent(greengrassService.getName(), greengrassService.getConfig().toPOJO());
+            }
+        });
+
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
 
         // Services need to be under the services namespace in kernel config
@@ -281,7 +288,7 @@ public class KernelConfigResolver {
         Map<String, Object> mainServiceConfig = new HashMap<>();
         ArrayList<String> mainDependencies = new ArrayList<>(rootPackages);
         kernel.getMain().getDependencies().forEach((greengrassService, dependencyType) -> {
-            // Add all autostart dependencies
+            // Add all builtin dependencies
             if (greengrassService.isBuiltin()) {
                 mainDependencies.add(greengrassService.getName() + ":" + dependencyType);
             }
