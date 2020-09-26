@@ -23,8 +23,10 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import javax.inject.Inject;
 
 
 @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
@@ -38,11 +40,15 @@ public class EZPlugins implements Closeable {
     private volatile ClassLoader root = this.getClass().getClassLoader();
     private final List<URLClassLoader> classLoaders = new ArrayList<>();
     private boolean doneFirstLoad;
+    private final ExecutorService executorService;
 
-    public EZPlugins() {
+    @Inject
+    public EZPlugins(ExecutorService executorService) {
+        this.executorService = executorService;
     }
 
-    public EZPlugins(Path d) throws IOException {
+    public EZPlugins(ExecutorService executorService, Path d) throws IOException {
+        this.executorService = executorService;
         withCacheDirectory(d);
     }
 
@@ -70,10 +76,11 @@ public class EZPlugins implements Closeable {
 
     private synchronized void loadPlugins(boolean trusted, ClassLoader cls) {
         doneFirstLoad = true;
-        FastClasspathScanner sc = new FastClasspathScanner();
+        FastClasspathScanner sc = new FastClasspathScanner("com.aws.greengrass");
+        sc.strictWhitelist();
         sc.addClassLoader(cls);
         matchers.forEach(m -> m.accept(sc));
-        sc.scan();
+        sc.scan(executorService, 1);
         if (trusted) {
             root = cls;
         }
@@ -106,7 +113,7 @@ public class EZPlugins implements Closeable {
             sc.ignoreParentClassLoaders();
             sc.addClassLoader(cl);
             matcher.accept(sc);
-            sc.scan();
+            sc.scan(executorService, 1);
             return cl;
         });
     }
