@@ -4,7 +4,6 @@
 package com.aws.greengrass.integrationtests.telemetry;
 
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -47,7 +46,6 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
-@ImplementsService(name = "TelemetryAgent")
 class TelemetryAgentTest extends BaseITCase {
     private Kernel kernel;
     @Mock
@@ -75,7 +73,6 @@ class TelemetryAgentTest extends BaseITCase {
         kernel.parseArgs("-i", getClass().getResource("config.yaml").toString());
         kernel.getContext().put(MqttClient.class, mqttClient);
         //WHEN
-        kernel.launch();
         CountDownLatch telemetryRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals(TELEMETRY_AGENT_SERVICE_TOPICS) &&
@@ -85,6 +82,7 @@ class TelemetryAgentTest extends BaseITCase {
             }
 
         });
+        kernel.launch();
         assertTrue(telemetryRunning.await(10, TimeUnit.SECONDS), "TelemetryAgent is not in RUNNING state.");
         Topics telTopics = kernel.findServiceTopic(TELEMETRY_AGENT_SERVICE_TOPICS);
         assertNotNull(telTopics);
@@ -122,7 +120,7 @@ class TelemetryAgentTest extends BaseITCase {
                 // enough to verify the first message of type MetricsPayload
                 break;
             } catch (IOException e) {
-                fail("The meessage received at this topic is not of MetricsPaylod type.");
+                fail("The message received at this topic is not of MetricsPayload type.", e);
             }
         }
     }
