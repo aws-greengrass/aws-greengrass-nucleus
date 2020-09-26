@@ -1,0 +1,34 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: {{CustomerApp}}
+ComponentDescription: A customer app
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+Manifests:
+  - Platform:
+      os: macos
+    Parameters:
+      - name: sampleText
+        value: This is a test
+        type: STRING
+    Lifecycle:
+      run: |-
+        sleep 2
+        echo "Hello Greengrass. {{params:sampleText.value}}"
+    Dependencies:
+      {{Mosquitto}}:
+        VersionRequirement: 1.0.0
+
+  - Platform:
+      os: linux
+    Parameters:
+      - name: sampleText
+        value: This is a test
+        type: STRING
+    Lifecycle:
+      run: |-
+        sleep 2
+        echo "Hello Greengrass. {{params:sampleText.value}}"
+    Dependencies:
+        {{Mosquitto}}:
+          VersionRequirement: 1.0.0

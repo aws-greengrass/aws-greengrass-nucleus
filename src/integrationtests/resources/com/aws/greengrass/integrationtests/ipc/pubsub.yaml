@@ -1,0 +1,155 @@
+---
+services:
+  main:
+    dependencies:
+      - SubscribeAndPublish
+  PublishNotSubscribe:
+    parameters:
+      accessControl:
+        '{
+          "aws.greengrass.ipc.pubsub":[
+          {
+            "policyId1":{
+              "policyDescription":"access to pubsub topics for mqtt",
+              "operations":[
+                "publish"
+              ],
+              "resources":[
+                "/topic/1/#",
+                "/longer/topic/example/",
+                "*"
+              ]
+            }
+          }
+          ]
+        }'
+  SubscribeAndPublish:
+    dependencies:
+      - PublishNotSubscribe
+      - SubscribeNotPublish
+      - OnlyPublish
+      - DoAll1
+      - DoAll2
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 1
+        posix:
+          sleep 1
+    parameters:
+      accessControl:
+        '{
+          "aws.greengrass.ipc.pubsub":[
+          {
+            "policyId2":{
+              "policyDescription":"access to pubsub topics for ServiceName",
+              "operations":[
+                "*"
+              ],
+              "resources":[
+                "*"
+              ]
+            }
+          }
+          ]
+        }'
+  SubscribeNotPublish:
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 1
+        posix:
+          sleep 1
+    parameters:
+      accessControl:
+        '{
+           "aws.greengrass.ipc.pubsub":[
+           {
+             "policyId3":{
+               "policyDescription":"access to pubsub topics",
+               "operations":[
+                 "subscribe"
+               ],
+               "resources":[
+                 "/topic/1/#",
+                 "/longer/topic/example/",
+                 "*"
+               ]
+             }
+           }
+           ]
+         }'
+  OnlyPublish:
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 1
+        posix:
+          sleep 1
+    parameters:
+      accessControl:
+        '{
+             "aws.greengrass.ipc.pubsub":[
+             {
+               "policyId4":{
+                 "policyDescription":"access to pubsub topics",
+                 "operations":[
+                   "publish"
+                 ],
+                 "resources":[
+                   "/topic/1/#",
+                   "/longer/topic/example/",
+                   "*"
+                 ]
+               }
+             }
+             ]
+           }'
+  DoAll1:
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 1
+        posix:
+          sleep 1
+    parameters:
+      accessControl:
+        '{
+            "aws.greengrass.ipc.pubsub":[
+            {
+              "policyId5":{
+                "policyDescription":"access to pubsub topics for ServiceName",
+                "operations":[
+                  "*"
+                ],
+                "resources":[
+                  "*"
+                ]
+              }
+            }
+            ]
+          }'
+  DoAll2:
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 1
+        posix:
+          sleep 1
+    parameters:
+      accessControl:
+        '{
+              "aws.greengrass.ipc.pubsub":[
+              {
+                "policyId6":{
+                  "policyDescription":"access to pubsub topics for ServiceName",
+                  "operations":[
+                    "*"
+                  ],
+                  "resources":[
+                    "*"
+                  ]
+                }
+              }
+              ]
+            }'

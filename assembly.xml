@@ -11,7 +11,7 @@
             <directory>${basedir}/target</directory>
             <outputDirectory>/lib</outputDirectory>
             <includes>
-                <include>Evergreen.jar</include>
+                <include>Greengrass.jar</include>
             </includes>
         </fileSet>
         <fileSet>

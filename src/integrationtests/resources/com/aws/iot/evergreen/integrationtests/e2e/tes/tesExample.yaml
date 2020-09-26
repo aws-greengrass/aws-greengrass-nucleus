@@ -1,9 +1,0 @@
----
-services:
-  main:
-    dependencies:
-      - TokenExchangeService
-  TokenExchangeService:
-    parameters:
-      port: 2020
-    lifecycle:

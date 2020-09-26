@@ -1,0 +1,11 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: Cool-Database
+ComponentDescription: Test recipe for Greengrass Components
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+Manifests:
+  - Platform:
+      os: all
+  Lifecycle:
+    run: echo Cool-Database-1.0.0

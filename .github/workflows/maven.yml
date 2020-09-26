@@ -96,12 +96,21 @@ jobs:
           mvn -ntp -U install -DskipTests
           mvn -ntp -U -f src/test/evergreen-kernel-benchmark install
         if: matrix.os == 'Linux'
+      - run: rm -rf ~/.m2/repositories/com/aws/iot/evergreen-kernel
+        continue-on-error: true
+        if: always()
   publish:
     needs: build
     runs-on: [self-hosted, Linux, greengrass]
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v2
+      - name: Checkout Private Action
+        uses: daspn/private-actions-checkout@v2
+        with:
+          actions_list: '["aws/aws-greengrass-component-upload-action@master"]'
+          checkout_base_path: ./.github/actions
+          ssh_private_key: ${{ secrets.COMPONENT_UPLOAD_ACTION_PRIVATE_KEY }}
       - name: Set up JDK 1.8
         uses: actions/setup-java@v1
         with:
@@ -111,5 +120,16 @@ jobs:
       - run: sudo apt-get install -y awscli
       - name: Upload to S3
         run: |
-          aws s3 cp target/Evergreen.jar s3://gg-evergreen-releases/${{github.repository}}/${{github.ref}}/evergreen-${{github.sha}}.jar
-          aws s3 cp target/GreengrassCore-2.0.0.zip s3://gg-evergreen-releases/${{github.repository}}-zip/${{github.ref}}/evergreen-${{github.sha}}.zip
+          aws s3 cp target/Greengrass.jar s3://gg-evergreen-releases/${{github.repository}}/${{github.ref}}/evergreen-${{github.sha}}.jar
+          aws s3 cp target/aws.greengrass.nucleus.zip s3://gg-evergreen-releases/${{github.repository}}-zip/${{github.ref}}/evergreen-${{github.sha}}.zip
+      - run: mkdir -p target/artifacts && cp target/aws.greengrass.nucleus.zip target/artifacts/aws.greengrass.nucleus.zip
+      - uses: ./.github/actions/aws-greengrass-component-upload-action
+        name: Upload to GCS
+        env:
+          AWS_REGION: us-east-1
+        with:
+          recipePath: aws.greengrass.Nucleus.yaml
+          artifactDirectoryPath: target/artifacts
+          endpoint: https://evergreen-gamma.us-east-1.amazonaws.com
+          autoBumpVersion: true
+          publishAsPublic: true

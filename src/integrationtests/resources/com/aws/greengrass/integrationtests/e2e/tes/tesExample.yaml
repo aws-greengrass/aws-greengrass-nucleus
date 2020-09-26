@@ -1,0 +1,9 @@
+---
+services:
+  main:
+    dependencies:
+      - aws.greengrass.TokenExchangeService
+  aws.greengrass.TokenExchangeService:
+    parameters:
+      port: 2020
+    lifecycle:

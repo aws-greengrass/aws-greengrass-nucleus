@@ -1,0 +1,25 @@
+---
+services:
+  A:
+    Lifecycle:
+    Dependencies:
+        - B:HARD
+        - C:SOFT
+        - D
+  B:
+    Lifecycle:
+    Dependencies:
+  C:
+    Lifecycle:
+    Dependencies:
+  D:
+    Lifecycle:
+    Dependencies:
+  E:
+    Lifecycle:
+    Dependencies:
+
+  main:
+    Lifecycle:
+    Dependencies:
+        - A
