@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentConfiguration;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentParameter;
@@ -20,6 +21,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CrashableFunction;
 import com.aws.greengrass.util.Pair;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 
@@ -55,6 +57,11 @@ public class KernelConfigResolver {
             Pattern.compile("\\{\\{" + WORD_GROUP + ":" + WORD_GROUP + ":" + WORD_GROUP + "}}");
     private static final Pattern SAME_INTERPOLATION_REGEX =
             Pattern.compile("\\{\\{" + WORD_GROUP + ":" + WORD_GROUP + "}}");
+
+    // pattern matches {group1:group2}. Note char in both group can't be }, but can be special char like / and .
+    private static final Pattern SAME_COMPONENT_INTERPOLATION_REGEX =
+            Pattern.compile("\\{([^}]+):([^}]+)}");
+
     static final String PARAM_NAMESPACE = "params";
     static final String PARAM_VALUE_SUFFIX = ".value";
     static final String PATH_KEY = "path";
@@ -205,7 +212,19 @@ public class KernelConfigResolver {
             }
         }
 
+        matcher = SAME_COMPONENT_INTERPOLATION_REGEX.matcher(stringValue);
+
+        while (matcher.find()) {
+            String configReplacement =
+                    lookupConfigurationValueForComponent(parameterAndDependencyCache, document, componentIdentifier,
+                            matcher.group(1), matcher.group(2));
+            if (configReplacement != null) {
+                stringValue = stringValue.replace(matcher.group(), configReplacement);
+            }
+        }
+
         // Handle cross-component parameters
+        // TODO Add config
         matcher = CROSS_INTERPOLATION_REGEX.matcher(stringValue);
 
         while (matcher.find()) {
@@ -242,6 +261,46 @@ public class KernelConfigResolver {
             }
         }
         return depSet.contains(canReadFrom.getName());
+    }
+
+    @Nullable
+    private String lookupConfigurationValueForComponent(
+            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
+            DeploymentDocument document, ComponentIdentifier component, String namespace, String key)
+            throws PackageLoadingException {
+        // Handle cross-component system parameters
+        Map<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> systemParams =
+                systemParameters.getOrDefault(namespace, Collections.emptyMap());
+        if (systemParams.containsKey(key)) {
+            return systemParams.get(key).apply(component);
+        }
+
+        if (namespace.equals("configurations")) {
+            // TODO. Now only deal with default
+            ComponentRecipe componentRecipe = componentStore.getPackageRecipe(component);
+            ComponentConfiguration componentConfiguration = componentRecipe.getComponentConfiguration();
+
+            if (componentConfiguration == null) {
+                return null;
+            }
+
+            JsonNode targetNode = componentConfiguration.getDefaultConfiguration().at(key);
+            if (targetNode.isMissingNode()) {
+                // due to this node not being an object, or object not having value for the specified field
+                return null;
+            }
+
+            if (targetNode.isValueNode()) {
+                // due to this node not being an object, or object not having value for the specified field
+                return targetNode.asText();
+            }
+
+            if (targetNode.isContainerNode()) {
+                // Doesn't support interpolate with container node.
+                return null;
+            }
+        }
+        return null;
     }
 
     @Nullable

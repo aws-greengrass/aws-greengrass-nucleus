@@ -80,6 +80,7 @@ public final class RecipeLoader {
                                                    .publisher(componentRecipe.getComponentPublisher())
                                                    .recipeTemplateVersion(componentRecipe.getRecipeFormatVersion())
                                                    .componentType(componentRecipe.getComponentType())
+                                                   .componentConfiguration(componentRecipe.getComponentConfiguration())
                                                    .dependencies(platformSpecificManifest.getDependencies())
                                                    .lifecycle(platformSpecificManifest.getLifecycle())
                                                    .artifacts(convertArtifactsFromFile(

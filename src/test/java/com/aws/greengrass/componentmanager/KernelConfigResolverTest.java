@@ -398,7 +398,7 @@ class KernelConfigResolverTest {
         List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
 
         ComponentRecipe rootComponentRecipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
-                rootComponentIdentifier.getVersion(), "", "", Collections.emptySet(), new HashMap<String, Object>() {{
+                rootComponentIdentifier.getVersion(), "", "", null, Collections.emptySet(), new HashMap<String, Object>() {{
             put(LIFECYCLE_RUN_KEY, "java -jar {{artifacts:path}}/test.jar -x arg");
         }}, Collections.emptyList(), Collections.emptyMap(), null);
 
@@ -445,7 +445,7 @@ class KernelConfigResolverTest {
 
         Semver version = new Semver(packageVersion, Semver.SemverType.NPM);
         return new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, packageName, version, "Test package", "Publisher",
-                parameters, getSimplePackageLifecycle(packageName, crossComponentName), Collections.emptyList(),
+                null, parameters, getSimplePackageLifecycle(packageName, crossComponentName), Collections.emptyList(),
                 dependencies, null);
     }
 
