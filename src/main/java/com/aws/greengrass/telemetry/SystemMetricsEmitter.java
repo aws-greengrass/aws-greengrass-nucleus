@@ -13,14 +13,15 @@ import com.aws.greengrass.telemetry.models.TelemetryAggregation;
 import com.aws.greengrass.telemetry.models.TelemetryUnit;
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
+import oshi.hardware.GlobalMemory;
 
 public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
     public static final Logger logger = LogManager.getLogger(SystemMetricsEmitter.class);
     private static final int MB_CONVERTER = 1024 * 1024;
     private static final int PERCENTAGE_CONVERTER = 100;
     private static final String NAMESPACE = "SystemMetrics";
-    private static final CentralProcessor cpu = new SystemInfo().getHardware().getProcessor();
     private static final SystemInfo systemInfo = new SystemInfo();
+    private static final CentralProcessor cpu = systemInfo.getHardware().getProcessor();
     private final MetricFactory mf = new MetricFactory(NAMESPACE);
     private long[] previousTicks = new long[CentralProcessor.TickType.values().length];
 
@@ -41,8 +42,7 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric, systemInfo.getHardware().getMemory().getVirtualMemory().getVirtualInUse()
-                / MB_CONVERTER);
+        mf.putMetricData(metric, systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors());
 
         metric = Metric.builder()
                 .namespace(NAMESPACE)
@@ -50,6 +50,7 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
                 .unit(TelemetryUnit.Megabytes)
                 .aggregation(TelemetryAggregation.Average)
                 .build();
-        mf.putMetricData(metric, systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors());
+        GlobalMemory memory = systemInfo.getHardware().getMemory();
+        mf.putMetricData(metric, (memory.getTotal() - memory.getAvailable()) / MB_CONVERTER);
     }
 }

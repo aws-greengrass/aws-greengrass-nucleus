@@ -40,7 +40,7 @@ public class EZPlugins implements Closeable {
     private volatile ClassLoader root = this.getClass().getClassLoader();
     private final List<URLClassLoader> classLoaders = new ArrayList<>();
     private boolean doneFirstLoad;
-    private ExecutorService executorService;
+    private final ExecutorService executorService;
 
     @Inject
     public EZPlugins(ExecutorService executorService) {
@@ -77,7 +77,6 @@ public class EZPlugins implements Closeable {
     private synchronized void loadPlugins(boolean trusted, ClassLoader cls) {
         doneFirstLoad = true;
         FastClasspathScanner sc = new FastClasspathScanner("com.aws.greengrass");
-        sc.ignoreParentClassLoaders();
         sc.strictWhitelist();
         sc.addClassLoader(cls);
         matchers.forEach(m -> m.accept(sc));

@@ -19,14 +19,14 @@ import static org.junit.jupiter.api.Assertions.fail;
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 @ExtendWith(GGExtension.class)
 public class EZPluginsTest {
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
     int hits;
 
     private static Throwable cause(Throwable t) {
         Throwable c = t.getCause();
         return c == null ? t : cause(c);
     }
-
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @AfterEach
     void after() {
