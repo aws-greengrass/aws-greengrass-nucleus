@@ -5,10 +5,13 @@ package com.aws.greengrass.util;
 
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -23,9 +26,16 @@ public class EZPluginsTest {
         return c == null ? t : cause(c);
     }
 
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
+    @AfterEach
+    void after() {
+        executor.shutdownNow();
+    }
+
     @Test
     public void testMatch() throws Exception {
-        try (EZPlugins pl = new EZPlugins(Utils.homePath(".pluginsTest"))) {
+        try (EZPlugins pl = new EZPlugins(executor, Utils.homePath(".pluginsTest"))) {
             pl.implementing(Foo.class, f -> {
                 System.out.println(f.getCanonicalName());
                 try {
