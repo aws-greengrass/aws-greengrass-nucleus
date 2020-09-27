@@ -16,10 +16,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class IPCRouterTest {
+class IPCRouterTest {
 
     @Test
-    public void GIVEN_function_WHEN_register_callback_THEN_callback_can_be_called() throws Throwable {
+    void GIVEN_function_WHEN_register_callback_THEN_callback_can_be_called() throws Throwable {
         IPCRouter router = new IPCRouter();
 
         CountDownLatch cdl = new CountDownLatch(1);
@@ -33,7 +33,7 @@ public class IPCRouterTest {
     }
 
     @Test
-    public void GIVEN_already_registered_function_WHEN_register_callback_THEN_exception_is_thrown() throws Throwable {
+    void GIVEN_already_registered_function_WHEN_register_callback_THEN_exception_is_thrown() throws Throwable {
         IPCRouter router = new IPCRouter();
 
         router.registerServiceCallback(100, (a, b) -> null);

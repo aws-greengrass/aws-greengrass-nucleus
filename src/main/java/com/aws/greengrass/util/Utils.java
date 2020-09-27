@@ -118,7 +118,7 @@ public final class Utils {
         return s == null || s.length() == 0 ? null : s;
     }
 
-    public static boolean isEmpty(Collection s) {
+    public static boolean isEmpty(Collection<?> s) {
         return s == null || s.isEmpty();
     }
 
@@ -594,16 +594,16 @@ public final class Utils {
      * Clean up a file or a directory recursively.
      *
      * @param filePath path to the file
-     * @return true if deletion is successful, false otherwise
+     * @throws IOException if deletion fails
      */
-    public static boolean deleteFileRecursively(File filePath) {
+    public static void deleteFileRecursively(File filePath) throws IOException {
         File[] files = filePath.listFiles();
         if (files != null) {
             for (File file : files) {
                 deleteFileRecursively(file);
             }
         }
-        return filePath.delete();
+        Files.deleteIfExists(filePath.toPath());
     }
 
     /**

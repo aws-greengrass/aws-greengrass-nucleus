@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SuppressWarnings({"PMD.AvoidUsingOctalValues", "PMD.MethodNamingConventions"})
 @ExtendWith(GGExtension.class)
-public class UtilsTest {
+class UtilsTest {
 
     private static void testLparse1(String s, long expecting, String remaining) {
         CharBuffer cb = CharBuffer.wrap(s);
@@ -42,7 +42,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void testLparse() {
+    void testLparse() {
         testLparse1("   ", 0, "");
         testLparse1("", 0, "");
         testLparse1("12", 12, "");
@@ -58,7 +58,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void testLparseRadix() {
+    void testLparseRadix() {
         testLparseRadix1("123", 0, 3, 16, 0x123);
         testLparseRadix1("123", 0, 2, 16, 0x12);
         testLparseRadix1("123", 1, 3, 16, 0x23);
@@ -68,22 +68,22 @@ public class UtilsTest {
     }
 
     @Test
-    public void testLparseBadSize() {
+    void testLparseBadSize() {
         assertThrows(IndexOutOfBoundsException.class, () -> testLparseRadix1("12", 0, 3, 16, -1));
     }
 
     @Test
-    public void testLparseBadLead() {
+    void testLparseBadLead() {
         assertThrows(NumberFormatException.class, () -> testLparseRadix1("X12", 0, 3, 16, -1));
     }
 
     @Test
-    public void testLparseBadTail() {
+    void testLparseBadTail() {
         assertThrows(NumberFormatException.class, () -> testLparseRadix1("12X", 0, 3, 16, -1));
     }
 
     @Test
-    public void T2() {
+    void T2() {
         Map m = new LinkedHashMap();
         m.put("CDC", "6400");
         m.put("PDP", "8/I");
@@ -96,7 +96,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void T3() {
+    void T3() {
         assertEquals("foo", dequote("foo"));
         assertEquals("foo\nbar", dequote("\"foo\\nbar\""));
         assertEquals("foo\b\r\tbar", dequote("\"foo\\b\\r\\tbar\\uxxxx\""));
@@ -104,7 +104,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void immutableMapRead() {
+    void immutableMapRead() {
         Map<String, Integer> map = Utils.immutableMap("a", 1, "b", 2, "c", 3);
         assertThat(map.get("a"), is(equalTo(1)));
         assertThat(map.get("b"), is(equalTo(2)));
@@ -112,19 +112,19 @@ public class UtilsTest {
     }
 
     @Test
-    public void immutableMapOddParams() {
+    void immutableMapOddParams() {
         assertThrows(IllegalArgumentException.class, () -> Utils.immutableMap("a", 1, "b", 2, "c"));
     }
 
     @Test
-    public void immutableMapWrite() {
+    void immutableMapWrite() {
         Map<String, Integer> map = Utils.immutableMap("a", 1);
         assertThat(map.get("a"), is(equalTo(1)));
         assertThrows(UnsupportedOperationException.class, () -> map.put("b", 4));
     }
 
     @Test
-    public void testInverseMap() {
+    void testInverseMap() {
         Map<String, Integer> map = Utils.immutableMap("a", 1, "b", 2, "c", 1);
         Map<Integer, List<String>> result = inverseMap(map);
         assertThat(result, IsMapWithSize.aMapWithSize(2));

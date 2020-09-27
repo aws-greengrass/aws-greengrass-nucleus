@@ -11,7 +11,6 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,7 +41,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class TokenExchangeServiceTest extends GGServiceTestUtil {
+class TokenExchangeServiceTest extends GGServiceTestUtil {
     private static final String MOCK_ROLE_ALIAS = "ROLE_ALIAS";
 
     @Mock
@@ -58,7 +57,7 @@ public class TokenExchangeServiceTest extends GGServiceTestUtil {
     ArgumentCaptor<Set<String>> operationsCaptor = ArgumentCaptor.forClass(Set.class);
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         // initialize Greengrass service specific mocks
         serviceFullName = TOKEN_EXCHANGE_SERVICE_TOPICS;
         initializeMockedConfig();
@@ -67,7 +66,7 @@ public class TokenExchangeServiceTest extends GGServiceTestUtil {
 
     @ParameterizedTest
     @ValueSource(ints = {0, 3000})
-    public void GIVEN_token_exchange_service_WHEN_started_THEN_correct_env_set(int port) throws Exception {
+    void GIVEN_token_exchange_service_WHEN_started_THEN_correct_env_set(int port) throws Exception {
         Topic portTopic = mock(Topic.class);
         when(portTopic.dflt(anyInt())).thenReturn(portTopic);
         when(portTopic.subscribe(any())).thenAnswer((a) -> {
@@ -122,7 +121,7 @@ public class TokenExchangeServiceTest extends GGServiceTestUtil {
     @ParameterizedTest
     @ValueSource(strings = {"  "})
     @NullAndEmptySource
-    public void GIVEN_token_exchange_service_WHEN_started_with_empty_role_alias_THEN_server_errors_out(String roleAlias,
+    void GIVEN_token_exchange_service_WHEN_started_with_empty_role_alias_THEN_server_errors_out(String roleAlias,
                                                                                                        ExtensionContext context) {
         ignoreExceptionUltimateCauseOfType(context, IllegalArgumentException.class);
         //Set mock for role topic
@@ -155,7 +154,7 @@ public class TokenExchangeServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_token_exchange_service_WHEN_auth_errors_THEN_server_errors_out(ExtensionContext context)
+    void GIVEN_token_exchange_service_WHEN_auth_errors_THEN_server_errors_out(ExtensionContext context)
             throws Exception {
         ignoreExceptionUltimateCauseOfType(context, AuthorizationException.class);
         doThrow(AuthorizationException.class).when(mockAuthZHandler).registerComponent(any(), any());

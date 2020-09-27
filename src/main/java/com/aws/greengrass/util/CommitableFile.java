@@ -3,6 +3,9 @@
 
 package com.aws.greengrass.util;
 
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
+
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -17,6 +20,7 @@ import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
  */
 @SuppressWarnings("PMD.AvoidFileStream")
 public final class CommitableFile extends FileOutputStream implements Commitable {
+    private static final Logger logger = LogManager.getLogger(CommitableFile.class);
     private final Path newVersion;
     private final Path target;
     private final Path backup;
@@ -127,7 +131,7 @@ public final class CommitableFile extends FileOutputStream implements Commitable
                 Files.move(from, to, ATOMIC_MOVE);
             }
         } catch (IOException ex) {
-            ex.printStackTrace(System.out);
+            logger.atError().log("Error moving {} to {}", from, to, ex);
         }
     }
 }
