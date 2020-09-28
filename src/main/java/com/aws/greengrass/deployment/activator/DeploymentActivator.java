@@ -49,8 +49,7 @@ public abstract class DeploymentActivator {
         }
     }
 
-    protected long rollbackConfig(String deploymentId, CompletableFuture<DeploymentResult> totallyCompleteFuture,
-                                  Throwable failureCause) {
+    protected long rollbackConfig(CompletableFuture<DeploymentResult> totallyCompleteFuture, Throwable failureCause) {
         long mergeTime;
         try {
             mergeTime = System.currentTimeMillis();

@@ -33,6 +33,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETER
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,7 +45,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class DynamicComponentConfigurationValidatorTest {
+class DynamicComponentConfigurationValidatorTest {
     private static final String DEFAULT_EXISTING_SERVICE_VERSION = "1.0.0";
     private static final long DEFAULT_EXISTING_NODE_MOD_TIME = 10;
     private static final long DEFAULT_DEPLOYMENT_TIMESTAMP = 100;
@@ -63,19 +64,19 @@ public class DynamicComponentConfigurationValidatorTest {
     private DynamicComponentConfigurationValidator validator;
 
     @BeforeEach
-    public void beforeEach() throws Exception {
+    void beforeEach() throws Exception {
         lenient().when(kernel.getContext()).thenReturn(context);
         validator = new DynamicComponentConfigurationValidator(kernel, configStoreIPCAgent);
         deploymentResultFuture = new CompletableFuture<>();
     }
 
     @AfterEach
-    public void afterEach() throws Exception {
+    void afterEach() throws Exception {
         context.close();
     }
 
     @Test
-    public void GIVEN_deployment_changes_service_config_WHEN_service_validates_config_THEN_succeed() throws Exception {
+    void GIVEN_deployment_changes_service_config_WHEN_service_validates_config_THEN_succeed() throws Exception {
         when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
             CompletableFuture<ConfigurationValidityReport> validityReportFuture = invocationOnMock.getArgument(2);
             validityReportFuture
@@ -97,7 +98,7 @@ public class DynamicComponentConfigurationValidatorTest {
     }
 
     @Test
-    public void GIVEN_deployment_changes_service_config_WHEN_service_invalidates_config_THEN_fail_deployment()
+    void GIVEN_deployment_changes_service_config_WHEN_service_invalidates_config_THEN_fail_deployment()
             throws Exception {
         when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
             CompletableFuture<ConfigurationValidityReport> validityReportFuture = invocationOnMock.getArgument(2);
@@ -118,8 +119,7 @@ public class DynamicComponentConfigurationValidatorTest {
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
-        assertTrue(deploymentResult.getDeploymentStatus()
-                .equals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
         assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
         assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
                 .getMessage().contains(
@@ -127,7 +127,7 @@ public class DynamicComponentConfigurationValidatorTest {
     }
 
     @Test
-    public void GIVEN_deployment_changes_service_config_WHEN_service_version_changes_THEN_no_validation_requested()
+    void GIVEN_deployment_changes_service_config_WHEN_service_version_changes_THEN_no_validation_requested()
             throws Exception {
         createMockGenericExternalService("OldService");
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
@@ -144,7 +144,7 @@ public class DynamicComponentConfigurationValidatorTest {
     }
 
     @Test
-    public void GIVEN_deployment_has_service_config_WHEN_service_config_is_unchanged_THEN_no_validation_requested()
+    void GIVEN_deployment_has_service_config_WHEN_service_config_is_unchanged_THEN_no_validation_requested()
             throws Exception {
         createMockGenericExternalService("OldService");
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
@@ -161,7 +161,7 @@ public class DynamicComponentConfigurationValidatorTest {
     }
 
     @Test
-    public void GIVEN_validation_requested_WHEN_validation_request_times_out_THEN_fail_deployment(
+    void GIVEN_validation_requested_WHEN_validation_request_times_out_THEN_fail_deployment(
             ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, TimeoutException.class);
         when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenReturn(true);
@@ -177,15 +177,14 @@ public class DynamicComponentConfigurationValidatorTest {
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
-        assertTrue(deploymentResult.getDeploymentStatus()
-                .equals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
         assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
         assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
                 .getMessage().contains("Error while waiting for validation report for one or more components"));
     }
 
     @Test
-    public void GIVEN_validation_requested_WHEN_error_while_waiting_for_validation_report_THEN_fail_deployment(
+    void GIVEN_validation_requested_WHEN_error_while_waiting_for_validation_report_THEN_fail_deployment(
             ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseWithMessage(context, "Some unexpected error");
         when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
@@ -205,15 +204,14 @@ public class DynamicComponentConfigurationValidatorTest {
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
-        assertTrue(deploymentResult.getDeploymentStatus()
-                .equals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
         assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
         assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
                 .getMessage().contains("Error while waiting for validation report for one or more components"));
     }
 
     @Test
-    public void GIVEN_config_validation_needed_WHEN_error_requesting_validation_THEN_fail_deployment()
+    void GIVEN_config_validation_needed_WHEN_error_requesting_validation_THEN_fail_deployment()
             throws Exception {
         when(configStoreIPCAgent.validateConfiguration(any(), any(), any()))
                 .thenThrow(ValidateEventRegistrationException.class);
@@ -229,15 +227,14 @@ public class DynamicComponentConfigurationValidatorTest {
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
-        assertTrue(deploymentResult.getDeploymentStatus()
-                .equals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
         assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
         assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
                 .getMessage().contains("Error requesting validation from component OldService"));
     }
 
     @Test
-    public void GIVEN_deployment_has_internal_service_WHEN_validating_config_THEN_no_validation_attempted_for_internal_service()
+    void GIVEN_deployment_has_internal_service_WHEN_validating_config_THEN_no_validation_attempted_for_internal_service()
             throws Exception {
         when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
             CompletableFuture<ConfigurationValidityReport> validityReportFuture = invocationOnMock.getArgument(2);
@@ -267,7 +264,7 @@ public class DynamicComponentConfigurationValidatorTest {
     }
 
     @Test
-    public void GIVEN_deployment_has_a_new_service_WHEN_validating_config_THEN_no_validation_attempted_for_new_service()
+    void GIVEN_deployment_has_a_new_service_WHEN_validating_config_THEN_no_validation_attempted_for_new_service()
             throws Exception {
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("NewService", new HashMap<String, Object>() {{
@@ -289,7 +286,7 @@ public class DynamicComponentConfigurationValidatorTest {
     }
 
     @Test
-    public void GIVEN_new_deployment_WHEN_service_config_format_invalid_THEN_fail_deployment() throws Exception {
+    void GIVEN_new_deployment_WHEN_service_config_format_invalid_THEN_fail_deployment() throws Exception {
         createMockGenericExternalService("OldService");
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("OldService", "Faulty Proposed Service Config");
@@ -297,8 +294,7 @@ public class DynamicComponentConfigurationValidatorTest {
         assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
         verify(configStoreIPCAgent, never()).validateConfiguration(any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
-        assertTrue(deploymentResult.getDeploymentStatus()
-                .equals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
         assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
         assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
                 .getMessage().contains("Services config must be a map"));

@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 @ExtendWith(GGExtension.class)
-public class ConfigurationReaderTest {
+class ConfigurationReaderTest {
     // This is a generic test for configuration reader, hence declaring a namespace here
     // Deployment Config Merge is tested separately in integration test
     private static final String SKIP_MERGE_NAMESPACE_KEY = "notMerged";
@@ -34,7 +34,7 @@ public class ConfigurationReaderTest {
     }
 
     @Test
-    public void GIVEN_tlog_with_ignored_namespace_WHEN_tlog_merged_to_config_with_condition_THEN_ignored_value_not_updated()
+    void GIVEN_tlog_with_ignored_namespace_WHEN_tlog_merged_to_config_with_condition_THEN_ignored_value_not_updated()
             throws Exception {
         // Create this topic with temp value
         config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
@@ -50,7 +50,7 @@ public class ConfigurationReaderTest {
     }
 
     @Test
-    public void GIVEN_tlog_with_ignored_namespace_WHEN_tlog_merged_to_config_with_no_condition_THEN_all_values_updated()
+    void GIVEN_tlog_with_ignored_namespace_WHEN_tlog_merged_to_config_with_no_condition_THEN_all_values_updated()
             throws Exception {
         // Create this topic with temp value
         config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
@@ -65,7 +65,7 @@ public class ConfigurationReaderTest {
     }
 
     @Test
-    public void GIVEN_tlog_WHEN_tlog_merged_to_config_with_forced_timestamp_THEN_topic_is_removed() throws Exception {
+    void GIVEN_tlog_WHEN_tlog_merged_to_config_with_forced_timestamp_THEN_topic_is_removed() throws Exception {
         // Create this topic with temp value
         String[] topicPathToRemove = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                 SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
@@ -82,7 +82,7 @@ public class ConfigurationReaderTest {
     }
 
     @Test
-    public void GIVEN_tlog_WHEN_tlog_merged_to_config_with_smaller_timestamp_THEN_topic_is_removed() throws Exception {
+    void GIVEN_tlog_WHEN_tlog_merged_to_config_with_smaller_timestamp_THEN_topic_is_removed() throws Exception {
         // Create this topic with temp value
         String[] topicPathToRemove = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                 SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
@@ -98,7 +98,7 @@ public class ConfigurationReaderTest {
     }
 
     @Test
-    public void GIVEN_tlog_WHEN_tlog_merged_to_config_with_larger_timestamp_THEN_topic_is_not_removed() throws Exception {
+    void GIVEN_tlog_WHEN_tlog_merged_to_config_with_larger_timestamp_THEN_topic_is_not_removed() throws Exception {
         // Create this topic with temp value
         String[] topicPath = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                 SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
@@ -115,7 +115,7 @@ public class ConfigurationReaderTest {
     }
 
     @Test
-    public void GIVEN_tlog_merge_WHEN_container_node_removed_in_tlog_THEN_node_is_removed() throws Exception {
+    void GIVEN_tlog_merge_WHEN_container_node_removed_in_tlog_THEN_node_is_removed() throws Exception {
         // Create this topic with temp value
         String[] topicPath = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                 SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
@@ -130,7 +130,7 @@ public class ConfigurationReaderTest {
     }
 
     @Test
-    public void GIVEN_tlog_merge_WHEN_container_node_removed_at_smaller_timestamp_THEN_node_is_not_removed() throws Exception {
+    void GIVEN_tlog_merge_WHEN_container_node_removed_at_smaller_timestamp_THEN_node_is_not_removed() throws Exception {
         // Create this topic with temp value
         String[] topicPath = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                 SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
@@ -148,7 +148,7 @@ public class ConfigurationReaderTest {
     }
 
     @Test
-    public void GIVEN_tlog_WHEN_merge_THEN_first_and_last_line_is_merged() throws Exception {
+    void GIVEN_tlog_WHEN_merge_THEN_first_and_last_line_is_merged() throws Exception {
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
 

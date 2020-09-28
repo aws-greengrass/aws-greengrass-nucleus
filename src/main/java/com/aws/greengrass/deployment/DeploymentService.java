@@ -96,9 +96,6 @@ public class DeploymentService extends GreengrassService {
     private DeploymentStatusKeeper deploymentStatusKeeper;
 
     @Inject
-    private Context context;
-
-    @Inject
     private Kernel kernel;
 
     private DeploymentTaskMetadata currentDeploymentTaskMetadata = null;

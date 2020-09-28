@@ -21,7 +21,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
 
-public class GenericExternalServiceTest extends GGServiceTestUtil {
+class GenericExternalServiceTest extends GGServiceTestUtil {
     private GenericExternalService ges;
 
     @BeforeEach

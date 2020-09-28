@@ -26,7 +26,7 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class HttpServerImplTest {
+class HttpServerImplTest {
     private static final String mockResponse = "Hello World";
 
     @Mock
@@ -50,7 +50,7 @@ public class HttpServerImplTest {
     @SuppressWarnings("PMD.CloseResource")
     @ParameterizedTest
     @ValueSource(ints = {0, 1025, 65355})
-    public void GIVEN_port_WHEN_server_started_THEN_requests_are_successful(int port) throws Exception {
+    void GIVEN_port_WHEN_server_started_THEN_requests_are_successful(int port) throws Exception {
         HttpServerImpl server = startServer(port);
         try {
             doAnswer(invocationArgs -> {

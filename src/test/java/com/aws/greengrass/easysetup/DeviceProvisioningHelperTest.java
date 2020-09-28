@@ -66,7 +66,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class DeviceProvisioningHelperTest {
+class DeviceProvisioningHelperTest {
     private static final String TEST_REGION = "us-east-1";
 
     @TempDir
@@ -103,19 +103,19 @@ public class DeviceProvisioningHelperTest {
     }
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         deviceProvisioningHelper = new DeviceProvisioningHelper(System.out, iotClient, iamClient);
     }
 
     @AfterEach
-    public void cleanup() {
+    void cleanup() {
         if (kernel != null) {
             kernel.shutdown();
         }
     }
 
     @Test
-    public void GIVEN_test_create_thing_WHEN_thing_policy_exists_THEN_use_existing_thing_policy() {
+    void GIVEN_test_create_thing_WHEN_thing_policy_exists_THEN_use_existing_thing_policy() {
         when(iotClient.getPolicy(any(GetPolicyRequest.class))).thenReturn(getPolicyResponse);
         when(iotClient.createKeysAndCertificate(any(CreateKeysAndCertificateRequest.class)))
                 .thenReturn(createKeysAndCertificateResponse);
@@ -126,7 +126,7 @@ public class DeviceProvisioningHelperTest {
     }
 
     @Test
-    public void GIVEN_test_create_thing_WHEN_thing_policy_doesnt_exist_THEN_create_thing_policy() {
+    void GIVEN_test_create_thing_WHEN_thing_policy_doesnt_exist_THEN_create_thing_policy() {
         when(iotClient.getPolicy(any(GetPolicyRequest.class))).thenThrow(ResourceNotFoundException.class);
         when(iotClient.createKeysAndCertificate(any(CreateKeysAndCertificateRequest.class)))
                 .thenReturn(createKeysAndCertificateResponse);
@@ -137,7 +137,7 @@ public class DeviceProvisioningHelperTest {
     }
 
     @Test
-    public void GIVEN_test_setup_tes_role_WHEN_role_alias_exists_THEN_use_existing_role_alias() {
+    void GIVEN_test_setup_tes_role_WHEN_role_alias_exists_THEN_use_existing_role_alias() {
         when(iotClient.describeRoleAlias(any(DescribeRoleAliasRequest.class))).thenReturn(describeRoleAliasResponse);
         when(describeRoleAliasResponse.roleAliasDescription()).thenReturn(RoleAliasDescription.builder().build());
         deviceProvisioningHelper.setupIoTRoleForTes("TestRoleName", "TestRoleAliasName", "TestCertArn");
@@ -147,7 +147,7 @@ public class DeviceProvisioningHelperTest {
     }
 
     @Test
-    public void GIVEN_test_setup_tes_role_WHEN_role_alias_doesnt_exist_and_role_exists_THEN_use_existing_role() {
+    void GIVEN_test_setup_tes_role_WHEN_role_alias_doesnt_exist_and_role_exists_THEN_use_existing_role() {
         when(iotClient.describeRoleAlias(any(DescribeRoleAliasRequest.class)))
                 .thenThrow(ResourceNotFoundException.class);
         when(iamClient.getRole(any(GetRoleRequest.class))).thenReturn(getRoleResponse);
@@ -160,7 +160,7 @@ public class DeviceProvisioningHelperTest {
     }
 
     @Test
-    public void GIVEN_test_setup_tes_role_WHEN_role_alias_doesnt_exist_and_role_doesnt_exist_THEN_create_role_and_alias() {
+    void GIVEN_test_setup_tes_role_WHEN_role_alias_doesnt_exist_and_role_doesnt_exist_THEN_create_role_and_alias() {
         when(iotClient.describeRoleAlias(any(DescribeRoleAliasRequest.class)))
                 .thenThrow(ResourceNotFoundException.class);
         when(iamClient.getRole(any(GetRoleRequest.class))).thenThrow(ResourceNotFoundException.class);
@@ -174,7 +174,7 @@ public class DeviceProvisioningHelperTest {
     }
 
     @Test
-    public void GIVEN_test_update_device_config_WHEN_thing_info_provided_THEN_add_config_to_config_store()
+    void GIVEN_test_update_device_config_WHEN_thing_info_provided_THEN_add_config_to_config_store()
             throws Exception {
         kernel = new Kernel()
                 .parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r", tempRootDir.toString());
@@ -187,7 +187,7 @@ public class DeviceProvisioningHelperTest {
     }
 
     @Test
-    public void GIVEN_test_tes_role_config_WHEN_role_info_provided_THEN_add_config_to_config_store() {
+    void GIVEN_test_tes_role_config_WHEN_role_info_provided_THEN_add_config_to_config_store() {
         kernel = new Kernel()
                 .parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r", tempRootDir.toString());
 
@@ -198,7 +198,7 @@ public class DeviceProvisioningHelperTest {
     }
 
     @Test
-    public void GIVEN_test_clean_thing_WHEN_thing_info_and_cert_and_things_deleted() {
+    void GIVEN_test_clean_thing_WHEN_thing_info_and_cert_and_things_deleted() {
         when(iotClient.listAttachedPolicies(any(ListAttachedPoliciesRequest.class)))
                 .thenReturn(listAttachedPoliciesResponse);
         when(listAttachedPoliciesResponse.policies()).thenReturn(
@@ -218,12 +218,12 @@ public class DeviceProvisioningHelperTest {
     }
 
     @Test
-    public void GIVEN_iam_client_factory_WHEN_test_get_iam_client_THEN_client_is_built_with_appropriate_configuration() {
+    void GIVEN_iam_client_factory_WHEN_test_get_iam_client_THEN_client_is_built_with_appropriate_configuration() {
         assertNotNull(IamSdkClientFactory.getIamClient());
     }
 
     @Test
-    public void GIVEN_iot_client_factory_WHEN_test_get_iot_client_THEN_client_is_built_with_appropriate_configuration() throws URISyntaxException {
+    void GIVEN_iot_client_factory_WHEN_test_get_iot_client_THEN_client_is_built_with_appropriate_configuration() throws URISyntaxException {
         assertNotNull(IotSdkClientFactory.getIotClient(TEST_REGION, IotSdkClientFactory.EnvironmentStage.PROD));
 
         assertNotNull(IotSdkClientFactory.getIotClient(Region.US_EAST_1,
