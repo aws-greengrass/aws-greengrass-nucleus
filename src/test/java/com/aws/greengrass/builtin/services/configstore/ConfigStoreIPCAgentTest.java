@@ -60,7 +60,7 @@ import static org.mockito.Mockito.when;
 
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class ConfigStoreIPCAgentTest {
+class ConfigStoreIPCAgentTest {
     private static final String TEST_COMPONENT_A = "Component_A";
     private static final String TEST_COMPONENT_B = "Component_B";
     private static final String TEST_CONFIG_KEY_1 = "temperature";
@@ -108,7 +108,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_agent_running_WHEN_get_config_request_for_own_config_THEN_return_config_value() {
+    void GIVEN_agent_running_WHEN_get_config_request_for_own_config_THEN_return_config_value() {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         GetConfigurationRequest request = GetConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
@@ -119,7 +119,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_agent_running_WHEN_get_config_request_for_cross_component_config_THEN_return_config_value() {
+    void GIVEN_agent_running_WHEN_get_config_request_for_cross_component_config_THEN_return_config_value() {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         GetConfigurationRequest request = GetConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
@@ -130,7 +130,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_agent_running_WHEN_get_config_request_for_nested_leaf_key_THEN_return_value() {
+    void GIVEN_agent_running_WHEN_get_config_request_for_nested_leaf_key_THEN_return_value() {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerKey", "SomeLeafKey").withValue("SomeValue");
@@ -143,7 +143,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_agent_running_WHEN_get_config_request_for_container_node_THEN_return_subtree_as_pojo() {
+    void GIVEN_agent_running_WHEN_get_config_request_for_container_node_THEN_return_subtree_as_pojo() {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerKey", "SomeLeafKey").withValue("SomeValue");
@@ -158,7 +158,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_agent_running_WHEN_get_config_request_for_nested_container_node_THEN_return_subtree_as_pojo() {
+    void GIVEN_agent_running_WHEN_get_config_request_for_nested_container_node_THEN_return_subtree_as_pojo() {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "Level1ContainerKey", "Level2ContainerKey", "SomeLeafKey")
@@ -174,7 +174,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_get_config_request_WHEN_key_does_not_exist_THEN_fail() {
+    void GIVEN_get_config_request_WHEN_key_does_not_exist_THEN_fail() {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         GetConfigurationRequest request = GetConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
@@ -185,7 +185,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_get_config_request_WHEN_component_requested_does_not_exist_THEN_fail() {
+    void GIVEN_get_config_request_WHEN_component_requested_does_not_exist_THEN_fail() {
         GetConfigurationRequest request = GetConfigurationRequest.builder().componentName("WrongComponent")
                 .keyPath(Collections.singletonList("AnyKey")).build();
         GetConfigurationResponse response = agent.getConfig(request, componentAContext);
@@ -194,7 +194,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_get_config_request_WHEN_component_requested_does_not_have_configuration_THEN_fail() {
+    void GIVEN_get_config_request_WHEN_component_requested_does_not_have_configuration_THEN_fail() {
         when(kernel.findServiceTopic(TEST_COMPONENT_B))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B));
         GetConfigurationRequest request = GetConfigurationRequest.builder().componentName(TEST_COMPONENT_B)
@@ -205,7 +205,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_agent_running_WHEN_update_config_request_THEN_update_config_value() {
+    void GIVEN_agent_running_WHEN_update_config_request_THEN_update_config_value() {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         UpdateConfigurationRequest request = UpdateConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
@@ -218,7 +218,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_update_config_request_WHEN_update_key_does_not_exist_THEN_create_key() {
+    void GIVEN_update_config_request_WHEN_update_key_does_not_exist_THEN_create_key() {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         UpdateConfigurationRequest request = UpdateConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
@@ -232,7 +232,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_update_config_request_WHEN_current_value_in_request_matches_current_value_for_node_THEN_update() {
+    void GIVEN_update_config_request_WHEN_current_value_in_request_matches_current_value_for_node_THEN_update() {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         UpdateConfigurationRequest request = UpdateConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
@@ -245,7 +245,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_update_config_request_WHEN_current_value_in_request_does_not_match_current_value_for_node_THEN_fail() {
+    void GIVEN_update_config_request_WHEN_current_value_in_request_does_not_match_current_value_for_node_THEN_fail() {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         UpdateConfigurationRequest request = UpdateConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
@@ -258,7 +258,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_update_config_request_WHEN_proposed_timestamp_is_stale_THEN_fail() {
+    void GIVEN_update_config_request_WHEN_proposed_timestamp_is_stale_THEN_fail() {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
@@ -272,7 +272,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_update_config_request_WHEN_requested_node_is_container_THEN_fail() {
+    void GIVEN_update_config_request_WHEN_requested_node_is_container_THEN_fail() {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerKey", "SomeLeafKey").withValue("SomeValue");
@@ -286,7 +286,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_update_config_request_WHEN_requested_component_is_not_self_THEN_fail() {
+    void GIVEN_update_config_request_WHEN_requested_component_is_not_self_THEN_fail() {
         UpdateConfigurationRequest request = UpdateConfigurationRequest.builder().componentName(TEST_COMPONENT_A)
                 .keyPath(Collections.singletonList(TEST_CONFIG_KEY_1)).newValue(20)
                 .timestamp(System.currentTimeMillis()).build();
@@ -296,7 +296,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_subscribe_to_config_update_request_WHEN_requests_all_config_THEN_child_update_triggers_event()
+    void GIVEN_subscribe_to_config_update_request_WHEN_requests_all_config_THEN_child_update_triggers_event()
             throws Exception {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
@@ -325,7 +325,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_subscribe_to_config_update_request_WHEN_requests_leaf_node_THEN_self_update_triggers_event()
+    void GIVEN_subscribe_to_config_update_request_WHEN_requests_leaf_node_THEN_self_update_triggers_event()
             throws Exception {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
@@ -356,7 +356,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_subscribe_to_config_update_request_WHEN_requests_container_node_THEN_next_child_update_triggers_event()
+    void GIVEN_subscribe_to_config_update_request_WHEN_requests_container_node_THEN_next_child_update_triggers_event()
             throws Exception {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
@@ -389,7 +389,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_subscribe_to_config_update_request_WHEN_requests_nested_leaf_node_THEN_self_update_triggers_event()
+    void GIVEN_subscribe_to_config_update_request_WHEN_requests_nested_leaf_node_THEN_self_update_triggers_event()
             throws Exception {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
@@ -422,7 +422,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_subscribe_to_config_update_request_WHEN_requests_nested_container_node_THEN_child_update_triggers_event()
+    void GIVEN_subscribe_to_config_update_request_WHEN_requests_nested_container_node_THEN_child_update_triggers_event()
             throws Exception {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
@@ -457,7 +457,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_agent_running_WHEN_subscribe_to_validate_config_request_THEN_validation_event_can_be_triggered()
+    void GIVEN_agent_running_WHEN_subscribe_to_validate_config_request_THEN_validation_event_can_be_triggered()
             throws Exception {
         assertEquals(ConfigStoreResponseStatus.Success,
                 agent.subscribeToConfigValidation(componentAContext).getStatus());
@@ -474,7 +474,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_waiting_for_validation_response_WHEN_abandon_validation_event_THEN_succeed() throws Exception {
+    void GIVEN_waiting_for_validation_response_WHEN_abandon_validation_event_THEN_succeed() throws Exception {
         assertEquals(ConfigStoreResponseStatus.Success,
                 agent.subscribeToConfigValidation(componentAContext).getStatus());
 
@@ -489,7 +489,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_validation_event_being_tracked_WHEN_send_config_validity_report_request_THEN_notify_validation_requester()
+    void GIVEN_validation_event_being_tracked_WHEN_send_config_validity_report_request_THEN_notify_validation_requester()
             throws Exception {
         assertEquals(ConfigStoreResponseStatus.Success,
                 agent.subscribeToConfigValidation(componentAContext).getStatus());
@@ -513,7 +513,7 @@ public class ConfigStoreIPCAgentTest {
     }
 
     @Test
-    public void GIVEN_no_validation_event_is_tracked_WHEN_send_config_validity_report_request_THEN_fail() {
+    void GIVEN_no_validation_event_is_tracked_WHEN_send_config_validity_report_request_THEN_fail() {
         SendConfigurationValidityReportRequest request = SendConfigurationValidityReportRequest.builder()
                 .configurationValidityReport(
                         ConfigurationValidityReport.builder().status(ConfigurationValidityStatus.VALID).build())

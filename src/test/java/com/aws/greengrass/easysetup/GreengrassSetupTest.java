@@ -18,7 +18,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class GreengrassSetupTest {
+class GreengrassSetupTest {
     @Mock
     private DeviceProvisioningHelper deviceProvisioningHelper;
     @Mock

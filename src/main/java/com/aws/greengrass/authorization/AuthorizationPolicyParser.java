@@ -81,17 +81,15 @@ public final class AuthorizationPolicyParser {
             Map<String, List<AuthorizationPolicy>> componentAuthorizationPolicyMap = parseAllPoliciesForComponent(
                     accessControlMapTopic, componentName);
 
-            if (componentAuthorizationPolicyMap != null) {
-                //For each policy type (e.g. aws.greengrass.ipc.pubsub)
-                for (Map.Entry<String, List<AuthorizationPolicy>> policyTypeList :
-                        componentAuthorizationPolicyMap.entrySet()) {
+            //For each policy type (e.g. aws.greengrass.ipc.pubsub)
+            for (Map.Entry<String, List<AuthorizationPolicy>> policyTypeList :
+                    componentAuthorizationPolicyMap.entrySet()) {
 
-                    String policyType = policyTypeList.getKey();
-                    List<AuthorizationPolicy> policyList = policyTypeList.getValue();
+                String policyType = policyTypeList.getKey();
+                List<AuthorizationPolicy> policyList = policyTypeList.getValue();
 
-                    //If multiple components have policies for the same policy type
-                    masterAuthorizationPolicyMap.computeIfAbsent(policyType, k -> new ArrayList<>()).addAll(policyList);
-                }
+                //If multiple components have policies for the same policy type
+                masterAuthorizationPolicyMap.computeIfAbsent(policyType, k -> new ArrayList<>()).addAll(policyList);
             }
         }
         return masterAuthorizationPolicyMap;
@@ -168,7 +166,7 @@ public final class AuthorizationPolicyParser {
 
         //Iterate through each policy
         for (Map<String, Object> allPoliciesMap : accessControlList) {
-            for (Map.Entry policyEntry : allPoliciesMap.entrySet()) {
+            for (Map.Entry<String, Object> policyEntry : allPoliciesMap.entrySet()) {
 
                 //Initialize these components to null
                 String policyDescription = null;
@@ -186,7 +184,7 @@ public final class AuthorizationPolicyParser {
                 policyMap = (Map<String, Object>) policyEntry.getValue();
                 String policyId = Coerce.toString(policyEntry.getKey());
 
-                for (Map.Entry policyComponent : policyMap.entrySet()) {
+                for (Map.Entry<String, Object> policyComponent : policyMap.entrySet()) {
                     //Iterate through the components of this policy
                     PolicyComponentTypes policyComponentKey = toEnum(
                             PolicyComponentTypes.class,
@@ -208,7 +206,7 @@ public final class AuthorizationPolicyParser {
                                             componentName,
                                             policyComponent.getKey(),
                                             policyId);
-                            continue;
+                            break;
                     }
                 }
 

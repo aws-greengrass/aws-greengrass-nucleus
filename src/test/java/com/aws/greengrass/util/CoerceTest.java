@@ -32,12 +32,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
-public class CoerceTest {
+class CoerceTest {
     @Mock
     Context mockContext;
 
     @Test
-    public void testToBoolean() {
+    void testToBoolean() {
         assertTrue(toBoolean(true));
         assertTrue(toBoolean("true"));
         assertTrue(toBoolean(1));
@@ -55,7 +55,7 @@ public class CoerceTest {
     }
 
     @Test
-    public void testToInt() {
+    void testToInt() {
         assertEquals(42, toInt(42));
         assertEquals(42, toInt(42.0));
         assertEquals(42, toInt(42.1));
@@ -68,7 +68,7 @@ public class CoerceTest {
     }
 
     @Test
-    public void testToDouble() {
+    void testToDouble() {
         assertEquals(42.0, toDouble(42), 1e-10);
         assertEquals(3.14159, toDouble(3.14159), 1e-10);
         assertEquals(3.14159, toDouble("3.14159"), 1e-10);
@@ -80,7 +80,7 @@ public class CoerceTest {
     }
 
     @Test
-    public void testToEnum() {
+    void testToEnum() {
         assertEquals(en.Green, toEnum(en.class, en.Green));
         assertEquals(en.Green, toEnum(en.class, 1));
         assertEquals(en.Green, toEnum(en.class, "Green"));
@@ -91,7 +91,7 @@ public class CoerceTest {
     }
 
     @Test
-    public void testToStringArray() {
+    void testToStringArray() {
         t("");
         t("[]");
         t("[  ]");
@@ -117,7 +117,7 @@ public class CoerceTest {
     }
 
     @Test
-    public void testToObject() throws JsonProcessingException {
+    void testToObject() throws JsonProcessingException {
         assertThat((List<String>) toObject("[]"), is(empty()));
         assertThat((List<String>) toObject("[  ]"), is(empty()));
         assertThat((List<String>) toObject("[\"foo\", \"bar\", \"baz\"]"), containsInAnyOrder("foo", "bar", "baz"));
@@ -133,7 +133,7 @@ public class CoerceTest {
     }
 
     @Test
-    public void testAppendParseableString() throws IOException {
+    void testAppendParseableString() throws IOException {
         StringBuilder sb = new StringBuilder();
         appendParseableString(Topic.of(mockContext, "test", null), sb);
         assertEquals("null\n", sb.toString());

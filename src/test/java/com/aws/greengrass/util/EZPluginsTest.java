@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 @ExtendWith(GGExtension.class)
-public class EZPluginsTest {
+class EZPluginsTest {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     int hits;
@@ -34,7 +34,7 @@ public class EZPluginsTest {
     }
 
     @Test
-    public void testMatch() throws Exception {
+    void testMatch() throws Exception {
         try (EZPlugins pl = new EZPlugins(executor, Utils.homePath(".pluginsTest"))) {
             pl.implementing(Foo.class, f -> {
                 System.out.println(f.getCanonicalName());
@@ -60,14 +60,14 @@ public class EZPluginsTest {
         void p(String s);
     }
 
-    public static class A implements Foo {
+    static class A implements Foo {
         @Override
         public void p(String s) {
             System.out.println("A:" + s);
         }
     }
 
-    public static class B implements Foo {
+    static class B implements Foo {
         @Override
         public void p(String s) {
             System.out.println("B:" + s);

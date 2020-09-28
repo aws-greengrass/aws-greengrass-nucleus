@@ -20,7 +20,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @ExtendWith(MockitoExtension.class)
-public class RequestLifecycleChangeTest extends GGServiceTestUtil {
+class RequestLifecycleChangeTest extends GGServiceTestUtil {
 
     private GreengrassService greengrassService;
 
@@ -28,7 +28,7 @@ public class RequestLifecycleChangeTest extends GGServiceTestUtil {
     private List<State> desiredStateList;
 
     @BeforeAll
-    public static void setup() throws Exception {
+    static void setup() throws Exception {
         desiredStateListField = Lifecycle.class.getDeclaredField("desiredStateList");
         desiredStateListField.setAccessible(true);
     }
@@ -43,7 +43,7 @@ public class RequestLifecycleChangeTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_greengrassService_WHEN_requestStart_called_THEN_deduplicate_correctly() {
+    void GIVEN_greengrassService_WHEN_requestStart_called_THEN_deduplicate_correctly() {
         desiredStateList.clear();
         greengrassService.requestStart();
         assertDesiredState(State.RUNNING);
@@ -73,7 +73,7 @@ public class RequestLifecycleChangeTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_greengrassService_WHEN_requestStop_called_THEN_deduplicate_correctly() {
+    void GIVEN_greengrassService_WHEN_requestStop_called_THEN_deduplicate_correctly() {
         desiredStateList.clear();
         greengrassService.requestStop();
         assertDesiredState(State.FINISHED);
@@ -103,7 +103,7 @@ public class RequestLifecycleChangeTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_greengrassService_WHEN_requestRestart_called_THEN_deduplicate_correctly() {
+    void GIVEN_greengrassService_WHEN_requestRestart_called_THEN_deduplicate_correctly() {
         desiredStateList.clear();
         greengrassService.requestRestart();
         assertDesiredState(State.INSTALLED, State.RUNNING);
@@ -144,7 +144,7 @@ public class RequestLifecycleChangeTest extends GGServiceTestUtil {
 
 
     @Test
-    public void GIVEN_greengrassService_WHEN_requestReinstall_called_THEN_deduplicate_correctly() {
+    void GIVEN_greengrassService_WHEN_requestReinstall_called_THEN_deduplicate_correctly() {
         greengrassService.requestReinstall();
         assertDesiredState(State.NEW, State.RUNNING);
 

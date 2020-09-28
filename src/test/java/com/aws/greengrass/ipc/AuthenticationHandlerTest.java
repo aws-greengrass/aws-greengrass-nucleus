@@ -93,7 +93,7 @@ class AuthenticationHandlerTest {
     }
 
     @Test
-    public void GIVEN_service_WHEN_register_auth_token_THEN_client_can_be_authenticated_with_token() throws Exception {
+    void GIVEN_service_WHEN_register_auth_token_THEN_client_can_be_authenticated_with_token() throws Exception {
         context = new Context();
         Configuration config = new Configuration(context);
         config.context.put(ExecutorService.class, mock(ExecutorService.class));
@@ -121,7 +121,7 @@ class AuthenticationHandlerTest {
     }
 
     @Test
-    public void GIVEN_cli_service_WHEN_register_auth_token_for_external_client_THEN_client_can_be_authenticated_with_token() throws Exception {
+    void GIVEN_cli_service_WHEN_register_auth_token_for_external_client_THEN_client_can_be_authenticated_with_token() throws Exception {
         context = new Context();
         Configuration config = new Configuration(context);
         config.context.put(ExecutorService.class, mock(ExecutorService.class));
@@ -151,7 +151,7 @@ class AuthenticationHandlerTest {
     }
 
     @Test
-    public void GIVEN_non_cli_service_WHEN_register_auth_token_for_external_client_THEN_UnauthenticatedException() throws Exception {
+    void GIVEN_non_cli_service_WHEN_register_auth_token_for_external_client_THEN_UnauthenticatedException() throws Exception {
         context = new Context();
         Configuration config = new Configuration(context);
         config.context.put(ExecutorService.class, mock(ExecutorService.class));
@@ -173,7 +173,7 @@ class AuthenticationHandlerTest {
     }
 
     @Test
-    public void GIVEN_service_WHEN_try_to_authenticate_with_bad_token_THEN_is_rejected() throws Exception {
+    void GIVEN_service_WHEN_try_to_authenticate_with_bad_token_THEN_is_rejected() throws Exception {
         context = new Context();
         Configuration config = new Configuration(context);
 
@@ -187,7 +187,7 @@ class AuthenticationHandlerTest {
     }
 
     @Test
-    public void GIVEN_unauthenticated_client_WHEN_send_auth_request_THEN_server_validates_token_and_authenticates_client()
+    void GIVEN_unauthenticated_client_WHEN_send_auth_request_THEN_server_validates_token_and_authenticates_client()
             throws Exception {
         // GIVEN
         // done in setupMocks
@@ -222,7 +222,7 @@ class AuthenticationHandlerTest {
     }
 
     @Test
-    public void GIVEN_unauthenticated_client_WHEN_send_bad_auth_request_THEN_server_validates_token_and_rejects_client(
+    void GIVEN_unauthenticated_client_WHEN_send_bad_auth_request_THEN_server_validates_token_and_rejects_client(
             ExtensionContext context)
             throws Exception {
         // GIVEN
@@ -252,7 +252,7 @@ class AuthenticationHandlerTest {
     }
 
     @Test
-    public void GIVEN_unauthenticated_client_WHEN_send_any_request_THEN_server_forces_them_to_authenticate_first()
+    void GIVEN_unauthenticated_client_WHEN_send_any_request_THEN_server_forces_them_to_authenticate_first()
             throws Exception {
         // GIVEN
         // done in setupMocks

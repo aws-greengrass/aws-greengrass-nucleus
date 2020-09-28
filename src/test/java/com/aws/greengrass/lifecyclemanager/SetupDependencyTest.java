@@ -22,7 +22,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class SetupDependencyTest extends GGServiceTestUtil {
+class SetupDependencyTest extends GGServiceTestUtil {
 
     private GreengrassService greengrassService;
     private Kernel mockKernel;
