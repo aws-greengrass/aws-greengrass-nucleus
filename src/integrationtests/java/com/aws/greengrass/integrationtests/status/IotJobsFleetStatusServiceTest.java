@@ -20,7 +20,6 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
-import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
@@ -40,7 +39,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.slf4j.event.Level;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotjobs.IotJobsClient;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
@@ -78,7 +76,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
-public class IotJobsFleetStatusServiceTest extends BaseITCase {
+class IotJobsFleetStatusServiceTest extends BaseITCase {
     private static final String MOCK_FLEET_CONFIG_ARN =
             "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1";
     private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
@@ -87,6 +85,7 @@ public class IotJobsFleetStatusServiceTest extends BaseITCase {
     private static DeploymentService deploymentService;
     private static Kernel kernel;
     private Consumer<GreengrassLogMessage> logListener;
+    private final Set<String> componentNamesToCheck = new HashSet<>();
 
     @TempDir
     static Path rootDir;
@@ -101,12 +100,11 @@ public class IotJobsFleetStatusServiceTest extends BaseITCase {
     private ArgumentCaptor<Consumer<UpdateJobExecutionResponse>> jobsAcceptedHandlerCaptor;
 
     @BeforeEach
-    public void setupKernel() throws IOException, URISyntaxException, DeviceConfigurationException,
+    void setupKernel() throws IOException, URISyntaxException, DeviceConfigurationException,
             InterruptedException {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
-        LogManager.getConfig().setLevel(Level.DEBUG);
         CompletableFuture cf = new CompletableFuture();
         cf.complete(null);
         when(mockIotJobsClient.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
@@ -135,6 +133,7 @@ public class IotJobsFleetStatusServiceTest extends BaseITCase {
                 IotJobsHelper iotJobsHelper = deploymentService.getContext().get(IotJobsHelper.class);
                 iotJobsHelper.setIotJobsClient(mockIotJobsClient);
             }
+            componentNamesToCheck.add(service.getName());
         });
         // set required instances from context
         deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "dataEndpoint", "credEndpoint",
@@ -178,16 +177,6 @@ public class IotJobsFleetStatusServiceTest extends BaseITCase {
         verify(mqttClient, atLeastOnce()).publish(captor.capture());
 
         List<PublishRequest> prs = captor.getAllValues();
-        Set<String> componentNamesToCheck = new HashSet<String>(){{
-            add("CustomerApp");
-            add("Mosquitto");
-            add("SafeSystemUpdate");
-            add("DeploymentService");
-            add("FleetStatusService");
-            add("main");
-            add("aws.greengrass.ipc.cli");
-            add("TelemetryAgent");
-        }};
         for (PublishRequest pr : prs) {
             try {
                 FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(),
@@ -216,7 +205,6 @@ public class IotJobsFleetStatusServiceTest extends BaseITCase {
         assertEquals(0, componentNamesToCheck.size());
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void offerSampleIoTJobsDeployment() throws Exception {
         LinkedBlockingQueue<Deployment> deployments = (LinkedBlockingQueue<Deployment>)
                 kernel.getContext().getvIfExists(DEPLOYMENTS_QUEUE).get();

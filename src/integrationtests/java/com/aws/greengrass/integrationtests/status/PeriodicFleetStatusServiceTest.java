@@ -11,7 +11,6 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
-import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
@@ -30,7 +29,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.slf4j.event.Level;
 
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -49,11 +47,12 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
-public class PeriodicFleetStatusServiceTest extends BaseITCase {
+class PeriodicFleetStatusServiceTest extends BaseITCase {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static DeviceConfiguration deviceConfiguration;
     private static Kernel kernel;
     private Consumer<GreengrassLogMessage> logListener;
+    private final Set<String> componentNamesToCheck = new HashSet<>();
 
     @TempDir
     static Path rootDir;
@@ -63,11 +62,10 @@ public class PeriodicFleetStatusServiceTest extends BaseITCase {
     private ArgumentCaptor<PublishRequest> captor;
 
     @BeforeEach
-    public void setupKernel() throws DeviceConfigurationException, InterruptedException {
+    void setupKernel() throws DeviceConfigurationException, InterruptedException {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
-        LogManager.getConfig().setLevel(Level.DEBUG);
         CompletableFuture cf = new CompletableFuture();
         cf.complete(null);
         kernel = new Kernel();
@@ -83,6 +81,7 @@ public class PeriodicFleetStatusServiceTest extends BaseITCase {
                     && newState.equals(State.RUNNING)) {
                 deploymentServiceRunning.countDown();
             }
+            componentNamesToCheck.add(service.getName());
         });
         // set required instances from context
         deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "dataEndpoint", "credEndpoint",
@@ -117,14 +116,6 @@ public class PeriodicFleetStatusServiceTest extends BaseITCase {
         verify(mqttClient, atLeastOnce()).publish(captor.capture());
 
         List<PublishRequest> prs = captor.getAllValues();
-        Set<String> componentNamesToCheck = new HashSet<String>(){{
-            add("SafeSystemUpdate");
-            add("DeploymentService");
-            add("FleetStatusService");
-            add("main");
-            add("aws.greengrass.ipc.cli");
-            add("TelemetryAgent");
-        }};
         for (PublishRequest pr : prs) {
             try {
                 FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(),
