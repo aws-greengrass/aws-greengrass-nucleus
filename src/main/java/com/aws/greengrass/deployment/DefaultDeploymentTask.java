@@ -3,7 +3,7 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
-import com.aws.greengrass.componentmanager.exceptions.ComponentVersionConflictException;
+import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.exceptions.UnexpectedPackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -46,7 +46,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
     /**
      * Constructor for DefaultDeploymentTask.
      *
-     * @param dependencyResolver DependencyResolver instance
+     * @param dependencyResolver SimplifiedDependencyResolver instance
      * @param componentManager PackageManager instance
      * @param kernelConfigResolver KernelConfigResolver instance
      * @param deploymentConfigMerger DeploymentConfigMerger instance
@@ -113,7 +113,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE).setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .log("Finished deployment task");
             return result;
-        } catch (ComponentVersionConflictException | UnexpectedPackagingException e) {
+        } catch (NoAvailableComponentVersionException | UnexpectedPackagingException e) {
             throw new NonRetryableDeploymentTaskFailureException(e);
         } catch (ExecutionException e) {
             Throwable t = e.getCause();
