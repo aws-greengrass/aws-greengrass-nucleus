@@ -32,6 +32,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.DependencyOrder;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.ProxyUtils;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
@@ -530,7 +531,12 @@ public class Kernel {
         kernelCommandLine.parseArgs(args);
         config.lookupTopics(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         kernelLifecycle.initConfigAndTlog();
+        setupProxy();
         return this;
+    }
+
+    private void setupProxy() {
+        ProxyUtils.setProxyProperties(context.get(DeviceConfiguration.class));
     }
 
     /*
