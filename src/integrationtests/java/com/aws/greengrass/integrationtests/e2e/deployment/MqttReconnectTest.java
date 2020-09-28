@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(GGExtension.class)
 @Tag("E2E-INTRUSIVE")
-public class MqttReconnectTest extends BaseE2ETestCase {
+class MqttReconnectTest extends BaseE2ETestCase {
 
     private static final String dnsCacheTtlPropertyKey = "networkaddress.cache.ttl";
     private static final Duration DNS_CACHE_TTL = Duration.ofSeconds(10);

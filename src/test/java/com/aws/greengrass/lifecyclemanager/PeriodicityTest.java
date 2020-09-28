@@ -18,10 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author jag
  */
 @ExtendWith(GGExtension.class)
-public class PeriodicityTest {
+class PeriodicityTest {
 
     @Test
-    public void testSomeMethod() {
+    void testSomeMethod() {
         assertEquals(1000, parseInterval("1 second"));
         assertEquals(TimeUnit.MINUTES.toMillis(3), parseInterval("  0x3 minutes "));
         assertEquals(TimeUnit.SECONDS.toMillis(77), parseInterval("77"));

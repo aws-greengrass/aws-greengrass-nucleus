@@ -70,7 +70,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class CLIServiceAgentTest {
+class CLIServiceAgentTest {
 
     private static final String MOCK_COMPONENT_NAME = "MockComponent";
     private static final String MOCK_VERSION = "1.0.0";
@@ -92,17 +92,17 @@ public class CLIServiceAgentTest {
     private final Context context = new Context();
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         cliServiceAgent = new CLIServiceAgent(kernel, deploymentsQueue);
     }
 
     @AfterEach
-    public void shutdown() throws IOException {
+    void shutdown() throws IOException {
         context.close();
     }
 
     @Test
-    public void testGetComponentDetails_success() throws Exception {
+    void testGetComponentDetails_success() throws Exception {
         GetComponentDetailsRequest request = mock(GetComponentDetailsRequest.class);
         when(request.getComponentName()).thenReturn(MOCK_COMPONENT_NAME);
         GreengrassService mockService = createMockService(MOCK_COMPONENT_NAME,
@@ -117,7 +117,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testGetComponentDetails_component_does_not_exist(ExtensionContext context) throws Exception {
+    void testGetComponentDetails_component_does_not_exist(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, ServiceLoadException.class);
         GetComponentDetailsRequest request = mock(GetComponentDetailsRequest.class);
         when(request.getComponentName()).thenReturn(MOCK_COMPONENT_NAME);
@@ -126,7 +126,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testGetComponentDetails_received_empty_component_name() throws Exception {
+    void testGetComponentDetails_received_empty_component_name() throws Exception {
         GetComponentDetailsRequest request = GetComponentDetailsRequest.builder().build();
         assertThrows(InvalidArgumentsError.class, ()->cliServiceAgent.getComponentDetails(request));
         GetComponentDetailsRequest request2 = GetComponentDetailsRequest.builder().componentName("").build();
@@ -134,7 +134,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testListComponents_success() {
+    void testListComponents_success() {
         List<GreengrassService> servicesInKernel = Arrays.asList(
                 createMockService("COMPONENT1", State.RUNNING, "1.0.0",
                         Collections.singletonMap(MOCK_PARAM_KEY, MOCK_PARAM_VALUE)),
@@ -162,7 +162,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testRestartComponent_success() throws Exception {
+    void testRestartComponent_success() throws Exception {
         RestartComponentRequest request = RestartComponentRequest.builder().componentName(MOCK_COMPONENT_NAME).build();
         GreengrassService mockService = mock(GreengrassService.class);
         when(kernel.locate(eq(MOCK_COMPONENT_NAME))).thenReturn(mockService);
@@ -171,7 +171,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testRestartComponent_component_does_not_exist(ExtensionContext context) throws Exception {
+    void testRestartComponent_component_does_not_exist(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, ServiceLoadException.class);
         RestartComponentRequest request = RestartComponentRequest.builder().componentName(MOCK_COMPONENT_NAME).build();
         when(kernel.locate(eq(MOCK_COMPONENT_NAME))).thenThrow(new ServiceLoadException("Error"));
@@ -179,7 +179,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testRestartComponent_empty_component_name_in_request() throws Exception {
+    void testRestartComponent_empty_component_name_in_request() throws Exception {
         RestartComponentRequest request = RestartComponentRequest.builder().build();
         assertThrows(InvalidArgumentsError.class, ()->cliServiceAgent.restartComponent(request));
         RestartComponentRequest request2 = RestartComponentRequest.builder().componentName("").build();
@@ -187,7 +187,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testStopComponent_success() throws Exception {
+    void testStopComponent_success() throws Exception {
         StopComponentRequest request = StopComponentRequest.builder().componentName(MOCK_COMPONENT_NAME).build();
         GreengrassService mockService = mock(GreengrassService.class);
         when(kernel.locate(eq(MOCK_COMPONENT_NAME))).thenReturn(mockService);
@@ -196,7 +196,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testStopComponent_component_does_not_exist(ExtensionContext context) throws Exception {
+    void testStopComponent_component_does_not_exist(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, ServiceLoadException.class);
         StopComponentRequest request = StopComponentRequest.builder().componentName(MOCK_COMPONENT_NAME).build();
         when(kernel.locate(eq(MOCK_COMPONENT_NAME))).thenThrow(new ServiceLoadException("Error"));
@@ -204,7 +204,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testStopComponent_empty_component_name_in_request() throws Exception {
+    void testStopComponent_empty_component_name_in_request() throws Exception {
         StopComponentRequest request = StopComponentRequest.builder().build();
         assertThrows(InvalidArgumentsError.class, ()->cliServiceAgent.stopComponent(request));
         StopComponentRequest request2 = StopComponentRequest.builder().componentName("").build();
@@ -212,7 +212,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testUpdateRecipesAndArtifacts_success() throws Exception {
+    void testUpdateRecipesAndArtifacts_success() throws Exception {
         Path tempDirectory = Files.createTempDirectory("cliTest");
         Path kernelLocalStore = tempDirectory.resolve("kernelLocalStore");
         Path kernelArtifactsPath = kernelLocalStore.resolve(ComponentStore.ARTIFACT_DIRECTORY);
@@ -243,7 +243,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testUpdateRecipesAndArtifacts_no_directory_path_provided() {
+    void testUpdateRecipesAndArtifacts_no_directory_path_provided() {
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder()
                 .artifactDirectoryPath("")
                 .recipeDirectoryPath("")
@@ -255,7 +255,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testUpdateRecipesAndArtifacts_only_recipe_path_given() throws Exception {
+    void testUpdateRecipesAndArtifacts_only_recipe_path_given() throws Exception {
         Path tempDirectory = Files.createTempDirectory("cliTest");
         Path kernelLocalStore = tempDirectory.resolve("kernelLocalStore");
         Path kernelRecipesPath = kernelLocalStore.resolve(ComponentStore.RECIPE_DIRECTORY);
@@ -276,7 +276,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testUpdateRecipesAndArtifacts_only_artifact_provided() throws Exception {
+    void testUpdateRecipesAndArtifacts_only_artifact_provided() throws Exception {
         Path tempDirectory = Files.createTempDirectory("cliTest");
         Path kernelLocalStore = tempDirectory.resolve("kernelLocalStore");
         Path kernelArtifactsPath = kernelLocalStore.resolve(ComponentStore.ARTIFACT_DIRECTORY);
@@ -298,7 +298,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testCreateLocalDeployment_success() throws Exception {
+    void testCreateLocalDeployment_success() throws Exception {
         Map<String, String> componentToVersion = new HashMap<>();
         componentToVersion.put("Component1", "1.0.0");
         componentToVersion.put("Component2", "2.0.0");
@@ -334,7 +334,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testCreateLocalDeployment_no_arguments_accepted() throws Exception {
+    void testCreateLocalDeployment_no_arguments_accepted() throws Exception {
 
         CreateLocalDeploymentRequest request = CreateLocalDeploymentRequest.builder()
                 .build();
@@ -356,7 +356,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testGetLocalDeploymentStatus_success() throws Exception {
+    void testGetLocalDeploymentStatus_success() throws Exception {
         GetLocalDeploymentStatusRequest request =
                 GetLocalDeploymentStatusRequest.builder().deploymentId(MOCK_DEPLOYMENT_ID).build();
         Topics mockServiceConfig = mock(Topics.class);
@@ -374,7 +374,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testGetLocalDeploymentStatus_invalid_deploymentId_format() throws Exception {
+    void testGetLocalDeploymentStatus_invalid_deploymentId_format() throws Exception {
         GetLocalDeploymentStatusRequest request =
                 GetLocalDeploymentStatusRequest.builder().deploymentId("NonUUIDId").build();
         Topics mockServiceConfig = mock(Topics.class);
@@ -383,7 +383,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testGetLocalDeploymentStatus_deploymentId_not_exist() throws Exception {
+    void testGetLocalDeploymentStatus_deploymentId_not_exist() throws Exception {
         GetLocalDeploymentStatusRequest request =
                 GetLocalDeploymentStatusRequest.builder().deploymentId(MOCK_DEPLOYMENT_ID).build();
         Topics mockServiceConfig = mock(Topics.class);
@@ -398,7 +398,7 @@ public class CLIServiceAgentTest {
     }
 
     @Test
-    public void testListLocalDeployments_success() throws Exception {
+    void testListLocalDeployments_success() throws Exception {
         Topics mockServiceConfig = mock(Topics.class);
         Topics mockLocalDeployments = Topics.of(context, PERSISTENT_LOCAL_DEPLOYMENTS, null);
         Map<String, Object> deploymentDetails = new HashMap<>();

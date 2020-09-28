@@ -21,28 +21,28 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasItems;
 
 @ExtendWith(GGExtension.class)
-public class DependencyOrderTest {
+class DependencyOrderTest {
     @Test
-    public void testHappyCase() {
+    void testHappyCase() {
         Map<String, Set<String>> tree = new HashMap<String, Set<String>>() {{
             put("A", new HashSet<>(Arrays.asList("B", "C")));
             put("B", new HashSet<>(Arrays.asList("C")));
             put("C", Collections.emptySet());
         }};
         LinkedHashSet<String> result = new DependencyOrder<String>().computeOrderedDependencies(
-                tree.keySet(), name -> tree.get(name));
+                tree.keySet(), tree::get);
         assertThat(result, hasItems("C", "B", "A"));
     }
 
     @Test
-    public void testCircularDependencies() {
+    void testCircularDependencies() {
         Map<String, Set<String>> tree = new HashMap<String, Set<String>>() {{
             put("A", new HashSet<>(Arrays.asList("B", "C")));
             put("B", new HashSet<>(Arrays.asList("A")));
             put("C", Collections.emptySet());
         }};
         LinkedHashSet<String> result = new DependencyOrder<String>().computeOrderedDependencies(
-                tree.keySet(), name -> tree.get(name));
+                tree.keySet(), tree::get);
         assertThat(result, hasItems("C"));
     }
 }

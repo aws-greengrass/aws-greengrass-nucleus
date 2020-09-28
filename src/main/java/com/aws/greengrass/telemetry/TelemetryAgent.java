@@ -44,8 +44,8 @@ public class TelemetryAgent extends GreengrassService {
     public static final String TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC = "lastPeriodicAggregationMetricsTime";
     private static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 86_400;
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
-    private static int periodicPublishMetricsIntervalSec;
-    private static int periodicAggregateMetricsIntervalSec;
+    private int periodicPublishMetricsIntervalSec;
+    private int periodicAggregateMetricsIntervalSec;
     private final MqttClient mqttClient;
     private final MetricsAggregator metricsAggregator;
     private final AtomicBoolean isConnected = new AtomicBoolean(true);

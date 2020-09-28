@@ -1,6 +1,5 @@
 package com.aws.greengrass.builtin.services.lifecycle;
 
-import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.ipc.ConnectionContext;
 import com.aws.greengrass.ipc.common.ServiceEventHelper;
@@ -35,7 +34,7 @@ import static com.aws.greengrass.ipc.common.BuiltInServiceDestinationCode.LIFECY
 /**
  * Class to handle business logic for all Lifecycle requests over IPC.
  */
-public class LifecycleIPCAgent implements InjectionActions {
+public class LifecycleIPCAgent {
 
     private final Set<ConnectionContext> componentUpdateListeners = new CopyOnWriteArraySet<>();
 
@@ -53,11 +52,6 @@ public class LifecycleIPCAgent implements InjectionActions {
     private ServiceEventHelper serviceEventHelper;
 
     private static final Logger log = LogManager.getLogger(LifecycleIPCAgent.class);
-
-
-    @Override
-    public void postInject() {
-    }
 
     /**
      * Report the state of the service which the request is coming from.

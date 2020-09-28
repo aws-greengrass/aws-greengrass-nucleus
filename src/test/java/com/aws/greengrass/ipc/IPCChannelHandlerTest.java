@@ -37,8 +37,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class IPCChannelHandlerTest {
-    public static final String ERROR_MESSAGE = "AAAAAAH!";
+class IPCChannelHandlerTest {
+    static final String ERROR_MESSAGE = "AAAAAAH!";
     @Mock
     AuthenticationHandler mockAuth;
     @Mock
@@ -59,7 +59,7 @@ public class IPCChannelHandlerTest {
     private IPCChannelHandler router;
 
     @BeforeEach
-    public void setupMocks() throws Exception {
+    void setupMocks() throws Exception {
         router = new IPCChannelHandler(mockAuth, ipcRouter);
 
         when(mockCtx.channel()).thenReturn(mockChannel);
@@ -73,7 +73,7 @@ public class IPCChannelHandlerTest {
     }
 
     @Test
-    public void GIVEN_authenticated_client_WHEN_request_with_unregistered_destination_THEN_respond_with_error()
+    void GIVEN_authenticated_client_WHEN_request_with_unregistered_destination_THEN_respond_with_error()
             throws Exception {
         // GIVEN
         // done in setupMocks
@@ -97,7 +97,7 @@ public class IPCChannelHandlerTest {
     }
 
     @Test
-    public void GIVEN_authenticated_client_WHEN_request_with_normal_return_THEN_respond_with_message()
+    void GIVEN_authenticated_client_WHEN_request_with_normal_return_THEN_respond_with_message()
             throws Exception {
         // GIVEN
         // done in setupMocks
@@ -127,7 +127,7 @@ public class IPCChannelHandlerTest {
     }
 
     @Test
-    public void GIVEN_authenticated_client_WHEN_request_with_exceptional_return_THEN_respond_with_error()
+    void GIVEN_authenticated_client_WHEN_request_with_exceptional_return_THEN_respond_with_error()
             throws Exception {
         // GIVEN
         // done in setupMocks

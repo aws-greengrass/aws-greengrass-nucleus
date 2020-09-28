@@ -86,7 +86,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 @SuppressWarnings("PMD.CouplingBetweenObjects")
-public class CLIServiceTest extends GGServiceTestUtil {
+class CLIServiceTest extends GGServiceTestUtil {
 
     private static final String SERVICEA = "ServiceA";
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
@@ -114,7 +114,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     private Topics privateConfigSpy;
 
     @BeforeEach
-    public void setup() throws UnauthenticatedException {
+    void setup() throws UnauthenticatedException {
         serviceFullName = CLI_SERVICE;
         initializeMockedConfig();
         serviceConfigSpy = spy(Topics.of(context, SERVICES_NAMESPACE_TOPIC, null));
@@ -128,14 +128,14 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testPostInject_calls_made() throws Exception {
+    void testPostInject_calls_made() throws Exception {
         verify(router).registerServiceCallback(eq(BuiltInServiceDestinationCode.CLI.getValue()), any());
         verify(deploymentStatusKeeper).registerDeploymentStatusConsumer(eq(Deployment.DeploymentType.LOCAL), any(),
                 eq(CLIService.class.getName()));
     }
 
     @Test
-    public void testStartup() throws Exception {
+    void testStartup() throws Exception {
         when(authenticationHandler.registerAuthenticationTokenForExternalClient(anyString(), anyString())).thenReturn(
                 MOCK_AUTH_TOKEN);
         when(kernel.getRootPath()).thenReturn(kernelRootPath);
@@ -157,14 +157,14 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testDeploymentStatusChanged_calls() {
+    void testDeploymentStatusChanged_calls() {
         Map<String, Object> deploymentDetails = new HashMap<>();
         cliService.deploymentStatusChanged(deploymentDetails);
         verify(agent).persistLocalDeployment(cliConfigSpy, deploymentDetails);
     }
 
     @Test
-    public void testGetComponentsCall_success() throws Exception {
+    void testGetComponentsCall_success() throws Exception {
         GetComponentDetailsRequest request = GetComponentDetailsRequest.builder().build();
         GetComponentDetailsResponse response =
                 GetComponentDetailsResponse.builder()
@@ -182,7 +182,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testGetComponentsCall_ComponentNotFoundError() throws Exception {
+    void testGetComponentsCall_ComponentNotFoundError() throws Exception {
         GetComponentDetailsRequest request = GetComponentDetailsRequest.builder().build();
         ComponentNotFoundError error = new ComponentNotFoundError("Error");
         when(agent.getComponentDetails(eq(request))).thenThrow(error);
@@ -198,7 +198,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testGetComponentsCall_InvalidArgumentsError() throws Exception {
+    void testGetComponentsCall_InvalidArgumentsError() throws Exception {
         GetComponentDetailsRequest request = GetComponentDetailsRequest.builder().build();
         InvalidArgumentsError error = new InvalidArgumentsError("Invalid component name");
         when(agent.getComponentDetails(eq(request))).thenThrow(error);
@@ -214,7 +214,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testGetComponentsCall_ServiceException(ExtensionContext context) throws Exception {
+    void testGetComponentsCall_ServiceException(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, RuntimeException.class);
         GetComponentDetailsRequest request = GetComponentDetailsRequest.builder().build();
         RuntimeException error = new RuntimeException("Runtime error");
@@ -231,7 +231,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testListComponentsCall_success() throws Exception {
+    void testListComponentsCall_success() throws Exception {
         List<ComponentDetails> listOfComponents = new ArrayList<>();
         ListComponentsResponse response =
                 ListComponentsResponse.builder()
@@ -250,7 +250,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testListComponentsCall_with_runtime_exception(ExtensionContext context) throws Exception {
+    void testListComponentsCall_with_runtime_exception(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, RuntimeException.class);
         when(agent.listComponents()).thenThrow(new RuntimeException());
         FrameReader.Message message =  cliService.handleMessage(new FrameReader.Message(
@@ -265,7 +265,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testRestartComponentsCall_success() throws Exception {
+    void testRestartComponentsCall_success() throws Exception {
         RestartComponentRequest request = RestartComponentRequest.builder().build();
         RestartComponentResponse response =
                 RestartComponentResponse.builder().requestStatus(RequestStatus.SUCCEEDED).build();
@@ -281,7 +281,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testRestartComponentsCall_with_component_not_exists() throws Exception {
+    void testRestartComponentsCall_with_component_not_exists() throws Exception {
         RestartComponentRequest request = RestartComponentRequest.builder().build();
         ComponentNotFoundError error = new ComponentNotFoundError("Error");
         when(agent.restartComponent(eq(request))).thenThrow(error);
@@ -297,7 +297,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testRestartComponentsCall_with_runtime_exception(ExtensionContext context) throws Exception {
+    void testRestartComponentsCall_with_runtime_exception(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, RuntimeException.class);
         RestartComponentRequest request = RestartComponentRequest.builder().build();
         RuntimeException error = new RuntimeException("Error");
@@ -314,7 +314,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testStopComponentsCall_success() throws Exception {
+    void testStopComponentsCall_success() throws Exception {
         StopComponentRequest request = StopComponentRequest.builder().build();
         StopComponentResponse response =
                 StopComponentResponse.builder().requestStatus(RequestStatus.SUCCEEDED)
@@ -332,7 +332,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testStopComponentsCall_with_component_not_exists() throws Exception {
+    void testStopComponentsCall_with_component_not_exists() throws Exception {
         StopComponentRequest request = StopComponentRequest.builder().build();
         ComponentNotFoundError error = new ComponentNotFoundError("error");
         when(agent.stopComponent(eq(request))).thenThrow(error);
@@ -348,7 +348,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testStopComponentsCall_with_runtime_exception(ExtensionContext context) throws Exception {
+    void testStopComponentsCall_with_runtime_exception(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, RuntimeException.class);
         StopComponentRequest request = StopComponentRequest.builder().build();
         RuntimeException error = new RuntimeException("error");
@@ -365,7 +365,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testUpdateRecipesCall_success() throws Exception {
+    void testUpdateRecipesCall_success() throws Exception {
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder().build();
         doNothing().when(agent).updateRecipesAndArtifacts(eq(request));
         FrameReader.Message message = cliService.handleMessage(new FrameReader.Message(
@@ -379,7 +379,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testUpdateRecipesCall_invalidArguments() throws Exception {
+    void testUpdateRecipesCall_invalidArguments() throws Exception {
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder().build();
         doThrow(new InvalidArgumentsError("Error")).when(agent).updateRecipesAndArtifacts(eq(request));
         FrameReader.Message message = cliService.handleMessage(new FrameReader.Message(
@@ -394,7 +394,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testUpdateRecipesCall_invalidRecipePathError() throws Exception {
+    void testUpdateRecipesCall_invalidRecipePathError() throws Exception {
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder().build();
         doThrow(new InvalidRecipesDirectoryPathError("Error")).when(agent).updateRecipesAndArtifacts(eq(request));
         FrameReader.Message message = cliService.handleMessage(new FrameReader.Message(
@@ -409,7 +409,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testUpdateRecipesCall_invalidArtifactsPathError() throws Exception {
+    void testUpdateRecipesCall_invalidArtifactsPathError() throws Exception {
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder().build();
         doThrow(new InvalidArtifactsDirectoryPathError("Error")).when(agent).updateRecipesAndArtifacts(eq(request));
         FrameReader.Message message = cliService.handleMessage(new FrameReader.Message(
@@ -424,7 +424,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testCreateLocalDeploymentCall_success() throws Exception {
+    void testCreateLocalDeploymentCall_success() throws Exception {
         CreateLocalDeploymentRequest request = CreateLocalDeploymentRequest.builder().build();
         CreateLocalDeploymentResponse response =
                 CreateLocalDeploymentResponse.builder()
@@ -442,7 +442,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testCreateLocalDeploymentCall_runtimeException(ExtensionContext context) throws Exception {
+    void testCreateLocalDeploymentCall_runtimeException(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, RuntimeException.class);
         CreateLocalDeploymentRequest request = CreateLocalDeploymentRequest.builder().build();
 
@@ -459,7 +459,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testGetLocalDeploymentCall_success() throws Exception {
+    void testGetLocalDeploymentCall_success() throws Exception {
         GetLocalDeploymentStatusRequest request = GetLocalDeploymentStatusRequest.builder().build();
         GetLocalDeploymentStatusResponse response =
                 GetLocalDeploymentStatusResponse.builder()
@@ -478,7 +478,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testGetLocalDeploymentCall_deploymentId_invalid_format() throws Exception {
+    void testGetLocalDeploymentCall_deploymentId_invalid_format() throws Exception {
         GetLocalDeploymentStatusRequest request = GetLocalDeploymentStatusRequest.builder().build();
 
         when(agent.getLocalDeploymentStatus(cliConfigSpy, request))
@@ -495,7 +495,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testGetLocalDeploymentCall_deploymentId_not_found() throws Exception {
+    void testGetLocalDeploymentCall_deploymentId_not_found() throws Exception {
         GetLocalDeploymentStatusRequest request = GetLocalDeploymentStatusRequest.builder().build();
         ResourceNotFoundError error = new ResourceNotFoundError("Deployment not found",
                 LOCAL_DEPLOYMENT_RESOURCE, MOCK_DEPLOYMENT_ID);
@@ -513,7 +513,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testGetLocalDeploymentCall_runtimeException(ExtensionContext context) throws Exception {
+    void testGetLocalDeploymentCall_runtimeException(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, RuntimeException.class);
         GetLocalDeploymentStatusRequest request = GetLocalDeploymentStatusRequest.builder().build();
 
@@ -530,7 +530,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testListLocalDeploymentCall_success() throws Exception {
+    void testListLocalDeploymentCall_success() throws Exception {
         GetComponentDetailsRequest request = GetComponentDetailsRequest.builder().build();
         List<LocalDeployment> listOflocalDeployments = new ArrayList<>();
         ListLocalDeploymentResponse response =
@@ -549,7 +549,7 @@ public class CLIServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void testListLocalDeploymentCall_runtime_exception(ExtensionContext context) throws Exception {
+    void testListLocalDeploymentCall_runtime_exception(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, RuntimeException.class);
         GetComponentDetailsRequest request = GetComponentDetailsRequest.builder().build();
         when(agent.listLocalDeployments(cliConfigSpy)).thenThrow(new RuntimeException("Error"));

@@ -108,6 +108,7 @@ public class IotJobsHelper implements InjectionActions {
 
     private static final Logger logger = LogManager.getLogger(IotJobsHelper.class);
     private static final long WAIT_TIME_MS_TO_SUBSCRIBE_AGAIN = Duration.ofMinutes(2).toMillis();
+    private static final Random RANDOM = new Random();
 
     @Inject
     private DeviceConfiguration deviceConfiguration;
@@ -477,8 +478,7 @@ public class IotJobsHelper implements InjectionActions {
 
             try {
                 // Wait for sometime and then try to subscribe again
-                Random jitter = new Random();
-                Thread.sleep(waitTimeToSubscribeAgain + jitter.nextInt(10_000));
+                Thread.sleep(waitTimeToSubscribeAgain + RANDOM.nextInt(10_000));
             } catch (InterruptedException interruptedException) {
                 logger.atWarn().log(SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED);
                 break;
@@ -529,8 +529,7 @@ public class IotJobsHelper implements InjectionActions {
 
             try {
                 // Wait for sometime and then try to subscribe again
-                Random jitter = new Random();
-                Thread.sleep(waitTimeToSubscribeAgain + jitter.nextInt(10_000));
+                Thread.sleep(waitTimeToSubscribeAgain + RANDOM.nextInt(10_000));
             } catch (InterruptedException interruptedException) {
                 logger.atWarn().log(SUBSCRIPTION_EVENT_NOTIFICATIONS_INTERRUPTED);
                 break;

@@ -60,7 +60,7 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class LifecycleTest {
+class LifecycleTest {
 
     @Mock
     protected GreengrassService greengrassService;
@@ -122,7 +122,7 @@ public class LifecycleTest {
     }
 
     @Test
-    public void GIVEN_state_new_WHEN_requestStart_called_THEN_install_invoked() throws InterruptedException {
+    void GIVEN_state_new_WHEN_requestStart_called_THEN_install_invoked() throws InterruptedException {
         lifecycle = new Lifecycle(greengrassService, logger, greengrassService.getPrivateConfig());
         initLifecycleState(lifecycle, State.NEW);
 
@@ -135,7 +135,7 @@ public class LifecycleTest {
     }
 
     @Test
-    public void GIVEN_state_new_WHEN_install_timeout_THEN_service_errored() throws InterruptedException {
+    void GIVEN_state_new_WHEN_install_timeout_THEN_service_errored() throws InterruptedException {
         //GIVEN
         lifecycle = new Lifecycle(greengrassService, logger, greengrassService.getPrivateConfig());
         initLifecycleState(lifecycle, State.NEW);
@@ -172,7 +172,7 @@ public class LifecycleTest {
     }
 
     @Test
-    public void GIVEN_state_installed_WHEN_startup_timeout_THEN_service_errored() throws InterruptedException {
+    void GIVEN_state_installed_WHEN_startup_timeout_THEN_service_errored() throws InterruptedException {
         // GIVEN
         lifecycle = new Lifecycle(greengrassService, logger, greengrassService.getPrivateConfig());
         initLifecycleState(lifecycle, State.INSTALLED);
@@ -217,7 +217,7 @@ public class LifecycleTest {
     }
 
     @Test
-    public void GIVEN_state_running_WHEN_requestStop_THEN_shutdown_called() throws InterruptedException {
+    void GIVEN_state_running_WHEN_requestStop_THEN_shutdown_called() throws InterruptedException {
         // GIVEN
         lifecycle = spy(new Lifecycle(greengrassService, logger, greengrassService.getPrivateConfig()));
         initLifecycleState(lifecycle, State.INSTALLED);
@@ -257,7 +257,7 @@ public class LifecycleTest {
     }
 
     @Test
-    public void GIVEN_state_install_WHEN_requestStop_THEN_shutdown_called() throws InterruptedException {
+    void GIVEN_state_install_WHEN_requestStop_THEN_shutdown_called() throws InterruptedException {
         // GIVEN
         lifecycle = spy(new Lifecycle(greengrassService, logger, greengrassService.getPrivateConfig()));
         initLifecycleState(lifecycle, State.INSTALLED);
@@ -460,7 +460,7 @@ public class LifecycleTest {
 
 
     @Test
-    public void GIVEN_service_starting_WHEN_dependency_errored_THEN_service_restarted() throws Exception {
+    void GIVEN_service_starting_WHEN_dependency_errored_THEN_service_restarted() throws Exception {
         Topics serviceRoot = new Configuration(context).getRoot()
                 .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC);
         Topics testServiceTopics = serviceRoot.createInteriorChild("testService");

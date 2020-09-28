@@ -60,28 +60,28 @@ import static org.mockito.Mockito.when;
 
 
 @ExtendWith(MockitoExtension.class)
-public class DeploymentConfigMergerTest {
+class DeploymentConfigMergerTest {
 
     private final Logger logger = LogManager.getLogger(this.getClass());
 
     @Mock
-    public Kernel kernel;
+    private Kernel kernel;
 
     @Mock
-    public Context context;
+    private Context context;
 
     @BeforeEach
-    public void beforeEach() {
+    void beforeEach() {
         lenient().when(kernel.getContext()).thenReturn(context);
     }
 
     @AfterEach
-    public void afterEach() throws Exception {
+    void afterEach() throws Exception {
         context.close();
     }
 
     @Test
-    public void GIVEN_AggregateServicesChangeManager_WHEN_initialized_THEN_compute_service_to_add_or_remove()
+    void GIVEN_AggregateServicesChangeManager_WHEN_initialized_THEN_compute_service_to_add_or_remove()
             throws Exception {
         GreengrassService oldService = createMockEvergreenService("oldService");
         GreengrassService existingService = createMockEvergreenService("existingService");
@@ -128,7 +128,7 @@ public class DeploymentConfigMergerTest {
     }
 
     @Test
-    public void GIVEN_AggregateServicesChangeManager_WHEN_removeObsoleteService_THEN_obsolete_services_are_removed()
+    void GIVEN_AggregateServicesChangeManager_WHEN_removeObsoleteService_THEN_obsolete_services_are_removed()
             throws Exception {
         // GIVEN
         GreengrassService oldService = createMockEvergreenService("oldService", kernel);
@@ -184,7 +184,7 @@ public class DeploymentConfigMergerTest {
     }
 
     @Test
-    public void GIVEN_AggregateServicesChangeManager_WHEN_startNewServices_THEN_start_services_should_auto_start()
+    void GIVEN_AggregateServicesChangeManager_WHEN_startNewServices_THEN_start_services_should_auto_start()
             throws Exception {
         // setup
         GreengrassService builtinService = mock(GreengrassService.class);
@@ -213,7 +213,7 @@ public class DeploymentConfigMergerTest {
     }
 
     @Test
-    public void GIVEN_waitForServicesToStart_WHEN_service_reached_desired_state_THEN_return_successfully()
+    void GIVEN_waitForServicesToStart_WHEN_service_reached_desired_state_THEN_return_successfully()
             throws Exception {
         // GIVEN
         GreengrassService mockService = mock(GreengrassService.class);
@@ -248,7 +248,7 @@ public class DeploymentConfigMergerTest {
     }
 
     @Test
-    public void GIVEN_waitForServicesToStart_WHEN_service_is_broken_after_merge_THEN_throw() {
+    void GIVEN_waitForServicesToStart_WHEN_service_is_broken_after_merge_THEN_throw() {
         // stateModTime is larger than mergeTime
         long stateModTime = 10;
         long mergeTime = 1;
@@ -271,7 +271,7 @@ public class DeploymentConfigMergerTest {
     }
 
     @Test
-    public void GIVEN_deployment_WHEN_check_safety_selected_THEN_check_safety_before_update() throws Exception {
+    void GIVEN_deployment_WHEN_check_safety_selected_THEN_check_safety_before_update() throws Exception {
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
         DeploymentActivatorFactory deploymentActivatorFactory = mock(DeploymentActivatorFactory.class);
@@ -300,7 +300,7 @@ public class DeploymentConfigMergerTest {
     }
 
     @Test
-    public void GIVEN_deployment_WHEN_task_cancelled_THEN_update_is_cancelled() throws Throwable {
+    void GIVEN_deployment_WHEN_task_cancelled_THEN_update_is_cancelled() throws Throwable {
         ArgumentCaptor<Pair<Integer,Crashable>> cancelledTaskCaptor = ArgumentCaptor.forClass(Pair.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
@@ -326,7 +326,7 @@ public class DeploymentConfigMergerTest {
     }
 
     @Test
-    public void GIVEN_deployment_WHEN_task_not_cancelled_THEN_update_is_continued() throws Throwable {
+    void GIVEN_deployment_WHEN_task_not_cancelled_THEN_update_is_continued() throws Throwable {
         ArgumentCaptor<Pair<Integer,Crashable>> taskCaptor = ArgumentCaptor.forClass(Pair.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);

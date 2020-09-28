@@ -25,21 +25,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(GGExtension.class)
-public class MergeTest {
+class MergeTest {
 
     private GreengrassService mockMainService;
     private GreengrassService mockServiceA;
     private GreengrassService mockServiceB;
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         mockMainService = mock(GreengrassService.class);
         mockServiceA = mock(GreengrassService.class);
         mockServiceB = mock(GreengrassService.class);
     }
 
     @Test
-    public void testSomeMethod() throws Exception {
+    void testSomeMethod() throws Exception {
         try (Context context = new Context()) {
             Configuration c = new Configuration(context);
             c.read(Kernel.class.getResource("config.yaml"), false);
@@ -49,9 +49,9 @@ public class MergeTest {
     }
 
     // TODO : following tests need to go into the unit tests for DeploymentConfigMerger class when we add it
-    //  and should be tested through the available public method mergeNewConfig instead
+    //  and should be tested through the available method mergeNewConfig instead
     @Test
-    public void GIVEN_deployment_WHEN_all_service_are_running_THEN_waitForServicesToStart_completes_without_exception()
+    void GIVEN_deployment_WHEN_all_service_are_running_THEN_waitForServicesToStart_completes_without_exception()
             throws Exception {
         when(mockMainService.getState()).thenReturn(State.RUNNING);
         when(mockServiceA.getState()).thenReturn(State.RUNNING);
@@ -66,7 +66,7 @@ public class MergeTest {
     }
 
     @Test
-    public void GIVEN_deployment_WHEN_one_service_is_broken_THEN_waitForServicesToStart_completes_Exceptionally() {
+    void GIVEN_deployment_WHEN_one_service_is_broken_THEN_waitForServicesToStart_completes_Exceptionally() {
         long curTime = System.currentTimeMillis();
         when(mockMainService.getState()).thenReturn(State.BROKEN);
         when(mockMainService.getStateModTime()).thenReturn(curTime);

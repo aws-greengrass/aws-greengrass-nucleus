@@ -51,7 +51,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class BootstrapManagerTest {
+class BootstrapManagerTest {
     private static final String componentA = "componentA";
     private static final String componentB = "componentB";
     @Mock

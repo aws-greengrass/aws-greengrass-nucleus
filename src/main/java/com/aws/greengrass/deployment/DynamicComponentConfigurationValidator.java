@@ -65,7 +65,7 @@ public class DynamicComponentConfigurationValidator {
      * @return if all component processes reported that their proposed configuration is valid
      */
     public boolean validate(Map<String, Object> servicesConfig, Deployment deployment,
-                            CompletableFuture deploymentResultFuture) {
+                            CompletableFuture<DeploymentResult> deploymentResultFuture) {
         logger.addDefaultKeyValue(DEPLOYMENT_ID_LOG_KEY, deployment.getDeploymentDocumentObj().getDeploymentId());
         Set<ComponentToValidate> componentsToValidate;
         try {
@@ -155,7 +155,7 @@ public class DynamicComponentConfigurationValidator {
     }
 
     private boolean validateOverIpc(Set<ComponentToValidate> componentsToValidate,
-                                    CompletableFuture deploymentResultFuture) {
+                                    CompletableFuture<DeploymentResult> deploymentResultFuture) {
         try {
             String failureMsg = null;
             boolean validationRequested = false;

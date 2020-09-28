@@ -389,8 +389,8 @@ public class Kernel {
                                 .get(Coerce.toString(componentTypeTopic).toLowerCase());
                         // If the mapping didn't exist and the component type is "plugin", then load the service from a
                         // plugin
-                        if (className == null && Coerce.toString(componentTypeTopic).toLowerCase()
-                                .equals(PLUGIN_SERVICE_TYPE_NAME)) {
+                        if (className == null && Coerce.toString(componentTypeTopic)
+                                .equalsIgnoreCase(PLUGIN_SERVICE_TYPE_NAME)) {
                             clazz = locateExternalPlugin(name, serviceRootTopics);
                         }
                     }
