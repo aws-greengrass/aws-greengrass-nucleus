@@ -14,16 +14,10 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
-      - uses: actions/cache@v1
-        with:
-          path: ~/.m2/repository
-          # Only restore maven cache for this exact commit. If we start incrementing the version
-          # of our Java SDK, then we can relax this to just the "hashFiles" and exclude "sha"
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ github.sha }}
       - name: Build EG with Maven
-        run: mvn -ntp install -DskipTests
+        run: mvn -ntp -U install -DskipTests
       - name: Build benchmark with Maven
-        run: mvn -ntp -f src/test/evergreen-kernel-benchmark install
+        run: mvn -ntp -U -f src/test/evergreen-kernel-benchmark install
       - name: JMH Benchmark
         # The JVM arguments provided below are intended to tune the JVM to keep the heap as small as possible
         # and to release unused heap space back to the OS
