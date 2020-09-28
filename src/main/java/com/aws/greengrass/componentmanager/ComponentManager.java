@@ -418,6 +418,13 @@ public class ComponentManager implements InjectionActions {
         }
     }
 
+    /** Get active component version and dependencies, the component version satisfies dependent version requirements.
+     *
+     * @param componentName component name
+     * @param requirementMap dependent component to version requirement map
+     * @return active component metadata which satisfies version requirement
+     * @throws PackagingException no available version exception
+     */
     ComponentMetadata getActiveAndSatisfiedComponentMetadata(String componentName,
                                                              Map<String, Requirement> requirementMap)
             throws PackagingException {

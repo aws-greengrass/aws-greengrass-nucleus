@@ -107,6 +107,7 @@ public class ComponentServiceHelper {
                                              Map<String, Requirement> versionRequirements)
             throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
 
+        // TODO add osVersion and osFlavor once they are supported
         ComponentPlatform platform = new ComponentPlatform().withOs(PlatformResolver.CURRENT_PLATFORM.getOs().getName())
                 .withArchitecture(PlatformResolver.CURRENT_PLATFORM.getArchitecture().getName());
         Map<String, String> versionRequirementsInString = versionRequirements.entrySet().stream()
