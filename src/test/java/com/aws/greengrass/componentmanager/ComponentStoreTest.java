@@ -254,6 +254,43 @@ class ComponentStoreTest {
     }
 
     @Test
+    void GIVEN_pre_loaded_package_versions_WHEN_find_best_available_version_THEN_return_satisfied_version()
+            throws IOException, PackagingException {
+        // GIVEN
+        preloadRecipeFileFromTestResource("MonitoringService-1.0.0.yaml");
+        preloadRecipeFileFromTestResource("MonitoringService-1.1.0.yaml");
+        preloadRecipeFileFromTestResource("MonitoringService-2.0.0.yaml");
+        preloadRecipeFileFromTestResource("MonitoringService-3.0.0.yaml");
+        preloadRecipeFileFromTestResource("Log-1.0.0.yaml");
+
+        // WHEN
+        Requirement requirement = Requirement.buildNPM(">=1.0.0 <2.0.0");
+        Optional<ComponentIdentifier> componentIdentifierOptional =
+                componentStore.findBestMatchAvailableComponent(MONITORING_SERVICE_PKG_NAME, requirement);
+
+        // THEN
+        assertThat(componentIdentifierOptional.get(), is(new ComponentIdentifier("MonitoringService",
+                new Semver("1.1.0"))));
+
+        // WHEN
+        requirement = Requirement.buildNPM("^2.0");
+        componentIdentifierOptional =
+                componentStore.findBestMatchAvailableComponent(MONITORING_SERVICE_PKG_NAME, requirement);
+
+        // THEN
+        assertThat(componentIdentifierOptional.get(), is(new ComponentIdentifier("MonitoringService",
+                new Semver("2.0.0"))));
+
+        // WHEN
+        requirement = Requirement.buildNPM("^3.1");
+        componentIdentifierOptional =
+                componentStore.findBestMatchAvailableComponent(MONITORING_SERVICE_PKG_NAME, requirement);
+
+        // THEN
+        assertThat(componentIdentifierOptional.isPresent(), is(false));
+    }
+
+    @Test
     void GIVEN_recipe_and_artifact_exists_WHEN_delete_package_THEN_both_deleted() throws Exception {
         preloadRecipeFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
         preloadArtifactFileFromTestResouce(MONITORING_SERVICE_PKG_ID, MONITORING_SERVICE_PKG_ARTIFACT_NAME);
