@@ -8,6 +8,7 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
@@ -39,6 +40,12 @@ class ShellRunnerTest extends GGServiceTestUtil {
     @Mock
     private Kernel kernel;
 
+    @Mock
+    private Context context;
+
+    @Mock
+    private DeviceConfiguration deviceConfiguration;
+
     @TempDir
     protected Path tempDir;
 
@@ -56,6 +63,8 @@ class ShellRunnerTest extends GGServiceTestUtil {
         when(mockTopic.withParentNeedsToKnow(false)).thenReturn(mockTopic);
         when(mockTopic.withValue(any())).thenReturn(mockTopic);
         when(mockTopic.addValidator(any())).thenReturn(mockTopic);
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
 
         when(kernel.getWorkPath()).thenReturn(tempDir);
         greengrassService = new GreengrassService(config);

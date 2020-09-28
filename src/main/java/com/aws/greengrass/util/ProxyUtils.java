@@ -227,6 +227,19 @@ public final class ProxyUtils {
         return sb.toString();
     }
 
+    private static String addAuthToProxyUrl(String proxyUrl, String username, String password) {
+        URI uri = URI.create(proxyUrl);
+        StringBuilder sb = new StringBuilder();
+        sb.append(uri.getScheme()).append("://").append(username).append(':').append(password).append('@')
+                .append(uri.getHost());
+
+        if (uri.getPort() != -1) {
+            sb.append(':').append(uri.getPort());
+        }
+
+        return sb.toString();
+    }
+
     /**
      * <p>Boilerplate for providing a <code>ProxyConfiguration</code> to AWS SDK v2 <code>ApacheHttpClient</code>s.</p>
      *
@@ -311,6 +324,45 @@ public final class ProxyUtils {
         }
 
         return clientConfiguration;
+    }
+
+    /**
+     * <p>Provides a url for use in the ALL_PROXY, HTTP_PROXY, and HTTPS_PROXY environment variables.</p>
+     *
+     * <p>If auth info is provided in both the url and username/password fields, then the url value is used.</p>
+     *
+     * @param deviceConfiguration contains user specified system proxy values
+     * @return the proxy url value or an empty string if no proxy is configured
+     */
+    public static String getProxyEnvVarValue(DeviceConfiguration deviceConfiguration) {
+        String proxyUrl = deviceConfiguration.getProxyUrl();
+
+        if (Utils.isEmpty(proxyUrl)) {
+            return "";
+        }
+
+        String proxyUsername = deviceConfiguration.getProxyUsername();
+        if (getAuthFromProxyUrl(proxyUrl) == null && Utils.isNotEmpty(proxyUsername)) {
+            return addAuthToProxyUrl(proxyUrl, proxyUsername, deviceConfiguration.getProxyPassword());
+        }
+        return proxyUrl;
+    }
+
+    /**
+     * <p>Provides a value for use in the NO_PROXY environment variable.</p>
+     *
+     * @param deviceConfiguration contains user specified system proxy values
+     * @return localhost plus user provided values or an empty string if no proxy is configured
+     */
+    public static String getNoProxyEnvVarValue(DeviceConfiguration deviceConfiguration) {
+        if (Utils.isEmpty(deviceConfiguration.getProxyUrl())) {
+            return "";
+        }
+
+        if (Utils.isNotEmpty(deviceConfiguration.getNoProxyAddresses())) {
+            return "localhost," + deviceConfiguration.getNoProxyAddresses();
+        }
+        return "localhost";
     }
 
 }

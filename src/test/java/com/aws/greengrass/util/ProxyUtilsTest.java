@@ -86,4 +86,56 @@ public class ProxyUtilsTest {
         assertEquals("itsasecret", httpProxyOptions.getAuthorizationPassword());
     }
 
+    @Test
+    public void testGetProxyEnvVarValue_passthroughWithAuth() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://test-user:itsasecret@myproxy:8080");
+        assertEquals("https://test-user:itsasecret@myproxy:8080", ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    public void testGetProxyEnvVarValue_passthroughWithoutAuth() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://myproxy:8080");
+        assertEquals("https://myproxy:8080", ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    public void testGetProxyEnvVarValue_authInfoAddedToUrl() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://myproxy:8080");
+        when(deviceConfiguration.getProxyUsername()).thenReturn("test-user");
+        when(deviceConfiguration.getProxyPassword()).thenReturn("itsasecret");
+        assertEquals("https://test-user:itsasecret@myproxy:8080", ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    public void testGetProxyEnvVarValue_authInfoNoOverride() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://test-user:itsasecret@myproxy:8080");
+        when(deviceConfiguration.getProxyUsername()).thenReturn("different-test-user");
+        assertEquals("https://test-user:itsasecret@myproxy:8080", ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    public void testGetProxyEnvVarValue_noProxyConfigured() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn(null);
+        assertEquals("", ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    public void testGetNoProxyEnvVarValue_customValue() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://myproxy:8080");
+        when(deviceConfiguration.getNoProxyAddresses()).thenReturn("other-local-domain,example.com");
+        assertEquals("localhost,other-local-domain,example.com", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    public void testGetNoProxyEnvVarValue_noValue() {
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://myproxy:8080");
+        when(deviceConfiguration.getNoProxyAddresses()).thenReturn(null);
+        assertEquals("localhost", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration));
+    }
+
+    @Test
+    public void testGetNoProxyEnvVarValue_noProxyConfigured() {
+        assertEquals("", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration));
+    }
+
 }
