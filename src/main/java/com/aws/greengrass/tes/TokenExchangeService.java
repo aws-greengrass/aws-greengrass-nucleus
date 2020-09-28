@@ -79,12 +79,13 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
     @SuppressWarnings("PMD.CloseResource")
     protected void startup() {
         // TODO: Support tes restart with change in configuration like port, roleAlias.
-        logger.atInfo().addKeyValue(PORT_TOPIC, port)
-                .addKeyValue(IOT_ROLE_ALIAS_TOPIC, iotRoleAlias).log("Starting Token Server at port {}", port);
+        logger.atInfo().addKeyValue(PORT_TOPIC, port).addKeyValue(IOT_ROLE_ALIAS_TOPIC, iotRoleAlias)
+                .log("Attempting to start server at configured port {}", port);
         try {
             validateConfig();
             server = new HttpServerImpl(port, credentialRequestHandler);
             server.start();
+            logger.atInfo().log("Started server at port {}", server.getServerPort());
             // Get port from the server, in case no port was specified and server started on a random port
             setEnvVariablesForDependencies(server.getServerPort());
             reportState(State.RUNNING);
@@ -98,8 +99,8 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
         logger.atInfo().log("TokenExchangeService is shutting down!");
         if (server != null) {
             server.stop();
+            logger.atInfo().log("Stopped server at port {}", server.getServerPort());
         }
-        logger.atInfo().log("Stopped Server at port {}", port);
     }
 
     private void setEnvVariablesForDependencies(final int serverPort) {
