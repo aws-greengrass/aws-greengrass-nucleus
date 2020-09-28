@@ -177,7 +177,7 @@ public class UpdateSystemSafelyService extends GreengrassService {
      */
     private long getMaxTimeoutInMillis() {
         Optional<Integer> maxTimeoutInSec = pendingActions.values().stream()
-                .map(pair -> pair.getLeft())
+                .map(Pair::getLeft)
                 .max(Integer::compareTo);
         return TimeUnit.SECONDS.toMillis(maxTimeoutInSec.get());
     }

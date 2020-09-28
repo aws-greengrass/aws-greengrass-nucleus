@@ -7,8 +7,6 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 
-import java.io.IOException;
-
 public final class ResponseHelper {
     private ResponseHelper() {
     }
@@ -21,10 +19,9 @@ public final class ResponseHelper {
      * @param destination   destination of the response
      * @param ctx           netty channel context used to send the response
      * @param closeWhenDone true if the channel should be shutdown
-     * @throws IOException if anything goes wrong
      */
     public static void sendResponse(FrameReader.Message msg, int requestId, int destination, ChannelHandlerContext ctx,
-                                    boolean closeWhenDone) throws IOException {
+                                    boolean closeWhenDone) {
         // TODO: Validate frame data length
 
         FrameReader.MessageFrame response =

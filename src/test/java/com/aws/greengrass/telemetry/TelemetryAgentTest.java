@@ -56,7 +56,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class TelemetryAgentTest extends GGServiceTestUtil {
+class TelemetryAgentTest extends GGServiceTestUtil {
     @TempDir
     protected Path tempRootDir;
     @Mock

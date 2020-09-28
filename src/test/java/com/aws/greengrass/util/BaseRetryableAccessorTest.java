@@ -17,7 +17,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class BaseRetryableAccessorTest {
+class BaseRetryableAccessorTest {
     private static final String MOCK_RESPONSE = "MockResponse";
     private static final int RETRY_COUNT = 3;
     private static final int BACKOFF_MILLIS = 100;
@@ -29,7 +29,7 @@ public class BaseRetryableAccessorTest {
     BaseRetryableAccessor accessor = new BaseRetryableAccessor();
 
     @Test
-    public void Given_retryable_accessor_WHEN_no_error_THEN_success () throws Throwable {
+    void Given_retryable_accessor_WHEN_no_error_THEN_success () throws Throwable {
         when(func.apply()).thenReturn(MOCK_RESPONSE);
         String response = (String) accessor.retry(RETRY_COUNT, BACKOFF_MILLIS, func, RETRYABLE_EXCEPTIONS);
         assertEquals(MOCK_RESPONSE, response);
@@ -37,7 +37,7 @@ public class BaseRetryableAccessorTest {
     }
 
     @Test
-    public void Given_retryable_accessor_WHEN_retryabale_error_THEN_success () throws Throwable {
+    void Given_retryable_accessor_WHEN_retryabale_error_THEN_success () throws Throwable {
         when(func.apply()).thenThrow(HttpException.class).thenThrow(HttpException.class).thenReturn(MOCK_RESPONSE);
         String response = (String) accessor.retry(RETRY_COUNT, BACKOFF_MILLIS, func, RETRYABLE_EXCEPTIONS);
         assertEquals(MOCK_RESPONSE, response);
@@ -45,7 +45,7 @@ public class BaseRetryableAccessorTest {
     }
 
     @Test
-    public void Given_retryable_accessor_WHEN_retryabale_error_retry_count_exhausts_THEN_fail () throws Throwable {
+    void Given_retryable_accessor_WHEN_retryabale_error_retry_count_exhausts_THEN_fail () throws Throwable {
         when(func.apply()).thenThrow(HttpException.class).thenThrow(HttpException.class).thenThrow(HttpException.class);
         assertThrows(HttpException.class, () -> accessor.retry(RETRY_COUNT, BACKOFF_MILLIS, func,
                 RETRYABLE_EXCEPTIONS));
@@ -53,7 +53,7 @@ public class BaseRetryableAccessorTest {
     }
 
     @Test
-    public void Given_retryable_accessor_WHEN_non_retryabale_error_THEN_fail () throws Throwable {
+    void Given_retryable_accessor_WHEN_non_retryabale_error_THEN_fail () throws Throwable {
         when(func.apply()).thenThrow(RuntimeException.class);
         assertThrows(RuntimeException.class, () -> accessor.retry(RETRY_COUNT, BACKOFF_MILLIS, func,
                 RETRYABLE_EXCEPTIONS));

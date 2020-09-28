@@ -86,9 +86,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             groupsToRootPackages.iterator().forEachRemaining(node -> {
                 Topics groupTopics = (Topics) node;
                 if (!groupTopics.getName().equals(deploymentDocument.getGroupName())) {
-                    groupTopics.forEach(pkgTopic -> {
-                        rootPackages.add(pkgTopic.getName());
-                    });
+                    groupTopics.forEach(pkgTopic -> rootPackages.add(pkgTopic.getName()));
                 }
             });
 

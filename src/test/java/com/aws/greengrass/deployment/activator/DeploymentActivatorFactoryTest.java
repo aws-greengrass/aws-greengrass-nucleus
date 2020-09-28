@@ -22,7 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class DeploymentActivatorFactoryTest {
+class DeploymentActivatorFactoryTest {
     @Mock
     Kernel kernel;
     @Mock

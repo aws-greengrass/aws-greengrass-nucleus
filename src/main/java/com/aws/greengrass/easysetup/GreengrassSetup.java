@@ -233,7 +233,7 @@ public class GreengrassSetup {
         outStream.println("Launched kernel successfully.");
     }
 
-    void parseArgs() throws InvalidEnvironmentStageException, URISyntaxException, InvalidEnvironmentStageException {
+    void parseArgs() throws URISyntaxException, InvalidEnvironmentStageException {
         loop: while (getArg() != null) {
             switch (arg.toLowerCase()) {
                 case HELP_ARG:

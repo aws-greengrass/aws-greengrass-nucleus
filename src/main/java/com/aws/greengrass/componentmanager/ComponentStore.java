@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Named;
 
@@ -308,8 +309,12 @@ public class ComponentStore {
      */
     public long getContentSize() throws UnexpectedPackagingException {
         try {
-            return Files.walk(this.componentStoreDirectory).map(Path::toFile)
-                    .filter(File::isFile).mapToLong(File::length).sum();
+            try (Stream<Path> s = Files.walk(this.componentStoreDirectory)) {
+                return s.map(Path::toFile)
+                        .filter(File::isFile)
+                        .mapToLong(File::length)
+                        .sum();
+            }
         } catch (IOException e) {
             throw new UnexpectedPackagingException("Failed to access package store", e);
         }

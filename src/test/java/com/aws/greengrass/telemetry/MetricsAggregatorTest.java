@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class MetricsAggregatorTest {
+class MetricsAggregatorTest {
     private static final ObjectMapper mapper = new ObjectMapper();
     private static final String sm = "SystemMetrics";
     private final MetricFactory mf = new MetricFactory(sm);

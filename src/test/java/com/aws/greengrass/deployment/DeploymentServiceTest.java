@@ -3,9 +3,9 @@
 
 package com.aws.greengrass.deployment;
 
+import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
-import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
@@ -34,9 +34,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
-import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.stubbing.Answer;
 import org.mockito.verification.VerificationWithTimeout;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
@@ -80,7 +78,7 @@ import static org.mockito.Mockito.when;
 
 @SuppressWarnings({"PMD.LooseCoupling", "PMD.TestClassWithoutTestCases"})
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class DeploymentServiceTest extends GGServiceTestUtil {
+class DeploymentServiceTest extends GGServiceTestUtil {
 
     private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
     private static final String EXPECTED_GROUP_NAME = "thinggroup/group1";
@@ -121,7 +119,7 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
 
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         // initialize Greengrass service specific mocks
         serviceFullName = "DeploymentService";
         initializeMockedConfig();
@@ -152,7 +150,7 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
         CompletableFuture<DeploymentResult> mockFuture = spy(new CompletableFuture<>());
 
         @BeforeEach
-        public void setup() throws Exception {
+        void setup() throws Exception {
             deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
             String deploymentDocument
                     = new BufferedReader(new InputStreamReader(
@@ -164,19 +162,16 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
         }
 
         @Test
-        public void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_report_succeeded_job_status()
+        void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_report_succeeded_job_status()
                 throws Exception {
             mockGroupToRootPackageMappingStubs();
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
             mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
             when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
             CountDownLatch jobSucceededLatch = new CountDownLatch(1);
-            doAnswer(new Answer() {
-                @Override
-                public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                    jobSucceededLatch.countDown();
-                    return null;
-                }
+            doAnswer(invocationOnMock -> {
+                jobSucceededLatch.countDown();
+                return null;
             }).when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
 
@@ -206,7 +201,7 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
         }
 
         @Test
-        public void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_set_components_to_groups()
+        void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_set_components_to_groups()
                 throws Exception {
             Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
             Topics groupTopics = allGroupTopics.createInteriorChild(EXPECTED_GROUP_NAME);
@@ -247,7 +242,7 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
         }
 
         @Test
-        public void GIVEN_components_to_groups_mapping_WHEN_get_groups_for_component_THEN_gets_correct_groups() {
+        void GIVEN_components_to_groups_mapping_WHEN_get_groups_for_component_THEN_gets_correct_groups() {
             String group1 = "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12";
             String group2 = "arn:aws:greengrass:testRegion:67890:configuration:testGroup:800";
             Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
@@ -271,7 +266,7 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
         }
 
         @Test
-        public void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_correctly_map_components_to_groups()
+        void GIVEN_deployment_job_WHEN_deployment_process_succeeds_THEN_correctly_map_components_to_groups()
                 throws Exception {
             Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
             Topics deploymentGroupTopics = Topics.of(context, EXPECTED_GROUP_NAME, allGroupTopics);
@@ -319,7 +314,7 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
         }
 
         @Test
-        public void GIVEN_deployment_job_WHEN_deployment_completes_with_non_retryable_error_THEN_report_failed_job_status(ExtensionContext context)
+        void GIVEN_deployment_job_WHEN_deployment_completes_with_non_retryable_error_THEN_report_failed_job_status(ExtensionContext context)
                 throws Exception {
 
             CompletableFuture<DeploymentResult> mockFutureWithException = new CompletableFuture<>();
@@ -340,7 +335,7 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
         }
 
         @Test
-        public void GIVEN_deployment_job_with_auto_rollback_not_requested_WHEN_deployment_process_fails_THEN_report_failed_job_status()
+        void GIVEN_deployment_job_with_auto_rollback_not_requested_WHEN_deployment_process_fails_THEN_report_failed_job_status()
                 throws Exception {
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
             mockFuture.complete(
@@ -357,7 +352,7 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
         }
 
         @Test
-        public void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_succeeds_THEN_report_failed_job_status()
+        void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_succeeds_THEN_report_failed_job_status()
                 throws Exception {
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
             mockFuture.complete(new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_COMPLETE, null));
@@ -374,7 +369,7 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
         }
 
         @Test
-        public void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_fails_THEN_report_failed_job_status()
+        void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_fails_THEN_report_failed_job_status()
                 throws Exception {
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
             mockFuture
@@ -392,7 +387,7 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
         }
 
         @Test
-        public void GIVEN_deployment_job_WHEN_deployment_process_fails_with_retry_THEN_retry_job(ExtensionContext context)
+        void GIVEN_deployment_job_WHEN_deployment_process_fails_with_retry_THEN_retry_job(ExtensionContext context)
                 throws Exception {
             mockGroupToRootPackageMappingStubs();
             mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
@@ -403,13 +398,10 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
             when(mockExecutorService.submit(any(DefaultDeploymentTask.class)))
                     .thenReturn(mockFutureWithException, mockFutureWithException,
                             mockFuture);
-            CountDownLatch jobSuceededLatch = new CountDownLatch(1);
-            doAnswer(new Answer() {
-                @Override
-                public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                    jobSuceededLatch.countDown();
-                    return null;
-                }
+            CountDownLatch jobSucceededLatch = new CountDownLatch(1);
+            doAnswer(invocationOnMock -> {
+                jobSucceededLatch.countDown();
+                return null;
             }).when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
             doNothing().when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
@@ -422,14 +414,14 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
             InOrder statusOrdering = inOrder(deploymentStatusKeeper);
             statusOrdering.verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
-            jobSuceededLatch.await(10, TimeUnit.SECONDS);
+            jobSucceededLatch.await(10, TimeUnit.SECONDS);
             statusOrdering.verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
             deploymentService.shutdown();
         }
 
         @Test
-        public void GIVEN_deployment_job_cancelled_WHEN_waiting_for_safe_time_THEN_then_cancel_deployment()
+        void GIVEN_deployment_job_cancelled_WHEN_waiting_for_safe_time_THEN_then_cancel_deployment()
                 throws Exception {
             when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
             when(mockSafeUpdateService.discardPendingUpdateAction(any())).thenReturn(true);
@@ -449,7 +441,7 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
         }
 
         @Test
-        public void GIVEN_deployment_job_cancelled_WHEN_already_executing_update_THEN_then_finish_deployment()
+        void GIVEN_deployment_job_cancelled_WHEN_already_executing_update_THEN_then_finish_deployment()
                 throws Exception {
             when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
             when(mockSafeUpdateService.discardPendingUpdateAction(any())).thenReturn(false);
@@ -468,7 +460,7 @@ public class DeploymentServiceTest extends GGServiceTestUtil {
         }
 
         @Test
-        public void GIVEN_deployment_job_cancelled_WHEN_already_finished_deployment_task_THEN_then_do_nothing()
+        void GIVEN_deployment_job_cancelled_WHEN_already_finished_deployment_task_THEN_then_do_nothing()
                 throws Exception {
             when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
             startDeploymentServiceInAnotherThread();

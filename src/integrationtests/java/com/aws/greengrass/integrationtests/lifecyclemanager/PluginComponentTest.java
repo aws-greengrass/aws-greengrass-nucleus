@@ -67,7 +67,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
-public class PluginComponentTest extends BaseITCase {
+class PluginComponentTest extends BaseITCase {
     private static final String componentName = "plugin";
     private Kernel kernel;
     private final ComponentIdentifier componentId = new ComponentIdentifier(componentName, new Semver("1.0.0"));
