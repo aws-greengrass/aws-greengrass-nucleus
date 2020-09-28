@@ -138,6 +138,7 @@ public class IotJobsHelper implements InjectionActions {
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
     private final AtomicBoolean postInjectInProgress = new AtomicBoolean(false);
 
+    @Setter // For tests
     private IotJobsClient iotJobsClient;
     private MqttClientConnection connection;
     @Setter (AccessLevel.PACKAGE) // For tests
