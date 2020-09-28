@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 
-public class PluginServiceTest extends GGServiceTestUtil {
+class PluginServiceTest extends GGServiceTestUtil {
 
     private PluginService pluginService;
 

@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SuppressWarnings("PMD.CloseResource")
 @ExtendWith(GGExtension.class)
 @Tag("E2E")
-public class MqttTest extends BaseE2ETestCase {
+class MqttTest extends BaseE2ETestCase {
     public static final int NUM_MESSAGES = 50;
     private Kernel kernel;
 

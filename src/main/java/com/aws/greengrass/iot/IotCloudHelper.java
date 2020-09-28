@@ -39,7 +39,7 @@ public class IotCloudHelper {
     private static final String HTTP_HEADER_ERROR_TYPE = "x-amzn-ErrorType";
     // TODO: revisit all timeout values
     // Max wait time for device to receive HTTP response from IOT CLOUD
-    private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = (long) Duration.ofSeconds(30).getSeconds();
+    private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = Duration.ofSeconds(30).getSeconds();
     private static final int RETRY_COUNT = 3;
     private static final int BACKOFF_MILLIS = 200;
 
@@ -89,9 +89,7 @@ public class IotCloudHelper {
         return new HttpStreamResponseHandler() {
             @Override
             public void onResponseHeaders(HttpStream httpStream, int i, int i1, HttpHeader[] httpHeaders) {
-                Arrays.stream(httpHeaders).forEach(header -> {
-                    responseHeaders.put(header.getName(), header.getValue());
-                });
+                Arrays.stream(httpHeaders).forEach(header -> responseHeaders.put(header.getName(), header.getValue()));
             }
 
             @Override

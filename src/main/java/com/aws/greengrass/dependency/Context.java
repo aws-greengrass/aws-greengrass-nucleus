@@ -408,8 +408,8 @@ public class Context implements Closeable {
     }
 
     public class Value<T> implements Provider<T> {
-        final Class<T> targetClass;
-        public volatile T object;
+        private final Class<T> targetClass;
+        private volatile T object;
         // TODO Review with James if we still need injectionCompleted
         @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to be sync")
         private boolean injectionCompleted;

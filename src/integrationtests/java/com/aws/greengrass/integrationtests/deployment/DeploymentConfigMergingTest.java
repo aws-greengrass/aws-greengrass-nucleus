@@ -497,7 +497,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 "Merge should not happen within 5 seconds");
 
         assertTrue(postComponentUpdateRecieved.await(15,TimeUnit.SECONDS));
-        assertEquals(preComponentUpdateCount.get() , 2);
+        assertEquals(2, preComponentUpdateCount.get());
     }
 
     @Test

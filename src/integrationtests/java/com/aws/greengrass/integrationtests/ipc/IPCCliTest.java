@@ -131,7 +131,7 @@ class IPCCliTest {
 
     @Test
     @Order(1)
-    public void GIVEN_component_running_WHEN_get_component_request_made_THEN_service_details_sent() throws Exception {
+    void GIVEN_component_running_WHEN_get_component_request_made_THEN_service_details_sent() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
         Cli cli = new CliImpl(client);
@@ -143,7 +143,7 @@ class IPCCliTest {
 
     @Test
     @Order(2)
-    public void GIVEN_get_component_request_made_WHEN_component_not_exist_THEN_error_sent(ExtensionContext context) throws Exception {
+    void GIVEN_get_component_request_made_WHEN_component_not_exist_THEN_error_sent(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, ServiceLoadException.class);
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
@@ -154,7 +154,7 @@ class IPCCliTest {
 
     @Test
     @Order(3)
-    public void GIVEN_get_component_request_made_WHEN_empty_component_name_THEN_error_sent(ExtensionContext context) throws Exception {
+    void GIVEN_get_component_request_made_WHEN_empty_component_name_THEN_error_sent(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, ServiceLoadException.class);
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
@@ -165,7 +165,7 @@ class IPCCliTest {
 
     @Test
     @Order(4)
-    public void GIVEN_kernel_running_WHEN_list_component_request_made_THEN_components_details_sent() throws Exception {
+    void GIVEN_kernel_running_WHEN_list_component_request_made_THEN_components_details_sent() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
         Cli cli = new CliImpl(client);
@@ -180,7 +180,7 @@ class IPCCliTest {
 
     @Test
     @Order(5)
-    public void GIVEN_kernel_running_WHEN_restart_component_request_made_THEN_components_restarts() throws Exception {
+    void GIVEN_kernel_running_WHEN_restart_component_request_made_THEN_components_restarts() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
         Cli cli = new CliImpl(client);
@@ -196,7 +196,7 @@ class IPCCliTest {
 
     @Test
     @Order(6)
-    public void GIVEN_kernel_running_WHEN_stop_component_request_made_THEN_components_stops() throws Exception {
+    void GIVEN_kernel_running_WHEN_stop_component_request_made_THEN_components_stops() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
         Cli cli = new CliImpl(client);
@@ -213,7 +213,7 @@ class IPCCliTest {
 
     @Test
     @Order(7)
-    public void GIVEN_kernel_running_WHEN_create_deployment_after_recipe_update_THEN_kernel_runs_latest_recipe(ExtensionContext context)
+    void GIVEN_kernel_running_WHEN_create_deployment_after_recipe_update_THEN_kernel_runs_latest_recipe(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         KernelIPCClientConfig config = getIPCConfigForCli();
@@ -263,7 +263,7 @@ class IPCCliTest {
 
     @Test
     @Order(8)
-    public void GIVEN_kernel_running_WHEN_update_artifacts_and_deployment_THEN_kernel_copies_artifacts_correctly(ExtensionContext context)
+    void GIVEN_kernel_running_WHEN_update_artifacts_and_deployment_THEN_kernel_copies_artifacts_correctly(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         KernelIPCClientConfig config = getIPCConfigForCli();
@@ -295,7 +295,7 @@ class IPCCliTest {
 
     @Test
     @Order(9)
-    public void GIVEN_kernel_running_WHEN_change_configuration_and_deployment_THEN_kernel_copies_artifacts_correctly(ExtensionContext context)
+    void GIVEN_kernel_running_WHEN_change_configuration_and_deployment_THEN_kernel_copies_artifacts_correctly(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         KernelIPCClientConfig config = getIPCConfigForCli();

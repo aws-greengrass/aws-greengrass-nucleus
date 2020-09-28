@@ -55,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings("PMD.CloseResource")
 @Tag("E2E")
-public class FleetStatusServiceTest extends BaseE2ETestCase {
+class FleetStatusServiceTest extends BaseE2ETestCase {
     private static final ObjectMapper DESERIALIZER = new ObjectMapper();
     private static final String FLEET_STATUS_ARN_SERVICE = "greengrass";
     private static final String FLEET_STATUS_ARN_PARTITION = "aws";

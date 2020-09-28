@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -397,7 +398,8 @@ public class Topics extends Node implements Iterable<Node> {
         if (child.modtime > this.modtime || children.isEmpty()) {
             this.modtime = child.modtime;
         } else {
-            this.modtime = children.values().stream().max(Comparator.comparingLong(node -> node.modtime)).get().modtime;
+            Optional<Node> n = children.values().stream().max(Comparator.comparingLong(node -> node.modtime));
+            this.modtime = n.orElse(child).modtime;
         }
         if (parentNeedsToKnow()) {
             parent.childChanged(what, child);

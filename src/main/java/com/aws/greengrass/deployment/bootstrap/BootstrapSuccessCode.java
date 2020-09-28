@@ -5,8 +5,11 @@
 
 package com.aws.greengrass.deployment.bootstrap;
 
-public class BootstrapSuccessCode {
+public final class BootstrapSuccessCode {
     public static final int NO_OP = 0;
     public static final int REQUEST_RESTART = 100;
     public static final int REQUEST_REBOOT = 101;
+
+    private BootstrapSuccessCode() {
+    }
 }

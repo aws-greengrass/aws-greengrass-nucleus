@@ -14,7 +14,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -264,7 +264,6 @@ public class AuthorizationHandler  {
                 logger.atError("load-authorization-config-invalid-operation", e)
                         .log("Component {} contains an invalid operation in policy {}", componentName,
                                 policy.getPolicyId());
-                continue;
             }
         }
         if (isUpdate) {
@@ -278,7 +277,6 @@ public class AuthorizationHandler  {
                 logger.atError("load-authorization-config-add-permission-error", e)
                         .log("Error while loading policy {} for component {}", policy.getPolicyId(),
                                 componentName);
-                continue;
             }
         }
 
@@ -377,13 +375,10 @@ public class AuthorizationHandler  {
     }
 
     private List<AuthorizationPolicy> getDefaultPolicyForService(String serviceName) {
-        String defaultPolicyDesc = String.format("Default policy for {}", serviceName);
-        return Arrays.asList(AuthorizationPolicy.builder()
-                .policyId(UUID.randomUUID().toString())
-                .policyDescription(defaultPolicyDesc)
-                .principals(new HashSet<>(Arrays.asList("*")))
-                .operations(new HashSet<>(Arrays.asList(serviceName)))
-                .build());
+        String defaultPolicyDesc = "Default policy for " + serviceName;
+        return Collections.singletonList(AuthorizationPolicy.builder().policyId(UUID.randomUUID().toString())
+                .policyDescription(defaultPolicyDesc).principals(new HashSet<>(Collections.singletonList("*")))
+                .operations(new HashSet<>(Collections.singletonList(serviceName))).build());
     }
 
     private Map<String, List<AuthorizationPolicy>> getDefaultPolicies() {

@@ -55,7 +55,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class ServiceDependencyLifecycleTest {
+class ServiceDependencyLifecycleTest {
     private static final String CustomerApp = "CustomerApp";
     private static final String HardDependency = "HardDependency";
     private static final String SoftDependency = "SoftDependency";

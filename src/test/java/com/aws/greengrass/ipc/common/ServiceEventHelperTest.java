@@ -30,7 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class ServiceEventHelperTest {
+class ServiceEventHelperTest {
 
     @Mock
     private ConnectionContext connectionContext;
@@ -45,7 +45,7 @@ public class ServiceEventHelperTest {
     }
 
     @Test
-    public void GIVEN_running_WHEN_send_event_called_THEN_send_event_to_client()
+    void GIVEN_running_WHEN_send_event_called_THEN_send_event_to_client()
             throws ExecutionException, InterruptedException, IOException {
         CompletableFuture serverPushFuture = new CompletableFuture();
         serverPushFuture.complete(mock(FrameReader.Message.class));
