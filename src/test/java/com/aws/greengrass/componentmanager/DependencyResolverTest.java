@@ -181,7 +181,7 @@ class DependencyResolverTest {
 
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Collections.singletonList(pkgA), Collections
                     .singletonList(new DeploymentPackageConfiguration(pkgA, true, v1_0_0.toString(), new HashMap<>())),
-                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
+                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, null);
 
             groupToRootPackagesTopics.lookupTopics("mockGroup1").lookupTopics(pkgA)
                     .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
@@ -246,7 +246,7 @@ class DependencyResolverTest {
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB2),
                     Arrays.asList(new DeploymentPackageConfiguration(pkgA, true, v1_0_0.toString(), new HashMap<>()),
                             new DeploymentPackageConfiguration(pkgB2, true, v1_1_0.toString(), new HashMap<>())),
-                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
+                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, null);
 
             groupToRootPackagesTopics.lookupTopics("mockGroup1").lookupTopics(pkgA)
                     .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
@@ -276,7 +276,7 @@ class DependencyResolverTest {
             doc = new DeploymentDocument("mockJob2", Arrays.asList(pkgB2, pkgA),
                     Arrays.asList(new DeploymentPackageConfiguration(pkgB2, true, v1_1_0.toString(), new HashMap<>()),
                             new DeploymentPackageConfiguration(pkgA, true, v1_0_0.toString(), new HashMap<>())),
-                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
+                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, null);
 
             result = resolver.resolveDependencies(doc, groupToRootPackagesTopics);
             verify(mockComponentManager).listAvailablePackageMetadata(pkgC1, Requirement.buildNPM(">=1.0.0 <1.1.0"));
@@ -340,7 +340,7 @@ class DependencyResolverTest {
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB2),
                     Arrays.asList(new DeploymentPackageConfiguration(pkgA, true, v1_0_0.toString(), new HashMap<>()),
                             new DeploymentPackageConfiguration(pkgB2, true, v1_1_0.toString(), new HashMap<>())),
-                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
+                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, null);
 
             groupToRootPackagesTopics.lookupTopics("mockGroup1", pkgA)
                     .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
@@ -372,7 +372,7 @@ class DependencyResolverTest {
             DeploymentDocument doc2 = new DeploymentDocument("mockJob2", Arrays.asList(pkgB2, pkgA),
                     Arrays.asList(new DeploymentPackageConfiguration(pkgB2, true, v1_1_0.toString(), new HashMap<>()),
                             new DeploymentPackageConfiguration(pkgA, true, v1_0_0.toString(), new HashMap<>())),
-                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
+                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, null);
             thrown = assertThrows(ComponentVersionConflictException.class,
                     () -> resolver.resolveDependencies(doc2, groupToRootPackagesTopics));
             assertEquals("Package version C1-v1.2.0 does not satisfy requirements of B1-v1.0.0, which is: <1.0.0",
@@ -426,7 +426,7 @@ class DependencyResolverTest {
             DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(pkgA, pkgB1),
                     Arrays.asList(new DeploymentPackageConfiguration(pkgA, true, v1_0_0.toString(), new HashMap<>()),
                             new DeploymentPackageConfiguration(pkgB1, true, v1_1_0.toString(), new HashMap<>())),
-                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
+                    "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, null);
 
             groupToRootPackagesTopics.lookupTopics("mockGroup1", pkgA)
                     .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));

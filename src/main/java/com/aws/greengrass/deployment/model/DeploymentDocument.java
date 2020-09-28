@@ -52,4 +52,7 @@ public class DeploymentDocument {
     @JsonProperty("ComponentUpdatePolicy")
     private ComponentUpdatePolicy componentUpdatePolicy;
 
+    private List<ConfigurationUpdateOperation> configurationUpdateOperations;
+
+
 }

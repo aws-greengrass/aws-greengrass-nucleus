@@ -12,6 +12,8 @@ import com.aws.greengrass.componentmanager.models.ComponentParameter;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
+import com.aws.greengrass.deployment.model.ConfigurationUpdateOperationType;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -21,7 +23,10 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CrashableFunction;
 import com.aws.greengrass.util.Pair;
+import com.fasterxml.jackson.core.JsonPointer;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 
@@ -59,8 +64,7 @@ public class KernelConfigResolver {
             Pattern.compile("\\{\\{" + WORD_GROUP + ":" + WORD_GROUP + "}}");
 
     // pattern matches {group1:group2}. Note char in both group can't be }, but can be special char like / and .
-    private static final Pattern SAME_COMPONENT_INTERPOLATION_REGEX =
-            Pattern.compile("\\{([^}]+):([^}]+)}");
+    private static final Pattern SAME_COMPONENT_INTERPOLATION_REGEX = Pattern.compile("\\{([^}]+):([^}]+)}");
 
     static final String PARAM_NAMESPACE = "params";
     static final String PARAM_VALUE_SUFFIX = ".value";
@@ -80,7 +84,7 @@ public class KernelConfigResolver {
      * Constructor.
      *
      * @param componentStore package store used to look up packages
-     * @param kernel       kernel
+     * @param kernel         kernel
      */
     @Inject
     public KernelConfigResolver(ComponentStore componentStore, Kernel kernel) {
@@ -88,16 +92,16 @@ public class KernelConfigResolver {
         this.kernel = kernel;
 
         // More system parameters can be added over time by extending this map with new namespaces/keys
-        HashMap<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> artifactNamespace
-                = new HashMap<>();
+        HashMap<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> artifactNamespace =
+                new HashMap<>();
         artifactNamespace.put(PATH_KEY,
                 (id) -> componentStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
         artifactNamespace.put(DECOMPRESSED_PATH_KEY,
                 (id) -> componentStore.resolveAndSetupArtifactsDecompressedDirectory(id).toAbsolutePath().toString());
         systemParameters.put(ARTIFACTS_NAMESPACE, artifactNamespace);
 
-        HashMap<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> kernelNamespace
-                = new HashMap<>();
+        HashMap<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> kernelNamespace =
+                new HashMap<>();
         kernelNamespace.put(KERNEL_ROOT_PATH, (id) -> kernel.getRootPath().toAbsolutePath().toString());
         systemParameters.put(KERNEL_NAMESPACE, kernelNamespace);
     }
@@ -133,14 +137,17 @@ public class KernelConfigResolver {
      */
     private Map<String, Object> getServiceConfig(ComponentIdentifier componentIdentifier, DeploymentDocument document,
                                                  List<ComponentIdentifier> packagesToDeploy,
-                                                 Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>>
-                                                         parameterAndDependencyCache)
+                                                 Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)
             throws PackageLoadingException {
         ComponentRecipe componentRecipe = componentStore.getPackageRecipe(componentIdentifier);
 
         Set<ComponentParameter> resolvedParams = resolveParameterValuesToUse(document, componentRecipe);
-        parameterAndDependencyCache
-                .put(componentIdentifier, new Pair<>(resolvedParams, componentRecipe.getDependencies().keySet()));
+        parameterAndDependencyCache.put(componentIdentifier,
+                new Pair<>(resolvedParams, componentRecipe.getDependencies().keySet()));
+
+
+        Map<String, Object> resolvedConfiguration =
+                resolveConfigurationToApply(document.getConfigurationUpdateOperations(), componentRecipe);
 
         Map<String, Object> resolvedServiceConfig = new HashMap<>();
 
@@ -154,8 +161,9 @@ public class KernelConfigResolver {
 
         // Generate dependencies
         List<String> dependencyConfig = new ArrayList<>();
-        componentRecipe.getDependencies().forEach((name, prop) -> dependencyConfig
-                .add(prop.getDependencyType() == null ? name : name + ":" + prop.getDependencyType()));
+        componentRecipe.getDependencies()
+                       .forEach((name, prop) -> dependencyConfig.add(
+                               prop.getDependencyType() == null ? name : name + ":" + prop.getDependencyType()));
         resolvedServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, dependencyConfig);
 
         // State information for deployments
@@ -169,13 +177,57 @@ public class KernelConfigResolver {
         return resolvedServiceConfig;
     }
 
+    private Map<String, Object> resolveConfigurationToApply(
+            List<ConfigurationUpdateOperation> configurationUpdateOperations, ComponentRecipe componentRecipe) {
+
+        // read service config.
+        Map<String, Object> currentRunningConfig = Collections.emptyMap();
+
+        Topics serviceTopics = kernel.findServiceTopic(componentRecipe.getComponentName());
+        if (serviceTopics != null) {
+            currentRunningConfig = serviceTopics.toPOJO();
+        }
+
+
+        buildNewConfig(new ObjectMapper().valueToTree(currentRunningConfig), configurationUpdateOperations,
+                componentRecipe.getComponentConfiguration().getDefaultConfiguration());
+
+        return null;
+    }
+
+    private void buildNewConfig(JsonNode currentRunningConfig,
+                                List<ConfigurationUpdateOperation> configurationUpdateOperations,
+                                JsonNode defaultConfiguration) {
+
+        if (configurationUpdateOperations != null) {
+            configurationUpdateOperations.forEach(operation-> {
+                if (operation.getOperationType().equals(ConfigurationUpdateOperationType.INSERT)) {
+                    // do insert
+                    JsonPointer path = JsonPointer.valueOf(operation.getPath());
+
+                    final ObjectNode target = (ObjectNode) currentRunningConfig.at(
+                            path.head());
+                    target.set(path.last().getMatchingProperty(), operation.getValue());
+
+                }
+
+                if (operation.getOperationType().equals(ConfigurationUpdateOperationType.RESET)) {
+                    // do reset
+                }
+
+                // not support. not fail.
+            });
+        }
+
+    }
+
     /*
      * For each lifecycle key-value pair of a package, substitute parameter values.
      */
     private Object interpolate(Object configValue, ComponentIdentifier componentIdentifier,
                                List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
-                               Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>>
-                                       parameterAndDependencyCache) throws PackageLoadingException {
+                               Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)
+            throws PackageLoadingException {
         Object result = configValue;
 
         if (configValue instanceof String) {
@@ -199,8 +251,8 @@ public class KernelConfigResolver {
 
     private String replace(String stringValue, ComponentIdentifier componentIdentifier,
                            List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
-                           Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>>
-                                   parameterAndDependencyCache) throws PackageLoadingException {
+                           Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)
+            throws PackageLoadingException {
         // Handle some-component parameters
         Matcher matcher = SAME_INTERPOLATION_REGEX.matcher(stringValue);
         while (matcher.find()) {
@@ -245,8 +297,7 @@ public class KernelConfigResolver {
     }
 
     private boolean componentCanReadParameterFrom(ComponentIdentifier component, ComponentIdentifier canReadFrom,
-                                                  Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>>
-                                                          parameterAndDependencyCache) {
+                                                  Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache) {
         Set<String> depSet;
         if (parameterAndDependencyCache.containsKey(component)
                 && parameterAndDependencyCache.get(component).getRight() != null) {
@@ -355,12 +406,12 @@ public class KernelConfigResolver {
     private Optional<DeploymentPackageConfiguration> getMatchingPackageConfigFromDeployment(DeploymentDocument document,
                                                                                             String packageName,
                                                                                             String packageVersion) {
-        return document.getDeploymentPackageConfigurationList().stream()
-                       .filter(packageConfig ->
-                               packageName.equals(packageConfig.getPackageName())
-                                       // TODO packageConfig.getResolvedVersion() should be strongly typed when created
-                                       && Requirement.buildNPM(packageConfig.getResolvedVersion())
-                                                     .isSatisfiedBy(new Semver(packageVersion, Semver.SemverType.NPM)))
+        return document.getDeploymentPackageConfigurationList()
+                       .stream()
+                       .filter(packageConfig -> packageName.equals(packageConfig.getPackageName())
+                               // TODO packageConfig.getResolvedVersion() should be strongly typed when created
+                               && Requirement.buildNPM(packageConfig.getResolvedVersion())
+                                             .isSatisfiedBy(new Semver(packageVersion, Semver.SemverType.NPM)))
                        .findAny();
     }
 
@@ -400,8 +451,8 @@ public class KernelConfigResolver {
         Optional<DeploymentPackageConfiguration> packageConfigInDeployment =
                 getMatchingPackageConfigFromDeployment(document, componentRecipe.getComponentName(),
                         componentRecipe.getVersion().toString());
-        return packageConfigInDeployment.map(deploymentPackageConfiguration -> ComponentParameter
-                .fromMap(deploymentPackageConfiguration.getConfiguration())).orElse(Collections.emptySet());
+        return packageConfigInDeployment.map(deploymentPackageConfiguration -> ComponentParameter.fromMap(
+                deploymentPackageConfiguration.getConfiguration())).orElse(Collections.emptySet());
     }
 
     /*
@@ -415,8 +466,8 @@ public class KernelConfigResolver {
             Optional<String> parameterValueStoredInConfig =
                     getParameterValueFromServiceConfig(componentRecipe.getComponentName(),
                             parameterFromRecipe.getName());
-            parameterValueStoredInConfig.ifPresent(s -> parametersStoredInConfig
-                    .add(new ComponentParameter(parameterFromRecipe.getName(), s, parameterFromRecipe.getType())));
+            parameterValueStoredInConfig.ifPresent(s -> parametersStoredInConfig.add(
+                    new ComponentParameter(parameterFromRecipe.getName(), s, parameterFromRecipe.getType())));
         });
         return parametersStoredInConfig;
     }
