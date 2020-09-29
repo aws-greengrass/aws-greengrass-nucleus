@@ -45,19 +45,19 @@ request the next pending job and will get either the next job in list or an empt
      This is required as the device can miss shadow update notifications when offline.
     
 2. Once a notification is received, the desired state of the shadow contains the fleet configuration. A new Deployment object is created using the fleet configuration and 
-passed on to DeloymentService  via the DeploymentsQueue.
+passed on to DeploymentService  via the DeploymentsQueue.
 
 3. For shadow based deployment, the device would always move to the configuration contained in the desired state of the shadow. 
-If multiple shadow deployments are scheduled, device only need to process the last deployment and all previous deployments can be cancelled. DeploymentService
-makes a best effort attempt to cancel an ongoing deployment if a new deployment is scheduled. 
+If multiple shadow deployments are scheduled, device only need to process the last deployment and all previous deployments can be cancelled.
+DeploymentService makes a best effort attempt to cancel an ongoing deployment if a new deployment is scheduled. 
 
 4. Once deployment is successful, ShadowDeploymentListener updates the reported state of the device classic shadow
  
 ## Cancellation of deployment via Shadow
 #### What happens on the cloud side
 When cancelDeployment is called for shadow based deployment, the cloud service checks if the desired state and reported state of the
-device classic shadow are in sync. If they are in sync the deployment is complete and cannot be cancelled. If they are not in sync, the cloud sets the desired
-state with value from reported state.
+device classic shadow are in sync. If they are in sync the deployment is complete and cannot be cancelled.
+If they are not in sync, the cloud sets the desired cstate with value from reported state.
 
 ####What happens on the device side
 1. ShadowDeploymentListener get the notification that the desired state change and it schedules a new deployment with DeploymentService
