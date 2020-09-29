@@ -87,7 +87,8 @@ public class DependencyResolver {
         // resolve target components dependencies
         for (String component : targetComponentsToResolve) {
             resolvedComponents.putAll(resolveComponentDependencies(component, componentNameToVersionConstraints,
-                    (name, requirements) -> componentManager.resolveComponentVersion(name, requirements)));
+                    (name, requirements) -> componentManager.resolveComponentVersion(name, requirements,
+                            document.getDeploymentId())));
         }
 
         logger.atInfo().setEventType("resolve-group-dependencies-finish").kv("resolvedComponents", resolvedComponents)

@@ -149,26 +149,24 @@ public class ComponentManager implements InjectionActions {
         return componentMetadataList.iterator();
     }
 
-    ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements)
-            throws PackagingException {
+    ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements,
+                                              String deploymentConfigurationId) throws PackagingException {
         // acquire ever possible local best candidate
         Optional<ComponentIdentifier> localCandidateOptional =
                 findLocalBestCandidate(componentName, versionRequirements);
-        logger.atDebug().kv("componentName", componentName).kv("localCandidate", localCandidateOptional.orElse(null))
-                .log("Resolve to local version");
+        logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
+                .kv("localCandidate", localCandidateOptional.orElse(null)).log("Resolve to local version");
         ComponentIdentifier resolvedComponentId;
         if (versionRequirements.containsKey(Deployment.DeploymentType.LOCAL.toString())) {
             // keep using local version if the component is meant to be local override
-            logger.atDebug().kv("componentName", componentName).log("Keep local version if it's local override");
             resolvedComponentId = localCandidateOptional.orElseThrow(() -> new NoAvailableComponentVersionException(
                     String.format("Component %s is meant to be local override, but no version can satisfy %s",
                             componentName, versionRequirements)));
         } else {
             // otherwise try to negotiate with cloud
-            logger.atDebug().kv("componentName", componentName).kv("versionRequirement", versionRequirements)
-                    .log("Negotiate version with cloud");
             resolvedComponentId =
-                    negotiateVersionWithCloud(componentName, versionRequirements, localCandidateOptional.orElse(null));
+                    negotiateVersionWithCloud(componentName, versionRequirements, localCandidateOptional.orElse(null),
+                            deploymentConfigurationId);
         }
 
         return getComponentMetadata(resolvedComponentId);
@@ -176,24 +174,22 @@ public class ComponentManager implements InjectionActions {
 
     private ComponentIdentifier negotiateVersionWithCloud(String componentName,
                                                           Map<String, Requirement> versionRequirements,
-                                                          ComponentIdentifier localCandidate)
-            throws PackagingException {
+                                                          ComponentIdentifier localCandidate,
+                                                          String deploymentConfigurationId) throws PackagingException {
         ComponentContent componentContent;
 
         try {
-            componentContent = componentServiceHelper
-                    .resolveComponentVersion(componentName, localCandidate == null ? null : localCandidate.getVersion(),
-                            versionRequirements);
+            componentContent = componentServiceHelper.resolveComponentVersion(deploymentConfigurationId, componentName,
+                    localCandidate == null ? null : localCandidate.getVersion(), versionRequirements);
         } catch (ComponentVersionNegotiationException e) {
+            logger.atDebug().kv("componentName", componentName).kv("versionRequirement", versionRequirements)
+                    .kv("localVersion", localCandidate).log("Can't negotiate version with cloud, use local version", e);
             if (localCandidate != null) {
-                logger.atDebug().kv("componentName", componentName).kv("versionRequirement", versionRequirements)
-                        .kv("localVersion", localCandidate)
-                        .log("Can't negotiate version with cloud, use local version");
                 return localCandidate;
             }
             throw new NoAvailableComponentVersionException(
                     String.format("Can't negotiate component %s version with cloud and no local applicable version",
-                            componentName));
+                            componentName), e);
         }
 
         ComponentIdentifier resolvedComponentId =
