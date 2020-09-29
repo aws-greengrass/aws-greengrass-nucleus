@@ -14,6 +14,7 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
+import com.aws.greengrass.status.ComponentStatusDetails;
 import com.aws.greengrass.status.FleetStatusDetails;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.OverallStatus;
@@ -39,6 +40,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -124,7 +126,12 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                 assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
                 assertEquals(0, fleetStatusDetails.getSequenceNumber());
                 assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-                assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
+                String allUpdatedComponentNames = fleetStatusDetails.getComponentStatusDetails().stream()
+                        .map(ComponentStatusDetails::getComponentName).collect(Collectors.joining(", "));
+                assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size(),
+                        "Not all components were updated. Updated Components names are: "
+                                + allUpdatedComponentNames + ". All Components: " +
+                                String.join(", ", componentNamesToCheck));
                 fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
                     componentNamesToCheck.remove(componentStatusDetails.getComponentName());
                 });
