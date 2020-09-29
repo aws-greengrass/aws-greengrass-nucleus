@@ -31,7 +31,7 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
                 .namespace(NAMESPACE)
                 .name("CpuUsage")
                 .unit(TelemetryUnit.Percent)
-                .aggregation(TelemetryAggregation.Average)
+                .aggregation(TelemetryAggregation.Sum)
                 .build();
         mf.putMetricData(metric, cpu.getSystemCpuLoadBetweenTicks(previousTicks) * PERCENTAGE_CONVERTER);
         previousTicks = cpu.getSystemCpuLoadTicks();
@@ -40,7 +40,7 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
                 .namespace(NAMESPACE)
                 .name("TotalNumberOfFDs")
                 .unit(TelemetryUnit.Count)
-                .aggregation(TelemetryAggregation.Average)
+                .aggregation(TelemetryAggregation.Sum)
                 .build();
         mf.putMetricData(metric, systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors());
 
@@ -48,7 +48,7 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
                 .namespace(NAMESPACE)
                 .name("SystemMemUsage")
                 .unit(TelemetryUnit.Megabytes)
-                .aggregation(TelemetryAggregation.Average)
+                .aggregation(TelemetryAggregation.Sum)
                 .build();
         GlobalMemory memory = systemInfo.getHardware().getMemory();
         mf.putMetricData(metric, (memory.getTotal() - memory.getAvailable()) / MB_CONVERTER);

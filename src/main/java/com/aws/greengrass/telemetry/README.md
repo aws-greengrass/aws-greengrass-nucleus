@@ -17,7 +17,7 @@ Each metric has to be specified with its name, namespace it belongs to, aggregat
             .namespace("GreengrassComponents")
             .name("NumberOfComponentsInstalled")
             .unit(TelemetryUnit.Count)
-            .aggregation(TelemetryAggregation.Average)
+            .aggregation(TelemetryAggregation.Sum)
             .build();
 ```
 ##### Emit a metric

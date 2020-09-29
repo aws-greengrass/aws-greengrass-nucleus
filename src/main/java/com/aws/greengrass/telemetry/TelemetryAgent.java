@@ -30,7 +30,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
-
+//TODO: All of the v1 Telemetry metrics have "Sum" as the aggregation type and so is the cloud side validation while
+// this is not applicable for some of the v2 Telemetry metrics. Check if we can to do it differently in v2. 
 @ImplementsService(name = TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS, version = "1.0.0", autostart = true)
 public class TelemetryAgent extends GreengrassService {
     public static final String TELEMETRY_AGENT_SERVICE_TOPICS = "TelemetryAgent";

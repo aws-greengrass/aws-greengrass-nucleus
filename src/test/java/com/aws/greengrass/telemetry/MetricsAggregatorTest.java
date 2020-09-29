@@ -65,7 +65,7 @@ class MetricsAggregatorTest {
         //with respect to the current timestamp
         long lastAgg = Instant.now().toEpochMilli();
         Metric m1 = new Metric(sm, "CpuUsage", TelemetryUnit.Percent, TelemetryAggregation.Sum);
-        Metric m2 = new Metric(sm, "SystemMemUsage", TelemetryUnit.Megabytes, TelemetryAggregation.Average);
+        Metric m2 = new Metric(sm, "SystemMemUsage", TelemetryUnit.Megabytes, TelemetryAggregation.Sum);
         Metric m3 = new Metric(sm, "TotalNumberOfFDs", TelemetryUnit.Count, TelemetryAggregation.Maximum);
         mf.putMetricData(m1, 10);
         mf.putMetricData(m2, 2000);
@@ -123,7 +123,7 @@ class MetricsAggregatorTest {
         ignoreExceptionOfType(exContext, MismatchedInputException.class);
         long lastAgg = Instant.now().toEpochMilli();
         Metric m1 = new Metric(sm, "CpuUsage", TelemetryUnit.Percent, TelemetryAggregation.Sum);
-        Metric m2 = new Metric(sm, "SystemMemUsage", TelemetryUnit.Megabytes, TelemetryAggregation.Average);
+        Metric m2 = new Metric(sm, "SystemMemUsage", TelemetryUnit.Megabytes, TelemetryAggregation.Sum);
         // Put null data
         mf.putMetricData(m1, null);
 
