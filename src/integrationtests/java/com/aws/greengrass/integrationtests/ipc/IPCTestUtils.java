@@ -16,7 +16,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
@@ -75,7 +75,7 @@ public final class IPCTestUtils {
                     deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID).toString();
             if (receivedDeploymentId.equals(deploymentId)) {
                 DeploymentStatus status = DeploymentStatus.valueOf(deploymentDetails
-                        .get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS).toString());
+                        .get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS).toString());
                 if (status == DeploymentStatus.SUCCEEDED) {
                     deploymentLatch.countDown();
                 }

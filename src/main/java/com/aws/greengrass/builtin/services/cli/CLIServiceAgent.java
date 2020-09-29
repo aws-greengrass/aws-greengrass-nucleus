@@ -61,9 +61,9 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETER
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.DEFAULT_GROUP_NAME;
 import static com.aws.greengrass.ipc.common.IPCErrorStrings.DEPLOYMENTS_QUEUE_FULL;
 import static com.aws.greengrass.ipc.common.IPCErrorStrings.DEPLOYMENTS_QUEUE_NOT_INITIALIZED;
@@ -310,7 +310,7 @@ public class CLIServiceAgent {
         } else {
             Topics deployment = localDeployments.findTopics(request.getDeploymentId());
             DeploymentStatus status = Coerce.toEnum(DeploymentStatus.class,
-                    deployment.find(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS));
+                    deployment.find(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS));
             return GetLocalDeploymentStatusResponse.builder().deployment(
                     LocalDeployment.builder().deploymentId(request.getDeploymentId()).status(status).build()).build();
         }
@@ -330,7 +330,7 @@ public class CLIServiceAgent {
             persistedDeployments.add(LocalDeployment.builder()
                     .deploymentId(topics.getName())
                     .status(Coerce.toEnum(DeploymentStatus.class,
-                            topics.find(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS))).build());
+                            topics.find(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS))).build());
         });
         return ListLocalDeploymentResponse.builder().localDeployments(persistedDeployments).build();
     }
@@ -390,7 +390,7 @@ public class CLIServiceAgent {
     public static class LocalDeploymentDetails {
         @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID)
         private String deploymentId;
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS)
+        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS)
         private DeploymentStatus status;
         @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE)
         private Deployment.DeploymentType deploymentType;
@@ -403,7 +403,7 @@ public class CLIServiceAgent {
         public Map<String, Object> convertToMapOfObject() {
             Map<String, Object> deploymentDetails = new HashMap<>();
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID, deploymentId);
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS, Coerce.toString(status));
+            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS, Coerce.toString(status));
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, Coerce.toString(deploymentType));
             return deploymentDetails;
         }

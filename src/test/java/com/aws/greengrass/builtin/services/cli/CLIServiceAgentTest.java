@@ -55,7 +55,7 @@ import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.LOCAL_DEPL
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.PERSISTENT_LOCAL_DEPLOYMENTS;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.DEFAULT_GROUP_NAME;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -324,7 +324,7 @@ class CLIServiceAgentTest {
         verify(deploymentsQueue).offer(argumentCaptor.capture());
         Deployment deployment = argumentCaptor.getValue();
         assertEquals(Deployment.DeploymentType.LOCAL, deployment.getDeploymentType());
-        String deploymentDocumentString = deployment.getDeploymentDocument();
+        String deploymentDocumentString = (String) deployment.getDeploymentDocument();
         LocalOverrideRequest localOverrideRequest = OBJECT_MAPPER.readValue(deploymentDocumentString,
                 LocalOverrideRequest.class);
         assertEquals(MOCK_GROUP_NAME, localOverrideRequest.getGroupName());
@@ -349,7 +349,7 @@ class CLIServiceAgentTest {
         verify(deploymentsQueue).offer(argumentCaptor.capture());
         Deployment deployment = argumentCaptor.getValue();
         assertEquals(Deployment.DeploymentType.LOCAL, deployment.getDeploymentType());
-        String deploymentDocumentString = deployment.getDeploymentDocument();
+        String deploymentDocumentString = (String) deployment.getDeploymentDocument();
         LocalOverrideRequest localOverrideRequest = OBJECT_MAPPER.readValue(deploymentDocumentString,
                 LocalOverrideRequest.class);
         assertEquals(DEFAULT_GROUP_NAME, localOverrideRequest.getGroupName());
@@ -366,7 +366,7 @@ class CLIServiceAgentTest {
         when(mockLocalDeployments.findTopics(eq(MOCK_DEPLOYMENT_ID))).thenReturn(mockDeploymentTopics);
         Topic mockStatusTopic = mock(Topic.class);
         when(mockStatusTopic.getOnce()).thenReturn(DeploymentStatus.IN_PROGRESS.toString());
-        when(mockDeploymentTopics.find(eq(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS)))
+        when(mockDeploymentTopics.find(eq(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS)))
                 .thenReturn(mockStatusTopic);
         GetLocalDeploymentStatusResponse response = cliServiceAgent.getLocalDeploymentStatus(mockServiceConfig,
                 request);
@@ -402,9 +402,9 @@ class CLIServiceAgentTest {
         Topics mockServiceConfig = mock(Topics.class);
         Topics mockLocalDeployments = Topics.of(context, PERSISTENT_LOCAL_DEPLOYMENTS, null);
         Map<String, Object> deploymentDetails = new HashMap<>();
-        deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS, DeploymentStatus.IN_PROGRESS.toString());
+        deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS, DeploymentStatus.IN_PROGRESS.toString());
         Map<String, Object> deploymentDetails2 = new HashMap<>();
-        deploymentDetails2.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS,
+        deploymentDetails2.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS,
                 DeploymentStatus.IN_PROGRESS.toString());
         Topics mockDeploymentTopic = mockLocalDeployments.lookupTopics(MOCK_DEPLOYMENT_ID);
         mockDeploymentTopic.replaceAndWait(deploymentDetails);
