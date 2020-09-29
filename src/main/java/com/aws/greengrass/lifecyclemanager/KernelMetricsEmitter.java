@@ -48,7 +48,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .namespace(NAMESPACE)
                 .name("NumberOfComponentsStarting")
                 .unit(TelemetryUnit.Count)
-                .aggregation(TelemetryAggregation.Average)
+                .aggregation(TelemetryAggregation.Sum)
                 .build();
         mf.putMetricData(metric, stateCount.getOrDefault(State.STARTING, 0));
 
@@ -56,7 +56,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .namespace(NAMESPACE)
                 .name("NumberOfComponentsInstalled")
                 .unit(TelemetryUnit.Count)
-                .aggregation(TelemetryAggregation.Average)
+                .aggregation(TelemetryAggregation.Sum)
                 .build();
         mf.putMetricData(metric, stateCount.getOrDefault(State.INSTALLED, 0));
 
@@ -64,7 +64,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .namespace(NAMESPACE)
                 .name("NumberOfComponentsStateless")
                 .unit(TelemetryUnit.Count)
-                .aggregation(TelemetryAggregation.Average)
+                .aggregation(TelemetryAggregation.Sum)
                 .build();
         mf.putMetricData(metric, stateCount.getOrDefault(State.STATELESS, 0));
 
@@ -72,7 +72,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .namespace(NAMESPACE)
                 .name("NumberOfComponentsStopping")
                 .unit(TelemetryUnit.Count)
-                .aggregation(TelemetryAggregation.Average)
+                .aggregation(TelemetryAggregation.Sum)
                 .build();
         mf.putMetricData(metric, stateCount.getOrDefault(State.STOPPING, 0));
 
@@ -80,7 +80,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .namespace(NAMESPACE)
                 .name("NumberOfComponentsBroken")
                 .unit(TelemetryUnit.Count)
-                .aggregation(TelemetryAggregation.Average)
+                .aggregation(TelemetryAggregation.Sum)
                 .build();
         mf.putMetricData(metric, stateCount.getOrDefault(State.BROKEN, 0));
 
@@ -88,7 +88,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .namespace(NAMESPACE)
                 .name("NumberOfComponentsRunning")
                 .unit(TelemetryUnit.Count)
-                .aggregation(TelemetryAggregation.Average)
+                .aggregation(TelemetryAggregation.Sum)
                 .build();
         mf.putMetricData(metric, stateCount.getOrDefault(State.RUNNING, 0));
 
@@ -96,7 +96,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .namespace(NAMESPACE)
                 .name("NumberOfComponentsErrored")
                 .unit(TelemetryUnit.Count)
-                .aggregation(TelemetryAggregation.Average)
+                .aggregation(TelemetryAggregation.Sum)
                 .build();
         mf.putMetricData(metric, stateCount.getOrDefault(State.ERRORED, 0));
 
@@ -104,7 +104,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .namespace(NAMESPACE)
                 .name("NumberOfComponentsNew")
                 .unit(TelemetryUnit.Count)
-                .aggregation(TelemetryAggregation.Average)
+                .aggregation(TelemetryAggregation.Sum)
                 .build();
         mf.putMetricData(metric, stateCount.getOrDefault(State.NEW, 0));
 
@@ -112,7 +112,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
                 .namespace(NAMESPACE)
                 .name("NumberOfComponentsFinished")
                 .unit(TelemetryUnit.Count)
-                .aggregation(TelemetryAggregation.Average)
+                .aggregation(TelemetryAggregation.Sum)
                 .build();
         mf.putMetricData(metric, stateCount.getOrDefault(State.FINISHED, 0));
     }
