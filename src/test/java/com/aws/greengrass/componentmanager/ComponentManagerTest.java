@@ -8,9 +8,10 @@ package com.aws.greengrass.componentmanager;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.amazonaws.services.evergreen.model.ComponentContent;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
-import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
+import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
+import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
@@ -65,6 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -484,7 +486,7 @@ class ComponentManagerTest {
     }
 
     @Test
-    void GIVEN_component_is_builtin_service_WHEN_cloud_no_available_version_THEN_resolve_to_local_version()
+    void GIVEN_component_is_builtin_service_WHEN_cloud_service_exception_THEN_resolve_to_local_version()
             throws Exception {
         ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
         ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
@@ -500,14 +502,16 @@ class ComponentManagerTest {
         when(mockService.isBuiltin()).thenReturn(true);
 
         when(packageServiceHelper.resolveComponentVersion(any(), any(), any())).thenThrow(
-                NoAvailableComponentVersionException.class);
+                ComponentVersionNegotiationException.class);
+        when(componentStore.getPackageMetadata(any())).thenThrow(PackagingException.class);
 
         ComponentMetadata componentMetadata = componentManager
                 .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
         verify(componentStore, never()).findComponentRecipeContent(any());
-        verify(componentStore, never()).getPackageMetadata(any());
+        verify(componentStore, never()).savePackageRecipe(any(), anyString());
+        verify(componentStore).getPackageMetadata(componentA_1_0_0);
     }
 
     private static Map<String, String> getExpectedDependencies(Semver version) {
