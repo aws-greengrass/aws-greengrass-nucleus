@@ -58,6 +58,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PUBLIC_SCOPE;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -486,7 +487,7 @@ class ComponentManagerTest {
     @Test
     void GIVEN_component_is_builtin_service_WHEN_cloud_no_available_version_THEN_resolve_to_local_version()
             throws Exception {
-        ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
+        ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0, PUBLIC_SCOPE);
         ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
 
         Topics serviceConfigTopics = mock(Topics.class);

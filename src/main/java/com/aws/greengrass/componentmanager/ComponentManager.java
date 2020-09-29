@@ -50,6 +50,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PUBLIC_SCOPE;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
 
 public class ComponentManager implements InjectionActions {
@@ -462,7 +463,7 @@ public class ComponentManager implements InjectionActions {
             Map<String, String> deps = new HashMap<>();
             service.forAllDependencies(d -> deps.put(d.getServiceName(), ANY_VERSION));
 
-            return new ComponentMetadata(new ComponentIdentifier(packageName, activeVersion), deps);
+            return new ComponentMetadata(new ComponentIdentifier(packageName, activeVersion, PUBLIC_SCOPE), deps);
         } catch (ServiceLoadException e) {
             return null;
         }
