@@ -244,25 +244,25 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         @Test
         void GIVEN_components_to_groups_mapping_WHEN_get_groups_for_component_THEN_gets_correct_groups() {
             String group1 = "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12";
-            String group2 = "arn:aws:greengrass:testRegion:67890:configuration:testGroup:800";
+            String group2 = "arn:aws:greengrass:testRegion:67890:configuration:testGroup1:800";
             Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
             Topics componentTopics1 = Topics.of(context, "MockService", allComponentToGroupsTopics);
             Topics componentTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
-            Topic groupTopic1 = Topic.of(context, group1, true);
-            Topic groupTopic2 = Topic.of(context, group2, true);
+            Topic groupTopic1 = Topic.of(context, group1, "testGroup");
+            Topic groupTopic2 = Topic.of(context, group2, "testGroup1");
             componentTopics1.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
             componentTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic2);
             allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), componentTopics1);
             allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService2"), componentTopics2);
             when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
-            Set<String> allGroupConfigs = deploymentService.getAllGroupConfigs();
+            Set<String> allGroupConfigs = deploymentService.getAllGroupNames();
             assertEquals(2, allGroupConfigs.size());
-            assertThat(allGroupConfigs, containsInAnyOrder(group1, group2));
+            assertThat(allGroupConfigs, containsInAnyOrder("testGroup", "testGroup1"));
 
-            Set<String> allComponentGroupConfigs = deploymentService.getGroupConfigsForUserComponent("MockService");
+            Set<String> allComponentGroupConfigs = deploymentService.getGroupNamesForUserComponent("MockService");
             assertEquals(1, allComponentGroupConfigs.size());
-            assertThat(allComponentGroupConfigs, containsInAnyOrder(group1));
+            assertThat(allComponentGroupConfigs, containsInAnyOrder("testGroup"));
         }
 
         @Test
