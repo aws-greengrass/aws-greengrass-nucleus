@@ -17,6 +17,7 @@ import com.aws.greengrass.componentmanager.plugins.GreengrassRepositoryDownloade
 import com.aws.greengrass.componentmanager.plugins.S3Downloader;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
@@ -61,6 +62,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -106,12 +108,15 @@ class ComponentManagerTest {
     private GreengrassService mockService;
     @Mock
     private Unarchiver mockUnarchiver;
+    @Mock
+    private DeviceConfiguration deviceConfiguration;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @BeforeEach
     void beforeEach() {
+        lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         componentManager = new ComponentManager(s3Downloader, artifactDownloader, packageServiceHelper,
-                executor, componentStore, kernel, mockUnarchiver);
+                executor, componentStore, kernel, mockUnarchiver, deviceConfiguration);
     }
 
     @AfterEach

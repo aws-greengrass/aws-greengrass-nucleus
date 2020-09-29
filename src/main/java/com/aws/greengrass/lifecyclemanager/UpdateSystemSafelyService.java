@@ -123,8 +123,7 @@ public class UpdateSystemSafelyService extends GreengrassService {
         if (runningUpdateActions.get()) {
             return false;
         }
-        pendingActions.remove(tag);
-        return true;
+        return pendingActions.remove(tag) != null;
     }
 
     @SuppressWarnings({"SleepWhileInLoop"})

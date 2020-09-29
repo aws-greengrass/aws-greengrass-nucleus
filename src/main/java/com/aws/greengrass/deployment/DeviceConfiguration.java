@@ -191,6 +191,20 @@ public class DeviceConfiguration {
                 iotCredEndpoint, awsRegion);
     }
 
+    /**
+     * Check if device is configured to talk to cloud.
+     * @return true is device configuration is valid
+     */
+    public boolean isDeviceConfiguredToTalkToCloud() {
+        try {
+            validate();
+            return true;
+        } catch (DeviceConfigurationException e) {
+            return false;
+        }
+
+    }
+
     private Topic getTopic(String parameterName) {
         return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, parameterName).dflt("");
     }
@@ -228,4 +242,6 @@ public class DeviceConfiguration {
             throw new DeviceConfigurationException(errors.toString());
         }
     }
+
+
 }

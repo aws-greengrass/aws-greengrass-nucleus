@@ -2,7 +2,6 @@ package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.builtin.services.cli.CLIServiceAgent;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -11,12 +10,14 @@ import lombok.Setter;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static com.aws.greengrass.deployment.ShadowDeploymentListener.DeviceDeploymentDetails;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 
 public class DeploymentStatusKeeper {
@@ -26,8 +27,9 @@ public class DeploymentStatusKeeper {
     public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS = "JobStatus";
     public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE = "DeploymentType";
     public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS = "StatusDetails";
-    public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS = "Status";
+    public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS = "Status";
     public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID = "deploymentId";
+    public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_DEVICE_DEPLOYMENT_ARN = "configurationArn";
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
     private static final Logger logger = LogManager.getLogger(DeploymentStatusKeeper.class);
 
@@ -63,6 +65,7 @@ public class DeploymentStatusKeeper {
      * @param deploymentType type of deployment.
      * @param status         status of deployment.
      * @param statusDetails  other details of deployment status.
+     * @throws IllegalArgumentException for invalid deployment type
      */
     public void persistAndPublishDeploymentStatus(String deploymentId, DeploymentType deploymentType, String status,
                                                   Map<String, String> statusDetails) {
@@ -74,22 +77,36 @@ public class DeploymentStatusKeeper {
             // TODO: Consider making DeploymentDetailsIotJobs and LocalDeploymentDetails inherit from the same base
             //  class with deployment type as common parameter and store those objects directly instead of Map
             Map<String, Object> deploymentDetails = null;
-            if (deploymentType == DeploymentType.IOT_JOBS) {
-                IotJobsHelper.DeploymentDetailsIotJobs deploymentDetailsIotJobs =
-                        new IotJobsHelper.DeploymentDetailsIotJobs();
-                deploymentDetailsIotJobs.setJobId(deploymentId);
-                deploymentDetailsIotJobs.setJobStatus(JobStatus.valueOf(status));
-                deploymentDetailsIotJobs.setStatusDetails(statusDetails);
-                deploymentDetailsIotJobs.setDeploymentType(DeploymentType.IOT_JOBS);
-                deploymentDetails = deploymentDetailsIotJobs.convertToMapOfObjects();
-            } else if (deploymentType == DeploymentType.LOCAL) {
-                CLIServiceAgent.LocalDeploymentDetails localDeploymentDetails =
-                        new CLIServiceAgent.LocalDeploymentDetails();
-                localDeploymentDetails.setDeploymentId(deploymentId);
-                localDeploymentDetails.setDeploymentType(Deployment.DeploymentType.LOCAL);
-                localDeploymentDetails.setStatus(DeploymentStatus.valueOf(status));
-                deploymentDetails = localDeploymentDetails.convertToMapOfObject();
+
+            switch (deploymentType) {
+                case IOT_JOBS:
+                    IotJobsHelper.DeploymentDetailsIotJobs deploymentDetailsIotJobs =
+                            new IotJobsHelper.DeploymentDetailsIotJobs();
+                    deploymentDetailsIotJobs.setJobId(deploymentId);
+                    deploymentDetailsIotJobs.setJobStatus(JobStatus.valueOf(status));
+                    deploymentDetailsIotJobs.setStatusDetails(statusDetails);
+                    deploymentDetailsIotJobs.setDeploymentType(DeploymentType.IOT_JOBS);
+                    deploymentDetails = deploymentDetailsIotJobs.convertToMapOfObjects();
+                    break;
+                case LOCAL:
+                    CLIServiceAgent.LocalDeploymentDetails localDeploymentDetails =
+                            new CLIServiceAgent.LocalDeploymentDetails();
+                    localDeploymentDetails.setDeploymentId(deploymentId);
+                    localDeploymentDetails.setDeploymentType(DeploymentType.LOCAL);
+                    localDeploymentDetails.setStatus(DeploymentStatus.valueOf(status));
+                    deploymentDetails = localDeploymentDetails.convertToMapOfObject();
+                    break;
+                case SHADOW:
+                    DeviceDeploymentDetails deviceDeploymentDetails = new DeviceDeploymentDetails();
+                    deviceDeploymentDetails.setConfigurationArn(deploymentId);
+                    deviceDeploymentDetails.setStatus(DeploymentStatus.valueOf(status));
+                    deviceDeploymentDetails.setDeploymentType(DeploymentType.SHADOW);
+                    deploymentDetails = deviceDeploymentDetails.convertToMapOfObjects();
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unexpected deploymentType: " + deploymentType);
             }
+
             //Each status update is uniquely stored
             Topics processedDeployments = getProcessedDeployments();
             Topics thisJob = processedDeployments.createInteriorChild(String.valueOf(System.currentTimeMillis()));
@@ -154,7 +171,11 @@ public class DeploymentStatusKeeper {
      * @return list of callback functions.
      */
     protected List<Function<Map<String, Object>, Boolean>> getConsumersForDeploymentType(DeploymentType type) {
-        return new ArrayList<>(deploymentStatusConsumerMap.get(type).values());
+        Map<String, Function<Map<String, Object>, Boolean>> stringFunctionMap = deploymentStatusConsumerMap.get(type);
+        if (stringFunctionMap != null) {
+            return new ArrayList<>(stringFunctionMap.values());
+        }
+        return Collections.EMPTY_LIST;
     }
 
     /**

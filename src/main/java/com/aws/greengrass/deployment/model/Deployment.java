@@ -22,7 +22,7 @@ public class Deployment {
     @Setter
     private DeploymentDocument deploymentDocumentObj;
     @JsonIgnore
-    private String deploymentDocument;
+    private Object deploymentDocument;
     @EqualsAndHashCode.Include
     private DeploymentType deploymentType;
     @EqualsAndHashCode.Include
@@ -41,7 +41,7 @@ public class Deployment {
      * @param deploymentType deployment type
      * @param id deployment id
      */
-    public Deployment(String deploymentDocument, DeploymentType deploymentType, String id) {
+    public Deployment(Object deploymentDocument, DeploymentType deploymentType, String id) {
         this.deploymentDocument = deploymentDocument;
         this.deploymentType = deploymentType;
         this.id = id;
@@ -79,7 +79,7 @@ public class Deployment {
     }
 
     public enum DeploymentType {
-        IOT_JOBS, LOCAL
+        IOT_JOBS, LOCAL, SHADOW
     }
 
     public enum DeploymentStage {

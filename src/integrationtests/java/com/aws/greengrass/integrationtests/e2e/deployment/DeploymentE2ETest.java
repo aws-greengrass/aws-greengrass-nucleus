@@ -29,6 +29,8 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
+import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
@@ -38,12 +40,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import software.amazon.awssdk.crt.mqtt.QualityOfService;
+import software.amazon.awssdk.iot.iotshadow.IotShadowClient;
+import software.amazon.awssdk.iot.iotshadow.model.GetShadowRequest;
+import software.amazon.awssdk.iot.iotshadow.model.GetShadowSubscriptionRequest;
+import software.amazon.awssdk.iot.iotshadow.model.UpdateShadowSubscriptionRequest;
+import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
@@ -63,6 +73,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(GGExtension.class)
 @Tag("E2E")
 class DeploymentE2ETest extends BaseE2ETestCase {
+
 
     protected DeploymentE2ETest() throws Exception {
         super();
@@ -87,6 +98,35 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         // creating new IoT job here.
         Thread.sleep(10_000);
     }
+
+
+    @Test
+    void GIVEN_kernel_running_WHEN_device_deployment_adds_packages_THEN_new_services_should_be_running() throws Exception {
+        CountDownLatch cdlDeploymentFinished = new CountDownLatch(1);
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null && m.getLoggerName().equals("DeploymentService")) {
+                if (m.getMessage().contains("Current deployment finished")) {
+                    cdlDeploymentFinished.countDown();
+                }
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+        SetConfigurationRequest setRequest = new SetConfigurationRequest()
+                .withTargetName(thingInfo.getThingName())
+                .withTargetType(THING_TARGET_TYPE)
+                .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
+                        .withConfiguration("{\"sampleText\":\"FCS integ test\"}"))
+                .addPackagesEntry("SomeService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
+
+        setAndPublishFleetConfiguration(setRequest);
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+
+        assertTrue(cdlDeploymentFinished.await(5, TimeUnit.MINUTES));
+        Slf4jLogAdapter.removeGlobalListener(listener);
+        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("SomeService")::getState, eventuallyEval(is(State.FINISHED)));
+    }
+
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test

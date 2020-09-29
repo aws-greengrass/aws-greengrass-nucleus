@@ -101,6 +101,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class BaseE2ETestCase implements AutoCloseable {
     protected static final Region GAMMA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
+    protected static final String THING_TARGET_TYPE = "thing";
     private static final String TES_ROLE_NAME = "E2ETestsTesRole" + UUID.randomUUID().toString();
     protected static final String TES_ROLE_ALIAS_NAME = "E2ETestsTesRoleAlias" + UUID.randomUUID().toString();
     private static final String TES_ROLE_POLICY_NAME = "E2ETestsTesRolePolicy" + UUID.randomUUID().toString();
@@ -380,7 +381,9 @@ public class BaseE2ETestCase implements AutoCloseable {
         logger.atInfo().kv("publishRequest", publishRequest).log();
         PublishConfigurationResult publishResult = greengrassClient.publishConfiguration(publishRequest);
         logger.atInfo().kv("publishResult", publishResult).log();
-        createdIotJobIds.add(publishResult.getJobId());
+        if (setRequest.getTargetType().equals(THING_GROUP_TARGET_TYPE)) {
+            createdIotJobIds.add(publishResult.getJobId());
+        }
         return publishResult;
     }
 
