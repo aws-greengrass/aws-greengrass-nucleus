@@ -6,24 +6,15 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.model.ComponentCandidate;
-import com.amazonaws.services.evergreen.model.ComponentContent;
 import com.amazonaws.services.evergreen.model.CreateComponentRequest;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
 import com.amazonaws.services.evergreen.model.DeleteComponentRequest;
 import com.amazonaws.services.evergreen.model.GetComponentRequest;
 import com.amazonaws.services.evergreen.model.GetComponentResult;
-import com.amazonaws.services.evergreen.model.ResolveComponentVersionsRequest;
-import com.amazonaws.services.evergreen.model.ResolveComponentVersionsResult;
-import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
-import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
-import org.apache.commons.codec.Charsets;
 import org.apache.commons.io.FileUtils;
-import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,17 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -54,9 +36,6 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class ComponentServiceHelperTest {
-
-    private static final Semver v1_0_0 = new Semver("1.0.0");
-    private static final String componentA = "A";
 
     @Mock
     private AWSEvergreen client;
@@ -82,8 +61,8 @@ class ComponentServiceHelperTest {
         GetComponentResult testResult = new GetComponentResult().withRecipe(testRecipeBytes);
         doReturn(testResult).when(client).getComponent(getComponentRequestArgumentCaptor.capture());
         String downloadPackageRecipeAsString = helper.downloadPackageRecipeAsString(
-                new ComponentIdentifier(ComponentTestResourceHelper.MONITORING_SERVICE_PACKAGE_NAME,
-                        new Semver("1.0.0"), "private"));
+                new ComponentIdentifier(ComponentTestResourceHelper.MONITORING_SERVICE_PACKAGE_NAME, new Semver("1.0.0"),
+                        "private"));
 
         assertEquals(recipeContents, downloadPackageRecipeAsString);
     }
@@ -114,48 +93,5 @@ class ComponentServiceHelperTest {
         DeleteComponentRequest request = requestCaptor.getValue();
         assertEquals("mockName", request.getComponentName());
         assertEquals("mockVersion", request.getComponentVersion());
-    }
-
-    @Test
-    void GIVEN_component_version_requirements_WHEN_resolve_component_version_THEN_send_service_request()
-            throws Exception {
-        Map<String, Requirement> versionRequirements = new HashMap<>();
-        versionRequirements.put("X", Requirement.buildNPM("^1.0"));
-        versionRequirements.put("Y", Requirement.buildNPM("^1.5"));
-
-        ComponentContent componentContent = new ComponentContent().withName(componentA).withVersion(v1_0_0.getValue())
-                .withRecipe(ByteBuffer.wrap("new recipe".getBytes(Charsets.UTF_8)));
-        ResolveComponentVersionsResult result =
-                new ResolveComponentVersionsResult().withComponents(Collections.singletonList(componentContent));
-        when(client.resolveComponentVersions(any())).thenReturn(result);
-
-        ComponentContent componentContentReturn =
-                helper.resolveComponentVersion(componentA, v1_0_0, versionRequirements);
-
-        assertThat(componentContentReturn, is(componentContent));
-        ArgumentCaptor<ResolveComponentVersionsRequest> requestArgumentCaptor =
-                ArgumentCaptor.forClass(ResolveComponentVersionsRequest.class);
-        verify(client).resolveComponentVersions(requestArgumentCaptor.capture());
-        ResolveComponentVersionsRequest request = requestArgumentCaptor.getValue();
-        assertThat(request.getPlatform(), notNullValue());
-        assertThat(request.getPlatform().getOs(), notNullValue());
-        assertThat(request.getPlatform().getArchitecture(), notNullValue());
-        assertThat(request.getComponentCandidates().size(), is(1));
-        ComponentCandidate candidate = request.getComponentCandidates().get(0);
-        assertThat(candidate.getName(), is(componentA));
-        assertThat(candidate.getVersion(), is("1.0.0"));
-        assertThat(candidate.getVersionRequirements(), IsMapContaining.hasEntry("X", ">=1.0.0 <2.0.0"));
-        assertThat(candidate.getVersionRequirements(), IsMapContaining.hasEntry("Y", ">=1.5.0 <2.0.0"));
-    }
-
-    @Test
-    void GIVEN_component_version_requirements_WHEN_service_no_resource_found_THEN_throw_no_available_version_exception() {
-        when(client.resolveComponentVersions(any())).thenThrow(ResourceNotFoundException.class);
-
-        Exception exp = assertThrows(NoAvailableComponentVersionException.class,
-                () -> helper.resolveComponentVersion(componentA,
-                v1_0_0, Collections.singletonMap("X", Requirement.buildNPM("^1.0"))));
-
-        assertThat(exp.getMessage(), containsString("No applicable version of component A"));
     }
 }

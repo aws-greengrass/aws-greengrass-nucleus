@@ -99,14 +99,7 @@ public class ComponentStore {
      * @throws PackageLoadingException if fails to parse the recipe file.
      */
     Optional<ComponentRecipe> findPackageRecipe(@NonNull ComponentIdentifier pkgId) throws PackageLoadingException {
-        Optional<String> recipeContent = findComponentRecipeContent(pkgId);
-
-        return recipeContent.isPresent() ? RecipeLoader.loadFromFile(recipeContent.get()) : Optional.empty();
-    }
-
-    Optional<String> findComponentRecipeContent(@NonNull ComponentIdentifier componentId)
-            throws PackageLoadingException {
-        Path recipePath = resolveRecipePath(componentId.getName(), componentId.getVersion());
+        Path recipePath = resolveRecipePath(pkgId.getName(), pkgId.getVersion());
 
         logger.atDebug().setEventType("finding-package-recipe").addKeyValue("packageRecipePath", recipePath).log();
 
@@ -114,12 +107,17 @@ public class ComponentStore {
             return Optional.empty();
         }
 
+        String recipeContent;
+
+
         try {
-            return Optional.of(new String(Files.readAllBytes(recipePath), StandardCharsets.UTF_8));
+            recipeContent = new String(Files.readAllBytes(recipePath), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new PackageLoadingException(
                     String.format("Failed to read package recipe from disk with path: `%s`", recipePath), e);
         }
+
+        return RecipeLoader.loadFromFile(recipeContent);
     }
 
     /**
@@ -134,8 +132,8 @@ public class ComponentStore {
 
         if (!optionalPackage.isPresent()) {
             // TODO refine exception and logs
-            throw new PackageLoadingException(String.format(
-                    "Failed to find usable recipe for current platform: %s, for package: '%s' in the "
+            throw new PackageLoadingException(
+                    String.format("Failed to find usable recipe for current platform: %s, for package: '%s' in the "
                             + "local package store.", PlatformResolver.CURRENT_PLATFORM, pkgId));
         }
 
@@ -171,7 +169,8 @@ public class ComponentStore {
     ComponentMetadata getPackageMetadata(@NonNull ComponentIdentifier pkgId) throws PackagingException {
         Map<String, String> dependencyMetadata = new HashMap<>();
         getPackageRecipe(pkgId).getDependencies()
-                .forEach((name, prop) -> dependencyMetadata.put(name, prop.getVersionRequirement().toString()));
+                               .forEach((name, prop) -> dependencyMetadata.put(name,
+                                       prop.getVersionRequirement().toString()));
         return new ComponentMetadata(pkgId, dependencyMetadata);
     }
 
@@ -211,39 +210,6 @@ public class ComponentStore {
         return componentMetadataList;
     }
 
-    Optional<ComponentIdentifier> findBestMatchAvailableComponent(@NonNull String componentName,
-                                                                  @NonNull Requirement requirement)
-            throws PackageLoadingException {
-        File[] recipeFiles = recipeDirectory.toFile().listFiles();
-
-        if (recipeFiles == null || recipeFiles.length == 0) {
-            return Optional.empty();
-        }
-
-        Arrays.sort(recipeFiles);
-
-        List<ComponentIdentifier> componentIdentifierList = new ArrayList<>();
-        for (File recipeFile : recipeFiles) {
-            String recipeComponentName = parsePackageNameFromFileName(recipeFile.getName());
-
-            if (!recipeComponentName.equalsIgnoreCase(componentName)) {
-                continue;
-            }
-
-            Semver version = parseVersionFromFileName(recipeFile.getName());
-            if (requirement.isSatisfiedBy(version)) {
-                componentIdentifierList.add(new ComponentIdentifier(componentName, version));
-            }
-        }
-        componentIdentifierList.sort(null);
-
-        if (componentIdentifierList.isEmpty()) {
-            return Optional.empty();
-        } else {
-            return Optional.of(componentIdentifierList.get(0));
-        }
-    }
-
 
     /**
      * Resolve the artifact directory path for a target package id.
@@ -253,7 +219,7 @@ public class ComponentStore {
      */
     public Path resolveArtifactDirectoryPath(@NonNull ComponentIdentifier componentIdentifier) {
         return artifactDirectory.resolve(componentIdentifier.getName())
-                .resolve(componentIdentifier.getVersion().getValue());
+                                .resolve(componentIdentifier.getVersion().getValue());
     }
 
     /**
