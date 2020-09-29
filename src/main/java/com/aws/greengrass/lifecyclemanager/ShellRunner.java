@@ -38,12 +38,12 @@ public interface ShellRunner {
                 return new Exec()
                         .withShell(command)
                         .withOut(s -> {
-                            String ss = s.toString().trim();
+                            String ss = s.trim();
                             onBehalfOf.logger.atInfo().setEventType("shell-runner-stdout").kv(SCRIPT_NAME_KEY, note)
                                     .kv("stdout", ss).log();
                         })
                         .withErr(s -> {
-                            String ss = s.toString().trim();
+                            String ss = s.trim();
                             onBehalfOf.logger.atWarn().setEventType("shell-runner-stderr").kv(SCRIPT_NAME_KEY, note)
                                     .kv("stderr", ss).log();
                         })

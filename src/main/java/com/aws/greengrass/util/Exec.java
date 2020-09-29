@@ -6,20 +6,17 @@ package com.aws.greengrass.util;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.platforms.Platform;
-import lombok.Getter;
 
-import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,7 +44,7 @@ import javax.annotation.Nullable;
 public final class Exec implements Closeable {
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
     private static final Logger staticLogger = LogManager.getLogger(Exec.class);
-    private static final Consumer<CharSequence> NOP = s -> {
+    private static final Consumer<String> NOP = s -> {
     };
     private static final File userdir = new File(System.getProperty("user.dir"));
     private static final File homedir = new File(System.getProperty("user.home"));
@@ -94,23 +91,23 @@ public final class Exec implements Closeable {
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     Process process;
     IntConsumer whenDone;
-    Consumer<CharSequence> stdout = NOP;
-    Consumer<CharSequence> stderr = NOP;
+    Consumer<String> stdout = NOP;
+    Consumer<String> stderr = NOP;
     AtomicInteger numberOfCopiers;
     private String[] environment = defaultEnvironment;
     private String[] cmds;
     private File dir = userdir;
     private long timeout = -1;
     private TimeUnit timeunit = TimeUnit.SECONDS;
-    private Copier stderrc;
-    private Copier stdoutc;
     private Logger logger = staticLogger;
+    private static final MultiInputStreamReader reader = new MultiInputStreamReader();
+    private CountDownLatch fut;
 
-    public static void setDefaultEnv(String key, CharSequence value) {
+    public static void setDefaultEnv(String key, String value) {
         defaultEnvironment = setenv(defaultEnvironment, key, value, false);
     }
 
-    private static String[] setenv(String[] env, String key, CharSequence value, boolean forceCopy) {
+    private static String[] setenv(String[] env, String key, String value, boolean forceCopy) {
         int elen = env.length;
         int klen = key.length();
         for (int i = 0; i < elen; i++) {
@@ -128,7 +125,7 @@ public final class Exec implements Closeable {
         return ne;
     }
 
-    public Exec setenv(String key, CharSequence value) {
+    public Exec setenv(String key, String value) {
         environment = setenv(environment, key, value, environment == defaultEnvironment);
         return this;
     }
@@ -158,9 +155,25 @@ public final class Exec implements Closeable {
         return new Exec().withShell(command).successful(ignoreStderr);
     }
 
+    /**
+     * Run the current exec and return if it was successful or not.
+     *
+     * @param ignoreStderr return true despite any errors in stderr
+     * @return true if the exit code is 0 and nothing was logged to stderr (or you ignore stderrr)
+     * @throws InterruptedException if running is interrupted
+     * @throws IOException if the execution fails
+     */
     public boolean successful(boolean ignoreStderr) throws InterruptedException, IOException {
+        AtomicBoolean counter = new AtomicBoolean();
+        Consumer<String> old = stderr;
+        withErr((s) -> {
+            if (old != null) {
+                old.accept(s);
+            }
+            counter.set(true);
+        });
         exec();
-        return (ignoreStderr || stderrc.getNlines() == 0) && process.exitValue() == 0;
+        return (ignoreStderr || !counter.get()) && process.exitValue() == 0;
     }
 
     /**
@@ -305,28 +318,28 @@ public final class Exec implements Closeable {
         return withOut(l -> System.out.println("stderr: " + l)).withErr(l -> System.out.println("stdout: " + l));
     }
 
-    public Exec withOut(Consumer<CharSequence> o) {
+    public Exec withOut(Consumer<String> o) {
         stdout = o;
         return this;
     }
 
-    public Exec withErr(Consumer<CharSequence> o) {
+    public Exec withErr(Consumer<String> o) {
         stderr = o;
         return this;
     }
 
     @SuppressWarnings("PMD.AvoidRethrowingException")
     private void exec() throws InterruptedException, IOException {
+        fut = new CountDownLatch(1);
+        isClosed.set(false);
+
         // Don't run anything if the current thread is currently interrupted
         if (Thread.currentThread().isInterrupted()) {
             logger.atWarn().kv("command", this).log("Refusing to execute because the active thread is interrupted");
             throw new InterruptedException();
         }
         process = Runtime.getRuntime().exec(cmds, environment, dir);
-        stderrc = new Copier(process.getErrorStream(), stderr);
-        stdoutc = new Copier(process.getInputStream(), stdout);
-        stderrc.start();
-        stdoutc.start();
+        reader.addProcess(process, stdout, stderr, this::setClosed);
         if (whenDone == null) {
             try {
                 if (timeout < 0) {
@@ -346,8 +359,7 @@ public final class Exec implements Closeable {
                 }
                 throw ie;
             }
-            stderrc.join(5000);
-            stdoutc.join(5000);
+            fut.await();
         }
     }
 
@@ -360,7 +372,7 @@ public final class Exec implements Closeable {
      */
     public String execAndGetStringOutput() throws InterruptedException, IOException {
         StringBuilder sb = new StringBuilder();
-        Consumer<CharSequence> f = sb::append;
+        Consumer<String> f = sb::append;
         withOut(f).withErr(f).exec();
         return sb.toString().trim();
     }
@@ -380,6 +392,7 @@ public final class Exec implements Closeable {
                 wd.accept(exit);
             }
         }
+        fut.countDown();
     }
 
     public boolean isRunning() {
@@ -419,65 +432,5 @@ public final class Exec implements Closeable {
     @Override
     public String toString() {
         return Utils.deepToString(cmds, 90).toString();
-    }
-
-    /**
-     * Sends the lines of an InputStream to a consumer in the background.
-     */
-    private class Copier extends Thread {
-        private final Consumer<CharSequence> out;
-        private final InputStream in;
-        @Getter
-        private int nlines = 0;
-
-        Copier(InputStream i, Consumer<CharSequence> s) {
-            super("Copier");
-            in = i;
-            out = s;
-            // Set as a daemon thread so that it dies when the main thread exits
-            setDaemon(true);
-            if (whenDone != null) {
-                if (numberOfCopiers == null) {
-                    numberOfCopiers = new AtomicInteger(1);
-                } else {
-                    numberOfCopiers.incrementAndGet();
-                }
-            }
-        }
-
-        @Override
-        public void run() {
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8), 200)) {
-                StringBuilder sb = new StringBuilder();
-                while (true) {
-                    int c;
-                    for (c = br.read(); c >= 0 && c != '\n'; c = br.read()) {
-                        sb.append((char) c);
-                    }
-                    if (c >= 0) {
-                        sb.append('\n');
-                        nlines++;
-                    }
-                    if (out != null && sb.length() > 0) {
-                        out.accept(sb);
-                    }
-                    sb.setLength(0);
-                    if (c < 0) {
-                        break;
-                    }
-                }
-            } catch (Throwable ignore) {
-                // nothing that can go wrong here worries us, they're
-                // all EOFs
-            }
-            if (whenDone != null && numberOfCopiers.decrementAndGet() <= 0) {
-                try {
-                    process.waitFor();
-                    setClosed();
-                } catch (InterruptedException ignore) {
-                    // Ignore as this thread is done running anyway and will exit
-                }
-            }
-        }
     }
 }

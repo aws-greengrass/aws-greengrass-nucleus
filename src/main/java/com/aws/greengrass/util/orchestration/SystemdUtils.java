@@ -62,8 +62,8 @@ public class SystemdUtils implements SystemServiceUtils {
 
     private void runCommand(String command) throws IOException, InterruptedException {
         boolean success = new Exec().withShell(command)
-                .withOut(s -> logger.atWarn().kv("command", command).kv("stdout", s.toString().trim()).log())
-                .withErr(s -> logger.atError().kv("command", command).kv("stderr", s.toString().trim()).log())
+                .withOut(s -> logger.atWarn().kv("command", command).kv("stdout", s.trim()).log())
+                .withErr(s -> logger.atError().kv("command", command).kv("stderr", s.trim()).log())
                 .successful(true);
         if (!success) {
             throw new IOException(String.format("Command %s failed", command));

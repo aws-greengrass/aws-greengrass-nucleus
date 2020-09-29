@@ -208,14 +208,16 @@ public class GenericExternalService extends GreengrassService {
         Pair<RunStatus, Exec> result = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
-            synchronized (this) {
-                logger.atInfo().kv("exitCode", exit).log("Startup script exited");
-                State state = getState();
-                if (startingStateGeneration == getStateGeneration()
-                        && State.STARTING.equals(state) || State.RUNNING.equals(state)) {
-                    if (exit == 0 && State.STARTING.equals(state)) {
+            logger.atInfo().kv("exitCode", exit).log("Startup script exited");
+            State state = getState();
+            if (startingStateGeneration == getStateGeneration()
+                    && State.STARTING.equals(state) || State.RUNNING.equals(state)) {
+                if (exit == 0 && State.STARTING.equals(state)) {
+                    synchronized (this) {
                         reportState(State.RUNNING);
-                    } else if (exit != 0) {
+                    }
+                } else if (exit != 0) {
+                    synchronized (this) {
                         serviceErrored("Non-zero exit code in startup");
                     }
                 }
@@ -238,9 +240,9 @@ public class GenericExternalService extends GreengrassService {
         Pair<RunStatus, Exec> result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
-            synchronized (this) {
-                logger.atInfo().kv("exitCode", exit).log("Run script exited");
-                if (startingStateGeneration == getStateGeneration() && currentOrReportedStateIs(State.RUNNING)) {
+            logger.atInfo().kv("exitCode", exit).log("Run script exited");
+            if (startingStateGeneration == getStateGeneration() && currentOrReportedStateIs(State.RUNNING)) {
+                synchronized (this) {
                     if (exit == 0) {
                         logger.atInfo().setEventType("generic-service-stopping").log("Service finished running");
                         this.requestStop();

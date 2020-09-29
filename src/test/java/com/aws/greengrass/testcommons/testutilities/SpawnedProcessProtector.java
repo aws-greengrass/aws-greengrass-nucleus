@@ -68,7 +68,7 @@ public class SpawnedProcessProtector implements AfterAllCallback, AfterEachCallb
         }
         String[] cmd = {"pgrep", "-P", String.valueOf(PidUtil.getMyPid())};
         Process proc = Runtime.getRuntime().exec(cmd);
-        assertTrue(proc.waitFor(5, TimeUnit.SECONDS), "Able to run pgrep and find child processes");
+        assertTrue(proc.waitFor(20, TimeUnit.SECONDS), "Able to run pgrep and find child processes");
 
         try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
             return br.lines().collect(Collectors.toList());

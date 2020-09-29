@@ -50,7 +50,7 @@ class ExecTest {
                 .withErr(str -> stderrMessages.add(str.toString()))
                 .background(exc -> done.countDown());
         // Wait for 1 second for command to finish
-        assertTrue(done.await(1, TimeUnit.SECONDS));
+        assertTrue(done.await(2, TimeUnit.SECONDS));
         assertEquals(0, stderrMessages.size());
         assertEquals(1, stdoutMessages.size());
         assertTrue(stdoutMessages.get(0).startsWith("hello"));
@@ -80,12 +80,12 @@ class ExecTest {
         String command = "echo " + expectedOutput;
         StringBuilder stdout = new StringBuilder();
         StringBuilder stderr = new StringBuilder();
-        Consumer<CharSequence> stdoutConsumer = stdout::append;
-        Consumer<CharSequence> stderrConsumer = stderr::append;
+        Consumer<String> stdoutConsumer = stdout::append;
+        Consumer<String> stderrConsumer = stderr::append;
         exec.withShell(command).withOut(stdoutConsumer).withErr(stderrConsumer);
         assertTrue(exec.successful(false));
         // new line for shell
-        assertEquals(expectedOutput.length() + System.lineSeparator().length(), stdout.length());
+        assertEquals(expectedOutput.length(), stdout.length());
         assertEquals(0, stderr.length());
 
         // reinit consumers
@@ -97,8 +97,7 @@ class ExecTest {
         assertFalse(exec.successful(false));
         assertEquals(0, stdout.length());
         // new line for shell and 1 more for windows because it actually includes the trailing space before the 1>&2
-        assertEquals(expectedOutput.length() + System.lineSeparator().length() + (Exec.isWindows ? 1 : 0),
-                stderr.length());
+        assertEquals(expectedOutput.length() + (Exec.isWindows ? 1 : 0), stderr.length());
         exec.close();
     }
 
