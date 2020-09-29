@@ -35,6 +35,7 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
     public static final String DEVICE_PARAM_IOT_DATA_ENDPOINT = "iotDataEndpoint";
     public static final String DEVICE_PARAM_IOT_CRED_ENDPOINT = "iotCredEndpoint";
+    public static final String DEVICE_PARAM_IOT_HTTP_PORT = "iotHttpPort";
     public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
@@ -47,6 +48,7 @@ public class DeviceConfiguration {
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
+    private static final int IOT_HTTP_PORT_DEFAULT = 8443;
 
     private final Kernel kernel;
 
@@ -152,6 +154,10 @@ public class DeviceConfiguration {
         return getTopic(DEVICE_PARAM_IOT_CRED_ENDPOINT);
     }
 
+    public Topic getIotHttpPort() {
+        return getTopic(DEVICE_PARAM_IOT_HTTP_PORT, IOT_HTTP_PORT_DEFAULT);
+    }
+
     public Topic getAWSRegion() {
         return getTopic(DEVICE_PARAM_AWS_REGION).addValidator(regionValidator);
     }
@@ -187,12 +193,17 @@ public class DeviceConfiguration {
         String iotDataEndpoint = Coerce.toString(getIotDataEndpoint());
         String iotCredEndpoint = Coerce.toString(getIotCredentialEndpoint());
         String awsRegion = Coerce.toString(getAWSRegion());
+        int iotHttpPort = Coerce.toInt(getIotHttpPort());
         validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, iotDataEndpoint,
-                iotCredEndpoint, awsRegion);
+                iotCredEndpoint, iotHttpPort, awsRegion);
     }
 
     private Topic getTopic(String parameterName) {
         return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, parameterName).dflt("");
+    }
+
+    private Topic getTopic(String parameterName, Object defaultValue) {
+        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, parameterName).dflt(defaultValue);
     }
 
     private Topics getTopics(String parameterName) {
@@ -201,7 +212,7 @@ public class DeviceConfiguration {
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,
                                              String rootCAPath, String iotDataEndpoint, String iotCredEndpoint,
-                                             String awsRegion) throws DeviceConfigurationException {
+                                             int iotHttpPort, String awsRegion) throws DeviceConfigurationException {
         List<String> errors = new ArrayList<>();
         if (Utils.isEmpty(thingName)) {
             errors.add(DEVICE_PARAM_THING_NAME + CANNOT_BE_EMPTY);
@@ -220,6 +231,9 @@ public class DeviceConfiguration {
         }
         if (Utils.isEmpty(iotCredEndpoint)) {
             errors.add(DEVICE_PARAM_IOT_CRED_ENDPOINT + CANNOT_BE_EMPTY);
+        }
+        if (Utils.isEmpty(String.valueOf(iotHttpPort))) {
+            errors.add(DEVICE_PARAM_IOT_HTTP_PORT + CANNOT_BE_EMPTY);
         }
         if (Utils.isEmpty(awsRegion)) {
             errors.add(DEVICE_PARAM_AWS_REGION + CANNOT_BE_EMPTY);
