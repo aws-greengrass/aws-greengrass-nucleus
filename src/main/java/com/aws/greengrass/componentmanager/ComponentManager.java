@@ -21,8 +21,8 @@ import com.aws.greengrass.componentmanager.plugins.GreengrassRepositoryDownloade
 import com.aws.greengrass.componentmanager.plugins.S3Downloader;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.InjectionActions;
-import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
