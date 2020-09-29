@@ -103,8 +103,8 @@ public class ComponentServiceHelper {
 
     // Even though the cloud API signature can take a list of components at the same dependency level to resolve, the
     // algorithm is going through the dependencies node by node, so one time one component got resolved.
-    ComponentContent resolveComponentVersion(String componentName, Semver localCandidateVersion,
-                                             Map<String, Requirement> versionRequirements)
+    ComponentContent resolveComponentVersion(String deploymentConfigurationId, String componentName,
+                                             Semver localCandidateVersion, Map<String, Requirement> versionRequirements)
             throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
 
         // TODO add osVersion and osFlavor once they are supported
@@ -116,25 +116,27 @@ public class ComponentServiceHelper {
                 .withVersion(localCandidateVersion == null ? null : localCandidateVersion.getValue())
                 .withVersionRequirements(versionRequirementsInString);
         ResolveComponentVersionsRequest request = new ResolveComponentVersionsRequest().withPlatform(platform)
-                .withComponentCandidates(Collections.singletonList(candidate));
+                .withComponentCandidates(Collections.singletonList(candidate))
+                .withDeploymentConfigurationId(deploymentConfigurationId);
 
         ResolveComponentVersionsResult result;
         try {
             result = evgCmsClient.resolveComponentVersions(request);
         } catch (ResourceNotFoundException e) {
-            logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements).log(
-                    "No available version when resolving component");
-            throw new NoAvailableComponentVersionException(String.format("No applicable version of component %s "
-                    + "found in cloud registry satisfying %s", componentName, versionRequirements), e);
+            logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
+                    .log("No available version when resolving component");
+            throw new NoAvailableComponentVersionException(
+                    String.format("No applicable version of component %s " + "found in cloud registry satisfying %s",
+                            componentName, versionRequirements), e);
         } catch (AmazonClientException e) {
-            logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements).log(
-                    "Server error when resolving component");
-            throw new ComponentVersionNegotiationException(String.format("Component service error when resolving %s",
-                    componentName), e);
+            logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
+                    .log("Server error when resolving component");
+            throw new ComponentVersionNegotiationException(
+                    String.format("Component service error when resolving %s", componentName), e);
         }
 
-        Validate.isTrue(result.getComponents() != null && result.getComponents().size() == 1, "Component service "
-                + "invalid response, it should contain resolved component version");
+        Validate.isTrue(result.getComponents() != null && result.getComponents().size() == 1,
+                "Component service " + "invalid response, it should contain resolved component version");
         return result.getComponents().get(0);
     }
 

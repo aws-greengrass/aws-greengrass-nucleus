@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -103,24 +104,27 @@ class DependencyResolverTest {
         dependenciesA_1_x.put(componentB2, ">1.0");
         ComponentMetadata componentA_1_0_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentA, v1_0_0), dependenciesA_1_x);
-        when(componentManager.resolveComponentVersion(eq(componentA), any())).thenReturn(componentA_1_0_0);
+        when(componentManager.resolveComponentVersion(eq(componentA), any(), anyString())).thenReturn(componentA_1_0_0);
 
         // prepare B1
         Map<String, String> dependenciesB1_1_x = new HashMap<>();
         dependenciesB1_1_x.put(componentC1, "1.0.0");
         ComponentMetadata componentB1_1_0_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentB1, v1_0_0), dependenciesB1_1_x);
-        when(componentManager.resolveComponentVersion(eq(componentB1), any())).thenReturn(componentB1_1_0_0);
+        when(componentManager.resolveComponentVersion(eq(componentB1), any(), anyString()))
+                .thenReturn(componentB1_1_0_0);
 
         // prepare B2
         ComponentMetadata componentB2_1_2_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentB2, v1_2_0), Collections.emptyMap());
-        when(componentManager.resolveComponentVersion(eq(componentB2), any())).thenReturn(componentB2_1_2_0);
+        when(componentManager.resolveComponentVersion(eq(componentB2), any(), anyString()))
+                .thenReturn(componentB2_1_2_0);
 
         // prepare C1
         ComponentMetadata componentC1_1_0_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentC1, v1_0_0), Collections.emptyMap());
-        when(componentManager.resolveComponentVersion(eq(componentC1), any())).thenReturn(componentC1_1_0_0);
+        when(componentManager.resolveComponentVersion(eq(componentC1), any(), anyString()))
+                .thenReturn(componentC1_1_0_0);
 
         DeploymentDocument doc = new DeploymentDocument("mockJob1", Collections.singletonList(componentA), Collections
                 .singletonList(
@@ -157,8 +161,7 @@ class DependencyResolverTest {
 
         ComponentMetadata componentA_1_0_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentA, v1_0_0), dependenciesA_1_x);
-        when(componentManager.resolveComponentVersion(eq(componentA), any()))
-                .thenReturn(componentA_1_0_0);
+        when(componentManager.resolveComponentVersion(eq(componentA), any(), anyString())).thenReturn(componentA_1_0_0);
 
         // prepare B1
         Map<String, String> dependenciesB1_1_x = new HashMap<>();
@@ -166,7 +169,7 @@ class DependencyResolverTest {
 
         ComponentMetadata componentB1_1_0_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentB1, v1_0_0), dependenciesB1_1_x);
-        when(componentManager.resolveComponentVersion(eq(componentB1), any()))
+        when(componentManager.resolveComponentVersion(eq(componentB1), any(), anyString()))
                 .thenReturn(componentB1_1_0_0);
 
         // prepare B2
@@ -175,20 +178,22 @@ class DependencyResolverTest {
 
         ComponentMetadata componentB2_1_1_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentB2, v1_1_0), dependenciesB2_1_x);
-        when(componentManager.resolveComponentVersion(eq(componentB2), any()))
+        when(componentManager.resolveComponentVersion(eq(componentB2), any(), anyString()))
                 .thenReturn(componentB2_1_1_0);
 
         // prepare C1
         ComponentMetadata componentC_1_5_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentC1, v1_5_0), Collections.emptyMap());
-        when(componentManager.resolveComponentVersion(eq(componentC1), eq(Collections.singletonMap(componentB1,
-                Requirement.buildNPM(">1.0.0"))))).thenReturn(componentC_1_5_0);
+        when(componentManager.resolveComponentVersion(eq(componentC1),
+                eq(Collections.singletonMap(componentB1, Requirement.buildNPM(">1.0.0"))), anyString()))
+                .thenReturn(componentC_1_5_0);
         ComponentMetadata componentC_1_1_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentC1, v1_1_0), Collections.emptyMap());
-        Map<String,Requirement> versionRequirementMap = new HashMap<>();
+        Map<String, Requirement> versionRequirementMap = new HashMap<>();
         versionRequirementMap.put(componentB1, Requirement.buildNPM(">1.0.0"));
         versionRequirementMap.put(componentB2, Requirement.buildNPM("<=1.1.0"));
-        when(componentManager.resolveComponentVersion(eq(componentC1), eq(versionRequirementMap))).thenReturn(componentC_1_1_0);
+        when(componentManager.resolveComponentVersion(eq(componentC1), eq(versionRequirementMap), anyString()))
+                .thenReturn(componentC_1_1_0);
 
         // top-level package order: A, B2
         DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(componentA, componentB2),
@@ -200,8 +205,7 @@ class DependencyResolverTest {
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentB2)
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
-        context.runOnPublishQueueAndWait(
-                () -> System.out.println("Waiting for queue to finish updating the config"));
+        context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
         List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics);
 
         assertThat(result.size(), is(4));
@@ -210,8 +214,9 @@ class DependencyResolverTest {
                 new ComponentIdentifier(componentC1, v1_1_0)));
         ArgumentCaptor<String> componentNameCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Map<String, Requirement>> versionRequirementsCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(componentManager, times(5)).resolveComponentVersion(componentNameCaptor.capture(),
-                versionRequirementsCaptor.capture());
+        verify(componentManager, times(5))
+                .resolveComponentVersion(componentNameCaptor.capture(), versionRequirementsCaptor.capture(),
+                        eq("mockJob1"));
         List<String> componentNameList = componentNameCaptor.getAllValues();
         assertThat(componentNameList, contains("A", "B1", "C1", "B2", "C1"));
         List<Map<String, Requirement>> versionRequirementsList = versionRequirementsCaptor.getAllValues();
@@ -243,8 +248,7 @@ class DependencyResolverTest {
 
         ComponentMetadata componentA_1_0_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentA, v1_0_0), dependenciesA_1_x);
-        when(componentManager.resolveComponentVersion(eq(componentA), any()))
-                .thenReturn(componentA_1_0_0);
+        when(componentManager.resolveComponentVersion(eq(componentA), any(), anyString())).thenReturn(componentA_1_0_0);
 
         // prepare B1
         Map<String, String> dependenciesB1_1_x = new HashMap<>();
@@ -252,7 +256,7 @@ class DependencyResolverTest {
 
         ComponentMetadata componentB1_1_0_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentB1, v1_0_0), dependenciesB1_1_x);
-        when(componentManager.resolveComponentVersion(eq(componentB1), any()))
+        when(componentManager.resolveComponentVersion(eq(componentB1), any(), anyString()))
                 .thenReturn(componentB1_1_0_0);
 
         // prepare B2
@@ -261,19 +265,20 @@ class DependencyResolverTest {
 
         ComponentMetadata componentB2_1_1_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentB2, v1_1_0), dependenciesB2_1_x);
-        when(componentManager.resolveComponentVersion(eq(componentB2), any()))
+        when(componentManager.resolveComponentVersion(eq(componentB2), any(), anyString()))
                 .thenReturn(componentB2_1_1_0);
 
         // prepare C1
         ComponentMetadata componentC_1_1_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentC1, v1_1_0), Collections.emptyMap());
-        when(componentManager.resolveComponentVersion(eq(componentC1), eq(Collections.singletonMap(componentB1,
-                Requirement.buildNPM("<=1.1.0"))))).thenReturn(componentC_1_1_0);
-        Map<String,Requirement> versionRequirements = new HashMap<>();
+        when(componentManager.resolveComponentVersion(eq(componentC1),
+                eq(Collections.singletonMap(componentB1, Requirement.buildNPM("<=1.1.0"))), anyString()))
+                .thenReturn(componentC_1_1_0);
+        Map<String, Requirement> versionRequirements = new HashMap<>();
         versionRequirements.put(componentB1, Requirement.buildNPM("<=1.1.0"));
         versionRequirements.put(componentB2, Requirement.buildNPM(">=1.2.0"));
-        when(componentManager.resolveComponentVersion(eq(componentC1), eq(versionRequirements))).thenThrow(
-                NoAvailableComponentVersionException.class);
+        when(componentManager.resolveComponentVersion(eq(componentC1), eq(versionRequirements), anyString()))
+                .thenThrow(NoAvailableComponentVersionException.class);
 
         // top-level package order: A, B2
         DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(componentA, componentB2),
@@ -285,14 +290,14 @@ class DependencyResolverTest {
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentB2)
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
-        context.runOnPublishQueueAndWait(
-                () -> System.out.println("Waiting for queue to finish updating the config"));
-        assertThrows(NoAvailableComponentVersionException.class, () -> dependencyResolver.resolveDependencies(doc,
-                groupToTargetComponentsTopics));
+        context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
+        assertThrows(NoAvailableComponentVersionException.class,
+                () -> dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics));
     }
 
     @Test
-    void GIVEN_other_group_have_same_dependency_WHEN_deploy_current_group_THEN_resolve_dependency_version() throws Exception {
+    void GIVEN_other_group_have_same_dependency_WHEN_deploy_current_group_THEN_resolve_dependency_version()
+            throws Exception {
         /*
          *             group1            group2
          *    (1.0.0)/      \(1.1.0)      / (2.0.0)
@@ -309,8 +314,7 @@ class DependencyResolverTest {
 
         ComponentMetadata componentA_1_0_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentA, v1_0_0), dependenciesA_1_x);
-        when(componentManager.resolveComponentVersion(eq(componentA), any()))
-                .thenReturn(componentA_1_0_0);
+        when(componentManager.resolveComponentVersion(eq(componentA), any(), anyString())).thenReturn(componentA_1_0_0);
 
         // prepare B1
         Map<String, String> dependenciesB1_1_x = new HashMap<>();
@@ -318,7 +322,7 @@ class DependencyResolverTest {
 
         ComponentMetadata componentB1_1_0_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentB1, v1_0_0), dependenciesB1_1_x);
-        when(componentManager.resolveComponentVersion(eq(componentB1), any()))
+        when(componentManager.resolveComponentVersion(eq(componentB1), any(), anyString()))
                 .thenReturn(componentB1_1_0_0);
 
         // prepare B2
@@ -327,16 +331,18 @@ class DependencyResolverTest {
 
         ComponentMetadata componentB2_1_1_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentB2, v1_1_0), dependenciesB2_1_x);
-        when(componentManager.resolveComponentVersion(eq(componentB2), any()))
+        when(componentManager.resolveComponentVersion(eq(componentB2), any(), anyString()))
                 .thenReturn(componentB2_1_1_0);
 
         // prepare C1
         ComponentMetadata componentC_1_2_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentC1, v1_2_0), Collections.emptyMap());
-        when(componentManager.resolveComponentVersion(eq(componentC1), any())).thenReturn(componentC_1_2_0);
+        when(componentManager.resolveComponentVersion(eq(componentC1), any(), anyString()))
+                .thenReturn(componentC_1_2_0);
         ComponentMetadata componentC_1_1_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentC1, v1_1_0), Collections.emptyMap());
-        when(componentManager.getActiveAndSatisfiedComponentMetadata(eq(componentC1), any())).thenReturn(componentC_1_1_0);
+        when(componentManager.getActiveAndSatisfiedComponentMetadata(eq(componentC1), any()))
+                .thenReturn(componentC_1_1_0);
 
         // prepare X
         Map<String, String> dependenciesX_2_x = new HashMap<>();
@@ -344,7 +350,8 @@ class DependencyResolverTest {
 
         ComponentMetadata componentX_2_0_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentX, v2_0_0), dependenciesX_2_x);
-        when(componentManager.getActiveAndSatisfiedComponentMetadata(eq(componentX), any())).thenReturn(componentX_2_0_0);
+        when(componentManager.getActiveAndSatisfiedComponentMetadata(eq(componentX), any()))
+                .thenReturn(componentX_2_0_0);
 
 
         // top-level package order: A, B2
@@ -359,8 +366,7 @@ class DependencyResolverTest {
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
         groupToTargetComponentsTopics.lookupTopics("mockGroup2").lookupTopics(componentX)
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "2.0.0"));
-        context.runOnPublishQueueAndWait(
-                () -> System.out.println("Waiting for queue to finish updating the config"));
+        context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
 
         List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics);
 
@@ -370,8 +376,9 @@ class DependencyResolverTest {
                 new ComponentIdentifier(componentC1, v1_2_0), new ComponentIdentifier(componentX, v2_0_0)));
         ArgumentCaptor<String> componentNameCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Map<String, Requirement>> versionRequirementsCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(componentManager, times(5)).resolveComponentVersion(componentNameCaptor.capture(),
-                versionRequirementsCaptor.capture());
+        verify(componentManager, times(5))
+                .resolveComponentVersion(componentNameCaptor.capture(), versionRequirementsCaptor.capture(),
+                        eq("mockJob1"));
         List<String> componentNameList = componentNameCaptor.getAllValues();
         assertThat(componentNameList, contains("A", "B1", "C1", "B2", "C1"));
         List<Map<String, Requirement>> versionRequirementsList = versionRequirementsCaptor.getAllValues();

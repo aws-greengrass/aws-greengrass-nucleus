@@ -93,6 +93,8 @@ class ComponentManagerTest {
     private static final Semver ACTIVE_VERSION = new Semver(ACTIVE_VERSION_STR);
     private static final String SCOPE = "private";
 
+    private static final String DEPLOYMENT_CONFIGURATION_ID = "deploymentConfigurationId";
+
     private static final Semver v1_2_0 = new Semver("1.2.0");
     private static final Semver v1_0_0 = new Semver("1.0.0");
     private static final String componentA = "A";
@@ -447,11 +449,13 @@ class ComponentManagerTest {
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_2_0_md);
 
         ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("LOCAL", Requirement.buildNPM("^1.0")));
+                .resolveComponentVersion(componentA, Collections.singletonMap("LOCAL", Requirement.buildNPM("^1.0")),
+                        DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentMetadata, is(componentA_1_2_0_md));
         verify(componentStore).findBestMatchAvailableComponent(componentA, Requirement.buildNPM("^1.0"));
         verify(componentStore).getPackageMetadata(componentA_1_2_0);
+        verify(packageServiceHelper, never()).resolveComponentVersion(anyString(), anyString(), any(), any());
     }
 
     @Test
@@ -470,15 +474,17 @@ class ComponentManagerTest {
 
         ComponentContent componentContent = new ComponentContent().withName(componentA).withVersion(v1_0_0.getValue())
                 .withRecipe(ByteBuffer.wrap("new recipe".getBytes(Charsets.UTF_8)));
-        when(packageServiceHelper.resolveComponentVersion(any(), any(), any())).thenReturn(componentContent);
+        when(packageServiceHelper.resolveComponentVersion(anyString(), anyString(), any(), any()))
+                .thenReturn(componentContent);
         when(componentStore.findComponentRecipeContent(any())).thenReturn(Optional.of("old recipe"));
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
 
         ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
+                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
+                        DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
-        verify(packageServiceHelper).resolveComponentVersion(componentA, v1_0_0,
+        verify(packageServiceHelper).resolveComponentVersion(DEPLOYMENT_CONFIGURATION_ID, componentA, v1_0_0,
                 Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
         verify(componentStore).findComponentRecipeContent(componentA_1_0_0);
         verify(componentStore).savePackageRecipe(componentA_1_0_0, "new recipe");
@@ -501,12 +507,13 @@ class ComponentManagerTest {
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());
         when(mockService.isBuiltin()).thenReturn(true);
 
-        when(packageServiceHelper.resolveComponentVersion(any(), any(), any())).thenThrow(
-                ComponentVersionNegotiationException.class);
+        when(packageServiceHelper.resolveComponentVersion(anyString(), anyString(), any(), any()))
+                .thenThrow(ComponentVersionNegotiationException.class);
         when(componentStore.getPackageMetadata(any())).thenThrow(PackagingException.class);
 
         ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
+                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
+                        DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
         verify(componentStore, never()).findComponentRecipeContent(any());
