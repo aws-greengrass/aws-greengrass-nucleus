@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.converter;
 
+import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
 import com.amazon.aws.iot.greengrass.component.common.PlatformSpecificManifest;
 import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
@@ -18,7 +19,9 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -73,6 +76,13 @@ public final class RecipeLoader {
 
         PlatformSpecificManifest platformSpecificManifest = optionalPlatformSpecificManifest.get();
 
+        // TODO delete after migration of global dependencies
+        Map<String, DependencyProperties> dependencyPropertiesMap = new HashMap<>();
+        if(componentRecipe.getComponentDependencies() != null && !componentRecipe.getComponentDependencies().isEmpty()) {
+            dependencyPropertiesMap.putAll(componentRecipe.getComponentDependencies());
+        } else {
+            dependencyPropertiesMap.putAll(platformSpecificManifest.getDependencies());
+        }
 
         ComponentRecipe packageRecipe = ComponentRecipe.builder()
                                                    .componentName(componentRecipe.getComponentName())
@@ -80,7 +90,7 @@ public final class RecipeLoader {
                                                    .publisher(componentRecipe.getComponentPublisher())
                                                    .recipeTemplateVersion(componentRecipe.getRecipeFormatVersion())
                                                    .componentType(componentRecipe.getComponentType())
-                                                   .dependencies(platformSpecificManifest.getDependencies())
+                                                   .dependencies(dependencyPropertiesMap)
                                                    .lifecycle(platformSpecificManifest.getLifecycle())
                                                    .artifacts(convertArtifactsFromFile(
                                                            platformSpecificManifest.getArtifacts()))
