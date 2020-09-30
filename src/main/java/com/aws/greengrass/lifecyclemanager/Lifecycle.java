@@ -288,7 +288,7 @@ public class Lifecycle {
 
             switch (current) {
                 case BROKEN:
-                    handleCurrentStateBroken(desiredState);
+                    handleCurrentStateBroken(desiredState, prevState);
                     break;
                 case NEW:
                     handleCurrentStateNew(desiredState);
@@ -368,7 +368,40 @@ public class Lifecycle {
         }
     }
 
-    private void handleCurrentStateBroken(Optional<State> desiredState) {
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    private void handleCurrentStateBroken(Optional<State> desiredState, State previousState)
+            throws InterruptedException {
+        switch (previousState) {
+            case STARTING:
+            case RUNNING:
+            case ERRORED: // shouldn't happen. Try to stop the service anyways.
+                logger.atInfo("Stopping service in BROKEN state");
+                Future<?> shutdownFuture = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
+                    try {
+                        greengrassService.shutdown();
+                    } catch (InterruptedException i) {
+                        logger.atWarn("service-shutdown-interrupted").log("Service interrupted while running shutdown");
+                    } catch (Throwable i) {
+                        logger.atError("service-shutdown-error").setCause(i).log();
+                    }
+                });
+
+                try {
+                    Integer timeout = getTimeoutConfigValue(
+                            LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC);
+                    shutdownFuture.get(timeout, TimeUnit.SECONDS);
+                } catch (ExecutionException e) {
+                    logger.atError("service-shutdown-error").setCause(e).log();
+                } catch (TimeoutException te) {
+                    logger.atWarn("service-shutdown-timeout").log();
+                    shutdownFuture.cancel(true);
+                } finally {
+                    stopBackingTask();
+                }
+                break;
+            default:
+                // do nothing
+        }
         if (!desiredState.isPresent()) {
             return;
         }
