@@ -9,7 +9,6 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
-import com.aws.greengrass.telemetry.MetricsAggregator;
 import com.aws.greengrass.telemetry.MetricsPayload;
 import com.aws.greengrass.telemetry.TelemetryAgent;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
@@ -44,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
+import static org.mockito.internal.verification.VerificationModeFactory.atLeast;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class TelemetryAgentTest extends BaseITCase {
@@ -106,23 +106,25 @@ class TelemetryAgentTest extends BaseITCase {
         // telemetry logs are always written to ~root/telemetry
         assertEquals(kernel.getRootPath().resolve("telemetry"), TelemetryConfig.getTelemetryDirectory());
         // THEN
-        verify(mqttClient, atLeastOnce()).publish(captor.capture());
-        List<PublishRequest> prs = captor.getAllValues();
-        for (PublishRequest pr : prs) {
-            try {
-                MetricsPayload mp = new ObjectMapper().readValue(pr.getPayload(), MetricsPayload.class);
-                int count = (int) (delay / aggregateInterval + 1) * MetricsAggregator.getNamespaceSet().size();
-                // > is in the cases where delay < aggregate interval
-                assertTrue(count >= mp.getAggregatedNamespaceData().size());
-                assertEquals(QualityOfService.AT_LEAST_ONCE, pr.getQos());
-                assertEquals(DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", ""), pr.getTopic());
-                assertEquals("2020-07-30", mp.getSchema());
-                // enough to verify the first message of type MetricsPayload
-                break;
-            } catch (IOException e) {
-                fail("The message received at this topic is not of MetricsPayload type.", e);
+        if(delay < aggregateInterval) {
+            verify(mqttClient, atLeast(0)).publish(captor.capture());
+        } else {
+            verify(mqttClient, atLeastOnce()).publish(captor.capture());
+            List<PublishRequest> prs = captor.getAllValues();
+            for (PublishRequest pr : prs) {
+                try {
+                    MetricsPayload mp = new ObjectMapper().readValue(pr.getPayload(), MetricsPayload.class);
+                    assertEquals(QualityOfService.AT_LEAST_ONCE, pr.getQos());
+                    assertEquals(DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", ""), pr.getTopic());
+                    assertEquals("2020-07-30", mp.getSchema());
+                    // enough to verify the first message of type MetricsPayload
+                    break;
+                } catch (IOException e) {
+                    fail("The message received at this topic is not of MetricsPayload type.", e);
+                }
             }
         }
+
     }
 }
 
