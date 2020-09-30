@@ -11,9 +11,8 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.SerializerFactory;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Data;
 import lombok.Getter;
@@ -48,10 +47,6 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEP
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 
 public class ShadowDeploymentListener implements InjectionActions {
-
-    protected static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private static final long TIMEOUT_FOR_SUBSCRIBING_TO_TOPICS_SECONDS = Duration.ofMinutes(1).getSeconds();
     private static final long TIMEOUT_FOR_PUBLISHING_TO_TOPICS_SECONDS = Duration.ofMinutes(1).getSeconds();
@@ -212,7 +207,8 @@ public class ShadowDeploymentListener implements InjectionActions {
             logger.debug("Empty desired state, no device deployments created yet");
             return;
         }
-        FleetConfiguration fleetConfiguration = OBJECT_MAPPER.convertValue(configuration, FleetConfiguration.class);
+        FleetConfiguration fleetConfiguration = SerializerFactory.getJsonObjectMapper()
+                .convertValue(configuration, FleetConfiguration.class);
         synchronized (ShadowDeploymentListener.class) {
             if (lastVersion != null && lastVersion > version) {
                 logger.atInfo().kv("CONFIGURATION_ARN", fleetConfiguration.getConfigurationArn())

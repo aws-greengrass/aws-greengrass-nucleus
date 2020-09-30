@@ -30,7 +30,6 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
-import com.aws.greengrass.mqttclient.SubscribeRequest;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.hamcrest.core.StringContains;
@@ -46,19 +45,16 @@ import software.amazon.awssdk.iot.iotshadow.IotShadowClient;
 import software.amazon.awssdk.iot.iotshadow.model.GetShadowRequest;
 import software.amazon.awssdk.iot.iotshadow.model.GetShadowSubscriptionRequest;
 import software.amazon.awssdk.iot.iotshadow.model.UpdateShadowSubscriptionRequest;
-import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
-import static com.aws.greengrass.status.FleetStatusService.DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
