@@ -25,6 +25,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.net.URI;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
@@ -43,7 +45,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class TokenExchangeServiceTest extends GGServiceTestUtil {
     private static final String MOCK_ROLE_ALIAS = "ROLE_ALIAS";
-
+    ExecutorService executorService = Executors.newFixedThreadPool(1);
     @Mock
     AuthorizationHandler mockAuthZHandler;
 
@@ -91,7 +93,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
 
         TokenExchangeService tes = new TokenExchangeService(config,
                 mockCredentialHandler,
-                mockAuthZHandler);
+                mockAuthZHandler,
+                executorService);
         tes.postInject();
         tes.startup();
         Thread.sleep(5000L);
@@ -146,7 +149,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
-                mockAuthZHandler));
+                mockAuthZHandler,
+                executorService));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
         tes.startup();
@@ -179,7 +183,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
-                mockAuthZHandler));
+                mockAuthZHandler,
+                executorService));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
         tes.postInject();

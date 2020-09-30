@@ -19,6 +19,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -35,7 +36,7 @@ class HttpServerImplTest {
     private HttpServerImpl startServer(int port) {
         HttpServerImpl server = null;
         try {
-            server = new HttpServerImpl(port, mockHttpHandler);
+            server = new HttpServerImpl(port, mockHttpHandler, Executors.newFixedThreadPool(1));
             server.start();
         } catch (IOException e) {
             fail("Could not start the server: {}", e);
