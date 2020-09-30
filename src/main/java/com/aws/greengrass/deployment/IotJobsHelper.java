@@ -58,7 +58,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -136,9 +135,6 @@ public class IotJobsHelper implements InjectionActions {
     @Named(DEPLOYMENTS_QUEUE)
     private LinkedBlockingQueue<Deployment> deploymentsQueue;
 
-    private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
-    private final AtomicBoolean postInjectInProgress = new AtomicBoolean(false);
-
     @Setter // For tests
     private IotJobsClient iotJobsClient;
     private MqttClientConnection connection;
@@ -193,7 +189,7 @@ public class IotJobsHelper implements InjectionActions {
 
         logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).kv(STATUS_LOG_KEY_NAME, jobExecutionData.status)
                 .kv("queueAt", jobExecutionData.queuedAt).log("Received Iot job description");
-        if (!latestQueuedJobs.addIfAbsent(jobExecutionData.queuedAt.toInstant(), jobExecutionData.jobId)) {
+        if (!latestQueuedJobs.addNewJobIfAbsent(jobExecutionData.queuedAt.toInstant(), jobExecutionData.jobId)) {
             logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId)
                     .log("Duplicate or outdated job notification. Ignoring.");
             return;
@@ -383,6 +379,7 @@ public class IotJobsHelper implements InjectionActions {
         try {
             gotResponse.get(TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS, TimeUnit.SECONDS);
         } finally {
+            latestQueuedJobs.addCompletedJob(jobId);
             // Either got response, or timed out, so unsubscribe from the job topics now
             String rejectTopicForJobId =
                     UPDATE_SPECIFIC_JOB_REJECTED_TOPIC.replace("{thingName}", thingName).replace("{jobId}", jobId);
@@ -576,6 +573,8 @@ public class IotJobsHelper implements InjectionActions {
     private static class LatestQueuedJobs {
         private Instant lastQueueAt = Instant.EPOCH;
         private final Set<String> jobIds = new HashSet<>();
+        // Used to track deployment jobs which involve kernel restart, when QueueAt information is not available.
+        private final Set<String> lastCompletedJobIds = new HashSet<>();
 
         /**
          * Track IoT jobs with the latest timestamp.
@@ -584,7 +583,17 @@ public class IotJobsHelper implements InjectionActions {
          * @param jobId IoT job ID
          * @return true if IoT job with the given ID is a new job yet to be processed, false otherwise
          */
-        public synchronized boolean addIfAbsent(Instant queueAt, String jobId) {
+        public synchronized boolean addNewJobIfAbsent(Instant queueAt, String jobId) {
+            if (lastCompletedJobIds.contains(jobId)) {
+                // Duplicate job but now queueAt information is available so track the timestamp in this way.
+                trackLastKnownJobs(queueAt, jobId);
+                lastCompletedJobIds.remove(jobId);
+                return false;
+            }
+            return trackLastKnownJobs(queueAt, jobId);
+        }
+
+        private synchronized boolean trackLastKnownJobs(Instant queueAt, String jobId) {
             if (queueAt.isAfter(lastQueueAt)) {
                 lastQueueAt = queueAt;
                 jobIds.clear();
@@ -596,6 +605,15 @@ public class IotJobsHelper implements InjectionActions {
             }
             jobIds.add(jobId);
             return true;
+        }
+
+        public synchronized void addCompletedJob(String jobId) {
+            if (jobIds.contains(jobId)) {
+                // One IoT jobs is processed at a time. If the job is already tracked, it's sufficient for de-dupe,
+                // so no need to save again.
+                return;
+            }
+            lastCompletedJobIds.add(jobId);
         }
     }
 

@@ -68,7 +68,6 @@ import static org.mockito.Mockito.when;
 class IotJobsHelperTest {
 
     private static final String TEST_THING_NAME = "TEST_THING";
-    private static final String TEST_JOB_ID = "TestJobId";
     private static final String REJECTION_MESSAGE = "Job update rejected";
 
     @Mock
@@ -247,6 +246,8 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_ongoing_job_deployment_with_queued_job_in_cloud_WHEN_cancel_notification_THEN_cancel_current_deployment()
             throws Exception {
+        String TEST_JOB_ID = "jobToBeCancelled";
+
         LinkedBlockingQueue<Deployment> mockDeploymentsQueue = mock(LinkedBlockingQueue.class);
         iotJobsHelper.setDeploymentsQueue(mockDeploymentsQueue);
         when(mockDeploymentsQueue.isEmpty()).thenReturn(true);
@@ -349,6 +350,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_connected_to_iot_WHEN_subscribe_to_jobs_topics_THEN_get_job_description()
             throws Exception {
+        String TEST_JOB_ID = "jobToReceive";
         LinkedBlockingQueue<Deployment> mockDeploymentsQueue = mock(LinkedBlockingQueue.class);
         iotJobsHelper.setDeploymentsQueue(mockDeploymentsQueue);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
@@ -379,11 +381,12 @@ class IotJobsHelperTest {
         Deployment actualDeployment = deploymentArgumentCaptor.getValue();
         assertEquals(TEST_JOB_ID, actualDeployment.getId());
         assertEquals(IOT_JOBS, actualDeployment.getDeploymentType());
-        assertEquals("{\"DeploymentId\":\"TestJobId\"}", actualDeployment.getDeploymentDocument());
+        assertEquals("{\"DeploymentId\":\"jobToReceive\"}", actualDeployment.getDeploymentDocument());
     }
 
     @Test
     void GIVEN_iot_job_notifications_WHEN_duplicate_or_outdated_THEN_ignore_jobs() {
+        String TEST_JOB_ID = "duplicateJob";
         LinkedBlockingQueue<Deployment> mockDeploymentsQueue = mock(LinkedBlockingQueue.class);
         iotJobsHelper.setDeploymentsQueue(mockDeploymentsQueue);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
@@ -426,7 +429,7 @@ class IotJobsHelperTest {
         assertEquals(2, actualDeployments.size());
         assertEquals(TEST_JOB_ID, actualDeployments.get(0).getId());
         assertEquals(IOT_JOBS, actualDeployments.get(0).getDeploymentType());
-        assertEquals("{\"DeploymentId\":\"TestJobId\"}", actualDeployments.get(0).getDeploymentDocument());
+        assertEquals("{\"DeploymentId\":\"duplicateJob\"}", actualDeployments.get(0).getDeploymentDocument());
 
         assertEquals("anyId2", actualDeployments.get(1).getId());
         assertEquals(IOT_JOBS, actualDeployments.get(1).getDeploymentType());
@@ -492,6 +495,8 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_update_jobStatus_successfully()
     throws Exception {
+        String TEST_JOB_ID = "statusUpdateSuccess";
+
         HashMap<String, String> statusDetails = new HashMap<>();
         statusDetails.put("type", "test" );
         CompletableFuture cf = new CompletableFuture();
@@ -531,6 +536,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_update_jobStatus_failed()
             throws Exception {
+        String TEST_JOB_ID = "statusUpdateFailure";
         CompletableFuture cf = new CompletableFuture();
         cf.complete(null);
         ArgumentCaptor<UpdateJobExecutionSubscriptionRequest> requestArgumentCaptor =
