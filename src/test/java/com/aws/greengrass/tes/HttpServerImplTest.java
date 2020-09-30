@@ -19,6 +19,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -29,13 +31,15 @@ import static org.mockito.Mockito.doAnswer;
 class HttpServerImplTest {
     private static final String mockResponse = "Hello World";
 
+    private final ExecutorService executorService = Executors.newFixedThreadPool(1);
+
     @Mock
     private HttpHandler mockHttpHandler;
 
     private HttpServerImpl startServer(int port) {
         HttpServerImpl server = null;
         try {
-            server = new HttpServerImpl(port, mockHttpHandler);
+            server = new HttpServerImpl(port, mockHttpHandler, executorService);
             server.start();
         } catch (IOException e) {
             fail("Could not start the server: {}", e);
@@ -45,6 +49,7 @@ class HttpServerImplTest {
 
     private void stopServer(HttpServerImpl server) {
         server.stop();
+        executorService.shutdown();
     }
 
     @SuppressWarnings("PMD.CloseResource")
