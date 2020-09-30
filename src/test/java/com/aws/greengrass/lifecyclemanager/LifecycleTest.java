@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -521,9 +522,47 @@ class LifecycleTest {
         assertTrue(serviceRestarted.await(500, TimeUnit.MILLISECONDS));
     }
 
+    @Test
+    void GIVEN_service_running_WHEN_service_broken_THEN_service_is_stopped() throws Exception {
+        Topics serviceRoot = new Configuration(context).getRoot()
+                .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC);
+        Topics testServiceTopics = serviceRoot.createInteriorChild("testService");
+        TestService testService = new TestService(testServiceTopics);
+
+        AtomicInteger serviceStartedCount = new AtomicInteger();
+        AtomicInteger serviceStoppedCount = new AtomicInteger();
+        AtomicInteger serviceInterruptedCount = new AtomicInteger();
+        testService.setStartupRunnable(
+                () -> {
+                    try {
+                        serviceStartedCount.incrementAndGet();
+                        testService.reportState(State.ERRORED);
+                        Thread.sleep(2000);
+                    } catch (InterruptedException e) {
+                        serviceInterruptedCount.incrementAndGet();
+                    }
+                }
+        );
+        testService.setShutdownRunnable(() -> serviceStoppedCount.incrementAndGet());
+
+        // init lifecycle
+        testService.postInject();
+        testService.requestStart();
+
+        assertThat(testService::getState, eventuallyEval(is(State.BROKEN)));
+
+        assertThat(serviceStoppedCount::get, eventuallyEval(is(serviceStartedCount.get())));
+        assertThat(serviceInterruptedCount::get, eventuallyEval(is(serviceStartedCount.get())));
+        // assert that service remains in BROKEN state
+        assertEquals(State.BROKEN, testService.getState());
+    }
+
     private class TestService extends GreengrassService {
         @Setter
         private Runnable startupRunnable = () -> {};
+
+        @Setter
+        private Runnable shutdownRunnable = () -> {};
 
         TestService(Topics topics) {
             super(topics);
@@ -532,6 +571,11 @@ class LifecycleTest {
         @Override
         public void startup() {
             startupRunnable.run();
+        }
+
+        @Override
+        public void shutdown() {
+            shutdownRunnable.run();
         }
     }
 }
