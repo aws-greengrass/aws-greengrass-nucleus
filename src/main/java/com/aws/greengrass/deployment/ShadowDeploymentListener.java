@@ -109,9 +109,11 @@ public class ShadowDeploymentListener implements InjectionActions {
         mqttClient.addToCallbackEvents(callbacks);
         deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.SHADOW,
                 this::deploymentStatusChanged, ShadowDeploymentListener.class.getName());
-        subscribeToShadowTopics();
-        // Get the shadow state when kernel starts up by publishing to get topic
-        publishToGetDeviceShadowTopic();
+        executorService.execute(() -> {
+            subscribeToShadowTopics();
+            // Get the shadow state when kernel starts up by publishing to get topic
+            publishToGetDeviceShadowTopic();
+        });
     }
 
 
