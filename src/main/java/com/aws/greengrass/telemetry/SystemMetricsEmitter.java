@@ -19,7 +19,7 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
     public static final Logger logger = LogManager.getLogger(SystemMetricsEmitter.class);
     private static final int MB_CONVERTER = 1024 * 1024;
     private static final int PERCENTAGE_CONVERTER = 100;
-    private static final String NAMESPACE = "SystemMetrics";
+    public static final String NAMESPACE = "SystemMetrics";
     private static final SystemInfo systemInfo = new SystemInfo();
     private static final CentralProcessor cpu = systemInfo.getHardware().getProcessor();
     private final MetricFactory mf = new MetricFactory(NAMESPACE);

@@ -188,10 +188,8 @@ public class TelemetryAgent extends GreengrassService {
         Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap =
                 metricsAggregator.getMetricsToPublish(lastPublish, timestamp);
         getPeriodicPublishTimeTopic().withValue(timestamp);
-        // Publish only if the collected metrics are not empty.
-        if (!metricsToPublishMap.get(timestamp).isEmpty()) {
-            publisher.publish(MetricsPayload.builder().build(), metricsToPublishMap.get(timestamp));
-        }
+        // TODO : Do not publish if the metrics are empty.
+        publisher.publish(MetricsPayload.builder().build(), metricsToPublishMap.get(timestamp));
     }
 
     private Topic getPeriodicPublishTimeTopic() {
