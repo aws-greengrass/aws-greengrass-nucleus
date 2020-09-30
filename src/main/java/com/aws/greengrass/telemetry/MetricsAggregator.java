@@ -108,10 +108,14 @@ public class MetricsAggregator {
             } catch (IOException e) {
                 logger.atError().cause(e).log("Unable to read metric files from the directory");
             }
-            aggMetrics.setNamespace(namespace);
-            aggMetrics.setTimestamp(currTimestamp);
-            aggMetrics.setMetrics(doAggregation(metrics));
-            metricFactory.logMetrics(new TelemetryLoggerMessage(aggMetrics));
+
+            // No aggregation if the metrics are empty
+            if (!metrics.isEmpty()) {
+                aggMetrics.setNamespace(namespace);
+                aggMetrics.setTimestamp(currTimestamp);
+                aggMetrics.setMetrics(doAggregation(metrics));
+                metricFactory.logMetrics(new TelemetryLoggerMessage(aggMetrics));
+            }
         }
     }
 
@@ -165,7 +169,7 @@ public class MetricsAggregator {
      */
     protected Map<Long, List<AggregatedNamespaceData>> getMetricsToPublish(long lastPublish, long currTimestamp) {
         Map<Long, List<AggregatedNamespaceData>> aggUploadMetrics = new HashMap<>();
-        // Read from the Telemetry/AggregatedNamespaceDatas.log file.
+        // Read from the Telemetry/AggregatedMetrics.log file.
         // TODO : Read only those files that are modified after the last publish.
         try (Stream<Path> paths = Files
                 .walk(TelemetryConfig.getTelemetryDirectory())
@@ -212,6 +216,23 @@ public class MetricsAggregator {
             v.addAll(getAggForThePublishInterval(aggUploadMetrics.get(currTimestamp), currTimestamp));
             return v;
         });
+
+        // TODO : Check with PM regarding the aggregation type of v2 metrics. As of now, all the v1 metrics have "Sum"
+        //  aggregation type and so is the cloud validation.
+        // The following code changes any aggregation type of the metrics to "Sum" only in the final result to keep it
+        // compatible with v1 and UATs for now. However, metrics are still defined and aggregated with on their own
+        // aggregation type.
+        aggUploadMetrics.forEach((k, v) -> {
+            v.forEach(nsd -> {
+                nsd.getMetrics().forEach(m -> {
+                    Map<String, Object> value = new HashMap<>();
+                    m.getValue().values().forEach((val) -> {
+                        value.put("Sum", val);
+                        m.setValue(value);
+                    });
+                });
+            });
+        });
         return aggUploadMetrics;
     }
 
@@ -238,7 +259,7 @@ public class MetricsAggregator {
      * @return a list of {@link AggregatedNamespaceData}
      */
     private List<AggregatedNamespaceData> getAggForThePublishInterval(List<AggregatedNamespaceData> aggList,
-                                                                   long currTimestamp) {
+                                                                      long currTimestamp) {
         List<AggregatedNamespaceData> list = new ArrayList<>();
         for (String namespace : getNamespaceSet()) {
             HashMap<String, List<AggregatedMetric>> metrics = new HashMap<>();
@@ -250,10 +271,14 @@ public class MetricsAggregator {
                     }
                 }
             }
-            newAgg.setNamespace(namespace);
-            newAgg.setTimestamp(currTimestamp);
-            newAgg.setMetrics(doAggregationForPublish(metrics));
-            list.add(newAgg);
+            // No accumulation for system metrics.
+            // No aggregation if the metrics are empty.
+            if (!metrics.isEmpty() && !namespace.equals(SystemMetricsEmitter.NAMESPACE)) {
+                newAgg.setNamespace(namespace);
+                newAgg.setTimestamp(currTimestamp);
+                newAgg.setMetrics(doAggregationForPublish(metrics));
+                list.add(newAgg);
+            }
         }
         return list;
     }
