@@ -131,7 +131,7 @@ class ComponentServiceHelperTest {
         when(client.resolveComponentVersions(any())).thenReturn(result);
 
         ComponentContent componentContentReturn =
-                helper.resolveComponentVersion(DEPLOYMENT_CONFIGURATION_ID, COMPONENT_A, v1_0_0, versionRequirements);
+                helper.resolveComponentVersion(COMPONENT_A, v1_0_0, versionRequirements, DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentContentReturn, is(componentContent));
         ArgumentCaptor<ResolveComponentVersionsRequest> requestArgumentCaptor =
@@ -155,8 +155,8 @@ class ComponentServiceHelperTest {
         when(client.resolveComponentVersions(any())).thenThrow(ResourceNotFoundException.class);
 
         Exception exp = assertThrows(NoAvailableComponentVersionException.class, () -> helper
-                .resolveComponentVersion(DEPLOYMENT_CONFIGURATION_ID, COMPONENT_A, v1_0_0,
-                        Collections.singletonMap("X", Requirement.buildNPM("^1.0"))));
+                .resolveComponentVersion(COMPONENT_A, v1_0_0,
+                        Collections.singletonMap("X", Requirement.buildNPM("^1.0")), DEPLOYMENT_CONFIGURATION_ID));
 
         assertThat(exp.getMessage(), containsString("No applicable version of component A"));
     }

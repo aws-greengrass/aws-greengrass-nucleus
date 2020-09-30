@@ -59,7 +59,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PUBLIC_SCOPE;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -456,7 +455,7 @@ class ComponentManagerTest {
         assertThat(componentMetadata, is(componentA_1_2_0_md));
         verify(componentStore).findBestMatchAvailableComponent(componentA, Requirement.buildNPM("^1.0"));
         verify(componentStore).getPackageMetadata(componentA_1_2_0);
-        verify(packageServiceHelper, never()).resolveComponentVersion(anyString(), anyString(), any(), any());
+        verify(packageServiceHelper, never()).resolveComponentVersion(anyString(), any(), any(), anyString());
     }
 
     @Test
@@ -475,7 +474,7 @@ class ComponentManagerTest {
 
         ComponentContent componentContent = new ComponentContent().withName(componentA).withVersion(v1_0_0.getValue())
                 .withRecipe(ByteBuffer.wrap("new recipe".getBytes(Charsets.UTF_8)));
-        when(packageServiceHelper.resolveComponentVersion(anyString(), anyString(), any(), any()))
+        when(packageServiceHelper.resolveComponentVersion(anyString(), any(), any(), anyString()))
                 .thenReturn(componentContent);
         when(componentStore.findComponentRecipeContent(any())).thenReturn(Optional.of("old recipe"));
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
@@ -485,8 +484,8 @@ class ComponentManagerTest {
                         DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
-        verify(packageServiceHelper).resolveComponentVersion(DEPLOYMENT_CONFIGURATION_ID, componentA, v1_0_0,
-                Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
+        verify(packageServiceHelper).resolveComponentVersion(componentA, v1_0_0,
+                Collections.singletonMap("X", Requirement.buildNPM("^1.0")), DEPLOYMENT_CONFIGURATION_ID);
         verify(componentStore).findComponentRecipeContent(componentA_1_0_0);
         verify(componentStore).savePackageRecipe(componentA_1_0_0, "new recipe");
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
@@ -495,7 +494,7 @@ class ComponentManagerTest {
     @Test
     void GIVEN_component_is_builtin_service_WHEN_cloud_service_exception_THEN_resolve_to_local_version()
             throws Exception {
-        ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0, PUBLIC_SCOPE);
+        ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
         ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
 
         Topics serviceConfigTopics = mock(Topics.class);
@@ -508,7 +507,7 @@ class ComponentManagerTest {
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());
         when(mockService.isBuiltin()).thenReturn(true);
 
-        when(packageServiceHelper.resolveComponentVersion(anyString(), anyString(), any(), any()))
+        when(packageServiceHelper.resolveComponentVersion(anyString(), any(), any(), anyString()))
                 .thenThrow(ComponentVersionNegotiationException.class);
         when(componentStore.getPackageMetadata(any())).thenThrow(PackagingException.class);
 

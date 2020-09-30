@@ -103,8 +103,9 @@ public class ComponentServiceHelper {
 
     // Even though the cloud API signature can take a list of components at the same dependency level to resolve, the
     // algorithm is going through the dependencies node by node, so one time one component got resolved.
-    ComponentContent resolveComponentVersion(String deploymentConfigurationId, String componentName,
-                                             Semver localCandidateVersion, Map<String, Requirement> versionRequirements)
+    ComponentContent resolveComponentVersion(String componentName, Semver localCandidateVersion,
+                                             Map<String, Requirement> versionRequirements,
+                                             String deploymentConfigurationId)
             throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
 
         // TODO add osVersion and osFlavor once they are supported

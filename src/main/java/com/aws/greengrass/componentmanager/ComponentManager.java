@@ -51,7 +51,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PUBLIC_SCOPE;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
 
 public class ComponentManager implements InjectionActions {
@@ -179,8 +178,9 @@ public class ComponentManager implements InjectionActions {
         ComponentContent componentContent;
 
         try {
-            componentContent = componentServiceHelper.resolveComponentVersion(deploymentConfigurationId, componentName,
-                    localCandidate == null ? null : localCandidate.getVersion(), versionRequirements);
+            componentContent = componentServiceHelper
+                    .resolveComponentVersion(componentName, localCandidate == null ? null : localCandidate.getVersion(),
+                            versionRequirements, deploymentConfigurationId);
         } catch (ComponentVersionNegotiationException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirement", versionRequirements)
                     .kv("localVersion", localCandidate).log("Can't negotiate version with cloud, use local version", e);
@@ -467,7 +467,7 @@ public class ComponentManager implements InjectionActions {
             Map<String, String> deps = new HashMap<>();
             service.forAllDependencies(d -> deps.put(d.getServiceName(), ANY_VERSION));
 
-            return new ComponentMetadata(new ComponentIdentifier(packageName, activeVersion, PUBLIC_SCOPE), deps);
+            return new ComponentMetadata(new ComponentIdentifier(packageName, activeVersion), deps);
         } catch (ServiceLoadException e) {
             return null;
         }
