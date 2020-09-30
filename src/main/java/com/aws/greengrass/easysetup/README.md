@@ -22,7 +22,7 @@ OPTIONS
 --thing-name, -tn               Desired thing name to register the device with in AWS IoT cloud
 --thing-group-name, -tgn        Desired thing group to add the IoT Thing into
 --policy-name, -pn              Desired name for IoT thing policy
-—tes-role-name, -trn            Name of the IAM role to use for TokenExchangeService for the device to talk
+—-tes-role-name, -trn            Name of the IAM role to use for TokenExchangeService for the device to talk
                                 to AWS services, if the role does not exist then it will be created in your AWS account
 --tes-role-policy-name, -trpn   Name of the IAM policy to create and attach to the TES role
 --tes-role-policy-doc, -trpd    JSON policy document for the IAM policy to create and attach to the TES role
