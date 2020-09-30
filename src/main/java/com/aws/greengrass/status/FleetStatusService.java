@@ -13,7 +13,8 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.deployment.model.Deployment.DeploymentType;
+import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
@@ -42,10 +43,14 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_CONFIGURATION_ARN;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCAL;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.SHADOW;
 import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
 
 @ImplementsService(name = FleetStatusService.FLEET_STATUS_SERVICE_TOPICS, autostart = true, version = "1.0.0")
@@ -140,7 +145,9 @@ public class FleetStatusService extends GreengrassService {
 
         this.deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS,
                 this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
-        this.deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.LOCAL,
+        this.deploymentStatusKeeper.registerDeploymentStatusConsumer(LOCAL,
+                this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
+        this.deploymentStatusKeeper.registerDeploymentStatusConsumer(SHADOW,
                 this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
         schedulePeriodicFleetStatusDataUpdate(false);
 
@@ -223,7 +230,7 @@ public class FleetStatusService extends GreengrassService {
     }
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
-        Deployment.DeploymentType type = Coerce.toEnum(Deployment.DeploymentType.class, deploymentDetails
+        DeploymentType type = Coerce.toEnum(DeploymentType.class, deploymentDetails
                 .get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE));
         if (type == IOT_JOBS) {
             String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
@@ -233,6 +240,16 @@ public class FleetStatusService extends GreengrassService {
             }
             logger.atDebug().log("Updating Fleet Status service for deployment job with ID: {}",
                     deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID));
+            isDeploymentInProgress.set(false);
+            updateEventTriggeredFleetStatusData();
+        } else if (type == SHADOW) {
+            String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS).toString();
+            if (DeploymentStatus.IN_PROGRESS.toString().equals(status)) {
+                isDeploymentInProgress.set(true);
+                return true;
+            }
+            logger.atDebug().log("Updating Fleet Status service for shadow deployment with Configuration: {}",
+                    deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_CONFIGURATION_ARN));
             isDeploymentInProgress.set(false);
             updateEventTriggeredFleetStatusData();
         }

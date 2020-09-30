@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Data;
 import lombok.Getter;
+import lombok.Setter;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
@@ -40,9 +41,9 @@ import javax.inject.Inject;
 import javax.inject.Named;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_CONFIGURATION_ARN;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEVICE_DEPLOYMENT_ARN;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 
@@ -70,6 +71,8 @@ public class ShadowDeploymentListener implements InjectionActions {
     private ExecutorService executorService;
     @Inject
     private DeviceConfiguration deviceConfiguration;
+
+    @Setter
     private IotShadowClient iotShadowClient;
     private String thingName;
     @Getter
@@ -168,19 +171,17 @@ public class ShadowDeploymentListener implements InjectionActions {
     }
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
-        //TODO: publish status via FSS
         DeploymentStatus status = DeploymentStatus.valueOf((String)
-                deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS));
+                deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS));
 
         String configurationArn = (String)
-                deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEVICE_DEPLOYMENT_ARN);
+                deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_CONFIGURATION_ARN);
         Pair<Integer, Map<String, Object>> configurationCountPair = configArnToDesiredStateMap.get(configurationArn);
         // only update reported state when the deployment succeeds.
         if (DeploymentStatus.SUCCEEDED.equals(status)) {
             try {
                 ShadowState shadowState = new ShadowState();
                 shadowState.reported = new HashMap<>(configurationCountPair.getRight());
-
                 UpdateShadowRequest updateShadowRequest = new UpdateShadowRequest();
                 updateShadowRequest.thingName = thingName;
                 updateShadowRequest.state = shadowState;
@@ -249,9 +250,9 @@ public class ShadowDeploymentListener implements InjectionActions {
     @SuppressWarnings("UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
     @SuppressFBWarnings
     public static class DeviceDeploymentDetails {
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_DEVICE_DEPLOYMENT_ARN)
+        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_CONFIGURATION_ARN)
         private String configurationArn;
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS)
+        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS)
         private DeploymentStatus status;
         @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS)
         private Map<String, String> statusDetails;
@@ -264,8 +265,8 @@ public class ShadowDeploymentListener implements InjectionActions {
          */
         public Map<String, Object> convertToMapOfObjects() {
             Map<String, Object> deploymentDetails = new HashMap<>();
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEVICE_DEPLOYMENT_ARN, configurationArn);
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, status.toString());
+            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_CONFIGURATION_ARN, configurationArn);
+            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS, status.toString());
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS, statusDetails);
             deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, deploymentType.toString());
             return deploymentDetails;

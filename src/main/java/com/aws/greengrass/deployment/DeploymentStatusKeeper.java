@@ -29,7 +29,7 @@ public class DeploymentStatusKeeper {
     public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS = "StatusDetails";
     public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS = "Status";
     public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID = "deploymentId";
-    public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_DEVICE_DEPLOYMENT_ARN = "configurationArn";
+    public static final String PERSISTED_DEPLOYMENT_STATUS_KEY_CONFIGURATION_ARN = "configurationArn";
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
     private static final Logger logger = LogManager.getLogger(DeploymentStatusKeeper.class);
 

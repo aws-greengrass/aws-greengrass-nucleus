@@ -29,6 +29,9 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
+import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.mqttclient.SubscribeRequest;
+import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
@@ -38,16 +41,24 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import software.amazon.awssdk.crt.mqtt.QualityOfService;
+import software.amazon.awssdk.iot.iotshadow.IotShadowClient;
+import software.amazon.awssdk.iot.iotshadow.model.GetShadowRequest;
+import software.amazon.awssdk.iot.iotshadow.model.GetShadowSubscriptionRequest;
+import software.amazon.awssdk.iot.iotshadow.model.UpdateShadowSubscriptionRequest;
+import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.status.FleetStatusService.DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
@@ -112,9 +123,37 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
 
         assertTrue(cdlDeploymentFinished.await(5, TimeUnit.MINUTES));
+
         Slf4jLogAdapter.removeGlobalListener(listener);
         assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(getCloudDeployedComponent("SomeService")::getState, eventuallyEval(is(State.FINISHED)));
+
+        IotShadowClient shadowClient = new IotShadowClient(
+                new WrapperMqttClientConnection(kernel.getContext().get(MqttClient.class)));
+
+        CountDownLatch getShadowCDL = new CountDownLatch(1);
+        GetShadowSubscriptionRequest request = new GetShadowSubscriptionRequest();
+        request.thingName = thingInfo.getThingName();
+        shadowClient.SubscribeToGetShadowAccepted(request, QualityOfService.AT_LEAST_ONCE, (response) -> {
+            //verify desired and reported state are same
+            assertEquals(response.state.desired, response.state.reported);
+            getShadowCDL.countDown();
+        });
+
+        UpdateShadowSubscriptionRequest req = new UpdateShadowSubscriptionRequest();
+        req.thingName = thingInfo.getThingName();
+        CountDownLatch updateShadowCDL = new CountDownLatch(1);
+        shadowClient.SubscribeToUpdateShadowAccepted(req, QualityOfService.AT_LEAST_ONCE , (response) -> {
+            updateShadowCDL.countDown();
+        });
+        // wait for the shadow's reported section to be updated
+        updateShadowCDL.await(30, TimeUnit.SECONDS);
+        GetShadowRequest request1 = new GetShadowRequest();
+        request1.thingName = thingInfo.getThingName();
+        //get shadow to verify that desired and reported section are in sync
+        shadowClient.PublishGetShadow(request1, QualityOfService.AT_LEAST_ONCE).get();
+        getShadowCDL.await(30, TimeUnit.SECONDS);
+
     }
 
 
