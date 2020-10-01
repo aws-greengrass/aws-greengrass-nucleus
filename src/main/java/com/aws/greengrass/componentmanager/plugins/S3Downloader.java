@@ -100,6 +100,7 @@ public class S3Downloader extends ArtifactDownloader {
         }
     }
 
+    @SuppressWarnings("PMD.CloseResource")
     @Override
     public long getDownloadSize(ComponentIdentifier componentIdentifier, ComponentArtifact artifact, Path saveToPath)
             throws InvalidArtifactUriException, PackageDownloadException {
@@ -118,7 +119,8 @@ public class S3Downloader extends ArtifactDownloader {
         }
 
         String bucket = s3ObjectPath.bucket;
-        try (S3Client regionClient = getRegionClientForBucket(bucket)) {
+        try {
+            S3Client regionClient = getRegionClientForBucket(bucket);
             HeadObjectRequest headObjectRequest = HeadObjectRequest.builder().bucket(bucket).key(key).build();
             HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
             return headObjectResponse.contentLength();
@@ -139,7 +141,8 @@ public class S3Downloader extends ArtifactDownloader {
     @SuppressWarnings("PMD.CloseResource")
     private InputStream getObject(String bucket, String key, ComponentArtifact artifact,
                                   ComponentIdentifier componentIdentifier) throws PackageDownloadException {
-        try (S3Client regionClient = getRegionClientForBucket(bucket)) {
+        try {
+            S3Client regionClient = getRegionClientForBucket(bucket);
             GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucket).key(key).build();
             return regionClient.getObject(getObjectRequest);
         } catch (SdkClientException | S3Exception e) {
