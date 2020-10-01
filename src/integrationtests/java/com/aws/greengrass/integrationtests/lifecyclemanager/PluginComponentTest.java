@@ -42,6 +42,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -216,8 +217,12 @@ class PluginComponentTest extends BaseITCase {
                 .resolveArtifactDirectoryPath(new ComponentIdentifier(componentName, new Semver("1.1.0")))
                 .resolve(componentName + JAR_FILE_EXTENSION).toFile());
         // Rename artifact for plugin-1.0.0
-        Files.move(jarFilePath, e2ETestComponentStore.resolveArtifactDirectoryPath(componentId)
-                .resolve(componentName + JAR_FILE_EXTENSION), REPLACE_EXISTING);
+        try {
+            Files.move(jarFilePath, e2ETestComponentStore.resolveArtifactDirectoryPath(componentId)
+                    .resolve(componentName + JAR_FILE_EXTENSION));
+        } catch (FileAlreadyExistsException e) {
+            // ignore
+        }
         kernel.getContext().put(ComponentStore.class, e2ETestComponentStore);
     }
 
