@@ -426,7 +426,7 @@ public class GenericExternalService extends GreengrassService {
         return false;
     }
 
-    private void addEnv(Exec exec, Topics src) {
+    protected void addEnv(Exec exec, Topics src) {
         if (src == null) {
             return;
         }
