@@ -117,7 +117,7 @@ public final class DeploymentDocumentConverter {
             }
             deploymentDocument.getDeploymentPackageConfigurationList()
                     .add(new DeploymentPackageConfiguration(pkgName, pkgInfo.isRootComponent(), pkgInfo.getVersion(),
-                            pkgInfo.getConfiguration()));
+                            pkgInfo.getConfiguration(), null));
         }
         return deploymentDocument;
     }
@@ -133,7 +133,7 @@ public final class DeploymentDocumentConverter {
         } else {
             packageConfigurations = localOverrideRequest.getComponentNameToConfig().entrySet().stream()
                     .map(entry -> new DeploymentPackageConfiguration(entry.getKey(), false, ANY_VERSION,
-                            entry.getValue())).collect(Collectors.toList());
+                            entry.getValue(), null)).collect(Collectors.toList());
         }
         // Add to or update root component with version in the configuration lists
         newRootComponents.forEach((rootComponentName, version) -> {
@@ -147,7 +147,7 @@ public final class DeploymentDocumentConverter {
                 optionalConfiguration.get().setRootComponent(true);
             } else {
                 // if not found, create it with version requirement as the requested version
-                packageConfigurations.add(new DeploymentPackageConfiguration(rootComponentName, true, version, null));
+                packageConfigurations.add(new DeploymentPackageConfiguration(rootComponentName, true, version, null, null));
             }
         });
         return packageConfigurations;

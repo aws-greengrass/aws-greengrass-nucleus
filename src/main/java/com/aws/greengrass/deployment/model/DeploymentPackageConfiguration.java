@@ -5,7 +5,6 @@ package com.aws.greengrass.deployment.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -13,6 +12,7 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,7 +22,7 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
 @Setter
-@AllArgsConstructor
+//@AllArgsConstructor
 @NoArgsConstructor
 @EqualsAndHashCode
 @ToString
@@ -40,4 +40,25 @@ public class DeploymentPackageConfiguration {
 
     @JsonProperty("Configuration")
     private Map<String, Object> configuration = new HashMap<>();
+
+    @JsonProperty("ConfigurationUpdate")
+    private List<ConfigurationUpdateOperation> configurationUpdateOperations;
+
+    public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,
+                                          Map<String, Object> configuration,
+                                          List<ConfigurationUpdateOperation> configurationUpdateOperations) {
+        this.packageName = packageName;
+        this.rootComponent = rootComponent;
+        this.resolvedVersion = resolvedVersion;
+        this.configuration = configuration;
+        this.configurationUpdateOperations = configurationUpdateOperations;
+    }
+
+    public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,
+                                          Map<String, Object> configuration) {
+        this.packageName = packageName;
+        this.rootComponent = rootComponent;
+        this.resolvedVersion = resolvedVersion;
+        this.configuration = configuration;
+    }
 }

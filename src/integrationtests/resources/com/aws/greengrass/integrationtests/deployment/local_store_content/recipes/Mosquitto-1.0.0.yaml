@@ -8,7 +8,7 @@ Manifests:
   - Platform:
       os: all
     Lifecycle:
-      startup: echo "Hello this is mosquitto getting started"
+      startup: echo "Hello this is mosquitto getting started {{GreenSignal:params:NumApprovals.value}}"
       install: echo "Hello This is mosquitto being installed"
       shutdown: echo "By mosquitto signing off!"
     Dependencies:

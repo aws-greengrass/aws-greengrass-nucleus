@@ -6,7 +6,17 @@
   "Packages": [
     {
       "Name": "CustomerApp",
-      "ResolvedVersion": "1.0.0"
+      "ResolvedVersion": "1.0.0",
+      "ConfigurationUpdate": [
+        {
+          "Operation": "INSERT",
+          "Value": {
+            "office": {
+              "ac": "ON"
+            }
+          }
+        }
+      ]
     }
   ],
   "Timestamp": 1592574829000,

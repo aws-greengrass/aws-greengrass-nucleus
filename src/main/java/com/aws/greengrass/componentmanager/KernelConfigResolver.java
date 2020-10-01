@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.componentmanager;
 
-import com.amazon.aws.iot.greengrass.component.common.ComponentConfiguration;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentParameter;
@@ -80,6 +79,9 @@ public class KernelConfigResolver {
     private final ComponentStore componentStore;
     private final Kernel kernel;
 
+
+    private final ObjectMapper mapper = new ObjectMapper();
+
     /**
      * Constructor.
      *
@@ -121,10 +123,14 @@ public class KernelConfigResolver {
                                        List<String> rootPackages) throws PackageLoadingException {
         Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache =
                 new ConcurrentHashMap<>();
+
+        Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache =
+                new ConcurrentHashMap<>();
+
         Map<String, Object> servicesConfig = new HashMap<>();
         for (ComponentIdentifier packageToDeploy : packagesToDeploy) {
             servicesConfig.put(packageToDeploy.getName(),
-                    getServiceConfig(packageToDeploy, document, packagesToDeploy, parameterAndDependencyCache));
+                    getServiceConfig(packageToDeploy, document, packagesToDeploy, parameterAndDependencyCache, configAndDependencyCache));
         }
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
 
@@ -137,7 +143,8 @@ public class KernelConfigResolver {
      */
     private Map<String, Object> getServiceConfig(ComponentIdentifier componentIdentifier, DeploymentDocument document,
                                                  List<ComponentIdentifier> packagesToDeploy,
-                                                 Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)
+                                                 Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
+                                                 Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache)
             throws PackageLoadingException {
         ComponentRecipe componentRecipe = componentStore.getPackageRecipe(componentIdentifier);
 
@@ -146,15 +153,21 @@ public class KernelConfigResolver {
                 new Pair<>(resolvedParams, componentRecipe.getDependencies().keySet()));
 
 
+        Optional<DeploymentPackageConfiguration> operationOptional =  document.getDeploymentPackageConfigurationList().stream().filter(e-> e.getPackageName().equals(componentRecipe.getComponentName())).findAny();
+
         Map<String, Object> resolvedConfiguration =
-                resolveConfigurationToApply(document.getConfigurationUpdateOperations(), componentRecipe);
+                resolveConfigurationToApply(
+                        operationOptional.map(DeploymentPackageConfiguration::getConfigurationUpdateOperations)
+                                         .orElse(null), componentRecipe);
+
+        configAndDependencyCache.put(componentIdentifier, new Pair<>(resolvedConfiguration, componentRecipe.getDependencies().keySet()));
 
         Map<String, Object> resolvedServiceConfig = new HashMap<>();
 
         // Interpolate parameters
         resolvedServiceConfig.put(GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                 interpolate(componentRecipe.getLifecycle(), componentIdentifier, packagesToDeploy, document,
-                        parameterAndDependencyCache));
+                        parameterAndDependencyCache, configAndDependencyCache));
 
         resolvedServiceConfig.put(SERVICE_TYPE_TOPIC_KEY,
                 componentRecipe.getComponentType() == null ? null : componentRecipe.getComponentType().name());
@@ -174,6 +187,8 @@ public class KernelConfigResolver {
         }
         resolvedServiceConfig.put(PARAMETERS_CONFIG_KEY, map);
 
+        resolvedServiceConfig.put("Configurations", resolvedConfiguration == null ? new HashMap<>(): resolvedConfiguration);
+
         return resolvedServiceConfig;
     }
 
@@ -181,44 +196,68 @@ public class KernelConfigResolver {
             List<ConfigurationUpdateOperation> configurationUpdateOperations, ComponentRecipe componentRecipe) {
 
         // read service config.
-        Map<String, Object> currentRunningConfig = Collections.emptyMap();
+        Map<String, Object> currentRunningConfig = null;
 
         Topics serviceTopics = kernel.findServiceTopic(componentRecipe.getComponentName());
         if (serviceTopics != null) {
-            currentRunningConfig = serviceTopics.toPOJO();
+            currentRunningConfig = serviceTopics.lookupTopics("Configurations").toPOJO();
         }
 
 
-        buildNewConfig(new ObjectMapper().valueToTree(currentRunningConfig), configurationUpdateOperations,
-                componentRecipe.getComponentConfiguration().getDefaultConfiguration());
-
-        return null;
+        return buildNewConfig(currentRunningConfig, configurationUpdateOperations,
+                componentRecipe.getComponentConfiguration() == null? null: componentRecipe.getComponentConfiguration().getDefaultConfiguration());
     }
 
-    private void buildNewConfig(JsonNode currentRunningConfig,
+    private Map buildNewConfig(Map<String, Object> currentRunningConfig,
                                 List<ConfigurationUpdateOperation> configurationUpdateOperations,
                                 JsonNode defaultConfiguration) {
 
-        if (configurationUpdateOperations != null) {
-            configurationUpdateOperations.forEach(operation-> {
+        if (currentRunningConfig == null && configurationUpdateOperations == null) {
+            return mapper.convertValue(defaultConfiguration, Map.class);
+        }
+
+        if (currentRunningConfig != null && configurationUpdateOperations != null) {
+            for (ConfigurationUpdateOperation operation: configurationUpdateOperations) {
                 if (operation.getOperationType().equals(ConfigurationUpdateOperationType.INSERT)) {
                     // do insert
-                    JsonPointer path = JsonPointer.valueOf(operation.getPath());
-
-                    final ObjectNode target = (ObjectNode) currentRunningConfig.at(
-                            path.head());
-                    target.set(path.last().getMatchingProperty(), operation.getValue());
-
+                    deepMerge(currentRunningConfig, mapper.convertValue(operation.getValue(), Map.class));
                 }
 
                 if (operation.getOperationType().equals(ConfigurationUpdateOperationType.RESET)) {
                     // do reset
+                    currentRunningConfig = reset(currentRunningConfig, defaultConfiguration, JsonPointer.compile(operation.getPath()));
                 }
 
                 // not support. not fail.
-            });
+            }
+
+            return currentRunningConfig;
         }
 
+        return null;
+    }
+
+    private Map reset(Map original, JsonNode value, JsonPointer pointer) {
+        JsonNode node = mapper.convertValue(original, JsonNode.class);
+
+        ((ObjectNode) node.at(pointer)).setAll((ObjectNode) value.at(pointer));
+
+        return mapper.convertValue(node, Map.class);
+    }
+
+    private static Map deepMerge(Map original, Map newMap) {
+        for (Object key : newMap.keySet()) {
+            if (newMap.get(key) instanceof Map && original.get(key) instanceof Map) {
+                Map originalChild = (Map) original.get(key);
+                Map newChild = (Map) newMap.get(key);
+                original.put(key, deepMerge(originalChild, newChild));
+            } else if (newMap.get(key) instanceof List && original.get(key) instanceof List) {
+                System.out.println("ist is not supported");
+            } else {
+                original.put(key, newMap.get(key));
+            }
+        }
+        return original;
     }
 
     /*
@@ -226,13 +265,14 @@ public class KernelConfigResolver {
      */
     private Object interpolate(Object configValue, ComponentIdentifier componentIdentifier,
                                List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
-                               Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)
+                               Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
+                               Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache)
             throws PackageLoadingException {
         Object result = configValue;
 
         if (configValue instanceof String) {
             result = replace((String) configValue, componentIdentifier, packagesToDeploy, document,
-                    parameterAndDependencyCache);
+                    parameterAndDependencyCache, configAndDependencyCache);
         }
         if (configValue instanceof Map) {
             Map<String, Object> childConfigMap = (Map<String, Object>) configValue;
@@ -240,7 +280,7 @@ public class KernelConfigResolver {
             for (Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
                 resolvedChildConfig.put(childLifecycle.getKey(),
                         interpolate(childLifecycle.getValue(), componentIdentifier, packagesToDeploy, document,
-                                parameterAndDependencyCache));
+                                parameterAndDependencyCache, configAndDependencyCache));
             }
             result = resolvedChildConfig;
         }
@@ -251,7 +291,8 @@ public class KernelConfigResolver {
 
     private String replace(String stringValue, ComponentIdentifier componentIdentifier,
                            List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
-                           Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)
+                           Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
+                           Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache)
             throws PackageLoadingException {
         // Handle some-component parameters
         Matcher matcher = SAME_INTERPOLATION_REGEX.matcher(stringValue);
@@ -268,7 +309,7 @@ public class KernelConfigResolver {
 
         while (matcher.find()) {
             String configReplacement =
-                    lookupConfigurationValueForComponent(parameterAndDependencyCache, document, componentIdentifier,
+                    lookupConfigurationValueForComponent(configAndDependencyCache, document, componentIdentifier,
                             matcher.group(1), matcher.group(2));
             if (configReplacement != null) {
                 stringValue = stringValue.replace(matcher.group(), configReplacement);
@@ -316,7 +357,7 @@ public class KernelConfigResolver {
 
     @Nullable
     private String lookupConfigurationValueForComponent(
-            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
+            Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache,
             DeploymentDocument document, ComponentIdentifier component, String namespace, String key)
             throws PackageLoadingException {
         // Handle cross-component system parameters
@@ -327,15 +368,18 @@ public class KernelConfigResolver {
         }
 
         if (namespace.equals("configurations")) {
+
+            Map config = configAndDependencyCache.get(component).getLeft();
+
             // TODO. Now only deal with default
-            ComponentRecipe componentRecipe = componentStore.getPackageRecipe(component);
-            ComponentConfiguration componentConfiguration = componentRecipe.getComponentConfiguration();
+//            ComponentRecipe componentRecipe = componentStore.getPackageRecipe(component);
+//            ComponentConfiguration componentConfiguration = componentRecipe.getComponentConfiguration();
+//
+//            if (componentConfiguration == null) {
+//                return null;
+//            }
 
-            if (componentConfiguration == null) {
-                return null;
-            }
-
-            JsonNode targetNode = componentConfiguration.getDefaultConfiguration().at(key);
+            JsonNode targetNode = mapper.convertValue(config, JsonNode.class).at(key);
             if (targetNode.isMissingNode()) {
                 // due to this node not being an object, or object not having value for the specified field
                 return null;

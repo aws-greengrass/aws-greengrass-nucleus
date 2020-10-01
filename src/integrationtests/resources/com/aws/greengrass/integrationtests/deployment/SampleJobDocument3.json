@@ -6,7 +6,13 @@
   "Packages": [
     {
       "Name": "CustomerApp",
-      "ResolvedVersion": "1.0.0"
+      "ResolvedVersion": "1.0.0",
+      "ConfigurationUpdate": [
+        {
+          "Operation": "RESET",
+          "Path": "/office"
+        }
+      ]
     }
   ],
   "Timestamp": 1592574829000,

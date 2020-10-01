@@ -5,15 +5,20 @@
 
 package com.aws.greengrass.deployment.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
-import lombok.Value;
+import lombok.Data;
 
-@Value
+@Data
 public class ConfigurationUpdateOperation {
+
+    @JsonProperty("Operation")
     ConfigurationUpdateOperationType operationType;
 
+    @JsonProperty("Path")
     String path;
 
+    @JsonProperty("Value")
     JsonNode value;
 }
 

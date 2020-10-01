@@ -104,7 +104,7 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
         rootPackageList.add(kernelIntegTestPkgName);
         List<DeploymentPackageConfiguration> configList = new ArrayList<>();
         configList.add(new DeploymentPackageConfiguration(kernelIntegTestPkgName, true, "1.0.0",
-                                                          Collections.emptyMap()));
+                                                          Collections.emptyMap(), null));
         DeploymentDocument testDeploymentDocument
                 = DeploymentDocument.builder().deploymentId("test").timestamp(12345678L).rootPackages(rootPackageList)
                                     .deploymentPackageConfigurationList(configList)
@@ -143,7 +143,7 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
         List<String> rootPackageList = new ArrayList<>();
         rootPackageList.add(appWithS3ArtifactsPackageName);
         List<DeploymentPackageConfiguration> configList = new ArrayList<>();
-        configList.add(new DeploymentPackageConfiguration("AppWithS3Artifacts", true, "1.0.0", Collections.emptyMap()));
+        configList.add(new DeploymentPackageConfiguration("AppWithS3Artifacts", true, "1.0.0", Collections.emptyMap(), null));
         DeploymentDocument testDeploymentDocument =
                 DeploymentDocument.builder().deploymentId("test").timestamp(12345678L).rootPackages(rootPackageList)
                         .deploymentPackageConfigurationList(configList)

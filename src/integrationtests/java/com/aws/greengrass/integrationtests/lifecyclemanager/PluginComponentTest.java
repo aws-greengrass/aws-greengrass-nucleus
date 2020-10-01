@@ -219,7 +219,7 @@ public class PluginComponentTest extends BaseITCase {
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).rootPackages(Arrays.asList(componentName))
                 .componentUpdatePolicy(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS)).groupName("ANY")
                 .deploymentPackageConfigurationList(
-                        Arrays.asList(new DeploymentPackageConfiguration(componentName, true, version, null))).build();
+                        Arrays.asList(new DeploymentPackageConfiguration(componentName, true, version, null, null))).build();
     }
 
     private static Future<DeploymentResult> submitSampleJobDocument(DeploymentDocument sampleJobDocument,
