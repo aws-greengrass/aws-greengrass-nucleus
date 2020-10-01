@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -118,7 +119,10 @@ public class ComponentServiceHelper {
                 .withVersionRequirements(versionRequirementsInString);
         ResolveComponentVersionsRequest request = new ResolveComponentVersionsRequest().withPlatform(platform)
                 .withComponentCandidates(Collections.singletonList(candidate))
-                .withDeploymentConfigurationId(deploymentConfigurationId);
+                // TODO switch back deploymentConfigurationId once it's removed from URL path
+                // use UUID to avoid ARN complication in URL, deploymentConfigurationId is used for logging purpose
+                // in server, so could have this hack now
+                .withDeploymentConfigurationId(UUID.randomUUID().toString());
 
         ResolveComponentVersionsResult result;
         try {

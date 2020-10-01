@@ -138,7 +138,8 @@ class ComponentServiceHelperTest {
                 ArgumentCaptor.forClass(ResolveComponentVersionsRequest.class);
         verify(client).resolveComponentVersions(requestArgumentCaptor.capture());
         ResolveComponentVersionsRequest request = requestArgumentCaptor.getValue();
-        assertThat(request.getDeploymentConfigurationId(), is(DEPLOYMENT_CONFIGURATION_ID));
+        //assertThat(request.getDeploymentConfigurationId(), is(DEPLOYMENT_CONFIGURATION_ID));
+        assertThat(request.getDeploymentConfigurationId(), notNullValue());
         assertThat(request.getPlatform(), notNullValue());
         assertThat(request.getPlatform().getOs(), notNullValue());
         assertThat(request.getPlatform().getArchitecture(), notNullValue());
