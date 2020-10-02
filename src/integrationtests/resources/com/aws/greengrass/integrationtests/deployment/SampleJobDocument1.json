@@ -7,18 +7,14 @@
     {
       "Name": "CustomerApp",
       "ResolvedVersion": "1.0.0",
-      "ConfigurationUpdate": [
-        {
-          "Operation": "INSERT",
-          "Value": {
-            "office": {
-              "ac": "AUTO"
-            },
-            "sampleText": "New Text"
-          }
+      "ConfigurationUpdate": {
+        "MERGE": {
+          "office": {
+            "ac": "AUTO"
+          },
+          "sampleText": {"NewText": "Key"}
         }
-      ]
-
+      }
     }
   ],
   "Timestamp": 1592574829000,

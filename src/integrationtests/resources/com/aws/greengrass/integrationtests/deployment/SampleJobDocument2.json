@@ -7,16 +7,14 @@
     {
       "Name": "CustomerApp",
       "ResolvedVersion": "1.0.0",
-      "ConfigurationUpdate": [
-        {
-          "Operation": "INSERT",
-          "Value": {
-            "office": {
-              "ac": "ON"
-            }
-          }
+      "ConfigurationUpdate": {
+        "MERGE": {
+          "office": {
+            "ac": "ON"
+          },
+          "office2": "hey"
         }
-      ]
+      }
     }
   ],
   "Timestamp": 1592574829000,

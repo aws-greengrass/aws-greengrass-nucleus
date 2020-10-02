@@ -7,12 +7,11 @@
     {
       "Name": "CustomerApp",
       "ResolvedVersion": "1.0.0",
-      "ConfigurationUpdate": [
-        {
-          "Operation": "RESET",
-          "Path": "/office"
-        }
-      ]
+      "ConfigurationUpdate": {
+        "RESET": [
+          "/office2", "/sampleText"
+        ]
+      }
     }
   ],
   "Timestamp": 1592574829000,

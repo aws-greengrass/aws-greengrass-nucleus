@@ -12,7 +12,6 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,7 +21,6 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
 @Setter
-//@AllArgsConstructor
 @NoArgsConstructor
 @EqualsAndHashCode
 @ToString
@@ -42,16 +40,16 @@ public class DeploymentPackageConfiguration {
     private Map<String, Object> configuration = new HashMap<>();
 
     @JsonProperty("ConfigurationUpdate")
-    private List<ConfigurationUpdateOperation> configurationUpdateOperations;
+    private ConfigurationUpdateOperation configurationUpdateOperation;
 
     public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,
                                           Map<String, Object> configuration,
-                                          List<ConfigurationUpdateOperation> configurationUpdateOperations) {
+                                          ConfigurationUpdateOperation configurationUpdateOperation) {
         this.packageName = packageName;
         this.rootComponent = rootComponent;
         this.resolvedVersion = resolvedVersion;
         this.configuration = configuration;
-        this.configurationUpdateOperations = configurationUpdateOperations;
+        this.configurationUpdateOperation = configurationUpdateOperation;
     }
 
     public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,

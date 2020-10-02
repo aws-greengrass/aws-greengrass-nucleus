@@ -22,8 +22,9 @@ Manifests:
     Lifecycle:
       run: >-
         echo "Hello Greengrass.  I'm the old param: {{params:sampleText.value}}.
-        I'm the new config for /sampleText: {configurations:/sampleText}.
-        I'm a new nested config for /office/ac: {configurations:/office/ac}"
+        I'm the new config for /sampleText: {configurations:/sampleText/NewText}.
+        I'm a new nested config for /office/ac: {configurations:/office/ac}.
+        I'm a new nested config2 for /office2: {configurations:/office2}"
     Dependencies:
       Mosquitto:
         VersionRequirement: 1.0.0

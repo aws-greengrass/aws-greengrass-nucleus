@@ -12,7 +12,6 @@ import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
-import com.aws.greengrass.deployment.model.ConfigurationUpdateOperationType;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -41,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
@@ -71,6 +71,7 @@ public class KernelConfigResolver {
     static final String DECOMPRESSED_PATH_KEY = "decompressedPath";
 
     private static final String NO_RECIPE_ERROR_FORMAT = "Failed to find component recipe for {}";
+    private static final String CONFIGURATIONS_CONFIG_KEY = "Configurations";
 
     // Map from Namespace -> Key -> Function which returns the replacement value
     private final Map<String, Map<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>>>
@@ -124,13 +125,13 @@ public class KernelConfigResolver {
         Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache =
                 new ConcurrentHashMap<>();
 
-        Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache =
-                new ConcurrentHashMap<>();
+        Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache = new ConcurrentHashMap<>();
 
         Map<String, Object> servicesConfig = new HashMap<>();
         for (ComponentIdentifier packageToDeploy : packagesToDeploy) {
             servicesConfig.put(packageToDeploy.getName(),
-                    getServiceConfig(packageToDeploy, document, packagesToDeploy, parameterAndDependencyCache, configAndDependencyCache));
+                    getServiceConfig(packageToDeploy, document, packagesToDeploy, parameterAndDependencyCache,
+                            configAndDependencyCache));
         }
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
 
@@ -153,14 +154,19 @@ public class KernelConfigResolver {
                 new Pair<>(resolvedParams, componentRecipe.getDependencies().keySet()));
 
 
-        Optional<DeploymentPackageConfiguration> operationOptional =  document.getDeploymentPackageConfigurationList().stream().filter(e-> e.getPackageName().equals(componentRecipe.getComponentName())).findAny();
+        Optional<DeploymentPackageConfiguration> operationOptional = document.getDeploymentPackageConfigurationList()
+                                                                             .stream()
+                                                                             .filter(e -> e.getPackageName()
+                                                                                           .equals(componentRecipe.getComponentName()))
+                                                                             // TODO version check
+                                                                             .findAny();
 
-        Map<String, Object> resolvedConfiguration =
-                resolveConfigurationToApply(
-                        operationOptional.map(DeploymentPackageConfiguration::getConfigurationUpdateOperations)
-                                         .orElse(null), componentRecipe);
+        Map<String, Object> resolvedConfiguration = resolveConfigurationToApply(
+                operationOptional.map(DeploymentPackageConfiguration::getConfigurationUpdateOperation).orElse(null),
+                componentRecipe);
 
-        configAndDependencyCache.put(componentIdentifier, new Pair<>(resolvedConfiguration, componentRecipe.getDependencies().keySet()));
+        configAndDependencyCache.put(componentIdentifier,
+                new Pair<>(resolvedConfiguration, componentRecipe.getDependencies().keySet()));
 
         Map<String, Object> resolvedServiceConfig = new HashMap<>();
 
@@ -187,65 +193,101 @@ public class KernelConfigResolver {
         }
         resolvedServiceConfig.put(PARAMETERS_CONFIG_KEY, map);
 
-        resolvedServiceConfig.put("Configurations", resolvedConfiguration == null ? new HashMap<>(): resolvedConfiguration);
+        resolvedServiceConfig.put(CONFIGURATIONS_CONFIG_KEY,
+                resolvedConfiguration == null ? new HashMap<>() : resolvedConfiguration);
 
         return resolvedServiceConfig;
     }
 
-    private Map<String, Object> resolveConfigurationToApply(
-            List<ConfigurationUpdateOperation> configurationUpdateOperations, ComponentRecipe componentRecipe) {
+    @SuppressWarnings("rawtypes")
+    private Map<String, Object> resolveConfigurationToApply(ConfigurationUpdateOperation configurationUpdateOperation,
+                                                            ComponentRecipe componentRecipe) {
 
-        // read service config.
+        // try read the running service config
         Map<String, Object> currentRunningConfig = null;
 
         Topics serviceTopics = kernel.findServiceTopic(componentRecipe.getComponentName());
         if (serviceTopics != null) {
-            currentRunningConfig = serviceTopics.lookupTopics("Configurations").toPOJO();
+            currentRunningConfig = serviceTopics.lookupTopics(CONFIGURATIONS_CONFIG_KEY).toPOJO();
         }
 
-
-        return buildNewConfig(currentRunningConfig, configurationUpdateOperations,
-                componentRecipe.getComponentConfiguration() == null? null: componentRecipe.getComponentConfiguration().getDefaultConfiguration());
+        return buildNewConfig(currentRunningConfig, configurationUpdateOperation,
+                componentRecipe.getComponentConfiguration() == null ? null
+                        : componentRecipe.getComponentConfiguration().getDefaultConfiguration());
     }
 
+    @SuppressWarnings("rawtypes")
     private Map buildNewConfig(Map<String, Object> currentRunningConfig,
-                                List<ConfigurationUpdateOperation> configurationUpdateOperations,
-                                JsonNode defaultConfiguration) {
+                               ConfigurationUpdateOperation configurationUpdateOperation,
+                               JsonNode defaultConfiguration) {
 
-        if (currentRunningConfig == null && configurationUpdateOperations == null) {
-            return mapper.convertValue(defaultConfiguration, Map.class);
-        }
-
-        if (currentRunningConfig != null && configurationUpdateOperations != null) {
-            for (ConfigurationUpdateOperation operation: configurationUpdateOperations) {
-                if (operation.getOperationType().equals(ConfigurationUpdateOperationType.INSERT)) {
-                    // do insert
-                    deepMerge(currentRunningConfig, mapper.convertValue(operation.getValue(), Map.class));
-                }
-
-                if (operation.getOperationType().equals(ConfigurationUpdateOperationType.RESET)) {
-                    // do reset
-                    currentRunningConfig = reset(currentRunningConfig, defaultConfiguration, JsonPointer.compile(operation.getPath()));
-                }
-
-                // not support. not fail.
+        if (configurationUpdateOperation == null) {
+            if (currentRunningConfig != null) {
+                // no update but there is running config, so it should return running config as is.
+                return currentRunningConfig;
+            } else {
+                // no update nor running config, so it should return return the default config.
+                return mapper.convertValue(defaultConfiguration, Map.class);
             }
-
-            return currentRunningConfig;
         }
 
-        return null;
+        // There is an update. Apply the update on top of the existing config
+
+        // initialize if null because we will use this map as the base.
+        if (currentRunningConfig == null) {
+            currentRunningConfig = new HashMap<>();
+        }
+
+
+        // perform RESET first
+        currentRunningConfig =
+                reset(currentRunningConfig, defaultConfiguration, configurationUpdateOperation.getPathsToReset());
+
+        // perform MERGE secondly
+        deepMerge(currentRunningConfig, configurationUpdateOperation.getValueToMerge());
+
+        return currentRunningConfig;
+
     }
 
-    private Map reset(Map original, JsonNode value, JsonPointer pointer) {
+    @SuppressWarnings("rawtypes")
+    private Map reset(Map original, JsonNode defaultValue, List<String> pathsToReset) {
+        if (pathsToReset == null || pathsToReset.isEmpty()) {
+            return original;
+        }
+
         JsonNode node = mapper.convertValue(original, JsonNode.class);
 
-        ((ObjectNode) node.at(pointer)).setAll((ObjectNode) value.at(pointer));
+        pathsToReset.forEach(pointer -> {
+            JsonPointer jsonPointer = JsonPointer.compile(pointer);
+
+            // missing
+            if ((defaultValue.at(pointer).isMissingNode())) {
+                ((ObjectNode) node.at(jsonPointer.head())).remove(jsonPointer.getMatchingProperty());
+            }
+
+            // value node. including null.
+            else if ((defaultValue.at(pointer).isValueNode())) {
+                ((ObjectNode) node.at(jsonPointer.head())).set(jsonPointer.getMatchingProperty(),
+                        defaultValue.at(pointer));
+            }
+
+            // container node.
+            else {
+                ((ObjectNode) node.at(jsonPointer)).setAll((ObjectNode) defaultValue.at(jsonPointer));
+            }
+        });
+
 
         return mapper.convertValue(node, Map.class);
     }
 
-    private static Map deepMerge(Map original, Map newMap) {
+    @SuppressWarnings("rawtypes")
+    private static Map deepMerge(@Nonnull Map original, Map newMap) {
+        if (newMap == null || newMap.isEmpty()) {
+            return original;
+        }
+
         for (Object key : newMap.keySet()) {
             if (newMap.get(key) instanceof Map && original.get(key) instanceof Map) {
                 Map originalChild = (Map) original.get(key);
@@ -357,9 +399,8 @@ public class KernelConfigResolver {
 
     @Nullable
     private String lookupConfigurationValueForComponent(
-            Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache,
-            DeploymentDocument document, ComponentIdentifier component, String namespace, String key)
-            throws PackageLoadingException {
+            Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache, DeploymentDocument document,
+            ComponentIdentifier component, String namespace, String key) throws PackageLoadingException {
         // Handle cross-component system parameters
         Map<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> systemParams =
                 systemParameters.getOrDefault(namespace, Collections.emptyMap());
@@ -372,12 +413,12 @@ public class KernelConfigResolver {
             Map config = configAndDependencyCache.get(component).getLeft();
 
             // TODO. Now only deal with default
-//            ComponentRecipe componentRecipe = componentStore.getPackageRecipe(component);
-//            ComponentConfiguration componentConfiguration = componentRecipe.getComponentConfiguration();
-//
-//            if (componentConfiguration == null) {
-//                return null;
-//            }
+            //            ComponentRecipe componentRecipe = componentStore.getPackageRecipe(component);
+            //            ComponentConfiguration componentConfiguration = componentRecipe.getComponentConfiguration();
+            //
+            //            if (componentConfiguration == null) {
+            //                return null;
+            //            }
 
             JsonNode targetNode = mapper.convertValue(config, JsonNode.class).at(key);
             if (targetNode.isMissingNode()) {
