@@ -24,7 +24,6 @@ import software.amazon.awssdk.iot.iotshadow.model.ShadowState;
 import software.amazon.awssdk.iot.iotshadow.model.UpdateShadowRequest;
 import software.amazon.awssdk.iot.iotshadow.model.UpdateShadowSubscriptionRequest;
 
-import javax.inject.Inject;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,6 +34,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
@@ -46,7 +46,7 @@ public class ShadowDeploymentListener implements InjectionActions {
     private static final long TIMEOUT_FOR_PUBLISHING_TO_TOPICS_SECONDS = Duration.ofMinutes(1).getSeconds();
     private static final long WAIT_TIME_TO_SUBSCRIBE_AGAIN_IN_MS = Duration.ofMinutes(2).toMillis();
     private static final Logger logger = LogManager.getLogger(ShadowDeploymentListener.class);
-    private final Queue<Pair<String, Map<String, Object>>> desiredState = new ConcurrentLinkedQueue<>();
+    private final Queue<Pair<String, Map<String, Object>>> desiredStateQueue = new ConcurrentLinkedQueue<>();
     @Inject
     private DeploymentQueue deploymentQueue;
     @Inject
@@ -170,9 +170,11 @@ public class ShadowDeploymentListener implements InjectionActions {
         // only update reported state when the deployment succeeds.
         if (DeploymentStatus.SUCCEEDED.equals(status)) {
 
-            Pair<String, Map<String, Object>> desired = desiredState.remove();
+            Pair<String, Map<String, Object>> desired = desiredStateQueue.remove();
+            // discard configurations that might have got added to the queue but the deployment
+            // got discarded before being processed due to a new shadow deployment
             while (!desired.getLeft().equals(configurationArn)) {
-                desired = desiredState.remove();
+                desired = desiredStateQueue.remove();
             }
 
             try {
@@ -227,7 +229,7 @@ public class ShadowDeploymentListener implements InjectionActions {
             return;
         }
 
-        desiredState.add(new Pair<>(configurationArn, configuration));
+        desiredStateQueue.add(new Pair<>(configurationArn, configuration));
         Deployment deployment =
                 new Deployment(configurationString, DeploymentType.SHADOW, configurationArn);
         deploymentQueue.offer(deployment);
