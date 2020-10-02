@@ -181,15 +181,15 @@ public class ComponentManager implements InjectionActions {
             componentContent = componentServiceHelper
                     .resolveComponentVersion(componentName, localCandidate == null ? null : localCandidate.getVersion(),
                             versionRequirements, deploymentConfigurationId);
-        } catch (ComponentVersionNegotiationException e) {
+        } catch (ComponentVersionNegotiationException | NoAvailableComponentVersionException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirement", versionRequirements)
                     .kv("localVersion", localCandidate).log("Can't negotiate version with cloud, use local version", e);
             if (localCandidate != null) {
                 return localCandidate;
             }
             throw new NoAvailableComponentVersionException(
-                    String.format("Can't negotiate component %s version with cloud and no local applicable version",
-                            componentName), e);
+                    String.format("Can't negotiate component %s version with cloud and no local applicable version "
+                                    + "satisfying %s", componentName, versionRequirements), e);
         }
 
         ComponentIdentifier resolvedComponentId =
