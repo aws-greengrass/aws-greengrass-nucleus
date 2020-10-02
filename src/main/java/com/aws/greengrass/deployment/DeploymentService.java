@@ -63,7 +63,7 @@ public class DeploymentService extends GreengrassService {
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
     public static final String GROUP_TO_ROOT_COMPONENTS_TOPICS = "GroupToRootComponents";
     public static final String COMPONENTS_TO_GROUPS_TOPICS = "ComponentToGroups";
-    public static final String LAST_SUCCESSFUL_DEPLOYMENT_ID_TOPIC = "LastSuccessfulDeploymentId";
+    public static final String LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC = "LastSuccessfulShadowDeploymentId";
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN = "groupConfigArn";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_NAME = "groupConfigName";
@@ -143,7 +143,7 @@ public class DeploymentService extends GreengrassService {
     @Override
     public void postInject() {
         super.postInject();
-        // Informing kernel about IotJobsHelper and LocalDeploymentListener,
+        // Informing kernel about IotJobsHelper and ShadowDeploymentListener,
         // so kernel can instantiate, inject dependencies and call post inject.
         // This is required because both the classes are independent and not Greengrass services
         context.get(IotJobsHelper.class);
@@ -199,7 +199,7 @@ public class DeploymentService extends GreengrassService {
                     // On device start up, Shadow listener will fetch the shadow and schedule a shadow deployment
                     // Discard the deployment if Kernel starts up from a tlog file and has already processed deployment
                     if (deployment.getId().equals(
-                            Coerce.toString(config.lookup(LAST_SUCCESSFUL_DEPLOYMENT_ID_TOPIC)))) {
+                            Coerce.toString(config.lookup(LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC)))) {
                         deploymentQueue.remove();
                         continue;
                     }
@@ -242,8 +242,10 @@ public class DeploymentService extends GreengrassService {
                     Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
                             deploymentDocument.getGroupName());
 
-                    config.lookup(LAST_SUCCESSFUL_DEPLOYMENT_ID_TOPIC)
-                            .withValue(currentDeploymentTaskMetadata.getDeploymentId());
+                    if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {
+                        config.lookup(LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC)
+                                .withValue(currentDeploymentTaskMetadata.getDeploymentId());
+                    }
                     Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
                     // TODO: Removal of group from the mappings. Currently there is no action taken when a device is
                     //  removed from a thing group. Empty configuration is treated as a valid config for a group but
