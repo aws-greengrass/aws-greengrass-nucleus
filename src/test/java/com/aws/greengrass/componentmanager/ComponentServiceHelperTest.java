@@ -56,7 +56,8 @@ import static org.mockito.Mockito.when;
 class ComponentServiceHelperTest {
 
     private static final Semver v1_0_0 = new Semver("1.0.0");
-    private static final String componentA = "A";
+    private static final String COMPONENT_A = "A";
+    private static final String DEPLOYMENT_CONFIGURATION_ID = "deploymentConfigurationId";
 
     @Mock
     private AWSEvergreen client;
@@ -123,26 +124,28 @@ class ComponentServiceHelperTest {
         versionRequirements.put("X", Requirement.buildNPM("^1.0"));
         versionRequirements.put("Y", Requirement.buildNPM("^1.5"));
 
-        ComponentContent componentContent = new ComponentContent().withName(componentA).withVersion(v1_0_0.getValue())
+        ComponentContent componentContent = new ComponentContent().withName(COMPONENT_A).withVersion(v1_0_0.getValue())
                 .withRecipe(ByteBuffer.wrap("new recipe".getBytes(Charsets.UTF_8)));
         ResolveComponentVersionsResult result =
                 new ResolveComponentVersionsResult().withComponents(Collections.singletonList(componentContent));
         when(client.resolveComponentVersions(any())).thenReturn(result);
 
         ComponentContent componentContentReturn =
-                helper.resolveComponentVersion(componentA, v1_0_0, versionRequirements);
+                helper.resolveComponentVersion(COMPONENT_A, v1_0_0, versionRequirements, DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentContentReturn, is(componentContent));
         ArgumentCaptor<ResolveComponentVersionsRequest> requestArgumentCaptor =
                 ArgumentCaptor.forClass(ResolveComponentVersionsRequest.class);
         verify(client).resolveComponentVersions(requestArgumentCaptor.capture());
         ResolveComponentVersionsRequest request = requestArgumentCaptor.getValue();
+        //assertThat(request.getDeploymentConfigurationId(), is(DEPLOYMENT_CONFIGURATION_ID));
+        assertThat(request.getDeploymentConfigurationId(), notNullValue());
         assertThat(request.getPlatform(), notNullValue());
         assertThat(request.getPlatform().getOs(), notNullValue());
         assertThat(request.getPlatform().getArchitecture(), notNullValue());
         assertThat(request.getComponentCandidates().size(), is(1));
         ComponentCandidate candidate = request.getComponentCandidates().get(0);
-        assertThat(candidate.getName(), is(componentA));
+        assertThat(candidate.getName(), is(COMPONENT_A));
         assertThat(candidate.getVersion(), is("1.0.0"));
         assertThat(candidate.getVersionRequirements(), IsMapContaining.hasEntry("X", ">=1.0.0 <2.0.0"));
         assertThat(candidate.getVersionRequirements(), IsMapContaining.hasEntry("Y", ">=1.5.0 <2.0.0"));
@@ -152,9 +155,9 @@ class ComponentServiceHelperTest {
     void GIVEN_component_version_requirements_WHEN_service_no_resource_found_THEN_throw_no_available_version_exception() {
         when(client.resolveComponentVersions(any())).thenThrow(ResourceNotFoundException.class);
 
-        Exception exp = assertThrows(NoAvailableComponentVersionException.class,
-                () -> helper.resolveComponentVersion(componentA,
-                v1_0_0, Collections.singletonMap("X", Requirement.buildNPM("^1.0"))));
+        Exception exp = assertThrows(NoAvailableComponentVersionException.class, () -> helper
+                .resolveComponentVersion(COMPONENT_A, v1_0_0,
+                        Collections.singletonMap("X", Requirement.buildNPM("^1.0")), DEPLOYMENT_CONFIGURATION_ID));
 
         assertThat(exp.getMessage(), containsString("No applicable version of component A"));
     }

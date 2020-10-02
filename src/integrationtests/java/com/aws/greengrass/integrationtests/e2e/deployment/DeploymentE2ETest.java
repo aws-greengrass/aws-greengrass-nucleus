@@ -12,8 +12,8 @@ import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
+import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
-import com.aws.greengrass.componentmanager.exceptions.ComponentVersionConflictException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
@@ -121,7 +121,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     @Test
     void GIVEN_blank_kernel_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error(ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, ComponentVersionConflictException.class);
+        ignoreExceptionUltimateCauseOfType(context, ResourceNotFoundException.class);
 
         // New deployment contains dependency conflicts
         SetConfigurationRequest setRequest = new SetConfigurationRequest()
@@ -139,10 +139,10 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         String deploymentError = iotClient.describeJobExecution(DescribeJobExecutionRequest.builder().jobId(jobId)
                 .thingName(thingInfo.getThingName()).build()).execution().statusDetails().detailsMap().get("error");
         assertThat(deploymentError, StringContains.containsString(
-                "com.aws.greengrass.componentmanager.exceptions.ComponentVersionConflictException"));
+                "com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException"));
         assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("Mosquitto")));
-        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("SomeService") + "-v1.0.0==1.0.0"));
-        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("SomeOldService") + "-v0.9.0==0.9.0"));
+        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("SomeService") + "==1.0.0"));
+        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("SomeOldService") + "==0.9.0"));
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)

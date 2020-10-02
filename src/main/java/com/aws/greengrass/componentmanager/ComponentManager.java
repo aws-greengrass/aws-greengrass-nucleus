@@ -7,6 +7,7 @@ package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.amazonaws.services.evergreen.model.ComponentContent;
+import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
@@ -50,7 +51,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PUBLIC_SCOPE;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
 
 public class ComponentManager implements InjectionActions {
@@ -148,51 +148,50 @@ public class ComponentManager implements InjectionActions {
         return componentMetadataList.iterator();
     }
 
-    ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements)
-            throws PackagingException {
+    ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements,
+                                              String deploymentConfigurationId) throws PackagingException {
         // acquire ever possible local best candidate
         Optional<ComponentIdentifier> localCandidateOptional =
                 findLocalBestCandidate(componentName, versionRequirements);
-        logger.atDebug().kv("componentName", componentName).kv("localCandidate", localCandidateOptional.orElse(null))
-                .log("Resolve to local version");
+        logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
+                .kv("localCandidate", localCandidateOptional.orElse(null)).log("Resolve to local version");
+        ComponentIdentifier resolvedComponentId;
         if (versionRequirements.containsKey(Deployment.DeploymentType.LOCAL.toString())) {
             // keep using local version if the component is meant to be local override
-            logger.atDebug().kv("componentName", componentName).log("Keep local version if it's local override");
-            ComponentIdentifier localCandidateId = localCandidateOptional.orElseThrow(
-                    () -> new NoAvailableComponentVersionException(
-                            String.format("Component %s is meant to be local override, but no version can satisfy %s",
-                                    componentName, versionRequirements)));
-            return componentStore.getPackageMetadata(localCandidateId);
+            resolvedComponentId = localCandidateOptional.orElseThrow(() -> new NoAvailableComponentVersionException(
+                    String.format("Component %s is meant to be local override, but no version can satisfy %s",
+                            componentName, versionRequirements)));
         } else {
-            // otherwise use cloud determined version
-            logger.atDebug().kv("componentName", componentName).kv("versionRequirement", versionRequirements)
-                    .log("Negotiate version with cloud");
-            return negotiateVersionWithCloud(componentName, versionRequirements, localCandidateOptional.orElse(null));
+            // otherwise try to negotiate with cloud
+            resolvedComponentId =
+                    negotiateVersionWithCloud(componentName, versionRequirements, localCandidateOptional.orElse(null),
+                            deploymentConfigurationId);
         }
+
+        return getComponentMetadata(resolvedComponentId);
     }
 
-    private ComponentMetadata negotiateVersionWithCloud(String componentName,
-                                                        Map<String, Requirement> versionRequirements,
-                                                        ComponentIdentifier localCandidate) throws PackagingException {
+    private ComponentIdentifier negotiateVersionWithCloud(String componentName,
+                                                          Map<String, Requirement> versionRequirements,
+                                                          ComponentIdentifier localCandidate,
+                                                          String deploymentConfigurationId) throws PackagingException {
         ComponentContent componentContent;
 
         try {
             componentContent = componentServiceHelper
                     .resolveComponentVersion(componentName, localCandidate == null ? null : localCandidate.getVersion(),
-                            versionRequirements);
-        } catch (NoAvailableComponentVersionException e) {
+                            versionRequirements, deploymentConfigurationId);
+        } catch (ComponentVersionNegotiationException | NoAvailableComponentVersionException e) {
+            logger.atDebug().kv("componentName", componentName).kv("versionRequirement", versionRequirements)
+                    .kv("localVersion", localCandidate).log("Can't negotiate version with cloud, use local version", e);
             if (localCandidate != null) {
-                // if it's builtin service, it's not required to have components registered in registry
-                ComponentMetadata componentMetadata =
-                        getBuiltinComponentMetadata(localCandidate.getName(), localCandidate.getVersion());
-                if (componentMetadata != null) {
-                    logger.atDebug().kv("componentMetadata", componentMetadata)
-                            .log("Builtin service and no available" + " version in registry, keep using local version");
-                    return componentMetadata;
-                }
+                return localCandidate;
             }
-            throw e;
+            throw new NoAvailableComponentVersionException(
+                    String.format("Can't negotiate component %s version with cloud and no local applicable version "
+                                    + "satisfying %s", componentName, versionRequirements), e);
         }
+
         ComponentIdentifier resolvedComponentId =
                 new ComponentIdentifier(componentContent.getName(), new Semver(componentContent.getVersion()));
         String downloadedRecipeContent = StandardCharsets.UTF_8.decode(componentContent.getRecipe()).toString();
@@ -208,7 +207,7 @@ public class ComponentManager implements InjectionActions {
             componentStore.savePackageRecipe(resolvedComponentId, downloadedRecipeContent);
         }
 
-        return componentStore.getPackageMetadata(resolvedComponentId);
+        return resolvedComponentId;
     }
 
     private Optional<ComponentIdentifier> findLocalBestCandidate(String componentName,
@@ -229,6 +228,21 @@ public class ComponentManager implements InjectionActions {
     private Requirement mergeVersionRequirements(Map<String, Requirement> versionRequirements) {
         return Requirement.buildNPM(
                 versionRequirements.values().stream().map(Requirement::toString).collect(Collectors.joining(" ")));
+    }
+
+    private ComponentMetadata getComponentMetadata(ComponentIdentifier componentIdentifier) throws PackagingException {
+        // If the component is builtin, then we won't be able to get the metadata from the filesystem,
+        // so in that case we will try getting it from builtin. If that fails too, then we just rethrow.
+        try {
+            return componentStore.getPackageMetadata(componentIdentifier);
+        } catch (PackagingException e) {
+            ComponentMetadata md =
+                    getBuiltinComponentMetadata(componentIdentifier.getName(), componentIdentifier.getVersion());
+            if (md != null) {
+                return md;
+            }
+            throw e;
+        }
     }
 
     /**
@@ -405,24 +419,14 @@ public class ComponentManager implements InjectionActions {
             return Optional.empty();
         }
 
-        // If the component is builtin, then we won't be able to get the metadata from the filesystem,
-        // so in that case we will try getting it from builtin. If that fails too, then we just rethrow.
-        try {
-            return Optional
-                    .of(componentStore.getPackageMetadata(new ComponentIdentifier(componentName, activeVersion)));
-        } catch (PackagingException e) {
-            ComponentMetadata md = getBuiltinComponentMetadata(componentName, activeVersion);
-            if (md != null) {
-                return Optional.of(md);
-            }
-            throw e;
-        }
+        return Optional.of(getComponentMetadata(new ComponentIdentifier(componentName, activeVersion)));
     }
 
-    /** Get active component version and dependencies, the component version satisfies dependent version requirements.
+    /**
+     * Get active component version and dependencies, the component version satisfies dependent version requirements.
      *
-     * @param componentName component name
-     * @param requirementMap dependent component to version requirement map
+     * @param componentName  component name to be queried for active version
+     * @param requirementMap component dependents version requirement map
      * @return active component metadata which satisfies version requirement
      * @throws PackagingException no available version exception
      */
@@ -463,7 +467,7 @@ public class ComponentManager implements InjectionActions {
             Map<String, String> deps = new HashMap<>();
             service.forAllDependencies(d -> deps.put(d.getServiceName(), ANY_VERSION));
 
-            return new ComponentMetadata(new ComponentIdentifier(packageName, activeVersion, PUBLIC_SCOPE), deps);
+            return new ComponentMetadata(new ComponentIdentifier(packageName, activeVersion), deps);
         } catch (ServiceLoadException e) {
             return null;
         }
