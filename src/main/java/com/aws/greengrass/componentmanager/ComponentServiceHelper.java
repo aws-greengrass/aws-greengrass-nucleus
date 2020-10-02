@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -101,10 +102,21 @@ public class ComponentServiceHelper {
         return ret;
     }
 
-    // Even though the cloud API signature can take a list of components at the same dependency level to resolve, the
-    // algorithm is going through the dependencies node by node, so one time one component got resolved.
+    /**
+     * Resolve a component version with greengrass cloud service.
+     * The dependency resolution algorithm goes through the dependencies node by node,
+     * so one component got resolve a time.
+     * @param componentName component name to be resolve
+     * @param localCandidateVersion component local candidate version if available
+     * @param versionRequirements component dependents version requirement map
+     * @param deploymentConfigurationId deployment configuration id
+     * @return resolved component version and recipe
+     * @throws NoAvailableComponentVersionException if no applicable version available in cloud service
+     * @throws ComponentVersionNegotiationException if service exception happens
+     */
     ComponentContent resolveComponentVersion(String componentName, Semver localCandidateVersion,
-                                             Map<String, Requirement> versionRequirements)
+                                             Map<String, Requirement> versionRequirements,
+                                             String deploymentConfigurationId)
             throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
 
         // TODO add osVersion and osFlavor once they are supported
@@ -116,25 +128,30 @@ public class ComponentServiceHelper {
                 .withVersion(localCandidateVersion == null ? null : localCandidateVersion.getValue())
                 .withVersionRequirements(versionRequirementsInString);
         ResolveComponentVersionsRequest request = new ResolveComponentVersionsRequest().withPlatform(platform)
-                .withComponentCandidates(Collections.singletonList(candidate));
+                .withComponentCandidates(Collections.singletonList(candidate))
+                // TODO switch back deploymentConfigurationId once it's removed from URL path
+                // use UUID to avoid ARN complication in URL, deploymentConfigurationId is used for logging purpose
+                // in server, so could have this hack now
+                .withDeploymentConfigurationId(UUID.randomUUID().toString());
 
         ResolveComponentVersionsResult result;
         try {
             result = evgCmsClient.resolveComponentVersions(request);
         } catch (ResourceNotFoundException e) {
-            logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements).log(
-                    "No available version when resolving component");
-            throw new NoAvailableComponentVersionException(String.format("No applicable version of component %s "
-                    + "found in cloud registry satisfying %s", componentName, versionRequirements), e);
+            logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
+                    .log("No available version when resolving component");
+            throw new NoAvailableComponentVersionException(
+                    String.format("No applicable version of component %s " + "found in cloud registry satisfying %s",
+                            componentName, versionRequirements), e);
         } catch (AmazonClientException e) {
-            logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements).log(
-                    "Server error when resolving component");
-            throw new ComponentVersionNegotiationException(String.format("Component service error when resolving %s",
-                    componentName), e);
+            logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
+                    .log("Server error when resolving component");
+            throw new ComponentVersionNegotiationException(
+                    String.format("Component service error when resolving %s", componentName), e);
         }
 
-        Validate.isTrue(result.getComponents() != null && result.getComponents().size() == 1, "Component service "
-                + "invalid response, it should contain resolved component version");
+        Validate.isTrue(result.getComponents() != null && result.getComponents().size() == 1,
+                "Component service " + "invalid response, it should contain resolved component version");
         return result.getComponents().get(0);
     }
 

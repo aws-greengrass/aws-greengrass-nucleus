@@ -6,11 +6,13 @@
   "Packages": [
     {
       "Name": "RedSignal",
-      "ResolvedVersion": "1.0.0"
+      "ResolvedVersion": "1.0.0",
+      "RootComponent": true
     },
     {
       "Name": "YellowSignal",
       "ResolvedVersion": "1.0.0",
+      "RootComponent": true,
       "Configuration": {
         "message": "This is not a test"
       }

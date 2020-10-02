@@ -7,11 +7,7 @@
     {
       "Name": "CustomerApp",
       "ResolvedVersion": "1.0.0",
-      "Dependencies": [
-        {
-          "Name": "Mosquitto"
-        }
-      ]
+      "RootComponent": true
     }
   ],
   "Timestamp": 1592574829000,

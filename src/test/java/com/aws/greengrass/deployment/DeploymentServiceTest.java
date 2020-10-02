@@ -4,8 +4,8 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
-import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;

@@ -8,9 +8,10 @@ package com.aws.greengrass.componentmanager;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.amazonaws.services.evergreen.model.ComponentContent;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
-import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
+import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
+import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
@@ -59,7 +60,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PUBLIC_SCOPE;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -67,6 +67,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -93,6 +94,8 @@ class ComponentManagerTest {
     private static final String ACTIVE_VERSION_STR = "2.0.0";
     private static final Semver ACTIVE_VERSION = new Semver(ACTIVE_VERSION_STR);
     private static final String SCOPE = "private";
+
+    private static final String DEPLOYMENT_CONFIGURATION_ID = "deploymentConfigurationId";
 
     private static final Semver v1_2_0 = new Semver("1.2.0");
     private static final Semver v1_0_0 = new Semver("1.0.0");
@@ -450,11 +453,13 @@ class ComponentManagerTest {
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_2_0_md);
 
         ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("LOCAL", Requirement.buildNPM("^1.0")));
+                .resolveComponentVersion(componentA, Collections.singletonMap("LOCAL", Requirement.buildNPM("^1.0")),
+                        DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentMetadata, is(componentA_1_2_0_md));
         verify(componentStore).findBestMatchAvailableComponent(componentA, Requirement.buildNPM("^1.0"));
         verify(componentStore).getPackageMetadata(componentA_1_2_0);
+        verify(packageServiceHelper, never()).resolveComponentVersion(anyString(), any(), any(), anyString());
     }
 
     @Test
@@ -473,25 +478,27 @@ class ComponentManagerTest {
 
         ComponentContent componentContent = new ComponentContent().withName(componentA).withVersion(v1_0_0.getValue())
                 .withRecipe(ByteBuffer.wrap("new recipe".getBytes(Charsets.UTF_8)));
-        when(packageServiceHelper.resolveComponentVersion(any(), any(), any())).thenReturn(componentContent);
+        when(packageServiceHelper.resolveComponentVersion(anyString(), any(), any(), anyString()))
+                .thenReturn(componentContent);
         when(componentStore.findComponentRecipeContent(any())).thenReturn(Optional.of("old recipe"));
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
 
         ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
+                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
+                        DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
         verify(packageServiceHelper).resolveComponentVersion(componentA, v1_0_0,
-                Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
+                Collections.singletonMap("X", Requirement.buildNPM("^1.0")), DEPLOYMENT_CONFIGURATION_ID);
         verify(componentStore).findComponentRecipeContent(componentA_1_0_0);
         verify(componentStore).savePackageRecipe(componentA_1_0_0, "new recipe");
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
     }
 
     @Test
-    void GIVEN_component_is_builtin_service_WHEN_cloud_no_available_version_THEN_resolve_to_local_version()
+    void GIVEN_component_is_builtin_service_WHEN_cloud_service_exception_THEN_resolve_to_local_version()
             throws Exception {
-        ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0, PUBLIC_SCOPE);
+        ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
         ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
 
         Topics serviceConfigTopics = mock(Topics.class);
@@ -504,15 +511,18 @@ class ComponentManagerTest {
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());
         when(mockService.isBuiltin()).thenReturn(true);
 
-        when(packageServiceHelper.resolveComponentVersion(any(), any(), any())).thenThrow(
-                NoAvailableComponentVersionException.class);
+        when(packageServiceHelper.resolveComponentVersion(anyString(), any(), any(), anyString()))
+                .thenThrow(ComponentVersionNegotiationException.class);
+        when(componentStore.getPackageMetadata(any())).thenThrow(PackagingException.class);
 
         ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
+                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
+                        DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
         verify(componentStore, never()).findComponentRecipeContent(any());
-        verify(componentStore, never()).getPackageMetadata(any());
+        verify(componentStore, never()).savePackageRecipe(any(), anyString());
+        verify(componentStore).getPackageMetadata(componentA_1_0_0);
     }
 
     private static Map<String, String> getExpectedDependencies(Semver version) {
