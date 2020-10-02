@@ -22,11 +22,12 @@ public class Deployment {
     @Setter
     private DeploymentDocument deploymentDocumentObj;
     @JsonIgnore
-    private Object deploymentDocument;
+    private String deploymentDocument;
     @EqualsAndHashCode.Include
     private DeploymentType deploymentType;
     @EqualsAndHashCode.Include
     private String id;
+    @EqualsAndHashCode.Include
     private boolean isCancelled;
     @Setter
     private DeploymentStage deploymentStage;
@@ -41,7 +42,7 @@ public class Deployment {
      * @param deploymentType deployment type
      * @param id deployment id
      */
-    public Deployment(Object deploymentDocument, DeploymentType deploymentType, String id) {
+    public Deployment(String deploymentDocument, DeploymentType deploymentType, String id) {
         this.deploymentDocument = deploymentDocument;
         this.deploymentType = deploymentType;
         this.id = id;

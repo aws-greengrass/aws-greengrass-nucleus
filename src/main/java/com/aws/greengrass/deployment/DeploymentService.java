@@ -28,10 +28,9 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
@@ -48,16 +47,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
-import javax.inject.Named;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.DEFAULT_GROUP_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
 public class DeploymentService extends GreengrassService {
@@ -65,14 +63,10 @@ public class DeploymentService extends GreengrassService {
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
     public static final String GROUP_TO_ROOT_COMPONENTS_TOPICS = "GroupToRootComponents";
     public static final String COMPONENTS_TO_GROUPS_TOPICS = "ComponentToGroups";
+    public static final String LAST_SUCCESSFUL_DEPLOYMENT_ID_TOPIC = "LastSuccessfulDeploymentId";
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN = "groupConfigArn";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_NAME = "groupConfigName";
-
-    public static final String DEPLOYMENTS_QUEUE = "deploymentsQueue";
-    protected static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     // TODO: These should probably become configurable parameters eventually
     private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(15).toMillis();
@@ -107,8 +101,7 @@ public class DeploymentService extends GreengrassService {
     private long pollingFrequency = DEPLOYMENT_POLLING_FREQUENCY;
 
     @Inject
-    @Named(DEPLOYMENTS_QUEUE)
-    private LinkedBlockingQueue<Deployment> deploymentsQueue;
+    private DeploymentQueue deploymentQueue;
 
     /**
      * Constructor.
@@ -150,16 +143,16 @@ public class DeploymentService extends GreengrassService {
     @Override
     public void postInject() {
         super.postInject();
-        // Informing kernel about IotJobsHelper ShadowDeploymentListener and LocalDeploymentListener,
-        // so kernel can instantiate,inject dependencies and call post inject.
+        // Informing kernel about IotJobsHelper and LocalDeploymentListener,
+        // so kernel can instantiate, inject dependencies and call post inject.
         // This is required because both the classes are independent and not Greengrass services
         context.get(IotJobsHelper.class);
         context.get(ShadowDeploymentListener.class);
-        context.get(LocalDeploymentListener.class);
         deploymentStatusKeeper.setDeploymentService(this);
     }
 
     @Override
+    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
     protected void startup() throws InterruptedException {
         logger.info("Starting up the Deployment Service");
         // Reset shutdown signal since we're trying to startup here
@@ -176,7 +169,7 @@ public class DeploymentService extends GreengrassService {
             //Cannot wait on queue because need to listen to queue as well as the currentProcessStatus future.
             //One thread cannot wait on both. If we want to make this completely event driven then we need to put
             // the waiting on currentProcessStatus in its own thread. I currently choose to not do this.
-            Deployment deployment = deploymentsQueue.peek();
+            Deployment deployment = deploymentQueue.peekNextDeployment();
             if (deployment != null) {
                 if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentType()
                         .equals(deployment.getDeploymentType()) && deployment.isCancelled()
@@ -186,28 +179,36 @@ public class DeploymentService extends GreengrassService {
                     // Assuming cancel will either cancel the current deployment or wait till it finishes
                     cancelCurrentDeployment();
                 }
-                // A new device deployment invalidates the previous deployment, cancel the ongoing device deployment
-                // and wait till the new device deployment can be picked up.
-                if (deployment.getDeploymentType() == Deployment.DeploymentType.SHADOW
-                        && currentDeploymentTaskMetadata != null
-                        && currentDeploymentTaskMetadata.getDeploymentType() == Deployment.DeploymentType.SHADOW) {
-                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                            .log("Canceling current device deployment");
-                    cancelCurrentDeployment();
-                    continue;
-                }
                 if (currentDeploymentTaskMetadata != null && deployment.getId()
                         .equals(currentDeploymentTaskMetadata.getDeploymentId()) && deployment.getDeploymentType()
                         .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
                     // Duplicate message and already processing this deployment so nothing is needed
-                    deploymentsQueue.remove();
+                    deploymentQueue.remove();
                     continue;
+                }
+                if (deployment.getDeploymentType().equals(DeploymentType.SHADOW)) {
+                    // A new device deployment invalidates the previous deployment, cancel the ongoing device deployment
+                    // and wait till the new device deployment can be picked up.
+                    if (currentDeploymentTaskMetadata != null
+                            && currentDeploymentTaskMetadata.getDeploymentType().equals(DeploymentType.SHADOW)) {
+                        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                                .log("Canceling current device deployment");
+                        cancelCurrentDeployment();
+                        continue;
+                    }
+                    // On device start up, Shadow listener will fetch the shadow and schedule a shadow deployment
+                    // Discard the deployment if Kernel starts up from a tlog file and has already processed deployment
+                    if (deployment.getId().equals(
+                            Coerce.toString(config.lookup(LAST_SUCCESSFUL_DEPLOYMENT_ID_TOPIC)))) {
+                        deploymentQueue.remove();
+                        continue;
+                    }
                 }
                 if (currentDeploymentTaskMetadata != null) {
                     // wait till the current deployment finishes
                     continue;
                 }
-                deploymentsQueue.remove();
+                deploymentQueue.remove();
                 if (!deployment.isCancelled()) {
                     createNewDeployment(deployment);
                 }
@@ -241,6 +242,8 @@ public class DeploymentService extends GreengrassService {
                     Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
                             deploymentDocument.getGroupName());
 
+                    config.lookup(LAST_SUCCESSFUL_DEPLOYMENT_ID_TOPIC)
+                            .withValue(currentDeploymentTaskMetadata.getDeploymentId());
                     Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
                     // TODO: Removal of group from the mappings. Currently there is no action taken when a device is
                     //  removed from a thing group. Empty configuration is treated as a valid config for a group but
@@ -390,7 +393,7 @@ public class DeploymentService extends GreengrassService {
 
     private DefaultDeploymentTask createDefaultNewDeployment(Deployment deployment) {
         try {
-            logger.atInfo().kv("document", deployment.getDeploymentDocument().toString())
+            logger.atInfo().kv("document", deployment.getDeploymentDocument())
                     .log("Received deployment document in queue");
             parseAndValidateJobDocument(deployment);
         } catch (InvalidRequestException e) {
@@ -408,16 +411,16 @@ public class DeploymentService extends GreengrassService {
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {
-
-        if (deployment.getDeploymentDocument() == null) {
+        String jobDocumentString = deployment.getDeploymentDocument();
+        if (Utils.isEmpty(jobDocumentString)) {
             throw new InvalidRequestException("Job document cannot be empty");
         }
         DeploymentDocument document;
         try {
             switch (deployment.getDeploymentType()) {
                 case LOCAL:
-                    LocalOverrideRequest localOverrideRequest = OBJECT_MAPPER.readValue(
-                            (String) deployment.getDeploymentDocument(), LocalOverrideRequest.class);
+                    LocalOverrideRequest localOverrideRequest = SerializerFactory.getJsonObjectMapper().readValue(
+                            jobDocumentString, LocalOverrideRequest.class);
                     Map<String, String> rootComponents = new HashMap<>();
                     Set<String> rootComponentsInRequestedGroup = new HashSet<>();
                     config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
@@ -439,13 +442,10 @@ public class DeploymentService extends GreengrassService {
                             .convertFromLocalOverrideRequestAndRoot(localOverrideRequest, rootComponents);
                     break;
                 case IOT_JOBS:
-                    FleetConfiguration config = OBJECT_MAPPER.readValue((String) deployment.getDeploymentDocument(),
-                            FleetConfiguration.class);
-                    document = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
-                    break;
                 case SHADOW:
-                    document = DeploymentDocumentConverter.convertFromFleetConfiguration(
-                            (FleetConfiguration) deployment.getDeploymentDocument());
+                    FleetConfiguration config = SerializerFactory.getJsonObjectMapper()
+                            .readValue(jobDocumentString, FleetConfiguration.class);
+                    document = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
                     break;
                 default:
                     throw new IllegalArgumentException("Invalid deployment type: " + deployment.getDeploymentType());
@@ -457,8 +457,8 @@ public class DeploymentService extends GreengrassService {
         return document;
     }
 
-    void setDeploymentsQueue(LinkedBlockingQueue<Deployment> deploymentsQueue) {
-        this.deploymentsQueue = deploymentsQueue;
+    void setDeploymentsQueue(DeploymentQueue deploymentQueue) {
+        this.deploymentQueue = deploymentQueue;
     }
 
     public DeploymentTaskMetadata getCurrentDeploymentTaskMetadata() {

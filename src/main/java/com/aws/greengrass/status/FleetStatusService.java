@@ -43,11 +43,9 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_CONFIGURATION_ARN;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCAL;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.SHADOW;
@@ -73,6 +71,8 @@ public class FleetStatusService extends GreengrassService {
     private final String platform;
     private final MqttChunkedPayloadPublisher<ComponentStatusDetails> publisher;
     private final DeploymentStatusKeeper deploymentStatusKeeper;
+    //For testing
+    @Getter
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
     private final AtomicBoolean isEventTriggeredUpdateInProgress = new AtomicBoolean(false);
     private final Set<GreengrassService> updatedGreengrassServiceSet =
@@ -231,25 +231,25 @@ public class FleetStatusService extends GreengrassService {
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
         DeploymentType type = Coerce.toEnum(DeploymentType.class, deploymentDetails
-                .get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE));
+                .get(DEPLOYMENT_TYPE_KEY_NAME));
         if (type == IOT_JOBS) {
-            String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
+            String status = deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME).toString();
             if (JobStatus.IN_PROGRESS.toString().equals(status)) {
                 isDeploymentInProgress.set(true);
                 return true;
             }
             logger.atDebug().log("Updating Fleet Status service for deployment job with ID: {}",
-                    deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID));
+                    deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME));
             isDeploymentInProgress.set(false);
             updateEventTriggeredFleetStatusData();
         } else if (type == SHADOW) {
-            String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS).toString();
+            String status = deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME).toString();
             if (DeploymentStatus.IN_PROGRESS.toString().equals(status)) {
                 isDeploymentInProgress.set(true);
                 return true;
             }
             logger.atDebug().log("Updating Fleet Status service for shadow deployment with Configuration: {}",
-                    deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_CONFIGURATION_ARN));
+                    deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME));
             isDeploymentInProgress.set(false);
             updateEventTriggeredFleetStatusData();
         }

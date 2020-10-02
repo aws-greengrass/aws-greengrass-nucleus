@@ -23,12 +23,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -95,20 +93,20 @@ class DeploymentStatusKeeperTest {
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("local_deployment", LOCAL, DeploymentStatus.SUCCEEDED.toString(),
                 new HashMap<>());
         assertEquals(4, updateOfTypeJobs.size());
-        assertEquals(3, updateOfTypeLocal.size());
-        assertEquals("iot_deployment", updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID));
+        assertEquals(4, updateOfTypeLocal.size());
+        assertEquals("iot_deployment", updateOfTypeJobs.get(DEPLOYMENT_ID_KEY_NAME));
         assertEquals(JobStatus.SUCCEEDED, Coerce.toEnum(JobStatus.class,
-                updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS)));
-        assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS), new HashMap<>());
+                updateOfTypeJobs.get(DEPLOYMENT_STATUS_KEY_NAME)));
+        assertEquals(updateOfTypeJobs.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME), new HashMap<>());
         assertEquals(IOT_JOBS, Coerce.toEnum(Deployment.DeploymentType.class,
-                updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE)));
-        assertEquals("local_deployment", updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID));
+                updateOfTypeJobs.get(DEPLOYMENT_TYPE_KEY_NAME)));
+        assertEquals("local_deployment", updateOfTypeLocal.get(DEPLOYMENT_ID_KEY_NAME));
         assertEquals(LOCAL,
                 Coerce.toEnum(Deployment.DeploymentType.class,
-                        updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE)));
+                        updateOfTypeLocal.get(DEPLOYMENT_TYPE_KEY_NAME)));
         assertEquals(DeploymentStatus.SUCCEEDED,
                 Coerce.toEnum(DeploymentStatus.class,
-                        updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS)));
+                        updateOfTypeLocal.get(DEPLOYMENT_STATUS_KEY_NAME)));
     }
 
     @Test

@@ -3,7 +3,6 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
-import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -12,9 +11,7 @@ import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.SerializerFactory;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import lombok.Data;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
@@ -30,20 +27,17 @@ import software.amazon.awssdk.iot.iotshadow.model.UpdateShadowSubscriptionReques
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Random;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.inject.Inject;
-import javax.inject.Named;
 
-import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_CONFIGURATION_ARN;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 
 public class ShadowDeploymentListener implements InjectionActions {
@@ -52,21 +46,17 @@ public class ShadowDeploymentListener implements InjectionActions {
     private static final long TIMEOUT_FOR_PUBLISHING_TO_TOPICS_SECONDS = Duration.ofMinutes(1).getSeconds();
     private static final long WAIT_TIME_TO_SUBSCRIBE_AGAIN_IN_MS = Duration.ofMinutes(2).toMillis();
     private static final Logger logger = LogManager.getLogger(ShadowDeploymentListener.class);
+    private final Queue<Pair<String, Map<String, Object>>> desiredState = new ConcurrentLinkedQueue<>();
     @Inject
-    @Named(DEPLOYMENTS_QUEUE)
-    private LinkedBlockingQueue<Deployment> deploymentsQueue;
-
+    private DeploymentQueue deploymentQueue;
     @Inject
     private DeploymentStatusKeeper deploymentStatusKeeper;
-
     @Inject
     private MqttClient mqttClient;
-
     @Inject
     private ExecutorService executorService;
     @Inject
     private DeviceConfiguration deviceConfiguration;
-
     @Setter
     private IotShadowClient iotShadowClient;
     private String thingName;
@@ -85,11 +75,6 @@ public class ShadowDeploymentListener implements InjectionActions {
             });
         }
     };
-    //Once deployment succeeds, the reported state of the shadow needs to be synced with the desired state.
-    //This map keeps track of configArn to desired state mapping. During rollback, the same configArn will be present
-    // multiple deployments so a pair is used to keep track of the count of deployments with the same config arn.
-    // The count is used for clean up purposes.
-    private final Map<String, Pair<Integer, Map<String, Object>>> configArnToDesiredStateMap = new HashMap<>();
     private String lastConfigurationArn;
     private Integer lastVersion;
 
@@ -167,16 +152,20 @@ public class ShadowDeploymentListener implements InjectionActions {
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
         DeploymentStatus status = DeploymentStatus.valueOf((String)
-                deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS));
+                deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME));
 
-        String configurationArn = (String)
-                deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_CONFIGURATION_ARN);
-        Pair<Integer, Map<String, Object>> configurationCountPair = configArnToDesiredStateMap.get(configurationArn);
+        String configurationArn = (String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME);
         // only update reported state when the deployment succeeds.
         if (DeploymentStatus.SUCCEEDED.equals(status)) {
+
+            Pair<String, Map<String, Object>> desired = desiredState.remove();
+            while (!desired.getLeft().equals(configurationArn)) {
+                desired = desiredState.remove();
+            }
+
             try {
                 ShadowState shadowState = new ShadowState();
-                shadowState.reported = new HashMap<>(configurationCountPair.getRight());
+                shadowState.reported = new HashMap<>(desired.getRight());
                 UpdateShadowRequest updateShadowRequest = new UpdateShadowRequest();
                 updateShadowRequest.thingName = thingName;
                 updateShadowRequest.state = shadowState;
@@ -193,12 +182,6 @@ public class ShadowDeploymentListener implements InjectionActions {
             }
             return false;
         }
-        if (DeploymentStatus.SUCCEEDED.equals(status) || DeploymentStatus.FAILED.equals(status)) {
-            configurationCountPair.setLeft(configurationCountPair.getLeft() - 1);
-            if (configurationCountPair.getLeft() == 0) {
-                configArnToDesiredStateMap.remove(configurationArn);
-            }
-        }
         return true;
     }
 
@@ -207,34 +190,35 @@ public class ShadowDeploymentListener implements InjectionActions {
             logger.debug("Empty desired state, no device deployments created yet");
             return;
         }
-        FleetConfiguration fleetConfiguration = SerializerFactory.getJsonObjectMapper()
-                .convertValue(configuration, FleetConfiguration.class);
+        String configurationArn = (String) configuration.get("configurationArn");
         synchronized (ShadowDeploymentListener.class) {
             if (lastVersion != null && lastVersion > version) {
-                logger.atInfo().kv("CONFIGURATION_ARN", fleetConfiguration.getConfigurationArn())
+                logger.atInfo().kv("CONFIGURATION_ARN", configurationArn)
                         .kv("SHADOW_VERSION", version)
                         .log("Old deployment notification, Ignoring...");
                 return;
             }
-            if (lastConfigurationArn != null && lastConfigurationArn.equals(fleetConfiguration.getConfigurationArn())) {
-                logger.atInfo().kv("CONFIGURATION_ARN", fleetConfiguration.getConfigurationArn())
+            if (lastConfigurationArn != null && lastConfigurationArn.equals(configurationArn)) {
+                logger.atInfo().kv("CONFIGURATION_ARN", configurationArn)
                         .log("Duplicate deployment notification, Ignoring...");
                 return;
             }
-            lastConfigurationArn = fleetConfiguration.getConfigurationArn();
+            lastConfigurationArn = configurationArn;
             lastVersion = version;
         }
-        configArnToDesiredStateMap.compute(fleetConfiguration.getConfigurationArn(), (arn, pair) -> {
-            if (pair == null) {
-                pair = new Pair(1, configuration);
-            } else {
-                pair.setLeft(pair.getLeft() + 1);
-            }
-            return pair;
-        });
+
+        String configurationString;
+        try {
+            configurationString = SerializerFactory.getJsonObjectMapper().writeValueAsString(configuration);
+        } catch (JsonProcessingException e) {
+            logger.atError("Unable to process shadow update", e);
+            return;
+        }
+
+        desiredState.add(new Pair<>(configurationArn, configuration));
         Deployment deployment =
-                new Deployment(fleetConfiguration, DeploymentType.SHADOW, fleetConfiguration.getConfigurationArn());
-        deploymentsQueue.add(deployment);
+                new Deployment(configurationString, DeploymentType.SHADOW, configurationArn);
+        deploymentQueue.offer(deployment);
     }
 
 
@@ -242,30 +226,4 @@ public class ShadowDeploymentListener implements InjectionActions {
         return new WrapperMqttClientConnection(mqttClient);
     }
 
-    @Data
-    @SuppressWarnings("UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
-    @SuppressFBWarnings
-    public static class DeviceDeploymentDetails {
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_CONFIGURATION_ARN)
-        private String configurationArn;
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS)
-        private DeploymentStatus status;
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS)
-        private Map<String, String> statusDetails;
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE)
-        private DeploymentType deploymentType;
-
-        /**
-         * Returns a map of string to object representing the deployment details.
-         * @return Map of string to object
-         */
-        public Map<String, Object> convertToMapOfObjects() {
-            Map<String, Object> deploymentDetails = new HashMap<>();
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_CONFIGURATION_ARN, configurationArn);
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS, status.toString());
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS, statusDetails);
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, deploymentType.toString());
-            return deploymentDetails;
-        }
-    }
 }

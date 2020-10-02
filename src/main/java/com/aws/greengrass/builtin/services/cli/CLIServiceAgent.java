@@ -2,6 +2,7 @@ package com.aws.greengrass.builtin.services.cli;
 
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.ipc.services.cli.exceptions.ComponentNotFoundError;
@@ -52,18 +53,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
-import javax.inject.Named;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
-import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.DEFAULT_GROUP_NAME;
 import static com.aws.greengrass.ipc.common.IPCErrorStrings.DEPLOYMENTS_QUEUE_FULL;
 import static com.aws.greengrass.ipc.common.IPCErrorStrings.DEPLOYMENTS_QUEUE_NOT_INITIALIZED;
@@ -78,14 +76,14 @@ public class CLIServiceAgent {
 
     private final Kernel kernel;
 
-    private final LinkedBlockingQueue<Deployment> deploymentsQueue;
+    private final DeploymentQueue deploymentQueue;
 
     private static final Logger logger = LogManager.getLogger(CLIServiceAgent.class);
 
     @Inject
-    public CLIServiceAgent(Kernel kernel, @Named(DEPLOYMENTS_QUEUE) LinkedBlockingQueue<Deployment> deploymentsQueue) {
+    public CLIServiceAgent(Kernel kernel, DeploymentQueue deploymentQueue) {
         this.kernel = kernel;
-        this.deploymentsQueue = deploymentsQueue;
+        this.deploymentQueue = deploymentQueue;
     }
 
     /**
@@ -269,7 +267,7 @@ public class CLIServiceAgent {
             throw new ServiceError(e.getMessage());
         }
         Deployment deployment = new Deployment(deploymentDocument, Deployment.DeploymentType.LOCAL, deploymentId);
-        if (deploymentsQueue == null) {
+        if (deploymentQueue == null) {
             logger.atError().log("Deployments queue not initialized");
             throw new ServiceError(DEPLOYMENTS_QUEUE_NOT_INITIALIZED);
         } else {
@@ -279,7 +277,7 @@ public class CLIServiceAgent {
             localDeploymentDetails.setDeploymentType(Deployment.DeploymentType.LOCAL);
             localDeploymentDetails.setStatus(DeploymentStatus.QUEUED);
             persistLocalDeployment(serviceConfig, localDeploymentDetails.convertToMapOfObject());
-            if (deploymentsQueue.offer(deployment)) {
+            if (deploymentQueue.offer(deployment)) {
                 logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).log("Submitted local deployment request.");
                 return CreateLocalDeploymentResponse.builder().deploymentId(deploymentId).build();
             } else {
@@ -310,7 +308,7 @@ public class CLIServiceAgent {
         } else {
             Topics deployment = localDeployments.findTopics(request.getDeploymentId());
             DeploymentStatus status = Coerce.toEnum(DeploymentStatus.class,
-                    deployment.find(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS));
+                    deployment.find(DEPLOYMENT_STATUS_KEY_NAME));
             return GetLocalDeploymentStatusResponse.builder().deployment(
                     LocalDeployment.builder().deploymentId(request.getDeploymentId()).status(status).build()).build();
         }
@@ -330,7 +328,7 @@ public class CLIServiceAgent {
             persistedDeployments.add(LocalDeployment.builder()
                     .deploymentId(topics.getName())
                     .status(Coerce.toEnum(DeploymentStatus.class,
-                            topics.find(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS))).build());
+                            topics.find(DEPLOYMENT_STATUS_KEY_NAME))).build());
         });
         return ListLocalDeploymentResponse.builder().localDeployments(persistedDeployments).build();
     }
@@ -343,7 +341,7 @@ public class CLIServiceAgent {
      */
     public void persistLocalDeployment(Topics serviceConfig, Map<String, Object> deploymentDetails) {
         Topics localDeployments = serviceConfig.lookupTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
-        String deploymentId = (String) deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID);
+        String deploymentId = (String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME);
         Topics localDeploymentDetails = localDeployments.lookupTopics(deploymentId);
         localDeploymentDetails.replaceAndWait(deploymentDetails);
         // TODO: Remove the succeeded deployments if the number of deployments have exceeded max limit
@@ -388,11 +386,11 @@ public class CLIServiceAgent {
 
     @Data
     public static class LocalDeploymentDetails {
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID)
+        @JsonProperty(DEPLOYMENT_ID_KEY_NAME)
         private String deploymentId;
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS)
+        @JsonProperty(DEPLOYMENT_STATUS_KEY_NAME)
         private DeploymentStatus status;
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE)
+        @JsonProperty(DEPLOYMENT_TYPE_KEY_NAME)
         private Deployment.DeploymentType deploymentType;
 
         /**
@@ -402,9 +400,9 @@ public class CLIServiceAgent {
          */
         public Map<String, Object> convertToMapOfObject() {
             Map<String, Object> deploymentDetails = new HashMap<>();
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID, deploymentId);
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_STATUS, Coerce.toString(status));
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, Coerce.toString(deploymentType));
+            deploymentDetails.put(DEPLOYMENT_ID_KEY_NAME, deploymentId);
+            deploymentDetails.put(DEPLOYMENT_STATUS_KEY_NAME, Coerce.toString(status));
+            deploymentDetails.put(DEPLOYMENT_TYPE_KEY_NAME, Coerce.toString(deploymentType));
             return deploymentDetails;
         }
     }
