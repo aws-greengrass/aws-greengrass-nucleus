@@ -14,7 +14,6 @@ import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.Deployment.DeploymentType;
-import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
@@ -26,6 +25,7 @@ import org.apache.commons.lang3.RandomUtils;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
+import javax.inject.Inject;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,7 +39,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
@@ -232,23 +231,13 @@ public class FleetStatusService extends GreengrassService {
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
         DeploymentType type = Coerce.toEnum(DeploymentType.class, deploymentDetails
                 .get(DEPLOYMENT_TYPE_KEY_NAME));
-        if (type == IOT_JOBS) {
+        if (type == IOT_JOBS || type == SHADOW) {
             String status = deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME).toString();
             if (JobStatus.IN_PROGRESS.toString().equals(status)) {
                 isDeploymentInProgress.set(true);
                 return true;
             }
-            logger.atDebug().log("Updating Fleet Status service for deployment job with ID: {}",
-                    deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME));
-            isDeploymentInProgress.set(false);
-            updateEventTriggeredFleetStatusData();
-        } else if (type == SHADOW) {
-            String status = deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME).toString();
-            if (DeploymentStatus.IN_PROGRESS.toString().equals(status)) {
-                isDeploymentInProgress.set(true);
-                return true;
-            }
-            logger.atDebug().log("Updating Fleet Status service for shadow deployment with Configuration: {}",
+            logger.atDebug().log("Updating Fleet Status service for deployment with ID: {}",
                     deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME));
             isDeploymentInProgress.set(false);
             updateEventTriggeredFleetStatusData();

@@ -1,7 +1,6 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.dependency.InjectionActions;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.logging.api.Logger;
@@ -16,6 +15,7 @@ import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
+import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotshadow.IotShadowClient;
 import software.amazon.awssdk.iot.iotshadow.model.GetShadowRequest;
@@ -24,6 +24,7 @@ import software.amazon.awssdk.iot.iotshadow.model.ShadowState;
 import software.amazon.awssdk.iot.iotshadow.model.UpdateShadowRequest;
 import software.amazon.awssdk.iot.iotshadow.model.UpdateShadowSubscriptionRequest;
 
+import javax.inject.Inject;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,7 +35,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
@@ -81,12 +81,11 @@ public class ShadowDeploymentListener implements InjectionActions {
     @Override
     public void postInject() {
 
-        try {
-            deviceConfiguration.validate();
-        } catch (DeviceConfigurationException e) {
+        if (deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
             logger.atWarn().log("Device not configured to talk to AWS Iot cloud. Device will run in offline mode");
             return;
         }
+
         this.thingName = Coerce.toString(deviceConfiguration.getThingName());
         this.iotShadowClient = new IotShadowClient(getMqttClientConnection());
         mqttClient.addToCallbackEvents(callbacks);
@@ -124,6 +123,19 @@ public class ShadowDeploymentListener implements InjectionActions {
                 logger.info("Subscribed to get device shadow topics" + thingName);
                 return;
             } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof MqttException || cause instanceof TimeoutException) {
+                    //TODO: If network is not available then it will throw MqttException
+                    // If there is any other problem like thingName is not specified in the request then also
+                    // it throws Mqtt exception. This can be identified based on error code. Currently error code is not
+                    // exposed. Will make required change in CRT package to expose the error code and then update this
+                    logger.atWarn().setCause(cause).log("Caught exception while subscribing to shadow topics, "
+                            + "will retry shortly");
+                }
+                if (cause instanceof InterruptedException) {
+                    logger.atWarn().log("Interrupted while subscribing to shadow topics");
+                    return;
+                }
                 logger.atError().setCause(e).log("Caught exception while subscribing to shadow topics, "
                         + "will retry shortly");
             } catch (TimeoutException e) {

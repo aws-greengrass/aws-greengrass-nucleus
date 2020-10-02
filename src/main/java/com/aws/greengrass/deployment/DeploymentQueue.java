@@ -21,7 +21,7 @@ public class DeploymentQueue {
     public synchronized boolean offer(Deployment deployment) {
         //For shadow deployment when desired state is reverted, it can result in scheduling a deployment which is
         // same as
-        if (!deployment.getDeploymentType().equals(DeploymentType.SHADOW) && deploymentsQueue.contains(deployment)) {
+        if (!DeploymentType.SHADOW.equals(deployment.getDeploymentType()) && deploymentsQueue.contains(deployment)) {
             return false;
         }
         return deploymentsQueue.offer(deployment);
@@ -34,8 +34,8 @@ public class DeploymentQueue {
      */
     public synchronized Deployment peekNextDeployment() {
         Deployment deployment = deploymentsQueue.peek();
-        // Discarding is not at schedule time because the deployment service does not remove the deployments atomically
-        // Deployment service first peeks and determine if the next deployment is actionable.
+        // Discarding is not done at schedule time because the DeploymentService does not remove the deployments
+        // atomically DeploymentService first peeks and determine if the next deployment is actionable.
         while (deployment != null && canDeploymentBeDiscarded(deployment)) {
             logger.atInfo().kv("DEPLOYMENT_ID", deployment.getId())
                     .kv("DEPLOYMENT_TYPE", deployment.getDeploymentType())
@@ -61,7 +61,7 @@ public class DeploymentQueue {
         // If the selected deployment is of type shadow and there is another deployment in the queue
         // the selected deployment can be discarded. ShadowDeploymentListener ensures that shadow deployments are
         // queued based on the order in which they are created in the cloud.
-        if (selectedDeployment.getDeploymentType().equals(DeploymentType.SHADOW)) {
+        if (DeploymentType.SHADOW.equals(selectedDeployment.getDeploymentType())) {
             Iterator<Deployment> iterator = deploymentsQueue.iterator();
             while (iterator.hasNext()) {
                 Deployment nextDeployment = iterator.next();

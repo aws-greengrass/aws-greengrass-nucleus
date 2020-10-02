@@ -51,6 +51,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -349,9 +350,7 @@ class KernelTest {
         }
 
         DeploymentQueue deployments = kernel.getContext().get(DeploymentQueue.class);
-        assertNotNull(deployments.peekNextDeployment());
-        deployments.remove();
-        assertTrue(deployments.isEmpty());
+        assertNull(deployments.peekNextDeployment());
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
