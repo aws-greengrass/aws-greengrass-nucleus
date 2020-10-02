@@ -48,6 +48,8 @@ public class ShadowDeploymentListener implements InjectionActions {
     private static final long WAIT_TIME_TO_SUBSCRIBE_AGAIN_IN_MS = Duration.ofMinutes(2).toMillis();
     private static final Logger logger = LogManager.getLogger(ShadowDeploymentListener.class);
     public static final String CONFIGURATION_ARN_LOG_KEY_NAME = "CONFIGURATION_ARN";
+    //Keeps track of the deployment config-arn and the desired state, in the order in which deployments
+    //were received.
     private final Queue<Pair<String, Map<String, Object>>> desiredStateQueue = new ConcurrentLinkedQueue<>();
     @Inject
     private DeploymentQueue deploymentQueue;

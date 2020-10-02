@@ -32,7 +32,7 @@ public class DeploymentQueue {
      *
      * @return deployment
      */
-    public synchronized Deployment peekNextDeployment() {
+    public synchronized Deployment peek() {
         Deployment deployment = deploymentsQueue.peek();
         // Discarding is not done at schedule time because the DeploymentService does not remove the deployments
         // atomically DeploymentService first peeks and determine if the next deployment is actionable.

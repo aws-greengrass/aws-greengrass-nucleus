@@ -316,7 +316,7 @@ class KernelTest {
         }
 
         DeploymentQueue deployments = kernel.getContext().get(DeploymentQueue.class);
-        assertNotNull(deployments.peekNextDeployment());
+        assertNotNull(deployments.peek());
         deployments.remove();
         assertTrue(deployments.isEmpty());
 
@@ -350,7 +350,7 @@ class KernelTest {
         }
 
         DeploymentQueue deployments = kernel.getContext().get(DeploymentQueue.class);
-        assertNull(deployments.peekNextDeployment());
+        assertNull(deployments.peek());
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")

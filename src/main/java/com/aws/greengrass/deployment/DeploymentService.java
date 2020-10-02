@@ -169,7 +169,7 @@ public class DeploymentService extends GreengrassService {
             //Cannot wait on queue because need to listen to queue as well as the currentProcessStatus future.
             //One thread cannot wait on both. If we want to make this completely event driven then we need to put
             // the waiting on currentProcessStatus in its own thread. I currently choose to not do this.
-            Deployment deployment = deploymentQueue.peekNextDeployment();
+            Deployment deployment = deploymentQueue.peek();
             if (deployment != null) {
                 if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentType()
                         .equals(deployment.getDeploymentType()) && deployment.isCancelled()
