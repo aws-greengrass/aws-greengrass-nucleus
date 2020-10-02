@@ -1,7 +1,6 @@
 package com.aws.greengrass.tes;
 
 import com.aws.greengrass.authorization.AuthorizationHandler;
-import com.aws.greengrass.authorization.AuthorizationPolicy;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
@@ -11,6 +10,7 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,8 +23,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.net.URI;
-import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
@@ -43,7 +44,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class TokenExchangeServiceTest extends GGServiceTestUtil {
     private static final String MOCK_ROLE_ALIAS = "ROLE_ALIAS";
-
+    static ExecutorService executorService = Executors.newFixedThreadPool(1);
     @Mock
     AuthorizationHandler mockAuthZHandler;
 
@@ -51,8 +52,6 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
     CredentialRequestHandler mockCredentialHandler;
 
     ArgumentCaptor<String> stringArgumentCaptor = ArgumentCaptor.forClass(String.class);
-
-    ArgumentCaptor<List<AuthorizationPolicy>> authCaptor = ArgumentCaptor.forClass(List.class);
 
     ArgumentCaptor<Set<String>> operationsCaptor = ArgumentCaptor.forClass(Set.class);
 
@@ -62,6 +61,11 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         serviceFullName = TOKEN_EXCHANGE_SERVICE_TOPICS;
         initializeMockedConfig();
         when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
+    }
+
+    @AfterAll
+    static void tearDown() {
+        executorService.shutdown();
     }
 
     @ParameterizedTest
@@ -91,7 +95,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
 
         TokenExchangeService tes = new TokenExchangeService(config,
                 mockCredentialHandler,
-                mockAuthZHandler);
+                mockAuthZHandler,
+                executorService);
         tes.postInject();
         tes.startup();
         Thread.sleep(5000L);
@@ -146,7 +151,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
-                mockAuthZHandler));
+                mockAuthZHandler,
+                executorService));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
         tes.startup();
@@ -179,7 +185,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
-                mockAuthZHandler));
+                mockAuthZHandler,
+                executorService));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
         tes.postInject();
