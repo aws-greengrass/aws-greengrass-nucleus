@@ -425,8 +425,8 @@ public class ComponentManager implements InjectionActions {
     /**
      * Get active component version and dependencies, the component version satisfies dependent version requirements.
      *
-     * @param componentName  component name
-     * @param requirementMap dependent component to version requirement map
+     * @param componentName  component name to be queried for active version
+     * @param requirementMap component dependents version requirement map
      * @return active component metadata which satisfies version requirement
      * @throws PackagingException no available version exception
      */

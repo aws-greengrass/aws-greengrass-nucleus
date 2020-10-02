@@ -102,8 +102,18 @@ public class ComponentServiceHelper {
         return ret;
     }
 
-    // Even though the cloud API signature can take a list of components at the same dependency level to resolve, the
-    // algorithm is going through the dependencies node by node, so one time one component got resolved.
+    /**
+     * Resolve a component version with greengrass cloud service.
+     * The dependency resolution algorithm goes through the dependencies node by node,
+     * so one component got resolve a time.
+     * @param componentName component name to be resolve
+     * @param localCandidateVersion component local candidate version if available
+     * @param versionRequirements component dependents version requirement map
+     * @param deploymentConfigurationId deployment configuration id
+     * @return resolved component version and recipe
+     * @throws NoAvailableComponentVersionException if no applicable version available in cloud service
+     * @throws ComponentVersionNegotiationException if service exception happens
+     */
     ComponentContent resolveComponentVersion(String componentName, Semver localCandidateVersion,
                                              Map<String, Requirement> versionRequirements,
                                              String deploymentConfigurationId)
