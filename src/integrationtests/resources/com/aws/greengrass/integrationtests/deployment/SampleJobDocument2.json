@@ -10,7 +10,8 @@
       "ConfigurationUpdate": {
         "MERGE": {
           "office": {
-            "ac": "ON"
+            "ac": "ON",
+            "secret": "ah!"
           },
           "office2": "hey"
         }

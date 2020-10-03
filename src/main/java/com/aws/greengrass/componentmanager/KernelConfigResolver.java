@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentConfiguration;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentParameter;
@@ -66,6 +67,7 @@ public class KernelConfigResolver {
     private static final Pattern SAME_COMPONENT_INTERPOLATION_REGEX = Pattern.compile("\\{([^}]+):([^}]+)}");
 
     static final String PARAM_NAMESPACE = "params";
+    static final String CONFIGURATION_NAMESPACE = "configuration";
     static final String PARAM_VALUE_SUFFIX = ".value";
     static final String PATH_KEY = "path";
     static final String DECOMPRESSED_PATH_KEY = "decompressedPath";
@@ -211,33 +213,34 @@ public class KernelConfigResolver {
             currentRunningConfig = serviceTopics.lookupTopics(CONFIGURATIONS_CONFIG_KEY).toPOJO();
         }
 
-        return buildNewConfig(currentRunningConfig, configurationUpdateOperation,
-                componentRecipe.getComponentConfiguration() == null ? null
-                        : componentRecipe.getComponentConfiguration().getDefaultConfiguration());
-    }
+        // get default config
+        JsonNode defaultConfig = Optional.ofNullable(componentRecipe.getComponentConfiguration())
+                                         .map(ComponentConfiguration::getDefaultConfiguration)
+                                         .orElse(mapper.createObjectNode()); // init null to be empty default config
 
-    @SuppressWarnings("rawtypes")
-    private Map buildNewConfig(Map<String, Object> currentRunningConfig,
-                               ConfigurationUpdateOperation configurationUpdateOperation,
-                               JsonNode defaultConfiguration) {
-
+        // deal with no update
         if (configurationUpdateOperation == null) {
             if (currentRunningConfig != null) {
                 // no update but there is running config, so it should return running config as is.
                 return currentRunningConfig;
             } else {
                 // no update nor running config, so it should return return the default config.
-                return mapper.convertValue(defaultConfiguration, Map.class);
+                return mapper.convertValue(defaultConfig, Map.class);
             }
         }
 
-        // There is an update. Apply the update on top of the existing config
+        return applyUpdateToCurrentConfig(currentRunningConfig, configurationUpdateOperation, defaultConfig);
+    }
 
-        // initialize if null because we will use this map as the base.
+    @SuppressWarnings("rawtypes")
+    private Map applyUpdateToCurrentConfig(Map<String, Object> currentRunningConfig,
+                                           ConfigurationUpdateOperation configurationUpdateOperation,
+                                           JsonNode defaultConfiguration) {
+
+        // initialize to empty map if null because we will use this map as the base.
         if (currentRunningConfig == null) {
             currentRunningConfig = new HashMap<>();
         }
-
 
         // perform RESET first
         currentRunningConfig =
@@ -256,25 +259,23 @@ public class KernelConfigResolver {
             return original;
         }
 
+        // convert to JsonNode for path navigation
         JsonNode node = mapper.convertValue(original, JsonNode.class);
 
         pathsToReset.forEach(pointer -> {
             JsonPointer jsonPointer = JsonPointer.compile(pointer);
 
-            // missing
-            if ((defaultValue.at(pointer).isMissingNode())) {
+            JsonNode targetNode = defaultValue.at(jsonPointer);
+
+            if ((targetNode.isMissingNode())) {
+                // missing default value -> remove the entry completely
+                // note: remove, rather than setting to null.
                 ((ObjectNode) node.at(jsonPointer.head())).remove(jsonPointer.getMatchingProperty());
-            }
 
-            // value node. including null.
-            else if ((defaultValue.at(pointer).isValueNode())) {
-                ((ObjectNode) node.at(jsonPointer.head())).set(jsonPointer.getMatchingProperty(),
+            } else {
+                // target is container node, or a value node, including null node -> replace the entry
+                ((ObjectNode) node.at(jsonPointer.head())).replace(jsonPointer.getMatchingProperty(),
                         defaultValue.at(pointer));
-            }
-
-            // container node.
-            else {
-                ((ObjectNode) node.at(jsonPointer)).setAll((ObjectNode) defaultValue.at(jsonPointer));
             }
         });
 
@@ -290,12 +291,14 @@ public class KernelConfigResolver {
 
         for (Object key : newMap.keySet()) {
             if (newMap.get(key) instanceof Map && original.get(key) instanceof Map) {
+                // if both are container node, recursively deep merge for children
                 Map originalChild = (Map) original.get(key);
                 Map newChild = (Map) newMap.get(key);
                 original.put(key, deepMerge(originalChild, newChild));
-            } else if (newMap.get(key) instanceof List && original.get(key) instanceof List) {
-                System.out.println("ist is not supported");
             } else {
+                // This branch supports container node -> key node and vice versa as it just overrides.
+                // This branch also handles the list with entire replacement.
+                // Note: There is no support for list append or insert at index operations.
                 original.put(key, newMap.get(key));
             }
         }
@@ -326,8 +329,9 @@ public class KernelConfigResolver {
             }
             result = resolvedChildConfig;
         }
-        // TODO : Do we want to support other config types than map of
-        // string k,v pairs? e.g. how should lists be handled?
+
+        // No list handling because lists are outlawed under "Lifecycle" key
+
         return result;
     }
 
@@ -359,7 +363,7 @@ public class KernelConfigResolver {
         }
 
         // Handle cross-component parameters
-        // TODO Add config
+        // TODO Add config support
         matcher = CROSS_INTERPOLATION_REGEX.matcher(stringValue);
 
         while (matcher.find()) {
@@ -397,7 +401,8 @@ public class KernelConfigResolver {
         return depSet.contains(canReadFrom.getName());
     }
 
-    @Nullable
+    @Nullable // null means no value found for interpolation
+    // TODO try to avoid using null as branching logic after cleaning up the parameters
     private String lookupConfigurationValueForComponent(
             Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache, DeploymentDocument document,
             ComponentIdentifier component, String namespace, String key) throws PackageLoadingException {
@@ -408,31 +413,28 @@ public class KernelConfigResolver {
             return systemParams.get(key).apply(component);
         }
 
-        if (namespace.equals("configurations")) {
+        if (namespace.equals(CONFIGURATION_NAMESPACE)) {
+            Map resolvedConfig = configAndDependencyCache.get(component).getLeft();
 
-            Map config = configAndDependencyCache.get(component).getLeft();
-
-            // TODO. Now only deal with default
-            //            ComponentRecipe componentRecipe = componentStore.getPackageRecipe(component);
-            //            ComponentConfiguration componentConfiguration = componentRecipe.getComponentConfiguration();
-            //
-            //            if (componentConfiguration == null) {
-            //                return null;
-            //            }
-
-            JsonNode targetNode = mapper.convertValue(config, JsonNode.class).at(key);
-            if (targetNode.isMissingNode()) {
-                // due to this node not being an object, or object not having value for the specified field
-                return null;
-            }
+            JsonNode targetNode = mapper.convertValue(resolvedConfig, JsonNode.class).at(key);
 
             if (targetNode.isValueNode()) {
-                // due to this node not being an object, or object not having value for the specified field
                 return targetNode.asText();
             }
 
+            if (targetNode.isMissingNode()) {
+                LOGGER.atError()
+                      .addKeyValue("Path", key)
+                      .log("Failed to interpolate configuration due to missing value node at given path");
+                // don't perform interpolation
+                return null;
+            }
+
             if (targetNode.isContainerNode()) {
-                // Doesn't support interpolate with container node.
+                LOGGER.atError()
+                      .addKeyValue("Path", key)
+                      .addKeyValue("ContainerNode", targetNode.toString())
+                      .log("Failed to interpolate configuration because node at given path is a container node");
                 return null;
             }
         }

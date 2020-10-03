@@ -9,7 +9,7 @@
       "ResolvedVersion": "1.0.0",
       "ConfigurationUpdate": {
         "RESET": [
-          "/office2", "/sampleText"
+          "/office", "/sampleText"
         ]
       }
     }
