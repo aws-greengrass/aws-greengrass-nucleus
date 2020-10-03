@@ -8,6 +8,7 @@ import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.IotJobsHelper;
@@ -57,11 +58,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
@@ -206,8 +205,8 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     }
 
     private void offerSampleIoTJobsDeployment() throws Exception {
-        LinkedBlockingQueue<Deployment> deployments = (LinkedBlockingQueue<Deployment>)
-                kernel.getContext().getvIfExists(DEPLOYMENTS_QUEUE).get();
+        DeploymentQueue deploymentQueue =
+                (DeploymentQueue) kernel.getContext().getvIfExists(DeploymentQueue.class).get();
         Map<String, PackageInfo> packages = new HashMap<>();
         packages.putIfAbsent("CustomerApp", new PackageInfo(true, "1.0.0", new HashMap<>()));
         List<String> platforms = new ArrayList<>();
@@ -218,7 +217,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
                         .withTimeout(120), new ConfigurationValidationPolicy().withTimeout(120));
         configuration.setCreationTimestamp(Instant.now().toEpochMilli());
 
-        deployments.offer(new Deployment(OBJECT_MAPPER.writeValueAsString(configuration),
+        deploymentQueue.offer(new Deployment(OBJECT_MAPPER.writeValueAsString(configuration),
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
     }
 }

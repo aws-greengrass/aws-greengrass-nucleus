@@ -54,9 +54,9 @@ import java.util.function.Function;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
@@ -173,9 +173,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
         Map<String, Object> map = new HashMap<>();
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
+        map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
+        map.put(DEPLOYMENT_TYPE_KEY_NAME, IOT_JOBS);
         consumerArgumentCaptor.getValue().apply(map);
 
         // Update the state of an EG service.
@@ -185,7 +185,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 .globalServiceStateChanged(mockGreengrassService2, State.INSTALLED, State.RUNNING);
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.SUCCEEDED.toString());
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
         consumerArgumentCaptor.getValue().apply(map);
 
         // Verify that an MQTT message with the components' status is uploaded.
@@ -251,9 +251,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
         Map<String, Object> map = new HashMap<>();
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
+        map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
+        map.put(DEPLOYMENT_TYPE_KEY_NAME, IOT_JOBS);
         consumerArgumentCaptor.getValue().apply(map);
 
         // Update the state of an EG service.
@@ -261,7 +261,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 .globalServiceStateChanged(mockGreengrassService1, State.INSTALLED, State.BROKEN);
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.SUCCEEDED.toString());
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
         consumerArgumentCaptor.getValue().apply(map);
 
         // Verify that an MQTT message with the components' status is uploaded.
@@ -305,8 +305,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         Map<String, Object> map = new HashMap<>();
         // Update the job status for an ongoing deployment to IN_PROGRESS.
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
+        map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
         consumerArgumentCaptor.getValue().apply(map);
 
         // Verify that an MQTT message with the components status is uploaded.
@@ -334,8 +334,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         Map<String, Object> map = new HashMap<>();
         // Update the job status for an ongoing deployment to IN_PROGRESS.
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
+        map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
         consumerArgumentCaptor.getValue().apply(map);
 
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
@@ -344,7 +344,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         addGlobalStateChangeListenerArgumentCaptor.getValue()
                 .globalServiceStateChanged(mockGreengrassService1, State.INSTALLED, State.RUNNING);
 
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.SUCCEEDED.toString());
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
         consumerArgumentCaptor.getValue().apply(map);
 
         // Verify that an MQTT message with the components status is uploaded.
@@ -433,9 +433,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
         Map<String, Object> map = new HashMap<>();
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
+        map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
+        map.put(DEPLOYMENT_TYPE_KEY_NAME, IOT_JOBS);
         consumerArgumentCaptor.getValue().apply(map);
 
         // Update the state of an EG service.
@@ -444,7 +444,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService.addEvergreenServicesToPreviouslyKnownServicesList(Collections.singletonList(
                 mockGreengrassService1), Instant.MIN);
 
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.SUCCEEDED.toString());
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
         consumerArgumentCaptor.getValue().apply(map);
 
         // Verify that an MQTT message with the components' status is uploaded.
@@ -542,8 +542,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
         Map<String, Object> map = new HashMap<>();
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
+        map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
         consumerArgumentCaptor.getValue().apply(map);
 
         TimeUnit.SECONDS.sleep(5);
@@ -592,8 +592,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
         Map<String, Object> map = new HashMap<>();
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
+        map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
         consumerArgumentCaptor.getValue().apply(map);
 
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
@@ -605,7 +605,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 .globalServiceStateChanged(mockGreengrassService2, State.INSTALLED, State.RUNNING);
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.SUCCEEDED.toString());
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
         consumerArgumentCaptor.getValue().apply(map);
 
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionResumed(false);
@@ -744,9 +744,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
         Map<String, Object> map = new HashMap<>();
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
+        map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
+        map.put(DEPLOYMENT_TYPE_KEY_NAME, IOT_JOBS);
         consumerArgumentCaptor.getValue().apply(map);
 
         // Update the state of an EG service.
@@ -756,7 +756,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         }
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
-        map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.SUCCEEDED.toString());
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
         consumerArgumentCaptor.getValue().apply(map);
 
         // Verify that an MQTT message with the components' status is uploaded.
