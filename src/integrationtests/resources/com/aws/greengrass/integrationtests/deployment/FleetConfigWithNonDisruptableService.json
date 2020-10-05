@@ -1,0 +1,20 @@
+{
+  "configurationArn": "Test",
+  "packages": {
+    "NonDisruptableService": {
+      "rootComponent": true,
+      "version": "1.0.0",
+      "configuration": {}
+    }
+  },
+  "platforms": null,
+  "creationTimestamp": 1601276785085,
+  "failureHandlingPolicy": "ROLLBACK",
+  "componentUpdatePolicy": {
+    "timeout": 60,
+    "action": "SKIP_NOTIFY_COMPONENTS"
+  },
+  "configurationValidationPolicy": {
+    "timeout": 60
+  }
+}

@@ -44,7 +44,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -81,7 +80,7 @@ class IotJobsHelperTest {
     @Mock
     IotJobsHelper.IotJobsClientFactory mockIotJobsClientFactory;
     @Mock
-    LinkedBlockingQueue<Deployment> mockDeploymentsQueue;
+    DeploymentQueue mockDeploymentQueue;
     @Mock
     DeploymentStatusKeeper deploymentStatusKeeper;
     @Mock
@@ -111,7 +110,7 @@ class IotJobsHelperTest {
 
     @BeforeEach
     void setup() throws Exception {
-        iotJobsHelper = new IotJobsHelper(deviceConfiguration, mockIotJobsClientFactory, mockDeploymentsQueue,
+        iotJobsHelper = new IotJobsHelper(deviceConfiguration, mockIotJobsClientFactory, mockDeploymentQueue,
                 deploymentStatusKeeper, executorService,mockKernel, mockWrapperMqttConnectionFactory, mockMqttClient);
         Topic mockThingNameTopic = mock(Topic.class);
         when(mockThingNameTopic.getOnce()).thenReturn(TEST_THING_NAME);
@@ -248,9 +247,9 @@ class IotJobsHelperTest {
             throws Exception {
         String TEST_JOB_ID = "jobToBeCancelled";
 
-        LinkedBlockingQueue<Deployment> mockDeploymentsQueue = mock(LinkedBlockingQueue.class);
-        iotJobsHelper.setDeploymentsQueue(mockDeploymentsQueue);
-        when(mockDeploymentsQueue.isEmpty()).thenReturn(true);
+
+        iotJobsHelper.setDeploymentQueue(mockDeploymentQueue);
+        when(mockDeploymentQueue.isEmpty()).thenReturn(true);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
         when(mockIotJobsClient.SubscribeToJobExecutionsChangedEvents(any()
                 , eq(QualityOfService.AT_LEAST_ONCE), any())).thenReturn(integerCompletableFuture);
@@ -276,7 +275,7 @@ class IotJobsHelperTest {
         describeJobExecutionResponse.execution = jobExecutionData;
         describeJobResponseCaptor.getValue().accept(describeJobExecutionResponse);
         ArgumentCaptor<Deployment> deploymentArgumentCaptor = ArgumentCaptor.forClass(Deployment.class);
-        verify(mockDeploymentsQueue,times(2)).offer(deploymentArgumentCaptor.capture());
+        verify(mockDeploymentQueue,times(2)).offer(deploymentArgumentCaptor.capture());
         // First queued deployment should be for cancellation and then next one for next queued job
         List<Deployment> actualDeployments = deploymentArgumentCaptor.getAllValues();
         assertTrue(actualDeployments.get(0).isCancelled());
@@ -289,9 +288,8 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_ongoing_job_deployment_WHEN_notification_with_empty_jobs_list_THEN_cancel_current_deployment()
             throws Exception {
-        LinkedBlockingQueue<Deployment> mockDeploymentsQueue = mock(LinkedBlockingQueue.class);
-        iotJobsHelper.setDeploymentsQueue(mockDeploymentsQueue);
-        when(mockDeploymentsQueue.isEmpty()).thenReturn(true);
+        iotJobsHelper.setDeploymentQueue(mockDeploymentQueue);
+        when(mockDeploymentQueue.isEmpty()).thenReturn(true);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
         when(mockIotJobsClient.SubscribeToJobExecutionsChangedEvents(any()
                 , eq(QualityOfService.AT_LEAST_ONCE), any())).thenReturn(integerCompletableFuture);
@@ -312,7 +310,7 @@ class IotJobsHelperTest {
         verify(mockIotJobsClient, times(2)).PublishDescribeJobExecution(any(),
                 eq(QualityOfService.AT_LEAST_ONCE));
         ArgumentCaptor<Deployment> deploymentArgumentCaptor = ArgumentCaptor.forClass(Deployment.class);
-        verify(mockDeploymentsQueue).offer(deploymentArgumentCaptor.capture());
+        verify(mockDeploymentQueue).offer(deploymentArgumentCaptor.capture());
         Deployment actualDeployment = deploymentArgumentCaptor.getValue();
         assertTrue(actualDeployment.isCancelled());
         assertEquals(IOT_JOBS, actualDeployment.getDeploymentType());
@@ -321,9 +319,8 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_ongoing_local_deployment_WHEN_notification_with_empty_jobs_list_THEN_do_nothing()
             throws Exception {
-        LinkedBlockingQueue<Deployment> mockDeploymentsQueue = mock(LinkedBlockingQueue.class);
-        iotJobsHelper.setDeploymentsQueue(mockDeploymentsQueue);
-        when(mockDeploymentsQueue.isEmpty()).thenReturn(true);
+        iotJobsHelper.setDeploymentQueue(mockDeploymentQueue);
+        when(mockDeploymentQueue.isEmpty()).thenReturn(true);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
         when(mockIotJobsClient.SubscribeToJobExecutionsChangedEvents(any()
                 , eq(QualityOfService.AT_LEAST_ONCE), any())).thenReturn(integerCompletableFuture);
@@ -344,15 +341,14 @@ class IotJobsHelperTest {
         verify(mockIotJobsClient, times(2)).PublishDescribeJobExecution(any(),
                 eq(QualityOfService.AT_LEAST_ONCE));
         // Ongoing deployment is not of jobs type, it shouldn't be canceled, so nothing should be put in the queue
-        verify(mockDeploymentsQueue,times(0)).offer(any());
+        verify(mockDeploymentQueue,times(0)).offer(any());
     }
 
     @Test
     void GIVEN_connected_to_iot_WHEN_subscribe_to_jobs_topics_THEN_get_job_description()
             throws Exception {
         String TEST_JOB_ID = "jobToReceive";
-        LinkedBlockingQueue<Deployment> mockDeploymentsQueue = mock(LinkedBlockingQueue.class);
-        iotJobsHelper.setDeploymentsQueue(mockDeploymentsQueue);
+        iotJobsHelper.setDeploymentQueue(mockDeploymentQueue);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
         when(mockIotJobsClient.SubscribeToJobExecutionsChangedEvents(any()
                 , eq(QualityOfService.AT_LEAST_ONCE), any())).thenReturn(integerCompletableFuture);
@@ -377,7 +373,7 @@ class IotJobsHelperTest {
         describeJobExecutionResponse.execution = jobExecutionData;
         describeJobResponseCaptor.getValue().accept(describeJobExecutionResponse);
         ArgumentCaptor<Deployment> deploymentArgumentCaptor = ArgumentCaptor.forClass(Deployment.class);
-        verify(mockDeploymentsQueue).offer(deploymentArgumentCaptor.capture());
+        verify(mockDeploymentQueue).offer(deploymentArgumentCaptor.capture());
         Deployment actualDeployment = deploymentArgumentCaptor.getValue();
         assertEquals(TEST_JOB_ID, actualDeployment.getId());
         assertEquals(IOT_JOBS, actualDeployment.getDeploymentType());
@@ -387,8 +383,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_iot_job_notifications_WHEN_duplicate_or_outdated_THEN_ignore_jobs() {
         String TEST_JOB_ID = "duplicateJob";
-        LinkedBlockingQueue<Deployment> mockDeploymentsQueue = mock(LinkedBlockingQueue.class);
-        iotJobsHelper.setDeploymentsQueue(mockDeploymentsQueue);
+        iotJobsHelper.setDeploymentQueue(mockDeploymentQueue);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
         when(mockIotJobsClient.SubscribeToJobExecutionsChangedEvents(any()
                 , eq(QualityOfService.AT_LEAST_ONCE), any())).thenReturn(integerCompletableFuture);
@@ -423,7 +418,7 @@ class IotJobsHelperTest {
 
         // Only two jobs should be queued
         ArgumentCaptor<Deployment> deploymentArgumentCaptor = ArgumentCaptor.forClass(Deployment.class);
-        verify(mockDeploymentsQueue, times(2)).offer(deploymentArgumentCaptor.capture());
+        verify(mockDeploymentQueue, times(2)).offer(deploymentArgumentCaptor.capture());
 
         List<Deployment> actualDeployments = deploymentArgumentCaptor.getAllValues();
         assertEquals(2, actualDeployments.size());

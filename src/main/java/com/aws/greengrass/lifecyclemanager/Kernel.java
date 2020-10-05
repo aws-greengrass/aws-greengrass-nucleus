@@ -18,6 +18,7 @@ import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
+import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -57,7 +58,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -68,7 +68,6 @@ import javax.inject.Singleton;
 import static com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory.CONTEXT_COMPONENT_SERVICE_ENDPOINT;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
-import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.STAGE_TO_ENDPOINT_FORMAT;
@@ -214,12 +213,12 @@ public class Kernel {
             case KERNEL_ACTIVATION:
             case KERNEL_ROLLBACK:
                 logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
-                LinkedBlockingQueue<Deployment> deploymentsQueue = new LinkedBlockingQueue<>();
-                context.put(DEPLOYMENTS_QUEUE, deploymentsQueue);
+                DeploymentQueue deploymentQueue = new DeploymentQueue();
+                context.put(DeploymentQueue.class, deploymentQueue);
                 try {
                     Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
                     deployment.setDeploymentStage(stage);
-                    deploymentsQueue.add(deployment);
+                    deploymentQueue.offer(deployment);
                 } catch (IOException e) {
                     logger.atError().setCause(e)
                             .log("Failed to load information for the ongoing deployment. Proceed as default");

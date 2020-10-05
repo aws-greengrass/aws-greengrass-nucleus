@@ -29,8 +29,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PROCESSED_DEPLOYMENTS_TOPICS;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -149,8 +149,8 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
                 return;
             }
             Map<String, Object> deploymentDetails = ((Topics) newValue).toPOJO();
-            String jobId = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString();
-            String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
+            String jobId = deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME).toString();
+            String status = deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME).toString();
 
             for (int i = 0; i < helpers.size(); i++) {
                 if (i > 0 && helpers.get(i - 1).jobCompleted.getCount() > 0) {
