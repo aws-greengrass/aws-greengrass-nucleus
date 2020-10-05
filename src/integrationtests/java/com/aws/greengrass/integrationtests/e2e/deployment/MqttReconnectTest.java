@@ -35,8 +35,8 @@ import java.util.function.Consumer;
 
 import static com.aws.greengrass.componentmanager.ComponentStore.CONTEXT_PACKAGE_STORE_DIRECTORY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PROCESSED_DEPLOYMENTS_TOPICS;
 import static com.aws.greengrass.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG;
 import static com.aws.greengrass.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG;
@@ -113,17 +113,17 @@ class MqttReconnectTest extends BaseE2ETestCase {
             if (!(newValue instanceof Topic)) {
                 return;
             }
-            if (newValue.childOf(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS)) {
+            if (newValue.childOf(DEPLOYMENT_STATUS_KEY_NAME)) {
                 newValue = newValue.parent;
             } else {
                 return;
             }
 
             Map<String, Object> deploymentDetails = ((Topics) newValue).toPOJO();
-            if (!deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID).toString().equals(jobId)) {
+            if (!deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME).toString().equals(jobId)) {
                 return;
             }
-            String status = deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS).toString();
+            String status = deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME).toString();
             if (JobStatus.IN_PROGRESS.toString().equals(status)) {
                 jobInProgress.countDown();
             } else if (jobInProgress.getCount() <= 0 && JobStatus.SUCCEEDED.toString().equals(status)) {

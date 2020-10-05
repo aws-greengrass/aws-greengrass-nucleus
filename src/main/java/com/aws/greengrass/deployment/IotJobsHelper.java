@@ -18,11 +18,10 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.util.Coerce;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.aws.greengrass.util.SerializerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
-import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -55,32 +54,28 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.inject.Inject;
-import javax.inject.Named;
 
-import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
-import static com.aws.greengrass.deployment.DeploymentService.OBJECT_MAPPER;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 
 @NoArgsConstructor
 public class IotJobsHelper implements InjectionActions {
 
+    public static final String UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG = "Timed out while updating the job status";
+    public static final String UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG = "Caught exception while updating job status";
+    public static final String UPDATE_DEPLOYMENT_STATUS_ACCEPTED = "Job status update was accepted";
+    public static final String STATUS_LOG_KEY_NAME = "Status";
     protected static final String UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC =
             "$aws/things/{thingName}/jobs/{jobId}/update/accepted";
     protected static final String UPDATE_SPECIFIC_JOB_REJECTED_TOPIC =
             "$aws/things/{thingName}/jobs/{jobId}/update/rejected";
-    public static final String UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG = "Timed out while updating the job status";
-    public static final String UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG = "Caught exception while updating job status";
-    public static final String UPDATE_DEPLOYMENT_STATUS_ACCEPTED = "Job status update was accepted";
     protected static final String SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE =
             "No connection available during subscribing to Iot Jobs descriptions topic. Will retry in sometime";
     protected static final String SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED =
@@ -89,16 +84,13 @@ public class IotJobsHelper implements InjectionActions {
             "No connection available during subscribing to Iot jobs event notifications topic. Will retry in sometime";
     protected static final String SUBSCRIPTION_EVENT_NOTIFICATIONS_INTERRUPTED =
             "Interrupted while subscribing to Iot jobs event notifications topic";
-
     //The time within which device expects an acknowledgement from Iot cloud after publishing an MQTT message
     //This value needs to be revisited and set to more realistic numbers
     private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = Duration.ofMinutes(5).getSeconds();
     //The time it takes for device to publish a message
     //This value needs to be revisited and set to more realistic numbers
     private static final long TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS = Duration.ofMinutes(1).getSeconds();
-
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
-    public static final String STATUS_LOG_KEY_NAME = "Status";
     // Sometimes when we are notified that a new job is queued and request the next pending job document immediately,
     // we get an empty response. This unprocessedJobs is to track the number of new queued jobs that we are notified
     // with, and keep retrying the request until we get a non-empty response.
@@ -132,15 +124,15 @@ public class IotJobsHelper implements InjectionActions {
 
     @Setter
     @Inject
-    @Named(DEPLOYMENTS_QUEUE)
-    private LinkedBlockingQueue<Deployment> deploymentsQueue;
+    private DeploymentQueue deploymentQueue;
+
+    private MqttClientConnection connection;
+
+    @Setter(AccessLevel.PACKAGE) // For tests
+    private long waitTimeToSubscribeAgain = WAIT_TIME_MS_TO_SUBSCRIBE_AGAIN;
 
     @Setter // For tests
     private IotJobsClient iotJobsClient;
-    private MqttClientConnection connection;
-    @Setter (AccessLevel.PACKAGE) // For tests
-    private long waitTimeToSubscribeAgain = WAIT_TIME_MS_TO_SUBSCRIBE_AGAIN;
-
     private final Consumer<JobExecutionsChangedEvent> eventHandler = event -> {
         /*
          * This message is received when either of these things happen
@@ -168,7 +160,6 @@ public class IotJobsHelper implements InjectionActions {
         }
         logger.atInfo().kv("jobs", jobs).log("Received other deployment notification. Not supported yet");
     };
-
     /**
      * Handler that gets invoked when a job description is received.
      * Next pending job description is requested when an mqtt message
@@ -197,7 +188,7 @@ public class IotJobsHelper implements InjectionActions {
 
         String documentString;
         try {
-            documentString = OBJECT_MAPPER.writeValueAsString(jobExecutionData.jobDocument);
+            documentString = SerializerFactory.getJsonObjectMapper().writeValueAsString(jobExecutionData.jobDocument);
         } catch (JsonProcessingException e) {
             //TODO: Handle when job document is incorrect json.
             // This should not happen as we are converting a HashMap
@@ -215,12 +206,10 @@ public class IotJobsHelper implements InjectionActions {
         Deployment deployment =
                 new Deployment(documentString, DeploymentType.IOT_JOBS, jobExecutionData.jobId);
 
-        if (!deploymentsQueue.contains(deployment) && deploymentsQueue.offer(deployment)) {
+        if (deploymentQueue.offer(deployment)) {
             logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).log("Added the job to the queue");
         }
     };
-
-
     @Getter
     public MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
@@ -238,11 +227,10 @@ public class IotJobsHelper implements InjectionActions {
 
     /**
      * Constructor for unit testing.
-     *
      */
     IotJobsHelper(DeviceConfiguration deviceConfiguration,
                   IotJobsClientFactory iotJobsClientFactory,
-                  LinkedBlockingQueue<Deployment> deploymentsQueue,
+                  DeploymentQueue deploymentQueue,
                   DeploymentStatusKeeper deploymentStatusKeeper,
                   ExecutorService executorService,
                   Kernel kernel,
@@ -250,12 +238,24 @@ public class IotJobsHelper implements InjectionActions {
                   MqttClient mqttClient) {
         this.deviceConfiguration = deviceConfiguration;
         this.iotJobsClientFactory = iotJobsClientFactory;
-        this.deploymentsQueue = deploymentsQueue;
+        this.deploymentQueue = deploymentQueue;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.executorService = executorService;
         this.kernel = kernel;
         this.wrapperMqttConnectionFactory = wrapperMqttConnectionFactory;
         this.mqttClient = mqttClient;
+    }
+
+    private static void unwrapExecutionException(ExecutionException e)
+            throws TimeoutException, InterruptedException, ExecutionException {
+        Throwable cause = e.getCause();
+        if (cause instanceof TimeoutException) {
+            throw (TimeoutException) cause;
+        }
+        if (cause instanceof InterruptedException) {
+            throw (InterruptedException) cause;
+        }
+        throw e;
     }
 
     @Override
@@ -280,24 +280,11 @@ public class IotJobsHelper implements InjectionActions {
                 this::deploymentStatusChanged, IotJobsHelper.class.getName());
     }
 
-    public static class WrapperMqttConnectionFactory {
-        public WrapperMqttClientConnection getAwsIotMqttConnection(MqttClient mqttClient) {
-            return new WrapperMqttClientConnection(mqttClient);
-        }
-    }
-
-    public static class IotJobsClientFactory {
-        public IotJobsClient getIotJobsClient(MqttClientConnection connection) {
-            return new IotJobsClient(connection);
-        }
-    }
-
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
-        DeploymentDetailsIotJobs deploymentDetailsIotJobs = OBJECT_MAPPER.convertValue(deploymentDetails,
-                DeploymentDetailsIotJobs.class);
-        String jobId = deploymentDetailsIotJobs.getJobId();
-        String status = deploymentDetailsIotJobs.getJobStatus().toString();
-        Map<String, String> statusDetails = deploymentDetailsIotJobs.getStatusDetails();
+        String jobId = (String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME);
+        String status = (String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME);
+        Map<String, String> statusDetails = (Map<String, String>)
+                deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
         logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status).kv("StatusDetails",
                 statusDetails).log("Updating status of persisted deployment");
         try {
@@ -405,14 +392,12 @@ public class IotJobsHelper implements InjectionActions {
         logger.atDebug().log("Requesting the next deployment");
     }
 
-
     /**
      * Subscribe to the mqtt topics needed for getting Iot Jobs notifications.
      *
      * @throws InterruptedException           When operation is interrupted
      * @throws AWSIotException                When there is an exception from the Iot cloud
      * @throws ConnectionUnavailableException When connection to cloud is not available
-     *
      */
     public void subscribeToJobsTopics() {
         subscribeToEventNotifications(eventHandler);
@@ -535,18 +520,6 @@ public class IotJobsHelper implements InjectionActions {
         }
     }
 
-    private static void unwrapExecutionException(ExecutionException e)
-            throws TimeoutException, InterruptedException, ExecutionException {
-        Throwable cause = e.getCause();
-        if (cause instanceof TimeoutException) {
-            throw (TimeoutException) cause;
-        }
-        if (cause instanceof InterruptedException) {
-            throw (InterruptedException) cause;
-        }
-        throw e;
-    }
-
     private void evaluateCancellationAndCancelDeploymentIfNeeded() {
         try {
             GreengrassService deploymentServiceLocateResult =
@@ -559,9 +532,9 @@ public class IotJobsHelper implements InjectionActions {
                 // in that case don't add a cancellation deployment because it can't be added to the front of the queue
                 // we will just have to let current deployment finish
                 Deployment deployment = new Deployment(DeploymentType.IOT_JOBS, UUID.randomUUID().toString(), true);
-                if (deploymentsQueue.isEmpty() && currentDeployment != null && currentDeployment.isCancellable()
+                if (deploymentQueue.isEmpty() && currentDeployment != null && currentDeployment.isCancellable()
                         && DeploymentType.IOT_JOBS.equals(currentDeployment.getDeploymentType())
-                        && deploymentsQueue.offer(deployment)) {
+                        && deploymentQueue.offer(deployment)) {
                     logger.atInfo().log("Added cancellation deployment to the queue");
                 }
             }
@@ -570,17 +543,29 @@ public class IotJobsHelper implements InjectionActions {
         }
     }
 
+    public static class WrapperMqttConnectionFactory {
+        public WrapperMqttClientConnection getAwsIotMqttConnection(MqttClient mqttClient) {
+            return new WrapperMqttClientConnection(mqttClient);
+        }
+    }
+
+    public static class IotJobsClientFactory {
+        public IotJobsClient getIotJobsClient(MqttClientConnection connection) {
+            return new IotJobsClient(connection);
+        }
+    }
+
     private static class LatestQueuedJobs {
-        private Instant lastQueueAt = Instant.EPOCH;
         private final Set<String> jobIds = new HashSet<>();
         // Used to track deployment jobs which involve kernel restart, when QueueAt information is not available.
         private final Set<String> lastCompletedJobIds = new HashSet<>();
+        private Instant lastQueueAt = Instant.EPOCH;
 
         /**
          * Track IoT jobs with the latest timestamp.
          *
          * @param queueAt QueueAt timestamp in IoT Job Execution Data
-         * @param jobId IoT job ID
+         * @param jobId   IoT job ID
          * @return true if IoT job with the given ID is a new job yet to be processed, false otherwise
          */
         public synchronized boolean addNewJobIfAbsent(Instant queueAt, String jobId) {
@@ -614,31 +599,6 @@ public class IotJobsHelper implements InjectionActions {
                 return;
             }
             lastCompletedJobIds.add(jobId);
-        }
-    }
-
-    @Data
-    public static class DeploymentDetailsIotJobs {
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID)
-        private String jobId;
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS)
-        private JobStatus jobStatus;
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS)
-        private Map<String, String> statusDetails;
-        @JsonProperty(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE)
-        private DeploymentType deploymentType;
-
-        /**
-         * Returns a map of string to object representing the deployment details.
-         * @return Map of string to object
-         */
-        public Map<String, Object> convertToMapOfObjects() {
-            Map<String, Object> deploymentDetails = new HashMap<>();
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, jobId);
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, jobStatus.toString());
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS, statusDetails);
-            deploymentDetails.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, deploymentType.toString());
-            return deploymentDetails;
         }
     }
 }

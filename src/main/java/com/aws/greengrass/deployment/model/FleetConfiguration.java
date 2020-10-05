@@ -28,6 +28,7 @@ import java.util.Map;
 @EqualsAndHashCode
 public class FleetConfiguration {
 
+    @Setter
     private String configurationArn;
 
     private Map<String, PackageInfo> packages;
