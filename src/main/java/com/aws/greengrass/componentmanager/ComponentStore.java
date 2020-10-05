@@ -224,7 +224,7 @@ public class ComponentStore {
      *
      * @return map from component name to a set of version strings in Semver format
      */
-    public Map<String, Set<String>> listArtifactAvailableComponents() {
+    public Map<String, Set<String>> listAvailableComponentVersions() {
         Map<String, Set<String>> result = new HashMap<>();
         File[] compDirs = nucleusPaths.artifactPath().toFile().listFiles(File::isDirectory);
         if (compDirs == null || compDirs.length == 0) {
@@ -335,19 +335,6 @@ public class ComponentStore {
     public long getUsableSpace() throws PackageLoadingException {
         try {
             return Files.getFileStore(nucleusPaths.componentStorePath()).getUsableSpace();
-        } catch (IOException e) {
-            throw new PackageLoadingException("Failed to get usable disk space", e);
-        }
-    }
-
-    /**
-     * Get remaining usable bytes for the package store.
-     * @return usable bytes
-     * @throws PackageLoadingException if I/O error occurred
-     */
-    public long getTotalSpace() throws PackageLoadingException {
-        try {
-            return Files.getFileStore(nucleusPaths.componentStorePath()).getTotalSpace();
         } catch (IOException e) {
             throw new PackageLoadingException("Failed to get usable disk space", e);
         }

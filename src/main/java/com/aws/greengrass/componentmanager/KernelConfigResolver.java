@@ -157,7 +157,8 @@ public class KernelConfigResolver {
         resolvedServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, dependencyConfig);
 
         // State information for deployments
-        handleConfigVersions(componentIdentifier, componentRecipe.getVersion().getValue(), resolvedServiceConfig);
+        handleComponentVersionConfigs(
+                componentIdentifier, componentRecipe.getVersion().getValue(), resolvedServiceConfig);
         Map<String, String> map = new HashMap<>();
         for (ComponentParameter resolvedParam : resolvedParams) {
             map.put(resolvedParam.getName(), resolvedParam.getValue());
@@ -298,8 +299,8 @@ public class KernelConfigResolver {
     /*
      * Record current deployment version in service config. Rotate versions.
      */
-    private void handleConfigVersions(ComponentIdentifier compId, String deploymentVersion,
-                                      Map<String, Object> newConfig) {
+    private void handleComponentVersionConfigs(ComponentIdentifier compId, String deploymentVersion,
+                                               Map<String, Object> newConfig) {
         newConfig.put(VERSION_CONFIG_KEY, deploymentVersion);
         Topic existingVersionTopic =
                 kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC, compId.getName(), VERSION_CONFIG_KEY);

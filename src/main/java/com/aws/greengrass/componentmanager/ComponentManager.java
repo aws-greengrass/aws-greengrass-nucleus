@@ -338,14 +338,15 @@ public class ComponentManager implements InjectionActions {
 
         for (ComponentArtifact artifact : artifacts) {
             // check disk space before download
-            //TODO refactor to check total artifacts size in preparePackages before download anything
-            // because all artifacts must fit otherwise the deployment still can fail.
-            // also revise entire download flow to check existence first
+            //TODO refactor to check total size of artifacts from all components at once instead of one by one
+            // because all artifacts must fit otherwise the deployment still fails.
             if (componentStore.getUsableSpace() < DEFAULT_MIN_DISK_AVAIL_BYTES) {
                 throw new SizeLimitException("Disk space critical");
             }
-
             ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
+            if (!downloader.downloadRequired(componentIdentifier, artifact, packageArtifactDirectory)) {
+                continue;
+            }
             long downloadSize = downloader.getDownloadSize(componentIdentifier, artifact, packageArtifactDirectory);
             if (componentStore.getContentSize() + downloadSize > DEFAULT_MAX_STORE_SIZE_BYTES) {
                 throw new SizeLimitException("Component store size limit reached");
@@ -385,14 +386,14 @@ public class ComponentManager implements InjectionActions {
      */
     public void cleanupStaleVersions() throws PackageLoadingException {
         logger.atInfo("cleanup-stale-versions-start").log();
-        Map<String, Set<String>> keepVersions = getNonStaleComponentVersionsOnce();
-        Map<String, Set<String>> localComponentVersions = componentStore.listArtifactAvailableComponents();
-        // remove all local versions that does not present in keepVersions
-        for (Map.Entry<String, Set<String>> localVersions : localComponentVersions.entrySet()) {
+        Map<String, Set<String>> versionsToKeep = getVersionsToKeep();
+        Map<String, Set<String>> versionsToRemove = componentStore.listAvailableComponentVersions();
+        // remove all local versions that does not exist in versionsToKeep
+        for (Map.Entry<String, Set<String>> localVersions : versionsToRemove.entrySet()) {
             String compName = localVersions.getKey();
-            if (keepVersions.containsKey(compName)) {
+            if (versionsToKeep.containsKey(compName)) {
                 Set<String> removeVersions = new HashSet<>(localVersions.getValue());
-                removeVersions.removeAll(keepVersions.get(compName));
+                removeVersions.removeAll(versionsToKeep.get(compName));
                 for (String compVersion : removeVersions) {
                     componentStore
                             .deleteComponent(new ComponentIdentifier(compName, new Semver(compVersion), PRIVATE_SCOPE));
@@ -407,8 +408,7 @@ public class ComponentManager implements InjectionActions {
      *
      * @return mapping from component name string to collection of non-stale version strings
      */
-    public Map<String, Set<String>> getNonStaleComponentVersionsOnce() {
-        // TODO maybe subscribe to service topics instead of getOnce every time
+    public Map<String, Set<String>> getVersionsToKeep() {
         Map<String, Set<String>> result = new HashMap<>();
         for (GreengrassService service : kernel.orderedDependencies()) {
             Set<String> nonStaleVersions = new HashSet<>();

@@ -63,14 +63,28 @@ public abstract class ArtifactDownloader {
         }
     }
 
-    static boolean needsDownload(ComponentArtifact artifact, Path saveToPath)
+    /**
+     * Checks whether it is necessary to download the artifact or the existing file suffices.
+     *
+     * @param componentIdentifier component that has the artifact
+     * @param artifact an artifact object
+     * @param saveToPath path of directory where the artifact is expected to exist
+     * @return true if download is necessary
+     * @throws PackageDownloadException if error occurred in download process
+     * @throws InvalidArtifactUriException if given artifact URI has error
+     */
+    public abstract boolean downloadRequired(ComponentIdentifier componentIdentifier, ComponentArtifact artifact,
+                                             Path saveToPath)
+            throws InvalidArtifactUriException, PackageDownloadException;
+
+    static boolean needsDownload(ComponentArtifact artifact, Path filePath)
             throws PackageDownloadException {
         // Local recipes don't have digest or algorithm and that's expected, in such case, use the
         // locally present artifact. On the other hand, recipes downloaded from cloud will always
         // have digest and algorithm
-        if (Files.exists(saveToPath) && !recipeHasDigest(artifact)) {
+        if (Files.exists(filePath) && !recipeHasDigest(artifact)) {
             return false;
-        } else if (!Files.exists(saveToPath)) {
+        } else if (!Files.exists(filePath)) {
             if (recipeHasDigest(artifact)) {
                 return true;
             } else {
@@ -80,7 +94,7 @@ public abstract class ArtifactDownloader {
         }
 
         // If the file already exists and has the right content, skip download
-        try (InputStream existingArtifact = Files.newInputStream(saveToPath)) {
+        try (InputStream existingArtifact = Files.newInputStream(filePath)) {
             MessageDigest messageDigest = MessageDigest.getInstance(artifact.getAlgorithm());
             byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
             int readBytes = existingArtifact.read(buffer);
@@ -101,6 +115,17 @@ public abstract class ArtifactDownloader {
         return !Utils.isEmpty(artifact.getAlgorithm()) && !Utils.isEmpty(artifact.getChecksum());
     }
 
+    /**
+     * Download an artifact from remote.
+     *
+     * @param componentIdentifier component that has the artifact
+     * @param artifact an artifact object
+     * @param saveToPath path of the directory to put the artifact file
+     * @return file handle of the downloaded file
+     * @throws IOException if I/O error occurred in network/disk
+     * @throws PackageDownloadException if error occurred in download process
+     * @throws InvalidArtifactUriException if given artifact URI has error
+     */
     public abstract File downloadToPath(ComponentIdentifier componentIdentifier, ComponentArtifact artifact,
                                         Path saveToPath)
             throws IOException, PackageDownloadException, InvalidArtifactUriException;
@@ -110,7 +135,7 @@ public abstract class ArtifactDownloader {
      *
      * @param componentIdentifier package info
      * @param artifact artifact info
-     * @param saveToPath expected path if the artifact is downloaded. Should be the same one as calling downloadToPath
+     * @param saveToPath path of directory where the artifact is expected to exist
      * @return size of the artifact in bytes
      * @throws InvalidArtifactUriException if provided info results in invalid URI
      * @throws PackageDownloadException if error encountered

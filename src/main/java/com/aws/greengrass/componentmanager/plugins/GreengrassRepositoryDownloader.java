@@ -46,6 +46,13 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     }
 
     @Override
+    public boolean downloadRequired(ComponentIdentifier componentIdentifier, ComponentArtifact artifact,
+                                    Path saveToPath) {
+        // TODO resolve this when addressing the TODO in downloadToPath
+        return true;
+    }
+
+    @Override
     public File downloadToPath(ComponentIdentifier componentIdentifier, ComponentArtifact artifact, Path saveToPath)
             throws IOException, PackageDownloadException {
         logger.atInfo().setEventType("download-artifact-from-greengrass-repo")
@@ -179,7 +186,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         }
     }
 
-    String extractFilename(URL preSignedUrl, String contentDisposition) {
+    static String extractFilename(URL preSignedUrl, String contentDisposition) {
         if (contentDisposition != null) {
             String filenameKey = "filename=";
             int index = contentDisposition.indexOf(filenameKey);

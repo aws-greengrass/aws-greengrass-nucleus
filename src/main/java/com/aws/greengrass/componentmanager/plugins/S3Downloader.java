@@ -54,6 +54,14 @@ public class S3Downloader extends ArtifactDownloader {
         this.s3ClientFactory = clientFactory;
     }
 
+    @Override
+    public boolean downloadRequired(ComponentIdentifier componentIdentifier, ComponentArtifact artifact,
+                                    Path saveToPath) throws InvalidArtifactUriException, PackageDownloadException {
+        S3ObjectPath s3ObjectPath = getS3PathForURI(artifact.getArtifactUri(), componentIdentifier);
+        Path filePath = saveToPath.resolve(extractFileName(s3ObjectPath.key));
+        return needsDownload(artifact, filePath);
+    }
+
     @SuppressWarnings({"PMD.AvoidInstanceofChecksInCatchClause"})
     @Override
     public File downloadToPath(ComponentIdentifier componentIdentifier, ComponentArtifact artifact, Path saveToPath)
@@ -168,7 +176,7 @@ public class S3Downloader extends ArtifactDownloader {
         return new S3ObjectPath(bucket, key);
     }
 
-    private String extractFileName(String objectKey) {
+    private static String extractFileName(String objectKey) {
         String[] pathStrings = objectKey.split("/");
         return pathStrings[pathStrings.length - 1];
     }

@@ -328,7 +328,7 @@ class ComponentStoreTest {
             createEmptyArtifactDir(mockComponent);
         }
 
-        Map<String, Set<String>> foundComponentVersions = componentStore.listArtifactAvailableComponents();
+        Map<String, Set<String>> foundComponentVersions = componentStore.listAvailableComponentVersions();
         Set<ComponentIdentifier> foundComponents = new HashSet<>();
         for (Map.Entry<String, Set<String>> foundEntry : foundComponentVersions.entrySet()) {
             for (String version : foundEntry.getValue()) {
