@@ -5,8 +5,8 @@ ComponentDescription: A customer app
 ComponentPublisher: Me
 ComponentVersion: '0.9.0'
 ComponentDependencies:
-    {{Mosquitto}}:
-      VersionRequirement: 1.0.0
+  {{Mosquitto}}:
+    VersionRequirement: 1.0.0
 Manifests:
   - Platform:
       os: macos
