@@ -38,6 +38,32 @@ only processes one deployment at a time
 request the next pending job and will get either the next job in list or an empty list (if nothing is there)
 3. Device then identifies that the current job "Job1" has been cancelled and attempts to cancel the ongoing "Job1" 
   
+## Successful deployment via Shadow
+1. [***ShadowDeploymentListener***](/src/main/java/com/aws/iot/evergreen/deployment/ShadowDeploymentListener.java) subscribes to the below topics of device's classic shadow
+    - update/accepted topic to listen to changes in the shadows desired state
+    - get/accepted topic. ShadowDeploymentListener publishes to get topic to retrieve the shadow state when the device starts up or re-connects after being offline.
+     This is required as the device can miss shadow update notifications when offline.
+    
+2. Once a notification is received, the desired state of the shadow contains the fleet configuration. A new Deployment object is created using the fleet configuration and 
+passed on to DeploymentService  via the DeploymentsQueue.
+
+3. For shadow based deployment, the device would always move to the configuration contained in the desired state of the shadow. 
+If multiple shadow deployments are scheduled, device only need to process the last deployment and all previous deployments can be cancelled.
+DeploymentService makes a best effort attempt to cancel an ongoing deployment if a new deployment is scheduled. 
+
+4. Once deployment is successful, ShadowDeploymentListener updates the reported state of the device classic shadow
+ 
+## Cancellation of deployment via Shadow
+#### What happens on the cloud side
+When cancelDeployment is called for shadow based deployment, the cloud service checks if the desired state and reported state of the
+device classic shadow are in sync. If they are in sync the deployment is complete and cannot be cancelled.
+If they are not in sync, the cloud sets the desired cstate with value from reported state.
+
+####What happens on the device side
+1. ShadowDeploymentListener get the notification that the desired state change and it schedules a new deployment with DeploymentService
+2. Deployment service will make a best effort attempt to cancel the ongoing deployment. 
+    1. If the ongoing deployment cannot be cancelled then, it would run its course and then  new deployment will bring the device to desired state
+ 
 ## Successful deployment via LOCAL
 1. [***LocalDeploymentListener***](/src/main/java/com/aws/iot/evergreen/deployment/LocalDeploymentListener.java) 
 receives 
