@@ -3,6 +3,11 @@ ComponentName: MonitoringService
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Me
 ComponentVersion: '1.1.0'
+ComponentDependencies:
+  Log:
+    VersionRequirement: '1.1.0'
+  Cool-Database:
+    VersionRequirement: '1.1.0'
 Manifests:
   - Platform:
       os: all
@@ -12,8 +17,3 @@ Manifests:
         type: STRING
     Lifecycle:
       run: echo MonitoringService-1.1.0
-    Dependencies:
-      Log:
-        VersionRequirement: '1.1.0'
-      Cool-Database:
-        VersionRequirement: '1.1.0'
