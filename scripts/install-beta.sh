@@ -65,7 +65,7 @@ if type 'greengrass-cli' > /dev/null 2>&1; then
   echo "Greengrass CLI already installed"
 else
   echo "Installing Greengrass CLI"
-  sudo ./"$CLI_DIR/install.sh" || { echo 'Install failed. cannot install CLI'; exit 1; }
+  ./"$CLI_DIR/install.sh" || { echo 'Install failed. cannot install CLI'; exit 1; }
 fi
 
 # copy over local dashboard jar
