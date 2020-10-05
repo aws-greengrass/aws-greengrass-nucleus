@@ -30,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -49,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(GGExtension.class)
-public class DynamicComponentConfigurationValidationTest extends BaseITCase {
+class DynamicComponentConfigurationValidationTest extends BaseITCase {
     private static final String DEFAULT_EXISTING_SERVICE_VERSION = "1.0.0";
 
     private IPCClient client;
@@ -91,19 +92,19 @@ public class DynamicComponentConfigurationValidationTest extends BaseITCase {
         List<String> serviceList = kernel.getMain().getDependencies().keySet().stream().map(GreengrassService::getName)
                 .collect(Collectors.toList());
         serviceList.add("OldService");
-        HashMap<Object, Object> newConfig = new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                put("main", new HashMap<Object, Object>() {{
+        Map<String, Object> newConfig = new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("main", new HashMap<String, Object>() {{
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, serviceList);
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                             kernel.getMain().getServiceConfig().lookupTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC)
                                     .toPOJO());
                 }});
-                put("OldService", new HashMap<Object, Object>() {{
-                    put(PARAMETERS_CONFIG_KEY, new HashMap<Object, Object>() {{
+                put("OldService", new HashMap<String, Object>() {{
+                    put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
                         put("ConfigKey1", "ConfigValue1");
                     }});
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo Running OldService");
                     }});
                     put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
@@ -146,14 +147,14 @@ public class DynamicComponentConfigurationValidationTest extends BaseITCase {
         });
 
         // Attempt changing the configuration for the running service
-        HashMap<Object, Object> newConfig = new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+        Map<String, Object> newConfig = new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put("main", kernel.getMain().getServiceConfig().toPOJO());
-                put("OldService", new HashMap<Object, Object>() {{
-                    put(PARAMETERS_CONFIG_KEY, new HashMap<Object, Object>() {{
+                put("OldService", new HashMap<String, Object>() {{
+                    put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
                         put("ConfigKey1", "ConfigValue2");
                     }});
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo Running OldService");
                     }});
                     put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
@@ -182,14 +183,14 @@ public class DynamicComponentConfigurationValidationTest extends BaseITCase {
         });
 
         // Attempt changing the configuration for the running service
-        HashMap<Object, Object> newConfig = new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+        Map<String, Object> newConfig = new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put("main", kernel.getMain().getServiceConfig().toPOJO());
-                put("OldService", new HashMap<Object, Object>() {{
-                    put(PARAMETERS_CONFIG_KEY, new HashMap<Object, Object>() {{
+                put("OldService", new HashMap<String, Object>() {{
+                    put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
                         put("ConfigKey1", "ConfigValue2");
                     }});
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
+                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo Running OldService");
                     }});
                     put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);

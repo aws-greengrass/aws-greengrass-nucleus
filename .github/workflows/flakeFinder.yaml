@@ -14,12 +14,6 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
-      - uses: actions/cache@v1
-        with:
-          path: ~/.m2/repository
-          # Only restore maven cache for this exact commit. If we start incrementing the version
-          # of our Java SDK, then we can relax this to just the "hashFiles" and exclude "sha"
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ github.sha }}
       - name: Analyze Test Run
         run: >-
           pip3 -q install agithub &&

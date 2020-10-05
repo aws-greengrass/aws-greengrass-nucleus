@@ -43,7 +43,7 @@ public class DefaultActivator extends DeploymentActivator {
     }
 
     @Override
-    public void activate(Map<Object, Object> newConfig, Deployment deployment,
+    public void activate(Map<String, Object> newConfig, Deployment deployment,
                          CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         Map<String, Object> serviceConfig;
         if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
@@ -123,7 +123,7 @@ public class DefaultActivator extends DeploymentActivator {
                 .log("Rolling back failed deployment");
 
         // Get the timestamp before merging snapshot. It will be used to check whether services have started.
-        long mergeTime = rollbackConfig(deploymentId, totallyCompleteFuture, failureCause);
+        long mergeTime = rollbackConfig(totallyCompleteFuture, failureCause);
         if (mergeTime == -1) {
             return;
         }

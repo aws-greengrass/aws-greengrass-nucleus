@@ -55,7 +55,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class ServiceDependencyLifecycleTest {
+class ServiceDependencyLifecycleTest {
     private static final String CustomerApp = "CustomerApp";
     private static final String HardDependency = "HardDependency";
     private static final String SoftDependency = "SoftDependency";
@@ -186,12 +186,12 @@ public class ServiceDependencyLifecycleTest {
                 Arrays.asList(new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
                         new ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED)));
 
-        Map<Object, Object> configRemoveDep = new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                put("main", new HashMap<Object, Object>() {{
+        Map<String, Object> configRemoveDep = new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("main", new HashMap<String, Object>() {{
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
                 }});
-                put(CustomerApp, new HashMap<Object, Object>() {{
+                put(CustomerApp, new HashMap<String, Object>() {{
                     putAll(kernel.findServiceTopic(CustomerApp).toPOJO());
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Collections.emptyList());
                 }});
@@ -214,7 +214,7 @@ public class ServiceDependencyLifecycleTest {
                 Arrays.asList(new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
                         new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
 
-        Map<Object, Object> configAddDep = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        Map<String, Object> configAddDep = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
 
         DeploymentDocument doc2 = mock(DeploymentDocument.class);
         when(doc2.getTimestamp()).thenReturn(System.currentTimeMillis());
@@ -293,12 +293,12 @@ public class ServiceDependencyLifecycleTest {
         LinkedList<ExpectedStateTransition> expectedDepRemoved = new LinkedList<>(
                 Arrays.asList(new ExpectedStateTransition(SoftDependency, State.RUNNING, State.STOPPING)));
 
-        Map<Object, Object> configRemoveDep = new HashMap<Object, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<Object, Object>() {{
-                put("main", new HashMap<Object, Object>() {{
+        Map<String, Object> configRemoveDep = new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("main", new HashMap<String, Object>() {{
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
                 }});
-                put(CustomerApp, new HashMap<Object, Object>() {{
+                put(CustomerApp, new HashMap<String, Object>() {{
                     putAll(kernel.findServiceTopic(CustomerApp).toPOJO());
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Collections.emptyList());
                 }});
@@ -322,7 +322,7 @@ public class ServiceDependencyLifecycleTest {
                         new ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING),
                         new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
 
-        Map<Object, Object> configAddDep = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        Map<String, Object> configAddDep = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
 
         DeploymentDocument doc2 = mock(DeploymentDocument.class);
         when(doc2.getTimestamp()).thenReturn(System.currentTimeMillis());
@@ -391,7 +391,7 @@ public class ServiceDependencyLifecycleTest {
                         new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING));
 
 
-        Map<Object, Object> depTypeSoftToHard = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        Map<String, Object> depTypeSoftToHard = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
         ((Map) ((Map) depTypeSoftToHard.get(SERVICES_NAMESPACE_TOPIC)).get(CustomerApp))
                 .put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + DependencyType.HARD));
 
@@ -406,7 +406,7 @@ public class ServiceDependencyLifecycleTest {
                 "dependency type changes from soft to hard", new LinkedList<>(), new HashSet<>(stateTransitions));
 
 
-        Map<Object, Object> depTypeHardToSoft = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        Map<String, Object> depTypeHardToSoft = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
         ((Map) ((Map) depTypeHardToSoft.get(SERVICES_NAMESPACE_TOPIC)).get(CustomerApp))
                 .put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + DependencyType.SOFT));
 

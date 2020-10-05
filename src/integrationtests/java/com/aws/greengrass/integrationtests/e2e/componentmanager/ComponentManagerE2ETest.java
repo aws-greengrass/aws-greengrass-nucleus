@@ -5,8 +5,8 @@
 
 package com.aws.greengrass.integrationtests.e2e.componentmanager;
 
-import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -109,12 +109,12 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
                 = DeploymentDocument.builder().deploymentId("test").timestamp(12345678L).rootPackages(rootPackageList)
                                     .deploymentPackageConfigurationList(configList)
                                     .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
-                                    .groupName("test").build();
+                                    .groupName("mockGroup").build();
         try(Context context = new Context()) {
             Topics groupToRootPackagesTopics =
                     Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-            rootPackageList.stream().forEach(pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookup(pkg)
-                    .withValue(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
+            rootPackageList.stream().forEach(pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookupTopics(pkg)
+                    .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
             List<ComponentIdentifier> resolutionResult =
                     dependencyResolver.resolveDependencies(testDeploymentDocument, groupToRootPackagesTopics);
             Future<Void> testFuture = componentManager.preparePackages(resolutionResult);
@@ -143,16 +143,16 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
         List<String> rootPackageList = new ArrayList<>();
         rootPackageList.add(appWithS3ArtifactsPackageName);
         List<DeploymentPackageConfiguration> configList = new ArrayList<>();
-        configList.add(new DeploymentPackageConfiguration("AppWithS3Artifacts", true, "1.0.0", Collections.emptyMap()));
+        configList.add(new DeploymentPackageConfiguration(appWithS3ArtifactsPackageName, true, "1.0.0", Collections.emptyMap()));
         DeploymentDocument testDeploymentDocument =
                 DeploymentDocument.builder().deploymentId("test").timestamp(12345678L).rootPackages(rootPackageList)
                         .deploymentPackageConfigurationList(configList)
-                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).groupName("test").build();
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).groupName("mockGroup").build();
         try (Context context = new Context()) {
             Topics groupToRootPackagesTopics =
                     Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-            rootPackageList.stream().forEach(pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookup(pkg)
-                    .withValue(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
+            rootPackageList.stream().forEach(pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookupTopics(pkg)
+                    .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
             List<ComponentIdentifier> resolutionResult =
                     dependencyResolver.resolveDependencies(testDeploymentDocument, groupToRootPackagesTopics);
             Future<Void> testFuture = componentManager.preparePackages(resolutionResult);

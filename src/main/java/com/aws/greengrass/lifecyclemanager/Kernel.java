@@ -31,8 +31,10 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.DependencyOrder;
+import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.ProxyUtils;
+import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
@@ -63,11 +65,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
+import static com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory.CONTEXT_COMPONENT_SERVICE_ENDPOINT;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
+import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.STAGE_TO_ENDPOINT_FORMAT;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -79,7 +83,6 @@ import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE
 @SuppressWarnings("PMD.CouplingBetweenObjects")
 public class Kernel {
     private static final Logger logger = LogManager.getLogger(Kernel.class);
-
     protected static final String CONTEXT_SERVICE_IMPLEMENTERS = "service-implementers";
     public static final String SERVICE_CLASS_TOPIC_KEY = "class";
     public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
@@ -150,7 +153,6 @@ public class Kernel {
         context.put(DeploymentActivatorFactory.class, new DeploymentActivatorFactory(this));
         context.put(Clock.class, Clock.systemUTC());
         Map<String, String> typeToClassMap = new ConcurrentHashMap<>();
-        typeToClassMap.put("generic", GenericExternalService.class.getName());
         typeToClassMap.put("lambda", "com.aws.greengrass.lambdamanager.UserLambdaService");
         context.put(SERVICE_TYPE_TO_CLASS_MAP_KEY, typeToClassMap);
     }
@@ -180,7 +182,6 @@ public class Kernel {
         DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
         KernelAlternatives kernelAlts = kernelCommandLine.getKernelAlternatives();
         DeploymentStage stage = kernelAlts.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager);
-
         switch (stage) {
             case BOOTSTRAP:
                 logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
@@ -213,7 +214,7 @@ public class Kernel {
             case KERNEL_ACTIVATION:
             case KERNEL_ROLLBACK:
                 logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
-                LinkedBlockingQueue<Deployment> deploymentsQueue = new LinkedBlockingQueue();
+                LinkedBlockingQueue<Deployment> deploymentsQueue = new LinkedBlockingQueue<>();
                 context.put(DEPLOYMENTS_QUEUE, deploymentsQueue);
                 try {
                     Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
@@ -389,8 +390,8 @@ public class Kernel {
                                 .get(Coerce.toString(componentTypeTopic).toLowerCase());
                         // If the mapping didn't exist and the component type is "plugin", then load the service from a
                         // plugin
-                        if (className == null && Coerce.toString(componentTypeTopic).toLowerCase()
-                                .equals(PLUGIN_SERVICE_TYPE_NAME)) {
+                        if (className == null && Coerce.toString(componentTypeTopic)
+                                .equalsIgnoreCase(PLUGIN_SERVICE_TYPE_NAME)) {
                             clazz = locateExternalPlugin(name, serviceRootTopics);
                         }
                     }
@@ -532,11 +533,29 @@ public class Kernel {
         config.lookupTopics(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         kernelLifecycle.initConfigAndTlog();
         setupProxy();
+        setupCloudEndpoint();
         return this;
     }
 
     private void setupProxy() {
         ProxyUtils.setProxyProperties(context.get(DeviceConfiguration.class));
+    }
+
+    private void setupCloudEndpoint() {
+        DeviceConfiguration deviceConfiguration = context.get(DeviceConfiguration.class);
+        IotSdkClientFactory.EnvironmentStage stage;
+        try {
+            stage = IotSdkClientFactory.EnvironmentStage
+                    .fromString(Coerce.toString(deviceConfiguration.getEnvironmentStage()));
+        } catch (InvalidEnvironmentStageException e) {
+            logger.atError().setCause(e).log("Caught exception while parsing kernel args");
+            throw new RuntimeException(e);
+        }
+
+        String region = Coerce.toString(deviceConfiguration.getAWSRegion());
+        String endpoint = String.format(STAGE_TO_ENDPOINT_FORMAT.get(stage), region);
+        logger.atInfo().log("Configured to use Greengrass endpoint: {}", endpoint);
+        context.put(CONTEXT_COMPONENT_SERVICE_ENDPOINT, endpoint);
     }
 
     /*
@@ -555,4 +574,5 @@ public class Kernel {
     public String deTilde(String filename) {
         return kernelCommandLine.deTilde(filename);
     }
+
 }

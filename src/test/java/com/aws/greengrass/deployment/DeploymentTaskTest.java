@@ -1,10 +1,10 @@
 package com.aws.greengrass.deployment;
 
-import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.DependencyResolver;
+import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
-import com.aws.greengrass.componentmanager.exceptions.ComponentVersionConflictException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -93,8 +93,8 @@ class DeploymentTaskTest {
     @BeforeEach
     void setup() {
         mockGroupToRootConfig = Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-        mockGroupToRootConfig.lookupTopics("group1").lookup(COMPONENT_2_ROOT_PACKAGE_NAME)
-                .withValue(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        mockGroupToRootConfig.lookupTopics("group1", COMPONENT_2_ROOT_PACKAGE_NAME)
+                .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
 
         when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS)))
                 .thenReturn(mockGroupToRootConfig);
@@ -121,9 +121,9 @@ class DeploymentTaskTest {
     void GIVEN_deploymentDocument_WHEN_resolveDependencies_with_conflicted_dependency_THEN_deploymentTask_aborted()
             throws Exception {
         when(mockDependencyResolver.resolveDependencies(eq(deploymentDocument), eq(mockGroupToRootConfig)))
-                .thenThrow(new ComponentVersionConflictException(""));
+                .thenThrow(new NoAvailableComponentVersionException(""));
         Exception thrown = assertThrows(NonRetryableDeploymentTaskFailureException.class, () -> deploymentTask.call());
-        assertThat(thrown.getCause(), isA(ComponentVersionConflictException.class));
+        assertThat(thrown.getCause(), isA(NoAvailableComponentVersionException.class));
         verify(mockDependencyResolver).resolveDependencies(eq(deploymentDocument), eq(mockGroupToRootConfig));
 
         verify(mockComponentManager, times(0)).preparePackages(anyList());

@@ -80,7 +80,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class FleetStatusServiceTest extends GGServiceTestUtil {
+class FleetStatusServiceTest extends GGServiceTestUtil {
     @Mock
     private MqttClient mockMqttClient;
     @Mock
@@ -108,7 +108,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
     private FleetStatusService fleetStatusService;
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         serviceFullName = "FleetStatusService";
         initializeMockedConfig();
         ses = new ScheduledThreadPoolExecutor(4);
@@ -128,14 +128,14 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
     }
 
     @AfterEach
-    public void cleanUp() {
+    void cleanUp() {
         ses.shutdownNow();
         fleetStatusService.shutdown();
         fleetStatusService.clearEvergreenServiceSet();
     }
 
     @Test
-    public void GIVEN_component_status_change_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
+    void GIVEN_component_status_change_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
             throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10000");
@@ -158,6 +158,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockGreengrassService2.getName()).thenReturn("MockService2");
         when(mockGreengrassService2.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService2.getState()).thenReturn(State.RUNNING);
+        when(mockGreengrassService2.isBuiltin()).thenReturn(true);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
         when(mockKernel.orderedDependencies()).thenReturn(Arrays.asList(mockGreengrassService1, mockGreengrassService2));
         when(mockDeploymentService.getConfig()).thenReturn(config);
@@ -171,7 +172,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
-        HashMap<String, Object> map = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
@@ -214,7 +215,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_component_status_changes_to_broken_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_unhealthy_state()
+    void GIVEN_component_status_changes_to_broken_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_unhealthy_state()
             throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10000");
@@ -249,7 +250,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
-        HashMap<String, Object> map = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
@@ -282,7 +283,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_component_status_change_WHEN_deployment_does_not_finish_THEN_No_MQTT_Sent_with_fss_data() throws InterruptedException {
+    void GIVEN_component_status_change_WHEN_deployment_does_not_finish_THEN_No_MQTT_Sent_with_fss_data() throws InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10000");
 
@@ -301,8 +302,8 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         // Update the state of an EG service.
         addGlobalStateChangeListenerArgumentCaptor.getValue()
                 .globalServiceStateChanged(mockGreengrassService1, State.INSTALLED, State.RUNNING);
-        HashMap<String, Object> map = new HashMap<>();
 
+        Map<String, Object> map = new HashMap<>();
         // Update the job status for an ongoing deployment to IN_PROGRESS.
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
@@ -313,7 +314,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_component_status_change_WHEN_MQTT_connection_interrupted_THEN_No_MQTT_Sent_with_fss_data() throws InterruptedException {
+    void GIVEN_component_status_change_WHEN_MQTT_connection_interrupted_THEN_No_MQTT_Sent_with_fss_data() throws InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10000");
 
@@ -331,8 +332,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
                 mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
         fleetStatusService.startup();
 
-        HashMap<String, Object> map = new HashMap<>();
-
+        Map<String, Object> map = new HashMap<>();
         // Update the job status for an ongoing deployment to IN_PROGRESS.
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
@@ -352,7 +352,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_component_status_change_WHEN_periodic_update_triggered_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
+    void GIVEN_component_status_change_WHEN_periodic_update_triggered_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
             throws InterruptedException, ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "3");
@@ -406,7 +406,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_component_removed_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
+    void GIVEN_component_removed_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
             throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10000");
@@ -432,7 +432,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
-        HashMap<String, Object> map = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);
@@ -468,7 +468,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_after_deployment_WHEN_component_status_changes_to_broken_THEN_MQTT_Sent_with_fss_data_with_overall_unhealthy_state()
+    void GIVEN_after_deployment_WHEN_component_status_changes_to_broken_THEN_MQTT_Sent_with_fss_data_with_overall_unhealthy_state()
             throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10000");
@@ -524,7 +524,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
 
 
     @Test
-    public void GIVEN_during_deployment_WHEN_periodic_update_triggered_THEN_No_MQTT_Sent() throws InterruptedException {
+    void GIVEN_during_deployment_WHEN_periodic_update_triggered_THEN_No_MQTT_Sent() throws InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "3000");
 
@@ -541,7 +541,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
-        HashMap<String, Object> map = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
         consumerArgumentCaptor.getValue().apply(map);
@@ -553,7 +553,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_event_triggered_fss_data()
+    void GIVEN_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_event_triggered_fss_data()
             throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "10000");
@@ -591,7 +591,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
-        HashMap<String, Object> map = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
         consumerArgumentCaptor.getValue().apply(map);
@@ -642,7 +642,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
 
 
     @Test
-    public void GIVEN_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_periodic_triggered_fss_data()
+    void GIVEN_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_periodic_triggered_fss_data()
             throws InterruptedException, ServiceLoadException, IOException {
         // Set up all the topics
         Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "3");
@@ -701,7 +701,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_large_num_component_status_change_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
+    void GIVEN_large_num_component_status_change_WHEN_deployment_finishes_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
             throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
         int numServices = 1500;
@@ -743,7 +743,7 @@ public class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
-        HashMap<String, Object> map = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS, JobStatus.IN_PROGRESS.toString());
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID, "testJob");
         map.put(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE, IOT_JOBS);

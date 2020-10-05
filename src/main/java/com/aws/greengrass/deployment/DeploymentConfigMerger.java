@@ -61,7 +61,7 @@ public class DeploymentConfigMerger {
      * @return future which completes only once the config is merged and all the services in the config are running
      */
     public Future<DeploymentResult> mergeInNewConfig(Deployment deployment,
-                                                     Map<Object, Object> newConfig) {
+                                                     Map<String, Object> newConfig) {
         CompletableFuture<DeploymentResult> totallyCompleteFuture = new CompletableFuture<>();
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
 
@@ -79,7 +79,7 @@ public class DeploymentConfigMerger {
         return totallyCompleteFuture;
     }
 
-    private void updateActionForDeployment(Map<Object, Object> newConfig, Deployment deployment,
+    private void updateActionForDeployment(Map<String, Object> newConfig, Deployment deployment,
                                            CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         String deploymentId = deployment.getDeploymentDocumentObj().getDeploymentId();
 

@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.converter;
 
+import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
 import com.amazon.aws.iot.greengrass.component.common.PlatformSpecificManifest;
 import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
@@ -18,7 +19,9 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -47,10 +50,9 @@ public final class RecipeLoader {
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe;
         try {
             componentRecipe =
-                    SerializerFactory.getRecipeSerializer()
-                            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                    SerializerFactory.getRecipeSerializer().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                             .readValue(recipeFileContent,
-                            com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
+                                    com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
         } catch (JsonProcessingException e) {
             //TODO move this to common model
             throw new PackageLoadingException(
@@ -73,21 +75,23 @@ public final class RecipeLoader {
 
         PlatformSpecificManifest platformSpecificManifest = optionalPlatformSpecificManifest.get();
 
+        // TODO delete after migration of global dependencies
+        Map<String, DependencyProperties> dependencyPropertiesMap = new HashMap<>();
+        if (componentRecipe.getComponentDependencies() == null || componentRecipe.getComponentDependencies()
+                .isEmpty()) {
+            dependencyPropertiesMap.putAll(platformSpecificManifest.getDependencies());
+        } else {
+            dependencyPropertiesMap.putAll(componentRecipe.getComponentDependencies());
+        }
 
-        ComponentRecipe packageRecipe = ComponentRecipe.builder()
-                                                   .componentName(componentRecipe.getComponentName())
-                                                   .version(componentRecipe.getComponentVersion())
-                                                   .publisher(componentRecipe.getComponentPublisher())
-                                                   .recipeTemplateVersion(componentRecipe.getRecipeFormatVersion())
-                                                   .componentType(componentRecipe.getComponentType())
-                                                   .dependencies(platformSpecificManifest.getDependencies())
-                                                   .lifecycle(platformSpecificManifest.getLifecycle())
-                                                   .artifacts(convertArtifactsFromFile(
-                                                           platformSpecificManifest.getArtifacts()))
+        ComponentRecipe packageRecipe = ComponentRecipe.builder().componentName(componentRecipe.getComponentName())
+                .version(componentRecipe.getComponentVersion()).publisher(componentRecipe.getComponentPublisher())
+                .recipeTemplateVersion(componentRecipe.getRecipeFormatVersion())
+                .componentType(componentRecipe.getComponentType()).dependencies(dependencyPropertiesMap)
+                .lifecycle(platformSpecificManifest.getLifecycle())
+                .artifacts(convertArtifactsFromFile(platformSpecificManifest.getArtifacts()))
 
-                                                   .componentParameters(convertParametersFromFile(
-                                                           platformSpecificManifest.getParameters()))
-                                                   .build();
+                .componentParameters(convertParametersFromFile(platformSpecificManifest.getParameters())).build();
 
         return Optional.of(packageRecipe);
     }
@@ -97,19 +101,14 @@ public final class RecipeLoader {
         if (parameters == null || parameters.isEmpty()) {
             return Collections.emptySet();
         }
-        return parameters.stream()
-                         .filter(Objects::nonNull)
-                         .map(RecipeLoader::convertParameterFromFile)
-                         .collect(Collectors.toSet());
+        return parameters.stream().filter(Objects::nonNull).map(RecipeLoader::convertParameterFromFile)
+                .collect(Collectors.toSet());
     }
 
     private static ComponentParameter convertParameterFromFile(
             @Nonnull com.amazon.aws.iot.greengrass.component.common.ComponentParameter parameter) {
-        return ComponentParameter.builder()
-                               .name(parameter.getName())
-                               .value(parameter.getValue())
-                               .type(ComponentParameter.ParameterType.valueOf(parameter.getType().name()))
-                               .build();
+        return ComponentParameter.builder().name(parameter.getName()).value(parameter.getValue())
+                .type(ComponentParameter.ParameterType.valueOf(parameter.getType().name())).build();
 
     }
 
@@ -118,19 +117,14 @@ public final class RecipeLoader {
         if (artifacts == null || artifacts.isEmpty()) {
             return Collections.emptyList();
         }
-        return artifacts.stream()
-                        .filter(Objects::nonNull)
-                        .map(RecipeLoader::convertArtifactFromFile)
-                        .collect(Collectors.toList());
+        return artifacts.stream().filter(Objects::nonNull).map(RecipeLoader::convertArtifactFromFile)
+                .collect(Collectors.toList());
     }
 
     private static ComponentArtifact convertArtifactFromFile(
             @Nonnull com.amazon.aws.iot.greengrass.component.common.ComponentArtifact componentArtifact) {
-        return ComponentArtifact.builder()
-                                .artifactUri(componentArtifact.getUri())
-                                .algorithm(componentArtifact.getAlgorithm())
-                                .checksum(componentArtifact.getDigest())
-                                .unarchive(componentArtifact.getUnarchive())
-                                .build();
+        return ComponentArtifact.builder().artifactUri(componentArtifact.getUri())
+                .algorithm(componentArtifact.getAlgorithm()).checksum(componentArtifact.getDigest())
+                .unarchive(componentArtifact.getUnarchive()).build();
     }
 }

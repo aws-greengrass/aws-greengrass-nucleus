@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
 @ExtendWith(GGExtension.class)
-public class ConfigurationTest {
+class ConfigurationTest {
 
     private Configuration config;
 
@@ -58,7 +58,7 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_empty_config_WHEN_single_topic_created_and_updated_THEN_update_if_timestamp_is_valid() {
+    void GIVEN_empty_config_WHEN_single_topic_created_and_updated_THEN_update_if_timestamp_is_valid() {
         config.lookup("v").addValidator((n, o) -> {
             if (o != null) {
                 assertEquals(toInt(n), toInt(o) + 1);
@@ -74,7 +74,7 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_empty_config_WHEN_nested_topic_created_and_updated_THEN_update_if_timestamp_is_valid() {
+    void GIVEN_empty_config_WHEN_nested_topic_created_and_updated_THEN_update_if_timestamp_is_valid() {
         config.lookup("x", "y").addValidator((n, o) -> {
             if (o != null) {
                 assertEquals(toInt(n), toInt(o) + 1);
@@ -90,7 +90,7 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_empty_config_WHEN_nested_topic_with_path_created_and_updated_THEN_update_if_timestamp_is_valid() {
+    void GIVEN_empty_config_WHEN_nested_topic_with_path_created_and_updated_THEN_update_if_timestamp_is_valid() {
         config.lookup("x", "z").addValidator((n, o) -> {
             if (o != null) {
                 assertEquals(toInt(n), toInt(o) + 1);
@@ -106,7 +106,7 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_non_empty_config_WHEN_topics_created_and_updated_THEN_update_if_timestamp_is_valid() throws Exception {
+    void GIVEN_non_empty_config_WHEN_topics_created_and_updated_THEN_update_if_timestamp_is_valid() throws Exception {
         GIVEN_empty_config_WHEN_single_topic_created_and_updated_THEN_update_if_timestamp_is_valid();
         GIVEN_empty_config_WHEN_nested_topic_created_and_updated_THEN_update_if_timestamp_is_valid();
         GIVEN_empty_config_WHEN_nested_topic_with_path_created_and_updated_THEN_update_if_timestamp_is_valid();
@@ -124,7 +124,7 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_yaml_file_to_merge_WHEN_merge_map_THEN_merge() throws Throwable {
+    void GIVEN_yaml_file_to_merge_WHEN_merge_map_THEN_merge() throws Throwable {
         try (InputStream inputStream = getClass().getResourceAsStream("test.yaml")) {
             assertNotNull(inputStream);
             config.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
@@ -155,7 +155,7 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_empty_configuration_WHEN_topic_lookup_THEN_topic_created() {
+    void GIVEN_empty_configuration_WHEN_topic_lookup_THEN_topic_created() {
         assertNull(config.find("root", "leaf"));
         Topic createdTopic = config.lookup("root", "leaf").dflt("defaultValue");
         assertEquals(createdTopic, config.find("root", "leaf"));
@@ -163,14 +163,14 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_empty_configuration_WHEN_topics_lookup_THEN_topics_created() {
+    void GIVEN_empty_configuration_WHEN_topics_lookup_THEN_topics_created() {
         assertNull(config.findTopics("root", "child"));
         Topics createdTopics = config.lookupTopics("root", "child");
         assertEquals(createdTopics, config.findTopics("root", "child"));
     }
 
     @Test
-    public void GIVEN_configuration_WHEN_findNode_called_THEN_correct_node_returned() {
+    void GIVEN_configuration_WHEN_findNode_called_THEN_correct_node_returned() {
         assertNull(config.findNode("root", "container", "leaf"));
         Topic createdTopic = config.lookup("root", "container", "leaf").dflt("defaultValue");
         assertEquals("defaultValue", createdTopic.getOnce());
@@ -182,7 +182,7 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_config_with_subscribers_WHEN_topic_updated_THEN_subscribers_notified_with_changed_node()
+    void GIVEN_config_with_subscribers_WHEN_topic_updated_THEN_subscribers_notified_with_changed_node()
             throws Exception {
         Topic installTopic = config.lookup(SERVICES_NAMESPACE_TOPIC, "serviceA", "lifecycle", "install").dflt("default");
         CountDownLatch childChangedCorrectly = new CountDownLatch(1);
@@ -198,7 +198,7 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_config_with_subscribers_WHEN_topic_removed_THEN_subscribers_notified() throws Exception {
+    void GIVEN_config_with_subscribers_WHEN_topic_removed_THEN_subscribers_notified() throws Exception {
         Topic testTopic = config.lookup("a", "b", "c");
 
         AtomicInteger numCalled = new AtomicInteger(0);
@@ -235,7 +235,7 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_config_with_subscribers_WHEN_topics_removed_THEN_children_notified() {
+    void GIVEN_config_with_subscribers_WHEN_topics_removed_THEN_children_notified() {
         config.lookup("a", "b", "c");
         AtomicInteger[] childNotified = new AtomicInteger[3];
 
@@ -272,21 +272,21 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_config_to_merge_WHEN_resolved_platform_is_not_a_map_THEN_reject() {
-        Map<Object, Object> toMerge = new HashMap<Object, Object>() {{
+    void GIVEN_config_to_merge_WHEN_resolved_platform_is_not_a_map_THEN_reject() {
+        Map<String, Object> toMerge = new HashMap<String, Object>() {{
             put("ubuntu", "This is not a map");
         }};
         assertThrows(IllegalArgumentException.class, () -> config.mergeMap(1, toMerge));
     }
 
     @Test
-    public void GIVEN_unsupported_merge_file_type_WHEN_merge_map_THEN_discard() throws Exception {
+    void GIVEN_unsupported_merge_file_type_WHEN_merge_map_THEN_discard() throws Exception {
         config.readMerge(getClass().getResource("test.txt").toURI().toURL(), true);
         assertTrue(config.isEmpty());
     }
 
     @Test
-    public void GIVEN_json_file_to_merge_WHEN_merge_map_THEN_merge() throws Exception {
+    void GIVEN_json_file_to_merge_WHEN_merge_map_THEN_merge() throws Exception {
         assertTrue(config.isEmpty());
         assertEquals(0, config.size());
         config.readMerge(getClass().getResource("test.json").toURI().toURL(), true);
@@ -297,28 +297,28 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_tlog_file_to_merge_WHEN_merge_map_THEN_merge() throws Exception {
+    void GIVEN_tlog_file_to_merge_WHEN_merge_map_THEN_merge() throws Exception {
         config.readMerge(getClass().getResource("test.tlog").toURI().toURL(), true);
         assertEquals("echo All installed",
                 config.find(SERVICES_NAMESPACE_TOPIC, "main", "lifecycle", "install").getOnce());
     }
 
     @Test
-    public void GIVEN_config_file_path_WHEN_read_from_path_THEN_merge() throws Exception {
+    void GIVEN_config_file_path_WHEN_read_from_path_THEN_merge() throws Exception {
         config.read(getClass().getResource("test.json").toURI().toURL(), true);
         assertEquals("echo main service installed",
                 config.find(SERVICES_NAMESPACE_TOPIC, "main", "lifecycle", "install").getOnce());
     }
 
     @Test
-    public void GIVEN_config_to_merge_WHEN_read_with_current_timestamp_THEN_merge() throws Exception {
+    void GIVEN_config_to_merge_WHEN_read_with_current_timestamp_THEN_merge() throws Exception {
         config.read(getClass().getResource("test.json").toURI().toURL(), false);
         assertEquals("echo main service installed",
                 config.find(SERVICES_NAMESPACE_TOPIC, "main", "lifecycle", "install").getOnce());
     }
 
     @Test
-    public void GIVEN_topics_WHEN_call_replace_map_THEN_content_replaced_and_subscribers_invoked() throws Exception {
+    void GIVEN_topics_WHEN_call_replace_map_THEN_content_replaced_and_subscribers_invoked() throws Exception {
         // GIVEN
         // set up initial config and listeners
         String initConfig = "---\n"
@@ -335,7 +335,7 @@ public class ConfigurationTest {
                 + "  nodeUnchanged: unchanged\n"
                 + "  leafToBeUpdated: updatedValue";
 
-        Map<Object, Object> initConfigMap;
+        Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
             initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -371,7 +371,7 @@ public class ConfigurationTest {
         });
 
         // WHEN
-        Map<Object, Object> updateConfigMap;
+        Map<String, Object> updateConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -391,7 +391,7 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_config_update_WHEN_root_replace_and_child_merge_THEN_expect_merge_correct() throws Exception {
+    void GIVEN_config_update_WHEN_root_replace_and_child_merge_THEN_expect_merge_correct() throws Exception {
         // GIVEN
         // set up initial config and listeners
         String initConfig = "---\n"
@@ -412,7 +412,7 @@ public class ConfigurationTest {
                 + "  nodeUnchanged: unchanged\n"
                 + "  leafToBeUpdated: updatedValue";
 
-        Map<Object, Object> initConfigMap;
+        Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
             initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -427,7 +427,7 @@ public class ConfigurationTest {
         });
 
         // WHEN
-        Map<Object, Object> updateConfigMap;
+        Map<String, Object> updateConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -440,7 +440,7 @@ public class ConfigurationTest {
         );
         config.updateMap(System.currentTimeMillis(), updateConfigMap, updateBehavior);
 
-        Map<Object, Object> expectedConfig = new HashMap<>(updateConfigMap);
+        Map<String, Object> expectedConfig = new HashMap<>(updateConfigMap);
         ((Map) ((Map)expectedConfig.get("foo")).get("nodeToBeMerged")).put("key1", "val1");
 
         // THEN
@@ -452,7 +452,7 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_config_update_WHEN_root_merge_and_child_replace_THEN_expect_merge_correct() throws Exception {
+    void GIVEN_config_update_WHEN_root_merge_and_child_replace_THEN_expect_merge_correct() throws Exception {
         // GIVEN
         // set up initial config and listeners
         String initConfig = "---\n"
@@ -483,7 +483,7 @@ public class ConfigurationTest {
                 + "  nodeUnchanged:\n"
                 + "    key1: val1\n";
 
-        Map<Object, Object> initConfigMap;
+        Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
             initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -506,7 +506,7 @@ public class ConfigurationTest {
         });
 
         // WHEN
-        Map<Object, Object> updateConfigMap;
+        Map<String, Object> updateConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -522,7 +522,7 @@ public class ConfigurationTest {
         config.updateMap(System.currentTimeMillis(), updateConfigMap, updateBehavior);
 
         // THEN
-        Map<Object, Object> expectedConfig;
+        Map<String, Object> expectedConfig;
         try (InputStream inputStream = new ByteArrayInputStream(expectedResult.getBytes())) {
             expectedConfig = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -535,7 +535,7 @@ public class ConfigurationTest {
     }
 
     @Test
-    public void GIVEN_config_update_WHEN_merge_update_interleave_THEN_expect_merge_correct() throws Exception {
+    void GIVEN_config_update_WHEN_merge_update_interleave_THEN_expect_merge_correct() throws Exception {
         // GIVEN
         // set up initial config and listeners
         String initConfig = "---\n"
@@ -565,7 +565,7 @@ public class ConfigurationTest {
                 + "      subKey2: subVal2\n"
                 + "nodeToBeAdded: val\n";
 
-        Map<Object, Object> initConfigMap;
+        Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
             initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -573,7 +573,7 @@ public class ConfigurationTest {
         config.context.runOnPublishQueueAndWait(() -> {});
 
         // WHEN
-        Map<Object, Object> updateConfigMap;
+        Map<String, Object> updateConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
@@ -592,7 +592,7 @@ public class ConfigurationTest {
         config.updateMap(System.currentTimeMillis(), updateConfigMap, updateBehavior);
 
         // THEN
-        Map<Object, Object> expectedConfig;
+        Map<String, Object> expectedConfig;
         try (InputStream inputStream = new ByteArrayInputStream(expectedResult.getBytes())) {
             expectedConfig = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }

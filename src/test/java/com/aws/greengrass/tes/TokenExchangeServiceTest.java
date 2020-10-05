@@ -1,7 +1,6 @@
 package com.aws.greengrass.tes;
 
 import com.aws.greengrass.authorization.AuthorizationHandler;
-import com.aws.greengrass.authorization.AuthorizationPolicy;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
@@ -11,6 +10,7 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,10 +23,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.net.URI;
-import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -40,9 +42,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class TokenExchangeServiceTest extends GGServiceTestUtil {
+class TokenExchangeServiceTest extends GGServiceTestUtil {
     private static final String MOCK_ROLE_ALIAS = "ROLE_ALIAS";
-
+    static ExecutorService executorService = Executors.newFixedThreadPool(1);
     @Mock
     AuthorizationHandler mockAuthZHandler;
 
@@ -51,21 +53,24 @@ public class TokenExchangeServiceTest extends GGServiceTestUtil {
 
     ArgumentCaptor<String> stringArgumentCaptor = ArgumentCaptor.forClass(String.class);
 
-    ArgumentCaptor<List<AuthorizationPolicy>> authCaptor = ArgumentCaptor.forClass(List.class);
-
     ArgumentCaptor<Set<String>> operationsCaptor = ArgumentCaptor.forClass(Set.class);
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         // initialize Greengrass service specific mocks
-        serviceFullName = "TokenExchangeService";
+        serviceFullName = TOKEN_EXCHANGE_SERVICE_TOPICS;
         initializeMockedConfig();
         when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
     }
 
+    @AfterAll
+    static void tearDown() {
+        executorService.shutdown();
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {0, 3000})
-    public void GIVEN_token_exchange_service_WHEN_started_THEN_correct_env_set(int port) throws Exception {
+    void GIVEN_token_exchange_service_WHEN_started_THEN_correct_env_set(int port) throws Exception {
         Topic portTopic = mock(Topic.class);
         when(portTopic.dflt(anyInt())).thenReturn(portTopic);
         when(portTopic.subscribe(any())).thenAnswer((a) -> {
@@ -90,7 +95,8 @@ public class TokenExchangeServiceTest extends GGServiceTestUtil {
 
         TokenExchangeService tes = new TokenExchangeService(config,
                 mockCredentialHandler,
-                mockAuthZHandler);
+                mockAuthZHandler,
+                executorService);
         tes.postInject();
         tes.startup();
         Thread.sleep(5000L);
@@ -112,7 +118,7 @@ public class TokenExchangeServiceTest extends GGServiceTestUtil {
         assertEquals(MOCK_ROLE_ALIAS, stringArgumentCaptor.getValue());
 
         verify(mockAuthZHandler).registerComponent(stringArgumentCaptor.capture(), operationsCaptor.capture());
-        assertEquals(TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS, stringArgumentCaptor.getValue());
+        assertEquals(TOKEN_EXCHANGE_SERVICE_TOPICS, stringArgumentCaptor.getValue());
         assertTrue(operationsCaptor.getValue().contains(TokenExchangeService.AUTHZ_TES_OPERATION));
 
     }
@@ -120,7 +126,7 @@ public class TokenExchangeServiceTest extends GGServiceTestUtil {
     @ParameterizedTest
     @ValueSource(strings = {"  "})
     @NullAndEmptySource
-    public void GIVEN_token_exchange_service_WHEN_started_with_empty_role_alias_THEN_server_errors_out(String roleAlias,
+    void GIVEN_token_exchange_service_WHEN_started_with_empty_role_alias_THEN_server_errors_out(String roleAlias,
                                                                                                        ExtensionContext context) {
         ignoreExceptionUltimateCauseOfType(context, IllegalArgumentException.class);
         //Set mock for role topic
@@ -145,7 +151,8 @@ public class TokenExchangeServiceTest extends GGServiceTestUtil {
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
-                mockAuthZHandler));
+                mockAuthZHandler,
+                executorService));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
         tes.startup();
@@ -153,7 +160,7 @@ public class TokenExchangeServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    public void GIVEN_token_exchange_service_WHEN_auth_errors_THEN_server_errors_out(ExtensionContext context)
+    void GIVEN_token_exchange_service_WHEN_auth_errors_THEN_server_errors_out(ExtensionContext context)
             throws Exception {
         ignoreExceptionUltimateCauseOfType(context, AuthorizationException.class);
         doThrow(AuthorizationException.class).when(mockAuthZHandler).registerComponent(any(), any());
@@ -178,7 +185,8 @@ public class TokenExchangeServiceTest extends GGServiceTestUtil {
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
-                mockAuthZHandler));
+                mockAuthZHandler,
+                executorService));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
         tes.postInject();

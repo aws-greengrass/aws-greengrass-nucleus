@@ -3,8 +3,10 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.util.Coerce;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith({MockitoExtension.class})
-public class DeploymentStatusKeeperTest {
+class DeploymentStatusKeeperTest {
 
     @Mock
     private DeploymentService deploymentService;
@@ -46,7 +48,7 @@ public class DeploymentStatusKeeperTest {
     private Context context;
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         context = new Context();
         Configuration config = new Configuration(context);
         Mockito.when(deploymentService.getRuntimeConfig()).thenReturn(
@@ -64,7 +66,7 @@ public class DeploymentStatusKeeperTest {
     }
 
     @Test
-    public void WHEN_registering_deployment_status_consumer_multiple_times_THEN_registration_fails_after_first_attempt() {
+    void WHEN_registering_deployment_status_consumer_multiple_times_THEN_registration_fails_after_first_attempt() {
         assertTrue(deploymentStatusKeeper.
                 registerDeploymentStatusConsumer(IOT_JOBS, DUMMY_CONSUMER, DUMMY_SERVICE_NAME));
         assertTrue(deploymentStatusKeeper.
@@ -76,7 +78,7 @@ public class DeploymentStatusKeeperTest {
     }
 
     @Test
-    public void WHEN_deployment_status_update_received_THEN_consumers_called_with_update() {
+    void WHEN_deployment_status_update_received_THEN_consumers_called_with_update() {
         final Map<String, Object> updateOfTypeJobs = new HashMap<>();
         deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> {
             updateOfTypeJobs.putAll(details);
@@ -94,18 +96,23 @@ public class DeploymentStatusKeeperTest {
                 new HashMap<>());
         assertEquals(4, updateOfTypeJobs.size());
         assertEquals(3, updateOfTypeLocal.size());
-        assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID), "iot_deployment");
-        assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS), JobStatus.SUCCEEDED);
+        assertEquals("iot_deployment", updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_ID));
+        assertEquals(JobStatus.SUCCEEDED, Coerce.toEnum(JobStatus.class,
+                updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_JOB_STATUS)));
         assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_STATUS_DETAILS), new HashMap<>());
-        assertEquals(updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE), IOT_JOBS);
+        assertEquals(IOT_JOBS, Coerce.toEnum(Deployment.DeploymentType.class,
+                updateOfTypeJobs.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE)));
         assertEquals("local_deployment", updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID));
-        assertEquals(LOCAL, updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE));
+        assertEquals(LOCAL,
+                Coerce.toEnum(Deployment.DeploymentType.class,
+                        updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_DEPLOYMENT_TYPE)));
         assertEquals(DeploymentStatus.SUCCEEDED,
-                updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS));
+                Coerce.toEnum(DeploymentStatus.class,
+                        updateOfTypeLocal.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS)));
     }
 
     @Test
-    public void GIVEN_deployment_status_update_WHEN_consumer_return_true_THEN_update_is_removed_from_config() {
+    void GIVEN_deployment_status_update_WHEN_consumer_return_true_THEN_update_is_removed_from_config() {
         deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> true, DUMMY_SERVICE_NAME);
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED.toString(), new HashMap<>());
         context.runOnPublishQueueAndWait(() -> {});
@@ -113,7 +120,7 @@ public class DeploymentStatusKeeperTest {
     }
 
     @Test
-    public void GIVEN_local_deployment_status_update_WHEN_consumer_return_true_THEN_update_is_removed_from_config() {
+    void GIVEN_local_deployment_status_update_WHEN_consumer_return_true_THEN_update_is_removed_from_config() {
         deploymentStatusKeeper.registerDeploymentStatusConsumer(LOCAL, (details) -> true, DUMMY_SERVICE_NAME);
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("local_deployment", LOCAL,
                 DeploymentStatus.SUCCEEDED.toString(), new HashMap<>());
@@ -122,14 +129,14 @@ public class DeploymentStatusKeeperTest {
     }
 
     @Test
-    public void GIVEN_deployment_status_update_WHEN_consumer_return_false_THEN_update_is_not_removed() {
+    void GIVEN_deployment_status_update_WHEN_consumer_return_false_THEN_update_is_not_removed() {
         deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> false, DUMMY_SERVICE_NAME);
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", IOT_JOBS, JobStatus.SUCCEEDED.toString(), new HashMap<>());
         assertEquals(1, processedDeployments.children.size());
     }
 
     @Test
-    public void GIVEN_consumer_returned_false_WHEN_consumer_successfully_consumes_update_THEN_update_is_removed_from_config() {
+    void GIVEN_consumer_returned_false_WHEN_consumer_successfully_consumes_update_THEN_update_is_removed_from_config() {
         AtomicInteger consumerInvokeCount = new AtomicInteger();
         //initially consumer is not able to process the status
         AtomicBoolean consumerReturnValue = new AtomicBoolean(false);

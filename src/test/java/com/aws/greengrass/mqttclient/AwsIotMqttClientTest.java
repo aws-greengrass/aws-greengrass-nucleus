@@ -99,7 +99,7 @@ class AwsIotMqttClientTest {
     }
 
     @Test
-    public void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_resumed_THEN_oneTimeCallbacks_would_be_executed_once() {
+    void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_resumed_THEN_oneTimeCallbacks_would_be_executed_once() {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, null, (x) -> null, "A", mockTopic,
                 callbackEventManager);
@@ -127,7 +127,7 @@ class AwsIotMqttClientTest {
     }
 
     @Test
-    public void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_interrupted_THEN_oneTimeCallbacks_would_be_executed_once() {
+    void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_interrupted_THEN_oneTimeCallbacks_would_be_executed_once() {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, null, (x) -> null, "A", mockTopic,
                 callbackEventManager);

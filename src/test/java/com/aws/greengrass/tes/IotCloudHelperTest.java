@@ -26,7 +26,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class IotCloudHelperTest {
+class IotCloudHelperTest {
     private static final byte[] CLOUD_RESPONSE = "HELLO WORLD".getBytes(StandardCharsets.UTF_8);
     private static final int STATUS_CODE = 200;
     private static final String HOST = "localhost";
@@ -42,7 +42,7 @@ public class IotCloudHelperTest {
     HttpStream mockHttpStream;
 
     @Test
-    public void GIVEN_valid_creds_WHEN_send_request_called_THEN_success() throws Exception {
+    void GIVEN_valid_creds_WHEN_send_request_called_THEN_success() throws Exception {
         when(mockConnectionManager.getConnection()).thenReturn(mockConnection);
         when(mockConnectionManager.getHost()).thenReturn(HOST);
         when(mockHttpStream.getResponseStatusCode()).thenReturn(STATUS_CODE);
@@ -61,7 +61,7 @@ public class IotCloudHelperTest {
     }
 
     @Test
-    public void GIVEN_valid_creds_WHEN_send_request_called_with_body_THEN_success() throws Exception {
+    void GIVEN_valid_creds_WHEN_send_request_called_with_body_THEN_success() throws Exception {
         byte[] body = "hello".getBytes(StandardCharsets.UTF_8);
         when(mockConnectionManager.getConnection()).thenReturn(mockConnection);
         when(mockConnectionManager.getHost()).thenReturn(HOST);
@@ -84,7 +84,7 @@ public class IotCloudHelperTest {
     }
 
     @Test
-    public void GIVEN_error_code_once_WHEN_send_request_called_THEN_retry_and_success() throws Exception {
+    void GIVEN_error_code_once_WHEN_send_request_called_THEN_retry_and_success() throws Exception {
         when(mockConnectionManager.getConnection()).thenReturn(mockConnection);
         when(mockConnectionManager.getHost()).thenReturn(HOST);
         when(mockHttpStream.getResponseStatusCode()).thenReturn(STATUS_CODE);

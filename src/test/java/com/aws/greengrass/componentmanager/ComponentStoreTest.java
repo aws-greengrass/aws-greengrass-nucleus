@@ -54,12 +54,16 @@ class ComponentStoreTest {
     private static final Semver MONITORING_SERVICE_PKG_VERSION = new Semver("1.0.0", Semver.SemverType.NPM);
     private static final ComponentIdentifier MONITORING_SERVICE_PKG_ID =
             new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, MONITORING_SERVICE_PKG_VERSION);
+    private static final String MONITORING_SERVICE_PKG_ARTIFACT_NAME = "monitor_artifact_100.txt";
+    public static final String MONITORING_SERVICE_PKG_RECIPE_FILE_NAME = "MonitoringService-1.0.0.yaml";
 
     private static Path RECIPE_RESOURCE_PATH;
+    private static Path ARTIFACT_RESOURCE_PATH;
 
     static {
         try {
             RECIPE_RESOURCE_PATH = Paths.get(ComponentStoreTest.class.getResource("recipes").toURI());
+            ARTIFACT_RESOURCE_PATH = Paths.get(ComponentStoreTest.class.getResource("test_packages").toURI());
         } catch (URISyntaxException ignore) {
         }
     }
@@ -94,8 +98,7 @@ class ComponentStoreTest {
     void GIVEN_a_recipe_not_exists_when_savePackageRecipe_THEN_recipe_file_created()
             throws IOException, PackageLoadingException {
         // GIVEN
-        String fileName = "MonitoringService-1.0.0.yaml";
-
+        String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
         String recipeContent = "recipeContent";
 
         File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
@@ -115,7 +118,7 @@ class ComponentStoreTest {
     void GIVEN_a_recipe_exists_when_savePackageRecipe_THEN_recipe_file_is_updated()
             throws IOException, PackageLoadingException {
         // GIVEN
-        String fileName = "MonitoringService-1.0.0.yaml";
+        String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
         String recipeContent = "recipeContent";
 
 
@@ -139,10 +142,9 @@ class ComponentStoreTest {
     @Test
     void GIVEN_a_recipe_exists_WHEN_findPackageRecipe_THEN_return_it() throws Exception {
         // GIVEN
-        String fileName = "MonitoringService-1.0.0.yaml";
-        preloadRecipeFileFromTestResource(fileName);
+        preloadRecipeFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
 
-        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
+        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
 
         // WHEN
         Optional<ComponentRecipe> optionalPackageRecipe = componentStore.findPackageRecipe(MONITORING_SERVICE_PKG_ID);
@@ -157,7 +159,7 @@ class ComponentStoreTest {
     @Test
     void WHEN_resolve_setup_upack_dir_THEN_dir_created() throws Exception {
         // WHEN
-        Path path = componentStore.resolveAndSetupArtifactsUnpackDirectory(MONITORING_SERVICE_PKG_ID);
+        Path path = componentStore.resolveAndSetupArtifactsDecompressedDirectory(MONITORING_SERVICE_PKG_ID);
         ///var/folders/37/0h21kkrj1fl9qn472lr2r15rcw2086/T/junit2770550780637482865/artifacts-unpack/MonitoringService/1.0.0
         //THEN
         assertEquals(path, packageStoreRootPath.resolve("artifacts-decompressed/MonitoringService/1.0.0"));
@@ -189,14 +191,13 @@ class ComponentStoreTest {
     @Test
     void GIVEN_a_recipe_exists_WHEN_getPackageRecipe_THEN_return_it() throws Exception {
         // GIVEN
-        String fileName = "MonitoringService-1.0.0.yaml";
-        preloadRecipeFileFromTestResource(fileName);
+        preloadRecipeFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
 
         // WHEN
         ComponentRecipe componentRecipe = componentStore.getPackageRecipe(MONITORING_SERVICE_PKG_ID);
 
         // THEN
-        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
+        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
 
         ComponentRecipe expectedRecipe = RecipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
         assertThat(componentRecipe, equalTo(expectedRecipe));
@@ -210,9 +211,7 @@ class ComponentStoreTest {
     @Test
     void GIVEN_a_recipe_exists_WHEN_getPackageMetadata_then_return_it() throws PackagingException, IOException {
         // GIVEN
-        String fileName = "MonitoringService-1.0.0.yaml";
-
-        preloadRecipeFileFromTestResource(fileName);
+        preloadRecipeFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
 
         // WHEN
         ComponentMetadata componentMetadata = componentStore.getPackageMetadata(MONITORING_SERVICE_PKG_ID);
@@ -254,12 +253,82 @@ class ComponentStoreTest {
         assertThat(componentMetadata.getDependencies(), is(getExpectedDependencies(Requirement.buildNPM("1.0.0"))));
     }
 
+    @Test
+    void GIVEN_pre_loaded_package_versions_WHEN_find_best_available_version_THEN_return_satisfied_version()
+            throws IOException, PackagingException {
+        // GIVEN
+        preloadRecipeFileFromTestResource("MonitoringService-1.0.0.yaml");
+        preloadRecipeFileFromTestResource("MonitoringService-1.1.0.yaml");
+        preloadRecipeFileFromTestResource("MonitoringService-2.0.0.yaml");
+        preloadRecipeFileFromTestResource("MonitoringService-3.0.0.yaml");
+        preloadRecipeFileFromTestResource("Log-1.0.0.yaml");
+
+        // WHEN
+        Requirement requirement = Requirement.buildNPM(">=1.0.0 <2.0.0");
+        Optional<ComponentIdentifier> componentIdentifierOptional =
+                componentStore.findBestMatchAvailableComponent(MONITORING_SERVICE_PKG_NAME, requirement);
+
+        // THEN
+        assertThat(componentIdentifierOptional.get(), is(new ComponentIdentifier("MonitoringService",
+                new Semver("1.1.0"))));
+
+        // WHEN
+        requirement = Requirement.buildNPM("^2.0");
+        componentIdentifierOptional =
+                componentStore.findBestMatchAvailableComponent(MONITORING_SERVICE_PKG_NAME, requirement);
+
+        // THEN
+        assertThat(componentIdentifierOptional.get(), is(new ComponentIdentifier("MonitoringService",
+                new Semver("2.0.0"))));
+
+        // WHEN
+        requirement = Requirement.buildNPM("^3.1");
+        componentIdentifierOptional =
+                componentStore.findBestMatchAvailableComponent(MONITORING_SERVICE_PKG_NAME, requirement);
+
+        // THEN
+        assertThat(componentIdentifierOptional.isPresent(), is(false));
+    }
+
+    @Test
+    void GIVEN_recipe_and_artifact_exists_WHEN_delete_package_THEN_both_deleted() throws Exception {
+        preloadRecipeFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
+        preloadArtifactFileFromTestResouce(MONITORING_SERVICE_PKG_ID, MONITORING_SERVICE_PKG_ARTIFACT_NAME);
+        Path expectedRecipePath = recipeDirectory.resolve(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
+        Path expectedArtifactPath = componentStore.resolveArtifactDirectoryPath(MONITORING_SERVICE_PKG_ID)
+                .resolve(MONITORING_SERVICE_PKG_ARTIFACT_NAME);
+        assertTrue(Files.exists(expectedRecipePath));
+        assertTrue(Files.exists(expectedArtifactPath));
+        componentStore.deletePackage(MONITORING_SERVICE_PKG_ID);
+        assertFalse(Files.exists(expectedRecipePath));
+        assertFalse(Files.exists(expectedArtifactPath));
+    }
+
+    @Test
+    void GIVEN_recipe_exists_WHEN_get_content_size_THEN_correct_value_returned() throws Exception {
+        // test should start with empty package store so expect content size zero
+        assertEquals(0, componentStore.getContentSize());
+
+        // put in a recipe, should include that file size
+        preloadRecipeFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
+        long recipeLength = RECIPE_RESOURCE_PATH.resolve(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME).toFile().length();
+        assertEquals(recipeLength, componentStore.getContentSize());
+    }
+
     private void preloadRecipeFileFromTestResource(String fileName) throws IOException {
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
 
         Path destinationRecipe = recipeDirectory.resolve(fileName);
 
         Files.copy(sourceRecipe, destinationRecipe);
+    }
+
+    private void preloadArtifactFileFromTestResouce(ComponentIdentifier pkgId, String artFileName) throws IOException {
+        Path sourceArtFile = ARTIFACT_RESOURCE_PATH.resolve(String.format("%s-%s", pkgId.getName(),
+                pkgId.getVersion())).resolve(artFileName);
+        Path destArtFile = componentStore.resolveArtifactDirectoryPath(pkgId).resolve(artFileName);
+        Files.createDirectories(destArtFile.getParent());
+        Files.copy(sourceArtFile, destArtFile);
     }
 
     @Test

@@ -1,0 +1,9 @@
+---
+services:
+  main:
+    lifecycle:
+      install:
+        all: echo All installed
+  FleetStatusService:
+    parameters:
+      periodicUpdateIntervalSec: 10

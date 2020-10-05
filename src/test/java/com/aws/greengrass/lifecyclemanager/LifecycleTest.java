@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -60,7 +61,7 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class LifecycleTest {
+class LifecycleTest {
 
     @Mock
     protected GreengrassService greengrassService;
@@ -122,7 +123,7 @@ public class LifecycleTest {
     }
 
     @Test
-    public void GIVEN_state_new_WHEN_requestStart_called_THEN_install_invoked() throws InterruptedException {
+    void GIVEN_state_new_WHEN_requestStart_called_THEN_install_invoked() throws InterruptedException {
         lifecycle = new Lifecycle(greengrassService, logger, greengrassService.getPrivateConfig());
         initLifecycleState(lifecycle, State.NEW);
 
@@ -135,7 +136,7 @@ public class LifecycleTest {
     }
 
     @Test
-    public void GIVEN_state_new_WHEN_install_timeout_THEN_service_errored() throws InterruptedException {
+    void GIVEN_state_new_WHEN_install_timeout_THEN_service_errored() throws InterruptedException {
         //GIVEN
         lifecycle = new Lifecycle(greengrassService, logger, greengrassService.getPrivateConfig());
         initLifecycleState(lifecycle, State.NEW);
@@ -172,7 +173,7 @@ public class LifecycleTest {
     }
 
     @Test
-    public void GIVEN_state_installed_WHEN_startup_timeout_THEN_service_errored() throws InterruptedException {
+    void GIVEN_state_installed_WHEN_startup_timeout_THEN_service_errored() throws InterruptedException {
         // GIVEN
         lifecycle = new Lifecycle(greengrassService, logger, greengrassService.getPrivateConfig());
         initLifecycleState(lifecycle, State.INSTALLED);
@@ -217,7 +218,7 @@ public class LifecycleTest {
     }
 
     @Test
-    public void GIVEN_state_running_WHEN_requestStop_THEN_shutdown_called() throws InterruptedException {
+    void GIVEN_state_running_WHEN_requestStop_THEN_shutdown_called() throws InterruptedException {
         // GIVEN
         lifecycle = spy(new Lifecycle(greengrassService, logger, greengrassService.getPrivateConfig()));
         initLifecycleState(lifecycle, State.INSTALLED);
@@ -257,7 +258,7 @@ public class LifecycleTest {
     }
 
     @Test
-    public void GIVEN_state_install_WHEN_requestStop_THEN_shutdown_called() throws InterruptedException {
+    void GIVEN_state_install_WHEN_requestStop_THEN_shutdown_called() throws InterruptedException {
         // GIVEN
         lifecycle = spy(new Lifecycle(greengrassService, logger, greengrassService.getPrivateConfig()));
         initLifecycleState(lifecycle, State.INSTALLED);
@@ -455,12 +456,12 @@ public class LifecycleTest {
 
     private void initLifecycleState(Lifecycle lf, State initState) {
         Topic stateTopic = lf.getStateTopic();
-        stateTopic.withValue(initState);
+        stateTopic.withValue(initState.ordinal());
     }
 
 
     @Test
-    public void GIVEN_service_starting_WHEN_dependency_errored_THEN_service_restarted() throws Exception {
+    void GIVEN_service_starting_WHEN_dependency_errored_THEN_service_restarted() throws Exception {
         Topics serviceRoot = new Configuration(context).getRoot()
                 .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC);
         Topics testServiceTopics = serviceRoot.createInteriorChild("testService");
@@ -521,9 +522,47 @@ public class LifecycleTest {
         assertTrue(serviceRestarted.await(500, TimeUnit.MILLISECONDS));
     }
 
+    @Test
+    void GIVEN_service_running_WHEN_service_broken_THEN_service_is_stopped() throws Exception {
+        Topics serviceRoot = new Configuration(context).getRoot()
+                .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC);
+        Topics testServiceTopics = serviceRoot.createInteriorChild("testService");
+        TestService testService = new TestService(testServiceTopics);
+
+        AtomicInteger serviceStartedCount = new AtomicInteger();
+        AtomicInteger serviceStoppedCount = new AtomicInteger();
+        AtomicInteger serviceInterruptedCount = new AtomicInteger();
+        testService.setStartupRunnable(
+                () -> {
+                    try {
+                        serviceStartedCount.incrementAndGet();
+                        testService.reportState(State.ERRORED);
+                        Thread.sleep(2000);
+                    } catch (InterruptedException e) {
+                        serviceInterruptedCount.incrementAndGet();
+                    }
+                }
+        );
+        testService.setShutdownRunnable(() -> serviceStoppedCount.incrementAndGet());
+
+        // init lifecycle
+        testService.postInject();
+        testService.requestStart();
+
+        assertThat(testService::getState, eventuallyEval(is(State.BROKEN)));
+
+        assertThat(serviceStoppedCount::get, eventuallyEval(is(serviceStartedCount.get())));
+        assertThat(serviceInterruptedCount::get, eventuallyEval(is(serviceStartedCount.get())));
+        // assert that service remains in BROKEN state
+        assertEquals(State.BROKEN, testService.getState());
+    }
+
     private class TestService extends GreengrassService {
         @Setter
         private Runnable startupRunnable = () -> {};
+
+        @Setter
+        private Runnable shutdownRunnable = () -> {};
 
         TestService(Topics topics) {
             super(topics);
@@ -532,6 +571,11 @@ public class LifecycleTest {
         @Override
         public void startup() {
             startupRunnable.run();
+        }
+
+        @Override
+        public void shutdown() {
+            shutdownRunnable.run();
         }
     }
 }

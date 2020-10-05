@@ -43,7 +43,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class KernelUpdateActivatorTest {
+class KernelUpdateActivatorTest {
     @Mock
     Kernel kernel;
     @Mock
@@ -61,7 +61,7 @@ public class KernelUpdateActivatorTest {
     @Mock
     Deployment deployment;
     @Mock
-    Map<Object, Object> newConfig;
+    Map<String, Object> newConfig;
 
     KernelUpdateActivator kernelUpdateActivator;
 

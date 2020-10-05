@@ -7,8 +7,6 @@ import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentService;
-import com.aws.greengrass.deployment.DeploymentStatusKeeper;
-import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
@@ -69,10 +67,10 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
+import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.waitForDeploymentToBeSuccessful;
+import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.waitForServiceToComeInState;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_AUTH_TOKEN;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_IPC_INFO_FILENAME;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_SERVICE;
@@ -133,7 +131,7 @@ class IPCCliTest {
 
     @Test
     @Order(1)
-    public void GIVEN_component_running_WHEN_get_component_request_made_THEN_service_details_sent() throws Exception {
+    void GIVEN_component_running_WHEN_get_component_request_made_THEN_service_details_sent() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
         Cli cli = new CliImpl(client);
@@ -145,7 +143,7 @@ class IPCCliTest {
 
     @Test
     @Order(2)
-    public void GIVEN_get_component_request_made_WHEN_component_not_exist_THEN_error_sent(ExtensionContext context) throws Exception {
+    void GIVEN_get_component_request_made_WHEN_component_not_exist_THEN_error_sent(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, ServiceLoadException.class);
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
@@ -156,7 +154,7 @@ class IPCCliTest {
 
     @Test
     @Order(3)
-    public void GIVEN_get_component_request_made_WHEN_empty_component_name_THEN_error_sent(ExtensionContext context) throws Exception {
+    void GIVEN_get_component_request_made_WHEN_empty_component_name_THEN_error_sent(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, ServiceLoadException.class);
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
@@ -167,7 +165,7 @@ class IPCCliTest {
 
     @Test
     @Order(4)
-    public void GIVEN_kernel_running_WHEN_list_component_request_made_THEN_components_details_sent() throws Exception {
+    void GIVEN_kernel_running_WHEN_list_component_request_made_THEN_components_details_sent() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
         Cli cli = new CliImpl(client);
@@ -182,14 +180,14 @@ class IPCCliTest {
 
     @Test
     @Order(5)
-    public void GIVEN_kernel_running_WHEN_restart_component_request_made_THEN_components_restarts() throws Exception {
+    void GIVEN_kernel_running_WHEN_restart_component_request_made_THEN_components_restarts() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
         Cli cli = new CliImpl(client);
         GetComponentDetailsResponse response = cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName(
                 "ServiceToBeRestarted").build());
         assertEquals(RUNNING, response.getComponentDetails().getState());
-        CountDownLatch serviceLatch = waitForServiceToComeInState("ServiceToBeRestarted", State.STARTING);
+        CountDownLatch serviceLatch = waitForServiceToComeInState("ServiceToBeRestarted", State.STARTING, kernel);
         RestartComponentResponse restartComponentResponse =
                 cli.restartComponent(RestartComponentRequest.builder().componentName("ServiceToBeRestarted").build());
         assertEquals(RequestStatus.SUCCEEDED, restartComponentResponse.getRequestStatus());
@@ -198,7 +196,7 @@ class IPCCliTest {
 
     @Test
     @Order(6)
-    public void GIVEN_kernel_running_WHEN_stop_component_request_made_THEN_components_stops() throws Exception {
+    void GIVEN_kernel_running_WHEN_stop_component_request_made_THEN_components_stops() throws Exception {
         KernelIPCClientConfig config = getIPCConfigForCli();
         client = new IPCClientImpl(config);
         Cli cli = new CliImpl(client);
@@ -206,7 +204,7 @@ class IPCCliTest {
                 "ServiceToBeStopped").build());
         assertEquals(RUNNING, response.getComponentDetails().getState());
 
-        CountDownLatch stoppingLatch = waitForServiceToComeInState("ServiceToBeStopped", State.STOPPING);
+        CountDownLatch stoppingLatch = waitForServiceToComeInState("ServiceToBeStopped", State.STOPPING, kernel);
         StopComponentResponse stopComponentResponse =
                 cli.stopComponent(StopComponentRequest.builder().componentName("ServiceToBeStopped").build());
         assertEquals(RequestStatus.SUCCEEDED, stopComponentResponse.getRequestStatus());
@@ -215,7 +213,7 @@ class IPCCliTest {
 
     @Test
     @Order(7)
-    public void GIVEN_kernel_running_WHEN_create_deployment_after_recipe_update_THEN_kernel_runs_latest_recipe(ExtensionContext context)
+    void GIVEN_kernel_running_WHEN_create_deployment_after_recipe_update_THEN_kernel_runs_latest_recipe(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         KernelIPCClientConfig config = getIPCConfigForCli();
@@ -231,10 +229,10 @@ class IPCCliTest {
         CreateLocalDeploymentRequest deploymentRequest = CreateLocalDeploymentRequest.builder()
                 .rootComponentVersionsToAdd(Collections.singletonMap(TEST_SERVICE_NAME, "1.0.1"))
                 .build();
-        CountDownLatch serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.RUNNING);
+        CountDownLatch serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.RUNNING, kernel);
         CreateLocalDeploymentResponse deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId1 = deploymentResponse.getDeploymentId();
-        CountDownLatch deploymentLatch = waitForDeploymentToBeSuccessful(deploymentId1);
+        CountDownLatch deploymentLatch = waitForDeploymentToBeSuccessful(deploymentId1, kernel);
         assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertTrue(deploymentLatch.await(LOCAL_DEPLOYMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
 
@@ -246,7 +244,7 @@ class IPCCliTest {
         deploymentRequest = CreateLocalDeploymentRequest.builder()
                 .rootComponentsToRemove(Arrays.asList(TEST_SERVICE_NAME))
                 .build();
-        serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.FINISHED);
+        serviceLatch = waitForServiceToComeInState(TEST_SERVICE_NAME, State.FINISHED, kernel);
         deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId2 = deploymentResponse.getDeploymentId();
         assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -265,7 +263,7 @@ class IPCCliTest {
 
     @Test
     @Order(8)
-    public void GIVEN_kernel_running_WHEN_update_artifacts_and_deployment_THEN_kernel_copies_artifacts_correctly(ExtensionContext context)
+    void GIVEN_kernel_running_WHEN_update_artifacts_and_deployment_THEN_kernel_copies_artifacts_correctly(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         KernelIPCClientConfig config = getIPCConfigForCli();
@@ -281,7 +279,7 @@ class IPCCliTest {
                 .build();
         cli.updateRecipesAndArtifacts(request);
         assertTrue(Files.exists(kernel.getComponentStorePath().resolve(ComponentStore.ARTIFACT_DIRECTORY)
-                        .resolve("Component1").resolve("1.0.0").resolve("run.sh")));
+                .resolve("Component1").resolve("1.0.0").resolve("run.sh")));
         CreateLocalDeploymentRequest deploymentRequest = CreateLocalDeploymentRequest.builder()
                 .groupName("NewGroup")
                 .rootComponentVersionsToAdd(Collections.singletonMap("Component1", "1.0.0"))
@@ -289,15 +287,15 @@ class IPCCliTest {
 
         CreateLocalDeploymentResponse deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId1 = deploymentResponse.getDeploymentId();
-        CountDownLatch waitForComponent1ToRun = waitForServiceToComeInState("Component1", State.RUNNING);
-        CountDownLatch waitFordeploymentId1 = waitForDeploymentToBeSuccessful(deploymentId1);
+        CountDownLatch waitForComponent1ToRun = waitForServiceToComeInState("Component1", State.RUNNING, kernel);
+        CountDownLatch waitFordeploymentId1 = waitForDeploymentToBeSuccessful(deploymentId1, kernel);
         assertTrue(waitForComponent1ToRun.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertTrue(waitFordeploymentId1.await(LOCAL_DEPLOYMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
     }
 
     @Test
     @Order(9)
-    public void GIVEN_kernel_running_WHEN_change_configuration_and_deployment_THEN_kernel_copies_artifacts_correctly(ExtensionContext context)
+    void GIVEN_kernel_running_WHEN_change_configuration_and_deployment_THEN_kernel_copies_artifacts_correctly(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         KernelIPCClientConfig config = getIPCConfigForCli();
@@ -323,7 +321,7 @@ class IPCCliTest {
                 .componentToConfiguration(componentToConfiguration)
                 .rootComponentVersionsToAdd(Collections.singletonMap("Component1", "1.0.0"))
                 .build();
-        CountDownLatch serviceLatch = waitForServiceToComeInState("Component1", State.RUNNING);
+        CountDownLatch serviceLatch = waitForServiceToComeInState("Component1", State.RUNNING, kernel);
         CountDownLatch stdoutLatch = new CountDownLatch(1);
         Consumer<GreengrassLogMessage> logListener = m -> {
             if ("shell-runner-stdout".equals(m.getEventType())) {
@@ -335,7 +333,7 @@ class IPCCliTest {
         Slf4jLogAdapter.addGlobalListener(logListener);
         CreateLocalDeploymentResponse deploymentResponse = cli.createLocalDeployment(deploymentRequest);
         String deploymentId1 = deploymentResponse.getDeploymentId();
-        CountDownLatch deploymentLatch = waitForDeploymentToBeSuccessful(deploymentId1);
+        CountDownLatch deploymentLatch = waitForDeploymentToBeSuccessful(deploymentId1, kernel);
 
         assertTrue(deploymentLatch.await(LOCAL_DEPLOYMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -371,35 +369,5 @@ class IPCCliTest {
             Thread.sleep(1000);
         }
         fail(String.format("Deployment %s not successful in given time %d seconds", deploymentId, timeoutInSeconds));
-    }
-
-    private CountDownLatch waitForDeploymentToBeSuccessful(String deploymentId) {
-        CountDownLatch deploymentLatch = new CountDownLatch(1);
-        DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
-        deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.LOCAL, (deploymentDetails) ->
-        {
-            String receivedDeploymentId =
-                    deploymentDetails.get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_ID).toString();
-            if (receivedDeploymentId.equals(deploymentId)) {
-                DeploymentStatus status = (DeploymentStatus) deploymentDetails
-                        .get(PERSISTED_DEPLOYMENT_STATUS_KEY_LOCAL_DEPLOYMENT_STATUS);
-                if (status == DeploymentStatus.SUCCEEDED) {
-                    deploymentLatch.countDown();
-                }
-            }
-            return true;
-        }, deploymentId);
-        return deploymentLatch;
-    }
-
-    private CountDownLatch waitForServiceToComeInState(String serviceName, State state) throws InterruptedException {
-        // wait for service to come up
-        CountDownLatch awaitServiceLatch = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals(serviceName) && newState.equals(state)) {
-                awaitServiceLatch.countDown();
-            }
-        });
-        return awaitServiceLatch;
     }
 }

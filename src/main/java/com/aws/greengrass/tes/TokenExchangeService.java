@@ -18,6 +18,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
@@ -27,7 +28,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETER
 public class TokenExchangeService extends GreengrassService implements AwsCredentialsProvider {
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
     public static final String PORT_TOPIC = "port";
-    public static final String TOKEN_EXCHANGE_SERVICE_TOPICS = "TokenExchangeService";
+    public static final String TOKEN_EXCHANGE_SERVICE_TOPICS = "aws.greengrass.TokenExchangeService";
     public static final String TES_URI_ENV_VARIABLE_NAME = "AWS_CONTAINER_CREDENTIALS_FULL_URI";
     public static final String AUTHZ_TES_OPERATION = "getCredentials";
     private static final String TES_CONFIG_ERROR_STR = "%s parameter is either empty or not configured for TES";
@@ -39,17 +40,20 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
 
     private final AuthorizationHandler authZHandler;
     private final CredentialRequestHandler credentialRequestHandler;
+    private final ExecutorService executor;
 
     /**
      * Constructor.
      * @param topics the configuration coming from kernel
      * @param credentialRequestHandler {@link CredentialRequestHandler}
      * @param authZHandler {@link AuthorizationHandler}
+     * @param executor executor service shared with kernel
      */
     @Inject
     public TokenExchangeService(Topics topics,
                                 CredentialRequestHandler credentialRequestHandler,
-                                AuthorizationHandler authZHandler) {
+                                AuthorizationHandler authZHandler,
+                                ExecutorService executor) {
         super(topics);
         // Port change should not be allowed
         topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT)
@@ -60,9 +64,9 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
             credentialRequestHandler.setIotCredentialsPath(iotRoleAlias);
         });
 
-        // TODO: Add support for overriding this from config
         this.authZHandler = authZHandler;
         this.credentialRequestHandler = credentialRequestHandler;
+        this.executor = executor;
     }
 
     @Override
@@ -79,12 +83,13 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
     @SuppressWarnings("PMD.CloseResource")
     protected void startup() {
         // TODO: Support tes restart with change in configuration like port, roleAlias.
-        logger.atInfo().addKeyValue(PORT_TOPIC, port)
-                .addKeyValue(IOT_ROLE_ALIAS_TOPIC, iotRoleAlias).log("Starting Token Server at port {}", port);
+        logger.atInfo().addKeyValue(PORT_TOPIC, port).addKeyValue(IOT_ROLE_ALIAS_TOPIC, iotRoleAlias)
+                .log("Attempting to start server at configured port {}", port);
         try {
             validateConfig();
-            server = new HttpServerImpl(port, credentialRequestHandler);
+            server = new HttpServerImpl(port, credentialRequestHandler, executor);
             server.start();
+            logger.atInfo().log("Started server at port {}", server.getServerPort());
             // Get port from the server, in case no port was specified and server started on a random port
             setEnvVariablesForDependencies(server.getServerPort());
             reportState(State.RUNNING);
@@ -98,8 +103,8 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
         logger.atInfo().log("TokenExchangeService is shutting down!");
         if (server != null) {
             server.stop();
+            logger.atInfo().log("Stopped server at port {}", server.getServerPort());
         }
-        logger.atInfo().log("Stopped Server at port {}", port);
     }
 
     private void setEnvVariablesForDependencies(final int serverPort) {

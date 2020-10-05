@@ -51,7 +51,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class BootstrapManagerTest {
+class BootstrapManagerTest {
     private static final String componentA = "componentA";
     private static final String componentB = "componentB";
     @Mock
@@ -71,7 +71,7 @@ public class BootstrapManagerTest {
     void GIVEN_new_config_without_service_bootstraps_WHEN_check_isBootstrapRequired_THEN_return_false() throws Exception {
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(false).when(bootstrapManager).serviceBootstrapRequired(any(), any());
-        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<Object, Object>() {{
+        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put(componentA, Collections.emptyMap());
                 put(componentB, Collections.emptyMap());
@@ -83,7 +83,7 @@ public class BootstrapManagerTest {
     void GIVEN_new_config_with_service_bootstraps_WHEN_check_isBootstrapRequired_THEN_return_true() throws Exception {
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(true).when(bootstrapManager).serviceBootstrapRequired(any(), any());
-        assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<Object, Object>() {{
+        assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put(componentA, new HashMap<String, Object>() {{
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList("componentB", "componentC:hard"));

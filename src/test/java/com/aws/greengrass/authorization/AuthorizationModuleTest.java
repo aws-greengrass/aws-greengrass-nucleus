@@ -7,6 +7,7 @@ package com.aws.greengrass.authorization;
 
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import org.hamcrest.collection.IsEmptyCollection;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,13 +16,13 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
-public class AuthorizationModuleTest {
+class AuthorizationModuleTest {
 
     private static Stream<Arguments> permissionEntries() {
         return Stream.of(
@@ -100,7 +101,7 @@ public class AuthorizationModuleTest {
         });
         String componentToRemove = "ComponentB";
         module.deletePermissionsWithDestination(componentToRemove);
-        assertEquals(module.permissions.get("ComponentB").size(), 0);
+        assertThat(module.permissions.get("ComponentB"), IsEmptyCollection.empty());
     }
 
     @Test

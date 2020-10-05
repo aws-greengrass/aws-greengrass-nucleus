@@ -119,7 +119,7 @@ class KernelConfigResolverTest {
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
         when(componentStore.getPackageRecipe(dependencyComponentIdentifier)).thenReturn(dependencyComponentRecipe);
-        when(componentStore.resolveAndSetupArtifactsUnpackDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
+        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(mainService.getName()).thenReturn("main");
@@ -130,12 +130,12 @@ class KernelConfigResolverTest {
 
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel);
-        Map<Object, Object> resolvedConfig =
+        Map<String, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
         // THEN
         // service config
-        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
         assertThat("Must contain main service", servicesConfig, hasKey("main"));
         assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
         assertThat("Must contain dependency service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_B));
@@ -170,7 +170,7 @@ class KernelConfigResolverTest {
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
-        when(componentStore.resolveAndSetupArtifactsUnpackDirectory(rootComponentIdentifier)).thenReturn(
+        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(rootComponentIdentifier)).thenReturn(
                 DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
@@ -182,12 +182,12 @@ class KernelConfigResolverTest {
 
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel);
-        Map<Object, Object> resolvedConfig =
+        Map<String, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
         // THEN
         // service config
-        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
         assertThat("Must contain main service", servicesConfig, hasKey("main"));
         assertThat("Must contain updated service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
 
@@ -218,7 +218,7 @@ class KernelConfigResolverTest {
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
-        when(componentStore.resolveAndSetupArtifactsUnpackDirectory(rootComponentIdentifier)).thenReturn(
+        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(rootComponentIdentifier)).thenReturn(
                 DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
@@ -227,12 +227,12 @@ class KernelConfigResolverTest {
 
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel);
-        Map<Object, Object> resolvedConfig =
+        Map<String, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
         // THEN
         // service config
-        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
         assertThat("Must contain main service", servicesConfig, hasKey("main"));
         assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
 
@@ -298,7 +298,7 @@ class KernelConfigResolverTest {
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
         when(componentStore.getPackageRecipe(package2)).thenReturn(package2Recipe);
         when(componentStore.getPackageRecipe(package3)).thenReturn(package3Recipe);
-        when(componentStore.resolveAndSetupArtifactsUnpackDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
+        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(mainService.getName()).thenReturn("main");
@@ -306,12 +306,12 @@ class KernelConfigResolverTest {
 
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel);
-        Map<Object, Object> resolvedConfig =
+        Map<String, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
         // THEN
         // service config
-        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
 
         // parameter interpolation
         String serviceTestCommand =
@@ -347,7 +347,7 @@ class KernelConfigResolverTest {
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
-        when(componentStore.resolveAndSetupArtifactsUnpackDirectory(rootComponentIdentifier)).thenReturn(
+        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(rootComponentIdentifier)).thenReturn(
                 DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
         when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
@@ -365,12 +365,12 @@ class KernelConfigResolverTest {
 
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel);
-        Map<Object, Object> resolvedConfig =
+        Map<String, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
         // THEN
         // service config
-        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
         assertThat("Must contain main service", servicesConfig, hasKey("main"));
         assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
 
@@ -419,11 +419,11 @@ class KernelConfigResolverTest {
 
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel);
-        Map<Object, Object> resolvedConfig =
+        Map<String, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
         // THEN
-        Map<Object, Object> servicesConfig = (Map<Object, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
 
         Path jarPath = Paths.get("/packages/artifacts").toAbsolutePath();
         assertThat("{{artifacts:path}} should be replace by the package's artifact path",
@@ -474,26 +474,26 @@ class KernelConfigResolverTest {
     }
 
     // utilities for verification
-    private Object getServiceRunCommand(String serviceName, Map<Object, Object> config) {
+    private Object getServiceRunCommand(String serviceName, Map<String, Object> config) {
         return getValueForLifecycleKey(LIFECYCLE_RUN_KEY, serviceName, config);
     }
 
-    private Object getServiceInstallCommand(String serviceName, Map<Object, Object> config) {
+    private Object getServiceInstallCommand(String serviceName, Map<String, Object> config) {
         return getValueForLifecycleKey(LIFECYCLE_INSTALL_KEY, serviceName, config);
     }
 
-    private boolean dependencyListContains(String serviceName, String dependencyName, Map<Object, Object> config) {
+    private boolean dependencyListContains(String serviceName, String dependencyName, Map<String, Object> config) {
         Iterable<String> dependencyList =
                 (Iterable<String>) getServiceConfig(serviceName, config).get(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
         return StreamSupport.stream(dependencyList.spliterator(), false).anyMatch(itr -> itr.contains(dependencyName));
     }
 
-    private Object getValueForLifecycleKey(String key, String serviceName, Map<Object, Object> config) {
-        Map<Object, Object> serviceConfig = getServiceConfig(serviceName, config);
-        return ((Map<Object, Object>) serviceConfig.get(GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC)).get(key);
+    private Object getValueForLifecycleKey(String key, String serviceName, Map<String, Object> config) {
+        Map<String, Object> serviceConfig = getServiceConfig(serviceName, config);
+        return ((Map<String, Object>) serviceConfig.get(GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC)).get(key);
     }
 
-    private Map<Object, Object> getServiceConfig(String serviceName, Map<Object, Object> config) {
-        return (Map<Object, Object>) config.get(serviceName);
+    private Map<String, Object> getServiceConfig(String serviceName, Map<String, Object> config) {
+        return (Map<String, Object>) config.get(serviceName);
     }
 }

@@ -47,7 +47,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
     }
 
     @Override
-    public void activate(Map<Object, Object> newConfig, Deployment deployment,
+    public void activate(Map<String, Object> newConfig, Deployment deployment,
                          CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         if (!takeConfigSnapshot(totallyCompleteFuture)) {
             return;
@@ -90,7 +90,6 @@ public class KernelUpdateActivator extends DeploymentActivator {
             kernel.shutdown(30, exitCode == REQUEST_REBOOT ? REQUEST_REBOOT : REQUEST_RESTART);
         } catch (ServiceUpdateException | IOException e) {
             rollback(deployment, e);
-            return;
         }
     }
 

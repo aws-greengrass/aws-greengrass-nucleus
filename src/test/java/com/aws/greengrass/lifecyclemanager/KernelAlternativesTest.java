@@ -34,7 +34,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class KernelAlternativesTest {
+class KernelAlternativesTest {
     @TempDir
     Path altsDir;
 

@@ -32,7 +32,7 @@ public abstract class DeploymentActivator {
         this.deploymentDirectoryManager = kernel.getContext().get(DeploymentDirectoryManager.class);
     }
 
-    public abstract void activate(Map<Object, Object> newConfig, Deployment deployment,
+    public abstract void activate(Map<String, Object> newConfig, Deployment deployment,
                                   CompletableFuture<DeploymentResult> totallyCompleteFuture);
 
     protected boolean takeConfigSnapshot(CompletableFuture<DeploymentResult> totallyCompleteFuture) {
@@ -49,8 +49,7 @@ public abstract class DeploymentActivator {
         }
     }
 
-    protected long rollbackConfig(String deploymentId, CompletableFuture<DeploymentResult> totallyCompleteFuture,
-                                  Throwable failureCause) {
+    protected long rollbackConfig(CompletableFuture<DeploymentResult> totallyCompleteFuture, Throwable failureCause) {
         long mergeTime;
         try {
             mergeTime = System.currentTimeMillis();

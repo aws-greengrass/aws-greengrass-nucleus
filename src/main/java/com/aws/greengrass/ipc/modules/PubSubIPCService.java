@@ -1,6 +1,5 @@
 package com.aws.greengrass.ipc.modules;
 
-
 import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;

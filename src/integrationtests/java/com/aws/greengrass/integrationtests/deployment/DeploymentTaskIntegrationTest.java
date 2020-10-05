@@ -5,9 +5,9 @@
 
 package com.aws.greengrass.integrationtests.deployment;
 
-import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
@@ -230,7 +230,7 @@ class DeploymentTaskIntegrationTest {
             }
         };
         Slf4jLogAdapter.addGlobalListener(listener);
-        groupToRootComponentsTopics.lookup("CustomerApp").withValue(
+        groupToRootComponentsTopics.lookupTopics("CustomerApp").replaceAndWait(
                 ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
 
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
@@ -264,9 +264,9 @@ class DeploymentTaskIntegrationTest {
         //should contain main, YellowSignal, CustomerApp, Mosquitto and GreenSignal
         assertEquals(5, services.size());
         assertThat(services, containsInAnyOrder("main", "YellowSignal", "CustomerApp", "Mosquitto", "GreenSignal"));
-        groupToRootComponentsTopics.lookup("CustomerApp").withValue(
+        groupToRootComponentsTopics.lookupTopics("CustomerApp").replaceAndWait(
                 ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
-        groupToRootComponentsTopics.lookup("YellowSignal").withValue(
+        groupToRootComponentsTopics.lookupTopics("YellowSignal").replaceAndWait(
                 ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
@@ -306,9 +306,9 @@ class DeploymentTaskIntegrationTest {
         // should contain main, YellowSignal and RedSignal
         assertEquals(3, services.size());
         assertThat(services, containsInAnyOrder("main", "YellowSignal", "RedSignal"));
-        groupToRootComponentsTopics.lookup("RedSignal").withValue(
+        groupToRootComponentsTopics.lookupTopics("RedSignal").replaceAndWait(
                 ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
-        groupToRootComponentsTopics.lookup("YellowSignal").withValue(
+        groupToRootComponentsTopics.lookupTopics("YellowSignal").replaceAndWait(
                 ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
         resultFuture = submitSampleJobDocument(
@@ -339,10 +339,8 @@ class DeploymentTaskIntegrationTest {
             ExtensionContext context) throws Exception {
         Map<String, Object> pkgDetails = new HashMap<>();
         pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0");
-        groupToRootComponentsTopics.lookup("RedSignal").withValue(
-                pkgDetails);
-        groupToRootComponentsTopics.lookup("YellowSignal").withValue(
-                pkgDetails);
+        groupToRootComponentsTopics.lookupTopics("RedSignal").replaceAndWait(pkgDetails);
+        groupToRootComponentsTopics.lookupTopics("YellowSignal").replaceAndWait(pkgDetails);
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
@@ -356,8 +354,8 @@ class DeploymentTaskIntegrationTest {
         assertThat(services, containsInAnyOrder("main", "YellowSignal", "RedSignal"));
 
         ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
-        groupToRootComponentsTopics.lookup("YellowSignal").remove();
-        groupToRootComponentsTopics.lookup("BreakingService").withValue(
+        groupToRootComponentsTopics.lookupTopics("YellowSignal").remove();
+        groupToRootComponentsTopics.lookupTopics("BreakingService").replaceAndWait(
                 ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("FailureRollbackDeployment.json").toURI(),

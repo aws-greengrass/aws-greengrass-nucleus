@@ -18,7 +18,7 @@ import javax.inject.Inject;
 
 @AllArgsConstructor(onConstructor_ = {@Inject})
 public class SystemServiceUtilsFactory {
-    protected static final Logger logger = LogManager.getLogger(SystemServiceUtils.class);
+    protected static final Logger logger = LogManager.getLogger(SystemServiceUtilsFactory.class);
 
     private final Context context;
 

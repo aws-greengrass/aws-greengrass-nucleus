@@ -13,6 +13,7 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import org.hamcrest.Matchers;
@@ -41,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class AuthorizationPolicyParserTest {
+class AuthorizationPolicyParserTest {
 
     private final AuthorizationPolicyParser policyParser = new AuthorizationPolicyParser();
 
@@ -71,7 +72,7 @@ public class AuthorizationPolicyParserTest {
     }
 
     @Test
-    public void GIVEN_valid_pubsub_ACL_WHEN_auth_parsing_THEN_return_auth_policies() throws Throwable {
+    void GIVEN_valid_pubsub_ACL_WHEN_auth_parsing_THEN_return_auth_policies() throws Throwable {
 
         readConfig("pubsub_valid.yaml");
         Map<String, List<AuthorizationPolicy>> authorizationPolicyMap = policyParser
@@ -97,7 +98,7 @@ public class AuthorizationPolicyParserTest {
     }
 
     @Test
-    public void GIVEN_valid_pubsub_ACL_without_description_or_resources_WHEN_auth_parsing_THEN_return_auth_policies() throws Throwable {
+    void GIVEN_valid_pubsub_ACL_without_description_or_resources_WHEN_auth_parsing_THEN_return_auth_policies() throws Throwable {
 
         readConfig("pubsub_valid_optional.yaml");
 
@@ -124,7 +125,7 @@ public class AuthorizationPolicyParserTest {
     }
 
     @Test
-    public void GIVEN_invalid_pubsub_yaml_file_without_operations_WHEN_auth_parsing_THEN_fail(ExtensionContext context) throws Throwable {
+    void GIVEN_invalid_pubsub_yaml_file_without_operations_WHEN_auth_parsing_THEN_fail(ExtensionContext context) throws Throwable {
 
         readConfig("pubsub_invalid_no_operations.yaml");
         try {
@@ -143,7 +144,7 @@ public class AuthorizationPolicyParserTest {
     }
 
     @Test
-    public void GIVEN_invalid_pubsub_yaml_file_with_invalid_fields_WHEN_auth_parsing_THEN_fail() throws Throwable {
+    void GIVEN_invalid_pubsub_yaml_file_with_invalid_fields_WHEN_auth_parsing_THEN_fail() throws Throwable {
         readConfig("pubsub_invalid_fields.yaml");
         try {
             logReceived = new CountDownLatch(1);

@@ -13,6 +13,7 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
+import com.aws.greengrass.util.Coerce;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +40,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-public class GreengrassServiceTest extends GGServiceTestUtil {
+class GreengrassServiceTest extends GGServiceTestUtil {
 
     @Mock
     private Kernel kernel;
@@ -89,16 +90,15 @@ public class GreengrassServiceTest extends GGServiceTestUtil {
         Assertions.assertSame(configuration.getRoot().findTopics(SERVICES_NAMESPACE_TOPIC, "A"), aService.config);
 
         //verify dependencies are set up right
-        assertEquals(aService.dependencies.size(), 3);
-        assertEquals(aService.dependencies.get(bService).dependencyType, DependencyType.HARD);
-        assertEquals(aService.dependencies.get(cService).dependencyType, DependencyType.SOFT);
-        assertEquals(aService.dependencies.get(dService).dependencyType, DependencyType.HARD);
+        assertEquals(3, aService.dependencies.size());
+        assertEquals(DependencyType.HARD, aService.dependencies.get(bService).dependencyType);
+        assertEquals(DependencyType.SOFT, aService.dependencies.get(cService).dependencyType);
+        assertEquals(DependencyType.HARD, aService.dependencies.get(dService).dependencyType);
 
         //verify state is NEW
         Topic stateTopic = aService.getConfig().find(PRIVATE_STORE_NAMESPACE_TOPIC, Lifecycle.STATE_TOPIC_NAME);
-        assertEquals(stateTopic.getOnce(), State.NEW);
+        assertEquals(State.NEW, Coerce.toEnum(State.class, stateTopic));
         assertFalse(stateTopic.parentNeedsToKnow());
-
     }
 
     @Test
@@ -108,12 +108,12 @@ public class GreengrassServiceTest extends GGServiceTestUtil {
 
         //WHEN D is removed and E is added
         Topic topic = aService.getConfig().find(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
-        topic.withNewerValue(System.currentTimeMillis(), Arrays.asList("B", "C", "E"));
+        topic.withValue(Arrays.asList("B", "C", "E"));
         context.runOnPublishQueueAndWait(() -> {
         });
         // THEN
         // verify D is removed and E is added
-        assertEquals(aService.dependencies.size(), 3);
+        assertEquals(3, aService.dependencies.size());
         assertNull(aService.dependencies.get(dService));
         assertNotNull(aService.dependencies.get(eService));
     }

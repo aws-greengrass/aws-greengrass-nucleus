@@ -106,9 +106,7 @@ public class UnixPlatform extends Platform {
         ArrayList<String> ret = new ArrayList<>();
         if (procMap.containsKey(parent)) {
             ret.addAll(procMap.get(parent));
-            procMap.get(parent).forEach(p -> {
-                ret.addAll(children(p, procMap));
-            });
+            procMap.get(parent).forEach(p -> ret.addAll(children(p, procMap)));
         }
         return ret;
     }
