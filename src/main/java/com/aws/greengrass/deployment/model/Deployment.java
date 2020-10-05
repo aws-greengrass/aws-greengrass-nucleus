@@ -27,6 +27,7 @@ public class Deployment {
     private DeploymentType deploymentType;
     @EqualsAndHashCode.Include
     private String id;
+    @EqualsAndHashCode.Include
     private boolean isCancelled;
     @Setter
     private DeploymentStage deploymentStage;
@@ -79,7 +80,7 @@ public class Deployment {
     }
 
     public enum DeploymentType {
-        IOT_JOBS, LOCAL
+        IOT_JOBS, LOCAL, SHADOW
     }
 
     public enum DeploymentStage {

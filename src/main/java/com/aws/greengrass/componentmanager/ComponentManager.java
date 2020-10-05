@@ -22,6 +22,7 @@ import com.aws.greengrass.componentmanager.plugins.GreengrassRepositoryDownloade
 import com.aws.greengrass.componentmanager.plugins.S3Downloader;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.InjectionActions;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -32,6 +33,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
+import lombok.Setter;
 
 import java.io.File;
 import java.io.IOException;
@@ -74,22 +76,28 @@ public class ComponentManager implements InjectionActions {
     private final Kernel kernel;
     private final Unarchiver unarchiver;
 
+    @Inject
+    @Setter
+    private DeviceConfiguration deviceConfiguration;
+
     /**
      * PackageManager constructor.
      *
-     * @param s3ArtifactsDownloader        s3ArtifactsDownloader
-     * @param greengrassArtifactDownloader greengrassArtifactDownloader
-     * @param componentServiceHelper       greengrassPackageServiceHelper
-     * @param executorService              executorService
-     * @param componentStore               componentStore
-     * @param kernel                       kernel
-     * @param unarchiver                   unarchiver
+     * @param s3ArtifactsDownloader          s3ArtifactsDownloader
+     * @param greengrassArtifactDownloader   greengrassArtifactDownloader
+     * @param componentServiceHelper         greengrassPackageServiceHelper
+     * @param executorService                executorService
+     * @param componentStore                 componentStore
+     * @param kernel                         kernel
+     * @param unarchiver                     unarchiver
+     * @param deviceConfiguration            deviceConfiguration
      */
     @Inject
     public ComponentManager(S3Downloader s3ArtifactsDownloader,
                             GreengrassRepositoryDownloader greengrassArtifactDownloader,
-                            ComponentServiceHelper componentServiceHelper, ExecutorService executorService,
-                            ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver) {
+                            ComponentServiceHelper componentServiceHelper,
+                            ExecutorService executorService, ComponentStore componentStore, Kernel kernel,
+                            Unarchiver unarchiver, DeviceConfiguration deviceConfiguration) {
         this.s3ArtifactsDownloader = s3ArtifactsDownloader;
         this.greengrassArtifactDownloader = greengrassArtifactDownloader;
         this.componentServiceHelper = componentServiceHelper;
@@ -97,6 +105,7 @@ public class ComponentManager implements InjectionActions {
         this.componentStore = componentStore;
         this.kernel = kernel;
         this.unarchiver = unarchiver;
+        this.deviceConfiguration = deviceConfiguration;
     }
 
     /**
@@ -134,13 +143,22 @@ public class ComponentManager implements InjectionActions {
             componentMetadataList.add(0, activeComponentMetadata);
         }
 
-        try {
-            componentMetadataList
-                    .addAll(componentServiceHelper.listAvailableComponentMetadata(packageName, versionRequirement));
-        } catch (PackageDownloadException e) {
-            logger.atInfo("list-package-versions").addKeyValue(PACKAGE_NAME_KEY, packageName)
-                    .log("Failed when calling Component Management Service to list available versions", e);
+        // keep logs clean when operating in offline mode
+        if (deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            try {
+                componentMetadataList.addAll(
+                        componentServiceHelper.listAvailableComponentMetadata(packageName, versionRequirement));
+
+            } catch (PackageDownloadException e) {
+                logger.atInfo("list-package-versions")
+                        .addKeyValue(PACKAGE_NAME_KEY, packageName)
+                        .log("Failed when calling Component Management Service to list available versions", e);
+            }
+        } else {
+            logger.atInfo("list-package-versions").log("Device in offline mode, "
+                    + "cannot call Component Management Service to list available versions");
         }
+
 
         logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
                 .addKeyValue("packageMetadataList", componentMetadataList)

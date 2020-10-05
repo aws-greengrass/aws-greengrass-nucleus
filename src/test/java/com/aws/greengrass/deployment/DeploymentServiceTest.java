@@ -49,13 +49,13 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentService.LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
@@ -114,8 +114,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
     private Thread deploymentServiceThread;
 
-    DeploymentService deploymentService;
-    LinkedBlockingQueue<Deployment> deploymentsQueue;
+    private DeploymentService deploymentService;
+    private DeploymentQueue deploymentQueue;
 
 
     @BeforeEach
@@ -132,8 +132,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 context, mockKernel);
         deploymentService.postInject();
 
-        deploymentsQueue = new LinkedBlockingQueue<>();
-        deploymentService.setDeploymentsQueue(deploymentsQueue);
+        deploymentQueue = new DeploymentQueue();
+        deploymentService.setDeploymentsQueue(deploymentQueue);
+        Topic lastSuccessfulDeploymentId = Topic.of(context, LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC, null);
+        lenient().when(config.lookup(LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC)).thenReturn(lastSuccessfulDeploymentId);
     }
 
     @AfterEach
@@ -150,14 +152,15 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         CompletableFuture<DeploymentResult> mockFuture = spy(new CompletableFuture<>());
 
         @BeforeEach
-        void setup() throws Exception {
+        void setup() {
             deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
             String deploymentDocument
                     = new BufferedReader(new InputStreamReader(
                     getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
                     .lines()
                     .collect(Collectors.joining("\n"));
-            deploymentsQueue.put(new Deployment(deploymentDocument,
+
+            deploymentQueue.offer(new Deployment(deploymentDocument,
                     Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
         }
 
@@ -284,6 +287,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
             when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(deploymentGroupTopics);
             when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
+
             when(mockKernel.locate(any())).thenReturn(mockGreengrassService);
             when(mockGreengrassService.getName()).thenReturn(EXPECTED_ROOT_PACKAGE_NAME);
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
@@ -428,7 +432,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             startDeploymentServiceInAnotherThread();
 
             // Simulate a cancellation deployment
-            deploymentsQueue.put(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
+            deploymentQueue.offer(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
 
             // Expecting three invocations, once for each retry attempt
             verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
@@ -448,7 +452,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             startDeploymentServiceInAnotherThread();
 
             // Simulate a cancellation deployment
-            deploymentsQueue.put(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
+            deploymentQueue.offer(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
 
             // Expecting three invocations, once for each retry attempt
             verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
@@ -478,7 +482,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             Slf4jLogAdapter.removeGlobalListener(listener);
 
             // Simulate a cancellation deployment
-            deploymentsQueue.put(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
+            deploymentQueue.offer(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
 
             mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
 
