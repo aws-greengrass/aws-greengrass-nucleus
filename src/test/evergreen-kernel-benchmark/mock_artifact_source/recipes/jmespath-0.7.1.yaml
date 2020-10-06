@@ -4,5 +4,5 @@ ComponentName: jmespath
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Publisher
 ComponentVersion: '0.7.1'
-manifests:
-  - lifecycle: {}
+Manifests:
+  - Lifecycle: {}

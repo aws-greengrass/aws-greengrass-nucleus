@@ -7,5 +7,5 @@ ComponentVersion: '2.3.0'
 ComponentDependencies:
   six:
     VersionRequirement: ''
-manifests:
-  - lifecycle: {}
+Manifests:
+  - Lifecycle: {}
