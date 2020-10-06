@@ -390,7 +390,7 @@ public class DeploymentService extends GreengrassService {
     }
 
     private KernelUpdateDeploymentTask createKernelUpdateDeployment(Deployment deployment) {
-        return new KernelUpdateDeploymentTask(kernel, logger.createChild(), deployment);
+        return new KernelUpdateDeploymentTask(kernel, logger.createChild(), deployment, componentManager);
     }
 
     private DefaultDeploymentTask createDefaultNewDeployment(Deployment deployment) {
