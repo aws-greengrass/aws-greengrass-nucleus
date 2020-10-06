@@ -88,7 +88,7 @@ public class LifecycleIPCEventStreamAgent {
                 log.info("{} reported state : {}", service.get().getName(), s);
                 service.get().reportState(s);
             }
-            return null;
+            return new UpdateStateResponse();
         }
 
         @Override
@@ -110,6 +110,7 @@ public class LifecycleIPCEventStreamAgent {
 
         @Override
         protected void onStreamClosed() {
+            log.atInfo("Stream closed for subscribeToComponentUpdate");
             componentUpdateListeners.get(serviceName).remove(this);
             if (componentUpdateListeners.get(serviceName).isEmpty()) {
                 componentUpdateListeners.remove(serviceName);
@@ -118,10 +119,10 @@ public class LifecycleIPCEventStreamAgent {
 
         @Override
         public SubscribeToComponentUpdatesResponse handleRequest(SubscribeToComponentUpdatesRequest request) {
-            log.debug("{} subscribed to component update", serviceName);
+            log.atInfo().log("{} subscribed to component update", serviceName);
             componentUpdateListeners.putIfAbsent(serviceName, new HashSet<>());
             componentUpdateListeners.get(serviceName).add(this);
-            return null;
+            return new SubscribeToComponentUpdatesResponse();
         }
 
         @Override
@@ -162,7 +163,7 @@ public class LifecycleIPCEventStreamAgent {
             deferComponentUpdateRequestFuture.complete(new DeferUpdateRequest(serviceName,
                     request.getMessage(), request.getRecheckAfterMs()));
             deferUpdateFuturesMap.remove(serviceName);
-            return null;
+            return new DeferComponentUpdateResponse();
         }
 
         @Override

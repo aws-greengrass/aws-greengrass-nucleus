@@ -107,7 +107,6 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
 
         final OperationContinuationHandlerContext operationContext = new OperationContinuationHandlerContext(
                 connection, continuation, authenticationData);
-
         final Function<OperationContinuationHandlerContext, ? extends ServerConnectionContinuationHandler> registeredOperationHandlerFn =
                 serviceHandler.getOperationHandler(operationName);
         if (registeredOperationHandlerFn != null) {
