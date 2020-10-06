@@ -188,7 +188,7 @@ public class IotJobsHelper implements InjectionActions {
 
         String documentString;
         try {
-            documentString = SerializerFactory.getJsonObjectMapper().writeValueAsString(jobExecutionData.jobDocument);
+            documentString = SerializerFactory.getJsonObjectWriter().writeValueAsString(jobExecutionData.jobDocument);
         } catch (JsonProcessingException e) {
             //TODO: Handle when job document is incorrect json.
             // This should not happen as we are converting a HashMap

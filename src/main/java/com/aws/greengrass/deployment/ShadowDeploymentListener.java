@@ -238,7 +238,7 @@ public class ShadowDeploymentListener implements InjectionActions {
 
         String configurationString;
         try {
-            configurationString = SerializerFactory.getJsonObjectMapper().writeValueAsString(configuration);
+            configurationString = SerializerFactory.getJsonObjectWriter().writeValueAsString(configuration);
         } catch (JsonProcessingException e) {
             logger.atError("Unable to process shadow update", e);
             return;

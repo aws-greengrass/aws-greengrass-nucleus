@@ -192,7 +192,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         Files.createFile(persistedTaskFilePath);
 
         try (OutputStream out = Files.newOutputStream(persistedTaskFilePath)) {
-            SerializerFactory.getJsonObjectMapper().writeValue(out, bootstrapTaskStatusList);
+            SerializerFactory.getJsonObjectWriter().writeValue(out, bootstrapTaskStatusList);
         }
         logger.atInfo().kv("filePath", persistedTaskFilePath).log("Bootstrap task list is saved to file");
     }
@@ -210,8 +210,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
 
         try (InputStream input = Files.newInputStream(persistedTaskFilePath)) {
             bootstrapTaskStatusList.clear();
-            bootstrapTaskStatusList.addAll(SerializerFactory.getJsonObjectMapper()
-                    .readValue(input, new TypeReference<List<BootstrapTaskStatus>>(){}));
+            bootstrapTaskStatusList.addAll(SerializerFactory.getJsonObjectReader()
+                    .forType(new TypeReference<List<BootstrapTaskStatus>>(){}).readValue(input));
         }
     }
 

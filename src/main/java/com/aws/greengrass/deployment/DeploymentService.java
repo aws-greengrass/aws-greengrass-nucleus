@@ -421,8 +421,8 @@ public class DeploymentService extends GreengrassService {
         try {
             switch (deployment.getDeploymentType()) {
                 case LOCAL:
-                    LocalOverrideRequest localOverrideRequest = SerializerFactory.getJsonObjectMapper().readValue(
-                            jobDocumentString, LocalOverrideRequest.class);
+                    LocalOverrideRequest localOverrideRequest = SerializerFactory.getJsonObjectReader().forType(
+                            LocalOverrideRequest.class).readValue(jobDocumentString);
                     Map<String, String> rootComponents = new HashMap<>();
                     Set<String> rootComponentsInRequestedGroup = new HashSet<>();
                     config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
@@ -445,8 +445,8 @@ public class DeploymentService extends GreengrassService {
                     break;
                 case IOT_JOBS:
                 case SHADOW:
-                    FleetConfiguration config = SerializerFactory.getJsonObjectMapper()
-                            .readValue(jobDocumentString, FleetConfiguration.class);
+                    FleetConfiguration config = SerializerFactory.getJsonObjectReader()
+                            .forType(FleetConfiguration.class).readValue(jobDocumentString);
                     document = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
                     break;
                 default:
