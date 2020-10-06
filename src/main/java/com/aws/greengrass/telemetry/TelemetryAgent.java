@@ -44,8 +44,8 @@ public class TelemetryAgent extends GreengrassService {
     public static final String TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC = "lastPeriodicAggregationMetricsTime";
     private static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 86_400;
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
-    private static int periodicPublishMetricsIntervalSec;
-    private static int periodicAggregateMetricsIntervalSec;
+    private int periodicPublishMetricsIntervalSec;
+    private int periodicAggregateMetricsIntervalSec;
     private final MqttClient mqttClient;
     private final MetricsAggregator metricsAggregator;
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
@@ -188,10 +188,8 @@ public class TelemetryAgent extends GreengrassService {
         Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap =
                 metricsAggregator.getMetricsToPublish(lastPublish, timestamp);
         getPeriodicPublishTimeTopic().withValue(timestamp);
-        // Publish only if the collected metrics are not empty.
-        if (!metricsToPublishMap.get(timestamp).isEmpty()) {
-            publisher.publish(MetricsPayload.builder().build(), metricsToPublishMap.get(timestamp));
-        }
+        // TODO : Do not publish if the metrics are empty.
+        publisher.publish(MetricsPayload.builder().build(), metricsToPublishMap.get(timestamp));
     }
 
     private Topic getPeriodicPublishTimeTopic() {

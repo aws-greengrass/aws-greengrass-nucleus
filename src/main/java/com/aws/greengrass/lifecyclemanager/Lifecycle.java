@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -99,17 +99,18 @@ public class Lifecycle {
     private final List<State> desiredStateList = new CopyOnWriteArrayList<>();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
-    private static final Map<State, Collection<State>> ALLOWED_STATE_TRANSITION_FOR_REPORTING = new HashMap<>();
+    private static final Map<State, Collection<State>> ALLOWED_STATE_TRANSITION_FOR_REPORTING =
+            new EnumMap<>(State.class);
     // The number of continual occurrences from a state to ERRORED.
     // This is not thread safe and should only be used inside reportState().
-    private final Map<State, List<Long>> stateToErroredCount = new HashMap<>();
+    private final Map<State, List<Long>> stateToErroredCount = new EnumMap<>(State.class);
     // We only need to track the ERROR from these states because
     // they impact whether the service can function as expected.
     private static final Set<State> STATES_TO_ERRORED =
             new HashSet<>(Arrays.asList(State.NEW, State.STARTING, State.RUNNING));
 
     static {
-        ALLOWED_STATE_TRANSITION_FOR_REPORTING.put(State.NEW, Arrays.asList(State.ERRORED));
+        ALLOWED_STATE_TRANSITION_FOR_REPORTING.put(State.NEW, Collections.singletonList(State.ERRORED));
         ALLOWED_STATE_TRANSITION_FOR_REPORTING
                 .put(State.STARTING, new HashSet<>(Arrays.asList(State.RUNNING, State.ERRORED, State.FINISHED)));
         ALLOWED_STATE_TRANSITION_FOR_REPORTING
@@ -171,7 +172,7 @@ public class Lifecycle {
                 }
 
                 final long now = greengrassService.getContext().get(Clock.class).millis();
-                if (v.size() > 0 && now - v.get(v.size() - 1) >= getErrorResetTime() * 1000L) {
+                if (!v.isEmpty() && now - v.get(v.size() - 1) >= getErrorResetTime() * 1000L) {
                     v.clear();
                 }
 
@@ -287,7 +288,7 @@ public class Lifecycle {
 
             switch (current) {
                 case BROKEN:
-                    handleCurrentStateBroken(desiredState);
+                    handleCurrentStateBroken(desiredState, prevState);
                     break;
                 case NEW:
                     handleCurrentStateNew(desiredState);
@@ -367,7 +368,40 @@ public class Lifecycle {
         }
     }
 
-    private void handleCurrentStateBroken(Optional<State> desiredState) {
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    private void handleCurrentStateBroken(Optional<State> desiredState, State previousState)
+            throws InterruptedException {
+        switch (previousState) {
+            case STARTING:
+            case RUNNING:
+            case ERRORED: // shouldn't happen. Try to stop the service anyways.
+                logger.atInfo("Stopping service in BROKEN state");
+                Future<?> shutdownFuture = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
+                    try {
+                        greengrassService.shutdown();
+                    } catch (InterruptedException i) {
+                        logger.atWarn("service-shutdown-interrupted").log("Service interrupted while running shutdown");
+                    } catch (Throwable i) {
+                        logger.atError("service-shutdown-error").setCause(i).log();
+                    }
+                });
+
+                try {
+                    Integer timeout = getTimeoutConfigValue(
+                            LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC);
+                    shutdownFuture.get(timeout, TimeUnit.SECONDS);
+                } catch (ExecutionException e) {
+                    logger.atError("service-shutdown-error").setCause(e).log();
+                } catch (TimeoutException te) {
+                    logger.atWarn("service-shutdown-timeout").log();
+                    shutdownFuture.cancel(true);
+                } finally {
+                    stopBackingTask();
+                }
+                break;
+            default:
+                // do nothing
+        }
         if (!desiredState.isPresent()) {
             return;
         }
@@ -401,7 +435,7 @@ public class Lifecycle {
             } catch (Throwable t) {
                 greengrassService.serviceErrored(t);
             }
-        }, "install");
+        }, LIFECYCLE_INSTALL_NAMESPACE_TOPIC);
 
         Integer installTimeOut = getTimeoutConfigValue(
                 LIFECYCLE_INSTALL_NAMESPACE_TOPIC, DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC);

@@ -41,7 +41,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class AuthorizationHandlerTest {
+class AuthorizationHandlerTest {
 
     @Mock
     private Kernel mockKernel;

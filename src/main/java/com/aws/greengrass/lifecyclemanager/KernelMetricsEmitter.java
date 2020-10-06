@@ -13,7 +13,7 @@ import com.aws.greengrass.telemetry.models.TelemetryAggregation;
 import com.aws.greengrass.telemetry.models.TelemetryUnit;
 
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Map;
 import javax.inject.Inject;
 
@@ -39,7 +39,7 @@ public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
      */
     @Override
     public void emitMetrics() {
-        Map<State, Integer> stateCount = new HashMap<>();
+        Map<State, Integer> stateCount = new EnumMap<>(State.class);
         Collection<GreengrassService> services = kernel.orderedDependencies();
         for (GreengrassService service : services) {
             stateCount.put(service.getState(), stateCount.getOrDefault(service.getState(), 0) + 1);

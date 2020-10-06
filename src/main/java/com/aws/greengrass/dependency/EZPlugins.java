@@ -3,6 +3,8 @@
 
 package com.aws.greengrass.dependency;
 
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
@@ -23,12 +25,16 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
+import javax.inject.Inject;
 
 
 @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
 public class EZPlugins implements Closeable {
+    private static final Logger logger = LogManager.getLogger(EZPlugins.class);
     public static final String JAR_FILE_EXTENSION = ".jar";
     private final List<Consumer<FastClasspathScanner>> matchers = new ArrayList<>();
     private Path cacheDirectory;
@@ -38,17 +44,23 @@ public class EZPlugins implements Closeable {
     private volatile ClassLoader root = this.getClass().getClassLoader();
     private final List<URLClassLoader> classLoaders = new ArrayList<>();
     private boolean doneFirstLoad;
+    private final ExecutorService executorService;
 
-    public EZPlugins() {
+    @Inject
+    public EZPlugins(ExecutorService executorService) {
+        this.executorService = executorService;
     }
 
-    public EZPlugins(Path d) throws IOException {
+    public EZPlugins(ExecutorService executorService, Path d) throws IOException {
+        this.executorService = executorService;
         withCacheDirectory(d);
     }
 
     private static void walk(Path p, Consumer<Path> action) throws IOException {
         if (Files.exists(p)) {
-            Files.walk(p).forEach(action);
+            try (Stream<Path> s = Files.walk(p)) {
+                s.forEach(action);
+            }
         }
     }
 
@@ -70,10 +82,11 @@ public class EZPlugins implements Closeable {
 
     private synchronized void loadPlugins(boolean trusted, ClassLoader cls) {
         doneFirstLoad = true;
-        FastClasspathScanner sc = new FastClasspathScanner();
+        FastClasspathScanner sc = new FastClasspathScanner("com.aws.greengrass");
+        sc.strictWhitelist();
         sc.addClassLoader(cls);
         matchers.forEach(m -> m.accept(sc));
-        sc.scan();
+        sc.scan(executorService, 1);
         if (trusted) {
             root = cls;
         }
@@ -106,7 +119,7 @@ public class EZPlugins implements Closeable {
             sc.ignoreParentClassLoaders();
             sc.addClassLoader(cl);
             matcher.accept(sc);
-            sc.scan();
+            sc.scan(executorService, 1);
             return cl;
         });
     }
@@ -144,7 +157,7 @@ public class EZPlugins implements Closeable {
                     loadPlugins(false, p);
                 } catch (IOException ex) {
                     e1.compareAndSet(null, new IOException("Error loading untrusted plugin " + p, ex));
-                    ex.printStackTrace(System.out);
+                    logger.atError().log("Unable to load untrusted plugin from {}", p, ex);
                 }
             }
         });

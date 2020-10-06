@@ -10,6 +10,7 @@ import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
+import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -33,10 +34,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.LinkedBlockingQueue;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
-import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENTS_QUEUE;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
@@ -52,7 +51,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -314,9 +315,11 @@ class KernelTest {
         } catch (RuntimeException ignored) {
         }
 
-        LinkedBlockingQueue<Deployment> deployments = (LinkedBlockingQueue<Deployment>)
-                kernel.getContext().getvIfExists(DEPLOYMENTS_QUEUE).get();
-        assertEquals(1, deployments.size());
+        DeploymentQueue deployments = kernel.getContext().get(DeploymentQueue.class);
+        assertNotNull(deployments.peek());
+        deployments.remove();
+        assertTrue(deployments.isEmpty());
+
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
@@ -346,9 +349,8 @@ class KernelTest {
         } catch (RuntimeException ignored) {
         }
 
-        LinkedBlockingQueue<Deployment> deployments = (LinkedBlockingQueue<Deployment>)
-                kernel.getContext().getvIfExists(DEPLOYMENTS_QUEUE).get();
-        assertEquals(0, deployments.size());
+        DeploymentQueue deployments = kernel.getContext().get(DeploymentQueue.class);
+        assertNull(deployments.peek());
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")

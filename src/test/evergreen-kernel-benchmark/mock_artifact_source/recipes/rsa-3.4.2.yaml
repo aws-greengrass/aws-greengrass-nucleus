@@ -4,7 +4,6 @@ ComponentName: rsa
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Publisher
 ComponentVersion: '3.4.2'
-Manifests:
-  - Dependencies:
-      pyasn1:
-        VersionRequirement: '>= 0.1.3'
+ComponentDependencies:
+  pyasn1:
+    VersionRequirement: '>= 0.1.3'

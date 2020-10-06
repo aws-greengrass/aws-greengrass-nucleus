@@ -12,8 +12,8 @@ import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
+import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
-import com.aws.greengrass.componentmanager.exceptions.ComponentVersionConflictException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
@@ -29,6 +29,8 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
+import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
@@ -38,6 +40,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import software.amazon.awssdk.crt.mqtt.QualityOfService;
+import software.amazon.awssdk.iot.iotshadow.IotShadowClient;
+import software.amazon.awssdk.iot.iotshadow.model.GetShadowRequest;
+import software.amazon.awssdk.iot.iotshadow.model.GetShadowSubscriptionRequest;
+import software.amazon.awssdk.iot.iotshadow.model.UpdateShadowSubscriptionRequest;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
@@ -64,6 +71,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("E2E")
 class DeploymentE2ETest extends BaseE2ETestCase {
 
+
     protected DeploymentE2ETest() throws Exception {
         super();
     }
@@ -87,6 +95,63 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         // creating new IoT job here.
         Thread.sleep(10_000);
     }
+
+
+    @Test
+    void GIVEN_kernel_running_WHEN_device_deployment_adds_packages_THEN_new_services_should_be_running() throws Exception {
+        CountDownLatch cdlDeploymentFinished = new CountDownLatch(1);
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null && m.getLoggerName().equals("DeploymentService")) {
+                if (m.getMessage().contains("Current deployment finished")) {
+                    cdlDeploymentFinished.countDown();
+                }
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+        SetConfigurationRequest setRequest = new SetConfigurationRequest()
+                .withTargetName(thingInfo.getThingName())
+                .withTargetType(THING_TARGET_TYPE)
+                .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
+                        .withConfiguration("{\"sampleText\":\"FCS integ test\"}"))
+                .addPackagesEntry("SomeService", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
+
+        setAndPublishFleetConfiguration(setRequest);
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+
+        assertTrue(cdlDeploymentFinished.await(5, TimeUnit.MINUTES));
+
+        Slf4jLogAdapter.removeGlobalListener(listener);
+        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("SomeService")::getState, eventuallyEval(is(State.FINISHED)));
+
+        IotShadowClient shadowClient = new IotShadowClient(
+                new WrapperMqttClientConnection(kernel.getContext().get(MqttClient.class)));
+
+        CountDownLatch getShadowCDL = new CountDownLatch(1);
+        GetShadowSubscriptionRequest request = new GetShadowSubscriptionRequest();
+        request.thingName = thingInfo.getThingName();
+        shadowClient.SubscribeToGetShadowAccepted(request, QualityOfService.AT_LEAST_ONCE, (response) -> {
+            //verify desired and reported state are same
+            assertEquals(response.state.desired, response.state.reported);
+            getShadowCDL.countDown();
+        });
+
+        UpdateShadowSubscriptionRequest req = new UpdateShadowSubscriptionRequest();
+        req.thingName = thingInfo.getThingName();
+        CountDownLatch updateShadowCDL = new CountDownLatch(1);
+        shadowClient.SubscribeToUpdateShadowAccepted(req, QualityOfService.AT_LEAST_ONCE , (response) -> {
+            updateShadowCDL.countDown();
+        });
+        // wait for the shadow's reported section to be updated
+        updateShadowCDL.await(30, TimeUnit.SECONDS);
+        GetShadowRequest request1 = new GetShadowRequest();
+        request1.thingName = thingInfo.getThingName();
+        //get shadow to verify that desired and reported section are in sync
+        shadowClient.PublishGetShadow(request1, QualityOfService.AT_LEAST_ONCE).get();
+        getShadowCDL.await(30, TimeUnit.SECONDS);
+
+    }
+
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
@@ -121,7 +186,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     @Test
     void GIVEN_blank_kernel_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error(ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, ComponentVersionConflictException.class);
+        ignoreExceptionUltimateCauseOfType(context, ResourceNotFoundException.class);
 
         // New deployment contains dependency conflicts
         SetConfigurationRequest setRequest = new SetConfigurationRequest()
@@ -139,10 +204,10 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         String deploymentError = iotClient.describeJobExecution(DescribeJobExecutionRequest.builder().jobId(jobId)
                 .thingName(thingInfo.getThingName()).build()).execution().statusDetails().detailsMap().get("error");
         assertThat(deploymentError, StringContains.containsString(
-                "com.aws.greengrass.componentmanager.exceptions.ComponentVersionConflictException"));
+                "com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException"));
         assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("Mosquitto")));
-        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("SomeService") + "-v1.0.0==1.0.0"));
-        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("SomeOldService") + "-v0.9.0==0.9.0"));
+        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("SomeService") + "==1.0.0"));
+        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("SomeOldService") + "==0.9.0"));
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)

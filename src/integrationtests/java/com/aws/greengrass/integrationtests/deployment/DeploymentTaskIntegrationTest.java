@@ -5,9 +5,9 @@
 
 package com.aws.greengrass.integrationtests.deployment;
 
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
-import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
@@ -36,6 +36,7 @@ import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.hamcrest.Matchers;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -100,7 +101,7 @@ class DeploymentTaskIntegrationTest {
 
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                              .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private static Logger logger;
 
@@ -151,9 +152,9 @@ class DeploymentTaskIntegrationTest {
     @BeforeEach
     void beforeEach(ExtensionContext context) {
         ignoreExceptionOfType(context, PackageDownloadException.class);
-        deploymentServiceTopics = Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null);
-        groupToRootComponentsTopics =
-                deploymentServiceTopics.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, MOCK_GROUP_NAME);
+        deploymentServiceTopics = Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS,
+                null);
+        groupToRootComponentsTopics = deploymentServiceTopics.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, MOCK_GROUP_NAME);
     }
 
     @AfterEach
@@ -168,13 +169,11 @@ class DeploymentTaskIntegrationTest {
 
     @Test
     @Order(1)
-    void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel(
-            ExtensionContext context) throws Exception {
+    void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel(ExtensionContext context)
+            throws Exception {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
         outputMessagesToTimestamp.clear();
-
-        // assert
         final List<String> listOfExpectedMessages =
                 Arrays.asList(TEST_TICK_TOCK_STRING, TEST_MOSQUITTO_STRING, TEST_CUSTOMER_APP_STRING);
         countDownLatch = new CountDownLatch(3);
@@ -198,42 +197,21 @@ class DeploymentTaskIntegrationTest {
         };
         Slf4jLogAdapter.addGlobalListener(listener);
 
-
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_1.json").toURI(),
+                DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument.json").toURI(),
                 System.currentTimeMillis());
 
         resultFuture.get(60, TimeUnit.SECONDS);
 
-        //        countDownLatch.await(60, TimeUnit.SECONDS);
+        countDownLatch.await(60, TimeUnit.SECONDS);
         Set<String> listOfStdoutMessagesTapped = outputMessagesToTimestamp.keySet();
-        //        assertThat(listOfStdoutMessagesTapped, containsInAnyOrder(Matchers.equalTo(TEST_CUSTOMER_APP_STRING),
-        //                Matchers.equalTo(TEST_MOSQUITTO_STRING), Matchers.equalTo(TEST_TICK_TOCK_STRING)));
+        assertThat(listOfStdoutMessagesTapped, containsInAnyOrder(Matchers.equalTo(TEST_CUSTOMER_APP_STRING),
+                Matchers.equalTo(TEST_MOSQUITTO_STRING), Matchers.equalTo(TEST_TICK_TOCK_STRING)));
         Slf4jLogAdapter.removeGlobalListener(listener);
 
         // Check that ClassService is a raw EvergreenService and not a GenericExternalService
         assertEquals(GreengrassService.class, kernel.locate("ClassService").getClass());
-
-        resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument1.json").toURI(),
-                System.currentTimeMillis());
-
-        resultFuture.get(60, TimeUnit.SECONDS);
-
-        resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_3.json").toURI(),
-                System.currentTimeMillis());
-
-        resultFuture.get(60, TimeUnit.SECONDS);
-
-
-        resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_4.json").toURI(),
-                System.currentTimeMillis());
-
-        resultFuture.get(60, TimeUnit.SECONDS);
     }
-
 
     @Test
     @Order(2)
@@ -364,7 +342,6 @@ class DeploymentTaskIntegrationTest {
                 IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
         Slf4jLogAdapter.removeGlobalListener(listener);
-
     }
 
     @Test
@@ -387,8 +364,8 @@ class DeploymentTaskIntegrationTest {
             }
         };
         Slf4jLogAdapter.addGlobalListener(listener);
-        groupToRootComponentsTopics.lookupTopics("CustomerApp")
-                                   .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        groupToRootComponentsTopics.lookupTopics("CustomerApp").replaceAndWait(
+                ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
 
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI(),
@@ -400,8 +377,9 @@ class DeploymentTaskIntegrationTest {
     }
 
     /**
-     * First deployment contains packages yellow and customerApp Second deployment updates the root packages to yellow
-     * and red. Red is added, customerApp is removed and no update for yellow
+     * First deployment contains packages yellow and customerApp
+     * Second deployment updates the root packages to yellow and red. Red is added, customerApp is removed
+     * and no update for yellow
      *
      * @throws Exception
      */
@@ -413,28 +391,24 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("CustomerAppAndYellowSignal.json").toURI(),
                 System.currentTimeMillis());
         resultFuture.get(30, TimeUnit.SECONDS);
-        List<String> services = kernel.orderedDependencies()
-                                      .stream()
-                                      .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                                      .map(GreengrassService::getName)
-                                      .collect(Collectors.toList());
+        List<String> services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         //should contain main, YellowSignal, CustomerApp, Mosquitto and GreenSignal
         assertEquals(5, services.size());
         assertThat(services, containsInAnyOrder("main", "YellowSignal", "CustomerApp", "Mosquitto", "GreenSignal"));
-        groupToRootComponentsTopics.lookupTopics("CustomerApp")
-                                   .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
-        groupToRootComponentsTopics.lookupTopics("YellowSignal")
-                                   .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        groupToRootComponentsTopics.lookupTopics("CustomerApp").replaceAndWait(
+                ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        groupToRootComponentsTopics.lookupTopics("YellowSignal").replaceAndWait(
+                ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
         resultFuture.get(30, TimeUnit.SECONDS);
-        services = kernel.orderedDependencies()
-                         .stream()
-                         .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                         .map(GreengrassService::getName)
-                         .collect(Collectors.toList());
+        services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         //"should contain main, YellowSignal, RedSignal"
         assertEquals(3, services.size());
@@ -445,9 +419,9 @@ class DeploymentTaskIntegrationTest {
     }
 
     /**
-     * First deployment starts some services. Second deployment tries to add a service that breaks and removes an
-     * existing service but the failure handling policy is to do nothing As a result, no corrective action will be taken
-     * on failure
+     * First deployment starts some services. Second deployment tries to add a service that breaks
+     * and removes an existing service but the failure handling policy is to do nothing
+     * As a result, no corrective action will be taken on failure
      *
      * @throws Exception
      */
@@ -459,29 +433,25 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
         resultFuture.get(30, TimeUnit.SECONDS);
-        List<String> services = kernel.orderedDependencies()
-                                      .stream()
-                                      .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                                      .map(GreengrassService::getName)
-                                      .collect(Collectors.toList());
+        List<String> services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         // should contain main, YellowSignal and RedSignal
         assertEquals(3, services.size());
         assertThat(services, containsInAnyOrder("main", "YellowSignal", "RedSignal"));
-        groupToRootComponentsTopics.lookupTopics("RedSignal")
-                                   .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
-        groupToRootComponentsTopics.lookupTopics("YellowSignal")
-                                   .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        groupToRootComponentsTopics.lookupTopics("RedSignal").replaceAndWait(
+                ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        groupToRootComponentsTopics.lookupTopics("YellowSignal").replaceAndWait(
+                ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("FailureDoNothingDeployment.json").toURI(),
                 System.currentTimeMillis());
         DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
-        services = kernel.orderedDependencies()
-                         .stream()
-                         .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                         .map(GreengrassService::getName)
-                         .collect(Collectors.toList());
+        services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         // should contain main, RedSignal, BreakingService, Mosquitto and GreenSignal
         assertEquals(5, services.size());
@@ -491,9 +461,9 @@ class DeploymentTaskIntegrationTest {
     }
 
     /**
-     * First deployment starts some services. Second deployment tries to add a service that breaks and removes an
-     * existing service and the failure handling policy is to rollback As a result, kernel should be reverted to the
-     * state before deployment
+     * First deployment starts some services. Second deployment tries to add a service that breaks
+     * and removes an existing service and the failure handling policy is to rollback
+     * As a result, kernel should be reverted to the state before deployment
      *
      * @throws Exception
      */
@@ -509,11 +479,9 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
         resultFuture.get(30, TimeUnit.SECONDS);
-        List<String> services = kernel.orderedDependencies()
-                                      .stream()
-                                      .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                                      .map(GreengrassService::getName)
-                                      .collect(Collectors.toList());
+        List<String> services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         // should contain main, YellowSignal and RedSignal
         assertEquals(3, services.size());
@@ -521,17 +489,15 @@ class DeploymentTaskIntegrationTest {
 
         ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
         groupToRootComponentsTopics.lookupTopics("YellowSignal").remove();
-        groupToRootComponentsTopics.lookupTopics("BreakingService")
-                                   .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        groupToRootComponentsTopics.lookupTopics("BreakingService").replaceAndWait(
+                ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("FailureRollbackDeployment.json").toURI(),
                 System.currentTimeMillis());
         DeploymentResult result = resultFuture.get(60, TimeUnit.SECONDS);
-        services = kernel.orderedDependencies()
-                         .stream()
-                         .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                         .map(GreengrassService::getName)
-                         .collect(Collectors.toList());
+        services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         // should contain main, YellowSignal, RedSignal
         assertEquals(3, services.size());
@@ -559,16 +525,13 @@ class DeploymentTaskIntegrationTest {
                 try {
                     lifecycle.deferComponentUpdate("NonDisruptableService", TimeUnit.SECONDS.toMillis(60));
                     ipcClient.disconnect();
-                } catch (LifecycleIPCException e) {
-                }
+                } catch (LifecycleIPCException e) { }
             }
         });
 
-        List<String> services = kernel.orderedDependencies()
-                                      .stream()
-                                      .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                                      .map(greengrassService -> greengrassService.getName())
-                                      .collect(Collectors.toList());
+        List<String> services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(greengrassService -> greengrassService.getName()).collect(Collectors.toList());
 
         // should contain main, NonDisruptableService 1.0.0
         assertEquals(2, services.size(), "Actual services: " + services);
@@ -580,8 +543,7 @@ class DeploymentTaskIntegrationTest {
             if (m.getMessage() != null && m.getMessage().contains("deferred by NonDisruptableService")) {
                 cdlUpdateStarted.countDown();
             }
-            if (m.getMessage() != null && m.getMessage()
-                                           .contains("Cancelled deployment merge future due to interrupt")) {
+            if (m.getMessage() != null && m.getMessage().contains("Cancelled deployment merge future due to interrupt")) {
                 cdlMergeCancelled.countDown();
             }
         };
@@ -596,60 +558,55 @@ class DeploymentTaskIntegrationTest {
 
         assertTrue(cdlMergeCancelled.await(30, TimeUnit.SECONDS));
 
-        services = kernel.orderedDependencies()
-                         .stream()
-                         .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                         .map(greengrassService -> greengrassService.getName())
-                         .collect(Collectors.toList());
+        services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(greengrassService -> greengrassService.getName()).collect(Collectors.toList());
 
         // should contain main, NonDisruptableService 1.0.0
         assertEquals(2, services.size());
         assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
         assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
-        assertEquals("1.0.0", kernel.findServiceTopic("NonDisruptableService").find("version").getOnce());
+        assertEquals("1.0.0", kernel.findServiceTopic("NonDisruptableService")
+                .find("version").getOnce());
 
         Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
     @Test
     @Order(7)
-    void GIVEN_services_running_WHEN_new_deployment_asks_to_skip_safety_check_THEN_deployment_is_successful()
-            throws Exception {
+    void GIVEN_services_running_WHEN_new_deployment_asks_to_skip_safety_check_THEN_deployment_is_successful() throws Exception {
         // The previous test has NonDisruptableService 1.0.0 running in kernel that always returns false when its
         // safety check script is run, this test demonstrates that when a next deployment configured to skip safety
         // check is processed, it can still update the NonDisruptableService service to version 1.0.1 bypassing the
         // safety check
-        Future<DeploymentResult> resultFuture =
-                submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("SkipSafetyCheck.json").toURI(),
-                        System.currentTimeMillis());
+        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SkipSafetyCheck.json").toURI(),
+                System.currentTimeMillis());
         DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
-        List<String> services = kernel.orderedDependencies()
-                                      .stream()
-                                      .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                                      .map(greengrassService -> greengrassService.getName())
-                                      .collect(Collectors.toList());
+        List<String> services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(greengrassService -> greengrassService.getName()).collect(Collectors.toList());
 
         // should contain main, NonDisruptableService 1.0.1
         assertEquals(2, services.size(), "Existing services: " + services);
         assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
-        assertEquals("1.0.1", kernel.findServiceTopic("NonDisruptableService").find("version").getOnce());
+        assertEquals("1.0.1", kernel.findServiceTopic("NonDisruptableService")
+                .find("version").getOnce());
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
-        kernel.getContext()
-              .get(DeploymentDirectoryManager.class)
-              .createNewDeploymentDirectoryIfNotExists("testFleetConfigArn" + deploymentCount.getAndIncrement());
+        kernel.getContext().get(DeploymentDirectoryManager.class).createNewDeploymentDirectoryIfNotExists(
+                "testFleetConfigArn" + deploymentCount.getAndIncrement());
 
         sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
         sampleJobDocument.setTimestamp(timestamp);
         sampleJobDocument.setGroupName(MOCK_GROUP_NAME);
-        DefaultDeploymentTask deploymentTask =
-                new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
-                        deploymentConfigMerger, logger,
-                        new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        deploymentServiceTopics);
+        DefaultDeploymentTask deploymentTask = new DefaultDeploymentTask(dependencyResolver, componentManager,
+                kernelConfigResolver, deploymentConfigMerger, logger, new Deployment(sampleJobDocument,
+                Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
+                deploymentServiceTopics);
         return executorService.submit(deploymentTask);
     }
 }

@@ -50,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(GGExtension.class)
-public class DynamicComponentConfigurationValidationTest extends BaseITCase {
+class DynamicComponentConfigurationValidationTest extends BaseITCase {
     private static final String DEFAULT_EXISTING_SERVICE_VERSION = "1.0.0";
 
     private IPCClient client;

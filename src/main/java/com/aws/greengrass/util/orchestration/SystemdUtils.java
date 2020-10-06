@@ -51,8 +51,8 @@ public class SystemdUtils implements SystemServiceUtils {
              BufferedWriter w = Files.newBufferedWriter(dst)) {
             String line = r.readLine();
             while (line != null) {
-                w.write(line.replaceAll(PID_FILE_PARAM, kernelAlternatives.getLoaderPidPath().toString())
-                        .replaceAll(LOADER_FILE_PARAM, kernelAlternatives.getLoaderPath().toString()));
+                w.write(line.replace(PID_FILE_PARAM, kernelAlternatives.getLoaderPidPath().toString())
+                        .replace(LOADER_FILE_PARAM, kernelAlternatives.getLoaderPath().toString()));
                 w.newLine();
                 line = r.readLine();
             }

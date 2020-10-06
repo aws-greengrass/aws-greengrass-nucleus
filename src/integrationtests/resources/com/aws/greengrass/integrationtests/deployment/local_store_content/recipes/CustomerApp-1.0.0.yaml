@@ -4,15 +4,23 @@ ComponentName: CustomerApp
 ComponentDescription: A customer app
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
-
-# NEW configuration section
-ComponentConfiguration:
-  DefaultConfiguration:
-    sampleText: This is a test
-    office:
-      ac: 'OFF'
-
+ComponentDependencies:
+  Mosquitto:
+    VersionRequirement: 1.0.0
+  ClassService:
+    VersionRequirement: 1.0.0
 Manifests:
+  - Platform:
+      os: windows
+    Parameters:
+      - name: sampleText
+        value: This is a test
+        type: STRING
+    Lifecycle:
+      run:
+        powershell -command "& { echo \"Hello Greengrass. {{params:sampleText.value}}\" }"
+    Artifacts:
+      - URI: greengrass:customerApp
   - Platform:
       os: all
     Parameters:
@@ -20,32 +28,7 @@ Manifests:
         value: This is a test
         type: STRING
     Lifecycle:
-      run: >-
-        echo "Hello Greengrass.  I'm the old param: {{params:sampleText.value}}.
-        I'm the new config for /sampleText: {configuration:/sampleText/NewText}.
-        I'm a new nested config for /office/ac: {configuration:/office/ac}.
-        I'm a new nested config2 for /office2: {configuration:/office2}"
-    Dependencies:
-      Mosquitto:
-        VersionRequirement: 1.0.0
-      ClassService:
-        VersionRequirement: 1.0.0
+      run:
+        echo "Hello Greengrass. {{params:sampleText.value}}"
     Artifacts:
       - URI: greengrass:customerApp
-
-#  - Platform:
-#      os: windows
-#    Parameters:
-#      - name: sampleText
-#        value: This is a test
-#        type: STRING
-#    Lifecycle:
-#      run:
-#        powershell -command "& { echo \"Hello Greengrass. {{params:sampleText.value}}\" }"
-#    Dependencies:
-#      Mosquitto:
-#        VersionRequirement: 1.0.0
-#      ClassService:
-#        VersionRequirement: 1.0.0
-#    Artifacts:
-#      - URI: greengrass:customerApp

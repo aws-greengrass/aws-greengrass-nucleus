@@ -42,7 +42,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class ConfigStoreIPCServiceTest {
+class ConfigStoreIPCServiceTest {
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
 
     @Mock
@@ -56,7 +56,7 @@ public class ConfigStoreIPCServiceTest {
     private ConfigStoreIPCService configStoreIPCService;
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         configStoreIPCService = new ConfigStoreIPCService(router, agent);
         configStoreIPCService.startup();
 
@@ -64,7 +64,7 @@ public class ConfigStoreIPCServiceTest {
     }
 
     @Test
-    public void GIVEN_server_running_WHEN_get_config_request_THEN_get_config_response() throws Exception {
+    void GIVEN_server_running_WHEN_get_config_request_THEN_get_config_response() throws Exception {
         GetConfigurationRequest request = GetConfigurationRequest.builder().build();
         when(agent.getConfig(any(GetConfigurationRequest.class), any(ConnectionContext.class)))
                 .thenReturn(GetConfigurationResponse.builder().build());
@@ -76,7 +76,7 @@ public class ConfigStoreIPCServiceTest {
     }
 
     @Test
-    public void GIVEN_server_running_WHEN_update_config_request_THEN_update_config_response() throws Exception {
+    void GIVEN_server_running_WHEN_update_config_request_THEN_update_config_response() throws Exception {
         UpdateConfigurationRequest request = UpdateConfigurationRequest.builder().build();
         when(agent.updateConfig(any(UpdateConfigurationRequest.class), any(ConnectionContext.class)))
                 .thenReturn(UpdateConfigurationResponse.builder().build());
@@ -88,7 +88,7 @@ public class ConfigStoreIPCServiceTest {
     }
 
     @Test
-    public void GIVEN_server_running_WHEN_subscribe_to_config_update_request_THEN_subscribe_to_config_update_response()
+    void GIVEN_server_running_WHEN_subscribe_to_config_update_request_THEN_subscribe_to_config_update_response()
             throws Exception {
         SubscribeToConfigurationUpdateRequest request = SubscribeToConfigurationUpdateRequest.builder().build();
         when(agent.subscribeToConfigUpdate(any(SubscribeToConfigurationUpdateRequest.class),
@@ -100,7 +100,7 @@ public class ConfigStoreIPCServiceTest {
     }
 
     @Test
-    public void GIVEN_server_running_WHEN_subscribe_to_validate_config_request_THEN_subscribe_to_validate_config_response()
+    void GIVEN_server_running_WHEN_subscribe_to_validate_config_request_THEN_subscribe_to_validate_config_response()
             throws Exception {
         when(agent.subscribeToConfigValidation(any(ConnectionContext.class)))
                 .thenReturn(SubscribeToValidateConfigurationResponse.builder().build());
@@ -111,7 +111,7 @@ public class ConfigStoreIPCServiceTest {
     }
 
     @Test
-    public void GIVEN_server_running_WHEN_send_config_validity_report_request_THEN_send_config_validity_report_response()
+    void GIVEN_server_running_WHEN_send_config_validity_report_request_THEN_send_config_validity_report_response()
             throws Exception {
         SendConfigurationValidityReportRequest request = SendConfigurationValidityReportRequest.builder().build();
         when(agent.handleConfigValidityReport(any(SendConfigurationValidityReportRequest.class),
@@ -123,7 +123,7 @@ public class ConfigStoreIPCServiceTest {
     }
 
     @Test
-    public void GIVEN_server_running_WHEN_error_processing_THEN_service_error_response(ExtensionContext context)
+    void GIVEN_server_running_WHEN_error_processing_THEN_service_error_response(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, JsonEOFException.class);
         FrameReader.Message responseMessage = configStoreIPCService.handleMessage(new FrameReader.Message(

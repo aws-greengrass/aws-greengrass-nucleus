@@ -138,7 +138,7 @@ public class KernelCommandLine {
         kernel.setKernelAltsPath(Paths.get(deTilde(kernelAltsPathName)).toAbsolutePath());
         kernel.setDeploymentsPath(Paths.get(deTilde(deploymentsPathName)).toAbsolutePath());
         //set root path for the telemetry logger
-        TelemetryConfig.getInstance().setRoot(Paths.get(deTilde("~root/")));
+        TelemetryConfig.getInstance().setRoot(Paths.get(deTilde(ROOT_DIR_PREFIX)));
         try {
             Utils.createPaths(kernel.getRootPath(), kernel.getConfigPath(), kernel.getClitoolPath(),
                     kernel.getWorkPath(), kernel.getComponentStorePath(), kernel.getKernelAltsPath(),

@@ -49,8 +49,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class KernelUpdateDeploymentTaskTest {
-    private static Logger logger = LogManager.getLogger(KernelUpdateDeploymentTaskTest.class);
+class KernelUpdateDeploymentTaskTest {
+    private static final Logger logger = LogManager.getLogger(KernelUpdateDeploymentTaskTest.class);
 
     @Mock
     Kernel kernel;
