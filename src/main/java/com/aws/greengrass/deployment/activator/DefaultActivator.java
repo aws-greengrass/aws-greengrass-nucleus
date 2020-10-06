@@ -20,7 +20,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
@@ -77,43 +78,54 @@ public class DefaultActivator extends DeploymentActivator {
                 kernel.getConfig().updateMap(deploymentDocument.getTimestamp(), newConfig, DEPLOYMENT_MERGE_BEHAVIOR));
 
         // wait until topic listeners finished processing mergeMap changes.
+        AtomicBoolean setDesiredStatesFailed = new AtomicBoolean();
+        AtomicReference<Throwable> setDesiredStateFailureCause = new AtomicReference<>();
         kernel.getContext().runOnPublishQueue(() -> {
             // polling to wait for all services to be started.
-            kernel.getContext().get(ExecutorService.class).execute(() -> {
-                //TODO: Add timeout
-                try {
-                    servicesChangeManager.startNewServices();
-
-                    // Restart any services that may have been broken before this deployment
-                    // This is added to allow deployments to fix broken services
-                    servicesChangeManager.reinstallBrokenServices();
-
-                    Set<GreengrassService> servicesToTrack = servicesChangeManager.servicesToTrack();
-                    logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrack", servicesToTrack)
-                            .log("Applied new service config. Waiting for services to complete update");
-
-                    waitForServicesToStart(servicesToTrack, mergeTime);
-                    logger.atDebug(MERGE_CONFIG_EVENT_KEY).log("new/updated services are running, will now remove"
-                            + " old services");
-                    servicesChangeManager.removeObsoleteServices();
-                    logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
-                            .log("All services updated");
-                    totallyCompleteFuture.complete(new DeploymentResult(
-                            DeploymentResult.DeploymentStatus.SUCCESSFUL, null));
-                } catch (ServiceLoadException | InterruptedException | ServiceUpdateException
-                        | ExecutionException e) {
-                    logger.atError(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).setCause(e)
-                            .log("Deployment failed");
-                    if (isAutoRollbackRequested(deploymentDocument)) {
-                        rollback(deploymentDocument, totallyCompleteFuture, e,
-                                servicesChangeManager.createRollbackManager());
-                    } else {
-                        totallyCompleteFuture.complete(new DeploymentResult(
-                                DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, e));
-                    }
-                }
-            });
+            try {
+                servicesChangeManager.startNewServices();
+                // Restart any services that may have been broken before this deployment
+                // This is added to allow deployments to fix broken services
+                servicesChangeManager.reinstallBrokenServices();
+            } catch (ServiceLoadException e) {
+                setDesiredStatesFailed.set(true);
+                setDesiredStateFailureCause.set(e);
+            }
         });
+        // Do not block the publish queue to handle failure in setting desired states for services
+        if (setDesiredStatesFailed.get()) {
+            handleFailure(servicesChangeManager, deploymentDocument, totallyCompleteFuture,
+                    setDesiredStateFailureCause.get());
+        }
+
+        try {
+            Set<GreengrassService> servicesToTrack = servicesChangeManager.servicesToTrack();
+            logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrack", servicesToTrack)
+                    .log("Applied new service config. Waiting for services to complete update");
+            waitForServicesToStart(servicesToTrack, mergeTime);
+            logger.atDebug(MERGE_CONFIG_EVENT_KEY)
+                    .log("new/updated services are running, will now remove old services");
+            servicesChangeManager.removeObsoleteServices();
+            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).log("All services updated");
+            totallyCompleteFuture.complete(new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null));
+        } catch (InterruptedException | ExecutionException | ServiceUpdateException | ServiceLoadException e) {
+            handleFailure(servicesChangeManager, deploymentDocument, totallyCompleteFuture, e);
+        }
+    }
+
+    private void handleFailure(DeploymentConfigMerger.AggregateServicesChangeManager servicesChangeManager,
+                               DeploymentDocument deploymentDocument, CompletableFuture totallyCompleteFuture,
+                               Throwable failureCause) {
+        logger.atError(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
+                .setCause(failureCause).log("Deployment failed");
+        if (isAutoRollbackRequested(deploymentDocument)) {
+            rollback(deploymentDocument, totallyCompleteFuture, failureCause,
+                    servicesChangeManager.createRollbackManager());
+        } else {
+            totallyCompleteFuture.complete(
+                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED,
+                            failureCause));
+        }
     }
 
     void rollback(DeploymentDocument deploymentDocument, CompletableFuture<DeploymentResult> totallyCompleteFuture,
@@ -128,35 +140,47 @@ public class DefaultActivator extends DeploymentActivator {
             return;
         }
         // wait until topic listeners finished processing read changes.
+        AtomicBoolean setDesiredStatesFailed = new AtomicBoolean();
+        AtomicReference<Throwable> setDesiredStateFailureCause = new AtomicReference<>();
         kernel.getContext().runOnPublishQueue(() -> {
             // polling to wait for all services to be started.
-            kernel.getContext().get(ExecutorService.class).execute(() -> {
-                // TODO: Add timeout
-                try {
-                    rollbackManager.startNewServices();
-                    rollbackManager.reinstallBrokenServices();
-
-                    Set<GreengrassService> servicesToTrackForRollback = rollbackManager.servicesToTrack();
-
-                    waitForServicesToStart(servicesToTrackForRollback, mergeTime);
-
-                    rollbackManager.removeObsoleteServices();
-                    logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
-                            .log("All services rolled back");
-
-                    totallyCompleteFuture.complete(new DeploymentResult(
-                            DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, failureCause));
-                } catch (InterruptedException | ServiceUpdateException | ExecutionException
-                        | ServiceLoadException e) {
-                    // Rollback execution failed
-                    logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
-                            .log("Failed to rollback deployment");
-                    // TODO : Run user provided script to reach user defined safe state and
-                    //  set deployment status based on the success of the script run
-                    totallyCompleteFuture.complete(new DeploymentResult(
-                            DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, failureCause));
-                }
-            });
+            try {
+                rollbackManager.startNewServices();
+                rollbackManager.reinstallBrokenServices();
+            } catch (ServiceLoadException e) {
+                setDesiredStatesFailed.set(true);
+                setDesiredStateFailureCause.set(e);
+            }
         });
+        // Do not block the publish queue to handle failure in setting desired states for services
+        if (setDesiredStatesFailed.get()) {
+            handleFailureRollback(totallyCompleteFuture, failureCause, setDesiredStateFailureCause.get());
+        }
+
+        try {
+            Set<GreengrassService> servicesToTrackForRollback = rollbackManager.servicesToTrack();
+            waitForServicesToStart(servicesToTrackForRollback, mergeTime);
+
+            rollbackManager.removeObsoleteServices();
+            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+                    .log("All services rolled back");
+
+            totallyCompleteFuture.complete(
+                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, failureCause));
+        } catch (InterruptedException | ExecutionException | ServiceUpdateException | ServiceLoadException e) {
+            handleFailureRollback(totallyCompleteFuture, failureCause, e);
+        }
     }
+
+    private void handleFailureRollback(CompletableFuture totallyCompleteFuture, Throwable deploymentFailureCause,
+                                       Throwable rollbackFailureCause) {
+        // Rollback execution failed
+        logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(rollbackFailureCause)
+                .log("Failed to rollback deployment");
+        // TODO : Run user provided script to reach user defined safe state and
+        //  set deployment status based on the success of the script run
+        totallyCompleteFuture.complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
+                deploymentFailureCause));
+    }
+
 }
