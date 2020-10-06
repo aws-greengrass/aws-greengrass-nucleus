@@ -19,6 +19,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
@@ -275,6 +276,7 @@ public class KernelLifecycle {
             //Stop the telemetry logger context after each test so we can delete the telemetry log files that are
             // created during the test.
             TelemetryConfig.getInstance().closeContext();
+            LogConfig.getInstance().closeContext();
             logger.atInfo("context-shutdown-initiated").log();
             kernel.getContext().close();
             logger.atInfo("context-shutdown-complete").log();

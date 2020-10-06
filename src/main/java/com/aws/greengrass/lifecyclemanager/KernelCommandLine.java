@@ -10,6 +10,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
@@ -139,6 +140,7 @@ public class KernelCommandLine {
         kernel.setDeploymentsPath(Paths.get(deTilde(deploymentsPathName)).toAbsolutePath());
         //set root path for the telemetry logger
         TelemetryConfig.getInstance().setRoot(Paths.get(deTilde(ROOT_DIR_PREFIX)));
+        LogConfig.getInstance().setRoot(Paths.get(deTilde(ROOT_DIR_PREFIX)));
         try {
             Utils.createPaths(kernel.getRootPath(), kernel.getConfigPath(), kernel.getClitoolPath(),
                     kernel.getWorkPath(), kernel.getComponentStorePath(), kernel.getKernelAltsPath(),
