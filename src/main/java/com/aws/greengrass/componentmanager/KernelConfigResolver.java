@@ -213,7 +213,10 @@ public class KernelConfigResolver {
 
         Topics serviceTopics = kernel.findServiceTopic(componentRecipe.getComponentName());
         if (serviceTopics != null) {
-            currentRunningConfig = serviceTopics.lookupTopics(CONFIGURATIONS_CONFIG_KEY).toPOJO();
+            Topics configuration = serviceTopics.lookupTopics(CONFIGURATIONS_CONFIG_KEY);
+            if (configuration != null) {
+                currentRunningConfig = configuration.toPOJO();
+            }
         }
 
         // get default config
