@@ -21,8 +21,8 @@ import java.util.stream.Collectors;
 /**
  * Class to model the deployment configuration coming from cloud, local, or any other sources that can trigger a
  * deployment.
- * <p>
- * JSON Annotations are only in tests to easily generate this model from a JSON file. They are not part of business
+ *
+ * <p>JSON Annotations are only in tests to easily generate this model from a JSON file. They are not part of business
  * logic.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -55,7 +55,9 @@ public class DeploymentDocument {
     private ComponentUpdatePolicy componentUpdatePolicy;
 
     /**
-     * Helper function to get a list of root component names from the deploymentPackageConfigurationList
+     * Get a list of root component names from the deploymentPackageConfigurationList.
+     *
+     * @return list of root component names.
      */
     @JsonIgnore
     public List<String> getRootPackages() {
