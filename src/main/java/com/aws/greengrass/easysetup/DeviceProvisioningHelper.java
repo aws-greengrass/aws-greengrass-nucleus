@@ -237,7 +237,7 @@ public class DeviceProvisioningHelper {
      */
     public void updateKernelConfigWithIotConfiguration(Kernel kernel, ThingInfo thing, String awsRegion)
             throws IOException, DeviceConfigurationException {
-        Path rootDir = kernel.getRootPath();
+        Path rootDir = kernel.getNucleusPaths().rootPath();
         Path caFilePath = rootDir.resolve("rootCA.pem");
         Path privKeyFilePath = rootDir.resolve("privKey.key");
         Path certFilePath = rootDir.resolve("thingCert.crt");

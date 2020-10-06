@@ -161,7 +161,7 @@ public class CLIService extends GreengrassService {
         ipcInfo.put(SOCKET_URL, Coerce.toString(
                 config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME)));
 
-        Path filePath = kernel.getRootPath().resolve(CLI_IPC_INFO_FILENAME);
+        Path filePath = kernel.getNucleusPaths().rootPath().resolve(CLI_IPC_INFO_FILENAME);
         Files.write(filePath, OBJECT_MAPPER.writeValueAsString(ipcInfo)
                 .getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         // TODO: Add the users in configuration to a group and add group permissions for file on linux, windows and

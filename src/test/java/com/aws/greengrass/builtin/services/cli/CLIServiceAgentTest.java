@@ -29,6 +29,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.NucleusPaths;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -65,6 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -87,12 +89,15 @@ class CLIServiceAgentTest {
     @Mock
     private Kernel kernel;
     @Mock
+    private NucleusPaths nucleusPaths;
+    @Mock
     private DeploymentQueue deploymentQueue;
     private CLIServiceAgent cliServiceAgent;
     private final Context context = new Context();
 
     @BeforeEach
     void setup() {
+        lenient().when(kernel.getNucleusPaths()).thenReturn(nucleusPaths);
         cliServiceAgent = new CLIServiceAgent(kernel, deploymentQueue);
     }
 
@@ -236,7 +241,7 @@ class CLIServiceAgentTest {
                 .artifactDirectoryPath(artifactsDirectoryPath.toString())
                 .recipeDirectoryPath(recipeDirectoryPath.toString())
                 .build();
-        when(kernel.getComponentStorePath()).thenReturn(kernelLocalStore);
+        when(nucleusPaths.componentStorePath()).thenReturn(kernelLocalStore);
         cliServiceAgent.updateRecipesAndArtifacts(request);
         assertTrue(Files.exists(kernelRecipesPath.resolve("MyComponent-1.0.0").resolve("recipe.yaml")));
         assertTrue(Files.exists(kernelArtifactsPath.resolve("MyComponent-1.0.0").resolve("binary.exe")));
@@ -270,7 +275,7 @@ class CLIServiceAgentTest {
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder()
                 .recipeDirectoryPath(recipeDirectoryPath.toString())
                 .build();
-        when(kernel.getComponentStorePath()).thenReturn(kernelLocalStore);
+        when(nucleusPaths.componentStorePath()).thenReturn(kernelLocalStore);
         cliServiceAgent.updateRecipesAndArtifacts(request);
         assertTrue(Files.exists(kernelRecipesPath.resolve("MyComponent-1.0.0").resolve("recipe.yaml")));
     }
@@ -292,7 +297,7 @@ class CLIServiceAgentTest {
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder()
                 .artifactDirectoryPath(artifactsDirectoryPath.toString())
                 .build();
-        when(kernel.getComponentStorePath()).thenReturn(kernelLocalStore);
+        when(nucleusPaths.componentStorePath()).thenReturn(kernelLocalStore);
         cliServiceAgent.updateRecipesAndArtifacts(request);
         assertTrue(Files.exists(kernelArtifactsPath.resolve("MyComponent-1.0.0").resolve("binary.exe")));
     }

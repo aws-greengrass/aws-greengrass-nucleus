@@ -70,7 +70,7 @@ public class DependencyResolverBenchmark {
                     .resolve("src/test/evergreen-kernel-benchmark/mock_artifact_source");
 
             // pre-load contents to package store
-            copyFolderRecursively(localStoreContentPath, kernel.getComponentStorePath());
+            copyFolderRecursively(localStoreContentPath, kernel.getNucleusPaths().componentStorePath());
 
             // get the resolver from context
             resolver = kernel.getContext().get(DependencyResolver.class);

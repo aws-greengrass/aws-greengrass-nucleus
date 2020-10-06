@@ -126,7 +126,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             // or deployment merge step and landed here
             handleCancellation(preparePackagesFuture, deploymentMergeFuture);
             return null;
-        } catch (PackagingException e) {
+        } catch (IOException | PackagingException e) {
             throw new RetryableDeploymentTaskFailureException(e);
         }
     }
