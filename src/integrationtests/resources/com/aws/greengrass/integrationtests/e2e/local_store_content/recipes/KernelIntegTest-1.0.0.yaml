@@ -4,6 +4,13 @@ ComponentName: {{KernelIntegTest}}
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
+ComponentDependencies:
+  {{Log}}:
+    VersionRequirement: '>1.0'
+    DependencyType: Soft
+  {{KernelIntegTestDependency}}:
+    VersionRequirement: '1.0.0'
+    DependencyType: Hard
 Manifests:
   - Platform:
       os: macos
@@ -13,13 +20,6 @@ Manifests:
         script: echo KernelIntegTest-1.0.0
     Artifacts:
       - URI: s3://{{eg-e2e-test-artifacts}}/KernelIntegTest-1.0.0/kernel_integ_test_artifact.txt
-    Dependencies:
-      {{Log}}:
-        VersionRequirement: '>1.0'
-        DependencyType: Soft
-      {{KernelIntegTestDependency}}:
-        VersionRequirement: '1.0.0'
-        DependencyType: Hard
 
   - Platform:
       os: linux
@@ -29,10 +29,3 @@ Manifests:
         script: echo KernelIntegTest-1.0.0
     Artifacts:
       - URI: s3://{{eg-e2e-test-artifacts}}/KernelIntegTest-1.0.0/kernel_integ_test_artifact.txt
-    Dependencies:
-      {{Log}}:
-        VersionRequirement: '>1.0'
-        DependencyType: Soft
-      {{KernelIntegTestDependency}}:
-        VersionRequirement: '1.0.0'
-        DependencyType: Hard

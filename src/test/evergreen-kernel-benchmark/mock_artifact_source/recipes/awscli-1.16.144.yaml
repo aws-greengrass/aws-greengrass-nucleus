@@ -4,17 +4,16 @@ ComponentName: awscli
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Publisher
 ComponentVersion: '1.16.144'
-Manifests:
-  - Dependencies:
-      botocore:
-        VersionRequirement: '==1.12.134'
-      colorama:
-        VersionRequirement: '>=0.2.5 <=0.3.9'
-      docutils:
-        VersionRequirement: '>=0.10.0'
-      PyYAML:
-        VersionRequirement: '>=3.10.0 <=3.13.0'
-      rsa:
-        VersionRequirement: '>=3.1.2 <=3.5.0'
-      s3transfer:
-        VersionRequirement: '>=0.2.0 <0.3.0'
+ComponentDependencies:
+  botocore:
+    VersionRequirement: '==1.12.134'
+  colorama:
+    VersionRequirement: '>=0.2.5 <=0.3.9'
+  docutils:
+    VersionRequirement: '>=0.10.0'
+  PyYAML:
+    VersionRequirement: '>=3.10.0 <=3.13.0'
+  rsa:
+    VersionRequirement: '>=3.1.2 <=3.5.0'
+  s3transfer:
+    VersionRequirement: '>=0.2.0 <0.3.0'
