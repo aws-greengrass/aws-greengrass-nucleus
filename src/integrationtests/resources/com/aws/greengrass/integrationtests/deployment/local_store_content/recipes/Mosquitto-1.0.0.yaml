@@ -4,6 +4,9 @@ ComponentName: Mosquitto
 ComponentDescription: Mosquitto MQTT Server
 ComponentPublisher: Eclipse Foundation
 ComponentVersion: '1.0.0'
+ComponentDependencies:
+  GreenSignal:
+    VersionRequirement: "=1.0.0"
 Manifests:
   - Platform:
       os: all
@@ -11,7 +14,3 @@ Manifests:
       startup: echo "Hello this is mosquitto getting started"
       install: echo "Hello This is mosquitto being installed"
       shutdown: echo "By mosquitto signing off!"
-    Dependencies:
-      GreenSignal:
-        VersionRequirement: "=1.0.0"
-

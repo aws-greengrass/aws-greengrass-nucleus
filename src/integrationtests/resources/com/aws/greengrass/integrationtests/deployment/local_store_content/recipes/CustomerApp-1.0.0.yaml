@@ -4,6 +4,11 @@ ComponentName: CustomerApp
 ComponentDescription: A customer app
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
+ComponentDependencies:
+  Mosquitto:
+    VersionRequirement: 1.0.0
+  ClassService:
+    VersionRequirement: 1.0.0
 Manifests:
   - Platform:
       os: windows
@@ -14,11 +19,6 @@ Manifests:
     Lifecycle:
       run:
         powershell -command "& { echo \"Hello Greengrass. {{params:sampleText.value}}\" }"
-    Dependencies:
-      Mosquitto:
-        VersionRequirement: 1.0.0
-      ClassService:
-        VersionRequirement: 1.0.0
     Artifacts:
       - URI: greengrass:customerApp
   - Platform:
@@ -30,10 +30,5 @@ Manifests:
     Lifecycle:
       run:
         echo "Hello Greengrass. {{params:sampleText.value}}"
-    Dependencies:
-      Mosquitto:
-        VersionRequirement: 1.0.0
-      ClassService:
-        VersionRequirement: 1.0.0
     Artifacts:
       - URI: greengrass:customerApp

@@ -4,6 +4,9 @@ ComponentName: {{CustomerApp}}
 ComponentDescription: A customer app
 ComponentPublisher: Me
 ComponentVersion: '0.9.0'
+ComponentDependencies:
+  {{Mosquitto}}:
+    VersionRequirement: 1.0.0
 Manifests:
   - Platform:
       os: macos
@@ -12,9 +15,6 @@ Manifests:
         sleep 2
         echo "CustomerApp encounters error."
         exit 1
-    Dependencies:
-      {{Mosquitto}}:
-        VersionRequirement: 1.0.0
 
   - Platform:
       os: linux
@@ -23,6 +23,3 @@ Manifests:
         sleep 2
         echo "CustomerApp encounters error."
         exit 1
-    Dependencies:
-        {{Mosquitto}}:
-          VersionRequirement: 1.0.0

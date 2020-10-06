@@ -4,21 +4,18 @@ ComponentName: {{SomeService}}
 ComponentDescription: A random service to run in Evergreen
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
+ComponentDependencies:
+  {{Mosquitto}}:
+    VersionRequirement: 1.0.0
 Manifests:
   - Platform:
       os: macos
     Lifecycle:
       run:
         echo "Hello Greengrass. Don't mind me I'm going to be removed soon"
-    Dependencies:
-      {{Mosquitto}}:
-        VersionRequirement: 1.0.0
 
   - Platform:
       os: linux
     Lifecycle:
       run:
         echo "Hello Greengrass. Don't mind me I'm going to be removed soon"
-    Dependencies:
-        {{Mosquitto}}:
-          VersionRequirement: 1.0.0

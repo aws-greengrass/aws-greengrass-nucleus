@@ -4,11 +4,10 @@ ComponentName: boto3
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Publisher
 ComponentVersion: '1.9.128'
-Manifests:
-  - Dependencies:
-      botocore:
-        VersionRequirement: '>=1.12.128 <1.13.0'
-      jmespath:
-        VersionRequirement: '>=0.7.1 <1.0.0'
-      s3transfer:
-        VersionRequirement: '>=0.2.0 <0.3.0'
+ComponentDependencies:
+  botocore:
+    VersionRequirement: '>=1.12.128 <1.13.0'
+  jmespath:
+    VersionRequirement: '>=0.7.1 <1.0.0'
+  s3transfer:
+    VersionRequirement: '>=0.2.0 <0.3.0'
