@@ -4,7 +4,6 @@ ComponentName: python-dateutil
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Publisher
 ComponentVersion: '2.3.0'
-Manifests:
-  - Dependencies:
-      six:
-        VersionRequirement: ''
+ComponentDependencies:
+  six:
+    VersionRequirement: ''
