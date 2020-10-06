@@ -7,3 +7,5 @@ ComponentVersion: '0.2.1'
 ComponentDependencies:
   botocore:
     VersionRequirement: '<2.0.0 >=1.12.36'
+manifests:
+  - lifecycle: {}

@@ -13,3 +13,5 @@ ComponentDependencies:
     VersionRequirement: '>=2.1.0 <3.0.0'
   urllib3:
     VersionRequirement: '>=1.20.0 <1.25.0'
+manifests:
+  - lifecycle: {}

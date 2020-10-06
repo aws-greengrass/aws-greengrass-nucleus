@@ -17,3 +17,5 @@ ComponentDependencies:
     VersionRequirement: '>=3.1.2 <=3.5.0'
   s3transfer:
     VersionRequirement: '>=0.2.0 <0.3.0'
+manifests:
+  - lifecycle: {}
