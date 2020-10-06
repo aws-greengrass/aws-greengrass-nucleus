@@ -7,6 +7,7 @@
     {
       "Name": "ComponentConfigurationTestService",
       "ResolvedVersion": "1.0.0",
+      "RootComponent": true,
       "ConfigurationUpdate": {
         "RESET": [
           "/newSingleLevelKey", "/path"

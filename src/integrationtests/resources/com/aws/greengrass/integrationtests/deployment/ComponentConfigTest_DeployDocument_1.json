@@ -6,7 +6,8 @@
   "Packages": [
     {
       "Name": "ComponentConfigurationTestService",
-      "ResolvedVersion": "1.0.0"
+      "ResolvedVersion": "1.0.0",
+      "RootComponent": true
     }
   ],
   "Timestamp": 1592574829000,

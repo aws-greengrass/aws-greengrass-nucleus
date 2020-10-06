@@ -6,6 +6,7 @@
   "Packages": [
     {
       "Name": "ComponentConfigurationTestService",
+      "RootComponent": true,
       "ResolvedVersion": "1.0.0",
       "ConfigurationUpdate": {
         "MERGE": {
