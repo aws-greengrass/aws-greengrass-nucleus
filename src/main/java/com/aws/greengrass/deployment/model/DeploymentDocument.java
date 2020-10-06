@@ -33,7 +33,6 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 @ToString
 @EqualsAndHashCode
-
 public class DeploymentDocument {
 
     @JsonProperty("DeploymentId")
