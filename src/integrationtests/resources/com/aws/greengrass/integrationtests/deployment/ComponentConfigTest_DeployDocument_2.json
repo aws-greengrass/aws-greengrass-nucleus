@@ -11,6 +11,7 @@
       "ConfigurationUpdate": {
         "MERGE": {
           "singleLevelKey" : "updated value of singleLevelKey",
+          "listKey": ["item3"],
           "path" : {
             "leafKey": "updated value of /path/leafKey"
           }

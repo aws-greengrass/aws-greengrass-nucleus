@@ -11,12 +11,11 @@ ComponentConfiguration:
     singleLevelKey: default value of singleLevelKey
     path:
       leafKey: default value of /path/leafKey
+    listKey:
+      - 'item1'
+      - 'item2'
     emptyStringKey: ''
-
-
-    sampleText: This is a test
-    office:
-      ac: 'OFF'
+    emptyListKey: []
 
 Manifests:
   - Platform:
@@ -26,10 +25,11 @@ Manifests:
         value: This is a test
         type: STRING
     Lifecycle:
-      run: >-
+      run: >- ## Texts below are used for assertion in DeploymentTaskIntegrationTest and need to change together.
         echo "ComponentConfigurationTestService output
         I'm the old param: {{params:sampleText.value}}.
         I'm /singleLevelKey: {configuration:/singleLevelKey}.
         I'm /path/leafKey: {configuration:/path/leafKey}.
+        I'm /listKey/0: {configuration:/listKey/0}.
         I'm /emptyStringKey: {configuration:/emptyStringKey}.
         I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}. I was not in the default value"
