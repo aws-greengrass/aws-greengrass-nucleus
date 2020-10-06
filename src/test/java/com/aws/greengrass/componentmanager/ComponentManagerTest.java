@@ -132,11 +132,13 @@ class ComponentManagerTest {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @BeforeEach
-    void beforeEach() throws PackageLoadingException {
+    void beforeEach() throws Exception {
+        lenient().when(artifactDownloader.downloadRequired(any(),any(), any())).thenReturn(true);
+        lenient().when(s3Downloader.downloadRequired(any(),any(), any())).thenReturn(true);
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
+        lenient().when(componentStore.getUsableSpace()).thenReturn(100_000_000L);
         componentManager = new ComponentManager(s3Downloader, artifactDownloader, packageServiceHelper,
                 executor, componentStore, kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
-        lenient().when(componentStore.getUsableSpace()).thenReturn(100_000_000L);
     }
 
     @AfterEach

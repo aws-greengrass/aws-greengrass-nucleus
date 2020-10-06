@@ -187,7 +187,7 @@ class DeploymentTaskIntegrationTest {
         ComponentIdentifier simpleApp2 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("2.0.0"),
                 PRIVATE_STORE_NAMESPACE_TOPIC);
 
-        // deploy version 1 and 2
+        // deploy version 1
         Future<DeploymentResult> resultFuture1 = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
                 System.currentTimeMillis());
@@ -198,6 +198,7 @@ class DeploymentTaskIntegrationTest {
         assertRecipeArtifactNotExists(simpleApp2);
         preloadLocalStoreContent(SIMPLE_APP_NAME, "2.0.0");
 
+        // deploy version 2
         Future<DeploymentResult> resultFuture2 = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc2.json").toURI(),
                 System.currentTimeMillis());
