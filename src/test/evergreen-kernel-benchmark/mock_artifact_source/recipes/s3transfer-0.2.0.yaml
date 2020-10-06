@@ -4,7 +4,6 @@ ComponentName: s3transfer
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Publisher
 ComponentVersion: '0.2.0'
-Manifests:
-  - Dependencies:
-      botocore:
-        VersionRequirement: '<2.0.0 >=1.12.36'
+ComponentDependencies:
+  botocore:
+    VersionRequirement: '<2.0.0 >=1.12.36'
