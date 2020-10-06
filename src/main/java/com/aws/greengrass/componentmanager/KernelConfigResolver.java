@@ -75,6 +75,9 @@ public class KernelConfigResolver {
     private static final String NO_RECIPE_ERROR_FORMAT = "Failed to find component recipe for {}";
     private static final String CONFIGURATIONS_CONFIG_KEY = "Configurations";
 
+    // https://tools.ietf.org/html/rfc6901#section-5
+    private static final String JSON_POINTER_WHOLE_DOC = "";
+
     // Map from Namespace -> Key -> Function which returns the replacement value
     private final Map<String, Map<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>>>
             systemParameters = new HashMap<>();
@@ -229,6 +232,7 @@ public class KernelConfigResolver {
             }
         }
 
+        // deal with update
         return applyUpdateToCurrentConfig(currentRunningConfig, configurationUpdateOperation, defaultConfig);
     }
 
@@ -262,7 +266,14 @@ public class KernelConfigResolver {
         // convert to JsonNode for path navigation
         JsonNode node = mapper.convertValue(original, JsonNode.class);
 
-        pathsToReset.forEach(pointer -> {
+        for (String pointer : pathsToReset) {
+            // special case handling for reset whole document
+            if (pointer.equals(JSON_POINTER_WHOLE_DOC)) {
+                // reset to entire default value node and return because there is no need to process further
+                return mapper.convertValue(defaultValue, Map.class);
+            }
+
+            // regular pointer handling
             JsonPointer jsonPointer = JsonPointer.compile(pointer);
 
             JsonNode targetNode = defaultValue.at(jsonPointer);
@@ -274,10 +285,9 @@ public class KernelConfigResolver {
 
             } else {
                 // target is container node, or a value node, including null node -> replace the entry
-                ((ObjectNode) node.at(jsonPointer.head())).replace(jsonPointer.getMatchingProperty(),
-                        defaultValue.at(pointer));
+                ((ObjectNode) node.at(jsonPointer.head())).replace(jsonPointer.getMatchingProperty(), targetNode);
             }
-        });
+        }
 
 
         return mapper.convertValue(node, Map.class);
@@ -296,7 +306,7 @@ public class KernelConfigResolver {
                 Map newChild = (Map) newMap.get(key);
                 original.put(key, deepMerge(originalChild, newChild));
             } else {
-                // This branch supports container node -> key node and vice versa as it just overrides.
+                // This branch supports container node -> value node and vice versa as it just overrides.
                 // This branch also handles the list with entire replacement.
                 // Note: There is no support for list append or insert at index operations.
                 original.put(key, newMap.get(key));

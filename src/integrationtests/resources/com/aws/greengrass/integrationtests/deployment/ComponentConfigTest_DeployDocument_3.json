@@ -1,19 +1,18 @@
 {
   "DeploymentId": "arn:aws:us-east-1:greengrass:configuration:thinggroup/group1:1",
   "RootPackages": [
-    "CustomerApp"
+    "ComponentConfigurationTestService"
   ],
   "Packages": [
     {
-      "Name": "CustomerApp",
+      "Name": "ComponentConfigurationTestService",
       "ResolvedVersion": "1.0.0",
       "ConfigurationUpdate": {
         "MERGE": {
-          "office": {
-            "ac": "ON",
-            "secret": "ah!"
-          },
-          "office2": "hey"
+          "newSingleLevelKey": "value of newSingleLevelKey",
+          "path" : {
+            "newLeafKey": "value of /path/newLeafKey"
+          }
         }
       }
     }

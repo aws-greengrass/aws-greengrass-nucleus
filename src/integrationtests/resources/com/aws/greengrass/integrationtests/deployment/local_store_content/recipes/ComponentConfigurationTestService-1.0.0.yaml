@@ -1,0 +1,35 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: ComponentConfigurationTestService
+ComponentDescription: This is dedicated for testing component configuration
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+
+# Configuration section to test and assert
+ComponentConfiguration:
+  DefaultConfiguration:
+    singleLevelKey: default value of singleLevelKey
+    path:
+      leafKey: default value of /path/leafKey
+    emptyStringKey: ''
+
+
+    sampleText: This is a test
+    office:
+      ac: 'OFF'
+
+Manifests:
+  - Platform:
+      os: all
+    Parameters: # Backward compatibility
+      - name: sampleText
+        value: This is a test
+        type: STRING
+    Lifecycle:
+      run: >-
+        echo "ComponentConfigurationTestService output
+        I'm the old param: {{params:sampleText.value}}.
+        I'm /singleLevelKey: {configuration:/singleLevelKey}.
+        I'm /path/leafKey: {configuration:/path/leafKey}.
+        I'm /emptyStringKey: {configuration:/emptyStringKey}.
+        I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}. I was not in the default value"
