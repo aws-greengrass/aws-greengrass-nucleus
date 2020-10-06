@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
@@ -118,32 +117,36 @@ public final class DeploymentDocumentConverter {
 
     private static List<DeploymentPackageConfiguration> buildDeploymentPackageConfigurations(
             LocalOverrideRequest localOverrideRequest, Map<String, String> newRootComponents) {
-        List<DeploymentPackageConfiguration> packageConfigurations;
+        Map<String, DeploymentPackageConfiguration> packageConfigurations;
 
         // convert Deployment Config from getComponentNameToConfig, which doesn't include root components necessarily
         if (localOverrideRequest.getComponentNameToConfig() == null || localOverrideRequest.getComponentNameToConfig()
                 .isEmpty()) {
-            packageConfigurations = new ArrayList<>();
+            packageConfigurations = new HashMap<>();
         } else {
             packageConfigurations = localOverrideRequest.getComponentNameToConfig().entrySet().stream()
-                    .map(entry -> new DeploymentPackageConfiguration(entry.getKey(), false, ANY_VERSION,
-                            entry.getValue())).collect(Collectors.toList());
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            entry -> new DeploymentPackageConfiguration(
+                                    entry.getKey(), false, ANY_VERSION, entry.getValue())
+                    ));
         }
+
+        if (localOverrideRequest.getConfigurationUpdate() != null) {
+            localOverrideRequest.getConfigurationUpdate().forEach((componentName, configUpdate) -> {
+                packageConfigurations.computeIfAbsent(componentName, DeploymentPackageConfiguration::new);
+                packageConfigurations.get(componentName).setConfigurationUpdateOperation(configUpdate);
+                packageConfigurations.get(componentName).setResolvedVersion(ANY_VERSION);
+            });
+        }
+
         // Add to or update root component with version in the configuration lists
         newRootComponents.forEach((rootComponentName, version) -> {
-            Optional<DeploymentPackageConfiguration> optionalConfiguration = packageConfigurations.stream()
-                    .filter(packageConfiguration -> packageConfiguration.getPackageName().equals(rootComponentName))
-                    .findAny();
-
-            if (optionalConfiguration.isPresent()) {
-                // if found, update the version requirement to be equal to the requested version
-                optionalConfiguration.get().setResolvedVersion(version);
-                optionalConfiguration.get().setRootComponent(true);
-            } else {
-                // if not found, create it with version requirement as the requested version
-                packageConfigurations.add(new DeploymentPackageConfiguration(rootComponentName, true, version, null));
-            }
+            DeploymentPackageConfiguration pkg =
+                    packageConfigurations.computeIfAbsent(rootComponentName, DeploymentPackageConfiguration::new);
+            pkg.setResolvedVersion(version);
+            pkg.setRootComponent(true);
         });
-        return packageConfigurations;
+        return new ArrayList<>(packageConfigurations.values());
     }
 }

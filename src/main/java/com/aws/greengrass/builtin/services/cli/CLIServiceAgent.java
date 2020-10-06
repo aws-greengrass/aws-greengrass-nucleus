@@ -3,6 +3,7 @@ package com.aws.greengrass.builtin.services.cli;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeploymentQueue;
+import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.ipc.services.cli.exceptions.ComponentNotFoundError;
@@ -254,11 +255,25 @@ public class CLIServiceAgent {
         // recipes set using the updateRecipesAndArtifacts API.
         String deploymentId = UUID.randomUUID().toString();
 
+        Map<String, ConfigurationUpdateOperation> configUpdate = null;
+        if (request.getConfigurationUpdate() != null) {
+            configUpdate = request.getConfigurationUpdate().entrySet().stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey,
+                            e -> {
+                                ConfigurationUpdateOperation configUpdateOption = new ConfigurationUpdateOperation();
+                                configUpdateOption.setValueToMerge((Map) e.getValue().get("MERGE"));
+                                configUpdateOption.setPathsToReset((List) e.getValue().get("RESET"));
+                                return configUpdateOption;
+                            }));
+        }
+
         LocalOverrideRequest localOverrideRequest = LocalOverrideRequest.builder().requestId(deploymentId)
                 .componentsToMerge(request.getRootComponentVersionsToAdd())
                 .componentsToRemove(request.getRootComponentsToRemove()).requestTimestamp(System.currentTimeMillis())
                 .groupName(request.getGroupName() == null || request.getGroupName().isEmpty() ? DEFAULT_GROUP_NAME
-                        : request.getGroupName()).componentNameToConfig(request.getComponentToConfiguration()).build();
+                        : request.getGroupName())
+                .componentNameToConfig(request.getComponentToConfiguration())
+                .configurationUpdate(configUpdate).build();
         String deploymentDocument;
         try {
             deploymentDocument = OBJECT_MAPPER.writeValueAsString(localOverrideRequest);
