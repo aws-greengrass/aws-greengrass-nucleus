@@ -60,14 +60,12 @@ public final class DeploymentDocumentConverter {
             componentsToMerge.forEach(newRootComponents::put);
         }
 
-        List<String> rootPackages = new ArrayList<>(newRootComponents.keySet());
-
         // Build configs
         List<DeploymentPackageConfiguration> packageConfigurations =
                 buildDeploymentPackageConfigurations(localOverrideRequest, newRootComponents);
 
         return DeploymentDocument.builder().timestamp(localOverrideRequest.getRequestTimestamp())
-                .deploymentId(localOverrideRequest.getRequestId()).rootPackages(rootPackages)
+                .deploymentId(localOverrideRequest.getRequestId())
                 .deploymentPackageConfigurationList(packageConfigurations)
                 // Currently we always skip safety check for local deployment to not slow down testing for customers
                 // If we make this configurable in local development then we can plug that input in here
@@ -91,7 +89,6 @@ public final class DeploymentDocumentConverter {
                 .timestamp(config.getCreationTimestamp()).failureHandlingPolicy(config.getFailureHandlingPolicy())
                 // TODO: Use full featured component update policy and configuration validation policy with timeouts
                 .componentUpdatePolicy(componentUpdatePolicy)
-                .rootPackages(new ArrayList<>())
                 .deploymentPackageConfigurationList(new ArrayList<>()).build();
 
 
@@ -112,9 +109,6 @@ public final class DeploymentDocumentConverter {
         for (Map.Entry<String, PackageInfo> entry : config.getPackages().entrySet()) {
             String pkgName = entry.getKey();
             PackageInfo pkgInfo = entry.getValue();
-            if (pkgInfo.isRootComponent()) {
-                deploymentDocument.getRootPackages().add(pkgName);
-            }
             deploymentDocument.getDeploymentPackageConfigurationList()
                     .add(new DeploymentPackageConfiguration(pkgName, pkgInfo.isRootComponent(), pkgInfo.getVersion(),
                             pkgInfo.getConfiguration()));

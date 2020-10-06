@@ -3,6 +3,7 @@
 
 package com.aws.greengrass.deployment.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
@@ -13,11 +14,16 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
- * Class to model the deployment configuration coming from cloud, local, or any other sources
- * that can trigger a deployment.
+ * Class to model the deployment configuration coming from cloud, local, or any other sources that can trigger a
+ * deployment.
+ * <p>
+ * JSON Annotations are only in tests to easily generate this model from a JSON file. They are not part of business
+ * logic.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
@@ -27,14 +33,11 @@ import java.util.List;
 @NoArgsConstructor
 @ToString
 @EqualsAndHashCode
-// TODO: pull this class to a library to share with cloud services. SIM: https://sim.amazon.com/issues/P33788350
+
 public class DeploymentDocument {
 
     @JsonProperty("DeploymentId")
     private String deploymentId;
-
-    @JsonProperty("RootPackages")
-    private List<String> rootPackages;
 
     @JsonProperty("Packages")
     private List<DeploymentPackageConfiguration> deploymentPackageConfigurationList;
@@ -52,4 +55,17 @@ public class DeploymentDocument {
     @JsonProperty("ComponentUpdatePolicy")
     private ComponentUpdatePolicy componentUpdatePolicy;
 
+    /**
+     * Helper function to get a list of root component names from the deploymentPackageConfigurationList
+     */
+    @JsonIgnore
+    public List<String> getRootPackages() {
+        if (deploymentPackageConfigurationList == null || deploymentPackageConfigurationList.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return deploymentPackageConfigurationList.stream()
+                                                 .filter(DeploymentPackageConfiguration::isRootComponent)
+                                                 .map(DeploymentPackageConfiguration::getPackageName)
+                                                 .collect(Collectors.toList());
+    }
 }
