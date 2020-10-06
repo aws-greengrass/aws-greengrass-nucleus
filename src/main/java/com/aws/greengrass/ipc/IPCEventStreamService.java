@@ -1,10 +1,13 @@
 package com.aws.greengrass.ipc;
 
+import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.ipc.common.GGEventStreamConnectMessage;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
@@ -12,7 +15,6 @@ import lombok.NoArgsConstructor;
 import software.amazon.awssdk.crt.eventstream.Header;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.awssdk.utils.StringUtils;
 import software.amazon.eventstream.iot.server.AuthenticationData;
 import software.amazon.eventstream.iot.server.Authorization;
 import software.amazon.eventstream.iot.server.DebugLoggingOperationHandler;
@@ -21,16 +23,19 @@ import software.amazon.eventstream.iot.server.IpcServer;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import javax.inject.Inject;
+
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 
 @NoArgsConstructor
 public class IPCEventStreamService implements Startable, Closeable {
     public static final int DEFAULT_PORT_NUMBER = 8033;
-    @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
-    private static final String LOCAL_HOST = "127.0.0.1";
     private static final ObjectMapper OBJECT_MAPPER =
                 new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipcEventStreamServer";
+    public static final String KERNEL_DOMAIN_SOCKET_FILEPATH = "AWS_GG_KERNEL_DOMAIN_SOCKET_FILEPATH";
 
     private static Logger logger = LogManager.getLogger(IPCEventStreamService.class);
 
@@ -44,6 +49,9 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     @Inject
     private AuthenticationHandler authenticationHandler;
+
+    @Inject
+    private Configuration config;
 
     private SocketOptions socketOptions;
     private EventLoopGroup eventLoopGroup;
@@ -67,10 +75,13 @@ public class IPCEventStreamService implements Startable, Closeable {
 
         socketOptions = new SocketOptions();
         socketOptions.connectTimeoutMs = 3000;
-        socketOptions.domain = SocketOptions.SocketDomain.IPv4;
+        socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
         socketOptions.type = SocketOptions.SocketType.STREAM;
         eventLoopGroup = new EventLoopGroup(1);
-        ipcServer = new IpcServer(eventLoopGroup, socketOptions, null, LOCAL_HOST,
+        String ipcServerSocketPath = kernel.getRootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+        Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, KERNEL_DOMAIN_SOCKET_FILEPATH);
+        kernelUri.withValue(ipcServerSocketPath);
+        ipcServer = new IpcServer(eventLoopGroup, socketOptions, null, ipcServerSocketPath,
                 DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
         ipcServer.runServer();
     }
@@ -92,11 +103,11 @@ public class IPCEventStreamService implements Startable, Closeable {
             authToken = connectMessage.getAuthToken();
         } catch (IOException e) {
             String errorMessage = "Invalid auth token in connect message";
-            logger.atError().log(errorMessage);
+            logger.atError().setCause(e).log(errorMessage);
             // TODO: Add BadRequestException to smithy model
             throw new RuntimeException(errorMessage);
         }
-        if (StringUtils.isEmpty(authToken)) {
+        if (Utils.isEmpty(authToken)) {
             String errorMessage = "Received empty auth token to authenticate IPC client";
             logger.atError().log(errorMessage);
             throw new RuntimeException(errorMessage);
@@ -121,5 +132,12 @@ public class IPCEventStreamService implements Startable, Closeable {
         ipcServer.stopServer();
         socketOptions.close();
         eventLoopGroup.close();
+        try {
+            eventLoopGroup.getShutdownCompleteFuture().get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            logger.atError().log("Error shutting down event loop", e);
+        }
     }
 }
