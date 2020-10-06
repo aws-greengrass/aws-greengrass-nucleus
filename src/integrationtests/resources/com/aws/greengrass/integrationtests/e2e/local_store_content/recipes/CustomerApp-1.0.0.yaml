@@ -4,6 +4,9 @@ ComponentName: {{CustomerApp}}
 ComponentDescription: A customer app
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
+ComponentDependencies:
+  {{Mosquitto}}:
+    VersionRequirement: 1.0.0
 Manifests:
   - Platform:
       os: macos
@@ -15,9 +18,6 @@ Manifests:
       run: |-
         sleep 2
         echo "Hello Greengrass. {{params:sampleText.value}}"
-    Dependencies:
-      {{Mosquitto}}:
-        VersionRequirement: 1.0.0
 
   - Platform:
       os: linux
@@ -29,6 +29,3 @@ Manifests:
       run: |-
         sleep 2
         echo "Hello Greengrass. {{params:sampleText.value}}"
-    Dependencies:
-        {{Mosquitto}}:
-          VersionRequirement: 1.0.0
