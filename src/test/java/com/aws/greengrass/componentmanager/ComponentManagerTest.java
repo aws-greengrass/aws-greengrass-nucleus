@@ -38,6 +38,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.internal.util.collections.Sets;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.File;
@@ -49,12 +50,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -62,6 +65,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PRIVATE_SCOPE;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -302,7 +308,7 @@ class ComponentManagerTest {
         when(kernel.findServiceTopic(MONITORING_SERVICE_PKG_NAME)).thenReturn(mock(Topics.class));
         when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(ACTIVE_VERSION_STR);
 
 
@@ -406,7 +412,7 @@ class ComponentManagerTest {
         when(kernel.findServiceTopic(MONITORING_SERVICE_PKG_NAME)).thenReturn(mock(Topics.class));
         when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(ACTIVE_VERSION);
 
         // local versions available: 1.0.0, 1.1.0.
@@ -448,7 +454,7 @@ class ComponentManagerTest {
         Topic versionTopic = mock(Topic.class);
 
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(ACTIVE_VERSION_STR);
 
         assertThat(componentManager.getPackageVersionFromService(mockService), is(ACTIVE_VERSION));
@@ -483,7 +489,7 @@ class ComponentManagerTest {
         when(kernel.findServiceTopic(componentA)).thenReturn(mock(Topics.class));
         when(kernel.locate(componentA)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());
 
         ComponentContent componentContent = new ComponentContent().withName(componentA).withVersion(v1_0_0.getValue())
@@ -517,7 +523,7 @@ class ComponentManagerTest {
         when(kernel.findServiceTopic(componentA)).thenReturn(mock(Topics.class));
         when(kernel.locate(componentA)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());
         when(mockService.isBuiltin()).thenReturn(true);
 
@@ -580,10 +586,65 @@ class ComponentManagerTest {
         verify(artifactDownloader, never()).downloadToPath(any(), any(), any());
     }
 
+    @Test
+    void GIVEN_kernel_service_configs_WHEN_get_versions_to_keep_THEN_return_correct_result() {
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+
+        // WHEN
+        Map<String, Set<String>> versionsToKeep = componentManager.getVersionsToKeep();
+
+        Map<String, Set<String>> expectedResult = new HashMap<>();
+        expectedResult.put(MONITORING_SERVICE_PKG_NAME, Sets.newSet("1.0.0", "2.0.0"));
+        assertEquals(expectedResult, versionsToKeep);
+    }
+
+    @Test
+    void GIVEN_stale_artifact_exists_WHEN_cleanup_THEN_delete_component_invoked_correctly() throws Exception {
+        // mock service configs has version 1 and 2
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+
+        // mock local artifacts with version 1, 2, 3 and another component
+        String anotherCompName = "SimpleApp";
+        Map<String, Set<String>> mockArtifacts = new HashMap<>();
+        mockArtifacts.put(MONITORING_SERVICE_PKG_NAME, Sets.newSet("1.0.0", "2.0.0", "3.0.0"));
+        mockArtifacts.put(anotherCompName, Sets.newSet("1.0.0", "2.0.0"));
+        when(componentStore.listAvailableComponentVersions()).thenReturn(mockArtifacts);
+
+        // WHEN
+        componentManager.cleanupStaleVersions();
+
+        // THEN
+        verify(componentStore, times(1)).deleteComponent(
+                new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("3.0.0"), PRIVATE_SCOPE));
+        verify(componentStore, times(1)).deleteComponent(
+                new ComponentIdentifier(anotherCompName, new Semver("1.0.0"), PRIVATE_SCOPE));
+        verify(componentStore, times(1)).deleteComponent(
+                new ComponentIdentifier(anotherCompName, new Semver("2.0.0"), PRIVATE_SCOPE));
+    }
+
     private static Map<String, String> getExpectedDependencies(Semver version) {
         return new HashMap<String, String>() {{
             put("Log", version.toString());
             put("Cool-Database", version.toString());
         }};
+    }
+
+    private GreengrassService getMockGreengrassService(String serviceName) {
+        GreengrassService mockService = mock(GreengrassService.class);
+        Topics mockServiceConfig = mock(Topics.class);
+        Topic mockVersionTopic = mock(Topic.class);
+        when(mockVersionTopic.getOnce()).thenReturn("2.0.0");
+        Topic mockPrevVersionTopic = mock(Topic.class);
+        when(mockPrevVersionTopic.getOnce()).thenReturn("1.0.0");
+        when(mockServiceConfig.find(VERSION_CONFIG_KEY)).thenReturn(mockVersionTopic);
+        when(mockServiceConfig.find(PREV_VERSION_CONFIG_KEY)).thenReturn(mockPrevVersionTopic);
+
+        when(mockService.getName()).thenReturn(serviceName);
+        when(mockService.getServiceConfig()).thenReturn(mockServiceConfig);
+        return mockService;
     }
 }

@@ -391,13 +391,13 @@ public class ComponentManager implements InjectionActions {
         // remove all local versions that does not exist in versionsToKeep
         for (Map.Entry<String, Set<String>> localVersions : versionsToRemove.entrySet()) {
             String compName = localVersions.getKey();
+            Set<String> removeVersions = new HashSet<>(localVersions.getValue());
             if (versionsToKeep.containsKey(compName)) {
-                Set<String> removeVersions = new HashSet<>(localVersions.getValue());
                 removeVersions.removeAll(versionsToKeep.get(compName));
-                for (String compVersion : removeVersions) {
-                    componentStore
-                            .deleteComponent(new ComponentIdentifier(compName, new Semver(compVersion), PRIVATE_SCOPE));
-                }
+            }
+            for (String compVersion : removeVersions) {
+                componentStore
+                        .deleteComponent(new ComponentIdentifier(compName, new Semver(compVersion), PRIVATE_SCOPE));
             }
         }
         logger.atInfo("cleanup-stale-versions-finish").log();
