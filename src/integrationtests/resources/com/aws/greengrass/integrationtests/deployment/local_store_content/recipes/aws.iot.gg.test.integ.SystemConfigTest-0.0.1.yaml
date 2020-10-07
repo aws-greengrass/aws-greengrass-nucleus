@@ -13,11 +13,12 @@ Manifests:
   - Platform:
       os: all
     Lifecycle:
-      run: >- ## Texts below are used for assertion in DeploymentTaskIntegrationTest and need to be changed together.
+      ## Texts below are used for assertion in DeploymentTaskIntegrationTest and need to be changed together.
+      run: >-
         echo "aws.iot.gg.test.integ.SystemConfigTest output
-        I'm kernel's root path: {kernel:rootPath}.
-        I'm my own artifact path: {artifacts:path}.
-        I'm my own artifact decompressed path: {artifacts:decompressedPath}.
-        I'm GreenSignal's artifact path: {GreenSignal:artifacts:path}.
-        I'm GreenSignal's artifact decompressed path: {GreenSignal:artifacts:decompressedPath}.
+        I'm kernel's root path: {kernel:rootPath} to assert.
+        I'm my own artifact path: {artifacts:path} to assert.
+        I'm my own artifact decompressed path: {artifacts:decompressedPath} to assert.
+        I'm GreenSignal's artifact path: {GreenSignal:artifacts:path} to assert.
+        I'm GreenSignal's artifact decompressed path: {GreenSignal:artifacts:decompressedPath} to assert.
         "

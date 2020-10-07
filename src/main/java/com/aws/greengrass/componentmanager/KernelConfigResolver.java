@@ -53,6 +53,7 @@ public class KernelConfigResolver {
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
     public static final String CONFIGURATIONS_CONFIG_KEY = "Configurations";
+
     static final String ARTIFACTS_NAMESPACE = "artifacts";
     static final String KERNEL_NAMESPACE = "kernel";
     static final String KERNEL_ROOT_PATH = "rootPath";
@@ -91,8 +92,8 @@ public class KernelConfigResolver {
     private final ComponentStore componentStore;
     private final Kernel kernel;
 
-
     private final ObjectMapper mapper = new ObjectMapper();
+
 
     /**
      * Constructor.
@@ -127,40 +128,37 @@ public class KernelConfigResolver {
      * retrieves its recipe, then merges the parameter values into the recipe, and last transform it to a kernel config
      * key-value pair.
      *
-     * @param packagesToDeploy package identifiers for resolved packages that are to be deployed
-     * @param document         deployment document
-     * @param rootPackages     root level packages
+     * @param componentsToDeploy package identifiers for resolved packages of complete dependency graph across groups
+     * @param document           deployment document
+     * @param rootPackages       root level packages
      * @return a kernel config map
      * @throws PackageLoadingException if any service package was unable to be loaded
      */
-    public Map<String, Object> resolve(List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
+    public Map<String, Object> resolve(List<ComponentIdentifier> componentsToDeploy, DeploymentDocument document,
             List<String> rootPackages) throws PackageLoadingException {
         Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache =
                 new ConcurrentHashMap<>();
-
-        Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache = new ConcurrentHashMap<>();
-
         Map<String, Object> servicesConfig = new HashMap<>();
 
-        for (ComponentIdentifier packageToDeploy : packagesToDeploy) {
-            servicesConfig.put(packageToDeploy.getName(), getServiceConfig(packageToDeploy, document, packagesToDeploy,
-                                                                           parameterAndDependencyCache,
-                                                                           configAndDependencyCache));
+        // resolve configuration
+        for (ComponentIdentifier componentToDeploy : componentsToDeploy) {
+            servicesConfig.put(componentToDeploy.getName(),
+                               getServiceConfig(componentToDeploy, document, componentsToDeploy,
+                                                parameterAndDependencyCache));
         }
 
         // Interpolate configurations
-        for (ComponentIdentifier packageToDeploy : packagesToDeploy) {
-            ComponentRecipe componentRecipe = componentStore.getPackageRecipe(packageToDeploy);
+        for (ComponentIdentifier resolvedComponentsToDeploy : componentsToDeploy) {
+            ComponentRecipe componentRecipe = componentStore.getPackageRecipe(resolvedComponentsToDeploy);
 
-            Object existingLifecycle =
-                    ((Map) servicesConfig.get(packageToDeploy.getName())).get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
+            Object existingLifecycle = ((Map) servicesConfig.get(resolvedComponentsToDeploy.getName())).get(
+                    SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
 
-            ((Map) servicesConfig.get(packageToDeploy.getName())).put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                                                                      interpolate(existingLifecycle, packageToDeploy,
-                                                                                  new ArrayList<>(
-                                                                                          componentRecipe.getDependencies()
-                                                                                                  .keySet()),
-                                                                                  servicesConfig));
+            Object interpolatedLifecycle = interpolate(existingLifecycle, resolvedComponentsToDeploy,
+                                                       componentRecipe.getDependencies().keySet(), servicesConfig);
+
+            ((Map) servicesConfig.get(resolvedComponentsToDeploy.getName())).put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                                                                                 interpolatedLifecycle);
         }
 
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
@@ -174,8 +172,8 @@ public class KernelConfigResolver {
      */
     private Map<String, Object> getServiceConfig(ComponentIdentifier componentIdentifier, DeploymentDocument document,
             List<ComponentIdentifier> packagesToDeploy,
-            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
-            Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache) throws PackageLoadingException {
+            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)
+            throws PackageLoadingException {
         ComponentRecipe componentRecipe = componentStore.getPackageRecipe(componentIdentifier);
 
         Set<ComponentParameter> resolvedParams = resolveParameterValuesToUse(document, componentRecipe);
@@ -183,28 +181,12 @@ public class KernelConfigResolver {
                                         new Pair<>(resolvedParams, componentRecipe.getDependencies().keySet()));
 
 
-        Optional<DeploymentPackageConfiguration> operationOptional = document.getDeploymentPackageConfigurationList()
-                .stream()
-                .filter(e -> e.getPackageName().equals(componentRecipe.getComponentName()))
-
-                // only allow update config for root
-                // no need to check version because root's version will be pinned
-                .filter(DeploymentPackageConfiguration::isRootComponent)
-                .findAny();
-
-        Map<String, Object> resolvedConfiguration = resolveConfigurationToApply(
-                operationOptional.map(DeploymentPackageConfiguration::getConfigurationUpdateOperation).orElse(null),
-                componentRecipe);
-
-        //        configAndDependencyCache.put(componentIdentifier,
-        //                new Pair<>(resolvedConfiguration, componentRecipe.getDependencies().keySet()));
-
         Map<String, Object> resolvedServiceConfig = new HashMap<>();
 
         // Interpolate parameters
         resolvedServiceConfig.put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                                   interpolate(componentRecipe.getLifecycle(), componentIdentifier, packagesToDeploy,
-                                              document, parameterAndDependencyCache, configAndDependencyCache));
+                                              document, parameterAndDependencyCache));
 
         resolvedServiceConfig.put(SERVICE_TYPE_TOPIC_KEY, componentRecipe.getComponentType() == null ? null
                 : componentRecipe.getComponentType().name());
@@ -224,13 +206,27 @@ public class KernelConfigResolver {
         }
         resolvedServiceConfig.put(PARAMETERS_CONFIG_KEY, map);
 
+        // Resolve config
+        Optional<ConfigurationUpdateOperation> optionalConfigUpdate = document.getDeploymentPackageConfigurationList()
+                .stream()
+                .filter(e -> e.getPackageName().equals(componentRecipe.getComponentName()))
+
+                // only allow update config for root
+                // no need to check version because root's version will be pinned
+                .filter(DeploymentPackageConfiguration::isRootComponent)
+                .map(DeploymentPackageConfiguration::getConfigurationUpdateOperation)
+                .findAny();
+
+        Map<String, Object> resolvedConfiguration =
+                resolveConfigurationToApply(optionalConfigUpdate.orElse(null), componentRecipe);
+
         resolvedServiceConfig.put(CONFIGURATIONS_CONFIG_KEY,
                                   resolvedConfiguration == null ? new HashMap<>() : resolvedConfiguration);
 
         return resolvedServiceConfig;
     }
 
-    @SuppressWarnings("rawtypes")
+    /********* Start of new configuration code path *********/
     private Map<String, Object> resolveConfigurationToApply(ConfigurationUpdateOperation configurationUpdateOperation,
             ComponentRecipe componentRecipe) {
 
@@ -250,7 +246,7 @@ public class KernelConfigResolver {
                 .map(ComponentConfiguration::getDefaultConfiguration)
                 .orElse(mapper.createObjectNode()); // init null to be empty default config
 
-        // deal with no update
+        // no update
         if (configurationUpdateOperation == null) {
             if (currentRunningConfig != null) {
                 // no update but there is running config, so it should return running config as is.
@@ -261,30 +257,17 @@ public class KernelConfigResolver {
             }
         }
 
-        // deal with update
-        return applyUpdateToCurrentConfig(currentRunningConfig, configurationUpdateOperation, defaultConfig);
-    }
-
-    @SuppressWarnings("rawtypes")
-    private Map applyUpdateToCurrentConfig(Map<String, Object> currentRunningConfig,
-            ConfigurationUpdateOperation configurationUpdateOperation, JsonNode defaultConfiguration) {
-
-        // initialize to empty map if null because we will use this map as the base.
+        // perform RESET and then MERGE
         Map<String, Object> resolvedConfig;
 
-        // perform RESET first
-        resolvedConfig =
-                reset(currentRunningConfig, defaultConfiguration, configurationUpdateOperation.getPathsToReset());
+        resolvedConfig = reset(currentRunningConfig, defaultConfig, configurationUpdateOperation.getPathsToReset());
 
-        // perform MERGE secondly
         resolvedConfig = deepMerge(resolvedConfig, configurationUpdateOperation.getValueToMerge());
 
         return resolvedConfig;
-
     }
 
-    @SuppressWarnings("rawtypes")
-    private Map reset(Map original, JsonNode defaultValue, List<String> pathsToReset) {
+    private Map<String, Object> reset(Map<String, Object> original, JsonNode defaultValue, List<String> pathsToReset) {
         if (pathsToReset == null || pathsToReset.isEmpty()) {
             return original;
         }
@@ -303,7 +286,10 @@ public class KernelConfigResolver {
             JsonPointer jsonPointer = JsonPointer.compile(pointer);
 
             if (node.at(jsonPointer.head()).isArray()) {
-                LOGGER.atError().log("No support for resetting an element of array or list");
+                // no support for resetting an element of array
+                LOGGER.atError()
+                        .kv("pointer provided", jsonPointer)
+                        .log("Failed to reset because provided pointer for reset points to an element of array.");
                 continue;
             }
 
@@ -316,7 +302,9 @@ public class KernelConfigResolver {
                     ((ObjectNode) node.at(jsonPointer.head())).remove(jsonPointer.last().getMatchingProperty());
                 } else {
                     // parent is missing node, or value node. Do nothing.
-                    LOGGER.atError().log();
+                    LOGGER.atDebug().
+                            kv("pointer provided", jsonPointer).
+                            log("Parent is missing node or value node. Noop for reset.");
                 }
             } else {
                 // target is container node, or a value node, including null node.
@@ -327,6 +315,9 @@ public class KernelConfigResolver {
                                                                        targetDefaultNode);
                 } else {
                     // parent is not a container node. should not happen.
+                    LOGGER.atError()
+                            .kv("pointer provided", jsonPointer)
+                            .log("Failed to reset because provided pointer points to a parent who is not a container node. This shouldn't happen. Please reset the component configurations entirely");
                 }
             }
         }
@@ -377,12 +368,12 @@ public class KernelConfigResolver {
     /*
      * For each lifecycle key-value pair of a package, substitute parameter values.
      */
-    private Object interpolate(Object configValue, ComponentIdentifier componentIdentifier, List<String> dependencies,
-            Map enitreResolvedConfig) throws PackageLoadingException {
+    private Object interpolate(Object configValue, ComponentIdentifier componentIdentifier, Set<String> dependencies,
+            Map wholeResolvedConfig) throws PackageLoadingException {
         Object result = configValue;
 
         if (configValue instanceof String) {
-            result = replace((String) configValue, componentIdentifier, dependencies, enitreResolvedConfig);
+            result = replace((String) configValue, componentIdentifier, dependencies, wholeResolvedConfig);
         }
         if (configValue instanceof Map) {
             Map<String, Object> childConfigMap = (Map<String, Object>) configValue;
@@ -390,7 +381,7 @@ public class KernelConfigResolver {
             for (Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
                 resolvedChildConfig.put(childLifecycle.getKey(),
                                         interpolate(childLifecycle.getValue(), componentIdentifier, dependencies,
-                                                    enitreResolvedConfig));
+                                                    wholeResolvedConfig));
             }
             result = resolvedChildConfig;
         }
@@ -400,18 +391,7 @@ public class KernelConfigResolver {
         return result;
     }
 
-    private String lookupSystemConfig(ComponentIdentifier component, String namespace, String key)
-            throws PackageLoadingException {
-        // Handle system-wide configuration
-        Map<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> systemParams =
-                systemParameters.getOrDefault(namespace, Collections.emptyMap());
-        if (systemParams.containsKey(key)) {
-            return systemParams.get(key).apply(component);
-        }
-        return null;
-    }
-
-    private String replace(String stringValue, ComponentIdentifier componentIdentifier, List<String> dependencies,
+    private String replace(String stringValue, ComponentIdentifier componentIdentifier, Set<String> dependencies,
             Map resolvedConfig) throws PackageLoadingException {
 
         Matcher matcher;
@@ -518,18 +498,60 @@ public class KernelConfigResolver {
         return stringValue;
     }
 
+    private String lookupSystemConfig(ComponentIdentifier component, String namespace, String key)
+            throws PackageLoadingException {
+        // Handle system-wide configuration
+        Map<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> systemParams =
+                systemParameters.getOrDefault(namespace, Collections.emptyMap());
+        if (systemParams.containsKey(key)) {
+            return systemParams.get(key).apply(component);
+        }
+        return null;
+    }
+
+
+    @Nullable // null means no value found for interpolation
+    // TODO try to avoid using null as branching logic after cleaning up the parameters
+    private String lookupConfigurationValue(Map componentResolvedConfig, String key) {
+        JsonNode targetNode = mapper.convertValue(componentResolvedConfig, JsonNode.class).at(key);
+
+        if (targetNode.isValueNode()) {
+            return targetNode.asText();
+        }
+
+        if (targetNode.isMissingNode()) {
+            LOGGER.atError()
+                    .addKeyValue("Path", key)
+                    .log("Failed to interpolate configuration due to missing value node at given path");
+            // don't perform interpolation
+            return null;
+        }
+
+        if (targetNode.isContainerNode()) {
+            LOGGER.atError()
+                    .addKeyValue("Path", key)
+                    .addKeyValue("ContainerNode", targetNode.toString())
+                    .log("Failed to interpolate configuration because node at given path is a container node");
+            return null;
+        }
+        //        }
+        return null;
+    }
+
+    /***************** end of new configuration code path *******************/
+
     /*
      * For each lifecycle key-value pair of a package, substitute parameter values.
      */
     private Object interpolate(Object configValue, ComponentIdentifier componentIdentifier,
             List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
-            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
-            Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache) throws PackageLoadingException {
+            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)
+            throws PackageLoadingException {
         Object result = configValue;
 
         if (configValue instanceof String) {
             result = replace((String) configValue, componentIdentifier, packagesToDeploy, document,
-                             parameterAndDependencyCache, configAndDependencyCache);
+                             parameterAndDependencyCache);
         }
         if (configValue instanceof Map) {
             Map<String, Object> childConfigMap = (Map<String, Object>) configValue;
@@ -537,21 +559,20 @@ public class KernelConfigResolver {
             for (Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
                 resolvedChildConfig.put(childLifecycle.getKey(),
                                         interpolate(childLifecycle.getValue(), componentIdentifier, packagesToDeploy,
-                                                    document, parameterAndDependencyCache, configAndDependencyCache));
+                                                    document, parameterAndDependencyCache));
             }
             result = resolvedChildConfig;
         }
-
-        // No list handling because lists are outlawed under "Lifecycle" key
-
+        // TODO : Do we want to support other config types than map of
+        // string k,v pairs? e.g. how should lists be handled?
         return result;
     }
 
     private String replace(String stringValue, ComponentIdentifier componentIdentifier,
             List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
-            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
-            Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache) throws PackageLoadingException {
-        // Handle same-component parameters
+            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)
+            throws PackageLoadingException {
+        // Handle some-component parameters
         Matcher matcher = SAME_INTERPOLATION_REGEX.matcher(stringValue);
         while (matcher.find()) {
             String replacement =
@@ -562,19 +583,6 @@ public class KernelConfigResolver {
             }
         }
 
-        /*
-        // Handle same-component configuration
-        matcher = SAME_COMPONENT_INTERPOLATION_REGEX.matcher(stringValue);
-
-        while (matcher.find()) {
-            String configReplacement =
-                    lookupConfigurationValueForComponent(configAndDependencyCache, document, componentIdentifier,
-                            matcher.group(1), matcher.group(2));
-            if (configReplacement != null) {
-                stringValue = stringValue.replace(matcher.group(), configReplacement);
-            }
-        }
-*/
         // Handle cross-component parameters
         matcher = CROSS_INTERPOLATION_REGEX.matcher(stringValue);
 
@@ -594,30 +602,6 @@ public class KernelConfigResolver {
                 }
             }
         }
-/*
-        // Handle cross-component configuration
-        // example {ComponentConfigurationTestService:configuration:/singleLevelKey}
-        matcher = CROSS_COMPONENT_INTERPOLATION_REGEX.matcher(stringValue);
-
-        while (matcher.find()) {
-
-            String targetComponent = matcher.group(1);
-            String namespace = matcher.group(2);
-            String key = matcher.group(3);
-
-            Optional<ComponentIdentifier> targetComponentIdentifier =
-                    packagesToDeploy.stream().filter(t -> t.getName().equals(targetComponent)).findFirst();
-
-            if (targetComponentIdentifier.isPresent() && componentCanReadParameterFrom(componentIdentifier,
-                    targetComponentIdentifier.get(), parameterAndDependencyCache)) {
-                String replacement = lookupParameterValueForComponent(parameterAndDependencyCache, document,
-                        targetComponentIdentifier.get(), namespace, key);
-                if (replacement != null) {
-                    stringValue = stringValue.replace(matcher.group(), replacement);
-                }
-            }
-        }
-*/
         return stringValue;
     }
 
@@ -637,79 +621,6 @@ public class KernelConfigResolver {
             }
         }
         return depSet.contains(canReadFrom.getName());
-    }
-
-    @Nullable // null means no value found for interpolation
-    // TODO try to avoid using null as branching logic after cleaning up the parameters
-    private String lookupConfigurationValue(Map componentResolvedConfig, String key) {
-        // Handle cross-component system parameters
-        //        Map<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> systemParams =
-        //                systemParameters.getOrDefault(namespace, Collections.emptyMap());
-        //        if (systemParams.containsKey(key)) {
-        //            return systemParams.get(key).apply(component);
-        //        }
-
-        //        if (namespace.equals(CONFIGURATION_NAMESPACE)) {
-        JsonNode targetNode = mapper.convertValue(componentResolvedConfig, JsonNode.class).at(key);
-
-        if (targetNode.isValueNode()) {
-            return targetNode.asText();
-        }
-
-        if (targetNode.isMissingNode()) {
-            LOGGER.atError()
-                    .addKeyValue("Path", key)
-                    .log("Failed to interpolate configuration due to missing value node at given path");
-            // don't perform interpolation
-            return null;
-        }
-
-        if (targetNode.isContainerNode()) {
-            LOGGER.atError()
-                    .addKeyValue("Path", key)
-                    .addKeyValue("ContainerNode", targetNode.toString())
-                    .log("Failed to interpolate configuration because node at given path is a container node");
-            return null;
-        }
-        //        }
-        return null;
-    }
-
-    @Nullable // null means no value found for interpolation
-    // TODO try to avoid using null as branching logic after cleaning up the parameters
-    private String lookupConfigurationValueForComponent(Map componentResolvedConfig, String key)
-            throws PackageLoadingException {
-        // Handle cross-component system parameters
-        //        Map<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> systemParams =
-        //                systemParameters.getOrDefault(namespace, Collections.emptyMap());
-        //        if (systemParams.containsKey(key)) {
-        //            return systemParams.get(key).apply(component);
-        //        }
-
-        //        if (namespace.equals(CONFIGURATION_NAMESPACE)) {
-        JsonNode targetNode = mapper.convertValue(componentResolvedConfig, JsonNode.class).at(key);
-
-        if (targetNode.isValueNode()) {
-            return targetNode.asText();
-        }
-
-        if (targetNode.isMissingNode()) {
-            LOGGER.atError()
-                    .addKeyValue("Path", key)
-                    .log("Failed to interpolate configuration due to missing value node at given path");
-            // don't perform interpolation
-            return null;
-        }
-
-        if (targetNode.isContainerNode()) {
-            LOGGER.atError()
-                    .addKeyValue("Path", key)
-                    .addKeyValue("ContainerNode", targetNode.toString())
-                    .log("Failed to interpolate configuration because node at given path is a container node");
-            return null;
-        }
-        //        }
-        return null;
     }
 
     @Nullable
