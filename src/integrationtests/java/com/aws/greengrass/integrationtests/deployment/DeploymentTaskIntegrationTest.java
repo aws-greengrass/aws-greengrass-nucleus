@@ -58,6 +58,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -138,7 +139,7 @@ class DeploymentTaskIntegrationTest {
     }
 
     @BeforeAll
-    static void setupKernel() throws IOException, URISyntaxException {
+    static void setupKernel() {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
         kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
@@ -151,16 +152,16 @@ class DeploymentTaskIntegrationTest {
         dependencyResolver = kernel.getContext().get(DependencyResolver.class);
         kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
-        // pre-load contents to package store
-        preloadLocalStoreContent();
     }
 
     @BeforeEach
-    void beforeEach(ExtensionContext context) {
+    void beforeEach(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         deploymentServiceTopics = Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS,
                 null);
         groupToRootComponentsTopics = deploymentServiceTopics.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, MOCK_GROUP_NAME);
+        // pre-load contents to package store
+        preloadLocalStoreContent();
     }
 
     @AfterEach
@@ -413,6 +414,8 @@ class DeploymentTaskIntegrationTest {
         groupToRootComponentsTopics.lookupTopics("YellowSignal").replaceAndWait(
                 ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
+
+        preloadLocalStoreContent();
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("FailureDoNothingDeployment.json").toURI(),
                 System.currentTimeMillis());
@@ -459,6 +462,8 @@ class DeploymentTaskIntegrationTest {
         groupToRootComponentsTopics.lookupTopics("YellowSignal").remove();
         groupToRootComponentsTopics.lookupTopics("BreakingService").replaceAndWait(
                 ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+
+        preloadLocalStoreContent();
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("FailureRollbackDeployment.json").toURI(),
                 System.currentTimeMillis());
@@ -583,13 +588,16 @@ class DeploymentTaskIntegrationTest {
     /* just copy recipe and artifacts of a single component-version */
     private static void preloadLocalStoreContent(String compName, String version) throws URISyntaxException,
             IOException {
-        Path localStoreContentPath =
-                Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
-        Files.copy(resolveRecipePathFromCompStoreRoot(localStoreContentPath, compName, version),
-                resolveRecipePathFromCompStoreRoot(kernel.getNucleusPaths().componentStorePath(), compName, version));
-        copyFolderRecursively(resolveArtifactPathFromCompStoreRoot(localStoreContentPath, compName, version),
-                resolveArtifactPathFromCompStoreRoot(kernel.getNucleusPaths().componentStorePath(), compName, version),
-                REPLACE_EXISTING);
+        try {
+            Path localStoreContentPath = Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
+            Files.copy(resolveRecipePathFromCompStoreRoot(localStoreContentPath, compName, version),
+                    resolveRecipePathFromCompStoreRoot(kernel.getNucleusPaths().componentStorePath(), compName, version));
+            copyFolderRecursively(resolveArtifactPathFromCompStoreRoot(localStoreContentPath, compName, version),
+                    resolveArtifactPathFromCompStoreRoot(kernel.getNucleusPaths().componentStorePath(), compName,
+                            version), REPLACE_EXISTING);
+        } catch (FileAlreadyExistsException e) {
+            // ignore
+        }
     }
 
     private static Path resolveRecipePathFromCompStoreRoot(Path compStoreRootPath, String name, String version) {
