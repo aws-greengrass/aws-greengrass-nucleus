@@ -1,18 +1,13 @@
 {
   "DeploymentId": "arn:aws:us-east-1:greengrass:configuration:thinggroup/group1:1",
   "RootPackages": [
-    "ComponentConfigurationTestService"
+    "SystemNameSpaceInterpolationTestMain"
   ],
   "Packages": [
     {
-      "Name": "ComponentConfigurationTestService",
+      "Name": "SystemNameSpaceInterpolationTestMain",
       "ResolvedVersion": "1.0.0",
-      "RootComponent": true,
-      "ConfigurationUpdate": {
-        "RESET": [
-          "/newSingleLevelKey", "/path/newLeafKey", "/listKey"
-        ]
-      }
+      "RootComponent": true
     }
   ],
   "Timestamp": 1592574829000,

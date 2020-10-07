@@ -270,8 +270,12 @@ class DeploymentTaskIntegrationTest {
         assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
         assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
         assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
+        assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
+        assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", "updated value of defaultIsNullKey"));
+        assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
+
         assertThat(resultConfig, IsMapContaining.hasKey("path"));
-        assertThat(resultConfig, IsMapWithSize.aMapWithSize(5));    // no more keys
+        assertThat(resultConfig, IsMapWithSize.aMapWithSize(8));    // no more keys
 
         assertThat((Map<String, String>) resultConfig.get("path"),
                 IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
@@ -282,6 +286,7 @@ class DeploymentTaskIntegrationTest {
         assertTrue(stdouts.get(0).contains("I'm /path/leafKey: updated value of /path/leafKey."));
         assertTrue(stdouts.get(0).contains("I'm /listKey/0: item3."));
         assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
+        assertTrue(stdouts.get(0).contains("I'm /defaultIsNullKey: updated value of defaultIsNullKey."));
         assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
         stdouts.clear();
 
@@ -300,9 +305,13 @@ class DeploymentTaskIntegrationTest {
         assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
         assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
         assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
+        assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
+        assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", "updated value of defaultIsNullKey"));
+        assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
+
         assertThat(resultConfig, IsMapContaining.hasKey("path"));
         assertThat(resultConfig, IsMapContaining.hasEntry("newSingleLevelKey", "value of newSingleLevelKey"));
-        assertThat(resultConfig, IsMapWithSize.aMapWithSize(6));    // no more keys
+        assertThat(resultConfig, IsMapWithSize.aMapWithSize(9));    // no more keys
 
         assertThat((Map<String, String>) resultConfig.get("path"),
                 IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
@@ -315,6 +324,7 @@ class DeploymentTaskIntegrationTest {
         assertTrue(stdouts.get(0).contains("I'm /path/leafKey: updated value of /path/leafKey."));
         assertTrue(stdouts.get(0).contains("I'm /listKey/0: item3."));
         assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
+        assertTrue(stdouts.get(0).contains("I'm /defaultIsNullKey: updated value of defaultIsNullKey."));
         assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: value of newSingleLevelKey."));
         stdouts.clear();
 
@@ -330,16 +340,20 @@ class DeploymentTaskIntegrationTest {
         resultConfig =
                 kernel.findServiceTopic("ComponentConfigurationTestService").findTopics("Configurations").toPOJO();
         assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
-        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
+        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
         assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
         assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
+        assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
+        assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", "updated value of defaultIsNullKey"));
+        assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
+
         assertThat(resultConfig, IsMapContaining.hasKey("path"));
         assertThat((Map<String, String>) resultConfig.get("path"),
-                IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
+                IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
 
         assertFalse(resultConfig.containsKey("newSingleLevelKey"),
                 "newSingleLevelKey should be cleared after RESET because it doesn't have a default value");
-        assertThat(resultConfig, IsMapWithSize.aMapWithSize(5));    // no more keys
+        assertThat(resultConfig, IsMapWithSize.aMapWithSize(8));    // no more keys
 
         assertFalse(((Map<String, String>) resultConfig.get("path")).containsKey("newLeafKey"),
                 "/path/newSingleLevelKey should be cleared after RESET because it doesn't have a default value");
@@ -347,9 +361,10 @@ class DeploymentTaskIntegrationTest {
 
         // verify interpolation result
         assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: updated value of singleLevelKey."));
-        assertTrue(stdouts.get(0).contains("I'm /path/leafKey: default value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains("I'm /listKey/0: item3."));
+        assertTrue(stdouts.get(0).contains("I'm /path/leafKey: updated value of /path/leafKey."));
+        assertTrue(stdouts.get(0).contains("I'm /listKey/0: item1."));
         assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
+        assertTrue(stdouts.get(0).contains("I'm /defaultIsNullKey: updated value of defaultIsNullKey."));
         assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
         stdouts.clear();
 
@@ -367,15 +382,36 @@ class DeploymentTaskIntegrationTest {
         Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
+    private void verifyDefaultValueIsApplied(List<String> stdouts, Map<String, Object> resultConfig) {
+        // Asserted default values are from the ComponentConfigurationTestService-1.0.0.yaml recipe file
+        assertThat(resultConfig, IsMapWithSize.aMapWithSize(8));
+        assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "default value of singleLevelKey"));
+        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
+        assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
+        assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
+        assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
+        assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", null));
+        assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", "I will be set to null soon"));
+
+
+
+        assertThat(resultConfig, IsMapContaining.hasKey("path"));
+        assertThat((Map<String, String>) resultConfig.get("path"),
+                   IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
+
+        // verify interpolation result
+        assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: default value of singleLevelKey."));
+        assertTrue(stdouts.get(0).contains("I'm /path/leafKey: default value of /path/leafKey."));
+        assertTrue(stdouts.get(0).contains("I'm /listKey/0: item1."));
+        assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
+        assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
+        stdouts.clear();
+    }
+
     @Test
     @Order(2)
     void GIVEN_a_deployment_with_dependency_has_config_WHEN_submitted_THEN_dependency_configs_are_interpolated()
             throws Exception {
-
-        // Two things are verified in this test
-        // 1. The component's configurations are updated correctly in the kernel's config store
-        // 2. The interpolation is correct by taking the newly updated configuration, that is consistent
-
         // Set up stdout listener to capture stdout for verify #2 interpolation
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
@@ -407,29 +443,46 @@ class DeploymentTaskIntegrationTest {
         Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
-    private void verifyDefaultValueIsApplied(List<String> stdouts, Map<String, Object> resultConfig) {
-        // Asserted default values are from the ComponentConfigurationTestService-1.0.0.yaml recipe file
-        assertThat(resultConfig, IsMapWithSize.aMapWithSize(5));
-        assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "default value of singleLevelKey"));
-        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
-        assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
-        assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
 
-        assertThat(resultConfig, IsMapContaining.hasKey("path"));
-        assertThat((Map<String, String>) resultConfig.get("path"),
-                IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
+    @Test
+    @Order(2)
+    void GIVEN_a_deployment_has_component_use_system_config_WHEN_submitted_THEN_system_configs_are_interpolated()
+            throws Exception {
+
+        // Set up stdout listener to capture stdout for verify #2 interpolation
+        List<String> stdouts = new CopyOnWriteArrayList<>();
+        Consumer<GreengrassLogMessage> listener = m -> {
+            Map<String, String> contexts = m.getContexts();
+            String messageOnStdout = contexts.get("stdout");
+            if (messageOnStdout != null && messageOnStdout.contains("SystemNameSpaceInterpolationTestMain output")) {
+                messageOnStdout = messageOnStdout.replaceAll("\"", ""); // Windows has quotes in the echo, so strip them
+
+                stdouts.add(messageOnStdout);
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+
+
+        /*
+         * 1st deployment. Default Config.
+         */
+        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SystemConfigTest_DeployDocument.json").toURI(),
+                System.currentTimeMillis());
+        resultFuture.get(10, TimeUnit.SECONDS);
 
         // verify interpolation result
-        assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: default value of singleLevelKey."));
+        assertTrue(stdouts.get(0).contains("I'm my own artifact path:  default value of singleLevelKey."));
         assertTrue(stdouts.get(0).contains("I'm /path/leafKey: default value of /path/leafKey."));
         assertTrue(stdouts.get(0).contains("I'm /listKey/0: item1."));
-        assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
         assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
-        stdouts.clear();
+
+        Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
     @Test
     @Order(2)
+    @Deprecated
     void GIVEN_services_running_WHEN_updated_params_THEN_services_start_with_updated_params_in_kernel()
             throws Exception {
         outputMessagesToTimestamp.clear();

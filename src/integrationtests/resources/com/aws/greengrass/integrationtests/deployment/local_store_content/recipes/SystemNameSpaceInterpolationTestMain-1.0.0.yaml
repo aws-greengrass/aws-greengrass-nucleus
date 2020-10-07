@@ -6,7 +6,7 @@ ComponentPublisher: Me
 ComponentVersion: '1.0.0'
 
 ComponentDependencies:
-  CustomerApp:
+  GreenSignal:
     VersionRequirement: 1.0.0
 
 Manifests:
@@ -17,8 +17,6 @@ Manifests:
         echo "SystemNameSpaceInterpolationTestMain output
         I'm my own artifact path: {artifacts:path}.
         I'm my own artifact decompressed path: {artifacts:decompressedPath}.
-
-        I'm CustomerApp's artifact path: {CustomerApp:artifacts:path}.
-        I'm CustomerApp's artifact decompressed path: {CustomerApp:artifacts:decompressedPath}.
-
-        I'm kernel's root path: {kernel:rootPath}}}
+        I'm GreenSignal's artifact path: {GreenSignal:artifacts:path}.
+        I'm GreenSignal's artifact decompressed path: {GreenSignal:artifacts:decompressedPath}.
+        I'm kernel's root path: {kernel:rootPath}"

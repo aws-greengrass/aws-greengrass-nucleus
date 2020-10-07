@@ -270,8 +270,7 @@ public class KernelConfigResolver {
             ConfigurationUpdateOperation configurationUpdateOperation, JsonNode defaultConfiguration) {
 
         // initialize to empty map if null because we will use this map as the base.
-        Map<String, Object> resolvedConfig =
-                currentRunningConfig == null ? new HashMap<>() : new HashMap<>(currentRunningConfig);
+        Map<String, Object> resolvedConfig;
 
         // perform RESET first
         resolvedConfig =
@@ -303,17 +302,32 @@ public class KernelConfigResolver {
             // regular pointer handling
             JsonPointer jsonPointer = JsonPointer.compile(pointer);
 
-            JsonNode targetNode = defaultValue.at(jsonPointer);
+            if (node.at(jsonPointer.head()).isArray()) {
+                LOGGER.atError().log("No support for resetting an element of array or list");
+                continue;
+            }
 
-            if ((targetNode.isMissingNode())) {
+            JsonNode targetDefaultNode = defaultValue.at(jsonPointer);
+
+            if ((targetDefaultNode.isMissingNode())) {
                 // missing default value -> remove the entry completely
                 // note: remove, rather than setting to null.
-                ((ObjectNode) node.at(jsonPointer.head())).remove(jsonPointer.last().getMatchingProperty());
-
+                if (node.at(jsonPointer.head()).isObject()) {
+                    ((ObjectNode) node.at(jsonPointer.head())).remove(jsonPointer.last().getMatchingProperty());
+                } else {
+                    // parent is missing node, or value node. Do nothing.
+                    LOGGER.atError().log();
+                }
             } else {
-                // target is container node, or a value node, including null node -> replace the entry
-                ((ObjectNode) node.at(jsonPointer.head())).replace(jsonPointer.last().getMatchingProperty(),
-                                                                   targetNode);
+                // target is container node, or a value node, including null node.
+                // replace the entry
+                if (node.at(jsonPointer.head()).isObject()) {
+
+                    ((ObjectNode) node.at(jsonPointer.head())).replace(jsonPointer.last().getMatchingProperty(),
+                                                                       targetDefaultNode);
+                } else {
+                    // parent is not a container node. should not happen.
+                }
             }
         }
 
@@ -346,10 +360,13 @@ public class KernelConfigResolver {
                 // if both are container node, recursively deep merge for children
                 Map originalChild = (Map) original.get(key);
                 Map newChild = (Map) newMap.get(key);
+
+                // note either originalChild nor newChild could be null here as they are instance of Map
                 mergedMap.put(key, deepMerge(originalChild, newChild));
             } else {
                 // This branch supports container node -> value node and vice versa as it just overrides.
                 // This branch also handles the list with entire replacement.
+                // This branch also handles setting explict null value.
                 // Note: There is no support for list append or insert at index operations.
                 mergedMap.put(key, newMap.get(key));
             }
@@ -395,7 +412,7 @@ public class KernelConfigResolver {
     }
 
     private String replace(String stringValue, ComponentIdentifier componentIdentifier, List<String> dependencies,
-            Map resolvedConfig) {
+            Map resolvedConfig) throws PackageLoadingException {
 
         Matcher matcher;
 
@@ -416,12 +433,16 @@ public class KernelConfigResolver {
                     stringValue = stringValue.replace(matcher.group(), configReplacement);
                 }
 
-            } else {
+            } else if (systemParameters.containsKey(namespace)){
                 // handle system config
-                //                String configReplacement = lookupSystemConfig(componentIdentifier, namespace, key);
-                //                if (configReplacement != null) {
-                //                    stringValue = stringValue.replace(matcher.group(), configReplacement);
-                //                }
+                String configReplacement = lookupSystemConfig(componentIdentifier, namespace, key);
+                if (configReplacement != null) {
+                    stringValue = stringValue.replace(matcher.group(), configReplacement);
+                }
+
+            } else {
+                // unrecognized namespace
+                LOGGER.atError().log("unrecognized namespace");
             }
 
         }
@@ -476,19 +497,17 @@ public class KernelConfigResolver {
                 }
 
                 LOGGER.atError().log("No replacement as it could be find in either deployment or existed");
-            } else {
+            } else if (systemParameters.containsKey(namespace)){
                 // handle system config
+                String configReplacement = lookupSystemConfig(componentIdentifier, namespace, key);
+                if (configReplacement != null) {
+                    stringValue = stringValue.replace(matcher.group(), configReplacement);
+                }
 
-                // check if in the current deployment
-
-                // TODO
-
-                //                String configReplacement = lookupSystemConfig(componentIdentifier, namespace, key);
-                //                if (configReplacement != null) {
-                //                    stringValue = stringValue.replace(matcher.group(), configReplacement);
-                //                }
+            } else {
+                // unrecognized namespace
+                LOGGER.atError().log("unrecognized namespace");
             }
-
 
         }
 

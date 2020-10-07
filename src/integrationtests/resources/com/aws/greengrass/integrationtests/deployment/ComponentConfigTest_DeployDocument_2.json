@@ -14,7 +14,9 @@
           "listKey": ["item3"],
           "path" : {
             "leafKey": "updated value of /path/leafKey"
-          }
+          },
+          "defaultIsNullKey": "updated value of defaultIsNullKey",
+          "willBeNullKey": null
         }
       }
     }
