@@ -4,5 +4,5 @@ ComponentName: pyasn1
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Publisher
 ComponentVersion: '0.4.8'
-manifests:
-  - lifecycle: {}
+Manifests:
+  - Lifecycle: {}
