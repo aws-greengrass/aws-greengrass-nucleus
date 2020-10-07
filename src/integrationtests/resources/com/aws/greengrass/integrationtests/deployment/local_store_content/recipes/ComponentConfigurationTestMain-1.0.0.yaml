@@ -1,6 +1,6 @@
 ---
 RecipeFormatVersion: '2020-01-25'
-ComponentName: ComponentConfigurationTestMain-1.0.0.yaml
+ComponentName: ComponentConfigurationTestMain
 ComponentDescription: This is a main that depends on ComponentConfigurationTestService-1.0.0.yaml
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
