@@ -1,12 +1,16 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class StopComponentResponse implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#StopComponentResponse";
+
   public static final StopComponentResponse VOID;
 
   static {
@@ -59,6 +63,23 @@ public class StopComponentResponse implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#StopComponentResponse";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof StopComponentResponse)) return false;
+    if (this == rhs) return true;
+    final StopComponentResponse other = (StopComponentResponse)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.stopStatus.equals(other.stopStatus);
+    isEquals = isEquals && this.message.equals(other.message);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(stopStatus, message);
   }
 }

@@ -3,6 +3,7 @@ package generated.software.amazon.awssdk.iot.greengrass;
 import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
+
 import generated.software.amazon.awssdk.iot.greengrass.model.PublishToTopicRequest;
 import generated.software.amazon.awssdk.iot.greengrass.model.PublishToTopicResponse;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
@@ -17,7 +18,7 @@ public abstract class GeneratedAbstractPublishToTopicOperationHandler extends Op
 
   @Override
   protected final Class<PublishToTopicRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.PublishToTopicRequest.class;
+    return PublishToTopicRequest.class;
   }
 
   @Override
@@ -27,7 +28,7 @@ public abstract class GeneratedAbstractPublishToTopicOperationHandler extends Op
 
   @Override
   protected final Class<PublishToTopicResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.PublishToTopicResponse.class;
+    return PublishToTopicResponse.class;
   }
 
   @Override

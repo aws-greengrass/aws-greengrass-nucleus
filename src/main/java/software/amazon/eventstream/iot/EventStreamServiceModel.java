@@ -13,7 +13,12 @@ import java.util.Base64;
 import java.util.Optional;
 
 public final class EventStreamServiceModel {
-    public static final Gson GSON;   //visible for testing
+    public static final Gson GSON;
+
+    public static final String CONTENT_TYPE_HEADER = ":content-type";
+    public static final String CONTENT_TYPE_APPLICATION_TEXT = "text/plain";
+    public static final String CONTENT_TYPE_APPLICATION_JSON = "application/json";
+    public static final String SERVICE_MODEL_TYPE_HEADER = "service-model-type";
 
     static {
         GsonBuilder builder = new GsonBuilder();

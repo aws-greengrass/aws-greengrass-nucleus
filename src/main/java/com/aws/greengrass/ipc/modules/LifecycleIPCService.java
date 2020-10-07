@@ -120,7 +120,6 @@ public class LifecycleIPCService implements Startable, InjectionActions {
 
     @Override
     public void startup() {
-
         greengrassCoreIPCService.setUpdateStateHandler(
                 (context) -> eventStreamAgent.getUpdateStateOperationHandler(context));
         greengrassCoreIPCService.setSubscribeToComponentUpdatesHandler(

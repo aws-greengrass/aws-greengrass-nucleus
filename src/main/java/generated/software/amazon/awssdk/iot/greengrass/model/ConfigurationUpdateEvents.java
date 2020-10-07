@@ -1,14 +1,18 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class ConfigurationUpdateEvents implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ConfigurationUpdateEvents";
+
   private transient UnionMember setUnionMember;
 
   @Expose(
@@ -42,7 +46,7 @@ public class ConfigurationUpdateEvents implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#ConfigurationUpdateEvents";
+    return APPLICATION_MODEL_TYPE;
   }
 
   public void selfDesignateSetUnionMember() {
@@ -60,8 +64,25 @@ public class ConfigurationUpdateEvents implements EventStreamableJsonMessage {
     }
   }
 
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof ConfigurationUpdateEvents)) return false;
+    if (this == rhs) return true;
+    final ConfigurationUpdateEvents other = (ConfigurationUpdateEvents)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.configurationUpdateEvent.equals(other.configurationUpdateEvent);
+    isEquals = isEquals && this.setUnionMember.equals(other.setUnionMember);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(configurationUpdateEvent, setUnionMember);
+  }
+
   public enum UnionMember {
-    CONFIGURATION_UPDATE_EVENT("CONFIGURATION_UPDATE_EVENT", (generated.software.amazon.awssdk.iot.greengrass.model.ConfigurationUpdateEvents obj) -> obj.configurationUpdateEvent = Optional.empty(), (generated.software.amazon.awssdk.iot.greengrass.model.ConfigurationUpdateEvents obj) -> obj.configurationUpdateEvent != null && !obj.configurationUpdateEvent.isPresent());
+    CONFIGURATION_UPDATE_EVENT("CONFIGURATION_UPDATE_EVENT", (ConfigurationUpdateEvents obj) -> obj.configurationUpdateEvent = Optional.empty(), (ConfigurationUpdateEvents obj) -> obj.configurationUpdateEvent != null && !obj.configurationUpdateEvent.isPresent());
 
     private String fieldName;
 

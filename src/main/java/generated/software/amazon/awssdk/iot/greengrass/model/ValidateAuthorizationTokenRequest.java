@@ -1,12 +1,16 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class ValidateAuthorizationTokenRequest implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ValidateAuthorizationTokenRequest";
+
   public static final ValidateAuthorizationTokenRequest VOID;
 
   static {
@@ -41,6 +45,22 @@ public class ValidateAuthorizationTokenRequest implements EventStreamableJsonMes
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#ValidateAuthorizationTokenRequest";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof ValidateAuthorizationTokenRequest)) return false;
+    if (this == rhs) return true;
+    final ValidateAuthorizationTokenRequest other = (ValidateAuthorizationTokenRequest)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.token.equals(other.token);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(token);
   }
 }

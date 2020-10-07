@@ -2,12 +2,16 @@ package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
 import java.lang.Boolean;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class PublishToIoTCoreRequest implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#PublishToIoTCoreRequest";
+
   public static final PublishToIoTCoreRequest VOID;
 
   static {
@@ -96,6 +100,25 @@ public class PublishToIoTCoreRequest implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#PublishToIoTCoreRequest";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof PublishToIoTCoreRequest)) return false;
+    if (this == rhs) return true;
+    final PublishToIoTCoreRequest other = (PublishToIoTCoreRequest)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.topicName.equals(other.topicName);
+    isEquals = isEquals && this.qos.equals(other.qos);
+    isEquals = isEquals && this.retain.equals(other.retain);
+    isEquals = isEquals && this.payload.equals(other.payload);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(topicName, qos, retain, payload);
   }
 }

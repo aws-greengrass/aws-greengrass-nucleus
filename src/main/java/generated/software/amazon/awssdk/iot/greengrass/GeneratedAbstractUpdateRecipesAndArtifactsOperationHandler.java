@@ -17,7 +17,7 @@ public abstract class GeneratedAbstractUpdateRecipesAndArtifactsOperationHandler
 
   @Override
   protected final Class<UpdateRecipesAndArtifactsRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.UpdateRecipesAndArtifactsRequest.class;
+    return UpdateRecipesAndArtifactsRequest.class;
   }
 
   @Override
@@ -27,7 +27,7 @@ public abstract class GeneratedAbstractUpdateRecipesAndArtifactsOperationHandler
 
   @Override
   protected final Class<UpdateRecipesAndArtifactsResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.UpdateRecipesAndArtifactsResponse.class;
+    return UpdateRecipesAndArtifactsResponse.class;
   }
 
   @Override

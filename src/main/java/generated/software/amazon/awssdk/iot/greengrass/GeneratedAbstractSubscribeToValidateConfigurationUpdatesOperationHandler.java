@@ -17,7 +17,7 @@ public abstract class GeneratedAbstractSubscribeToValidateConfigurationUpdatesOp
 
   @Override
   protected final Class<SubscribeToValidateConfigurationUpdatesRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.SubscribeToValidateConfigurationUpdatesRequest.class;
+    return SubscribeToValidateConfigurationUpdatesRequest.class;
   }
 
   @Override
@@ -27,7 +27,7 @@ public abstract class GeneratedAbstractSubscribeToValidateConfigurationUpdatesOp
 
   @Override
   protected final Class<SubscribeToValidateConfigurationUpdatesResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.SubscribeToValidateConfigurationUpdatesResponse.class;
+    return SubscribeToValidateConfigurationUpdatesResponse.class;
   }
 
   @Override

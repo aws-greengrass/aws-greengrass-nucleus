@@ -7,10 +7,13 @@ import java.lang.String;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class UpdateConfigurationRequest implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#UpdateConfigurationRequest";
+
   public static final UpdateConfigurationRequest VOID;
 
   static {
@@ -117,6 +120,26 @@ public class UpdateConfigurationRequest implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#UpdateConfigurationRequest";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof UpdateConfigurationRequest)) return false;
+    if (this == rhs) return true;
+    final UpdateConfigurationRequest other = (UpdateConfigurationRequest)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.componentName.equals(other.componentName);
+    isEquals = isEquals && this.keyPath.equals(other.keyPath);
+    isEquals = isEquals && this.timestamp.equals(other.timestamp);
+    isEquals = isEquals && this.newValue.equals(other.newValue);
+    isEquals = isEquals && this.oldValue.equals(other.oldValue);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(componentName, keyPath, timestamp, newValue, oldValue);
   }
 }

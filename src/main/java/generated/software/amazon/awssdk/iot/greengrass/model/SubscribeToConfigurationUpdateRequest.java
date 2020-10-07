@@ -1,13 +1,17 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class SubscribeToConfigurationUpdateRequest implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#SubscribeToConfigurationUpdateRequest";
+
   public static final SubscribeToConfigurationUpdateRequest VOID;
 
   static {
@@ -60,6 +64,23 @@ public class SubscribeToConfigurationUpdateRequest implements EventStreamableJso
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#SubscribeToConfigurationUpdateRequest";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof SubscribeToConfigurationUpdateRequest)) return false;
+    if (this == rhs) return true;
+    final SubscribeToConfigurationUpdateRequest other = (SubscribeToConfigurationUpdateRequest)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.componentName.equals(other.componentName);
+    isEquals = isEquals && this.keyPath.equals(other.keyPath);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(componentName, keyPath);
   }
 }

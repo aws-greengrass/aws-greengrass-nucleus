@@ -1,14 +1,18 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class ComponentUpdatePolicyEvents implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ComponentUpdatePolicyEvents";
+
   private transient UnionMember setUnionMember;
 
   @Expose(
@@ -61,7 +65,7 @@ public class ComponentUpdatePolicyEvents implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#ComponentUpdatePolicyEvents";
+    return APPLICATION_MODEL_TYPE;
   }
 
   public void selfDesignateSetUnionMember() {
@@ -79,10 +83,28 @@ public class ComponentUpdatePolicyEvents implements EventStreamableJsonMessage {
     }
   }
 
-  public enum UnionMember {
-    PRE_UPDATE_EVENT("PRE_UPDATE_EVENT", (generated.software.amazon.awssdk.iot.greengrass.model.ComponentUpdatePolicyEvents obj) -> obj.preUpdateEvent = Optional.empty(), (generated.software.amazon.awssdk.iot.greengrass.model.ComponentUpdatePolicyEvents obj) -> obj.preUpdateEvent != null && !obj.preUpdateEvent.isPresent()),
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof ComponentUpdatePolicyEvents)) return false;
+    if (this == rhs) return true;
+    final ComponentUpdatePolicyEvents other = (ComponentUpdatePolicyEvents)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.preUpdateEvent.equals(other.preUpdateEvent);
+    isEquals = isEquals && this.postUpdateEvent.equals(other.postUpdateEvent);
+    isEquals = isEquals && this.setUnionMember.equals(other.setUnionMember);
+    return isEquals;
+  }
 
-    POST_UPDATE_EVENT("POST_UPDATE_EVENT", (generated.software.amazon.awssdk.iot.greengrass.model.ComponentUpdatePolicyEvents obj) -> obj.postUpdateEvent = Optional.empty(), (generated.software.amazon.awssdk.iot.greengrass.model.ComponentUpdatePolicyEvents obj) -> obj.postUpdateEvent != null && !obj.postUpdateEvent.isPresent());
+  @Override
+  public int hashCode() {
+    return Objects.hash(preUpdateEvent, postUpdateEvent, setUnionMember);
+  }
+
+  public enum UnionMember {
+    PRE_UPDATE_EVENT("PRE_UPDATE_EVENT", (ComponentUpdatePolicyEvents obj) -> obj.preUpdateEvent = Optional.empty(), (ComponentUpdatePolicyEvents obj) -> obj.preUpdateEvent != null && !obj.preUpdateEvent.isPresent()),
+
+    POST_UPDATE_EVENT("POST_UPDATE_EVENT", (ComponentUpdatePolicyEvents obj) -> obj.postUpdateEvent = Optional.empty(), (ComponentUpdatePolicyEvents obj) -> obj.postUpdateEvent != null && !obj.postUpdateEvent.isPresent());
 
     private String fieldName;
 

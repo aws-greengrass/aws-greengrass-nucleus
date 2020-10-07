@@ -5,10 +5,13 @@ import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class ComponentDetails implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ComponentDetails";
+
   public static final ComponentDetails VOID;
 
   static {
@@ -97,6 +100,25 @@ public class ComponentDetails implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#ComponentDetails";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof ComponentDetails)) return false;
+    if (this == rhs) return true;
+    final ComponentDetails other = (ComponentDetails)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.componentName.equals(other.componentName);
+    isEquals = isEquals && this.version.equals(other.version);
+    isEquals = isEquals && this.state.equals(other.state);
+    isEquals = isEquals && this.configuration.equals(other.configuration);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(componentName, version, state, configuration);
   }
 }

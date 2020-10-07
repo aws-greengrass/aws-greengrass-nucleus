@@ -1,12 +1,16 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class CreateLocalDeploymentResponse implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#CreateLocalDeploymentResponse";
+
   public static final CreateLocalDeploymentResponse VOID;
 
   static {
@@ -41,6 +45,22 @@ public class CreateLocalDeploymentResponse implements EventStreamableJsonMessage
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#CreateLocalDeploymentResponse";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof CreateLocalDeploymentResponse)) return false;
+    if (this == rhs) return true;
+    final CreateLocalDeploymentResponse other = (CreateLocalDeploymentResponse)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.deploymentId.equals(other.deploymentId);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(deploymentId);
   }
 }

@@ -2,12 +2,16 @@ package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
 import java.lang.Long;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class DeferComponentUpdateRequest implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#DeferComponentUpdateRequest";
+
   public static final DeferComponentUpdateRequest VOID;
 
   static {
@@ -60,6 +64,23 @@ public class DeferComponentUpdateRequest implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#DeferComponentUpdateRequest";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof DeferComponentUpdateRequest)) return false;
+    if (this == rhs) return true;
+    final DeferComponentUpdateRequest other = (DeferComponentUpdateRequest)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.message.equals(other.message);
+    isEquals = isEquals && this.recheckAfterMs.equals(other.recheckAfterMs);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(message, recheckAfterMs);
   }
 }

@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
@@ -24,10 +25,6 @@ public abstract class OperationContinuationHandler
         extends ServerConnectionContinuationHandler
         implements ServerStreamEventPublisher<StreamingResponseType> {
     private static final Logger LOGGER = Logger.getLogger(OperationContinuationHandler.class.getName());
-    private static final String CONTENT_TYPE_HEADER = ":content-type";
-    private static final String CONTENT_TYPE_APPLICATION_TEXT = "text/plain";
-    private static final String CONTENT_TYPE_APPLICATION_JSON = "application/json";
-    private static final String SERVICE_MODEL_TYPE_HEADER = "service-model-type";
 
     protected static final Gson GSON = EventStreamServiceModel.GSON;
 
@@ -72,7 +69,7 @@ public abstract class OperationContinuationHandler
 
     /**
      * Should return  true iff operation has either streaming input or output. If neither, return false and only allows
-     * an intial-request -> initial->response before closing the continuation.
+     * an initial-request -> initial->response before closing the continuation.
      *
      * @return
      */
@@ -129,8 +126,19 @@ public abstract class OperationContinuationHandler
     }
 
     @Override
-    final public void closeStream() {
-        continuation.close();
+    final public CompletableFuture<Void> closeStream() {
+        LOGGER.fine(String.format("[%s] closing stream", getOperationName()));
+        return continuation.sendMessage(null, null,
+                MessageType.ApplicationMessage, MessageFlags.TerminateStream.getByteValue())
+            .whenComplete((res, ex) -> {
+                if (ex != null) {
+                    LOGGER.fine(String.format("[%s] closed stream", getOperationName()));
+                } else {
+                    LOGGER.fine(String.format("[%s] %s closing stream: ", getOperationName(),
+                            ex.getClass().getName(), ex.getMessage()));
+                }
+                continuation.close();
+            });
     }
 
     /**
@@ -149,8 +157,9 @@ public abstract class OperationContinuationHandler
         }
         final List<Header> responseHeaders = new ArrayList<>();
         byte[] outputPayload = message.toPayload(GSON);
-        responseHeaders.add(Header.createHeader(CONTENT_TYPE_HEADER, CONTENT_TYPE_APPLICATION_JSON));
-        responseHeaders.add(Header.createHeader(SERVICE_MODEL_TYPE_HEADER, message.getApplicationModelType()));
+        responseHeaders.add(Header.createHeader(EventStreamServiceModel.CONTENT_TYPE_HEADER,
+                EventStreamServiceModel.CONTENT_TYPE_APPLICATION_JSON));
+        responseHeaders.add(Header.createHeader(EventStreamServiceModel.SERVICE_MODEL_TYPE_HEADER, message.getApplicationModelType()));
 
         return continuation.sendMessage(responseHeaders, outputPayload, MessageType.ApplicationMessage, 0);
     }
@@ -161,8 +170,9 @@ public abstract class OperationContinuationHandler
         }
         final List<Header> responseHeaders = new ArrayList<>();
         byte[] outputPayload = message.toPayload(GSON);
-        responseHeaders.add(Header.createHeader(CONTENT_TYPE_HEADER, CONTENT_TYPE_APPLICATION_JSON));
-        responseHeaders.add(Header.createHeader(SERVICE_MODEL_TYPE_HEADER, message.getApplicationModelType()));
+        responseHeaders.add(Header.createHeader(EventStreamServiceModel.CONTENT_TYPE_HEADER,
+                EventStreamServiceModel.CONTENT_TYPE_APPLICATION_JSON));
+        responseHeaders.add(Header.createHeader(EventStreamServiceModel.SERVICE_MODEL_TYPE_HEADER, message.getApplicationModelType()));
 
         return continuation.sendMessage(responseHeaders, outputPayload,
                 MessageType.ApplicationError, MessageFlags.TerminateStream.getByteValue());
@@ -185,17 +195,17 @@ public abstract class OperationContinuationHandler
                         getRequestClass());
                 //call into business logic
                 final ResponseType result = handleRequest(initialRequest);
-                if(result != null && !isStreamingOperation()) {
+                if (result != null && !isStreamingOperation()) {
                     if (!getResponseClass().isInstance(result)) {
                         throw new RuntimeException("Handler for operation [" + getOperationName()
                                 + "] did not return expected type. Found: " + result.getClass().getName());
                     }
                     sendMessage(result).whenComplete((res, ex) -> {
+                        if (!isStreamingOperation()) {
+                            closeStream();
+                        }
                         if (ex != null) {
                             LOGGER.severe(ex.getClass().getName() + " sending response message: " + ex.getMessage());
-                            if (!isStreamingOperation()) {
-                                continuation.close();
-                            }
                         } else {
                             LOGGER.finer("Response successfully sent");
                         }
@@ -214,7 +224,8 @@ public abstract class OperationContinuationHandler
         } catch (Exception e) {
             final List<Header> responseHeaders = new ArrayList<>(1);
             byte[] outputPayload = "InternalServerError".getBytes(StandardCharsets.UTF_8);
-            responseHeaders.add(Header.createHeader(CONTENT_TYPE_HEADER, CONTENT_TYPE_APPLICATION_TEXT));
+            responseHeaders.add(Header.createHeader(EventStreamServiceModel.CONTENT_TYPE_HEADER,
+                    EventStreamServiceModel.CONTENT_TYPE_APPLICATION_TEXT));
             // TODO: are there any exceptions we wouldn't want to return a generic server fault?
             // TODO: this is the kind of exception that should be logged with a request ID especially in a server-client context
             LOGGER.severe(String.format("[%s] operation threw unexpected %s: %s", getOperationName(),
@@ -229,7 +240,7 @@ public abstract class OperationContinuationHandler
                         else {
                             LOGGER.finer("Error response successfully sent");
                         }
-                        continuation.close();
+                        closeStream();
                     });
         }
     }

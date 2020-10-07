@@ -3,6 +3,7 @@ package generated.software.amazon.awssdk.iot.greengrass;
 import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
+
 import generated.software.amazon.awssdk.iot.greengrass.model.RestartComponentRequest;
 import generated.software.amazon.awssdk.iot.greengrass.model.RestartComponentResponse;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
@@ -17,7 +18,7 @@ public abstract class GeneratedAbstractRestartComponentOperationHandler extends 
 
   @Override
   protected final Class<RestartComponentRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.RestartComponentRequest.class;
+    return RestartComponentRequest.class;
   }
 
   @Override
@@ -27,7 +28,7 @@ public abstract class GeneratedAbstractRestartComponentOperationHandler extends 
 
   @Override
   protected final Class<RestartComponentResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.RestartComponentResponse.class;
+    return RestartComponentResponse.class;
   }
 
   @Override

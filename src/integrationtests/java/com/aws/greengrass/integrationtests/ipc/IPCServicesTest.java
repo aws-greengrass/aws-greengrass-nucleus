@@ -309,7 +309,6 @@ class IPCServicesTest {
             }
         });
         UpdateStateRequest updateStateRequest = new UpdateStateRequest();
-        updateStateRequest.setServiceName(TEST_SERVICE_NAME);
         updateStateRequest.setState(LifecycleState.ERRORED);
         ClientConnectionContinuation clientConnectionContinuation =
                 IPCTestUtils.sendOperationRequest(clientConnection, "aws.greengrass#UpdateState",

@@ -1,14 +1,18 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class PublishMessage implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#PublishMessage";
+
   private transient UnionMember setUnionMember;
 
   @Expose(
@@ -61,7 +65,7 @@ public class PublishMessage implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#PublishMessage";
+    return APPLICATION_MODEL_TYPE;
   }
 
   public void selfDesignateSetUnionMember() {
@@ -79,10 +83,28 @@ public class PublishMessage implements EventStreamableJsonMessage {
     }
   }
 
-  public enum UnionMember {
-    JSON_MESSAGE("JSON_MESSAGE", (generated.software.amazon.awssdk.iot.greengrass.model.PublishMessage obj) -> obj.jsonMessage = Optional.empty(), (generated.software.amazon.awssdk.iot.greengrass.model.PublishMessage obj) -> obj.jsonMessage != null && !obj.jsonMessage.isPresent()),
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof PublishMessage)) return false;
+    if (this == rhs) return true;
+    final PublishMessage other = (PublishMessage)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.jsonMessage.equals(other.jsonMessage);
+    isEquals = isEquals && this.binaryMessage.equals(other.binaryMessage);
+    isEquals = isEquals && this.setUnionMember.equals(other.setUnionMember);
+    return isEquals;
+  }
 
-    BINARY_MESSAGE("BINARY_MESSAGE", (generated.software.amazon.awssdk.iot.greengrass.model.PublishMessage obj) -> obj.binaryMessage = Optional.empty(), (generated.software.amazon.awssdk.iot.greengrass.model.PublishMessage obj) -> obj.binaryMessage != null && !obj.binaryMessage.isPresent());
+  @Override
+  public int hashCode() {
+    return Objects.hash(jsonMessage, binaryMessage, setUnionMember);
+  }
+
+  public enum UnionMember {
+    JSON_MESSAGE("JSON_MESSAGE", (PublishMessage obj) -> obj.jsonMessage = Optional.empty(), (PublishMessage obj) -> obj.jsonMessage != null && !obj.jsonMessage.isPresent()),
+
+    BINARY_MESSAGE("BINARY_MESSAGE", (PublishMessage obj) -> obj.binaryMessage = Optional.empty(), (PublishMessage obj) -> obj.binaryMessage != null && !obj.binaryMessage.isPresent());
 
     private String fieldName;
 
