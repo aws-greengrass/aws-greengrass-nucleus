@@ -1,12 +1,16 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class UpdateStateRequest implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#UpdateStateRequest";
+
   public static final UpdateStateRequest VOID;
 
   static {
@@ -59,6 +63,23 @@ public class UpdateStateRequest implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#UpdateStateRequest";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof UpdateStateRequest)) return false;
+    if (this == rhs) return true;
+    final UpdateStateRequest other = (UpdateStateRequest)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.state.equals(other.state);
+    isEquals = isEquals && this.serviceName.equals(other.serviceName);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(state, serviceName);
   }
 }

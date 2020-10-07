@@ -1,14 +1,18 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class SecretValue implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#SecretValue";
+
   private transient UnionMember setUnionMember;
 
   @Expose(
@@ -61,7 +65,7 @@ public class SecretValue implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#SecretValue";
+    return APPLICATION_MODEL_TYPE;
   }
 
   public void selfDesignateSetUnionMember() {
@@ -79,10 +83,28 @@ public class SecretValue implements EventStreamableJsonMessage {
     }
   }
 
-  public enum UnionMember {
-    SECRET_STRING("SECRET_STRING", (generated.software.amazon.awssdk.iot.greengrass.model.SecretValue obj) -> obj.secretString = Optional.empty(), (generated.software.amazon.awssdk.iot.greengrass.model.SecretValue obj) -> obj.secretString != null && !obj.secretString.isPresent()),
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof SecretValue)) return false;
+    if (this == rhs) return true;
+    final SecretValue other = (SecretValue)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.secretString.equals(other.secretString);
+    isEquals = isEquals && this.secretBinary.equals(other.secretBinary);
+    isEquals = isEquals && this.setUnionMember.equals(other.setUnionMember);
+    return isEquals;
+  }
 
-    SECRET_BINARY("SECRET_BINARY", (generated.software.amazon.awssdk.iot.greengrass.model.SecretValue obj) -> obj.secretBinary = Optional.empty(), (generated.software.amazon.awssdk.iot.greengrass.model.SecretValue obj) -> obj.secretBinary != null && !obj.secretBinary.isPresent());
+  @Override
+  public int hashCode() {
+    return Objects.hash(secretString, secretBinary, setUnionMember);
+  }
+
+  public enum UnionMember {
+    SECRET_STRING("SECRET_STRING", (SecretValue obj) -> obj.secretString = Optional.empty(), (SecretValue obj) -> obj.secretString != null && !obj.secretString.isPresent()),
+
+    SECRET_BINARY("SECRET_BINARY", (SecretValue obj) -> obj.secretBinary = Optional.empty(), (SecretValue obj) -> obj.secretBinary != null && !obj.secretBinary.isPresent());
 
     private String fieldName;
 

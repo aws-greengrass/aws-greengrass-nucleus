@@ -3,6 +3,7 @@ package generated.software.amazon.awssdk.iot.greengrass;
 import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
+
 import generated.software.amazon.awssdk.iot.greengrass.model.UpdateStateRequest;
 import generated.software.amazon.awssdk.iot.greengrass.model.UpdateStateResponse;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
@@ -17,7 +18,7 @@ public abstract class GeneratedAbstractUpdateStateOperationHandler extends Opera
 
   @Override
   protected final Class<UpdateStateRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.UpdateStateRequest.class;
+    return UpdateStateRequest.class;
   }
 
   @Override
@@ -27,7 +28,7 @@ public abstract class GeneratedAbstractUpdateStateOperationHandler extends Opera
 
   @Override
   protected final Class<UpdateStateResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.UpdateStateResponse.class;
+    return UpdateStateResponse.class;
   }
 
   @Override

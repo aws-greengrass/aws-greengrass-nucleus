@@ -1,14 +1,18 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class ValidateConfigurationUpdateEvents implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ValidateConfigurationUpdateEvents";
+
   private transient UnionMember setUnionMember;
 
   @Expose(
@@ -43,7 +47,7 @@ public class ValidateConfigurationUpdateEvents implements EventStreamableJsonMes
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#ValidateConfigurationUpdateEvents";
+    return APPLICATION_MODEL_TYPE;
   }
 
   public void selfDesignateSetUnionMember() {
@@ -61,8 +65,25 @@ public class ValidateConfigurationUpdateEvents implements EventStreamableJsonMes
     }
   }
 
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof ValidateConfigurationUpdateEvents)) return false;
+    if (this == rhs) return true;
+    final ValidateConfigurationUpdateEvents other = (ValidateConfigurationUpdateEvents)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.validateConfigurationUpdateEvent.equals(other.validateConfigurationUpdateEvent);
+    isEquals = isEquals && this.setUnionMember.equals(other.setUnionMember);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(validateConfigurationUpdateEvent, setUnionMember);
+  }
+
   public enum UnionMember {
-    VALIDATE_CONFIGURATION_UPDATE_EVENT("VALIDATE_CONFIGURATION_UPDATE_EVENT", (generated.software.amazon.awssdk.iot.greengrass.model.ValidateConfigurationUpdateEvents obj) -> obj.validateConfigurationUpdateEvent = Optional.empty(), (generated.software.amazon.awssdk.iot.greengrass.model.ValidateConfigurationUpdateEvents obj) -> obj.validateConfigurationUpdateEvent != null && !obj.validateConfigurationUpdateEvent.isPresent());
+    VALIDATE_CONFIGURATION_UPDATE_EVENT("VALIDATE_CONFIGURATION_UPDATE_EVENT", (ValidateConfigurationUpdateEvents obj) -> obj.validateConfigurationUpdateEvent = Optional.empty(), (ValidateConfigurationUpdateEvents obj) -> obj.validateConfigurationUpdateEvent != null && !obj.validateConfigurationUpdateEvent.isPresent());
 
     private String fieldName;
 

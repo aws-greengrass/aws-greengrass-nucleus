@@ -1,12 +1,16 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class FailedUpdateConditionCheckError extends GreengrassCoreIPCError implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#FailedUpdateConditionCheckError";
+
   public static final FailedUpdateConditionCheckError VOID;
 
   static {
@@ -52,6 +56,22 @@ public class FailedUpdateConditionCheckError extends GreengrassCoreIPCError impl
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#FailedUpdateConditionCheckError";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof FailedUpdateConditionCheckError)) return false;
+    if (this == rhs) return true;
+    final FailedUpdateConditionCheckError other = (FailedUpdateConditionCheckError)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.message.equals(other.message);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(message);
   }
 }

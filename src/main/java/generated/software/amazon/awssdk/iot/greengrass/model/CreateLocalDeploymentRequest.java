@@ -6,10 +6,13 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class CreateLocalDeploymentRequest implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#CreateLocalDeploymentRequest";
+
   public static final CreateLocalDeploymentRequest VOID;
 
   static {
@@ -99,6 +102,25 @@ public class CreateLocalDeploymentRequest implements EventStreamableJsonMessage 
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#CreateLocalDeploymentRequest";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof CreateLocalDeploymentRequest)) return false;
+    if (this == rhs) return true;
+    final CreateLocalDeploymentRequest other = (CreateLocalDeploymentRequest)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.groupName.equals(other.groupName);
+    isEquals = isEquals && this.rootComponentVersionsToAdd.equals(other.rootComponentVersionsToAdd);
+    isEquals = isEquals && this.rootComponentsToRemove.equals(other.rootComponentsToRemove);
+    isEquals = isEquals && this.componentToConfiguration.equals(other.componentToConfiguration);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(groupName, rootComponentVersionsToAdd, rootComponentsToRemove, componentToConfiguration);
   }
 }

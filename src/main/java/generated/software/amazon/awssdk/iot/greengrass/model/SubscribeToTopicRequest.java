@@ -1,12 +1,16 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class SubscribeToTopicRequest implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#SubscribeToTopicRequest";
+
   public static final SubscribeToTopicRequest VOID;
 
   static {
@@ -59,6 +63,23 @@ public class SubscribeToTopicRequest implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#SubscribeToTopicRequest";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof SubscribeToTopicRequest)) return false;
+    if (this == rhs) return true;
+    final SubscribeToTopicRequest other = (SubscribeToTopicRequest)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.topic.equals(other.topic);
+    isEquals = isEquals && this.source.equals(other.source);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(topic, source);
   }
 }

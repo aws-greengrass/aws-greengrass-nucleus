@@ -18,7 +18,7 @@ import software.amazon.awssdk.crt.eventstream.ServerConnectionHandler;
 public class ServiceOperationMappingContinuationHandler extends ServerConnectionHandler {
     private static final Logger LOGGER = Logger.getLogger(ServiceOperationMappingContinuationHandler.class.getName());
     private final EventStreamRPCServiceHandler serviceHandler;
-    private AuthenticationData authenticationData;
+    private AuthenticationData authenticationData;  //should only be set once after AuthN
 
     public ServiceOperationMappingContinuationHandler(final ServerConnection serverConnection, final EventStreamRPCServiceHandler handler) {
         super(serverConnection);
@@ -51,6 +51,11 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
         }
     }
 
+    /**
+     * Post: authenticationData should not be null
+     * @param headers
+     * @param payload
+     */
     protected void onConnectRequest(List<Header> headers, byte[] payload) {
         int responseMessageFlag = 0;
         MessageType acceptResponseType = MessageType.ConnectAck;
@@ -83,15 +88,24 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                     LOGGER.info("Connection rejected for: " + authenticationData.getIdentityLabel());
                     break;
                 default:
+                    //got a big problem if this is the outcome. Someone forgot to update this switch-case
                     throw new RuntimeException("Unknown authorization decision for " + authenticationData.getIdentityLabel());
-                    //wtf mate?
             }
         }
         catch (Exception e) {
             LOGGER.severe(String.format("%s occurred while attempting to authN/authZ connect: %s", e.getClass(), e.getMessage()));
         }
         finally {
-            connection.sendProtocolMessage(null, null, acceptResponseType, responseMessageFlag);
+            connection.sendProtocolMessage(null, null, acceptResponseType, responseMessageFlag)
+                .whenComplete((res, ex) -> {
+                    if (ex != null) {
+                        LOGGER.severe(String.format("Sending connection response for %s threw exception (%s): %s",
+                            authenticationData.getIdentityLabel(), ex.getClass().getCanonicalName(), ex.getMessage()));
+                    }
+                    else {
+                        LOGGER.info("Successfully sent connection response for: " + authenticationData.getIdentityLabel());
+                    }
+                });
 
             if (responseMessageFlag != MessageFlags.ConnectionAccepted.getByteValue()) {
                 connection.closeConnection(0);  //TODO: presuming zero means no shutdown error
@@ -101,12 +115,12 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
 
     @Override
     protected ServerConnectionContinuationHandler onIncomingStream(ServerConnectionContinuation continuation, String operationName) {
-        //TODO: create a service connection context for operations that are being created here
-        //      a continuation handler needs to have the authN data associated with the connection
-        //      available, as well as other potential server connection metadata.
-
         final OperationContinuationHandlerContext operationContext = new OperationContinuationHandlerContext(
                 connection, continuation, authenticationData);
+        //TODO: future maturity can use this to ask the service handler for AuthN per operation.
+        //      boolean authorizeOperation(AuthenticationData, operationName)
+        //      would be the additional method on EventStreamRPCServiceHandler
+
         final Function<OperationContinuationHandlerContext, ? extends ServerConnectionContinuationHandler> registeredOperationHandlerFn =
                 serviceHandler.getOperationHandler(operationName);
         if (registeredOperationHandlerFn != null) {

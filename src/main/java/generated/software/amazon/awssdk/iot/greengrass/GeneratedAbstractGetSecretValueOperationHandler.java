@@ -3,6 +3,7 @@ package generated.software.amazon.awssdk.iot.greengrass;
 import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
+
 import generated.software.amazon.awssdk.iot.greengrass.model.GetSecretValueRequest;
 import generated.software.amazon.awssdk.iot.greengrass.model.GetSecretValueResponse;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
@@ -17,7 +18,7 @@ public abstract class GeneratedAbstractGetSecretValueOperationHandler extends Op
 
   @Override
   protected final Class<GetSecretValueRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.GetSecretValueRequest.class;
+    return GetSecretValueRequest.class;
   }
 
   @Override
@@ -27,7 +28,7 @@ public abstract class GeneratedAbstractGetSecretValueOperationHandler extends Op
 
   @Override
   protected final Class<GetSecretValueResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.GetSecretValueResponse.class;
+    return GetSecretValueResponse.class;
   }
 
   @Override

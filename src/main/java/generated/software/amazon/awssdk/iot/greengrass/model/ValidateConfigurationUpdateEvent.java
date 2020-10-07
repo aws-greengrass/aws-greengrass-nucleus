@@ -5,10 +5,13 @@ import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class ValidateConfigurationUpdateEvent implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ValidateConfigurationUpdateEvent";
+
   public static final ValidateConfigurationUpdateEvent VOID;
 
   static {
@@ -43,6 +46,22 @@ public class ValidateConfigurationUpdateEvent implements EventStreamableJsonMess
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#ValidateConfigurationUpdateEvent";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof ValidateConfigurationUpdateEvent)) return false;
+    if (this == rhs) return true;
+    final ValidateConfigurationUpdateEvent other = (ValidateConfigurationUpdateEvent)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.configuration.equals(other.configuration);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(configuration);
   }
 }

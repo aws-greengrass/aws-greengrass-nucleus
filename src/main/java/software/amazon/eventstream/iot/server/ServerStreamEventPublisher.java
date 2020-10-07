@@ -9,6 +9,7 @@ public interface ServerStreamEventPublisher<StreamEventType> {
      * doesn't have to be passed around
      *
      * @param streamEvent event to publish
+     * @return Completable future for having sent the stream event
      */
     public CompletableFuture<Void> sendStreamEvent(final StreamEventType streamEvent);
 
@@ -18,7 +19,7 @@ public interface ServerStreamEventPublisher<StreamEventType> {
      * sendStreamEvent.
      * 
      * @<code>publisher.sendStreamEvent(...).whenComplete((ret, ex) -> publisher.closeStream());</code>
-     * 
+     * @return Completable future for having send the termination message on the stream.
      */
-    public void closeStream();
+    public CompletableFuture<Void> closeStream();
 }

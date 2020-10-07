@@ -17,7 +17,7 @@ public abstract class GeneratedAbstractGetLocalDeploymentStatusOperationHandler 
 
   @Override
   protected final Class<GetLocalDeploymentStatusRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.GetLocalDeploymentStatusRequest.class;
+    return GetLocalDeploymentStatusRequest.class;
   }
 
   @Override
@@ -27,7 +27,7 @@ public abstract class GeneratedAbstractGetLocalDeploymentStatusOperationHandler 
 
   @Override
   protected final Class<GetLocalDeploymentStatusResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.GetLocalDeploymentStatusResponse.class;
+    return GetLocalDeploymentStatusResponse.class;
   }
 
   @Override

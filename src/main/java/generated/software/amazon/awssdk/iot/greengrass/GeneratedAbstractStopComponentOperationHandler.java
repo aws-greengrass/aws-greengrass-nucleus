@@ -3,6 +3,7 @@ package generated.software.amazon.awssdk.iot.greengrass;
 import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
+
 import generated.software.amazon.awssdk.iot.greengrass.model.StopComponentRequest;
 import generated.software.amazon.awssdk.iot.greengrass.model.StopComponentResponse;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
@@ -17,7 +18,7 @@ public abstract class GeneratedAbstractStopComponentOperationHandler extends Ope
 
   @Override
   protected final Class<StopComponentRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.StopComponentRequest.class;
+    return StopComponentRequest.class;
   }
 
   @Override
@@ -27,7 +28,7 @@ public abstract class GeneratedAbstractStopComponentOperationHandler extends Ope
 
   @Override
   protected final Class<StopComponentResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.StopComponentResponse.class;
+    return StopComponentResponse.class;
   }
 
   @Override

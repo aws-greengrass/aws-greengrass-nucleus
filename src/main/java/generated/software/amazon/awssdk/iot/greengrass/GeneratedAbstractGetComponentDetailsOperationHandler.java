@@ -3,6 +3,7 @@ package generated.software.amazon.awssdk.iot.greengrass;
 import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
+
 import generated.software.amazon.awssdk.iot.greengrass.model.GetComponentDetailsRequest;
 import generated.software.amazon.awssdk.iot.greengrass.model.GetComponentDetailsResponse;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
@@ -17,7 +18,7 @@ public abstract class GeneratedAbstractGetComponentDetailsOperationHandler exten
 
   @Override
   protected final Class<GetComponentDetailsRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.GetComponentDetailsRequest.class;
+    return GetComponentDetailsRequest.class;
   }
 
   @Override
@@ -27,7 +28,7 @@ public abstract class GeneratedAbstractGetComponentDetailsOperationHandler exten
 
   @Override
   protected final Class<GetComponentDetailsResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.GetComponentDetailsResponse.class;
+    return GetComponentDetailsResponse.class;
   }
 
   @Override

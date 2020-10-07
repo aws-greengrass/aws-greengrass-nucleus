@@ -1,11 +1,6 @@
 package software.amazon.eventstream.iot.server;
 
-import software.amazon.awssdk.crt.eventstream.Header;
-
-import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Function;
-
 
 /**
  * Handler receives the input data of the connection message and produces an authorization result

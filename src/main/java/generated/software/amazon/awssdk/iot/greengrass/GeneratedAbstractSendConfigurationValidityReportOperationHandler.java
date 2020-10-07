@@ -17,7 +17,7 @@ public abstract class GeneratedAbstractSendConfigurationValidityReportOperationH
 
   @Override
   protected final Class<SendConfigurationValidityReportRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.SendConfigurationValidityReportRequest.class;
+    return SendConfigurationValidityReportRequest.class;
   }
 
   @Override
@@ -27,7 +27,7 @@ public abstract class GeneratedAbstractSendConfigurationValidityReportOperationH
 
   @Override
   protected final Class<SendConfigurationValidityReportResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.SendConfigurationValidityReportResponse.class;
+    return SendConfigurationValidityReportResponse.class;
   }
 
   @Override

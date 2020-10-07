@@ -1,12 +1,16 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class SendConfigurationValidityReportRequest implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#SendConfigurationValidityReportRequest";
+
   public static final SendConfigurationValidityReportRequest VOID;
 
   static {
@@ -42,6 +46,22 @@ public class SendConfigurationValidityReportRequest implements EventStreamableJs
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#SendConfigurationValidityReportRequest";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof SendConfigurationValidityReportRequest)) return false;
+    if (this == rhs) return true;
+    final SendConfigurationValidityReportRequest other = (SendConfigurationValidityReportRequest)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.configurationValidityReport.equals(other.configurationValidityReport);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(configurationValidityReport);
   }
 }
