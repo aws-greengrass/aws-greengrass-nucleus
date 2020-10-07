@@ -1,8 +1,8 @@
 package com.aws.greengrass.deployment;
 
-import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
@@ -27,7 +27,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -51,7 +50,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class DeploymentTaskTest {
 
-    private static final String COMPONENT_1_ROOT_PACKAGE_NAME = "component1";
     private static final String COMPONENT_2_ROOT_PACKAGE_NAME = "component2";
 
     @Mock
@@ -73,8 +71,7 @@ class DeploymentTaskTest {
 
     private final DeploymentDocument deploymentDocument =
             DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis())
-                    .groupName(DeploymentDocumentConverter.DEFAULT_GROUP_NAME)
-                    .rootPackages(Arrays.asList(COMPONENT_1_ROOT_PACKAGE_NAME)).build();
+                    .groupName(DeploymentDocumentConverter.DEFAULT_GROUP_NAME).build();
 
     private final Logger logger = LogManager.getLogger("unit test");
 

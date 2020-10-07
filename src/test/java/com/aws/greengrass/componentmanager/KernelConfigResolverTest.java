@@ -111,7 +111,6 @@ class KernelConfigResolverTest {
         DeploymentPackageConfiguration dependencyPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, false, "=2.3", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig,
                                                                         dependencyPackageDeploymentConfig))
@@ -164,7 +163,6 @@ class KernelConfigResolverTest {
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig))
                                                         .build();
@@ -212,7 +210,6 @@ class KernelConfigResolverTest {
                     put("PackageA_Param_1", "PackageA_Param_1_value");
                 }});
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig))
                                                         .build();
@@ -287,8 +284,6 @@ class KernelConfigResolverTest {
         DeploymentPackageConfiguration package3DeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_C, true, "=1.5", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A,
-                                                                TEST_INPUT_PACKAGE_B, TEST_INPUT_PACKAGE_C))
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig,
                                                                         package2DeploymentConfig,
@@ -341,7 +336,6 @@ class KernelConfigResolverTest {
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig))
                                                         .build();
@@ -405,7 +399,6 @@ class KernelConfigResolverTest {
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig))
                                                         .build();

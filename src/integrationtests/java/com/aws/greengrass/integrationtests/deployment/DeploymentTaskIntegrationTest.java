@@ -97,8 +97,7 @@ class DeploymentTaskIntegrationTest {
     private static final String TEST_TICK_TOCK_STRING = "Go ahead with 2 approvals";
 
     private static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
 
     private static Logger logger;
 

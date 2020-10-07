@@ -126,7 +126,7 @@ class DependencyResolverTest {
         when(componentManager.resolveComponentVersion(eq(componentC1), any(), anyString()))
                 .thenReturn(componentC1_1_0_0);
 
-        DeploymentDocument doc = new DeploymentDocument("mockJob1", Collections.singletonList(componentA), Collections
+        DeploymentDocument doc = new DeploymentDocument("mockJob1", Collections
                 .singletonList(
                         new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue(), new HashMap<>())),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
@@ -196,7 +196,7 @@ class DependencyResolverTest {
                 .thenReturn(componentC_1_1_0);
 
         // top-level package order: A, B2
-        DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(componentA, componentB2),
+        DeploymentDocument doc = new DeploymentDocument("mockJob1",
                 Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue(), new HashMap<>()),
                         new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue(), new HashMap<>())),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
@@ -281,7 +281,7 @@ class DependencyResolverTest {
                 .thenThrow(NoAvailableComponentVersionException.class);
 
         // top-level package order: A, B2
-        DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(componentA, componentB2),
+        DeploymentDocument doc = new DeploymentDocument("mockJob1",
                 Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue(), new HashMap<>()),
                         new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue(), new HashMap<>())),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
@@ -355,7 +355,7 @@ class DependencyResolverTest {
 
 
         // top-level package order: A, B2
-        DeploymentDocument doc = new DeploymentDocument("mockJob1", Arrays.asList(componentA, componentB2),
+        DeploymentDocument doc = new DeploymentDocument("mockJob1",
                 Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue(), new HashMap<>()),
                         new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue(), new HashMap<>())),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
