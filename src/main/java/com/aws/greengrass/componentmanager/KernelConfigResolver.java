@@ -64,7 +64,12 @@ public class KernelConfigResolver {
             Pattern.compile("\\{\\{" + WORD_GROUP + ":" + WORD_GROUP + "}}");
 
     // pattern matches {group1:group2}. Note char in both group can't be }, but can be special char like / and .
+    // ex. {configuration:/singleLevelKey}
     private static final Pattern SAME_COMPONENT_INTERPOLATION_REGEX = Pattern.compile("\\{([^}]+):([^}]+)}");
+
+    // pattern matches {group1:group2:group3}. Note char in both group can't be }, but can be special char like / and .
+    // ex. {ComponentConfigurationTestService:configuration:/singleLevelKey}
+    private static final Pattern CROSS_COMPONENT_INTERPOLATION_REGEX = Pattern.compile("\\{([^}]+):([^}]+):([^}]+)}");
 
     static final String PARAM_NAMESPACE = "params";
     static final String CONFIGURATION_NAMESPACE = "configuration";
@@ -353,7 +358,7 @@ public class KernelConfigResolver {
                            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
                            Map<ComponentIdentifier, Pair<Map, Set<String>>> configAndDependencyCache)
             throws PackageLoadingException {
-        // Handle some-component parameters
+        // Handle same-component parameters
         Matcher matcher = SAME_INTERPOLATION_REGEX.matcher(stringValue);
         while (matcher.find()) {
             String replacement =
@@ -364,6 +369,7 @@ public class KernelConfigResolver {
             }
         }
 
+        // Handle same-component configuration
         matcher = SAME_COMPONENT_INTERPOLATION_REGEX.matcher(stringValue);
 
         while (matcher.find()) {
@@ -376,7 +382,6 @@ public class KernelConfigResolver {
         }
 
         // Handle cross-component parameters
-        // TODO Add config support
         matcher = CROSS_INTERPOLATION_REGEX.matcher(stringValue);
 
         while (matcher.find()) {
@@ -393,6 +398,32 @@ public class KernelConfigResolver {
                 }
             }
         }
+
+        // Handle cross-component configuration
+        // example {ComponentConfigurationTestService:configuration:/singleLevelKey}
+        matcher = CROSS_COMPONENT_INTERPOLATION_REGEX.matcher(stringValue);
+
+        while (matcher.find()) {
+
+            String targetComponent = matcher.group(1);
+            String namespace = matcher.group(2);
+            String key = matcher.group(3);
+
+            Optional<ComponentIdentifier> targetComponentIdentifier =
+                    packagesToDeploy.stream().filter(t -> t.getName().equals(targetComponent)).findFirst();
+
+            if (targetComponentIdentifier)
+
+            if (targetComponentIdentifier.isPresent() && componentCanReadParameterFrom(componentIdentifier,
+                    targetComponentIdentifier.get(), parameterAndDependencyCache)) {
+                String replacement = lookupParameterValueForComponent(parameterAndDependencyCache, document,
+                        targetComponentIdentifier.get(), namespace, key);
+                if (replacement != null) {
+                    stringValue = stringValue.replace(matcher.group(), replacement);
+                }
+            }
+        }
+
         return stringValue;
     }
 

@@ -367,6 +367,47 @@ class DeploymentTaskIntegrationTest {
         Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
+    @Test
+    @Order(2)
+    void GIVEN_a_deployment_with_dependency_has_config_WHEN_submitted_THEN_dependency_configs_are_interpolated()
+            throws Exception {
+
+        // Two things are verified in this test
+        // 1. The component's configurations are updated correctly in the kernel's config store
+        // 2. The interpolation is correct by taking the newly updated configuration, that is consistent
+
+        // Set up stdout listener to capture stdout for verify #2 interpolation
+        List<String> stdouts = new CopyOnWriteArrayList<>();
+        Consumer<GreengrassLogMessage> listener = m -> {
+            Map<String, String> contexts = m.getContexts();
+            String messageOnStdout = contexts.get("stdout");
+            if (messageOnStdout != null && messageOnStdout.contains("ComponentConfigurationTestMain output")) {
+                messageOnStdout = messageOnStdout.replaceAll("\"", ""); // Windows has quotes in the echo, so strip them
+
+                stdouts.add(messageOnStdout);
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+
+
+        /*
+         * 1st deployment. Default Config.
+         */
+        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("CrossComponentConfigTest_DeployDocument.json").toURI(),
+                System.currentTimeMillis());
+        resultFuture.get(10, TimeUnit.SECONDS);
+
+        // verify interpolation result
+        assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: default value of singleLevelKey."));
+        assertTrue(stdouts.get(0).contains("I'm /path/leafKey: default value of /path/leafKey."));
+        assertTrue(stdouts.get(0).contains(" I'm /listKey/0: item1."));
+        assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
+        assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
+
+        Slf4jLogAdapter.removeGlobalListener(listener);
+    }
+
     private void verifyDefaultValueIsApplied(List<String> stdouts, Map<String, Object> resultConfig) {
         // Asserted default values are from the ComponentConfigurationTestService-1.0.0.yaml recipe file
         assertThat(resultConfig, IsMapWithSize.aMapWithSize(5));

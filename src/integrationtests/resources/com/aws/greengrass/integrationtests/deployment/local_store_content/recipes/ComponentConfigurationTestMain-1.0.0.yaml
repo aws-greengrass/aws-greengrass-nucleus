@@ -1,0 +1,21 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: ComponentConfigurationTestMain-1.0.0.yaml
+ComponentDescription: This is a main that depends on ComponentConfigurationTestService-1.0.0.yaml
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+
+ComponentDependencies:
+  ComponentConfigurationTestService:
+    VersionRequirement: 1.0.0
+
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      run: >- ## Texts below are used for assertion in DeploymentTaskIntegrationTest and need to be changed together.
+        echo "ComponentConfigurationTestMain output
+        I'm /singleLevelKey: {ComponentConfigurationTestService:configuration:/singleLevelKey}.
+        I'm /path/leafKey: {ComponentConfigurationTestService:configuration:/path/leafKey}.
+        I'm /listKey/0: {ComponentConfigurationTestService:configuration:/listKey/0}.
+        I'm /emptyStringKey: {ComponentConfigurationTestService:configuration:/emptyStringKey}."
