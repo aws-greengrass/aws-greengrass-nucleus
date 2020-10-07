@@ -10,19 +10,14 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.DisabledOnOs;
-import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.attribute.PosixFilePermissions;
 
-import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessageSubstring;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -59,21 +54,6 @@ class KernelCommandLineTest {
         RuntimeException thrown =
                 assertThrows(RuntimeException.class, () -> kernel.parseArgs("-xyznonsense", "nonsense"));
         assertThat(thrown.getMessage(), containsString(exceptionSubstring));
-    }
-
-    // Skip on windows
-    @DisabledOnOs(OS.WINDOWS)
-    @Test
-    void GIVEN_create_path_fail_WHEN_parseArgs_THEN_throw_RuntimeException(ExtensionContext context) throws Exception {
-        // Make the root path not writeable so the create path method will fail
-        Files.setPosixFilePermissions(tempRootDir, PosixFilePermissions.fromString("r-x------"));
-
-        Kernel kernel = new Kernel();
-        kernel.shutdown();
-        String exceptionMessage = "Cannot create all required directories";
-        ignoreExceptionWithMessage(context, exceptionMessage);
-        RuntimeException thrown = assertThrows(RuntimeException.class, kernel::parseArgs);
-        assertThat(thrown.getMessage(), is(exceptionMessage));
     }
 
     @Test
