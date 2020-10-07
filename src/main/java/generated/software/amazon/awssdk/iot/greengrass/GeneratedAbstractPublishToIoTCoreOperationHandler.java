@@ -3,6 +3,7 @@ package generated.software.amazon.awssdk.iot.greengrass;
 import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
+
 import generated.software.amazon.awssdk.iot.greengrass.model.PublishToIoTCoreRequest;
 import generated.software.amazon.awssdk.iot.greengrass.model.PublishToIoTCoreResponse;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
@@ -17,7 +18,7 @@ public abstract class GeneratedAbstractPublishToIoTCoreOperationHandler extends 
 
   @Override
   protected final Class<PublishToIoTCoreRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.PublishToIoTCoreRequest.class;
+    return PublishToIoTCoreRequest.class;
   }
 
   @Override
@@ -27,7 +28,7 @@ public abstract class GeneratedAbstractPublishToIoTCoreOperationHandler extends 
 
   @Override
   protected final Class<PublishToIoTCoreResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.PublishToIoTCoreResponse.class;
+    return PublishToIoTCoreResponse.class;
   }
 
   @Override

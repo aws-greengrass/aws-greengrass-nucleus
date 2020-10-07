@@ -2,12 +2,16 @@ package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
 import java.lang.Boolean;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class PreComponentUpdateEvent implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#PreComponentUpdateEvent";
+
   public static final PreComponentUpdateEvent VOID;
 
   static {
@@ -42,6 +46,22 @@ public class PreComponentUpdateEvent implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#PreComponentUpdateEvent";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof PreComponentUpdateEvent)) return false;
+    if (this == rhs) return true;
+    final PreComponentUpdateEvent other = (PreComponentUpdateEvent)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.isGgcRestarting.equals(other.isGgcRestarting);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(isGgcRestarting);
   }
 }

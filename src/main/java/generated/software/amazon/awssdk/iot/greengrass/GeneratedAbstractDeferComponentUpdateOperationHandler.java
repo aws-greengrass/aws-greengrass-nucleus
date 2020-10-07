@@ -3,6 +3,7 @@ package generated.software.amazon.awssdk.iot.greengrass;
 import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
+
 import generated.software.amazon.awssdk.iot.greengrass.model.DeferComponentUpdateRequest;
 import generated.software.amazon.awssdk.iot.greengrass.model.DeferComponentUpdateResponse;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
@@ -17,7 +18,7 @@ public abstract class GeneratedAbstractDeferComponentUpdateOperationHandler exte
 
   @Override
   protected final Class<DeferComponentUpdateRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.DeferComponentUpdateRequest.class;
+    return DeferComponentUpdateRequest.class;
   }
 
   @Override
@@ -27,7 +28,7 @@ public abstract class GeneratedAbstractDeferComponentUpdateOperationHandler exte
 
   @Override
   protected final Class<DeferComponentUpdateResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.DeferComponentUpdateResponse.class;
+    return DeferComponentUpdateResponse.class;
   }
 
   @Override

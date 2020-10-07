@@ -3,13 +3,14 @@ package generated.software.amazon.awssdk.iot.greengrass;
 import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
-import generated.software.amazon.awssdk.iot.greengrass.model.ListLocalDeploymentResponse;
+
 import generated.software.amazon.awssdk.iot.greengrass.model.ListLocalDeploymentsRequest;
+import generated.software.amazon.awssdk.iot.greengrass.model.ListLocalDeploymentsResponse;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 import software.amazon.eventstream.iot.server.OperationContinuationHandler;
 import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
 
-public abstract class GeneratedAbstractListLocalDeploymentsOperationHandler extends OperationContinuationHandler<ListLocalDeploymentsRequest, ListLocalDeploymentResponse, EventStreamableJsonMessage, EventStreamableJsonMessage> {
+public abstract class GeneratedAbstractListLocalDeploymentsOperationHandler extends OperationContinuationHandler<ListLocalDeploymentsRequest, ListLocalDeploymentsResponse, EventStreamableJsonMessage, EventStreamableJsonMessage> {
   protected GeneratedAbstractListLocalDeploymentsOperationHandler(
       OperationContinuationHandlerContext context) {
     super(context);
@@ -17,7 +18,7 @@ public abstract class GeneratedAbstractListLocalDeploymentsOperationHandler exte
 
   @Override
   protected final Class<ListLocalDeploymentsRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.ListLocalDeploymentsRequest.class;
+    return ListLocalDeploymentsRequest.class;
   }
 
   @Override
@@ -26,8 +27,8 @@ public abstract class GeneratedAbstractListLocalDeploymentsOperationHandler exte
   }
 
   @Override
-  protected final Class<ListLocalDeploymentResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.ListLocalDeploymentResponse.class;
+  protected final Class<ListLocalDeploymentsResponse> getResponseClass() {
+    return ListLocalDeploymentsResponse.class;
   }
 
   @Override

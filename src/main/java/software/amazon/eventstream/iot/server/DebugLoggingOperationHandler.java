@@ -1,8 +1,6 @@
 package software.amazon.eventstream.iot.server;
 
 import com.google.gson.Gson;
-import software.amazon.awssdk.crt.eventstream.ServerConnection;
-import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 import java.nio.charset.StandardCharsets;

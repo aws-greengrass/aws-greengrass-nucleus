@@ -1,12 +1,16 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class GetSecretValueRequest implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#GetSecretValueRequest";
+
   public static final GetSecretValueRequest VOID;
 
   static {
@@ -77,6 +81,24 @@ public class GetSecretValueRequest implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#GetSecretValueRequest";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof GetSecretValueRequest)) return false;
+    if (this == rhs) return true;
+    final GetSecretValueRequest other = (GetSecretValueRequest)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.secretId.equals(other.secretId);
+    isEquals = isEquals && this.versionId.equals(other.versionId);
+    isEquals = isEquals && this.versionStage.equals(other.versionStage);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(secretId, versionId, versionStage);
   }
 }

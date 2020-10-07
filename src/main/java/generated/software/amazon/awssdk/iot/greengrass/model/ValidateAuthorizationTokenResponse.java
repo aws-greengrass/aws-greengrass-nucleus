@@ -2,12 +2,16 @@ package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
 import java.lang.Boolean;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class ValidateAuthorizationTokenResponse implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ValidateAuthorizationTokenResponse";
+
   public static final ValidateAuthorizationTokenResponse VOID;
 
   static {
@@ -42,6 +46,22 @@ public class ValidateAuthorizationTokenResponse implements EventStreamableJsonMe
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#ValidateAuthorizationTokenResponse";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof ValidateAuthorizationTokenResponse)) return false;
+    if (this == rhs) return true;
+    final ValidateAuthorizationTokenResponse other = (ValidateAuthorizationTokenResponse)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.isValid.equals(other.isValid);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(isValid);
   }
 }

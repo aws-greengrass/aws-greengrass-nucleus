@@ -17,7 +17,7 @@ public abstract class GeneratedAbstractValidateAuthorizationTokenOperationHandle
 
   @Override
   protected final Class<ValidateAuthorizationTokenRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.ValidateAuthorizationTokenRequest.class;
+    return ValidateAuthorizationTokenRequest.class;
   }
 
   @Override
@@ -27,7 +27,7 @@ public abstract class GeneratedAbstractValidateAuthorizationTokenOperationHandle
 
   @Override
   protected final Class<ValidateAuthorizationTokenResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.ValidateAuthorizationTokenResponse.class;
+    return ValidateAuthorizationTokenResponse.class;
   }
 
   @Override

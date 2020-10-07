@@ -3,6 +3,7 @@ package generated.software.amazon.awssdk.iot.greengrass;
 import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
+
 import generated.software.amazon.awssdk.iot.greengrass.model.CreateLocalDeploymentRequest;
 import generated.software.amazon.awssdk.iot.greengrass.model.CreateLocalDeploymentResponse;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
@@ -17,7 +18,7 @@ public abstract class GeneratedAbstractCreateLocalDeploymentOperationHandler ext
 
   @Override
   protected final Class<CreateLocalDeploymentRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.CreateLocalDeploymentRequest.class;
+    return CreateLocalDeploymentRequest.class;
   }
 
   @Override
@@ -27,7 +28,7 @@ public abstract class GeneratedAbstractCreateLocalDeploymentOperationHandler ext
 
   @Override
   protected final Class<CreateLocalDeploymentResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.CreateLocalDeploymentResponse.class;
+    return CreateLocalDeploymentResponse.class;
   }
 
   @Override

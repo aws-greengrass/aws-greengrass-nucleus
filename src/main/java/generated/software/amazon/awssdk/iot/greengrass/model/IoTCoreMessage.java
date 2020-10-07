@@ -1,14 +1,18 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import software.amazon.eventstream.iot.EventStreamableJsonMessage;
 
 public class IoTCoreMessage implements EventStreamableJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#IoTCoreMessage";
+
   private transient UnionMember setUnionMember;
 
   @Expose(
@@ -42,7 +46,7 @@ public class IoTCoreMessage implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#IoTCoreMessage";
+    return APPLICATION_MODEL_TYPE;
   }
 
   public void selfDesignateSetUnionMember() {
@@ -60,8 +64,25 @@ public class IoTCoreMessage implements EventStreamableJsonMessage {
     }
   }
 
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof IoTCoreMessage)) return false;
+    if (this == rhs) return true;
+    final IoTCoreMessage other = (IoTCoreMessage)rhs;
+    boolean isEquals = true;
+    isEquals = isEquals && this.message.equals(other.message);
+    isEquals = isEquals && this.setUnionMember.equals(other.setUnionMember);
+    return isEquals;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(message, setUnionMember);
+  }
+
   public enum UnionMember {
-    MESSAGE("MESSAGE", (generated.software.amazon.awssdk.iot.greengrass.model.IoTCoreMessage obj) -> obj.message = Optional.empty(), (generated.software.amazon.awssdk.iot.greengrass.model.IoTCoreMessage obj) -> obj.message != null && !obj.message.isPresent());
+    MESSAGE("MESSAGE", (IoTCoreMessage obj) -> obj.message = Optional.empty(), (IoTCoreMessage obj) -> obj.message != null && !obj.message.isPresent());
 
     private String fieldName;
 

@@ -17,7 +17,7 @@ public abstract class GeneratedAbstractUnsubscribeFromIoTCoreOperationHandler ex
 
   @Override
   protected final Class<UnsubscribeFromIoTCoreRequest> getRequestClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.UnsubscribeFromIoTCoreRequest.class;
+    return UnsubscribeFromIoTCoreRequest.class;
   }
 
   @Override
@@ -27,7 +27,7 @@ public abstract class GeneratedAbstractUnsubscribeFromIoTCoreOperationHandler ex
 
   @Override
   protected final Class<UnsubscribeFromIoTCoreResponse> getResponseClass() {
-    return generated.software.amazon.awssdk.iot.greengrass.model.UnsubscribeFromIoTCoreResponse.class;
+    return UnsubscribeFromIoTCoreResponse.class;
   }
 
   @Override
