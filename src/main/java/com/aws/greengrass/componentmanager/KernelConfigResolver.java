@@ -53,6 +53,7 @@ public class KernelConfigResolver {
     private static final Logger LOGGER = LogManager.getLogger(KernelConfigResolver.class);
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
+    public static final String CONFIGURATIONS_CONFIG_KEY = "Configurations";
     static final String ARTIFACTS_NAMESPACE = "artifacts";
     static final String KERNEL_NAMESPACE = "kernel";
     static final String KERNEL_ROOT_PATH = "rootPath";
@@ -73,7 +74,6 @@ public class KernelConfigResolver {
     static final String DECOMPRESSED_PATH_KEY = "decompressedPath";
 
     private static final String NO_RECIPE_ERROR_FORMAT = "Failed to find component recipe for {}";
-    private static final String CONFIGURATIONS_CONFIG_KEY = "Configurations";
 
     // https://tools.ietf.org/html/rfc6901#section-5
     private static final String JSON_POINTER_WHOLE_DOC = "";
@@ -213,7 +213,7 @@ public class KernelConfigResolver {
 
         Topics serviceTopics = kernel.findServiceTopic(componentRecipe.getComponentName());
         if (serviceTopics != null) {
-            Topics configuration = serviceTopics.lookupTopics(CONFIGURATIONS_CONFIG_KEY);
+            Topics configuration = serviceTopics.findTopics(CONFIGURATIONS_CONFIG_KEY);
             if (configuration != null) {
                 currentRunningConfig = configuration.toPOJO();
             }
@@ -245,18 +245,17 @@ public class KernelConfigResolver {
                                            JsonNode defaultConfiguration) {
 
         // initialize to empty map if null because we will use this map as the base.
-        if (currentRunningConfig == null) {
-            currentRunningConfig = new HashMap<>();
-        }
+        Map<String, Object> resolvedConfig = currentRunningConfig == null ? new HashMap<>() :
+                new HashMap<>(currentRunningConfig);
 
         // perform RESET first
-        currentRunningConfig =
+        resolvedConfig =
                 reset(currentRunningConfig, defaultConfiguration, configurationUpdateOperation.getPathsToReset());
 
         // perform MERGE secondly
-        deepMerge(currentRunningConfig, configurationUpdateOperation.getValueToMerge());
+        resolvedConfig = deepMerge(resolvedConfig, configurationUpdateOperation.getValueToMerge());
 
-        return currentRunningConfig;
+        return resolvedConfig;
 
     }
 
@@ -284,11 +283,11 @@ public class KernelConfigResolver {
             if ((targetNode.isMissingNode())) {
                 // missing default value -> remove the entry completely
                 // note: remove, rather than setting to null.
-                ((ObjectNode) node.at(jsonPointer.head())).remove(jsonPointer.getMatchingProperty());
+                ((ObjectNode) node.at(jsonPointer.head())).remove(jsonPointer.last().getMatchingProperty());
 
             } else {
                 // target is container node, or a value node, including null node -> replace the entry
-                ((ObjectNode) node.at(jsonPointer.head())).replace(jsonPointer.getMatchingProperty(), targetNode);
+                ((ObjectNode) node.at(jsonPointer.head())).replace(jsonPointer.last().getMatchingProperty(), targetNode);
             }
         }
 
@@ -302,20 +301,21 @@ public class KernelConfigResolver {
             return original;
         }
 
+        Map mergedMap = new HashMap();
         for (Object key : newMap.keySet()) {
             if (newMap.get(key) instanceof Map && original.get(key) instanceof Map) {
                 // if both are container node, recursively deep merge for children
                 Map originalChild = (Map) original.get(key);
                 Map newChild = (Map) newMap.get(key);
-                original.put(key, deepMerge(originalChild, newChild));
+                mergedMap.put(key, deepMerge(originalChild, newChild));
             } else {
                 // This branch supports container node -> value node and vice versa as it just overrides.
                 // This branch also handles the list with entire replacement.
                 // Note: There is no support for list append or insert at index operations.
-                original.put(key, newMap.get(key));
+                mergedMap.put(key, newMap.get(key));
             }
         }
-        return original;
+        return mergedMap;
     }
 
     /*
