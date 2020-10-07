@@ -4,5 +4,5 @@ ComponentName: colorama
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Publisher
 ComponentVersion: '0.3.9'
-manifests:
-  - lifecycle: {}
+Manifests:
+  - Lifecycle: {}
