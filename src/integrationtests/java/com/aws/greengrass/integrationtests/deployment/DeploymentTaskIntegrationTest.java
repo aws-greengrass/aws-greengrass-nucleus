@@ -5,12 +5,11 @@
 
 package com.aws.greengrass.integrationtests.deployment;
 
-import com.aws.greengrass.componentmanager.ComponentStore;
-import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
-import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
@@ -568,14 +567,18 @@ class DeploymentTaskIntegrationTest {
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
     }
 
-    private static void assertRecipeArtifactExists(ComponentIdentifier compId) throws PackageLoadingException {
+    private static void assertRecipeArtifactExists(ComponentIdentifier compId) {
         assertThat(componentStore.resolveRecipePath(compId).toFile(), anExistingFile());
-        assertThat(componentStore.resolveArtifactDirectoryPath(compId).toFile(), anExistingDirectory());
+        Path artifactDirPath = kernel.getNucleusPaths().artifactPath().resolve(compId.getName())
+                .resolve(compId.getVersion().getValue());
+        assertThat(artifactDirPath.toFile(), anExistingDirectory());
     }
 
-    private static void assertRecipeArtifactNotExists(ComponentIdentifier compId) throws PackageLoadingException {
+    private static void assertRecipeArtifactNotExists(ComponentIdentifier compId) {
         assertThat(componentStore.resolveRecipePath(compId).toFile(), not(anExistingFile()));
-        assertThat(componentStore.resolveArtifactDirectoryPath(compId).toFile(), not(anExistingDirectory()));
+        Path artifactDirPath = kernel.getNucleusPaths().artifactPath().resolve(compId.getName())
+                .resolve(compId.getVersion().getValue());
+        assertThat(artifactDirPath.toFile(), not(anExistingDirectory()));
     }
 
     /* sync packages directory with local_store_content */

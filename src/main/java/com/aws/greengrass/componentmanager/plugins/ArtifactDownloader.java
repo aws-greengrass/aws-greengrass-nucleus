@@ -81,7 +81,7 @@ public abstract class ArtifactDownloader {
      * Checks the given artifact file exists at given path and has the right checksum.
      *
      * @param artifact an artifact object
-     * @param filePath path where the artifact file should exist locally
+     * @param filePath path to the local artifact file
      * @return true if the file exists and has the right checksum
      * @throws PackageDownloadException if No local artifact found and recipe does not have required digest information
      */
@@ -91,10 +91,10 @@ public abstract class ArtifactDownloader {
         // locally present artifact. On the other hand, recipes downloaded from cloud will always
         // have digest and algorithm
         if (Files.exists(filePath) && !recipeHasDigest(artifact)) {
-            return false;
+            return true;
         } else if (!Files.exists(filePath)) {
             if (recipeHasDigest(artifact)) {
-                return true;
+                return false;
             } else {
                 throw new PackageDownloadException(
                         "No local artifact found and recipe does not have required digest information");
@@ -111,11 +111,11 @@ public abstract class ArtifactDownloader {
                 readBytes = existingArtifact.read(buffer);
             }
             String digest = Base64.getEncoder().encodeToString(messageDigest.digest());
-            return !digest.equals(artifact.getChecksum());
+            return digest.equals(artifact.getChecksum());
 
         } catch (IOException | NoSuchAlgorithmException e) {
             // If error in checking the existing content, attempt fresh download
-            return true;
+            return false;
         }
     }
 
@@ -139,7 +139,7 @@ public abstract class ArtifactDownloader {
             throws IOException, PackageDownloadException, InvalidArtifactUriException;
 
     /**
-     * Get the file size of an artifact. Returns 0 if it is found locally.
+     * Get the download size of an artifact file.
      *
      * @param componentIdentifier package info
      * @param artifact artifact info

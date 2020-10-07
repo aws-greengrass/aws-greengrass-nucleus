@@ -355,7 +355,7 @@ public class ComponentManager implements InjectionActions {
             if (storeContentSize + downloadSize > DEFAULT_MAX_STORE_SIZE_BYTES) {
                 throw new SizeLimitException(String.format(
                         "Component store size limit reached: %d bytes existing, %d bytes needed,"
-                                + "%d bytes total maximum allowed", storeContentSize, downloadSize,
+                                + "%d bytes maximum allowed total", storeContentSize, downloadSize,
                         DEFAULT_MAX_STORE_SIZE_BYTES));
             }
 

@@ -59,7 +59,7 @@ public class S3Downloader extends ArtifactDownloader {
                                     Path saveToPath) throws InvalidArtifactUriException, PackageDownloadException {
         S3ObjectPath s3ObjectPath = getS3PathForURI(artifact.getArtifactUri(), componentIdentifier);
         Path filePath = saveToPath.resolve(extractFileName(s3ObjectPath.key));
-        return artifactExistsAndChecksum(artifact, filePath);
+        return !artifactExistsAndChecksum(artifact, filePath);
     }
 
     @SuppressWarnings({"PMD.AvoidInstanceofChecksInCatchClause"})
@@ -78,19 +78,13 @@ public class S3Downloader extends ArtifactDownloader {
         InputStream artifactObject = null;
         try {
             Path filePath = saveToPath.resolve(extractFileName(key));
-            // Skip download if not needed
             if (artifactExistsAndChecksum(artifact, filePath)) {
-                // Get artifact from S3
-                artifactObject = getObject(bucket, key, artifact, componentIdentifier);
-
-                // Perform integrity check and save file to store
-                checkIntegrityAndSaveToStore(artifactObject, artifact, componentIdentifier, filePath);
-
-            } else {
                 logger.atDebug().addKeyValue("artifact", artifact.getArtifactUri())
                         .log("Artifact already exists, skipping download");
+            } else {
+                artifactObject = getObject(bucket, key, artifact, componentIdentifier);
+                checkIntegrityAndSaveToStore(artifactObject, artifact, componentIdentifier, filePath);
             }
-
             return filePath.toFile();
         } catch (PackageDownloadException e) {
             if (e instanceof ArtifactChecksumMismatchException || !saveToPath.resolve(extractFileName(key)).toFile()
@@ -115,17 +109,9 @@ public class S3Downloader extends ArtifactDownloader {
         logger.atInfo().setEventType("get-download-size-from-s3")
                 .addKeyValue("componentIdentifier", componentIdentifier)
                 .addKeyValue("artifactUri", artifact.getArtifactUri().toString()).log();
-
         // Parse artifact path
         S3ObjectPath s3ObjectPath = getS3PathForURI(artifact.getArtifactUri(), componentIdentifier);
         String key = s3ObjectPath.key;
-
-        // check already downloaded
-        Path filePath = saveToPath.resolve(extractFileName(key));
-        if (!artifactExistsAndChecksum(artifact, filePath)) {
-            return 0;
-        }
-
         String bucket = s3ObjectPath.bucket;
         try {
             S3Client regionClient = getRegionClientForBucket(bucket);
