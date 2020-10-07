@@ -433,7 +433,7 @@ public class KernelConfigResolver {
                     stringValue = stringValue.replace(matcher.group(), configReplacement);
                 }
 
-            } else if (systemParameters.containsKey(namespace)){
+            } else if (systemParameters.containsKey(namespace)) {
                 // handle system config
                 String configReplacement = lookupSystemConfig(componentIdentifier, namespace, key);
                 if (configReplacement != null) {
@@ -497,9 +497,13 @@ public class KernelConfigResolver {
                 }
 
                 LOGGER.atError().log("No replacement as it could be find in either deployment or existed");
-            } else if (systemParameters.containsKey(namespace)){
+            } else if (systemParameters.containsKey(namespace)) {
                 // handle system config
-                String configReplacement = lookupSystemConfig(componentIdentifier, namespace, key);
+                String version = (String) ((Map) resolvedConfig.get(targetComponent)).get(VERSION_CONFIG_KEY);
+
+                String configReplacement =
+                        lookupSystemConfig(new ComponentIdentifier(targetComponent, new Semver(version)), namespace,
+                                           key);
                 if (configReplacement != null) {
                     stringValue = stringValue.replace(matcher.group(), configReplacement);
                 }

@@ -1,9 +1,9 @@
 ---
 RecipeFormatVersion: '2020-01-25'
-ComponentName: SystemNameSpaceInterpolationTestMain
+ComponentName: aws.iot.gg.test.integ.SystemConfigTest
 ComponentDescription: This is a main that depends on ComponentConfigurationTestService-1.0.0.yaml
 ComponentPublisher: Me
-ComponentVersion: '1.0.0'
+ComponentVersion: '0.0.1'
 
 ComponentDependencies:
   GreenSignal:
@@ -14,9 +14,10 @@ Manifests:
       os: all
     Lifecycle:
       run: >- ## Texts below are used for assertion in DeploymentTaskIntegrationTest and need to be changed together.
-        echo "SystemNameSpaceInterpolationTestMain output
+        echo "aws.iot.gg.test.integ.SystemConfigTest output
+        I'm kernel's root path: {kernel:rootPath}.
         I'm my own artifact path: {artifacts:path}.
         I'm my own artifact decompressed path: {artifacts:decompressedPath}.
         I'm GreenSignal's artifact path: {GreenSignal:artifacts:path}.
         I'm GreenSignal's artifact decompressed path: {GreenSignal:artifacts:decompressedPath}.
-        I'm kernel's root path: {kernel:rootPath}"
+        "
