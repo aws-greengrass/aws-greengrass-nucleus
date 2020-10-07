@@ -340,16 +340,23 @@ public class ComponentManager implements InjectionActions {
             // check disk space before download
             //TODO refactor to check total size of artifacts from all components at once instead of one by one
             // because all artifacts must fit otherwise the deployment still fails.
-            if (componentStore.getUsableSpace() < DEFAULT_MIN_DISK_AVAIL_BYTES) {
-                throw new SizeLimitException("Disk space critical");
+            long usableSpaceBytes = componentStore.getUsableSpace();
+            if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
+                throw new SizeLimitException(
+                        String.format("Disk space critical: %d bytes usable, %d bytes minimum allowed",
+                                usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
             }
             ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
             if (!downloader.downloadRequired(componentIdentifier, artifact, packageArtifactDirectory)) {
                 continue;
             }
             long downloadSize = downloader.getDownloadSize(componentIdentifier, artifact, packageArtifactDirectory);
-            if (componentStore.getContentSize() + downloadSize > DEFAULT_MAX_STORE_SIZE_BYTES) {
-                throw new SizeLimitException("Component store size limit reached");
+            long storeContentSize = componentStore.getContentSize();
+            if (storeContentSize + downloadSize > DEFAULT_MAX_STORE_SIZE_BYTES) {
+                throw new SizeLimitException(String.format(
+                        "Component store size limit reached: %d bytes existing, %d bytes needed,"
+                                + "%d bytes total maximum allowed", storeContentSize, downloadSize,
+                        DEFAULT_MAX_STORE_SIZE_BYTES));
             }
 
             File downloadedFile;

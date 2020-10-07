@@ -80,7 +80,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
                         /*
                         // Skip download if not needed
-                        if (needsDownload(artifact, saveToPath.resolve(filename))) {
+                        if (artifactExistsAndChecksum(artifact, saveToPath.resolve(filename))) {
                             // Perform integrity check and save file to store
                             checkIntegrityAndSaveToStore(inputStream, artifact, packageIdentifier,
                                     saveToPath.resolve(filename));

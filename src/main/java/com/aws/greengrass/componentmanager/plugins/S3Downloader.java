@@ -59,7 +59,7 @@ public class S3Downloader extends ArtifactDownloader {
                                     Path saveToPath) throws InvalidArtifactUriException, PackageDownloadException {
         S3ObjectPath s3ObjectPath = getS3PathForURI(artifact.getArtifactUri(), componentIdentifier);
         Path filePath = saveToPath.resolve(extractFileName(s3ObjectPath.key));
-        return needsDownload(artifact, filePath);
+        return artifactExistsAndChecksum(artifact, filePath);
     }
 
     @SuppressWarnings({"PMD.AvoidInstanceofChecksInCatchClause"})
@@ -79,7 +79,7 @@ public class S3Downloader extends ArtifactDownloader {
         try {
             Path filePath = saveToPath.resolve(extractFileName(key));
             // Skip download if not needed
-            if (needsDownload(artifact, filePath)) {
+            if (artifactExistsAndChecksum(artifact, filePath)) {
                 // Get artifact from S3
                 artifactObject = getObject(bucket, key, artifact, componentIdentifier);
 
@@ -122,7 +122,7 @@ public class S3Downloader extends ArtifactDownloader {
 
         // check already downloaded
         Path filePath = saveToPath.resolve(extractFileName(key));
-        if (!needsDownload(artifact, filePath)) {
+        if (!artifactExistsAndChecksum(artifact, filePath)) {
             return 0;
         }
 

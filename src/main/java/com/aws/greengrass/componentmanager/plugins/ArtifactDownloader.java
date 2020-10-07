@@ -77,7 +77,15 @@ public abstract class ArtifactDownloader {
                                              Path saveToPath)
             throws InvalidArtifactUriException, PackageDownloadException;
 
-    static boolean needsDownload(ComponentArtifact artifact, Path filePath)
+    /**
+     * Checks the given artifact file exists at given path and has the right checksum.
+     *
+     * @param artifact an artifact object
+     * @param filePath path where the artifact file should exist locally
+     * @return true if the file exists and has the right checksum
+     * @throws PackageDownloadException if No local artifact found and recipe does not have required digest information
+     */
+    static boolean artifactExistsAndChecksum(ComponentArtifact artifact, Path filePath)
             throws PackageDownloadException {
         // Local recipes don't have digest or algorithm and that's expected, in such case, use the
         // locally present artifact. On the other hand, recipes downloaded from cloud will always

@@ -336,7 +336,8 @@ public class ComponentStore {
         try {
             return Files.getFileStore(nucleusPaths.componentStorePath()).getUsableSpace();
         } catch (IOException e) {
-            throw new PackageLoadingException("Failed to get usable disk space", e);
+            throw new PackageLoadingException(
+                    "Failed to get usable disk space for directory: " + this.componentStoreDirectory, e);
         }
     }
 
