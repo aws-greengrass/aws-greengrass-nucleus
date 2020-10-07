@@ -440,15 +440,14 @@ public class KernelConfigResolver {
             String namespace = matcher.group(2);
             String key = matcher.group(3);
 
+            // dependency check
+            if (!dependencies.contains(targetComponent)) {
+                // TODO more
+                LOGGER.atError().log("Don't interpolate because it's not a direct depenedency ");
+                continue;
+            }
+
             if (namespace.equals(CONFIGURATION_NAMESPACE)) {
-
-                // dependency check
-                if (!dependencies.contains(targetComponent)) {
-                    // TODO more
-                    LOGGER.atError().log("Don't interpolate because it's not a direct depenedency ");
-                    continue;
-                }
-
                 // check if in the current resolved config
                 if (resolvedConfig.containsKey(targetComponent)) {
                     if (((Map) resolvedConfig.get(targetComponent)).containsKey(CONFIGURATIONS_CONFIG_KEY)) {
