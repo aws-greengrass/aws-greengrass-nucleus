@@ -216,7 +216,7 @@ class PluginComponentTest extends BaseITCase {
 
     private DeploymentDocument getPluginDeploymentDocument(Long timestamp, String version, String deploymentId) {
         return DeploymentDocument.builder().timestamp(timestamp).deploymentId(deploymentId)
-                .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).rootPackages(Arrays.asList(componentName))
+                .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS)).groupName("ANY")
                 .deploymentPackageConfigurationList(
                         Arrays.asList(new DeploymentPackageConfiguration(componentName, true, version, null))).build();
