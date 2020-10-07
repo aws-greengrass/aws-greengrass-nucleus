@@ -280,7 +280,7 @@ class DeploymentTaskIntegrationTest {
         // verify interpolation result
         assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: updated value of singleLevelKey."));
         assertTrue(stdouts.get(0).contains("I'm /path/leafKey: updated value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains(" I'm /listKey/0: item3."));
+        assertTrue(stdouts.get(0).contains("I'm /listKey/0: item3."));
         assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
         assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
         stdouts.clear();
@@ -313,7 +313,7 @@ class DeploymentTaskIntegrationTest {
         // verify interpolation result
         assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: updated value of singleLevelKey."));
         assertTrue(stdouts.get(0).contains("I'm /path/leafKey: updated value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains(" I'm /listKey/0: item3."));
+        assertTrue(stdouts.get(0).contains("I'm /listKey/0: item3."));
         assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
         assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: value of newSingleLevelKey."));
         stdouts.clear();
@@ -348,7 +348,7 @@ class DeploymentTaskIntegrationTest {
         // verify interpolation result
         assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: updated value of singleLevelKey."));
         assertTrue(stdouts.get(0).contains("I'm /path/leafKey: default value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains(" I'm /listKey/0: item3."));
+        assertTrue(stdouts.get(0).contains("I'm /listKey/0: item3."));
         assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
         assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
         stdouts.clear();
@@ -401,8 +401,7 @@ class DeploymentTaskIntegrationTest {
         // verify interpolation result
         assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: default value of singleLevelKey."));
         assertTrue(stdouts.get(0).contains("I'm /path/leafKey: default value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains(" I'm /listKey/0: item1."));
-        assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
+        assertTrue(stdouts.get(0).contains("I'm /listKey/0: item1."));
         assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
 
         Slf4jLogAdapter.removeGlobalListener(listener);
@@ -423,7 +422,7 @@ class DeploymentTaskIntegrationTest {
         // verify interpolation result
         assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: default value of singleLevelKey."));
         assertTrue(stdouts.get(0).contains("I'm /path/leafKey: default value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains(" I'm /listKey/0: item1."));
+        assertTrue(stdouts.get(0).contains("I'm /listKey/0: item1."));
         assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
         assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
         stdouts.clear();
