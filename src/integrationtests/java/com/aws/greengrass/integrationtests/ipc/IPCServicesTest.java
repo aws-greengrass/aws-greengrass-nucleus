@@ -4,6 +4,7 @@
 package com.aws.greengrass.integrationtests.ipc;
 
 import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCAgent;
+import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgent;
 import com.aws.greengrass.builtin.services.lifecycle.DeferUpdateRequest;
 import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
 import com.aws.greengrass.config.Topic;
@@ -14,10 +15,10 @@ import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
 import com.aws.greengrass.ipc.services.configstore.ConfigStore;
 import com.aws.greengrass.ipc.services.configstore.ConfigStoreImpl;
-import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport;
-import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
@@ -32,14 +33,25 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import software.amazon.awssdk.aws.greengrass.GetConfigurationResponseHandler;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
+import software.amazon.awssdk.aws.greengrass.model.ConfigurationUpdateEvents;
+import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityReport;
+import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityStatus;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
+import software.amazon.awssdk.aws.greengrass.model.GetConfigurationRequest;
+import software.amazon.awssdk.aws.greengrass.model.GetConfigurationResponse;
 import software.amazon.awssdk.aws.greengrass.model.LifecycleState;
 import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
+import software.amazon.awssdk.aws.greengrass.model.SendConfigurationValidityReportRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToConfigurationUpdateRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToValidateConfigurationUpdatesRequest;
+import software.amazon.awssdk.aws.greengrass.model.UpdateConfigurationRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
+import software.amazon.awssdk.aws.greengrass.model.ValidateConfigurationUpdateEvents;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
@@ -47,8 +59,10 @@ import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -75,11 +89,14 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 class IPCServicesTest {
 
+    private final static Logger log = LogManager.getLogger(IPCServicesTest.class);
     private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
     private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
 
@@ -139,10 +156,11 @@ class IPCServicesTest {
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
         configuration.createLeafChild("abc").withValue("pqr");
         configuration.createLeafChild("DDF").withValue("xyz");
-        kernel.getContext().runOnPublishQueueAndWait(() -> {});
+        kernel.getContext().runOnPublishQueueAndWait(() -> {
+        });
 
         Pair<CompletableFuture<Void>, Consumer<List<String>>> pAbc = asyncAssertOnConsumer((a) -> {
-                assertThat(a, is(Collections.singletonList("abc")));
+            assertThat(a, is(Collections.singletonList("abc")));
         });
         Pair<CompletableFuture<Void>, Consumer<List<String>>> pDdf = asyncAssertOnConsumer((a) -> {
             assertThat(a, is(Collections.singletonList("DDF")));
@@ -177,9 +195,11 @@ class IPCServicesTest {
         });
 
         ConfigStoreIPCAgent agent = kernel.getContext().get(ConfigStoreIPCAgent.class);
-        CompletableFuture<ConfigurationValidityReport> validateResultFuture = new CompletableFuture<>();
+        CompletableFuture<com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport> validateResultFuture =
+                new CompletableFuture<>();
         try {
-            agent.validateConfiguration("ServiceName", Collections.singletonMap("keyToValidate", "valueToValidate"),
+            agent.validateConfiguration("ServiceName",
+                    Collections.singletonMap("keyToValidate", "valueToValidate"),
                     validateResultFuture);
             assertTrue(eventReceivedByClient.await(500, TimeUnit.MILLISECONDS));
         } finally {
@@ -199,33 +219,181 @@ class IPCServicesTest {
         });
         c.subscribeToValidateConfiguration(cb.getRight());
 
-        CompletableFuture<ConfigurationValidityReport> responseTracker = new CompletableFuture<>();
+        CompletableFuture<com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport> responseTracker =
+                new CompletableFuture<>();
         ConfigStoreIPCAgent agent = kernel.getContext().get(ConfigStoreIPCAgent.class);
         agent.validateConfiguration("ServiceName",
                 Collections.singletonMap("keyToValidate", "valueToValidate"), responseTracker);
         cb.getLeft().get(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS);
 
-        c.sendConfigurationValidityReport(ConfigurationValidityStatus.VALID, null);
-        assertEquals(ConfigurationValidityStatus.VALID, responseTracker.get().getStatus());
+        c.sendConfigurationValidityReport(com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus.VALID,
+                null);
+        assertEquals(com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus.VALID,
+                responseTracker.get().getStatus());
+    }
+
+
+    @Test
+    void GIVEN_ConfigStoreEventStreamClient_WHEN_report_config_validation_status_THEN_inform_validation_requester()
+            throws Exception {
+        CountDownLatch cdl = new CountDownLatch(1);
+        Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "ServiceName",
+                PRIVATE_STORE_NAMESPACE_TOPIC);
+        String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+        try (EventStreamRPCConnection clientConnection =
+                     IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel)) {
+
+            CountDownLatch subscriptionLatch = new CountDownLatch(1);
+            Slf4jLogAdapter.addGlobalListener(m -> {
+                if (m.getMessage().contains("Config IPC subscribe to config validation request")) {
+                    subscriptionLatch.countDown();
+                }
+            });
+
+            GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+
+            SubscribeToValidateConfigurationUpdatesRequest subscribe = new SubscribeToValidateConfigurationUpdatesRequest();
+            greengrassCoreIPCClient.subscribeToValidateConfigurationUpdates(subscribe, Optional.of(new StreamResponseHandler<ValidateConfigurationUpdateEvents>() {
+
+                @Override
+                public void onStreamEvent(ValidateConfigurationUpdateEvents events) {
+                    assertNotNull(events);
+                    assertNotNull(events.getValidateConfigurationUpdateEvent());
+                    assertNotNull(events.getValidateConfigurationUpdateEvent().getConfiguration());
+                    assertThat(events.getValidateConfigurationUpdateEvent().getConfiguration(),
+                            IsMapContaining.hasEntry("keyToValidate", "valueToValidate"));
+                    cdl.countDown();
+
+                    SendConfigurationValidityReportRequest reportRequest =
+                            new SendConfigurationValidityReportRequest();
+                    ConfigurationValidityReport report = new ConfigurationValidityReport();
+                    report.setStatus(ConfigurationValidityStatus.ACCEPTED);
+                    reportRequest.setConfigurationValidityReport(report);
+
+                    try {
+                        greengrassCoreIPCClient.sendConfigurationValidityReport(reportRequest, Optional.empty()).getResponse()
+                                .get(10, TimeUnit.SECONDS);
+                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                        fail("received invalid update validate configuration event", e);
+                    }
+                }
+
+                @Override
+                public boolean onStreamError(Throwable error) {
+                    log.atError().log("Received stream error.", error);
+                    return false;
+                }
+
+                @Override
+                public void onStreamClosed() {
+
+                }
+            }));
+            assertTrue(subscriptionLatch.await(20, TimeUnit.SECONDS));
+
+            CompletableFuture<ConfigurationValidityReport> responseTracker = new CompletableFuture<>();
+            ConfigStoreIPCEventStreamAgent agent = kernel.getContext().get(ConfigStoreIPCEventStreamAgent.class);
+            agent.validateConfiguration("ServiceName",
+                    Collections.singletonMap("keyToValidate", "valueToValidate"), responseTracker);
+            assertTrue(cdl.await(20, TimeUnit.SECONDS));
+
+            assertEquals(ConfigurationValidityStatus.ACCEPTED, responseTracker.get().getStatus());
+        }
     }
 
     @Test
-    void GIVEN_ConfigStoreClient_WHEN_update_config_request_THEN_config_is_updated() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
-        client = new IPCClientImpl(config);
-        ConfigStore c = new ConfigStoreImpl(client);
-
+    void GIVEN_ConfigStoreEventStreamClient_WHEN_update_config_request_THEN_config_is_updated() throws Exception {
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
         Topic configToUpdate = configuration.lookup("SomeKeyToUpdate").withNewerValue(0, "InitialValue");
+        CountDownLatch cdl = new CountDownLatch(1);
+        Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "ServiceName",
+                PRIVATE_STORE_NAMESPACE_TOPIC);
+        String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+        try (EventStreamRPCConnection clientConnection =
+                     IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel)) {
+            CountDownLatch subscriptionLatch = new CountDownLatch(1);
+            Slf4jLogAdapter.addGlobalListener(m -> {
+                if (m.getMessage().contains("subscribed to configuration update")) {
+                    subscriptionLatch.countDown();
+                }
+            });
+            GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
 
-        CountDownLatch configUpdated = new CountDownLatch(1);
-        configToUpdate.subscribe((what, node) -> configUpdated.countDown());
+            SubscribeToConfigurationUpdateRequest subscribe = new SubscribeToConfigurationUpdateRequest();
+            subscribe.setComponentName("ServiceName");
+            subscribe.setKeyPath(Collections.singletonList("SomeKeyToUpdate"));
+            greengrassCoreIPCClient.subscribeToConfigurationUpdate(subscribe, Optional.of(new StreamResponseHandler<ConfigurationUpdateEvents>() {
+                @Override
+                public void onStreamEvent(ConfigurationUpdateEvents event) {
+                    assertNotNull(event.getConfigurationUpdateEvent());
+                    assertEquals("ServiceName", event.getConfigurationUpdateEvent().getComponentName());
+                    assertNotNull(event.getConfigurationUpdateEvent().getKeyPath());
+                    cdl.countDown();
+                }
 
-        c.updateConfiguration("ServiceName", Collections.singletonList("SomeKeyToUpdate"), "SomeValueToUpdate",
-                System.currentTimeMillis(), null);
+                @Override
+                public boolean onStreamError(Throwable error) {
+                    log.atError().log("Received stream error.", error);
+                    return false;
+                }
 
-        assertTrue(configUpdated.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
-        assertEquals("SomeValueToUpdate", configToUpdate.getOnce());
+                @Override
+                public void onStreamClosed() {
+
+                }
+            }));
+
+            assertTrue(subscriptionLatch.await(20, TimeUnit.SECONDS));
+
+            CountDownLatch configUpdated = new CountDownLatch(1);
+            configToUpdate.subscribe((what, node) -> configUpdated.countDown());
+
+            Map<String, Object> map = new HashMap<>();
+            map.put("SomeKeyToUpdate", "SomeValueToUpdate");
+            UpdateConfigurationRequest updateConfigurationRequest = new UpdateConfigurationRequest();
+            updateConfigurationRequest.setComponentName("ServiceName");
+            updateConfigurationRequest.setKeyPath(Collections.singletonList("SomeKeyToUpdate"));
+            updateConfigurationRequest.setNewValue(map);
+            updateConfigurationRequest.setTimestamp(Instant.now());
+            greengrassCoreIPCClient.updateConfiguration(updateConfigurationRequest, Optional.empty()).getResponse().get(50, TimeUnit.SECONDS);
+            assertTrue(configUpdated.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
+            assertTrue(cdl.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
+            assertEquals("SomeValueToUpdate", configToUpdate.getOnce());
+        }
+    }
+
+
+    @Test
+    void GIVEN_ConfigStoreEventStreamClient_WHEN_read_THEN_value_returned() throws Exception {
+        Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
+        custom.createLeafChild("abc").withValue("ABC");
+        custom.createInteriorChild("DDF").createLeafChild("A").withValue("C");
+        Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "ServiceName",
+                PRIVATE_STORE_NAMESPACE_TOPIC);
+        String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+        try (EventStreamRPCConnection clientConnection =
+                     IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel)) {
+            GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+            GetConfigurationRequest getConfigurationRequest = new GetConfigurationRequest();
+            getConfigurationRequest.setComponentName("ServiceName");
+            getConfigurationRequest.setKeyPath(Collections.singletonList("abc"));
+            GetConfigurationResponseHandler handler =
+                    greengrassCoreIPCClient.getConfiguration(getConfigurationRequest, Optional.empty());
+            GetConfigurationResponse getConfigurationResponse = handler.getResponse().get(10, TimeUnit.SECONDS);
+            assertEquals("ServiceName", getConfigurationResponse.getComponentName());
+            assertTrue(getConfigurationResponse.getValue().containsKey("abc"));
+
+            GetConfigurationRequest getConfigurationRequest2 = new GetConfigurationRequest();
+            getConfigurationRequest2.setComponentName("ServiceName");
+            getConfigurationRequest2.setKeyPath(Collections.singletonList("DDF"));
+            handler = greengrassCoreIPCClient.getConfiguration(getConfigurationRequest2, Optional.empty());
+            getConfigurationResponse = handler.getResponse().get(10, TimeUnit.SECONDS);
+            assertEquals("ServiceName", getConfigurationResponse.getComponentName());
+            // Can read nested values
+            assertThat(getConfigurationResponse.getValue(), aMapWithSize(1));
+            assertThat(getConfigurationResponse.getValue(), IsMapContaining.hasKey("A"));
+            assertThat(getConfigurationResponse.getValue().get("A"), is("C"));
+        }
     }
 
     @Test
@@ -328,7 +496,7 @@ class IPCServicesTest {
         greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest, Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
             @Override
             public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
-                if (streamEvent.getPreUpdateEvent() != null ) {
+                if (streamEvent.getPreUpdateEvent() != null) {
                     cdl.countDown();
                     DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
                     deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(1).toMillis());
