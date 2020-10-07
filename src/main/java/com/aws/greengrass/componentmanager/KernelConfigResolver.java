@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -215,6 +216,7 @@ public class KernelConfigResolver {
                 // no need to check version because root's version will be pinned
                 .filter(DeploymentPackageConfiguration::isRootComponent)
                 .map(DeploymentPackageConfiguration::getConfigurationUpdateOperation)
+                .filter(Objects::nonNull)
                 .findAny();
 
         Map<String, Object> resolvedConfiguration =
@@ -334,7 +336,7 @@ public class KernelConfigResolver {
                 return null;    // both are null. return null.
             } else {
                 // original is null but newMap is not, return new map
-                return new HashMap(newMap); // deep copy robustness against immutable map
+                return new HashMap(newMap); // deep copy for being more robust to handle immutable map
             }
         }
 
