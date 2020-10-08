@@ -65,13 +65,19 @@ public class KernelConfigResolver {
     private static final Pattern SAME_INTERPOLATION_REGEX =
             Pattern.compile("\\{\\{" + WORD_GROUP + ":" + WORD_GROUP + "}}");
 
-    // pattern matches {group1:group2}. Note char in both group can't be }, but can be special char like / and .
-    // ex. {configuration:/singleLevelKey}
+    // pattern matches {group1:group2}. ex. {configuration:/singleLevelKey}
+    // Group 1 could only be word or dot (.). It is for the namespace such as "artifacts" and "configuration".
+    // Group 2 is the key. For namespace "configuration", it needs to support arbitrary JSON pointer.
+    // so it can take any character but not be ':' or '}', because these breaks the interpolation placeholder format.
     private static final Pattern SAME_COMPONENT_INTERPOLATION_REGEX = Pattern.compile("\\{([.\\w]+):([^:}]+)}");
 
 
-    // pattern matches {group1:group2:group3}. Note char in both group can't be }, but can be special char like / and .
+    // pattern matches {group1:group2:group3}.
     // ex. {aws.iot.aws.iot.gg.test.integ.ComponentConfigTestService:configuration:/singleLevelKey}
+    // Group 1 could only be word or dot (.). It is for the component name.
+    // Group 1 could only be word or dot (.). It is for the namespace such as "artifacts" and "configuration".
+    // Group 2 is the key. For namespace "configuration", it needs to support arbitrary JSON pointer.
+    // so it can take any character but not be ':' or '}', because these breaks the interpolation placeholder format.
     private static final Pattern CROSS_COMPONENT_INTERPOLATION_REGEX =
             Pattern.compile("\\{([.\\w]+):([.\\w]+):([^:}]+)}");
 
@@ -228,14 +234,12 @@ public class KernelConfigResolver {
         return resolvedServiceConfig;
     }
 
-    /********* Start of new configuration code path *********/
-
     /**
      * Resolve configurations to apply for a component. It resolves based on current running config, default config, and
      * config update operation.
      *
-     * @param configurationUpdateOperation; nullable component configuration update operation.
-     * @param componentRecipe               component recipe containing default configuration.
+     * @param configurationUpdateOperation nullable component configuration update operation.
+     * @param componentRecipe              component recipe containing default configuration.
      * @return resolved configuration for this component. non null.
      */
     private Map<String, Object> resolveConfigurationToApply(
@@ -259,12 +263,12 @@ public class KernelConfigResolver {
 
         // no update
         if (configurationUpdateOperation == null) {
-            if (currentRunningConfig != null) {
-                // no update but there is running config, so it should return running config as is.
-                return currentRunningConfig;
-            } else {
+            if (currentRunningConfig == null) {
                 // no update nor running config, so it should return return the default config.
                 return mapper.convertValue(defaultConfig, Map.class);
+            } else {
+                // no update but there is running config, so it should return running config as is.
+                return currentRunningConfig;
             }
         }
 
@@ -306,15 +310,15 @@ public class KernelConfigResolver {
 
             JsonNode targetDefaultNode = defaultValue.at(jsonPointer);
 
-            if ((targetDefaultNode.isMissingNode())) {
+            if (targetDefaultNode.isMissingNode()) {
                 // missing default value -> remove the entry completely
                 if (node.at(jsonPointer.head()).isObject()) {
                     ((ObjectNode) node.at(jsonPointer.head())).remove(jsonPointer.last().getMatchingProperty());
                 } else {
                     // parent is missing node, or value node. Do nothing.
-                    LOGGER.atDebug().
-                            kv("pointer provided", jsonPointer).
-                            log("Parent is missing node or value node. Noop for reset.");
+                    LOGGER.atDebug()
+                            .kv("pointer provided", jsonPointer)
+                            .log("Parent is missing node or value node. Noop for reset.");
                 }
             } else {
                 // target is container node, or a value node, including null node.
@@ -332,23 +336,22 @@ public class KernelConfigResolver {
             }
         }
 
-
         return mapper.convertValue(node, Map.class);
     }
 
-    @SuppressWarnings("rawtypes")
-    private static Map deepMerge(@Nullable Map original, @Nullable Map newMap) {
+    private static Map<String, Object> deepMerge(@Nullable Map<String, Object> original,
+            @Nullable Map<String, Object> newMap) {
 
         if (original == null) {
             if (newMap == null) {
                 return null;    // both are null. return null.
             } else {
                 // original is null but newMap is not, return new map
-                return new HashMap(newMap); // deep copy for being more robust to handle immutable map
+                return new HashMap<>(newMap); // deep copy for being more robust to handle immutable map
             }
         }
 
-        Map mergedMap = new HashMap(original);  // deep copy for robustness against immutable map
+        Map<String, Object> mergedMap = new HashMap<>(original);  // deep copy for robustness against immutable map
 
         if (newMap == null || newMap.isEmpty()) {
             // original is not null but new map is null or empty, return original
@@ -356,20 +359,21 @@ public class KernelConfigResolver {
         }
 
         // start merging process
-        for (Object key : newMap.keySet()) {
-            if (newMap.get(key) instanceof Map && original.get(key) instanceof Map) {
-                // if both are container node, recursively deep merge for children
-                Map originalChild = (Map) original.get(key);
-                Map newChild = (Map) newMap.get(key);
+        for (Map.Entry<String, Object> newMapEntry : newMap.entrySet()) {
+            String key = newMapEntry.getKey();
+            Object newChild = newMapEntry.getValue();
+            Object originalChild = original.get(key);
 
+            if (newChild instanceof Map && original.get(key) instanceof Map) {
+                // if both are container node, recursively deep merge for children
                 // note either originalChild nor newChild could be null here as they are instance of Map
-                mergedMap.put(key, deepMerge(originalChild, newChild));
+                mergedMap.put(key, deepMerge((Map<String, Object>) originalChild, (Map<String, Object>) newChild));
             } else {
-                // This branch supports container node -> value node and vice versa as it just overrides.
+                // This branch supports container node -> value node and vice versa as it just overrides the value.
                 // This branch also handles the list with entire replacement.
+                // Note: we don't support list operations such as appending to an list or inserting to a index of a lit.
                 // This branch also handles setting explict null value.
-                // Note: There is no support for list append or insert at index operations.
-                mergedMap.put(key, newMap.get(key));
+                mergedMap.put(key, newChild);
             }
         }
         return mergedMap;
@@ -472,8 +476,7 @@ public class KernelConfigResolver {
 
             if (namespace.equals(CONFIGURATION_NAMESPACE)) {
                 Optional<String> configReplacement =
-                        lookupConfigurationValueForComponent(targetComponent, key,
-                                                             resolvedKernelServiceConfig);
+                        lookupConfigurationValueForComponent(targetComponent, key, resolvedKernelServiceConfig);
                 if (configReplacement.isPresent()) {
                     stringValue = stringValue.replace(matcher.group(), configReplacement.get());
                 }
@@ -503,7 +506,7 @@ public class KernelConfigResolver {
     }
 
     /**
-     * Find the configuration value for a component
+     * Find the configuration value for a component.
      *
      * @param componentName               component name
      * @param path                        path to the value
@@ -538,7 +541,6 @@ public class KernelConfigResolver {
 
         if (targetNode.isContainerNode()) {
             // return a serialized string for container node
-            String v = targetNode.toString();
             return Optional.of(targetNode.toString());
         }
         return Optional.empty();
@@ -556,11 +558,12 @@ public class KernelConfigResolver {
         return null;
     }
 
-    /***************** end of new configuration code path *******************/
+    /***************** end of new configuration code path. *******************/
 
     /*
      * For each lifecycle key-value pair of a package, substitute parameter values.
      */
+    @SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
     private Object interpolate(Object configValue, ComponentIdentifier componentIdentifier,
             List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
             Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)

@@ -5,6 +5,7 @@ package com.aws.greengrass.deployment.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,12 +16,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Class to represent a single package along with its dependencies
- * that comes in the deployment configuration.
+ * Class to represent a single package along with its dependencies that comes in the deployment configuration.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
 @Setter
+@AllArgsConstructor
 @NoArgsConstructor
 @EqualsAndHashCode
 @ToString
@@ -42,18 +43,16 @@ public class DeploymentPackageConfiguration {
     @JsonProperty("ConfigurationUpdate")
     private ConfigurationUpdateOperation configurationUpdateOperation;
 
+    /**
+     * Constructor for no update configuration update for backward compatibility.
+     *
+     * @param packageName     name of package
+     * @param rootComponent   if it is root
+     * @param resolvedVersion resolved version
+     * @param configuration   configuration
+     */
     public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,
-                                          Map<String, Object> configuration,
-                                          ConfigurationUpdateOperation configurationUpdateOperation) {
-        this.packageName = packageName;
-        this.rootComponent = rootComponent;
-        this.resolvedVersion = resolvedVersion;
-        this.configuration = configuration;
-        this.configurationUpdateOperation = configurationUpdateOperation;
-    }
-
-    public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,
-                                          Map<String, Object> configuration) {
+            Map<String, Object> configuration) {
         this.packageName = packageName;
         this.rootComponent = rootComponent;
         this.resolvedVersion = resolvedVersion;

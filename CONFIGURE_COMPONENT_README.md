@@ -1,4 +1,8 @@
 # Configure A Component
+Each Greengrass V2 component could define its own default configuration. A deployment, either from cloud or local, would
+use the default configuration if there is additional no configuration update.
+
+Optionally, a 
 
 ## Define Default Configuration
 The default configuration is defined in the recipe file. e.g.

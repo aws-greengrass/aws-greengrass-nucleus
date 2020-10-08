@@ -9,7 +9,6 @@ import com.amazon.aws.iot.greengrass.component.common.ComponentConfiguration;
 import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
-import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentParameter;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
@@ -22,7 +21,6 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Utils;
-import com.fasterxml.jackson.core.JsonPointer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -678,9 +676,6 @@ class KernelConfigResolverTest {
                 serviceConfigurationProperlyResolved(document, componentsToResolve);
 
         // parameter interpolation
-        Map<String, String> serviceInstallCommand =
-                (Map<String, String>) getServiceInstallCommand(TEST_INPUT_PACKAGE_A, servicesConfig);
-
         assertThat("service can reference the configuration of dependency service",
                 getValueForLifecycleKey(TEST_NAMESPACE, TEST_INPUT_PACKAGE_A, servicesConfig),
                 equalTo("Component PackageA with param valueB1 cross component " + TEST_INPUT_PACKAGE_B + " artifact "
@@ -825,7 +820,7 @@ class KernelConfigResolverTest {
 
     private Map<String, Object> getServiceConfiguration(String serviceName, Map<String, Object> config) {
         Map<String, Object> serviceConfig = getServiceConfig(serviceName, config);
-        return ((Map<String, Object>) serviceConfig.get(CONFIGURATIONS_CONFIG_KEY));
+        return (Map<String, Object>) serviceConfig.get(CONFIGURATIONS_CONFIG_KEY);
     }
 
     private Map<String, Object> getServiceConfig(String serviceName, Map<String, Object> config) {

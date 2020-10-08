@@ -141,7 +141,7 @@ public final class DeploymentDocumentConverter {
                 optionalConfiguration.get().setRootComponent(true);
             } else {
                 // if not found, create it with version requirement as the requested version
-                packageConfigurations.add(new DeploymentPackageConfiguration(rootComponentName, true, version, null, null));
+                packageConfigurations.add(new DeploymentPackageConfiguration(rootComponentName, true, version, null));
             }
         });
         return packageConfigurations;
