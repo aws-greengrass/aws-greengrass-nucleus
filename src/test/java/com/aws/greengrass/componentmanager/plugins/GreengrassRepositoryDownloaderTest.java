@@ -30,7 +30,9 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,6 +46,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class GreengrassRepositoryDownloaderTest {
+    private static final String SHA256 = "SHA-256";
 
     @Mock
     private HttpURLConnection connection;
@@ -83,9 +86,13 @@ class GreengrassRepositoryDownloaderTest {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), "private");
         Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
+        Path artifactFilePath = saveToPath.resolve("artifact.txt");
         Files.createDirectories(saveToPath);
-        downloader.downloadToPath(pkgId, new ComponentArtifact(new URI("greengrass:artifactName"), null, null, null),
-                saveToPath);
+        String checksum = Base64.getEncoder()
+                .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
+        downloader.downloadToPath(
+                pkgId, new ComponentArtifact(new URI("greengrass:artifactName"),
+                        checksum, SHA256, null), saveToPath);
 
         GetComponentArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
         assertEquals("CoolService", generatedRequest.getComponentName());
@@ -94,9 +101,8 @@ class GreengrassRepositoryDownloaderTest {
         assertEquals("artifactName", generatedRequest.getArtifactName());
 
         byte[] originalFile = Files.readAllBytes(mockArtifactPath);
-        byte[] downloadFile = Files.readAllBytes(saveToPath.resolve("artifact.txt"));
+        byte[] downloadFile = Files.readAllBytes(artifactFilePath);
         assertThat(Arrays.equals(originalFile, downloadFile), is(true));
-
         ComponentTestResourceHelper.cleanDirectory(testCache);
     }
 
