@@ -1,11 +1,15 @@
 # Configure A Component
-Each Greengrass V2 component could define its own default configuration. A deployment, either from cloud or local, would
-use the default configuration if there is additional no configuration update.
+Each Greengrass V2 component could define its own default configuration which would be used by default.
 
-Optionally, a 
+A deployment, either from cloud or local device, could optionally provide a configuration update instruction to update
+the configuration for a deployment's **target components**.
 
-## Define Default Configuration
-The default configuration is defined in the recipe file. e.g.
+Note: updating configuration is only supported for the **target components** of a deployment.
+
+## 1. Define Default Configuration for a Component
+The default configuration is defined in the recipe file.
+
+In YAML, 
 ```yaml
 ComponentConfiguration:
   DefaultConfiguration:
@@ -17,51 +21,150 @@ ComponentConfiguration:
       - 'item2'
     emptyStringKey: ''
     emptyListKey: []
-
+    emptyMap: {}
+    defaultIsNullKey: null
 ```
 
-## Update Component Configuration
-
-### JSON vs YAML
-Currently, we only support JSON. We will support YAML as a fast-follow after reInvent 2020.
-
-### Sample
+or in JSON,
 ```json
-
 {
+   "ComponentConfiguration": {
+      "DefaultConfiguration": {
+         "singleLevelKey": "default value of singleLevelKey",
+         "path": {
+            "leafKey": "default value of /path/leafKey"
+         },
+         "listKey": [
+            "item1",
+            "item2"
+         ],
+         "emptyStringKey": "",
+         "emptyListKey": [],
+         "emptyMap": {},
+         "defaultIsNullKey": null
+      }
+   }
+}
+```
+
+## 2. Update Configuration for a Component
+A deployment, either from cloud or local device, could optionally provide a configuration update instruction to update
+the configuration for a deployment's **target components**, with the following syntax.
+
+
+### 2.1 JSON vs YAML
+Currently, we only support JSON. We will support YAML as a fast-follow after re:Invent 2020.
+
+### 2.2 Sample
+```json
+{
+  "RESET": [
+       "/someOtherKey", "/some/nested/path"
+  ],
   "MERGE": {
     "singleLevelKey" : "updated value of singleLevelKey",
-    "newSingleLevelKey": "value of newSingleLevelKey",
+    "newSingleLevelKey": "I was not in the default value and could be added.",
     "listKey": ["item3"],
     "path" : {
       "leafKey": "updated value of /path/leafKey",
       "newLeafKey": "value of /path/newLeafKey"
     }
-  },
-    
-  "RESET": [
-    "/newSingleLevelKey", "/path"
-  ]
+  }
 }
 ```
-### Syntax
-It accepts only `MERGE` and `RESET` as top-level keys. 
+### 2.3 Syntax
+It accepts only `RESET` and `MERGE` as top-level keys. The configuration will first perform `RESET` and then perform `MERGE`,
+regardless of the order they are given in the JSON Object.
 
-### RESET
+#### 2.3.1 RESET
 RESET takes a list of String.
 Each string is a JSON Pointer: https://tools.ietf.org/html/rfc6901.
 
-1. If a default value exists at this JSON pointer location, then the value will be reset, including explicit null value.
 1. If a default value doesn't exist at this JSON pointer location, then the key/value pair will be removed entirely. 
+1. If a default value exists at this JSON pointer location, then the value of configuration will be reset to the default value.
 
-#### MERGE
+##### RESET doesn't support using index for an Array/List
+Although JSON pointer supports use indexes to locate an element in an Array/List, **we don't support use
+JSON pointer to reset an element in an Array/List for re:Invent 2020**. The reason is that resetting an element of an array
+might cause removal for an index, elements shifting in the array, and other indeterministic results. 
+
+Hence, we've decided to postpone the support for an Array/List to post re:Invent 2020.
+
+##### What happens if I reset to a default value and my default value is null or empty?
+    
+In general, Greengrass V2 will reset to the default value as is, instead of dropping null or empty values, including:
+
+1. Default value has an empty List. ex. `{"emptyListKey": []}`. An empty list will be reset with JSON pointer: `/emptyListKey`.
+1. Default value has an empty Map/Object. `{"emptyMapKey": {}}`. An empty map will be reset with JSON pointer: `/emptyMapKey`.
+1. Default value has an empty String. `{"emptyStringKey": """}`. An empty String will be reset with JSON pointer: `/emptyStringKey`.
+1. Default value has a null. `{"defaultIsNullKey":null}`. A null will be reset with JSON pointer: `/defaultIsNullKey`.
+
+#### 2.3.2 MERGE
 `MERGE` takes an object, representing new configuration that should be merging in.
 
-The given object is recursively merged to the existing configuration object. 
+The given object is merged to the existing configuration object level by level. 
 
-At any level, 
-
+At any level,
 1. if a key already exists, then the value will be overridden by the value that is merging in.
-2. If a key doesn't exist, then key-value pair that is merging in will be added.
+2. If a key doesn't exist, then key-value pair that is merging in will be added. Note a key that is not existed in the default value,
+could also be added.
 
+##### MERGE doesn't support Array/List append or insertion at index operations.
+Similar to removal, list append and insertion index require handling addtional complexity of array index changing, elements
+shifting, and other indeterministic results.
 
+Hence, we've decided to postpone the support for an Array/List to post re:Invent 2020.
+
+However, it's still possible to override the entire list.
+If you really need to make updates at the element level, think about using a map instead, by giving each element an unique key.
+
+##### Can I merge in a new key-value pair, which was not in the default value?
+YES. We are providing that flexibility so that new configurations could be added during deployments.
+
+##### Can I merge empty values?
+YES. You can merge empty String, List, or Object/Map.
+
+##### Can I merge `null` as a value for a key?
+YES. When reading the merged configuration, you will be able to find the key exists with value as `null` 
+
+##### Can I merge in a new value whose type is different from original value's type for the same key?
+YES. The new value will be merged in and overrides the old value.
+This allows you to potentially change the configuration object's structure. See the following example:
+
+ex.
+
+Existing 
+```json
+{ "myKey": "myValue" }
+```
+
+Update:
+```json
+{
+    "MERGE": {
+        "myKey": {
+            "nestedKey1": "myValue"
+        }
+    }
+}
+```
+
+Result:
+```json
+{ 
+  "myKey": {
+       "nestedKey1": "myValue"
+   }
+}
+```
+
+#### 2.3.3 FAQs
+##### How can I remove a value at a location specified by a JSON pointer?
+
+If the default value does not exist for that location, you could RESET with the JSON pointer pointing to that location
+and the value will get removed.
+
+However, if a default value does exist, usually it means the Component Owner would use it in their recipe or logic.
+Hence removing the value is very risky. In fact, this is the reason why removal is not supported directly.
+
+If you are sure and really want to remove a value, you could MERGE in a `null` value.
