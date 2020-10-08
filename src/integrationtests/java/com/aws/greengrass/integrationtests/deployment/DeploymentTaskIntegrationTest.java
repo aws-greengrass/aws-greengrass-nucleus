@@ -232,9 +232,7 @@ class DeploymentTaskIntegrationTest {
         Consumer<GreengrassLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
-            if (messageOnStdout != null && messageOnStdout.contains("ComponentConfigurationTestService output")) {
-                messageOnStdout = messageOnStdout.replaceAll("\"", ""); // Windows has quotes in the echo, so strip them
-
+            if (messageOnStdout != null && messageOnStdout.contains("aws.iot.gg.test.integ.ComponentConfigTestService output")) {
                 stdouts.add(messageOnStdout);
             }
         };
@@ -251,7 +249,7 @@ class DeploymentTaskIntegrationTest {
 
         // verify config in config store and interpolation result
         Map<String, Object> resultConfig =
-                kernel.findServiceTopic("ComponentConfigurationTestService").findTopics("Configurations").toPOJO();
+                kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics("Configurations").toPOJO();
 
         verifyDefaultValueIsApplied(stdouts, resultConfig);
 
@@ -265,7 +263,7 @@ class DeploymentTaskIntegrationTest {
 
         // verify config in config store
         resultConfig =
-                kernel.findServiceTopic("ComponentConfigurationTestService").findTopics("Configurations").toPOJO();
+                kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics("Configurations").toPOJO();
 
         // Asserted values can be found in ComponentConfigTest_DeployDocument_2.json
 
@@ -285,12 +283,12 @@ class DeploymentTaskIntegrationTest {
         assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
 
         // verify interpolation result
-        assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: updated value of singleLevelKey."));
-        assertTrue(stdouts.get(0).contains("I'm /path/leafKey: updated value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains("I'm /listKey/0: item3."));
-        assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
-        assertTrue(stdouts.get(0).contains("I'm /defaultIsNullKey: updated value of defaultIsNullKey."));
-        assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
+        assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: updated value of singleLevelKey."));
+        assertTrue(stdouts.get(0).contains("Value for /path/leafKey: updated value of /path/leafKey."));
+        assertTrue(stdouts.get(0).contains("Value for /listKey/0: item3."));
+        assertTrue(stdouts.get(0).contains("Value for /emptyStringKey: ."));
+        assertTrue(stdouts.get(0).contains("Value for /defaultIsNullKey: updated value of defaultIsNullKey."));
+        assertTrue(stdouts.get(0).contains("Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
         stdouts.clear();
 
         /*
@@ -303,7 +301,7 @@ class DeploymentTaskIntegrationTest {
 
         // verify config in config store
         resultConfig =
-                kernel.findServiceTopic("ComponentConfigurationTestService").findTopics("Configurations").toPOJO();
+                kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics("Configurations").toPOJO();
         assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
         assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
         assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
@@ -323,12 +321,12 @@ class DeploymentTaskIntegrationTest {
         assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(2));  // no more keys
 
         // verify interpolation result
-        assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: updated value of singleLevelKey."));
-        assertTrue(stdouts.get(0).contains("I'm /path/leafKey: updated value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains("I'm /listKey/0: item3."));
-        assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
-        assertTrue(stdouts.get(0).contains("I'm /defaultIsNullKey: updated value of defaultIsNullKey."));
-        assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: value of newSingleLevelKey."));
+        assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: updated value of singleLevelKey."));
+        assertTrue(stdouts.get(0).contains("Value for /path/leafKey: updated value of /path/leafKey."));
+        assertTrue(stdouts.get(0).contains("Value for /listKey/0: item3."));
+        assertTrue(stdouts.get(0).contains("Value for /emptyStringKey: ."));
+        assertTrue(stdouts.get(0).contains("Value for /defaultIsNullKey: updated value of defaultIsNullKey."));
+        assertTrue(stdouts.get(0).contains("Value for /newSingleLevelKey: value of newSingleLevelKey."));
         stdouts.clear();
 
         /*
@@ -341,7 +339,7 @@ class DeploymentTaskIntegrationTest {
 
         // verify config in config store
         resultConfig =
-                kernel.findServiceTopic("ComponentConfigurationTestService").findTopics("Configurations").toPOJO();
+                kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics("Configurations").toPOJO();
         assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
         assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
         assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
@@ -363,12 +361,12 @@ class DeploymentTaskIntegrationTest {
         assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
 
         // verify interpolation result
-        assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: updated value of singleLevelKey."));
-        assertTrue(stdouts.get(0).contains("I'm /path/leafKey: updated value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains("I'm /listKey/0: item1."));
-        assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
-        assertTrue(stdouts.get(0).contains("I'm /defaultIsNullKey: updated value of defaultIsNullKey."));
-        assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
+        assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: updated value of singleLevelKey."));
+        assertTrue(stdouts.get(0).contains("Value for /path/leafKey: updated value of /path/leafKey."));
+        assertTrue(stdouts.get(0).contains("Value for /listKey/0: item1."));
+        assertTrue(stdouts.get(0).contains("Value for /emptyStringKey: ."));
+        assertTrue(stdouts.get(0).contains("Value for /defaultIsNullKey: updated value of defaultIsNullKey."));
+        assertTrue(stdouts.get(0).contains("Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
         stdouts.clear();
 
         // 5th RESET entirely to default
@@ -379,14 +377,14 @@ class DeploymentTaskIntegrationTest {
 
         // verify config in config store and interpolation result
         resultConfig =
-                kernel.findServiceTopic("ComponentConfigurationTestService").findTopics("Configurations").toPOJO();
+                kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics("Configurations").toPOJO();
         verifyDefaultValueIsApplied(stdouts, resultConfig);
 
         Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
     private void verifyDefaultValueIsApplied(List<String> stdouts, Map<String, Object> resultConfig) {
-        // Asserted default values are from the ComponentConfigurationTestService-1.0.0.yaml recipe file
+        // Asserted default values are from the aws.iot.gg.test.integ.ComponentConfigTestService-1.0.0.yaml recipe file
         assertThat(resultConfig, IsMapWithSize.aMapWithSize(8));
         assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "default value of singleLevelKey"));
         assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
@@ -402,11 +400,14 @@ class DeploymentTaskIntegrationTest {
                    IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
         // verify interpolation result
-        assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: default value of singleLevelKey."));
-        assertTrue(stdouts.get(0).contains("I'm /path/leafKey: default value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains("I'm /listKey/0: item1."));
-        assertTrue(stdouts.get(0).contains("I'm /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
-        assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
+        assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: default value of singleLevelKey."));
+        assertTrue(stdouts.get(0).contains("Value for /path/leafKey: default value of /path/leafKey."));
+        assertTrue(stdouts.get(0).contains("Value for /path: {\"leafKey\":\"default value of /path/leafKey\"}"));
+
+        assertTrue(stdouts.get(0).contains("Value for /listKey/0: item1."));
+        assertTrue(stdouts.get(0).contains("Value for /defaultIsNullKey: null"));
+        assertTrue(stdouts.get(0).contains("Value for /emptyStringKey: ."));
+        assertTrue(stdouts.get(0).contains("Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
         stdouts.clear();
     }
 
@@ -419,9 +420,7 @@ class DeploymentTaskIntegrationTest {
         Consumer<GreengrassLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
-            if (messageOnStdout != null && messageOnStdout.contains("ComponentConfigurationTestMain output")) {
-                messageOnStdout = messageOnStdout.replaceAll("\"", ""); // Windows has quotes in the echo, so strip them
-
+            if (messageOnStdout != null && messageOnStdout.contains("aws.iot.gg.test.integ.ComponentConfigTestMain output")) {
                 stdouts.add(messageOnStdout);
             }
         };
@@ -437,10 +436,10 @@ class DeploymentTaskIntegrationTest {
         resultFuture.get(10, TimeUnit.SECONDS);
 
         // verify interpolation result
-        assertTrue(stdouts.get(0).contains("I'm /singleLevelKey: default value of singleLevelKey."));
-        assertTrue(stdouts.get(0).contains("I'm /path/leafKey: default value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains("I'm /listKey/0: item1."));
-        assertTrue(stdouts.get(0).contains("I'm /emptyStringKey: ."));
+        assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: default value of singleLevelKey."));
+        assertTrue(stdouts.get(0).contains("Value for /path/leafKey: default value of /path/leafKey."));
+        assertTrue(stdouts.get(0).contains("Value for /listKey/0: item1."));
+        assertTrue(stdouts.get(0).contains("Value for /emptyStringKey: ."));
 
         Slf4jLogAdapter.removeGlobalListener(listener);
     }
@@ -457,8 +456,6 @@ class DeploymentTaskIntegrationTest {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
             if (messageOnStdout != null && messageOnStdout.contains("aws.iot.gg.test.integ.SystemConfigTest output")) {
-                messageOnStdout = messageOnStdout.replaceAll("\"", ""); // Windows has quotes in the echo, so strip them
-
                 stdouts.add(messageOnStdout);
             }
         };

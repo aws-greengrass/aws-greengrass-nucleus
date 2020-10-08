@@ -71,7 +71,7 @@ public class KernelConfigResolver {
 
 
     // pattern matches {group1:group2:group3}. Note char in both group can't be }, but can be special char like / and .
-    // ex. {aws.iot.ComponentConfigurationTestService:configuration:/singleLevelKey}
+    // ex. {aws.iot.aws.iot.gg.test.integ.ComponentConfigTestService:configuration:/singleLevelKey}
     private static final Pattern CROSS_COMPONENT_INTERPOLATION_REGEX =
             Pattern.compile("\\{([.\\w]+):([.\\w]+):([^:}]+)}");
 
@@ -229,8 +229,17 @@ public class KernelConfigResolver {
     }
 
     /********* Start of new configuration code path *********/
-    private Map<String, Object> resolveConfigurationToApply(ConfigurationUpdateOperation configurationUpdateOperation,
-            ComponentRecipe componentRecipe) {
+
+    /**
+     * Resolve configurations to apply for a component. It resolves based on current running config, default config, and
+     * config update operation.
+     *
+     * @param configurationUpdateOperation; nullable component configuration update operation.
+     * @param componentRecipe               component recipe containing default configuration.
+     * @return resolved configuration for this component. non null.
+     */
+    private Map<String, Object> resolveConfigurationToApply(
+            @Nullable ConfigurationUpdateOperation configurationUpdateOperation, ComponentRecipe componentRecipe) {
 
         // try read the running service config
         Map<String, Object> currentRunningConfig = null;
@@ -259,7 +268,7 @@ public class KernelConfigResolver {
             }
         }
 
-        // perform RESET and then MERGE
+        // perform RESET and then MERGE in order
         Map<String, Object> resolvedConfig;
 
         resolvedConfig = reset(currentRunningConfig, defaultConfig, configurationUpdateOperation.getPathsToReset());
@@ -299,7 +308,6 @@ public class KernelConfigResolver {
 
             if ((targetDefaultNode.isMissingNode())) {
                 // missing default value -> remove the entry completely
-                // note: remove, rather than setting to null.
                 if (node.at(jsonPointer.head()).isObject()) {
                     ((ObjectNode) node.at(jsonPointer.head())).remove(jsonPointer.last().getMatchingProperty());
                 } else {
@@ -312,14 +320,14 @@ public class KernelConfigResolver {
                 // target is container node, or a value node, including null node.
                 // replace the entry
                 if (node.at(jsonPointer.head()).isObject()) {
-
                     ((ObjectNode) node.at(jsonPointer.head())).replace(jsonPointer.last().getMatchingProperty(),
                                                                        targetDefaultNode);
                 } else {
                     // parent is not a container node. should not happen.
                     LOGGER.atError()
                             .kv("pointer provided", jsonPointer)
-                            .log("Failed to reset because provided pointer points to a parent who is not a container node. This shouldn't happen. Please reset the component configurations entirely");
+                            .log("Failed to reset because provided pointer points to a parent who is not a container "
+                                         + "node. Please reset the component configurations entirely");
                 }
             }
         }
@@ -329,7 +337,7 @@ public class KernelConfigResolver {
     }
 
     @SuppressWarnings("rawtypes")
-    private static Map deepMerge(Map original, Map newMap) {
+    private static Map deepMerge(@Nullable Map original, @Nullable Map newMap) {
 
         if (original == null) {
             if (newMap == null) {
@@ -367,15 +375,22 @@ public class KernelConfigResolver {
         return mergedMap;
     }
 
-    /*
-     * For each lifecycle key-value pair of a package, substitute parameter values.
+    /**
+     * Interpolate the lifecycle commands with resolved component configuration values and system configuration values.
+     *
+     * @param configValue                 original value; could be Map or String
+     * @param componentIdentifier         target component id
+     * @param dependencies                name set of component's dependencies
+     * @param resolvedKernelServiceConfig resolved kernel configuration under "Service" key
+     * @return the interpolated lifecycle object
+     * @throws PackageLoadingException when fails to read
      */
     private Object interpolate(Object configValue, ComponentIdentifier componentIdentifier, Set<String> dependencies,
-            Map wholeResolvedConfig) throws PackageLoadingException {
+            Map<String, Object> resolvedKernelServiceConfig) throws PackageLoadingException {
         Object result = configValue;
 
         if (configValue instanceof String) {
-            result = replace((String) configValue, componentIdentifier, dependencies, wholeResolvedConfig);
+            result = replace((String) configValue, componentIdentifier, dependencies, resolvedKernelServiceConfig);
         }
         if (configValue instanceof Map) {
             Map<String, Object> childConfigMap = (Map<String, Object>) configValue;
@@ -383,22 +398,21 @@ public class KernelConfigResolver {
             for (Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
                 resolvedChildConfig.put(childLifecycle.getKey(),
                                         interpolate(childLifecycle.getValue(), componentIdentifier, dependencies,
-                                                    wholeResolvedConfig));
+                                                    resolvedKernelServiceConfig));
             }
             result = resolvedChildConfig;
         }
 
         // No list handling because lists are outlawed under "Lifecycle" key
-
         return result;
     }
 
     private String replace(String stringValue, ComponentIdentifier componentIdentifier, Set<String> dependencies,
-            Map resolvedConfig) throws PackageLoadingException {
+            Map<String, Object> resolvedKernelServiceConfig) throws PackageLoadingException {
 
         Matcher matcher;
 
-        // Handle same-component interpolation
+        // Handle same-component interpolation. ex. {configuration:/singleLevelKey}
         matcher = SAME_COMPONENT_INTERPOLATION_REGEX.matcher(stringValue);
 
         while (matcher.find()) {
@@ -406,17 +420,14 @@ public class KernelConfigResolver {
             String key = matcher.group(2);
 
             if (namespace.equals(CONFIGURATION_NAMESPACE)) {
-
-                // TODO safety check
-                Map componentResolvedConfig =
-                        (Map) ((Map) resolvedConfig.get(componentIdentifier.getName())).get(CONFIGURATIONS_CONFIG_KEY);
-                String configReplacement = lookupConfigurationValue(componentResolvedConfig, matcher.group(2));
-                if (configReplacement != null) {
-                    stringValue = stringValue.replace(matcher.group(), configReplacement);
+                Optional<String> configReplacement =
+                        lookupConfigurationValueForComponent(componentIdentifier.getName(), key,
+                                                             resolvedKernelServiceConfig);
+                if (configReplacement.isPresent()) {
+                    stringValue = stringValue.replace(matcher.group(), configReplacement.get());
                 }
 
             } else if (systemParameters.containsKey(namespace)) {
-                // handle system config
                 String configReplacement = lookupSystemConfig(componentIdentifier, namespace, key);
                 if (configReplacement != null) {
                     stringValue = stringValue.replace(matcher.group(), configReplacement);
@@ -424,74 +435,66 @@ public class KernelConfigResolver {
 
             } else {
                 // unrecognized namespace
-                LOGGER.atError().log("unrecognized namespace");
+                LOGGER.atError()
+                        .kv("interpolation placeholder", matcher.group())
+                        .kv("namespace", namespace)
+                        .log("Failed to interpolate because of unrecognized namespace for interpolation.");
             }
-
         }
 
-        // Handle cross-component configuration
-
-        // example {ComponentConfigurationTestService:configuration:/singleLevelKey}
+        // Handle cross-component interpolation. ex. {aws.iot.gg.component1:configuration:/singleLevelKey}
         matcher = CROSS_COMPONENT_INTERPOLATION_REGEX.matcher(stringValue);
 
         while (matcher.find()) {
-
             String targetComponent = matcher.group(1);
             String namespace = matcher.group(2);
             String key = matcher.group(3);
 
-            // dependency check
+            // only interpolate if target component is a direct dependency
             if (!dependencies.contains(targetComponent)) {
-                // TODO more
-                LOGGER.atError().log("Don't interpolate because it's not a direct depenedency ");
+                LOGGER.atError()
+                        .kv("interpolation text", matcher.group())
+                        .kv("target component", targetComponent)
+                        .kv("main component", componentIdentifier.getName())
+                        .log("Failed to interpolate because the target component it's not a direct dependency.");
+                continue;
+            }
+
+            if (!resolvedKernelServiceConfig.containsKey(targetComponent)) {
+                LOGGER.atError()
+                        .kv("interpolation text", matcher.group())
+                        .kv("target component", targetComponent)
+                        .kv("main component", componentIdentifier.getName())
+                        .log("Failed to interpolate because the target component is not in resolved kernel services."
+                                     + " This indicates the dependency resolution is broken.");
                 continue;
             }
 
             if (namespace.equals(CONFIGURATION_NAMESPACE)) {
-                // check if in the current resolved config
-                if (resolvedConfig.containsKey(targetComponent)) {
-                    if (((Map) resolvedConfig.get(targetComponent)).containsKey(CONFIGURATIONS_CONFIG_KEY)) {
-                        Map componentResolvedConfig =
-                                (Map) ((Map) resolvedConfig.get(targetComponent)).get(CONFIGURATIONS_CONFIG_KEY);
-                        String replacement = lookupConfigurationValue(componentResolvedConfig, key);
-                        if (replacement != null) {
-                            stringValue = stringValue.replace(matcher.group(), replacement);
-
-                            continue;
-                            // exit
-                        }
-                    }
+                Optional<String> configReplacement =
+                        lookupConfigurationValueForComponent(targetComponent, key,
+                                                             resolvedKernelServiceConfig);
+                if (configReplacement.isPresent()) {
+                    stringValue = stringValue.replace(matcher.group(), configReplacement.get());
                 }
 
-                // else load from running config
-                Topics serviceTopics = kernel.findServiceTopic(targetComponent);
-                if (serviceTopics != null) {
-                    Topics configuration = serviceTopics.findTopics(CONFIGURATIONS_CONFIG_KEY);
-                    if (configuration != null) {
-                        String replacement = lookupConfigurationValue(configuration.toPOJO(), key);
-                        if (replacement != null) {
-                            stringValue = stringValue.replace(matcher.group(), replacement);
-                            continue;
-                            // exit
-                        }
-                    }
-                }
-
-                LOGGER.atError().log("No replacement as it could be find in either deployment or existed");
             } else if (systemParameters.containsKey(namespace)) {
-                // handle system config
-                String version = (String) ((Map) resolvedConfig.get(targetComponent)).get(VERSION_CONFIG_KEY);
+                String version =
+                        (String) ((Map) resolvedKernelServiceConfig.get(targetComponent)).get(VERSION_CONFIG_KEY);
 
                 String configReplacement =
                         lookupSystemConfig(new ComponentIdentifier(targetComponent, new Semver(version)), namespace,
                                            key);
+
                 if (configReplacement != null) {
                     stringValue = stringValue.replace(matcher.group(), configReplacement);
                 }
-
             } else {
                 // unrecognized namespace
-                LOGGER.atError().log("unrecognized namespace");
+                LOGGER.atError()
+                        .kv("interpolation placeholder", matcher.group())
+                        .kv("namespace", namespace)
+                        .log("Failed to interpolate because of unrecognized namespace for interpolation.");
             }
 
         }
@@ -499,6 +502,49 @@ public class KernelConfigResolver {
         return stringValue;
     }
 
+    /**
+     * Find the configuration value for a component
+     *
+     * @param componentName               component name
+     * @param path                        path to the value
+     * @param resolvedKernelServiceConfig resolved kernel service config to search from
+     * @return configuration value for the path; empty if not found.
+     */
+    private Optional<String> lookupConfigurationValueForComponent(String componentName, String path,
+            Map<String, Object> resolvedKernelServiceConfig) {
+
+        Map componentResolvedConfig;
+
+        if (resolvedKernelServiceConfig.containsKey(componentName) && ((Map) resolvedKernelServiceConfig.get(
+                componentName)).containsKey(CONFIGURATIONS_CONFIG_KEY)) {
+            componentResolvedConfig =
+                    (Map) ((Map) resolvedKernelServiceConfig.get(componentName)).get(CONFIGURATIONS_CONFIG_KEY);
+        } else {
+            return Optional.empty();
+        }
+
+        JsonNode targetNode = mapper.convertValue(componentResolvedConfig, JsonNode.class).at(path);
+
+        if (targetNode.isValueNode()) {
+            return Optional.of(targetNode.asText());
+        }
+
+        if (targetNode.isMissingNode()) {
+            LOGGER.atError()
+                    .addKeyValue("Path", path)
+                    .log("Failed to interpolate configuration due to missing value node at given path");
+            return Optional.empty();
+        }
+
+        if (targetNode.isContainerNode()) {
+            // return a serialized string for container node
+            String v = targetNode.toString();
+            return Optional.of(targetNode.toString());
+        }
+        return Optional.empty();
+    }
+
+    @Nullable
     private String lookupSystemConfig(ComponentIdentifier component, String namespace, String key)
             throws PackageLoadingException {
         // Handle system-wide configuration
@@ -507,35 +553,6 @@ public class KernelConfigResolver {
         if (systemParams.containsKey(key)) {
             return systemParams.get(key).apply(component);
         }
-        return null;
-    }
-
-
-    @Nullable // null means no value found for interpolation
-    // TODO try to avoid using null as branching logic after cleaning up the parameters
-    private String lookupConfigurationValue(Map componentResolvedConfig, String key) {
-        JsonNode targetNode = mapper.convertValue(componentResolvedConfig, JsonNode.class).at(key);
-
-        if (targetNode.isValueNode()) {
-            return targetNode.asText();
-        }
-
-        if (targetNode.isMissingNode()) {
-            LOGGER.atError()
-                    .addKeyValue("Path", key)
-                    .log("Failed to interpolate configuration due to missing value node at given path");
-            // don't perform interpolation
-            return null;
-        }
-
-        if (targetNode.isContainerNode()) {
-            LOGGER.atError()
-                    .addKeyValue("Path", key)
-                    .addKeyValue("ContainerNode", targetNode.toString())
-                    .log("Failed to interpolate configuration because node at given path is a container node");
-            return null;
-        }
-        //        }
         return null;
     }
 

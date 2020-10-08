@@ -1,7 +1,7 @@
 ---
 RecipeFormatVersion: '2020-01-25'
 ComponentName: aws.iot.gg.test.integ.SystemConfigTest
-ComponentDescription: This is a main that depends on ComponentConfigurationTestService-1.0.0.yaml
+ComponentDescription: This is a main that depends on aws.iot.gg.test.integ.ComponentConfigTestService-1.0.0.yaml
 ComponentPublisher: Me
 ComponentVersion: '0.0.1'
 
