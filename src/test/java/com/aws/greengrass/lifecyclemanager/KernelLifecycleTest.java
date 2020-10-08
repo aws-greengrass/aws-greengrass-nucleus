@@ -16,6 +16,7 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
 import org.junit.jupiter.api.AfterEach;
@@ -69,6 +70,7 @@ class KernelLifecycleTest {
 
     @TempDir
     protected Path tempRootDir;
+    private NucleusPaths mockPaths;
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -77,18 +79,19 @@ class KernelLifecycleTest {
         mockKernel = mock(Kernel.class);
         mockContext = mock(Context.class);
         mockConfig = mock(Configuration.class);
+        mockPaths = mock(NucleusPaths.class);
         when(mockConfig.getRoot()).thenReturn(mock(Topics.class));
         when(mockKernel.getConfig()).thenReturn(mockConfig);
         when(mockKernel.getContext()).thenReturn(mockContext);
-        when(mockKernel.getRootPath()).thenReturn(tempRootDir);
-        when(mockKernel.getConfigPath()).thenReturn(tempRootDir.resolve("config"));
+        when(mockPaths.rootPath()).thenReturn(tempRootDir);
+        when(mockPaths.configPath()).thenReturn(tempRootDir.resolve("config"));
         Files.createDirectories(tempRootDir.resolve("config"));
         when(mockContext.get(eq(EZPlugins.class))).thenReturn(mock(EZPlugins.class));
         when(mockContext.get(eq(ExecutorService.class))).thenReturn(mock(ExecutorService.class));
         when(mockContext.get(eq(ScheduledExecutorService.class))).thenReturn(mock(ScheduledExecutorService.class));
 
         mockKernelCommandLine = Mockito.spy(new KernelCommandLine(mockKernel));
-        kernelLifecycle = new KernelLifecycle(mockKernel, mockKernelCommandLine);
+        kernelLifecycle = new KernelLifecycle(mockKernel, mockKernelCommandLine, mockPaths);
     }
 
     @AfterEach
@@ -149,7 +152,7 @@ class KernelLifecycleTest {
     @Test
     void GIVEN_kernel_WHEN_launch_without_config_THEN_config_read_from_disk() throws Exception {
         // Create configYaml so that the kernel will try to read it in
-        File configYaml = mockKernel.getConfigPath().resolve("config.yaml").toFile();
+        File configYaml = mockPaths.configPath().resolve("config.yaml").toFile();
         configYaml.createNewFile();
 
         kernelLifecycle.initConfigAndTlog();
@@ -161,7 +164,7 @@ class KernelLifecycleTest {
     @Test
     void GIVEN_kernel_WHEN_launch_without_config_THEN_tlog_read_from_disk() throws Exception {
         // Create configTlog so that the kernel will try to read it in
-        File configTlog = mockKernel.getConfigPath().resolve("config.tlog").toFile();
+        File configTlog = mockPaths.configPath().resolve("config.tlog").toFile();
         configTlog.createNewFile();
 
         kernelLifecycle.initConfigAndTlog();
@@ -176,7 +179,7 @@ class KernelLifecycleTest {
         doReturn(mockMain).when(mockKernel).locate(eq("main"));
 
         kernelLifecycle.initConfigAndTlog();
-        Path configPath = mockKernel.getConfigPath().resolve("config.yaml");
+        Path configPath = mockPaths.configPath().resolve("config.yaml");
         verify(mockKernel).writeEffectiveConfig(eq(configPath));
     }
 

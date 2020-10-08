@@ -278,7 +278,7 @@ class IPCCliTest {
                 .artifactDirectoryPath(artifactsPath.toString())
                 .build();
         cli.updateRecipesAndArtifacts(request);
-        assertTrue(Files.exists(kernel.getComponentStorePath().resolve(ComponentStore.ARTIFACT_DIRECTORY)
+        assertTrue(Files.exists(kernel.getNucleusPaths().componentStorePath().resolve(ComponentStore.ARTIFACT_DIRECTORY)
                 .resolve("Component1").resolve("1.0.0").resolve("run.sh")));
         CreateLocalDeploymentRequest deploymentRequest = CreateLocalDeploymentRequest.builder()
                 .groupName("NewGroup")
@@ -310,7 +310,7 @@ class IPCCliTest {
                 .artifactDirectoryPath(artifactsPath.toString())
                 .build();
         cli.updateRecipesAndArtifacts(request);
-        assertTrue(Files.exists(kernel.getComponentStorePath().resolve(ComponentStore.ARTIFACT_DIRECTORY)
+        assertTrue(Files.exists(kernel.getNucleusPaths().componentStorePath().resolve(ComponentStore.ARTIFACT_DIRECTORY)
                 .resolve("Component1").resolve("1.0.0").resolve("run.sh")));
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("Message", "NewWorld");
@@ -348,7 +348,7 @@ class IPCCliTest {
 
 
     private KernelIPCClientConfig getIPCConfigForCli() throws IOException, URISyntaxException {
-        Path filepath = kernel.getRootPath().resolve(CLI_IPC_INFO_FILENAME);
+        Path filepath = kernel.getNucleusPaths().rootPath().resolve(CLI_IPC_INFO_FILENAME);
         Map<String, String> ipcInfo = OBJECT_MAPPER.readValue(Files.readAllBytes(filepath), Map.class);
         URI serverUri = new URI(ipcInfo.get(SOCKET_URL));
         int port = serverUri.getPort();
