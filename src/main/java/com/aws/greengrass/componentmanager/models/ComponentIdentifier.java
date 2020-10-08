@@ -28,12 +28,11 @@ public class ComponentIdentifier implements Comparable<ComponentIdentifier> {
      * @param name    package name
      * @param version package version in semver
      */
-    @Deprecated  //scope needs to be recorded locally, switch to use all args constructor
+    @SuppressWarnings("PMD.NullAssignment")
     public ComponentIdentifier(String name, Semver version) {
         this.name = name;
         this.version = version;
-        //hardcode to 'private' before refactoring caller of this constructor
-        this.scope = PRIVATE_SCOPE;
+        this.scope = null;
     }
 
     @Override
