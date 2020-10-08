@@ -37,6 +37,7 @@ public class DeploymentPackageConfiguration {
     @JsonProperty("ResolvedVersion")
     private String resolvedVersion;
 
+    @Deprecated
     @JsonProperty("Configuration")
     private Map<String, Object> configuration = new HashMap<>();
 
