@@ -6,7 +6,6 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
-import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.ConfigurationWriter;
@@ -33,6 +32,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.DependencyOrder;
 import com.aws.greengrass.util.IotSdkClientFactory;
+import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -95,32 +95,12 @@ public class Kernel {
     @Setter(AccessLevel.PACKAGE)
     private Configuration config;
 
-    @Getter
-    @Setter(AccessLevel.PACKAGE)
-    private Path rootPath;
-    @Getter
-    @Setter(AccessLevel.PACKAGE)
-    private Path configPath;
-    @Getter
-    @Setter(AccessLevel.PACKAGE)
-    private Path clitoolPath;
-    @Getter
-    @Setter(AccessLevel.PACKAGE)
-    private Path workPath;
-    @Getter
-    @Setter(AccessLevel.PACKAGE)
-    private Path componentStorePath;
-    @Getter
-    @Setter(AccessLevel.PACKAGE)
-    private Path kernelAltsPath;
-    @Getter
-    @Setter(AccessLevel.PACKAGE)
-    private Path deploymentsPath;
-
     @Setter(AccessLevel.PACKAGE)
     private KernelCommandLine kernelCommandLine;
     @Setter(AccessLevel.PACKAGE)
     private KernelLifecycle kernelLifecycle;
+    @Getter
+    private final NucleusPaths nucleusPaths;
 
     private Collection<GreengrassService> cachedOD = null;
 
@@ -143,8 +123,10 @@ public class Kernel {
         Thread.setDefaultUncaughtExceptionHandler(new KernelExceptionHandler());
         Runtime.getRuntime().addShutdownHook(new Thread(() -> this.shutdown(-1)));
 
+        nucleusPaths = new NucleusPaths();
+        context.put(NucleusPaths.class, nucleusPaths);
         kernelCommandLine = new KernelCommandLine(this);
-        kernelLifecycle = new KernelLifecycle(this, kernelCommandLine);
+        kernelLifecycle = new KernelLifecycle(this, kernelCommandLine, nucleusPaths);
         context.put(KernelCommandLine.class, kernelCommandLine);
         context.put(KernelLifecycle.class, kernelLifecycle);
         context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
@@ -178,7 +160,7 @@ public class Kernel {
     public Kernel launch() {
         BootstrapManager bootstrapManager = kernelCommandLine.getBootstrapManager();
         DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
-        KernelAlternatives kernelAlts = kernelCommandLine.getKernelAlternatives();
+        KernelAlternatives kernelAlts = context.get(KernelAlternatives.class);
         DeploymentStage stage = kernelAlts.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager);
         switch (stage) {
             case BOOTSTRAP:
@@ -292,7 +274,7 @@ public class Kernel {
 
     public void writeEffectiveConfig() {
         // TODO: what file extension should we use?  The syntax is yaml, but the semantics are "evergreen"
-        writeEffectiveConfig(configPath.resolve(DEFAULT_CONFIG_YAML_FILE));
+        writeEffectiveConfig(context.get(NucleusPaths.class).configPath().resolve(DEFAULT_CONFIG_YAML_FILE));
     }
 
     /**
@@ -465,8 +447,13 @@ public class Kernel {
     @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.CloseResource"})
     private Class<?> locateExternalPlugin(String name, Topics serviceRootTopics) throws ServiceLoadException {
         ComponentIdentifier componentId = ComponentIdentifier.fromServiceTopics(serviceRootTopics);
-        Path pluginJar = context.get(ComponentStore.class).resolveArtifactDirectoryPath(componentId)
-                .resolve(componentId.getName() + JAR_FILE_EXTENSION);
+        Path pluginJar;
+        try {
+            pluginJar = nucleusPaths.artifactPath(componentId)
+                    .resolve(componentId.getName() + JAR_FILE_EXTENSION);
+        } catch (IOException e) {
+            throw new ServiceLoadException(e);
+        }
         if (!pluginJar.toFile().exists() || !pluginJar.toFile().isFile()) {
             throw new ServiceLoadException(
                     String.format("Unable to find %s because %s does not exist", name, pluginJar));

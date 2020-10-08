@@ -212,8 +212,8 @@ public class CLIServiceAgent {
     public void updateRecipesAndArtifacts(UpdateRecipesAndArtifactsRequest request)
             throws InvalidArgumentsError, InvalidRecipesDirectoryPathError, InvalidArtifactsDirectoryPathError {
         validateUpdateRecipesAndArtifactsRequest(request);
-        Path kernelPackageStorePath = kernel.getComponentStorePath();
-        if (!StringUtils.isEmpty(request.getRecipeDirectoryPath())) {
+        Path kernelPackageStorePath = kernel.getNucleusPaths().componentStorePath();
+        if (!Utils.isEmpty(request.getRecipeDirectoryPath())) {
             Path recipeDirectoryPath = Paths.get(request.getRecipeDirectoryPath());
             Path kernelRecipeDirectoryPath = kernelPackageStorePath.resolve(ComponentStore.RECIPE_DIRECTORY);
             try {
@@ -225,7 +225,7 @@ public class CLIServiceAgent {
                 throw new InvalidRecipesDirectoryPathError(e.getMessage());
             }
         }
-        if (!StringUtils.isEmpty(request.getArtifactDirectoryPath())) {
+        if (!Utils.isEmpty(request.getArtifactDirectoryPath())) {
             Path artifactsDirectoryPath = Paths.get(request.getArtifactDirectoryPath());
             Path kernelArtifactsDirectoryPath = kernelPackageStorePath.resolve(ComponentStore.ARTIFACT_DIRECTORY);
             try {

@@ -25,6 +25,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.codec.Charsets;
@@ -123,13 +124,15 @@ class ComponentManagerTest {
     private Unarchiver mockUnarchiver;
     @Mock
     private DeviceConfiguration deviceConfiguration;
+    @Mock
+    private NucleusPaths nucleusPaths;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @BeforeEach
     void beforeEach() {
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         componentManager = new ComponentManager(s3Downloader, artifactDownloader, packageServiceHelper,
-                executor, componentStore, kernel, mockUnarchiver, deviceConfiguration);
+                executor, componentStore, kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
     }
 
     @AfterEach
@@ -171,7 +174,6 @@ class ComponentManagerTest {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
-        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(pkgId)).thenReturn(tempDir);
         when(artifactDownloader.downloadToPath(any(), any(), any())).thenReturn(new File("binary1"));
 
         componentManager.prepareArtifacts(pkgId,
@@ -200,7 +202,8 @@ class ComponentManagerTest {
     }
 
     @Test
-    void GIVEN_artifact_provider_not_supported_WHEN_attempt_download_THEN_throw_package_exception() {
+    void GIVEN_artifact_provider_not_supported_WHEN_attempt_download_THEN_throw_package_exception()
+            throws PackageLoadingException {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
@@ -210,7 +213,8 @@ class ComponentManagerTest {
     }
 
     @Test
-    void GIVEN_artifact_url_no_scheme_WHEN_attempt_download_THEN_throw_package_exception() {
+    void GIVEN_artifact_url_no_scheme_WHEN_attempt_download_THEN_throw_package_exception()
+            throws PackageLoadingException {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0" + ".0"), SCOPE);
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);

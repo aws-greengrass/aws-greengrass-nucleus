@@ -9,6 +9,7 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.NucleusPaths;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,13 +47,15 @@ class DeploymentDirectoryManagerTest {
     Path deploymentsDir;
     @Mock
     private Kernel kernel;
+    @Mock
+    private NucleusPaths nucleusPaths;
 
     private DeploymentDirectoryManager deploymentDirectoryManager;
 
     @BeforeEach
     void beforeEach() {
-        doReturn(deploymentsDir).when(kernel).getDeploymentsPath();
-        deploymentDirectoryManager = new DeploymentDirectoryManager(kernel);
+        doReturn(deploymentsDir).when(nucleusPaths).deploymentPath();
+        deploymentDirectoryManager = new DeploymentDirectoryManager(kernel, nucleusPaths);
     }
 
     @Test

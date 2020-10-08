@@ -65,8 +65,7 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
         // get required instances from context
         componentManager = kernel.getContext().get(ComponentManager.class);
         dependencyResolver = kernel.getContext().get(DependencyResolver.class);
-        componentStorePath = kernel.getComponentStorePath();
-
+        componentStorePath = kernel.getNucleusPaths().componentStorePath();
     }
 
     @AfterEach
