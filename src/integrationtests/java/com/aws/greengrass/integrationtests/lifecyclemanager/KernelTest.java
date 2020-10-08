@@ -12,12 +12,16 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import software.amazon.awssdk.crt.mqtt.MqttException;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -31,10 +35,12 @@ import java.util.function.Consumer;
 
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+@ExtendWith(GGExtension.class)
 class KernelTest extends BaseITCase {
     private static final ExpectedStdoutPattern[] EXPECTED_MESSAGES =
             {new ExpectedStdoutPattern(0, "MAIN IS RUNNING", "Main service"),
@@ -172,7 +178,9 @@ class KernelTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_service_install_always_fail_WHEN_kernel_launches_THEN_service_go_broken_state() throws Exception {
+    void GIVEN_service_install_always_fail_WHEN_kernel_launches_THEN_service_go_broken_state(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, MqttException.class);
         kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("config_install_error.yaml").toString());
         kernel.launch();
@@ -187,7 +195,9 @@ class KernelTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_service_install_broken_WHEN_kernel_launches_with_fix_THEN_service_install_succeeds() throws Exception {
+    void GIVEN_service_install_broken_WHEN_kernel_launches_with_fix_THEN_service_install_succeeds(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, MqttException.class);
         kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("config_install_error.yaml").toString());
         kernel.launch();
@@ -230,7 +240,9 @@ class KernelTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_service_startup_always_fail_WHEN_kernel_launches_THEN_service_go_broken_state() throws Exception {
+    void GIVEN_service_startup_always_fail_WHEN_kernel_launches_THEN_service_go_broken_state(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, MqttException.class);
         kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("config_startup_error.yaml").toString());
         kernel.launch();
@@ -261,8 +273,9 @@ class KernelTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_expected_state_transitions_WHEN_services_error_out_THEN_all_expectations_should_be_seen()
-            throws Exception {
+    void GIVEN_expected_state_transitions_WHEN_services_error_out_THEN_all_expectations_should_be_seen(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, MqttException.class);
         LinkedList<ExpectedStateTransition> expectedStateTransitionList = new LinkedList<>(
                 Arrays.asList(new ExpectedStateTransition("installErrorRetry", State.NEW, State.ERRORED, 0),
                         new ExpectedStateTransition("installErrorRetry", State.ERRORED, State.NEW, 0),

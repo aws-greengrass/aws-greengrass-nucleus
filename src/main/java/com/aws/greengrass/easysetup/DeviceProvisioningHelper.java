@@ -1,6 +1,10 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.easysetup;
 
-import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -59,11 +63,6 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.tes.TokenExchangeService.IOT_ROLE_ALIAS_TOPIC;
-import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 
 /**
  * Provision a device by registering as an IoT thing, creating roles and template first party components.
@@ -231,13 +230,15 @@ public class DeviceProvisioningHelper {
     /**
      * Update the kernel config with iot thing info, in specific CA, private Key and cert path.
      *
-     * @param kernel    Kernel instance
-     * @param thing     thing info
-     * @param awsRegion aws region
-     * @throws IOException Exception while reading root CA from file
+     * @param kernel        Kernel instance
+     * @param thing         thing info
+     * @param awsRegion     aws region
+     * @param roleAliasName role alias for using IoT credentials endpoint
+     * @throws IOException                  Exception while reading root CA from file
      * @throws DeviceConfigurationException when the configuration parameters are not valid
      */
-    public void updateKernelConfigWithIotConfiguration(Kernel kernel, ThingInfo thing, String awsRegion)
+    public void updateKernelConfigWithIotConfiguration(Kernel kernel, ThingInfo thing, String awsRegion,
+                                                       String roleAliasName)
             throws IOException, DeviceConfigurationException {
         Path rootDir = kernel.getNucleusPaths().rootPath();
         Path caFilePath = rootDir.resolve("rootCA.pem");
@@ -253,7 +254,7 @@ public class DeviceProvisioningHelper {
         }
 
         new DeviceConfiguration(kernel, thing.thingName, thing.dataEndpoint, thing.credEndpoint,
-                privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(), awsRegion);
+                privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(), awsRegion, roleAliasName);
         outStream.println("Created device configuration");
     }
 
@@ -344,17 +345,6 @@ public class DeviceProvisioningHelper {
                     + "already%n", rolePolicyName);
             return Optional.empty();
         }
-    }
-
-    /**
-     * Update the kernel config with TES role alias.
-     *
-     * @param kernel        Kernel instance
-     * @param roleAliasName name of the role alias
-     */
-    public void updateKernelConfigWithTesRoleInfo(Kernel kernel, String roleAliasName) {
-        Topics tesTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS);
-        tesTopics.lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).withValue(roleAliasName);
     }
 
     /**

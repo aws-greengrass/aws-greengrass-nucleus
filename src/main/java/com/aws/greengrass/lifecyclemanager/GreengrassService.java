@@ -19,6 +19,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -488,6 +489,10 @@ public class GreengrassService implements InjectionActions {
 
     public Topics getServiceConfig() {
         return config;
+    }
+
+    public String getServiceType() {
+        return Coerce.toString(config.findLeafChild(Kernel.SERVICE_TYPE_TOPIC_KEY));
     }
 
     /**

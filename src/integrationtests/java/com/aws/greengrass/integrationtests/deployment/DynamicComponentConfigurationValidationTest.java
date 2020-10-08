@@ -53,6 +53,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
@@ -121,6 +122,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                             kernel.getMain().getServiceConfig().lookupTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC)
                                     .toPOJO());
                 }});
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, kernel.findServiceTopic(DEFAULT_NUCLEUS_COMPONENT_NAME).toPOJO());
                 put("OldService", new HashMap<String, Object>() {{
                     put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
                         put("ConfigKey1", "ConfigValue1");

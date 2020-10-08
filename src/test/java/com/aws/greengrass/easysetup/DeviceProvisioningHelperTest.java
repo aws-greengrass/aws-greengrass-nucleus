@@ -52,12 +52,11 @@ import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.util.Collections;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
-import static com.aws.greengrass.deployment.DeviceConfiguration.SYSTEM_NAMESPACE_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.tes.TokenExchangeService.IOT_ROLE_ALIAS_TOPIC;
-import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -182,18 +181,12 @@ class DeviceProvisioningHelperTest {
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel,
                 new DeviceProvisioningHelper.ThingInfo(getThingArn(), "thingname", "certarn", "certid", "certpem",
                         KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build(), "dataEndpoint",
-                        "credEndpoint"), TEST_REGION);
-        assertEquals("thingname", kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME).getOnce());
-    }
-
-    @Test
-    void GIVEN_test_tes_role_config_WHEN_role_info_provided_THEN_add_config_to_config_store() {
-        kernel = new Kernel()
-                .parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r", tempRootDir.toString());
-
-        deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, "roleAliasName");
+                        "credEndpoint"), TEST_REGION, "roleAliasName");
+        assertEquals("thingname", kernel.getConfig()
+                .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                        DEVICE_PARAM_THING_NAME).getOnce());
         assertEquals("roleAliasName", kernel.getConfig()
-                .lookup(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS, PARAMETERS_CONFIG_KEY,
+                .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                         IOT_ROLE_ALIAS_TOPIC).getOnce());
     }
 

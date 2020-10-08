@@ -49,6 +49,8 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.time.Duration;
+import software.amazon.awssdk.crt.mqtt.MqttException;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -74,6 +76,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPE
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -552,6 +555,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             ExtensionContext context) throws Throwable {
 
         ignoreExceptionUltimateCauseWithMessage(context, "Service sleeperB in broken state after deployment");
+        ignoreExceptionUltimateCauseOfType(context, MqttException.class);
 
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("short_running_services_using_startup_script.yaml")
