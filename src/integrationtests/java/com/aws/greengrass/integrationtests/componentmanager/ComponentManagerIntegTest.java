@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -46,7 +47,9 @@ class ComponentManagerIntegTest extends BaseITCase {
 
         ComponentIdentifier ident = new ComponentIdentifier("A", new Semver("1.0.0"));
 
-        ComponentStore store = new ComponentStore(tempRootDir);
+        NucleusPaths nucleusPaths = kernel.getNucleusPaths();
+        nucleusPaths.setComponentStorePath(tempRootDir);
+        ComponentStore store = new ComponentStore(nucleusPaths);
         kernel.getContext().put(ComponentStore.class, store);
         GreengrassRepositoryDownloader mockDownloader = mock(GreengrassRepositoryDownloader.class);
         kernel.getContext().put(GreengrassRepositoryDownloader.class, mockDownloader);
@@ -70,7 +73,7 @@ class ComponentManagerIntegTest extends BaseITCase {
               .preparePackages(Collections.singletonList(ident))
               .get(10, TimeUnit.SECONDS);
 
-        Path zipPath = store.resolveAndSetupArtifactsDecompressedDirectory(ident).resolve("zip");
+        Path zipPath = nucleusPaths.unarchiveArtifactPath(ident, "zip");
         assertThat(zipPath.toFile(), anExistingDirectory());
         assertThat(zipPath.resolve("zip").toFile(), anExistingDirectory());
         assertThat(zipPath.resolve("zip").resolve("1").toFile(), anExistingFile());

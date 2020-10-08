@@ -10,6 +10,7 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
@@ -54,11 +55,12 @@ public class DeploymentDirectoryManager {
      * Constructor of deployment directory manager for kernel.
      *
      * @param kernel a kernel instance
+     * @param nucleusPaths nucleus paths
      */
     @Inject
-    public DeploymentDirectoryManager(Kernel kernel) {
+    public DeploymentDirectoryManager(Kernel kernel, NucleusPaths nucleusPaths) {
         this.kernel = kernel;
-        this.deploymentsDir = kernel.getDeploymentsPath();
+        this.deploymentsDir = nucleusPaths.deploymentPath();
         this.previousFailureDir = deploymentsDir.resolve(PREVIOUS_FAILURE_LINK);
         this.previousSuccessDir = deploymentsDir.resolve(PREVIOUS_SUCCESS_LINK);
         this.ongoingDir = deploymentsDir.resolve(ONGOING_DEPLOYMENT_LINK);

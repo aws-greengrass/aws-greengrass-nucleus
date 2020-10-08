@@ -23,6 +23,7 @@ import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
 import com.amazonaws.services.evergreen.model.SetConfigurationResult;
 import com.aws.greengrass.componentmanager.ComponentServiceHelper;
 import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
@@ -38,6 +39,7 @@ import com.aws.greengrass.tes.TokenExchangeService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
+import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -197,7 +199,6 @@ public class BaseE2ETestCase implements AutoCloseable {
         createS3BucketsForTestComponentArtifacts();
         uploadComponentArtifactToS3(componentsWithArtifactsInS3);
         uploadTestComponentsToCms(componentsWithArtifactsInS3);
-
     }
 
     @AfterAll
@@ -236,7 +237,9 @@ public class BaseE2ETestCase implements AutoCloseable {
         // copy to tmp directory
         FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
 
-        e2ETestComponentStore = new ComponentStore(e2eTestPkgStoreDir);
+        NucleusPaths nucleusPaths = new NucleusPaths();
+        nucleusPaths.setComponentStorePath(e2eTestPkgStoreDir);
+        e2ETestComponentStore = new ComponentStore(nucleusPaths);
     }
 
     /**
@@ -310,7 +313,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    private static void uploadComponentArtifactToS3(ComponentIdentifier... pkgIds) {
+    private static void uploadComponentArtifactToS3(ComponentIdentifier... pkgIds) throws PackageLoadingException {
         for (ComponentIdentifier pkgId : pkgIds) {
             ComponentIdentifier pkgIdLocal = getLocalPackageIdentifier(pkgId);
             Path artifactDirPath = e2ETestComponentStore.resolveArtifactDirectoryPath(pkgIdLocal);
@@ -393,10 +396,10 @@ public class BaseE2ETestCase implements AutoCloseable {
         createdThingGroups.clear();
         createdIotJobIds.forEach(jobId -> IotJobsUtils.cleanJob(iotClient, jobId));
         createdIotJobIds.clear();
-        if (kernel == null || kernel.getConfigPath() == null) {
+        if (kernel == null || kernel.getNucleusPaths().configPath() == null) {
             return;
         }
-        for (File subFile : kernel.getConfigPath().toFile().listFiles()) {
+        for (File subFile : kernel.getNucleusPaths().configPath().toFile().listFiles()) {
             boolean result = subFile.delete();
             if (!result) {
                 logger.atWarn().kv("fileName", subFile.toString()).log("Fail to delete file in cleanup.");
