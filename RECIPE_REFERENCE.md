@@ -18,31 +18,38 @@ ComponentVersion: 1.0.0
 ComponentDescription: hello world from greengrass!
 ComponentPublisher: Amazon
 ComponentType: aws.greengrass.generic
+ComponentConfiguration:
+  DefaultConfiguration:
+    singleLevelKey: default value of singleLevelKey
+    path:
+      leafKey: default value of /path/leafKey
+    listKey:
+      - 'item1'
+      - 'item2'
+
+ComponentDependencies:
+  variant.Python3:
+    VersionRequirement: ^3.5
+    DependencyType: SOFT
+
 Manifests:
   - Platform:
       os: windows
       architecture: x86_64
     Lifecycle:
       Run:
-        python3 {{artifacts:path}}/hello_windows_server.py
+        python3 {{artifacts:path}}/hello_windows_server.py {configuration:/path/leafKey}
     Artifacts:
       - URI: s3://some-bucket/hello_windows.zip
         Unarchive: ZIP
-    Dependencies:
-      variant.Python3:
-        VersionRequirement: ^3.5
-        DependencyType: SOFT
   - Platform:
       os: linux
       architecture: arm
     Lifecycle:
       Run:
-        python3 {{artifacts:path}}/hello_world.py
+        python3 {{artifacts:path}}/hello_world.py {configuration:/path/leafKey}
     Artifacts:
       - URI: s3://some-bucket/hello_world.py
-    Dependencies:
-      variant.Python3:
-        VersionRequirement: ^3.5
 ```
 The topics on this reference are organized by top-level keys in terms of providing component metadata or
  defining platform specific manifest. Top-level keys can have options that support them as sub-topics. This
@@ -81,6 +88,30 @@ Describe component runtime mode, support values: `aws.greengrass.plugin`, `aws.g
 ```yaml
 ComponentType: aws.greengrass.generic
 ```
+
+#### Component Dependencies
+Describe component dependencies, the versions of dependencies will be resolved during deployment.
+> note: Services represented by components will be started/stopped with respect to dependency order.
+
+```yaml
+ComponentDependencies:
+    shared.python:
+      VersionRequirement: ~3.6
+      DependencyType: SOFT
+```
+##### Version Requirement
+Specify dependency version requirements, the requirements use NPM-style syntax.
+##### Dependency Type
+Specify if dependency is `HARD` or `SOFT` dependency. `HARD` means dependent service will be restarted if the dependency
+ service changes state. In the opposite, `SOFT` means the service will wait the dependency to start when first
+  starting, but will not be restarted if the dependency changes state.
+  
+#### ComponentConfiguration
+##### ComponentConfiguration.DefaultConfiguration
+Each Greengrass V2 component could define its own default configuration which would be used by default.
+The configuration is a free-form hierarchical structure. It could be used by the recipe's lifecycle section with dynamic interpolation 
+as well as the component code and logic.
+
 ### Manifests
 Define a list of manifests, a manifest is specific to one platform or default to every other platform.
 #### Manifest.Platform
@@ -144,6 +175,57 @@ Lifecycle:
   UpdatesCompleted:
     Script:
 ```
+
+#### Manifest.Lifecycle with recipe variables
+Recipe variables expose information from the component and kernel for you to use in your recipes. For example, you can use recipe variables to pass component configurations to a lifecycle script that exists as an artifact.
+
+Recipe variables use {recipe_variable} syntax. The single curly braces indicate a recipe variable and will be replaced at runtime.
+
+#### Use Component's own variables
+{<namespace>:<key>}
+
+The following recipe variables:
+
+1. {configuration:<json pointer>} The value of a configuration at the provided JSON pointer location for the component. 
+
+For example, the {configuration:/path/list/0} recipe variable retrieves the value at the location of `/path/list/0` from the configration. 
+
+Note a JSON pointer could point to 4 different possible node type, including:
+1. Value node: the place holder will be replacedd by the **the text representation for that value**.
+2. Container node: the place holder will be replacedd by the serialized JSON String representation for that container. Note the JSON string
+usually contains double quotes. If you are using it in the command line, make sure you escape it appropriately.
+3. `null`: the placeholder will be replaced as: **nul**
+4. missing node: the placeholder **will remain**.
+
+You can use this variable to provide a configuration value to a script that you run in the component lifecycle.
+
+2. {artifacts:path}
+The root path of the artifacts for the component that this recipe defines. When a component installs, AWS IoT Greengrass copies the component's artifacts to the folder that this variable exposes. 
+You can use this variable to identify the location of a script to run in the component lifecycle.
+
+3. {artifacts:decompressedPath}
+The root path of the decompressed archive artifacts for the component that this recipe defines. When a component installs, AWS IoT Greengrass unpacks the component's archive artifacts to the folder that this variable exposes. 
+You can use this variable to identify the location of a script to run in the component lifecycle. 
+Each artifact unzips to a folder within the decompressed path, where the folder has the same name as the artifact minus its extension. For example, a ZIP artifact named models.zip unpacks to the {{artifacts:decompressedPath}}/models folder
+
+#### Use Direct Dependencies' variables
+If a component has dependencies, it sometimes require reading its dependencies's info at runtime, such as configuration and artifact path.
+
+It could use it with the syntax: {<componentName>:<namespace>:<key>}
+
+Similarly, you could use the variables above.
+1. {<componentName>:configuration:<json pointer>}
+1. {<componentName>:artifacts:path}
+1. {<componentName>:artifacts:decompressedPath}
+
+If you refer to a componentName that is not a direct dependency, **the placeholder will remain**.
+
+#### Global recipe variables
+Global recipe variables could be used by any component.
+
+1. {kernel:root}
+The absolute root path that the kernel is running at runtime. 
+
 #### Manifest.Artifacts
 A list of artifacts that component uses as resources, such as binary, scripts, images etc.
 ```yaml
@@ -156,19 +238,3 @@ Artifacts are referenced by artifact URIs. Currently Greengrass supports Greengr
  storage location.
 ##### Unarchive
 Indicate whether automatically unarchive artifact
-#### Manifest.Dependencies
-Describe component dependencies, the versions of dependencies will be resolved during deployment.
-> note: Services represented by components will be started/stopped with respect to dependency order.
-
-```yaml
-Dependencies:
-    shared.python:
-      VersionRequirement: ~3.6
-      DependencyType: SOFT
-```
-##### Version Requirement
-Specify dependency version requirements, the requirements use NPM-style syntax.
-##### Dependency Type
-Specify if dependency is `HARD` or `SOFT` dependency. `HARD` means dependent service will be restarted if the dependency
- service changes state. In the opposite, `SOFT` means the service will wait the dependency to start when first
-  starting, but will not be restarted if the dependency changes state.

@@ -90,8 +90,20 @@ might cause removal for an index, elements shifting in the array, and other inde
 
 Hence, we've decided to postpone the support for an Array/List to post re:Invent 2020.
 
+##### RESET the entire configuration
+Empty String is JSON pointer's way to refer to the whole document. So you could simply do
+
+```json
+{
+  "RESET":  [""]
+}
+```
+
+Note that if the empty string appears in the list of `RESET`, then the rest of pointers in the list will be ignored, and the configuration
+will just be reset to the default configuration entirely.
+
+
 ##### What happens if I reset to a default value and my default value is null or empty?
-    
 In general, Greengrass V2 will reset to the default value as is, instead of dropping null or empty values, including:
 
 1. Default value has an empty List. ex. `{"emptyListKey": []}`. An empty list will be reset with JSON pointer: `/emptyListKey`.
@@ -104,7 +116,7 @@ In general, Greengrass V2 will reset to the default value as is, instead of drop
 
 The given object is merged to the existing configuration object level by level. 
 
-At any level,
+At every level,
 1. if a key already exists, then the value will be overridden by the value that is merging in.
 2. If a key doesn't exist, then key-value pair that is merging in will be added. Note a key that is not existed in the default value,
 could also be added.
@@ -118,14 +130,14 @@ Hence, we've decided to postpone the support for an Array/List to post re:Invent
 However, it's still possible to override the entire list.
 If you really need to make updates at the element level, think about using a map instead, by giving each element an unique key.
 
-##### Can I merge in a new key-value pair, which was not in the default value?
-YES. We are providing that flexibility so that new configurations could be added during deployments.
+##### Can I merge in a new key-value pair, which was not part of the default configuration?
+YES. We are providing the flexibility to do so, so that new configurations could be added during deployments.
 
 ##### Can I merge empty values?
 YES. You can merge empty String, List, or Object/Map.
 
 ##### Can I merge `null` as a value for a key?
-YES. When reading the merged configuration, you will be able to find the key exists with value as `null` 
+YES. When reading the merged configuration, you will be able to find the key with value as `null`.
 
 ##### Can I merge in a new value whose type is different from original value's type for the same key?
 YES. The new value will be merged in and overrides the old value.
