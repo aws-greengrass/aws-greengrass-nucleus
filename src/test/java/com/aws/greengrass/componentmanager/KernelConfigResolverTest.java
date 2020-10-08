@@ -18,6 +18,7 @@ import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -72,6 +74,8 @@ class KernelConfigResolverTest {
     @Mock
     private ComponentStore componentStore;
     @Mock
+    private NucleusPaths nucleusPaths;
+    @Mock
     private GreengrassService mainService;
     @Mock
     private GreengrassService alreadyRunningService;
@@ -82,9 +86,9 @@ class KernelConfigResolverTest {
     private Path path;
 
     @BeforeEach
-    void setupMocks() {
+    void setupMocks() throws IOException {
         path = Paths.get("Artifacts", TEST_INPUT_PACKAGE_A);
-        lenient().when(componentStore.resolveArtifactDirectoryPath(any())).thenReturn(path.toAbsolutePath());
+        lenient().when(nucleusPaths.artifactPath(any())).thenReturn(path.toAbsolutePath());
     }
 
     @Test
@@ -111,7 +115,6 @@ class KernelConfigResolverTest {
         DeploymentPackageConfiguration dependencyPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, false, "=2.3", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig,
                                                                         dependencyPackageDeploymentConfig))
@@ -119,9 +122,9 @@ class KernelConfigResolverTest {
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
         when(componentStore.getPackageRecipe(dependencyComponentIdentifier)).thenReturn(dependencyComponentRecipe);
-        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
+        when(nucleusPaths.unarchiveArtifactPath(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
-        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
+        when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(
                 Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
@@ -129,7 +132,7 @@ class KernelConfigResolverTest {
         when(alreadyRunningService.isBuiltin()).thenReturn(true);
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths);
         Map<String, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
@@ -164,16 +167,14 @@ class KernelConfigResolverTest {
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig))
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
-        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(rootComponentIdentifier)).thenReturn(
-                DUMMY_DECOMPRESSED_PATH_KEY);
+        when(nucleusPaths.unarchiveArtifactPath(rootComponentIdentifier)).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
-        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
+        when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(
                 Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
@@ -181,7 +182,7 @@ class KernelConfigResolverTest {
         when(alreadyRunningService.isBuiltin()).thenReturn(true);
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths);
         Map<String, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
@@ -212,21 +213,19 @@ class KernelConfigResolverTest {
                     put("PackageA_Param_1", "PackageA_Param_1_value");
                 }});
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig))
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
-        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(rootComponentIdentifier)).thenReturn(
-                DUMMY_DECOMPRESSED_PATH_KEY);
+        when(nucleusPaths.unarchiveArtifactPath(rootComponentIdentifier)).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
-        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
+        when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths);
         Map<String, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
@@ -287,8 +286,6 @@ class KernelConfigResolverTest {
         DeploymentPackageConfiguration package3DeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_C, true, "=1.5", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A,
-                                                                TEST_INPUT_PACKAGE_B, TEST_INPUT_PACKAGE_C))
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig,
                                                                         package2DeploymentConfig,
@@ -298,14 +295,14 @@ class KernelConfigResolverTest {
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
         when(componentStore.getPackageRecipe(package2)).thenReturn(package2Recipe);
         when(componentStore.getPackageRecipe(package3)).thenReturn(package3Recipe);
-        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
+        when(nucleusPaths.unarchiveArtifactPath(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
-        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
+        when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths);
         Map<String, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
@@ -341,16 +338,14 @@ class KernelConfigResolverTest {
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig))
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
-        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(rootComponentIdentifier)).thenReturn(
-                DUMMY_DECOMPRESSED_PATH_KEY);
+        when(nucleusPaths.unarchiveArtifactPath(rootComponentIdentifier)).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
-        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
+        when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningServiceConfig);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(
@@ -364,7 +359,7 @@ class KernelConfigResolverTest {
         when(alreadyRunningService.isBuiltin()).thenReturn(true);
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths);
         Map<String, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 
@@ -405,20 +400,18 @@ class KernelConfigResolverTest {
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .rootPackages(Arrays.asList(TEST_INPUT_PACKAGE_A))
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig))
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
-        when(componentStore.resolveArtifactDirectoryPath(rootComponentIdentifier)).thenReturn(
-                Paths.get("/packages/artifacts"));
+        when(nucleusPaths.artifactPath(rootComponentIdentifier)).thenReturn(Paths.get("/packages/artifacts"));
         when(kernel.getMain()).thenReturn(mainService);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths);
         Map<String, Object> resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
 

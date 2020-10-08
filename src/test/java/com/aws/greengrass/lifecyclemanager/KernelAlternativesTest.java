@@ -8,6 +8,7 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,8 +46,10 @@ class KernelAlternativesTest {
     DeploymentDirectoryManager deploymentDirectoryManager;
 
     @BeforeEach
-    void beforeEach() {
-        kernelAlternatives = new KernelAlternatives(altsDir);
+    void beforeEach() throws IOException {
+        NucleusPaths paths = new NucleusPaths();
+        paths.setKernelAltsPath(altsDir);
+        kernelAlternatives = new KernelAlternatives(paths);
     }
 
     @Test

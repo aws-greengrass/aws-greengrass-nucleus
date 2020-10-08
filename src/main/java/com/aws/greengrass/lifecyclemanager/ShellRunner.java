@@ -6,7 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.util.Exec;
-import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.NucleusPaths;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -28,13 +28,12 @@ public interface ShellRunner {
         private static final String SCRIPT_NAME_KEY = "scriptName";
 
         @Inject
-        Kernel config;
+        NucleusPaths nucleusPaths;
 
         @Override
         public synchronized Exec setup(String note, String command, GreengrassService onBehalfOf) throws IOException {
             if (!isEmpty(command) && onBehalfOf != null) {
-                Path cwd = config.getWorkPath().resolve(onBehalfOf.getName());
-                Utils.createPaths(cwd);
+                Path cwd = nucleusPaths.workPath(onBehalfOf.getServiceName());
                 return new Exec()
                         .withShell(command)
                         .withOut(s -> {

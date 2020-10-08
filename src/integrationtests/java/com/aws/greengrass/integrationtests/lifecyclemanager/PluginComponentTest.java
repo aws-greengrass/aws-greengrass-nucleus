@@ -32,6 +32,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -84,8 +85,8 @@ class PluginComponentTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_WHEN_locate_plugin_THEN_plugin_is_loaded_into_JVM() throws Exception {
-        setupPackageStore();
         kernel.parseArgs("-i", this.getClass().getResource("plugin.yaml").toString());
+        setupPackageStore();
         kernel.launch();
 
         GreengrassService eg = kernel.locate(componentName);
@@ -115,8 +116,8 @@ class PluginComponentTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_WHEN_locate_plugin_dependency_THEN_dependency_from_plugin_is_loaded_into_JVM() throws Exception {
-        setupPackageStore();
         kernel.parseArgs("-i", this.getClass().getResource("plugin_dependency.yaml").toString());
+        setupPackageStore();
         kernel.launch();
 
         GreengrassService eg = kernel.locate("plugin-dependency");
@@ -127,10 +128,11 @@ class PluginComponentTest extends BaseITCase {
     @Test
     void GIVEN_kernel_WHEN_deploy_new_plugin_THEN_plugin_is_loaded_into_JVM(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
-        setupPackageStore();
 
         // launch kernel
-        kernel.parseArgs().launch();
+        kernel.parseArgs();
+        setupPackageStore();
+        kernel.launch();
 
         // Ensure that the dependency isn't somehow in our class loader already
         assertThrows(ClassNotFoundException.class,
@@ -153,9 +155,9 @@ class PluginComponentTest extends BaseITCase {
             throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         ignoreExceptionOfType(context, IOException.class);
-        setupPackageStore();
 
         Kernel kernelSpy = spy(kernel.parseArgs());
+        setupPackageStore();
         String deploymentId = "deployment1";
         KernelAlternatives kernelAltsSpy = spy(kernelSpy.getContext().get(KernelAlternatives.class));
         kernelSpy.getContext().put(KernelAlternatives.class, kernelAltsSpy);
@@ -202,7 +204,9 @@ class PluginComponentTest extends BaseITCase {
         Path localStoreContentPath = Paths.get(getClass().getResource("local_store_content").toURI());
         Path e2eTestPkgStoreDir = tempRootDir.resolve("eteTestPkgStore");
         FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
-        ComponentStore e2ETestComponentStore = new ComponentStore(e2eTestPkgStoreDir);
+        NucleusPaths nucleusPaths = kernel.getNucleusPaths();
+        nucleusPaths.setComponentStorePath(e2eTestPkgStoreDir);
+        ComponentStore e2ETestComponentStore = new ComponentStore(nucleusPaths);
         Path jarFilePath = e2ETestComponentStore.resolveArtifactDirectoryPath(componentId).resolve("plugin-tests.jar");
         // Copy over the same jar file as the plugin-1.1.0 artifact
         FileUtils.copyFile(jarFilePath.toFile(), e2ETestComponentStore
@@ -216,7 +220,7 @@ class PluginComponentTest extends BaseITCase {
 
     private DeploymentDocument getPluginDeploymentDocument(Long timestamp, String version, String deploymentId) {
         return DeploymentDocument.builder().timestamp(timestamp).deploymentId(deploymentId)
-                .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).rootPackages(Arrays.asList(componentName))
+                .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS)).groupName("ANY")
                 .deploymentPackageConfigurationList(
                         Arrays.asList(new DeploymentPackageConfiguration(componentName, true, version, null))).build();

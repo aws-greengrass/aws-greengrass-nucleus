@@ -148,10 +148,10 @@ public final class PlatformResolver {
         TODO: since B1 release only support Linux platform.
         Temporarily stop platform detection after Linux.
 
-        if (Files.exists(Paths.get("/usr/bin/yum"))) {
+        if (Files.exists(NucleusPaths.get("/usr/bin/yum"))) {
             currentOS = findMoreSpecificOS(currentOS, OS.FEDORA);
         }
-        if (Files.exists(Paths.get("/usr/bin/apt-get"))) {
+        if (Files.exists(NucleusPaths.get("/usr/bin/apt-get"))) {
             currentOS = findMoreSpecificOS(currentOS, OS.DEBIAN);
         }
         if (sysver.contains("raspbian") || sysver.contains("raspberry")) {

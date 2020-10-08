@@ -30,7 +30,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import lombok.Setter;
@@ -39,7 +39,6 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -75,6 +74,7 @@ public class ComponentManager implements InjectionActions {
 
     private final Kernel kernel;
     private final Unarchiver unarchiver;
+    private final NucleusPaths nucleusPaths;
 
     @Inject
     @Setter
@@ -91,13 +91,15 @@ public class ComponentManager implements InjectionActions {
      * @param kernel                         kernel
      * @param unarchiver                     unarchiver
      * @param deviceConfiguration            deviceConfiguration
+     * @param nucleusPaths                   path library
      */
     @Inject
     public ComponentManager(S3Downloader s3ArtifactsDownloader,
                             GreengrassRepositoryDownloader greengrassArtifactDownloader,
                             ComponentServiceHelper componentServiceHelper,
                             ExecutorService executorService, ComponentStore componentStore, Kernel kernel,
-                            Unarchiver unarchiver, DeviceConfiguration deviceConfiguration) {
+                            Unarchiver unarchiver, DeviceConfiguration deviceConfiguration,
+                            NucleusPaths nucleusPaths) {
         this.s3ArtifactsDownloader = s3ArtifactsDownloader;
         this.greengrassArtifactDownloader = greengrassArtifactDownloader;
         this.componentServiceHelper = componentServiceHelper;
@@ -106,6 +108,7 @@ public class ComponentManager implements InjectionActions {
         this.kernel = kernel;
         this.unarchiver = unarchiver;
         this.deviceConfiguration = deviceConfiguration;
+        this.nucleusPaths = nucleusPaths;
     }
 
     /**
@@ -304,6 +307,7 @@ public class ComponentManager implements InjectionActions {
         } catch (PackageLoadingException e) {
             logger.atWarn().log("Failed to load package recipe for {}", componentIdentifier, e);
         }
+
         if (packageOptional.isPresent()) {
             return packageOptional.get();
         }
@@ -321,15 +325,6 @@ public class ComponentManager implements InjectionActions {
             return;
         }
         Path packageArtifactDirectory = componentStore.resolveArtifactDirectoryPath(componentIdentifier);
-        if (!Files.exists(packageArtifactDirectory) || !Files.isDirectory(packageArtifactDirectory)) {
-            try {
-                Files.createDirectories(packageArtifactDirectory);
-            } catch (IOException e) {
-                throw new PackageLoadingException(
-                        String.format("Failed to create package artifact cache directory %s", packageArtifactDirectory),
-                        e);
-            }
-        }
 
         logger.atDebug().setEventType("downloading-package-artifacts")
                 .addKeyValue(PACKAGE_IDENTIFIER, componentIdentifier).log();
@@ -351,10 +346,8 @@ public class ComponentManager implements InjectionActions {
 
             if (downloadedFile != null && !unarchive.equals(Unarchive.NONE)) {
                 try {
-                    Path unarchivePath =
-                            componentStore.resolveAndSetupArtifactsDecompressedDirectory(componentIdentifier)
-                                    .resolve(getFileName(downloadedFile));
-                    Utils.createPaths(unarchivePath);
+                    Path unarchivePath = nucleusPaths.unarchiveArtifactPath(componentIdentifier,
+                            getFileName(downloadedFile));
                     unarchiver.unarchive(unarchive, downloadedFile, unarchivePath);
                 } catch (IOException e) {
                     throw new PackageDownloadException(

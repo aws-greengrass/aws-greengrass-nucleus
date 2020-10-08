@@ -33,7 +33,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static com.aws.greengrass.componentmanager.ComponentStore.CONTEXT_PACKAGE_STORE_DIRECTORY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
@@ -68,8 +67,7 @@ class MqttReconnectTest extends BaseE2ETestCase {
         java.security.Security.setProperty(dnsCacheTtlPropertyKey, Long.toString(DNS_CACHE_TTL.getSeconds()));
 
         initKernel();
-        // Override path to local package storage with existing components
-        kernel.getContext().put(CONTEXT_PACKAGE_STORE_DIRECTORY, e2eTestPkgStoreDir);
+        kernel.getNucleusPaths().setComponentStorePath(e2eTestPkgStoreDir);
     }
 
     @AfterEach
