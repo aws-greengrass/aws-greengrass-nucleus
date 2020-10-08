@@ -45,7 +45,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATIONS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -503,7 +503,8 @@ class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
                 .build();
         when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningServiceConfig);
-        when(alreadyRunningServiceConfig.findTopics(CONFIGURATIONS_CONFIG_KEY)).thenReturn(alreadyRunningServiceConfiguration);
+        when(alreadyRunningServiceConfig.findTopics(
+                CONFIGURATION_CONFIG_KEY)).thenReturn(alreadyRunningServiceConfiguration);
         when(alreadyRunningServiceConfiguration.toPOJO()).thenReturn(Collections.singletonMap("startup", Collections.singletonMap("paramA",
                 "valueB")));
 
@@ -546,7 +547,8 @@ class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
                 .build();
         when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningServiceConfig);
-        when(alreadyRunningServiceConfig.findTopics(CONFIGURATIONS_CONFIG_KEY)).thenReturn(alreadyRunningServiceConfiguration);
+        when(alreadyRunningServiceConfig.findTopics(
+                CONFIGURATION_CONFIG_KEY)).thenReturn(alreadyRunningServiceConfiguration);
         when(alreadyRunningServiceConfiguration.toPOJO()).thenReturn(Collections.singletonMap("startup", Collections.singletonMap("paramA",
                 "valueB")));
 
@@ -588,7 +590,8 @@ class KernelConfigResolverTest {
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
                 .build();
         when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningServiceConfig);
-        when(alreadyRunningServiceConfig.findTopics(CONFIGURATIONS_CONFIG_KEY)).thenReturn(alreadyRunningServiceConfiguration);
+        when(alreadyRunningServiceConfig.findTopics(
+                CONFIGURATION_CONFIG_KEY)).thenReturn(alreadyRunningServiceConfiguration);
         Map<String, String> paramMap = new HashMap<>();
         paramMap.put("paramA", "valueB");
         paramMap.put("paramB", "valueD");
@@ -659,7 +662,8 @@ class KernelConfigResolverTest {
         when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(null);
         when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_C)).thenReturn(null);
         when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_B)).thenReturn(alreadyRunningServiceConfig);
-        when(alreadyRunningServiceConfig.findTopics(CONFIGURATIONS_CONFIG_KEY)).thenReturn(alreadyRunningServiceConfiguration);
+        when(alreadyRunningServiceConfig.findTopics(
+                CONFIGURATION_CONFIG_KEY)).thenReturn(alreadyRunningServiceConfiguration);
         Map<String, String> runningConfig = new HashMap<>();
         runningConfig.put("paramB", "valueB");
         runningConfig.put("paramC", "valueC");
@@ -820,7 +824,7 @@ class KernelConfigResolverTest {
 
     private Map<String, Object> getServiceConfiguration(String serviceName, Map<String, Object> config) {
         Map<String, Object> serviceConfig = getServiceConfig(serviceName, config);
-        return (Map<String, Object>) serviceConfig.get(CONFIGURATIONS_CONFIG_KEY);
+        return (Map<String, Object>) serviceConfig.get(CONFIGURATION_CONFIG_KEY);
     }
 
     private Map<String, Object> getServiceConfig(String serviceName, Map<String, Object> config) {

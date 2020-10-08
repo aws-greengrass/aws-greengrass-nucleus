@@ -56,6 +56,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
@@ -116,6 +117,10 @@ public class CLIServiceAgent {
             componentDetails
                     .setConfiguration(service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY).toPOJO());
         }
+        if (service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY) != null) {
+            componentDetails
+                    .set(service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY).toPOJO());
+        }
         return GetComponentDetailsResponse.builder().componentDetails(componentDetails).build();
     }
 
@@ -137,8 +142,12 @@ public class CLIServiceAgent {
                                         Coerce.toString(service.getServiceConfig().find(VERSION_CONFIG_KEY).getOnce()));
                             }
                             if (service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY) != null) {
-                                componentDetails.setConfiguration(
+                                componentDetails.setParameters(
                                         service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY).toPOJO());
+                            }
+                            if (service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY) != null) {
+                                componentDetails.setParameters(
+                                        service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY).toPOJO());
                             }
                             return componentDetails;
                         }).collect(Collectors.toList());

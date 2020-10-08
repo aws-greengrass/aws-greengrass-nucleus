@@ -55,7 +55,7 @@ public class KernelConfigResolver {
     private static final Logger LOGGER = LogManager.getLogger(KernelConfigResolver.class);
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
-    public static final String CONFIGURATIONS_CONFIG_KEY = "Configurations";
+    public static final String CONFIGURATION_CONFIG_KEY = "Configurations";
 
     static final String ARTIFACTS_NAMESPACE = "artifacts";
     static final String KERNEL_NAMESPACE = "kernel";
@@ -232,7 +232,7 @@ public class KernelConfigResolver {
         Map<String, Object> resolvedConfiguration =
                 resolveConfigurationToApply(optionalConfigUpdate.orElse(null), componentRecipe);
 
-        resolvedServiceConfig.put(CONFIGURATIONS_CONFIG_KEY,
+        resolvedServiceConfig.put(CONFIGURATION_CONFIG_KEY,
                                   resolvedConfiguration == null ? new HashMap<>() : resolvedConfiguration);
 
         return resolvedServiceConfig;
@@ -254,7 +254,7 @@ public class KernelConfigResolver {
 
         Topics serviceTopics = kernel.findServiceTopic(componentRecipe.getComponentName());
         if (serviceTopics != null) {
-            Topics configuration = serviceTopics.findTopics(CONFIGURATIONS_CONFIG_KEY);
+            Topics configuration = serviceTopics.findTopics(CONFIGURATION_CONFIG_KEY);
             if (configuration != null) {
                 currentRunningConfig = configuration.toPOJO();
             }
@@ -523,9 +523,9 @@ public class KernelConfigResolver {
         Map componentResolvedConfig;
 
         if (resolvedKernelServiceConfig.containsKey(componentName) && ((Map) resolvedKernelServiceConfig.get(
-                componentName)).containsKey(CONFIGURATIONS_CONFIG_KEY)) {
+                componentName)).containsKey(CONFIGURATION_CONFIG_KEY)) {
             componentResolvedConfig =
-                    (Map) ((Map) resolvedKernelServiceConfig.get(componentName)).get(CONFIGURATIONS_CONFIG_KEY);
+                    (Map) ((Map) resolvedKernelServiceConfig.get(componentName)).get(CONFIGURATION_CONFIG_KEY);
         } else {
             return Optional.empty();
         }
