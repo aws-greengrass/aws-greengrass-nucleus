@@ -21,11 +21,9 @@ ComponentType: aws.greengrass.generic
 ComponentConfiguration:
   DefaultConfiguration:
     singleLevelKey: default value of singleLevelKey
-    path:
-      leafKey: default value of /path/leafKey
-    listKey:
-      - 'item1'
-      - 'item2'
+    args:
+      windowsArg: Hello Windows
+      linuxArg: Hello Linux
 
 ComponentDependencies:
   variant.Python3:
@@ -38,7 +36,7 @@ Manifests:
       architecture: x86_64
     Lifecycle:
       Run:
-        python3 {{artifacts:path}}/hello_windows_server.py {configuration:/path/leafKey}
+        python3 {{artifacts:path}}/hello_windows_server.py {configuration:/args/windowsArg}
     Artifacts:
       - URI: s3://some-bucket/hello_windows.zip
         Unarchive: ZIP
@@ -47,7 +45,7 @@ Manifests:
       architecture: arm
     Lifecycle:
       Run:
-        python3 {{artifacts:path}}/hello_world.py {configuration:/path/leafKey}
+        python3 {{artifacts:path}}/hello_world.py {configuration:/args/linuxArg}
     Artifacts:
       - URI: s3://some-bucket/hello_world.py
 ```
@@ -188,13 +186,13 @@ The following recipe variables:
 
 1. {configuration:<json pointer>} The value of a configuration at the provided JSON pointer location for the component. 
 
-For example, the {configuration:/path/list/0} recipe variable retrieves the value at the location of `/path/list/0` from the configration. 
+For example, the {configuration:/path/list/0} recipe variable retrieves the value at the location of `/path/list/0` from the configuration. 
 
 Note a JSON pointer could point to 4 different possible node type, including:
 1. Value node: the place holder will be replacedd by the **the text representation for that value**.
 2. Container node: the place holder will be replacedd by the serialized JSON String representation for that container. Note the JSON string
 usually contains double quotes. If you are using it in the command line, make sure you escape it appropriately.
-3. `null`: the placeholder will be replaced as: **nul**
+3. `null`: the placeholder will be replaced as: **null**
 4. missing node: the placeholder **will remain**.
 
 You can use this variable to provide a configuration value to a script that you run in the component lifecycle.
