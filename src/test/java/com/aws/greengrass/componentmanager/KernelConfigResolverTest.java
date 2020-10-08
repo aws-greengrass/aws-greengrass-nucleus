@@ -669,7 +669,7 @@ class KernelConfigResolverTest {
         runningConfig.put("paramC", "valueC");
         when(alreadyRunningServiceConfiguration.toPOJO()).thenReturn(Collections.singletonMap("startup", runningConfig));
 
-        when(componentStore.resolveArtifactDirectoryPath(any())).thenReturn(
+        when(nucleusPaths.artifactPath(any())).thenReturn(
                 DUMMY_ARTIFACT_PATH);
 
         Map<ComponentIdentifier, ComponentRecipe> componentsToResolve = new HashMap<>();
@@ -699,15 +699,14 @@ class KernelConfigResolverTest {
         for (ComponentIdentifier componentIdentifier : componentsToResolve.keySet()) {
             when(componentStore.getPackageRecipe(componentIdentifier)).thenReturn(componentsToResolve.get(componentIdentifier));
         }
-        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(any())).thenReturn(
-                DUMMY_DECOMPRESSED_PATH_KEY);
+        when(nucleusPaths.unarchiveArtifactPath(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
-        when(kernel.getRootPath()).thenReturn(DUMMY_ROOT_PATH);
+        when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 
         // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel);
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths);
         Map<String, Object> resolvedConfig =
                 kernelConfigResolver.resolve(new ArrayList<>(componentsToResolve.keySet()), deploymentDocument,
                         deploymentDocument.getDeploymentPackageConfigurationList().stream().filter(

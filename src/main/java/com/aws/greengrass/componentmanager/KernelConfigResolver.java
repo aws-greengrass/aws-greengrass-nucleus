@@ -144,7 +144,7 @@ public class KernelConfigResolver {
      * @throws IOException for directory issues
      */
 
-    public Map<String, Object> resolve(List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
+    public Map<String, Object> resolve(List<ComponentIdentifier> componentsToDeploy, DeploymentDocument document,
                                        List<String> rootPackages) throws PackageLoadingException, IOException {
         Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache =
                 new ConcurrentHashMap<>();
@@ -391,10 +391,10 @@ public class KernelConfigResolver {
      * @param dependencies                name set of component's dependencies
      * @param resolvedKernelServiceConfig resolved kernel configuration under "Service" key
      * @return the interpolated lifecycle object
-     * @throws PackageLoadingException when fails to read
+     * @throws IOException for directory issues
      */
     private Object interpolate(Object configValue, ComponentIdentifier componentIdentifier, Set<String> dependencies,
-            Map<String, Object> resolvedKernelServiceConfig) throws PackageLoadingException {
+            Map<String, Object> resolvedKernelServiceConfig) throws IOException {
         Object result = configValue;
 
         if (configValue instanceof String) {
@@ -416,7 +416,7 @@ public class KernelConfigResolver {
     }
 
     private String replace(String stringValue, ComponentIdentifier componentIdentifier, Set<String> dependencies,
-            Map<String, Object> resolvedKernelServiceConfig) throws PackageLoadingException {
+            Map<String, Object> resolvedKernelServiceConfig) throws IOException {
 
         Matcher matcher;
 
@@ -552,9 +552,9 @@ public class KernelConfigResolver {
 
     @Nullable
     private String lookupSystemConfig(ComponentIdentifier component, String namespace, String key)
-            throws PackageLoadingException {
+            throws IOException {
         // Handle system-wide configuration
-        Map<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> systemParams =
+        Map<String, CrashableFunction<ComponentIdentifier, String, IOException>> systemParams =
                 systemParameters.getOrDefault(namespace, Collections.emptyMap());
         if (systemParams.containsKey(key)) {
             return systemParams.get(key).apply(component);
