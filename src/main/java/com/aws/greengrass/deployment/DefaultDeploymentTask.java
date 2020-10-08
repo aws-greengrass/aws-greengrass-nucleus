@@ -113,7 +113,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE).setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .log("Finished deployment task");
             return result;
-        } catch (NoAvailableComponentVersionException | UnexpectedPackagingException e) {
+        } catch (IOException | NoAvailableComponentVersionException | UnexpectedPackagingException e) {
             throw new NonRetryableDeploymentTaskFailureException(e);
         } catch (ExecutionException e) {
             Throwable t = e.getCause();
@@ -126,7 +126,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             // or deployment merge step and landed here
             handleCancellation(preparePackagesFuture, deploymentMergeFuture);
             return null;
-        } catch (IOException | PackagingException e) {
+        } catch (PackagingException e) {
             throw new RetryableDeploymentTaskFailureException(e);
         }
     }
