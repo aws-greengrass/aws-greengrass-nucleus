@@ -158,8 +158,8 @@ Result:
 }
 ```
 
-#### 2.3.3 FAQs
-##### How can I remove a value at a location specified by a JSON pointer?
+### 2.4 FAQs
+#### How can I remove a value at a location specified by a JSON pointer?
 
 If the default value does not exist for that location, you could RESET with the JSON pointer pointing to that location
 and the value will get removed.
