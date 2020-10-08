@@ -10,7 +10,6 @@ import com.aws.greengrass.ipc.ConnectionContext;
 import com.aws.greengrass.ipc.IPCRouter;
 import com.aws.greengrass.ipc.common.BuiltInServiceDestinationCode;
 import com.aws.greengrass.ipc.common.FrameReader;
-import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.ipc.services.cli.CliClientOpCodes;
 import com.aws.greengrass.ipc.services.cli.exceptions.ComponentNotFoundError;
 import com.aws.greengrass.ipc.services.cli.exceptions.GenericCliIpcServerException;
@@ -41,6 +40,7 @@ import com.aws.greengrass.ipc.services.common.ApplicationMessage;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
+import com.aws.greengrass.util.NucleusPaths;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,6 +79,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -104,6 +105,8 @@ class CLIServiceTest extends GGServiceTestUtil {
     private AuthenticationHandler authenticationHandler;
     @Mock
     private Kernel kernel;
+    @Mock
+    private NucleusPaths nucleusPaths;
     @TempDir
     Path kernelRootPath;
 
@@ -114,7 +117,8 @@ class CLIServiceTest extends GGServiceTestUtil {
     private Topics privateConfigSpy;
 
     @BeforeEach
-    void setup() throws UnauthenticatedException {
+    void setup() {
+        lenient().when(kernel.getNucleusPaths()).thenReturn(nucleusPaths);
         serviceFullName = CLI_SERVICE;
         initializeMockedConfig();
         serviceConfigSpy = spy(Topics.of(context, SERVICES_NAMESPACE_TOPIC, null));
@@ -138,7 +142,7 @@ class CLIServiceTest extends GGServiceTestUtil {
     void testStartup() throws Exception {
         when(authenticationHandler.registerAuthenticationTokenForExternalClient(anyString(), anyString())).thenReturn(
                 MOCK_AUTH_TOKEN);
-        when(kernel.getRootPath()).thenReturn(kernelRootPath);
+        when(nucleusPaths.rootPath()).thenReturn(kernelRootPath);
         Topic mockSocketUrlTopic = mock(Topic.class);
         when(mockSocketUrlTopic.getOnce()).thenReturn(MOCK_SOCKET_URL);
         Topics mockRootTopics = mock(Topics.class);

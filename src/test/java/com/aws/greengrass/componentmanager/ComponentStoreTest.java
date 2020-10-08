@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
@@ -78,13 +79,16 @@ class ComponentStoreTest {
 
     @TempDir
     Path packageStoreRootPath;
+    private NucleusPaths nucleusPaths;
 
     @BeforeEach
-    void beforeEach() throws PackagingException {
-        componentStore = new ComponentStore(packageStoreRootPath.toAbsolutePath());
+    void beforeEach() throws IOException {
+        nucleusPaths = new NucleusPaths();
+        nucleusPaths.setComponentStorePath(packageStoreRootPath);
+        componentStore = new ComponentStore(nucleusPaths);
         recipeDirectory = packageStoreRootPath.resolve("recipes");
         artifactDirectory = packageStoreRootPath.resolve("artifacts");
-        artifactsUnpackDirectory = packageStoreRootPath.resolve("artifacts-decompressed");
+        artifactsUnpackDirectory = packageStoreRootPath.resolve("artifacts-unarchived");
     }
 
     @Test
@@ -159,10 +163,10 @@ class ComponentStoreTest {
     @Test
     void WHEN_resolve_setup_upack_dir_THEN_dir_created() throws Exception {
         // WHEN
-        Path path = componentStore.resolveAndSetupArtifactsDecompressedDirectory(MONITORING_SERVICE_PKG_ID);
-        ///var/folders/37/0h21kkrj1fl9qn472lr2r15rcw2086/T/junit2770550780637482865/artifacts-unpack/MonitoringService/1.0.0
+        Path path = nucleusPaths.unarchiveArtifactPath(MONITORING_SERVICE_PKG_ID);
+        ///var/folders/37/0h21kkrj1fl9qn472lr2r15rcw2086/T/junit2770550780637482865/artifacts-unarchived/MonitoringService/1.0.0
         //THEN
-        assertEquals(path, packageStoreRootPath.resolve("artifacts-decompressed/MonitoringService/1.0.0"));
+        assertEquals(path, packageStoreRootPath.resolve("artifacts-unarchived/MonitoringService/1.0.0"));
         assertThat(path.toFile(), anExistingDirectory());
     }
 
@@ -323,7 +327,8 @@ class ComponentStoreTest {
         Files.copy(sourceRecipe, destinationRecipe);
     }
 
-    private void preloadArtifactFileFromTestResouce(ComponentIdentifier pkgId, String artFileName) throws IOException {
+    private void preloadArtifactFileFromTestResouce(ComponentIdentifier pkgId, String artFileName)
+            throws IOException, PackageLoadingException {
         Path sourceArtFile = ARTIFACT_RESOURCE_PATH.resolve(String.format("%s-%s", pkgId.getName(),
                 pkgId.getVersion())).resolve(artFileName);
         Path destArtFile = componentStore.resolveArtifactDirectoryPath(pkgId).resolve(artFileName);
@@ -332,7 +337,7 @@ class ComponentStoreTest {
     }
 
     @Test
-    void resolveArtifactDirectoryPath() {
+    void resolveArtifactDirectoryPath() throws PackageLoadingException {
         Path artifactPath = componentStore.resolveArtifactDirectoryPath(MONITORING_SERVICE_PKG_ID);
 
         Path expectedArtifactPath = artifactDirectory.resolve(MONITORING_SERVICE_PKG_ID.getName())

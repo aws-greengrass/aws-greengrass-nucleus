@@ -17,6 +17,7 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.NucleusPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -99,7 +100,8 @@ class KernelTest {
     @Test
     void GIVEN_kernel_and_services_WHEN_orderedDependencies_THEN_dependencies_are_returned_in_order()
             throws InputValidationException {
-        KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, new KernelCommandLine(kernel)));
+        KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, new KernelCommandLine(kernel), mock(
+                NucleusPaths.class)));
         kernel.setKernelLifecycle(kernelLifecycle);
 
         GreengrassService mockMain = new GreengrassService(
@@ -154,7 +156,8 @@ class KernelTest {
     @Test
     void GIVEN_kernel_and_services_WHEN_orderedDependencies_with_a_cycle_THEN_no_dependencies_returned()
             throws InputValidationException {
-        KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class)));
+        KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class),
+                mock(NucleusPaths.class)));
         kernel.setKernelLifecycle(kernelLifecycle);
 
         GreengrassService mockMain =
@@ -180,7 +183,8 @@ class KernelTest {
     @Test
     void GIVEN_kernel_with_services_WHEN_writeConfig_THEN_service_config_written_to_file()
             throws Exception {
-        KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class)));
+        KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class),
+                kernel.getNucleusPaths()));
         kernel.setKernelLifecycle(kernelLifecycle);
 
         GreengrassService mockMain = new GreengrassService(
@@ -206,7 +210,9 @@ class KernelTest {
         assertThat(writer.toString(), containsString(EXPECTED_CONFIG_OUTPUT));
 
         kernel.writeEffectiveConfig();
-        String readFile = new String(Files.readAllBytes(kernel.getConfigPath().resolve("config.yaml")),
+        String readFile =
+                new String(Files.readAllBytes(kernel.getNucleusPaths().configPath()
+                        .resolve("config.yaml")),
                 StandardCharsets.UTF_8);
         assertThat(readFile, containsString(EXPECTED_CONFIG_OUTPUT));
     }
@@ -301,7 +307,7 @@ class KernelTest {
         KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(KERNEL_ACTIVATION).when(kernelAlternatives).determineDeploymentStage(any(), any());
-        doReturn(kernelAlternatives).when(kernelCommandLine).getKernelAlternatives();
+        kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doReturn(mock(Deployment.class)).when(deploymentDirectoryManager).readDeploymentMetadata();
@@ -335,7 +341,7 @@ class KernelTest {
         KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(KERNEL_ROLLBACK).when(kernelAlternatives).determineDeploymentStage(any(), any());
-        doReturn(kernelAlternatives).when(kernelCommandLine).getKernelAlternatives();
+        kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doThrow(new IOException()).when(deploymentDirectoryManager).readDeploymentMetadata();
@@ -363,7 +369,7 @@ class KernelTest {
         KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
-        doReturn(kernelAlternatives).when(kernelCommandLine).getKernelAlternatives();
+        kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doReturn(mock(Path.class)).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
@@ -393,7 +399,7 @@ class KernelTest {
         KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
-        doReturn(kernelAlternatives).when(kernelCommandLine).getKernelAlternatives();
+        kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doReturn(mock(Path.class)).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
@@ -425,7 +431,7 @@ class KernelTest {
         KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
-        doReturn(kernelAlternatives).when(kernelCommandLine).getKernelAlternatives();
+        kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         Deployment deployment = mock(Deployment.class);
 
@@ -463,7 +469,7 @@ class KernelTest {
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
         doThrow(new IOException()).when(kernelAlternatives).prepareRollback();
-        doReturn(kernelAlternatives).when(kernelCommandLine).getKernelAlternatives();
+        kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doReturn(mock(Path.class)).when(deploymentDirectoryManager).getBootstrapTaskFilePath();

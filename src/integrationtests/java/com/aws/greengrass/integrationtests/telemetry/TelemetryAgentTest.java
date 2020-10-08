@@ -104,7 +104,8 @@ class TelemetryAgentTest extends BaseITCase {
         long delay = ta.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
         assertTrue(delay <= periodicInterval);
         // telemetry logs are always written to ~root/telemetry
-        assertEquals(kernel.getRootPath().resolve("telemetry"), TelemetryConfig.getTelemetryDirectory());
+        assertEquals(kernel.getNucleusPaths().rootPath().resolve("telemetry"),
+                TelemetryConfig.getTelemetryDirectory());
         // THEN
         if(delay < aggregateInterval) {
             verify(mqttClient, atLeast(0)).publish(captor.capture());
