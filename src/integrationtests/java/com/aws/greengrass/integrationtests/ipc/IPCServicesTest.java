@@ -81,7 +81,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 class IPCServicesTest {
 
     private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
-    private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 10;
+    private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -105,6 +105,9 @@ class IPCServicesTest {
 
     @AfterAll
     static void afterAll() throws InterruptedException {
+        if (clientConnection != null) {
+            clientConnection.closeConnection(0);
+        }
         kernel.shutdown();
     }
 
@@ -257,8 +260,6 @@ class IPCServicesTest {
         ClientConnection clientConnection = null;
         ClientConnectionContinuation clientConnectionContinuation = null;
         try {
-            startupService.requestStart();
-
             kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
                 if ("StartupService".equals(service.getName())) {
                     if (newState.equals(State.STARTING)) {
@@ -272,6 +273,7 @@ class IPCServicesTest {
                     }
                 }
             });
+            startupService.requestStart();
             assertTrue(started.await(10, TimeUnit.SECONDS));
             Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "StartupService",
                     PRIVATE_STORE_NAMESPACE_TOPIC);
@@ -362,5 +364,7 @@ class IPCServicesTest {
         lifecycleIPCEventStreamAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
         assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
         clientConnectionContinuation.close();
+        System.out.println("Test successful");
+        clientConnection.closeConnection(0);
     }
 }

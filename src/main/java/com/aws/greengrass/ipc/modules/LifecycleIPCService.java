@@ -21,6 +21,8 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
+import lombok.AccessLevel;
+import lombok.Setter;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
@@ -38,9 +40,11 @@ public class LifecycleIPCService implements Startable, InjectionActions {
     private LifecycleIPCAgent agent;
 
     @Inject
+    @Setter (AccessLevel.PACKAGE)
     private LifecycleIPCEventStreamAgent eventStreamAgent;
 
     @Inject
+    @Setter (AccessLevel.PACKAGE)
     private GreengrassCoreIPCService greengrassCoreIPCService;
 
     @Override
@@ -126,5 +130,6 @@ public class LifecycleIPCService implements Startable, InjectionActions {
                 (context) -> eventStreamAgent.getSubscribeToComponentUpdateHandler(context));
         greengrassCoreIPCService.setDeferComponentUpdateHandler(
                 (context) -> eventStreamAgent.getDeferComponentHandler(context));
+
     }
 }
