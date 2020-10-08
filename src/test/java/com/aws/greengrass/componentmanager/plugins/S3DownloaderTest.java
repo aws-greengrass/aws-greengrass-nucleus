@@ -40,6 +40,7 @@ import java.util.Base64;
 import java.util.Collections;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
@@ -223,6 +224,28 @@ class S3DownloaderTest {
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
                     new ComponentArtifact(new URI(VALID_ARTIFACT_URI), VALID_ARTIFACT_CHECKSUM, VALID_ALGORITHM, null),
                     saveToPath));
+        } finally {
+            ComponentTestResourceHelper.cleanDirectory(testCache);
+        }
+    }
+
+    @Test
+    void GIVEN_s3_artifact_exists_WHEN_check_download_required_THEN_return_false() throws Exception {
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
+        try {
+            Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
+            if (Files.notExists(saveToPath)) {
+                Files.createDirectories(saveToPath);
+            }
+            Path artifactFilePath = Files.write(saveToPath.resolve("artifact.txt"),
+                    Collections.singletonList(VALID_ARTIFACT_CONTENT),
+                    StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            String checksum = Base64.getEncoder()
+                    .encodeToString(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)));
+            boolean downloadRequired = s3Downloader.downloadRequired(
+                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
+                    new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, VALID_ALGORITHM, null), saveToPath);
+            assertFalse(downloadRequired);
         } finally {
             ComponentTestResourceHelper.cleanDirectory(testCache);
         }

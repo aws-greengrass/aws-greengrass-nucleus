@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.deployment;
 
+import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
@@ -64,16 +65,19 @@ class KernelUpdateDeploymentTaskTest {
     Deployment deployment;
     @Mock
     GreengrassService greengrassService;
+    @Mock
+    ComponentManager componentManager;
 
     KernelUpdateDeploymentTask task;
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws Exception {
         lenient().doReturn(kernelAlternatives).when(context).get(KernelAlternatives.class);
         lenient().doReturn(deploymentDirectoryManager).when(context).get(DeploymentDirectoryManager.class);
         lenient().doReturn(context).when(kernel).getContext();
         lenient().doReturn("A").when(greengrassService).getName();
         lenient().doReturn(Arrays.asList(greengrassService)).when(kernel).orderedDependencies();
+        lenient().doNothing().when(componentManager).cleanupStaleVersions();
 
         Topic topic = mock(Topic.class);
         lenient().doReturn(1L).when(topic).getModtime();
@@ -84,7 +88,7 @@ class KernelUpdateDeploymentTaskTest {
         DeploymentDocument document = mock(DeploymentDocument.class);
         doReturn("mockId").when(document).getDeploymentId();
         doReturn(document).when(deployment).getDeploymentDocumentObj();
-        task = new KernelUpdateDeploymentTask(kernel, logger, deployment);
+        task = new KernelUpdateDeploymentTask(kernel, logger, deployment, componentManager);
     }
 
     @Test
