@@ -1,8 +1,5 @@
 {
   "DeploymentId": "arn:aws:us-east-1:greengrass:configuration:thinggroup/group1:1",
-  "RootPackages": [
-    "aws.iot.gg.test.integ.ComponentConfigTestMain"
-  ],
   "Packages": [
     {
       "Name": "aws.iot.gg.test.integ.ComponentConfigTestMain",

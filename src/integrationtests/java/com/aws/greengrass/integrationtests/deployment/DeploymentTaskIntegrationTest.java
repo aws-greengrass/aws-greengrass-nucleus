@@ -204,9 +204,9 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument.json").toURI(),
                 System.currentTimeMillis());
 
-        resultFuture.get(60, TimeUnit.SECONDS);
+        resultFuture.get(10, TimeUnit.SECONDS);
 
-        countDownLatch.await(60, TimeUnit.SECONDS);
+        countDownLatch.await(10, TimeUnit.SECONDS);
         Set<String> listOfStdoutMessagesTapped = outputMessagesToTimestamp.keySet();
         assertThat(listOfStdoutMessagesTapped, containsInAnyOrder(Matchers.equalTo(TEST_CUSTOMER_APP_STRING),
                                                                   Matchers.equalTo(TEST_MOSQUITTO_STRING),
@@ -231,7 +231,8 @@ class DeploymentTaskIntegrationTest {
         Consumer<GreengrassLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
-            if (messageOnStdout != null && messageOnStdout.contains("aws.iot.gg.test.integ.ComponentConfigTestService output")) {
+            if (messageOnStdout != null && messageOnStdout.contains(
+                    "aws.iot.gg.test.integ.ComponentConfigTestService output")) {
                 stdouts.add(messageOnStdout);
             }
         };
@@ -247,8 +248,9 @@ class DeploymentTaskIntegrationTest {
         resultFuture.get(10, TimeUnit.SECONDS);
 
         // verify config in config store and interpolation result
-        Map<String, Object> resultConfig =
-                kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics("Configurations").toPOJO();
+        Map<String, Object> resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                .findTopics("Configurations")
+                .toPOJO();
 
         verifyDefaultValueIsApplied(stdouts, resultConfig);
 
@@ -261,8 +263,9 @@ class DeploymentTaskIntegrationTest {
         resultFuture.get(10, TimeUnit.SECONDS);
 
         // verify config in config store
-        resultConfig =
-                kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics("Configurations").toPOJO();
+        resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                .findTopics("Configurations")
+                .toPOJO();
 
         // Asserted values can be found in ComponentConfigTest_DeployDocument_2.json
 
@@ -299,8 +302,9 @@ class DeploymentTaskIntegrationTest {
         resultFuture.get(10, TimeUnit.SECONDS);
 
         // verify config in config store
-        resultConfig =
-                kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics("Configurations").toPOJO();
+        resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                .findTopics("Configurations")
+                .toPOJO();
         assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
         assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
         assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
@@ -337,8 +341,9 @@ class DeploymentTaskIntegrationTest {
         resultFuture.get(10, TimeUnit.SECONDS);
 
         // verify config in config store
-        resultConfig =
-                kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics("Configurations").toPOJO();
+        resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                .findTopics("Configurations")
+                .toPOJO();
         assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
         assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
         assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
@@ -375,8 +380,9 @@ class DeploymentTaskIntegrationTest {
         resultFuture.get(10, TimeUnit.SECONDS);
 
         // verify config in config store and interpolation result
-        resultConfig =
-                kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics("Configurations").toPOJO();
+        resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                .findTopics("Configurations")
+                .toPOJO();
         verifyDefaultValueIsApplied(stdouts, resultConfig);
 
         Slf4jLogAdapter.removeGlobalListener(listener);
@@ -419,7 +425,8 @@ class DeploymentTaskIntegrationTest {
         Consumer<GreengrassLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
-            if (messageOnStdout != null && messageOnStdout.contains("aws.iot.gg.test.integ.ComponentConfigTestMain output")) {
+            if (messageOnStdout != null && messageOnStdout.contains(
+                    "aws.iot.gg.test.integ.ComponentConfigTestMain output")) {
                 stdouts.add(messageOnStdout);
             }
         };
@@ -544,8 +551,8 @@ class DeploymentTaskIntegrationTest {
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI(),
                 System.currentTimeMillis());
-        resultFuture.get(30, TimeUnit.SECONDS);
-        countDownLatch.await(60, TimeUnit.SECONDS);
+        resultFuture.get(10, TimeUnit.SECONDS);
+        countDownLatch.await(10, TimeUnit.SECONDS);
         assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
         Slf4jLogAdapter.removeGlobalListener(listener);
     }
@@ -563,7 +570,7 @@ class DeploymentTaskIntegrationTest {
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("CustomerAppAndYellowSignal.json").toURI(),
                 System.currentTimeMillis());
-        resultFuture.get(30, TimeUnit.SECONDS);
+        resultFuture.get(10, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies()
                 .stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
