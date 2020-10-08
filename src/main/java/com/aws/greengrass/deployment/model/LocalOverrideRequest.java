@@ -28,6 +28,5 @@ public class LocalOverrideRequest {
     @Deprecated
     Map<String, Map<String, Object>> componentNameToConfig;
 
-    // TODO: update to ConfigurationUpdateOperation class
     Map<String, ConfigurationUpdateOperation> configurationUpdate;
 }
