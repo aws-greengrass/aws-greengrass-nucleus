@@ -22,15 +22,27 @@ public class NucleusPaths {
     private Path configPath;
     private Path deploymentPath;
     private Path kernelAltsPath;
+    private Path cliIpcInfoPath;
 
     public void initPaths(Path root, Path workPath, Path componentStorePath, Path configPath, Path kernelAlts,
-                          Path deployment) throws IOException {
+                          Path deployment, Path cliIpcInfo) throws IOException {
         setRootPath(root);
         setConfigPath(configPath);
         setDeploymentPath(deployment);
         setKernelAltsPath(kernelAlts);
         setWorkPath(workPath);
         setComponentStorePath(componentStorePath);
+        setCliIpcInfoPath(cliIpcInfo);
+    }
+
+    public void setCliIpcInfoPath(Path cliIpcInfoPath) throws IOException {
+        this.cliIpcInfoPath = cliIpcInfoPath;
+        Utils.createPaths(cliIpcInfoPath());
+        Permissions.setCliIpcInfoPermission(cliIpcInfoPath());
+    }
+
+    public Path cliIpcInfoPath() {
+        return cliIpcInfoPath;
     }
 
     public void setKernelAltsPath(Path kernelAltsPath) throws IOException {

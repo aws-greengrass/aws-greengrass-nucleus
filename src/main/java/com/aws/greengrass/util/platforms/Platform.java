@@ -60,4 +60,8 @@ public abstract class Platform {
      * @throws IOException if any exception occurs while changing permissions
      */
     public abstract void setPermissions(FileSystemPermission permission, Path path) throws IOException;
+
+    public abstract Group getGroup(String group) throws IOException;
+
+    public abstract int getEffectiveUID() throws IOException, InterruptedException;
 }

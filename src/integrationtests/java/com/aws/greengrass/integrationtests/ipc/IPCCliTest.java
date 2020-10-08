@@ -10,6 +10,8 @@ import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
+import com.aws.greengrass.ipc.exceptions.IPCClientException;
+import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.ipc.services.cli.Cli;
 import com.aws.greengrass.ipc.services.cli.CliImpl;
 import com.aws.greengrass.ipc.services.cli.exceptions.ComponentNotFoundError;
@@ -29,11 +31,14 @@ import com.aws.greengrass.ipc.services.cli.models.RestartComponentResponse;
 import com.aws.greengrass.ipc.services.cli.models.StopComponentRequest;
 import com.aws.greengrass.ipc.services.cli.models.StopComponentResponse;
 import com.aws.greengrass.ipc.services.cli.models.UpdateRecipesAndArtifactsRequest;
+import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
@@ -47,6 +52,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.URI;
@@ -66,15 +72,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
+import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getListenerForServiceRunning;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.waitForDeploymentToBeSuccessful;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.waitForServiceToComeInState;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_AUTH_TOKEN;
-import static com.aws.greengrass.ipc.modules.CLIService.CLI_IPC_INFO_FILENAME;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_SERVICE;
 import static com.aws.greengrass.ipc.modules.CLIService.SOCKET_URL;
+import static com.aws.greengrass.ipc.modules.CLIService.posixGroups;
 import static com.aws.greengrass.ipc.services.cli.models.LifecycleState.RUNNING;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
@@ -346,10 +354,47 @@ class IPCCliTest {
         assertEquals("NewWorld", componentDetailsResponse.getComponentDetails().getConfiguration().get("Message"));
     }
 
+    @Test
+    @Order(10)
+    void GIVEN_kernel_running_WHEN_CLI_authorized_groups_updated_THEN_old_token_revoked_and_new_token_accepted(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, UnauthenticatedException.class);
+        KernelIPCClientConfig defaultConfig = getIPCConfigForCli();
 
-    private KernelIPCClientConfig getIPCConfigForCli() throws IOException, URISyntaxException {
-        Path filepath = kernel.getNucleusPaths().rootPath().resolve(CLI_IPC_INFO_FILENAME);
-        Map<String, String> ipcInfo = OBJECT_MAPPER.readValue(Files.readAllBytes(filepath), Map.class);
+        CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);
+        GlobalStateChangeListener listener = getListenerForServiceRunning(awaitIpcServiceLatch, CLI_SERVICE);
+        kernel.getContext().addGlobalStateChangeListener(listener);
+
+        String validGid;
+        if (Exec.isWindows) {
+            // TODO support windows
+            validGid = "0";
+        } else {
+            validGid = selectAValidGid();
+        }
+        assertNotNull(validGid, "Failed to find a single valid GID on this test instance");
+        kernel.locate(CLI_SERVICE).getConfig().lookup(PARAMETERS_CONFIG_KEY, posixGroups).withValue(validGid);
+        assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
+        kernel.getContext().removeGlobalStateChangeListener(listener);
+
+        KernelIPCClientConfig updatedConfig = getIPCConfigForCli();
+
+        // THEN new client with outdate token will fail to authenticate
+        assertThrows(IPCClientException.class, () -> new IPCClientImpl(defaultConfig));
+        // AND new client with correct token will be accepted
+        client = new IPCClientImpl(updatedConfig);
+        Cli cli = new CliImpl(client);
+        GetComponentDetailsResponse response =
+                cli.getComponentDetails(GetComponentDetailsRequest.builder().componentName("Component1").build());
+        assertNotNull(response);
+        assertEquals("1.0.0", response.getComponentDetails().getVersion());
+    }
+
+    private KernelIPCClientConfig getIPCConfigForCli () throws IOException, URISyntaxException {
+        File[] authFiles = kernel.getNucleusPaths().cliIpcInfoPath().toFile().listFiles();
+        assertEquals(1, authFiles.length);
+
+        Map<String, String> ipcInfo = OBJECT_MAPPER.readValue(Files.readAllBytes(authFiles[0].toPath()), Map.class);
         URI serverUri = new URI(ipcInfo.get(SOCKET_URL));
         int port = serverUri.getPort();
         String address = serverUri.getHost();
@@ -369,5 +414,18 @@ class IPCCliTest {
             Thread.sleep(1000);
         }
         fail(String.format("Deployment %s not successful in given time %d seconds", deploymentId, timeoutInSeconds));
+    }
+
+    private String selectAValidGid() throws IOException, InterruptedException {
+        String groups = Exec.cmd("groups");
+        for (String group : groups.split(" ")) {
+            long gid;
+            try {
+                gid = Platform.getInstance().getGroup(group).getId();
+                return Long.toString(gid);
+            } catch (IOException | NumberFormatException ignore) {
+            }
+        }
+        return null;
     }
 }

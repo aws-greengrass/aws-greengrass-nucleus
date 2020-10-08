@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.util.platforms;
 
+import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
@@ -18,6 +19,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +36,7 @@ public class UnixPlatform extends Platform {
     protected static final int SIGINT = 2;
     protected static final int SIGKILL = 9;
     public static final Pattern PS_PID_PATTERN = Pattern.compile("(\\d+)\\s+(\\d+)");
+    private static final String POSIX_GROUP_FILE = "/etc/group";
 
     @Override
     public void killProcessAndChildren(Process process, boolean force) throws IOException, InterruptedException {
@@ -187,6 +190,41 @@ public class UnixPlatform extends Platform {
             Files.setOwner(path, path.getFileSystem().getUserPrincipalLookupService()
                     .lookupPrincipalByName(permission.getOwnerUser()));
         }
+    }
+
+    /**
+     * Get the GID of the given group.
+     * @param posixGroup posix group name or ID
+     * @return GID of the given group
+     * @throws IOException if unable to find GID information
+     */
+    @SuppressWarnings("PMD.AssignmentInOperand")
+    @Override
+    public Group getGroup(String posixGroup) throws IOException {
+        try (BufferedReader reader = Files.newBufferedReader(Paths.get(POSIX_GROUP_FILE))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.startsWith("#") || line.isEmpty()) {
+                    continue;
+                }
+                String[] parts = line.split(":");
+                if (parts.length < 3) {
+                    throw new IOException(String.format(
+                            "Unrecognized %s file. Expected syntax: name:passwd:gid[:userlist]. Got: %s",
+                            POSIX_GROUP_FILE, line));
+                }
+                if (posixGroup.equals(parts[0]) || posixGroup.equals(parts[2])) {
+                    return new Group(parts[0], Integer.parseInt(parts[2]));
+                }
+            }
+        }
+        throw new IOException("Unrecognized posix group: " + posixGroup);
+    }
+
+    @Override
+    public int getEffectiveUID() throws IOException, InterruptedException {
+        return Integer.parseInt(Exec.sh("id -u"));
     }
 
     List<Integer> getChildPids(Process process) throws IOException, InterruptedException {
