@@ -1,42 +1,72 @@
 package com.aws.greengrass.ipc;
 
+import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.ipc.common.GGEventStreamConnectMessage;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import software.amazon.awssdk.crt.Log;
+import software.amazon.awssdk.crt.eventstream.ClientConnection;
+import software.amazon.awssdk.crt.eventstream.ClientConnectionHandler;
+import software.amazon.awssdk.crt.eventstream.Header;
+import software.amazon.awssdk.crt.eventstream.MessageType;
+import software.amazon.awssdk.crt.io.ClientBootstrap;
+import software.amazon.awssdk.crt.io.EventLoopGroup;
+import software.amazon.awssdk.crt.io.HostResolver;
+import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.eventstream.iot.server.AuthenticationData;
 import software.amazon.eventstream.iot.server.AuthenticationHandler;
 import software.amazon.eventstream.iot.server.Authorization;
 import software.amazon.eventstream.iot.server.AuthorizationHandler;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
+import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
+import static com.aws.greengrass.ipc.IPCEventStreamService.IPC_SERVER_DOMAIN_SOCKET_FILENAME;
+import static com.aws.greengrass.ipc.IPCEventStreamService.KERNEL_DOMAIN_SOCKET_FILEPATH;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({MockitoExtension.class})
 public class IPCEventStreamServiceTest {
     private IPCEventStreamService ipcEventStreamService;
-    @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
-    //    private static final String LOCAL_HOST = "127.0.0.1";
     protected static ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    static {
-        Log.initLoggingToFile(Log.LogLevel.Trace, "crt.log");
-    }
+    @TempDir
+    Path mockRootPath;
 
     @Mock
     private Kernel mockKernel;
+
+    @Mock
+    private Configuration config;
+
+    @Mock
+    private Topics mockRootTopics;
+
+    @Mock
+    private Topic mockTopic;
 
     @Mock
     private GreengrassCoreIPCService greengrassCoreIPCService;
@@ -57,40 +87,57 @@ public class IPCEventStreamServiceTest {
         when(greengrassCoreIPCService.getAuthenticationHandler()).thenReturn(mockAuthenticationHandler);
         when(greengrassCoreIPCService.getAuthorizationHandler()).thenReturn(mockAuthorizationHandler);
 
-        ipcEventStreamService = new IPCEventStreamService(mockKernel, greengrassCoreIPCService);
+        ipcEventStreamService = new IPCEventStreamService(mockKernel, greengrassCoreIPCService, config);
+        when(mockKernel.getRootPath()).thenReturn(mockRootPath);
+        when(config.getRoot()).thenReturn(mockRootTopics);
+        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
+                eq(KERNEL_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
         ipcEventStreamService.startup();
     }
 
     @AfterEach
-    public void tearDown() throws IOException {
+    public void tearDown() {
         ipcEventStreamService.close();
     }
 
-//    @SuppressWarnings({"PMD.AvoidUsingHardCodedIP", "PMD.CloseResource"})
-//    @Test
-//    public void testClientConnection() throws ExecutionException, InterruptedException, IOException {
-//
-//        Thread.sleep(3000);
-//        Socket clientSocket = new Socket();
-//        SocketAddress address = new InetSocketAddress(LOCAL_HOST, IPCEventStreamService.DEFAULT_PORT_NUMBER);
-//        clientSocket.connect(address, 3000);
-//        Header messageType = Header.createHeader(":message-type", (int) MessageType.Connect.getEnumValue());
-//        Header messageFlags = Header.createHeader(":message-flags", 0);
-//        Header streamId = Header.createHeader(":stream-id", 0);
-//
-//        List<Header> messageHeaders = new ArrayList<>(3);
-//        messageHeaders.add(messageType);
-//        messageHeaders.add(messageFlags);
-//        messageHeaders.add(streamId);
-//
-//        GGEventStreamConnectMessage connectMessagePayloadStructure =
-//                                GGEventStreamConnectMessage.builder().authToken("authToken").build();
-//        String payload = OBJECT_MAPPER.writeValueAsString(connectMessagePayloadStructure);
-//        Message connectMessage = new Message(messageHeaders, payload.getBytes(StandardCharsets.UTF_8));
-//        ByteBuffer connectMessageBuf = connectMessage.getMessageBuffer();
-//        byte[] toSend = new byte[connectMessageBuf.remaining()];
-//        connectMessageBuf.get(toSend);
-//        connectMessage.close();
-//        clientSocket.getOutputStream().write(toSend);
-//    }
+    @Test
+    public void testClientConnection() throws InterruptedException, IOException, ExecutionException {
+        final ClientConnection[] clientConnectionArray = {null};
+        CountDownLatch connectionLatch = new CountDownLatch(1);
+
+        try (EventLoopGroup elg = new EventLoopGroup(1);
+             ClientBootstrap clientBootstrap = new ClientBootstrap(elg, new HostResolver(elg));
+             SocketOptions socketOptions = new SocketOptions()) {
+
+            socketOptions.connectTimeoutMs = 3000;
+            socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
+            socketOptions.type = SocketOptions.SocketType.STREAM;
+            String ipcServerSocketPath = mockRootPath.resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+            ClientConnection
+                    .connect(ipcServerSocketPath, (short) DEFAULT_PORT_NUMBER, socketOptions, null, clientBootstrap, new ClientConnectionHandler() {
+                        @Override
+                        protected void onConnectionSetup(ClientConnection connection, int errorCode) {
+                            connectionLatch.countDown();
+                            clientConnectionArray[0] = connection;
+                        }
+
+                        @Override
+                        protected void onProtocolMessage(List<Header> headers, byte[] payload, MessageType messageType, int messageFlags) {
+
+                        }
+
+                        @Override
+                        protected void onConnectionClosed(int closeReason) {
+
+                        }
+                    }).get();
+            assertTrue(connectionLatch.await(2, TimeUnit.SECONDS));
+            GGEventStreamConnectMessage connectMessagePayloadStructure =
+                    GGEventStreamConnectMessage.builder().authToken("authToken").build();
+            String payload = OBJECT_MAPPER.writeValueAsString(connectMessagePayloadStructure);
+            clientConnectionArray[0].sendProtocolMessage(null, payload.getBytes(StandardCharsets.UTF_8),
+                    MessageType.Connect, 0).get();
+            clientConnectionArray[0].closeConnection(0);
+        }
+    }
 }

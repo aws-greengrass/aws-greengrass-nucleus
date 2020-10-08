@@ -23,7 +23,6 @@ import software.amazon.eventstream.iot.server.IpcServer;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
@@ -56,10 +55,12 @@ public class IPCEventStreamService implements Startable, Closeable {
     private SocketOptions socketOptions;
     private EventLoopGroup eventLoopGroup;
 
-    public IPCEventStreamService(Kernel kernel,
-                                 GreengrassCoreIPCService greengrassCoreIPCService) {
+    IPCEventStreamService(Kernel kernel,
+                                 GreengrassCoreIPCService greengrassCoreIPCService,
+                                 Configuration config) {
         this.kernel = kernel;
         this.greengrassCoreIPCService = greengrassCoreIPCService;
+        this.config = config;
     }
 
     @Override
@@ -129,15 +130,7 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     @Override
     public void close() {
+        // TODO: Future does not complete, uncomment when fixed.
         ipcServer.stopServer();
-        socketOptions.close();
-        eventLoopGroup.close();
-        try {
-            eventLoopGroup.getShutdownCompleteFuture().get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (ExecutionException e) {
-            logger.atError().log("Error shutting down event loop", e);
-        }
     }
 }
