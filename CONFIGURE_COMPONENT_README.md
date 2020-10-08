@@ -83,7 +83,7 @@ Each string is a JSON Pointer: https://tools.ietf.org/html/rfc6901.
 1. If a default value doesn't exist at this JSON pointer location, then the key/value pair will be removed entirely. 
 1. If a default value exists at this JSON pointer location, then the value of configuration will be reset to the default value.
 
-##### RESET doesn't support using index for an Array/List
+##### RESET doesn't support using index for an Array/List!!
 Although JSON pointer supports use indexes to locate an element in an Array/List, **we don't support use
 JSON pointer to reset an element in an Array/List for re:Invent 2020**. The reason is that resetting an element of an array
 might cause removal for an index, elements shifting in the array, and other indeterministic results. 
@@ -109,7 +109,7 @@ At any level,
 2. If a key doesn't exist, then key-value pair that is merging in will be added. Note a key that is not existed in the default value,
 could also be added.
 
-##### MERGE doesn't support Array/List append or insertion at index operations.
+##### MERGE doesn't support Array/List append or insertion at index operations!!
 Similar to removal, list append and insertion index require handling addtional complexity of array index changing, elements
 shifting, and other indeterministic results.
 
