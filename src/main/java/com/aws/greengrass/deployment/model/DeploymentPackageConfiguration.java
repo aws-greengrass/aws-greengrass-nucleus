@@ -59,4 +59,12 @@ public class DeploymentPackageConfiguration {
         this.resolvedVersion = resolvedVersion;
         this.configuration = configuration;
     }
+
+    /**
+     * Constructor. Non provided fields are null.
+     * @param packageName packageName
+     */
+    public DeploymentPackageConfiguration(String packageName) {
+        this.packageName = packageName;
+    }
 }
