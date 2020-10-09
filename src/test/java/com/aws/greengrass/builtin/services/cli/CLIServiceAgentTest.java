@@ -6,6 +6,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
+import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.ipc.services.cli.exceptions.ComponentNotFoundError;
@@ -95,6 +96,8 @@ class CLIServiceAgentTest {
     private DeploymentQueue deploymentQueue;
     private CLIServiceAgent cliServiceAgent;
     private final Context context = new Context();
+
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @BeforeEach
     void setup() {
@@ -318,12 +321,16 @@ class CLIServiceAgentTest {
         Map<String, Object> component1Configuration = new HashMap<>();
         component1Configuration.put("portNumber", 1000);
         componentToConfiguration.put("Component1", component1Configuration);
+        String configUpdateString = "{\"Component1\":{ \"MERGE\": {\"foo\": \"bar\"}}}";
+        Map<String, Map<String, Object>> configUpdateMap = mapper.readValue(configUpdateString, Map.class);
         CreateLocalDeploymentRequest request = CreateLocalDeploymentRequest.builder()
                                                 .groupName(MOCK_GROUP_NAME)
                                                 .rootComponentVersionsToAdd(componentToVersion)
                                                 .rootComponentsToRemove(componentsToRemove)
                                                 .componentToConfiguration(componentToConfiguration)
+                                                .configurationUpdate(configUpdateMap)
                                                 .build();
+
         when(deploymentQueue.offer(any())).thenReturn(true);
         Topics mockServiceConfig = mock(Topics.class);
         Topics mockLocalDeployments = mock(Topics.class);
@@ -342,6 +349,14 @@ class CLIServiceAgentTest {
         assertEquals(componentToVersion, localOverrideRequest.getComponentsToMerge());
         assertEquals(componentsToRemove, localOverrideRequest.getComponentsToRemove());
         assertEquals(componentToConfiguration, localOverrideRequest.getComponentNameToConfig());
+
+        Map<String, ConfigurationUpdateOperation> configUpdate = new HashMap<>();
+        ConfigurationUpdateOperation configUpdateComponent1 = new ConfigurationUpdateOperation();
+        configUpdateComponent1.setValueToMerge(new HashMap<String, Object>(){{
+            put("foo", "bar");
+        }});
+        configUpdate.put("Component1", configUpdateComponent1);
+        assertEquals(configUpdate, localOverrideRequest.getConfigurationUpdate());
     }
 
     @Test
