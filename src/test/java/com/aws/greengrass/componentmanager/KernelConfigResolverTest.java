@@ -12,9 +12,11 @@ import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentParameter;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
+import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -115,6 +117,7 @@ class KernelConfigResolverTest {
     void setupMocks() throws IOException {
         path = Paths.get("Artifacts", TEST_INPUT_PACKAGE_A);
         lenient().when(nucleusPaths.artifactPath(any())).thenReturn(path.toAbsolutePath());
+        lenient().when(kernel.getConfig()).thenReturn(new Configuration(new Context()));
     }
 
     @Test

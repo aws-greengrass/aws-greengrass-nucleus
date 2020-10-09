@@ -54,6 +54,7 @@ import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 public class KernelConfigResolver {
     private static final Logger LOGGER = LogManager.getLogger(KernelConfigResolver.class);
     public static final String VERSION_CONFIG_KEY = "version";
+    public static final String PREV_VERSION_CONFIG_KEY = "previousVersion";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
     public static final String CONFIGURATION_CONFIG_KEY = "Configurations";
 
@@ -210,7 +211,8 @@ public class KernelConfigResolver {
         resolvedServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, dependencyConfig);
 
         // State information for deployments
-        resolvedServiceConfig.put(VERSION_CONFIG_KEY, componentRecipe.getVersion().getValue());
+        handleComponentVersionConfigs(
+                componentIdentifier, componentRecipe.getVersion().getValue(), resolvedServiceConfig);
         Map<String, String> map = new HashMap<>();
         for (ComponentParameter resolvedParam : resolvedParams) {
             map.put(resolvedParam.getName(), resolvedParam.getValue());
@@ -694,6 +696,33 @@ public class KernelConfigResolver {
         });
         mainServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, mainDependencies);
         return mainServiceConfig;
+    }
+
+    /*
+     * Record current deployment version in service config. Rotate versions.
+     */
+    private void handleComponentVersionConfigs(ComponentIdentifier compId, String deploymentVersion,
+                                               Map<String, Object> newConfig) {
+        newConfig.put(VERSION_CONFIG_KEY, deploymentVersion);
+        Topic existingVersionTopic =
+                kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC, compId.getName(), VERSION_CONFIG_KEY);
+        if (existingVersionTopic == null) {
+            return;
+        }
+
+        String existingVersion = (String) existingVersionTopic.getOnce();
+        if (existingVersion.equals(deploymentVersion)) {
+            // preserve the prevVersion if it exists
+            Topic existingPrevVersionTopic =
+                    kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC, compId.getName(), PREV_VERSION_CONFIG_KEY);
+            if (existingPrevVersionTopic != null) {
+                String existingPrevVersion = (String) existingVersionTopic.getOnce();
+                newConfig.put(PREV_VERSION_CONFIG_KEY, existingPrevVersion);
+            }
+        } else {
+            // rotate versions if deploying a different version than the existing one
+            newConfig.put(PREV_VERSION_CONFIG_KEY, existingVersion);
+        }
     }
 
     /*
