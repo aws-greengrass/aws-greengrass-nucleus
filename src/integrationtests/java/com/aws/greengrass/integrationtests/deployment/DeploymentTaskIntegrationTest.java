@@ -354,7 +354,7 @@ class DeploymentTaskIntegrationTest {
 
         // verify config in config store and interpolation result
         Map<String, Object> resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
-                .findTopics("Configurations")
+                .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY)
                 .toPOJO();
 
         verifyDefaultValueIsApplied(stdouts, resultConfig);
@@ -369,7 +369,7 @@ class DeploymentTaskIntegrationTest {
 
         // verify config in config store
         resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
-                .findTopics("Configurations")
+                .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY)
                 .toPOJO();
 
         // Asserted values can be found in ComponentConfigTest_DeployDocument_2.json
@@ -408,7 +408,7 @@ class DeploymentTaskIntegrationTest {
 
         // verify config in config store
         resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
-                .findTopics("Configurations")
+                .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY)
                 .toPOJO();
         assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
         assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
@@ -447,7 +447,7 @@ class DeploymentTaskIntegrationTest {
 
         // verify config in config store
         resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
-                .findTopics("Configurations")
+                .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY)
                 .toPOJO();
         assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
         assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
@@ -486,7 +486,7 @@ class DeploymentTaskIntegrationTest {
 
         // verify config in config store and interpolation result
         resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
-                .findTopics("Configurations")
+                .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY)
                 .toPOJO();
         verifyDefaultValueIsApplied(stdouts, resultConfig);
 
