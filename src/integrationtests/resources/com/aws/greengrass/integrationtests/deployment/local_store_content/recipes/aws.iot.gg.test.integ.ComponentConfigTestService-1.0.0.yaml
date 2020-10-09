@@ -23,6 +23,21 @@ ComponentConfiguration:
 
 Manifests:
   - Platform:
+      os: windows
+    Lifecycle:
+      # Texts below are used for assertion in DeploymentTaskIntegrationTest and need to change together.
+      run: >-
+        powershell -command
+        echo aws.iot.gg.test.integ.ComponentConfigTestService output
+        Value for /singleLevelKey: {configuration:/singleLevelKey}.
+        Value for /path/leafKey: {configuration:/path/leafKey}.
+        Value for /path: '{configuration:/path}'. I will be interpolated as a serialized JSON String.
+        Value for /listKey/0: {configuration:/listKey/0}.
+        Value for /emptyStringKey: {configuration:/emptyStringKey}.
+        Value for /defaultIsNullKey: {configuration:/defaultIsNullKey}.
+        Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}. I was not in the default value
+
+  - Platform:
       os: all
     Lifecycle:
       # Texts below are used for assertion in DeploymentTaskIntegrationTest and need to change together.
