@@ -174,17 +174,18 @@ Lifecycle:
     Script:
 ```
 
+---
 #### Manifest.Lifecycle with recipe variables
 Recipe variables expose information from the component and kernel for you to use in your recipes. For example, you can use recipe variables to pass component configurations to a lifecycle script that exists as an artifact.
 
 Recipe variables use {recipe_variable} syntax. The single curly braces indicate a recipe variable and will be replaced at runtime.
 
-#### Use Component's own variables
-{<namespace>:<key>}
+##### Use Component's own variables
+{\<namespace\>:\<key\>}
 
 The following recipe variables:
 
-1. {configuration:<json pointer>} The value of a configuration at the provided JSON pointer location for the component. 
+1. {configuration:\<json pointer\>} The value of a configuration at the provided JSON pointer location for the component. 
 
 For example, the {configuration:/path/list/0} recipe variable retrieves the value at the location of `/path/list/0` from the configuration. 
 
@@ -206,15 +207,14 @@ The root path of the decompressed archive artifacts for the component that this 
 You can use this variable to identify the location of a script to run in the component lifecycle. 
 Each artifact unzips to a folder within the decompressed path, where the folder has the same name as the artifact minus its extension. For example, a ZIP artifact named models.zip unpacks to the {{artifacts:decompressedPath}}/models folder
 
-#### Use Direct Dependencies' variables
+##### Use Direct Dependencies' variables
 If a component has dependencies, it sometimes require reading its dependencies's info at runtime, such as configuration and artifact path.
-
-It could use it with the syntax: {<componentName>:<namespace>:<key>}
+Syntax: {\<componentName\>:\<namespace\>:\<key\>}
 
 Similarly, you could use the variables above.
-1. {<componentName>:configuration:<json pointer>}
-1. {<componentName>:artifacts:path}
-1. {<componentName>:artifacts:decompressedPath}
+1. {\<componentName\>:configuration:\<json pointer\>}
+1. {\<componentName\>:artifacts:path}
+1. {\<componentName\>:artifacts:decompressedPath}
 
 If you refer to a componentName that is not a direct dependency, **the placeholder will remain**.
 
@@ -224,6 +224,7 @@ Global recipe variables could be used by any component.
 1. {kernel:root}
 The absolute root path that the kernel is running at runtime. 
 
+---
 #### Manifest.Artifacts
 A list of artifacts that component uses as resources, such as binary, scripts, images etc.
 ```yaml
