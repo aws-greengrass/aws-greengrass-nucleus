@@ -7,6 +7,10 @@ ComponentVersion: '1.0.0'
 ComponentDependencies:
   {{Mosquitto}}:
     VersionRequirement: 1.0.0
+ComponentConfiguration:
+  DefaultConfiguration:
+    sampleText: This is a test
+
 Manifests:
   - Platform:
       os: macos
@@ -18,6 +22,7 @@ Manifests:
       run: |-
         sleep 2
         echo "Hello Greengrass. {{params:sampleText.value}}"
+        echo "Hello Greengrass. {configuration:/sampleText}"
 
   - Platform:
       os: linux
@@ -28,4 +33,4 @@ Manifests:
     Lifecycle:
       run: |-
         sleep 2
-        echo "Hello Greengrass. {{params:sampleText.value}}"
+        echo "Hello Greengrass. {configuration:/sampleText}"
