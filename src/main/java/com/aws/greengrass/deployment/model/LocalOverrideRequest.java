@@ -25,5 +25,8 @@ public class LocalOverrideRequest {
     List<String> componentsToRemove; // remove just need name
     String groupName;
 
+    @Deprecated
     Map<String, Map<String, Object>> componentNameToConfig;
+
+    Map<String, ConfigurationUpdateOperation> configurationUpdate;
 }
