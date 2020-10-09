@@ -331,6 +331,14 @@ class DeploymentTaskIntegrationTest {
         // 1. The component's configurations are updated correctly in the kernel's config store
         // 2. The interpolation is correct by taking the newly updated configuration, that is consistent
 
+//        List<CountDownLatch> countDownLatches = new ArrayList<>();
+
+//        for (int i=0; i < 5; i++) {
+//             5 deployments and each need a countdown
+//            countDownLatches.add(new CountDownLatch(1));
+//        }
+
+
         // Set up stdout listener to capture stdout for verify #2 interpolation
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
@@ -339,6 +347,7 @@ class DeploymentTaskIntegrationTest {
             if (messageOnStdout != null && messageOnStdout.contains(
                     "aws.iot.gg.test.integ.ComponentConfigTestService output")) {
                 stdouts.add(messageOnStdout);
+                countDownLatch.countDown(); // countdown when received output to verify
             }
         };
         Slf4jLogAdapter.addGlobalListener(listener);
@@ -347,6 +356,7 @@ class DeploymentTaskIntegrationTest {
         /*
          * 1st deployment. Default Config.
          */
+        countDownLatch = new CountDownLatch(1);
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_1.json").toURI(),
                 System.currentTimeMillis());
@@ -362,6 +372,7 @@ class DeploymentTaskIntegrationTest {
         /*
          * 2nd deployment. MERGE existing keys.
          */
+        countDownLatch = new CountDownLatch(1); // reset countdown
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_2.json").toURI(),
                 System.currentTimeMillis());
@@ -372,8 +383,8 @@ class DeploymentTaskIntegrationTest {
                 .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY)
                 .toPOJO();
 
+        countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
         // Asserted values can be found in ComponentConfigTest_DeployDocument_2.json
-
         assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
         assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
         assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
@@ -401,6 +412,7 @@ class DeploymentTaskIntegrationTest {
         /*
          * 3rd deployment MERGE not existed keys
          */
+        countDownLatch = new CountDownLatch(1); // reset countdown
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_3.json").toURI(),
                 System.currentTimeMillis());
@@ -429,6 +441,7 @@ class DeploymentTaskIntegrationTest {
         assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(2));  // no more keys
 
         // verify interpolation result
+        countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
         assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: updated value of singleLevelKey."));
         assertTrue(stdouts.get(0).contains("Value for /path/leafKey: updated value of /path/leafKey."));
         assertTrue(stdouts.get(0).contains("Value for /listKey/0: item3."));
@@ -440,6 +453,7 @@ class DeploymentTaskIntegrationTest {
         /*
          * 4th deployment. RESET.
          */
+        countDownLatch = new CountDownLatch(1); // reset countdown
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_4.json").toURI(),
                 System.currentTimeMillis());
@@ -470,6 +484,7 @@ class DeploymentTaskIntegrationTest {
         assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
 
         // verify interpolation result
+        countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
         assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: updated value of singleLevelKey."));
         assertTrue(stdouts.get(0).contains("Value for /path/leafKey: updated value of /path/leafKey."));
         assertTrue(stdouts.get(0).contains("Value for /listKey/0: item1."));
@@ -479,6 +494,7 @@ class DeploymentTaskIntegrationTest {
         stdouts.clear();
 
         // 5th RESET entirely to default
+        countDownLatch = new CountDownLatch(1); // reset countdown
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_5.json").toURI(),
                 System.currentTimeMillis());
@@ -493,7 +509,8 @@ class DeploymentTaskIntegrationTest {
         Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
-    private void verifyDefaultValueIsApplied(List<String> stdouts, Map<String, Object> resultConfig) {
+    private void verifyDefaultValueIsApplied(List<String> stdouts, Map<String, Object> resultConfig)
+            throws InterruptedException {
         // Asserted default values are from the aws.iot.gg.test.integ.ComponentConfigTestService-1.0.0.yaml recipe file
         assertThat(resultConfig, IsMapWithSize.aMapWithSize(8));
         assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "default value of singleLevelKey"));
@@ -510,6 +527,7 @@ class DeploymentTaskIntegrationTest {
                    IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
         // verify interpolation result
+        countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
         assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: default value of singleLevelKey."));
         assertTrue(stdouts.get(0).contains("Value for /path/leafKey: default value of /path/leafKey."));
         assertTrue(stdouts.get(0).contains("Value for /path: {\"leafKey\":\"default value of /path/leafKey\"}"));
