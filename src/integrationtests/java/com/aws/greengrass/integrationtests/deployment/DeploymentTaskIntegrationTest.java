@@ -188,7 +188,7 @@ class DeploymentTaskIntegrationTest {
      */
     @Test
     @Order(1)
-    void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel(
+    void GIVEN_component_with_multiple_versions_WHEN_deploy_sequentially_THEN_stale_version_removed(
             ExtensionContext context) throws Exception {
         ComponentIdentifier simpleApp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"),
                 PRIVATE_STORE_NAMESPACE_TOPIC);
@@ -630,7 +630,7 @@ class DeploymentTaskIntegrationTest {
     }
 
     @Test
-    @Order(2)
+    @Order(4)
     @Deprecated
     void GIVEN_services_running_WHEN_updated_params_THEN_services_start_with_updated_params_in_kernel()
             throws Exception {
