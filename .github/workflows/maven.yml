@@ -27,8 +27,8 @@ jobs:
         continue-on-error: true
       - name: Build with Maven Single Test For Windows
         run: |
-        mvn -ntp -U generate-test-sources generate-test-resources test-compile -DskipTests
-        mvn -ntp -U surefire:test@integration-tests -Dsurefire.argLine="" -Dtest=DeploymentTaskIntegrationTest
+          mvn -ntp -U generate-test-sources generate-test-resources test-compile -DskipTests
+          mvn -ntp -U surefire:test@integration-tests -Dsurefire.argLine="" -Dtest=DeploymentTaskIntegrationTest
         shell: cmd
         if: matrix.os == 'Windows'
       - name: Build with Maven
