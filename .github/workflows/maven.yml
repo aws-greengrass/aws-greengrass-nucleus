@@ -31,7 +31,6 @@ jobs:
         if: matrix.os == 'Windows'
       - name: Build with Maven Single Test For Linux
         run: mvn -ntp -U surefire:test@integration-tests -Dsurefire.argLine="" -Dtest=DeploymentTaskIntegrationTest
-        shell: cmd
         if: matrix.os != 'Windows'
       - name: Build with Maven
         run: mvn -ntp -U clean verify
