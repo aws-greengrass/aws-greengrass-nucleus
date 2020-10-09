@@ -31,7 +31,7 @@ or in JSON,
    "ComponentConfiguration": {
       "DefaultConfiguration": {
          "singleLevelKey": "default value of singleLevelKey",
-         "path": {
+         "nestedObjectkey": {
             "leafKey": "default value of /path/leafKey"
          },
          "listKey": [
@@ -65,7 +65,7 @@ Currently, we only support JSON. We will support YAML as a fast-follow after re:
     "singleLevelKey" : "updated value of singleLevelKey",
     "newSingleLevelKey": "I was not in the default value and could be added.",
     "listKey": ["item3"],
-    "path" : {
+    "nestedObjectkey" : {
       "leafKey": "updated value of /path/leafKey",
       "newLeafKey": "value of /path/newLeafKey"
     }
@@ -73,7 +73,7 @@ Currently, we only support JSON. We will support YAML as a fast-follow after re:
 }
 ```
 ### 2.3 Syntax
-It accepts only `RESET` and `MERGE` as top-level keys. The configuration will first perform `RESET` and then perform `MERGE`,
+It accepts only **one of each** `RESET` and `MERGE` as top-level keys. The configuration will first perform `RESET` and then perform `MERGE`,
 regardless of the order they are given in the JSON Object.
 
 #### 2.3.1 RESET

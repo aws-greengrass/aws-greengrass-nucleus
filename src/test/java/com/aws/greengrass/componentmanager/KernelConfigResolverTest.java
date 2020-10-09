@@ -686,7 +686,7 @@ class KernelConfigResolverTest {
         assertThat("service can reference the configuration of dependency service",
                 getValueForLifecycleKey(TEST_NAMESPACE, TEST_INPUT_PACKAGE_A, servicesConfig),
                 equalTo("Component PackageA with param valueB1 cross component " + TEST_INPUT_PACKAGE_B + " artifact "
-                        + "dir " + DUMMY_ARTIFACT_PATH));
+                        + "dir " + DUMMY_ARTIFACT_PATH.toAbsolutePath()));
 
         // Since package C didn't have a dependency on B, it should not be allowed to read from B's configuration
         // this results in the configuration not being filled in
