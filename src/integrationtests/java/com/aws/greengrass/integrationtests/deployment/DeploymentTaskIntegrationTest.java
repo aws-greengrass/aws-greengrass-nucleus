@@ -79,7 +79,6 @@ import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMP
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
@@ -182,10 +181,8 @@ class DeploymentTaskIntegrationTest {
     @Test
     @Order(1)
     void GIVEN_component_with_multiple_versions_WHEN_deploy_sequentially_THEN_stale_version_removed() throws Exception {
-        ComponentIdentifier simpleApp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"),
-                PRIVATE_STORE_NAMESPACE_TOPIC);
-        ComponentIdentifier simpleApp2 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("2.0.0"),
-                PRIVATE_STORE_NAMESPACE_TOPIC);
+        ComponentIdentifier simpleApp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"));
+        ComponentIdentifier simpleApp2 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("2.0.0"));
 
         // deploy version 1
         Future<DeploymentResult> resultFuture1 = submitSampleJobDocument(
@@ -239,8 +236,7 @@ class DeploymentTaskIntegrationTest {
     @Order(2)
     void GIVEN_component_with_multiple_versions_WHEN_deploy_previous_version_THEN_running_version_not_cleaned_up()
             throws Exception {
-        ComponentIdentifier simpleApp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"),
-                PRIVATE_STORE_NAMESPACE_TOPIC);
+        ComponentIdentifier simpleApp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"));
 
         // deploy version 1 and 2
         preloadLocalStoreContent(SIMPLE_APP_NAME, "1.0.0");

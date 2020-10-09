@@ -15,25 +15,8 @@ import lombok.Value;
 @Value
 @AllArgsConstructor
 public class ComponentIdentifier implements Comparable<ComponentIdentifier> {
-    public static final String PUBLIC_SCOPE = "PUBLIC";
-    public static final String PRIVATE_SCOPE = "PRIVATE";
     String name;
     Semver version;
-    //TODO considering use enum if local name occluding is necessary.
-    String scope;
-
-    /**
-     * PackageIdentifier constructor.
-     *
-     * @param name    package name
-     * @param version package version in semver
-     */
-    @SuppressWarnings("PMD.NullAssignment")
-    public ComponentIdentifier(String name, Semver version) {
-        this.name = name;
-        this.version = version;
-        this.scope = null;
-    }
 
     @Override
     public String toString() {
