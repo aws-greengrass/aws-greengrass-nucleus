@@ -27,11 +27,15 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
+import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PRIVATE_SCOPE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsIterableWithSize.iterableWithSize;
@@ -303,9 +307,35 @@ class ComponentStoreTest {
                 .resolve(MONITORING_SERVICE_PKG_ARTIFACT_NAME);
         assertTrue(Files.exists(expectedRecipePath));
         assertTrue(Files.exists(expectedArtifactPath));
-        componentStore.deletePackage(MONITORING_SERVICE_PKG_ID);
+        componentStore.deleteComponent(MONITORING_SERVICE_PKG_ID);
         assertFalse(Files.exists(expectedRecipePath));
         assertFalse(Files.exists(expectedArtifactPath));
+    }
+
+
+    @Test
+    void GIVEN_artifacts_WHEN_list_by_artifact_THEN_result_is_correct() throws Exception {
+        Set<ComponentIdentifier> mockComponents = new HashSet<>(Arrays.asList(
+                new ComponentIdentifier("Mock1", new Semver("1.1.0"), PRIVATE_SCOPE),
+                new ComponentIdentifier("Mock1", new Semver("1.2.0"), PRIVATE_SCOPE),
+                new ComponentIdentifier("Mock2", new Semver("2.1.0"), PRIVATE_SCOPE),
+                new ComponentIdentifier("Mock3", new Semver("3.1.0"), PRIVATE_SCOPE),
+                new ComponentIdentifier("Mock3", new Semver("3.2.0"), PRIVATE_SCOPE)
+        ));
+
+        // mock these artifact exist
+        for (ComponentIdentifier mockComponent : mockComponents) {
+            createEmptyArtifactDir(mockComponent);
+        }
+
+        Map<String, Set<String>> foundComponentVersions = componentStore.listAvailableComponentVersions();
+        Set<ComponentIdentifier> foundComponents = new HashSet<>();
+        for (Map.Entry<String, Set<String>> foundEntry : foundComponentVersions.entrySet()) {
+            for (String version : foundEntry.getValue()) {
+                foundComponents.add(new ComponentIdentifier(foundEntry.getKey(), new Semver(version), PRIVATE_SCOPE));
+            }
+        }
+        assertEquals(mockComponents, foundComponents);
     }
 
     @Test
@@ -334,6 +364,11 @@ class ComponentStoreTest {
         Path destArtFile = componentStore.resolveArtifactDirectoryPath(pkgId).resolve(artFileName);
         Files.createDirectories(destArtFile.getParent());
         Files.copy(sourceArtFile, destArtFile);
+    }
+
+    private void createEmptyArtifactDir(ComponentIdentifier pkgId) throws PackageLoadingException, IOException {
+        Path artifactDir = componentStore.resolveArtifactDirectoryPath(pkgId);
+        Files.createDirectories(artifactDir);
     }
 
     @Test
