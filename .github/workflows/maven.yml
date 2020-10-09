@@ -15,7 +15,7 @@ jobs:
       - greengrass
     strategy:
       matrix:
-        os: [Windows]
+        os: [Linux, Windows]
     name: Build on ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -25,13 +25,8 @@ jobs:
           java-version: 1.8
       - run: rm -rf /tmp/*
         continue-on-error: true
-      - name: Build Maven Single Test For Windows
-        run: |
-          mvn -ntp -U generate-test-sources generate-test-resources test-compile -DskipTests
-        shell: cmd
-        if: matrix.os == 'Windows'
-      - name: Run Maven Single Test For Windows
-        run: mvn -ntp -U surefire:test@integration-tests -Dsurefire.argLine="" -Dtest=DeploymentTaskIntegrationTest#GIVEN_multiple_deployments_with_config_update_WHEN_submitted_to_deployment_task_THEN_configs_are_updated
+      - name: Build with Maven
+        run: mvn -ntp -U clean verify
         shell: cmd
         if: matrix.os == 'Windows'
       - name: Build with Maven
