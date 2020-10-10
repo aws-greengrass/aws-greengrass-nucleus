@@ -556,11 +556,12 @@ public class KernelConfigResolver {
         return null;
     }
 
-    /***************** end of new configuration code path. *******************/
+    /**** end of new configuration code path. Most of below are all deprecated and will be remove soon ****/
 
     /*
      * For each lifecycle key-value pair of a package, substitute parameter values.
      */
+    @Deprecated
     @SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
     private Object interpolate(Object configValue, ComponentIdentifier componentIdentifier,
             List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
@@ -588,6 +589,7 @@ public class KernelConfigResolver {
         return result;
     }
 
+    @Deprecated
     private String replace(String stringValue, ComponentIdentifier componentIdentifier,
             List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
             Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)
@@ -626,6 +628,7 @@ public class KernelConfigResolver {
         return stringValue;
     }
 
+    @Deprecated
     private boolean componentCanReadParameterFrom(ComponentIdentifier component, ComponentIdentifier canReadFrom,
             Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache) {
         Set<String> depSet;
@@ -645,6 +648,7 @@ public class KernelConfigResolver {
     }
 
     @Nullable
+    @Deprecated
     private String lookupParameterValueForComponent(
             Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
             DeploymentDocument document, ComponentIdentifier component, String namespace, String key)
@@ -720,6 +724,7 @@ public class KernelConfigResolver {
     /*
      * Get configuration for a package-version combination from deployment document.
      */
+    @Deprecated
     private Optional<DeploymentPackageConfiguration> getMatchingPackageConfigFromDeployment(DeploymentDocument document,
             String packageName, String packageVersion) {
         return document.getDeploymentPackageConfigurationList().stream()
@@ -729,6 +734,7 @@ public class KernelConfigResolver {
                         .isSatisfiedBy(new Semver(packageVersion, Semver.SemverType.NPM))).findAny();
     }
 
+    @Deprecated
     private Set<ComponentParameter> resolveParameterValuesToUseWithCache(
             Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
             ComponentIdentifier componentIdentifier, DeploymentDocument document) throws PackageLoadingException {
@@ -744,6 +750,7 @@ public class KernelConfigResolver {
      * deployment document, if not, those stored in the kernel config for previous
      * deployments and defaults for the rest.
      */
+    @Deprecated
     private Set<ComponentParameter> resolveParameterValuesToUse(DeploymentDocument document,
             ComponentRecipe componentRecipe) {
         // If values for parameters were set in deployment they should be used
@@ -760,6 +767,7 @@ public class KernelConfigResolver {
     /*
      * Get parameter values for a package set by customer from deployment document.
      */
+    @Deprecated
     private Set<ComponentParameter> getParametersFromDeployment(DeploymentDocument document,
             ComponentRecipe componentRecipe) {
         Optional<DeploymentPackageConfiguration> packageConfigInDeployment =
@@ -772,6 +780,7 @@ public class KernelConfigResolver {
     /*
      * Get parameter values for a package stored in config that were set by customer in previous deployment.
      */
+    @Deprecated
     private Set<ComponentParameter> getParametersStoredInConfig(ComponentRecipe componentRecipe) {
         Set<ComponentParameter> parametersStoredInConfig = new HashSet<>();
 
@@ -789,6 +798,7 @@ public class KernelConfigResolver {
     /*
      * Lookup parameter value from service config by parameter name
      */
+    @Deprecated
     private Optional<String> getParameterValueFromServiceConfig(String service, String parameterName) {
         Topics serviceTopics = kernel.findServiceTopic(service);
         if (serviceTopics == null) {
