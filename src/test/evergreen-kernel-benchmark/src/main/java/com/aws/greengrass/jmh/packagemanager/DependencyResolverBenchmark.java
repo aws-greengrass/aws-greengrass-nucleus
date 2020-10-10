@@ -49,7 +49,7 @@ public class DependencyResolverBenchmark {
     @Warmup(iterations = 5)
     @State(Scope.Benchmark)
     public abstract static class DRIntegration {
-        private DeploymentDocument jobDoc = new DeploymentDocument("mockJob1", Arrays.asList("boto3", "awscli"),
+        private DeploymentDocument jobDoc = new DeploymentDocument("mockJob1",
                 Arrays.asList(
                         new DeploymentPackageConfiguration("boto3", true, "1.9.128", new HashMap<>()),
                         new DeploymentPackageConfiguration("awscli", true, "1.16.144", new HashMap<>())),
@@ -70,7 +70,7 @@ public class DependencyResolverBenchmark {
                     .resolve("src/test/evergreen-kernel-benchmark/mock_artifact_source");
 
             // pre-load contents to package store
-            copyFolderRecursively(localStoreContentPath, kernel.getComponentStorePath());
+            copyFolderRecursively(localStoreContentPath, kernel.getNucleusPaths().componentStorePath());
 
             // get the resolver from context
             resolver = kernel.getContext().get(DependencyResolver.class);

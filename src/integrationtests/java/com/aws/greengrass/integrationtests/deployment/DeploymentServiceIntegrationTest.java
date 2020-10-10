@@ -48,8 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class DeploymentServiceIntegrationTest extends BaseITCase {
 
     private static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
     private Kernel kernel;
     private DeploymentService deploymentService;
     private DeploymentQueue deploymentQueue;
@@ -79,7 +78,7 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
         // pre-load contents to package store
         Path localStoreContentPath =
                 Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
-        copyFolderRecursively(localStoreContentPath, kernel.getComponentStorePath(), REPLACE_EXISTING);
+        copyFolderRecursively(localStoreContentPath, kernel.getNucleusPaths().componentStorePath(), REPLACE_EXISTING);
     }
 
     @AfterEach

@@ -16,7 +16,7 @@ import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.constants.FileSuffix;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -26,51 +26,35 @@ import org.apache.commons.io.FileUtils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.Set;
 import javax.inject.Inject;
-import javax.inject.Named;
 
 public class ComponentStore {
     private static final Logger logger = LogManager.getLogger(ComponentStore.class);
 
-    public static final String CONTEXT_PACKAGE_STORE_DIRECTORY = "packageStoreDirectory";
     public static final String RECIPE_DIRECTORY = "recipes";
     public static final String ARTIFACT_DIRECTORY = "artifacts";
-    public static final String ARTIFACTS_DECOMPRESSED_DIRECTORY = "artifacts-decompressed";
+    public static final String ARTIFACTS_DECOMPRESSED_DIRECTORY = "artifacts-unarchived";
     private static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
-
-    private final Path componentStoreDirectory;
-    private final Path recipeDirectory;
-    private final Path artifactDirectory;
-    private final Path artifactsDecompressedDirectory;
+    private final NucleusPaths nucleusPaths;
 
     /**
      * Constructor. It will initialize recipe, artifact and artifact decompressed directory.
      *
-     * @param componentStoreDirectory the root path for package store.
-     * @throws PackagingException if fails to create recipe or artifact directory.
+     * @param nucleusPaths path library
      */
     @Inject
-    public ComponentStore(@Named(CONTEXT_PACKAGE_STORE_DIRECTORY) @NonNull Path componentStoreDirectory)
-            throws PackagingException {
-        this.componentStoreDirectory = componentStoreDirectory;
-        this.recipeDirectory = componentStoreDirectory.resolve(RECIPE_DIRECTORY);
-        this.artifactDirectory = componentStoreDirectory.resolve(ARTIFACT_DIRECTORY);
-        this.artifactsDecompressedDirectory = componentStoreDirectory.resolve(ARTIFACTS_DECOMPRESSED_DIRECTORY);
-        try {
-            Utils.createPaths(recipeDirectory, artifactDirectory, artifactsDecompressedDirectory);
-        } catch (IOException e) {
-            throw new PackagingException("Failed to create necessary directories for package store", e);
-        }
+    public ComponentStore(NucleusPaths nucleusPaths) {
+        this.nucleusPaths = nucleusPaths;
     }
 
     /**
@@ -81,13 +65,12 @@ public class ComponentStore {
      * @throws PackageLoadingException if fails to write the package recipe to disk.
      */
     void savePackageRecipe(@NonNull ComponentIdentifier pkgId, String recipeContent) throws PackageLoadingException {
-        Path recipePath = resolveRecipePath(pkgId.getName(), pkgId.getVersion());
-
         try {
+            Path recipePath = resolveRecipePath(pkgId.getName(), pkgId.getVersion());
             FileUtils.writeStringToFile(recipePath.toFile(), recipeContent);
         } catch (IOException e) {
             // TODO refine exception
-            throw new PackageLoadingException(String.format("Failed to save package recipe to %s", recipePath), e);
+            throw new PackageLoadingException("Failed to save package recipe", e);
         }
     }
 
@@ -143,22 +126,47 @@ public class ComponentStore {
     }
 
     /**
-     * Delete the package recipe and all artifacts from disk.
+     * Delete the component recipe, artifacts, and decompressed files from disk.
      *
-     * @param pkgId package identifier
+     * @param compId component identifier
+     * @throws PackageLoadingException if deletion of the component failed
      */
-    void deletePackage(@NonNull ComponentIdentifier pkgId) throws PackagingException {
-        Path recipePath = resolveRecipePath(pkgId.getName(), pkgId.getVersion());
-        Path artifactDirPath = resolveArtifactDirectoryPath(pkgId);
-        Path artifactDecompressedDirPath = resolveArtifactsDecompressedDirectory(pkgId);
-
+    void deleteComponent(@NonNull ComponentIdentifier compId) throws PackageLoadingException {
+        logger.atInfo("delete-component-start").kv("componentIdentifier", compId).log();
+        IOException exception = null;
+        // delete recipe
         try {
+            Path recipePath = resolveRecipePath(compId.getName(), compId.getVersion());
             Files.deleteIfExists(recipePath);
+        } catch (IOException e) {
+            exception = e;
+        }
+        // delete artifacts
+        try {
+            Path artifactDirPath = resolveArtifactDirectoryPath(compId);
             FileUtils.deleteDirectory(artifactDirPath.toFile());
+        } catch (IOException e) {
+            if (exception == null) {
+                exception = e;
+            } else {
+                exception.addSuppressed(e);
+            }
+        }
+        // delete decompressed files
+        try {
+            Path artifactDecompressedDirPath = nucleusPaths.unarchiveArtifactPath(compId);
             FileUtils.deleteDirectory(artifactDecompressedDirPath.toFile());
         } catch (IOException e) {
-            throw new PackagingException("Failed to delete package " + pkgId, e);
+            if (exception == null) {
+                exception = e;
+            } else {
+                exception.addSuppressed(e);
+            }
         }
+        if (exception != null) {
+            throw new PackageLoadingException("Failed to delete package " + compId, exception);
+        }
+        logger.atInfo("delete-component-finish").kv("componentIdentifier", compId).log();
     }
 
     /**
@@ -185,7 +193,7 @@ public class ComponentStore {
      */
     List<ComponentMetadata> listAvailablePackageMetadata(@NonNull String packageName, @NonNull Requirement requirement)
             throws PackagingException {
-        File[] recipeFiles = recipeDirectory.toFile().listFiles();
+        File[] recipeFiles = nucleusPaths.recipePath().toFile().listFiles();
 
         List<ComponentMetadata> componentMetadataList = new ArrayList<>();
         if (recipeFiles == null || recipeFiles.length == 0) {
@@ -211,10 +219,37 @@ public class ComponentStore {
         return componentMetadataList;
     }
 
+    /**
+     * Get all locally available component-version by checking the existence of its artifact directory.
+     *
+     * @return map from component name to a set of version strings in Semver format
+     */
+    public Map<String, Set<String>> listAvailableComponentVersions() {
+        Map<String, Set<String>> result = new HashMap<>();
+        File[] compDirs = nucleusPaths.artifactPath().toFile().listFiles(File::isDirectory);
+        if (compDirs == null || compDirs.length == 0) {
+            return result;
+        }
+
+        for (File compDir : compDirs) {
+            Set<String> versions = new HashSet<>();
+            File[] versionDirs = compDir.listFiles(File::isDirectory);
+            if (versionDirs == null) {
+                continue;
+            }
+            for (File versionDir : versionDirs) {
+                versions.add(versionDir.getName());
+            }
+            result.put(compDir.getName(), versions);
+        }
+
+        return result;
+    }
+
     Optional<ComponentIdentifier> findBestMatchAvailableComponent(@NonNull String componentName,
                                                                   @NonNull Requirement requirement)
             throws PackageLoadingException {
-        File[] recipeFiles = recipeDirectory.toFile().listFiles();
+        File[] recipeFiles = nucleusPaths.recipePath().toFile().listFiles();
 
         if (recipeFiles == null || recipeFiles.length == 0) {
             return Optional.empty();
@@ -250,10 +285,15 @@ public class ComponentStore {
      *
      * @param componentIdentifier packageIdentifier
      * @return the artifact directory path for target package.
+     * @throws PackageLoadingException if creating the directory fails
      */
-    public Path resolveArtifactDirectoryPath(@NonNull ComponentIdentifier componentIdentifier) {
-        return artifactDirectory.resolve(componentIdentifier.getName())
-                .resolve(componentIdentifier.getVersion().getValue());
+    public Path resolveArtifactDirectoryPath(@NonNull ComponentIdentifier componentIdentifier)
+            throws PackageLoadingException {
+        try {
+            return nucleusPaths.artifactPath(componentIdentifier);
+        } catch (IOException e) {
+            throw new PackageLoadingException("Unable to create artifact path", e);
+        }
     }
 
     /**
@@ -267,37 +307,8 @@ public class ComponentStore {
     }
 
     private Path resolveRecipePath(String packageName, Semver packageVersion) {
-        return recipeDirectory.resolve(String.format(RECIPE_FILE_NAME_FORMAT, packageName, packageVersion.getValue()));
-    }
-
-    /**
-     * Resolve the artifact decompressed directory.
-     *
-     * @param componentIdentifier componentIdentifier
-     * @return artifact decompressed directory path
-     */
-    public Path resolveArtifactsDecompressedDirectory(@NonNull ComponentIdentifier componentIdentifier) {
-        return artifactsDecompressedDirectory.resolve(componentIdentifier.getName())
-                .resolve(componentIdentifier.getVersion().getValue());
-    }
-
-    /**
-     * Resolve the artifact decompressed directory path and creates the directory if absent.
-     *
-     * @param componentIdentifier componentIdentifier
-     * @return artifact decompressed directory path
-     * @throws PackageLoadingException if un-able to create artifact decompressed directory path
-     */
-    public Path resolveAndSetupArtifactsDecompressedDirectory(@NonNull ComponentIdentifier componentIdentifier)
-            throws PackageLoadingException {
-        Path path = resolveArtifactsDecompressedDirectory(componentIdentifier);
-        try {
-            Utils.createPaths(path);
-            return path;
-        } catch (IOException e) {
-            throw new PackageLoadingException(
-                    "Failed to create artifact decompressed directory for " + componentIdentifier.toString(), e);
-        }
+        return nucleusPaths.recipePath().resolve(String.format(RECIPE_FILE_NAME_FORMAT,
+                packageName, packageVersion.getValue()));
     }
 
     /**
@@ -305,29 +316,29 @@ public class ComponentStore {
      * estimate of the package store's disk usage.
      *
      * @return total length of files in bytes
-     * @throws UnexpectedPackagingException if unable to access the package store directory
+     * @throws PackageLoadingException if unable to access the package store directory
      */
-    public long getContentSize() throws UnexpectedPackagingException {
+    public long getContentSize() throws PackageLoadingException {
         try {
-            try (Stream<Path> s = Files.walk(this.componentStoreDirectory)) {
-                return s.map(Path::toFile)
-                        .filter(File::isFile)
-                        .mapToLong(File::length)
-                        .sum();
-            }
+            return Files.walk(nucleusPaths.componentStorePath()).map(Path::toFile)
+                    .filter(File::isFile).mapToLong(File::length).sum();
         } catch (IOException e) {
-            throw new UnexpectedPackagingException("Failed to access package store", e);
+            throw new PackageLoadingException("Failed to access package store", e);
         }
     }
 
     /**
      * Get remaining usable bytes for the package store.
      * @return usable bytes
-     * @throws IOException if I/O error occurred
+     * @throws PackageLoadingException if I/O error occurred
      */
-    public long getUsableSpace() throws IOException {
-        FileStore filestore = Files.getFileStore(this.componentStoreDirectory);
-        return filestore.getUsableSpace();
+    public long getUsableSpace() throws PackageLoadingException {
+        try {
+            return Files.getFileStore(nucleusPaths.componentStorePath()).getUsableSpace();
+        } catch (IOException e) {
+            throw new PackageLoadingException(
+                    "Failed to get usable disk space for directory: " + nucleusPaths.componentStorePath(), e);
+        }
     }
 
     private static String parsePackageNameFromFileName(String filename) {

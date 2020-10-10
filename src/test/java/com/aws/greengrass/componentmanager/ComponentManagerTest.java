@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiatio
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
+import com.aws.greengrass.componentmanager.exceptions.SizeLimitException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
@@ -25,6 +26,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.codec.Charsets;
@@ -36,6 +38,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.internal.util.collections.Sets;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.File;
@@ -47,12 +50,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -60,6 +65,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PRIVATE_SCOPE;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -100,6 +108,8 @@ class ComponentManagerTest {
     private static final Semver v1_2_0 = new Semver("1.2.0");
     private static final Semver v1_0_0 = new Semver("1.0.0");
     private static final String componentA = "A";
+    private static final long TEN_TERA_BYTES = 10_000_000_000_000L;
+    private static final long TEN_BYTES = 10L;
 
     @TempDir
     Path tempDir;
@@ -123,13 +133,18 @@ class ComponentManagerTest {
     private Unarchiver mockUnarchiver;
     @Mock
     private DeviceConfiguration deviceConfiguration;
+    @Mock
+    private NucleusPaths nucleusPaths;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws Exception {
+        lenient().when(artifactDownloader.downloadRequired(any(),any(), any())).thenReturn(true);
+        lenient().when(s3Downloader.downloadRequired(any(),any(), any())).thenReturn(true);
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
+        lenient().when(componentStore.getUsableSpace()).thenReturn(100_000_000L);
         componentManager = new ComponentManager(s3Downloader, artifactDownloader, packageServiceHelper,
-                executor, componentStore, kernel, mockUnarchiver, deviceConfiguration);
+                executor, componentStore, kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
     }
 
     @AfterEach
@@ -171,7 +186,6 @@ class ComponentManagerTest {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
-        when(componentStore.resolveAndSetupArtifactsDecompressedDirectory(pkgId)).thenReturn(tempDir);
         when(artifactDownloader.downloadToPath(any(), any(), any())).thenReturn(new File("binary1"));
 
         componentManager.prepareArtifacts(pkgId,
@@ -200,7 +214,8 @@ class ComponentManagerTest {
     }
 
     @Test
-    void GIVEN_artifact_provider_not_supported_WHEN_attempt_download_THEN_throw_package_exception() {
+    void GIVEN_artifact_provider_not_supported_WHEN_attempt_download_THEN_throw_package_exception()
+            throws PackageLoadingException {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
@@ -210,7 +225,8 @@ class ComponentManagerTest {
     }
 
     @Test
-    void GIVEN_artifact_url_no_scheme_WHEN_attempt_download_THEN_throw_package_exception() {
+    void GIVEN_artifact_url_no_scheme_WHEN_attempt_download_THEN_throw_package_exception()
+            throws PackageLoadingException {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0" + ".0"), SCOPE);
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
@@ -292,7 +308,7 @@ class ComponentManagerTest {
         when(kernel.findServiceTopic(MONITORING_SERVICE_PKG_NAME)).thenReturn(mock(Topics.class));
         when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(ACTIVE_VERSION_STR);
 
 
@@ -396,7 +412,7 @@ class ComponentManagerTest {
         when(kernel.findServiceTopic(MONITORING_SERVICE_PKG_NAME)).thenReturn(mock(Topics.class));
         when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(ACTIVE_VERSION);
 
         // local versions available: 1.0.0, 1.1.0.
@@ -438,7 +454,7 @@ class ComponentManagerTest {
         Topic versionTopic = mock(Topic.class);
 
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(ACTIVE_VERSION_STR);
 
         assertThat(componentManager.getPackageVersionFromService(mockService), is(ACTIVE_VERSION));
@@ -473,7 +489,7 @@ class ComponentManagerTest {
         when(kernel.findServiceTopic(componentA)).thenReturn(mock(Topics.class));
         when(kernel.locate(componentA)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());
 
         ComponentContent componentContent = new ComponentContent().withName(componentA).withVersion(v1_0_0.getValue())
@@ -507,7 +523,7 @@ class ComponentManagerTest {
         when(kernel.findServiceTopic(componentA)).thenReturn(mock(Topics.class));
         when(kernel.locate(componentA)).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());
         when(mockService.isBuiltin()).thenReturn(true);
 
@@ -525,10 +541,110 @@ class ComponentManagerTest {
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
     }
 
+    @Test
+    void GIVEN_component_WHEN_disk_space_critical_and_prepare_components_THEN_throws_exception(ExtensionContext context)
+            throws Exception {
+        // mock get recipe
+        ComponentIdentifier pkgId = new ComponentIdentifier("SimpleApp", new Semver("1.0.0"), SCOPE);
+        when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
+        String fileName = "SimpleApp-1.0.0.yaml";
+        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
+        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
+        ComponentRecipe componentRecipe = RecipeLoader.loadFromFile(sourceRecipeString).get();
+        when(packageServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(sourceRecipeString);
+        when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
+
+        // mock very limited space left
+        when(componentStore.getUsableSpace()).thenReturn(TEN_BYTES);
+
+        ignoreExceptionUltimateCauseOfType(context, SizeLimitException.class);
+        Future<Void> future = componentManager.preparePackages(Collections.singletonList(pkgId));
+        assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+        verify(artifactDownloader, never()).downloadToPath(any(), any(), any());
+    }
+
+    @Test
+    void GIVEN_component_WHEN_component_store_full_and_prepare_components_THEN_throws_exception(ExtensionContext context)
+            throws Exception {
+        // mock get recipe
+        ComponentIdentifier pkgId = new ComponentIdentifier("SimpleApp", new Semver("1.0.0"), SCOPE);
+        when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
+        String fileName = "SimpleApp-1.0.0.yaml";
+        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
+        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
+        ComponentRecipe componentRecipe = RecipeLoader.loadFromFile(sourceRecipeString).get();
+        when(packageServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(sourceRecipeString);
+        when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
+
+        // mock very large component store size
+        when(componentStore.getContentSize()).thenReturn(TEN_TERA_BYTES);
+        when(artifactDownloader.getDownloadSize(any(), any(), any())).thenReturn(TEN_BYTES);
+
+        ignoreExceptionUltimateCauseOfType(context, SizeLimitException.class);
+        Future<Void> future = componentManager.preparePackages(Collections.singletonList(pkgId));
+        assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+        verify(artifactDownloader, never()).downloadToPath(any(), any(), any());
+    }
+
+    @Test
+    void GIVEN_kernel_service_configs_WHEN_get_versions_to_keep_THEN_return_correct_result() {
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+
+        // WHEN
+        Map<String, Set<String>> versionsToKeep = componentManager.getVersionsToKeep();
+
+        Map<String, Set<String>> expectedResult = new HashMap<>();
+        expectedResult.put(MONITORING_SERVICE_PKG_NAME, Sets.newSet("1.0.0", "2.0.0"));
+        assertEquals(expectedResult, versionsToKeep);
+    }
+
+    @Test
+    void GIVEN_stale_artifact_exists_WHEN_cleanup_THEN_delete_component_invoked_correctly() throws Exception {
+        // mock service configs has version 1 and 2
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+
+        // mock local artifacts with version 1, 2, 3 and another component
+        String anotherCompName = "SimpleApp";
+        Map<String, Set<String>> mockArtifacts = new HashMap<>();
+        mockArtifacts.put(MONITORING_SERVICE_PKG_NAME, Sets.newSet("1.0.0", "2.0.0", "3.0.0"));
+        mockArtifacts.put(anotherCompName, Sets.newSet("1.0.0", "2.0.0"));
+        when(componentStore.listAvailableComponentVersions()).thenReturn(mockArtifacts);
+
+        // WHEN
+        componentManager.cleanupStaleVersions();
+
+        // THEN
+        verify(componentStore, times(1)).deleteComponent(
+                new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("3.0.0"), PRIVATE_SCOPE));
+        verify(componentStore, times(1)).deleteComponent(
+                new ComponentIdentifier(anotherCompName, new Semver("1.0.0"), PRIVATE_SCOPE));
+        verify(componentStore, times(1)).deleteComponent(
+                new ComponentIdentifier(anotherCompName, new Semver("2.0.0"), PRIVATE_SCOPE));
+    }
+
     private static Map<String, String> getExpectedDependencies(Semver version) {
         return new HashMap<String, String>() {{
             put("Log", version.toString());
             put("Cool-Database", version.toString());
         }};
+    }
+
+    private GreengrassService getMockGreengrassService(String serviceName) {
+        GreengrassService mockService = mock(GreengrassService.class);
+        Topics mockServiceConfig = mock(Topics.class);
+        Topic mockVersionTopic = mock(Topic.class);
+        when(mockVersionTopic.getOnce()).thenReturn("2.0.0");
+        Topic mockPrevVersionTopic = mock(Topic.class);
+        when(mockPrevVersionTopic.getOnce()).thenReturn("1.0.0");
+        when(mockServiceConfig.find(VERSION_CONFIG_KEY)).thenReturn(mockVersionTopic);
+        when(mockServiceConfig.find(PREV_VERSION_CONFIG_KEY)).thenReturn(mockPrevVersionTopic);
+
+        when(mockService.getName()).thenReturn(serviceName);
+        when(mockService.getServiceConfig()).thenReturn(mockServiceConfig);
+        return mockService;
     }
 }

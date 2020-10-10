@@ -65,8 +65,7 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
         // get required instances from context
         componentManager = kernel.getContext().get(ComponentManager.class);
         dependencyResolver = kernel.getContext().get(DependencyResolver.class);
-        componentStorePath = kernel.getComponentStorePath();
-
+        componentStorePath = kernel.getNucleusPaths().componentStorePath();
     }
 
     @AfterEach
@@ -106,7 +105,7 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
         configList.add(new DeploymentPackageConfiguration(kernelIntegTestPkgName, true, "1.0.0",
                                                           Collections.emptyMap()));
         DeploymentDocument testDeploymentDocument
-                = DeploymentDocument.builder().deploymentId("test").timestamp(12345678L).rootPackages(rootPackageList)
+                = DeploymentDocument.builder().deploymentId("test").timestamp(12345678L)
                                     .deploymentPackageConfigurationList(configList)
                                     .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                                     .groupName("mockGroup").build();
@@ -145,7 +144,7 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
         List<DeploymentPackageConfiguration> configList = new ArrayList<>();
         configList.add(new DeploymentPackageConfiguration(appWithS3ArtifactsPackageName, true, "1.0.0", Collections.emptyMap()));
         DeploymentDocument testDeploymentDocument =
-                DeploymentDocument.builder().deploymentId("test").timestamp(12345678L).rootPackages(rootPackageList)
+                DeploymentDocument.builder().deploymentId("test").timestamp(12345678L)
                         .deploymentPackageConfigurationList(configList)
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).groupName("mockGroup").build();
         try (Context context = new Context()) {

@@ -4,5 +4,5 @@ ComponentName: docutils
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Publisher
 ComponentVersion: '0.10.0'
-manifests:
-  - lifecycle: {}
+Manifests:
+  - Lifecycle: {}

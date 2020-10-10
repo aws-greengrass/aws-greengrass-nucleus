@@ -5,10 +5,12 @@
 
 package com.aws.greengrass.integrationtests.deployment;
 
-import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
+import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DefaultDeploymentTask;
@@ -36,6 +38,7 @@ import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vdurmont.semver4j.Semver;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -54,6 +57,8 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -74,12 +79,16 @@ import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMP
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.io.FileMatchers.anExistingDirectory;
+import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -97,13 +106,14 @@ class DeploymentTaskIntegrationTest {
     private static final String TEST_TICK_TOCK_STRING = "Go ahead with 2 approvals";
 
     private static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+    public static final String SIMPLE_APP_NAME = "SimpleApp";
 
     private static Logger logger;
 
     private static DependencyResolver dependencyResolver;
     private static ComponentManager componentManager;
+    private static ComponentStore componentStore;
     private static KernelConfigResolver kernelConfigResolver;
     private static DeploymentConfigMerger deploymentConfigMerger;
 
@@ -128,7 +138,7 @@ class DeploymentTaskIntegrationTest {
     }
 
     @BeforeAll
-    static void setupKernel() throws IOException, URISyntaxException {
+    static void setupKernel() {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
         kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
@@ -137,21 +147,20 @@ class DeploymentTaskIntegrationTest {
 
         // get required instances from context
         componentManager = kernel.getContext().get(ComponentManager.class);
+        componentStore = kernel.getContext().get(ComponentStore.class);
         dependencyResolver = kernel.getContext().get(DependencyResolver.class);
         kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
-        // pre-load contents to package store
-        Path localStoreContentPath =
-                Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
-        copyFolderRecursively(localStoreContentPath, kernel.getComponentStorePath(), REPLACE_EXISTING);
     }
 
     @BeforeEach
-    void beforeEach(ExtensionContext context) {
+    void beforeEach(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         deploymentServiceTopics = Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS,
                 null);
         groupToRootComponentsTopics = deploymentServiceTopics.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, MOCK_GROUP_NAME);
+        // pre-load contents to package store
+        preloadLocalStoreContent();
     }
 
     @AfterEach
@@ -164,8 +173,101 @@ class DeploymentTaskIntegrationTest {
         kernel.shutdown();
     }
 
+    /**
+     * Deploy versions 1.0.0 through 4.0.0 sequentially. Stale version should be removed.
+     * In this test we need to preload recipe/artifact before a deployment so that it can be found locally,
+     * because unused local files are removed by cleanup from previous deployment.
+     * After this we'll reload local files again so that the following tests can proceed normally.
+     */
     @Test
     @Order(1)
+    void GIVEN_component_with_multiple_versions_WHEN_deploy_sequentially_THEN_stale_version_removed() throws Exception {
+        ComponentIdentifier simpleApp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"),
+                PRIVATE_STORE_NAMESPACE_TOPIC);
+        ComponentIdentifier simpleApp2 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("2.0.0"),
+                PRIVATE_STORE_NAMESPACE_TOPIC);
+
+        // deploy version 1
+        Future<DeploymentResult> resultFuture1 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
+                System.currentTimeMillis());
+        DeploymentResult result1 = resultFuture1.get(30, TimeUnit.SECONDS);
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result1.getDeploymentStatus());
+
+        // version 2 should not exist now. preload it before deployment. we'll do the same for later deployments
+        assertRecipeArtifactNotExists(simpleApp2);
+        preloadLocalStoreContent(SIMPLE_APP_NAME, "2.0.0");
+
+        // deploy version 2
+        Future<DeploymentResult> resultFuture2 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc2.json").toURI(),
+                System.currentTimeMillis());
+        DeploymentResult result2 = resultFuture2.get(30, TimeUnit.SECONDS);
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result2.getDeploymentStatus());
+
+        // both 1 and 2 should exist in component store at this point
+        assertRecipeArtifactExists(simpleApp1);
+        assertRecipeArtifactExists(simpleApp2);
+
+        // deploy version 3
+        preloadLocalStoreContent(SIMPLE_APP_NAME, "3.0.0");
+        Future<DeploymentResult> resultFuture3 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc3.json").toURI(),
+                System.currentTimeMillis());
+        DeploymentResult result3 = resultFuture3.get(30, TimeUnit.SECONDS);
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result3.getDeploymentStatus());
+
+        // version 1 removed by preemptive cleanup
+        assertRecipeArtifactNotExists(simpleApp1);
+
+        // deploy version 4
+        preloadLocalStoreContent(SIMPLE_APP_NAME, "4.0.0");
+        Future<DeploymentResult> resultFuture4 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc4.json").toURI(),
+                System.currentTimeMillis());
+        DeploymentResult result4 = resultFuture4.get(30, TimeUnit.SECONDS);
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result4.getDeploymentStatus());
+
+        // version 2 removed by preemptive cleanup
+        assertRecipeArtifactNotExists(simpleApp2);
+    }
+
+    /**
+     * Deploy version 1, 2, and 1 again. Then 1 should not be cleaned up. If cleanup buggy this can fail
+     */
+    @Test
+    @Order(2)
+    void GIVEN_component_with_multiple_versions_WHEN_deploy_previous_version_THEN_running_version_not_cleaned_up()
+            throws Exception {
+        ComponentIdentifier simpleApp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"),
+                PRIVATE_STORE_NAMESPACE_TOPIC);
+
+        // deploy version 1 and 2
+        preloadLocalStoreContent(SIMPLE_APP_NAME, "1.0.0");
+        Future<DeploymentResult> resultFuture1 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
+                System.currentTimeMillis());
+        resultFuture1.get(30, TimeUnit.SECONDS);
+
+        preloadLocalStoreContent(SIMPLE_APP_NAME, "2.0.0");
+        Future<DeploymentResult> resultFuture2 = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc2.json").toURI(),
+                System.currentTimeMillis());
+        resultFuture2.get(30, TimeUnit.SECONDS);
+
+        // deploy V1 again
+        Future<DeploymentResult> resultFuture1Again = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
+                System.currentTimeMillis());
+        resultFuture1Again.get(30, TimeUnit.SECONDS);
+        assertRecipeArtifactExists(simpleApp1);
+
+        // load files again for the subsequent tests
+        preloadLocalStoreContent();
+    }
+
+    @Test
+    @Order(3)
     void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel(ExtensionContext context)
             throws Exception {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
@@ -211,7 +313,7 @@ class DeploymentTaskIntegrationTest {
     }
 
     @Test
-    @Order(2)
+    @Order(4)
     void GIVEN_services_running_WHEN_updated_params_THEN_services_start_with_updated_params_in_kernel()
             throws Exception {
         outputMessagesToTimestamp.clear();
@@ -250,7 +352,7 @@ class DeploymentTaskIntegrationTest {
      * @throws Exception
      */
     @Test
-    @Order(3)
+    @Order(5)
     void GIVEN_services_running_WHEN_service_added_and_deleted_THEN_add_remove_service_accordingly() throws Exception {
 
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
@@ -292,7 +394,7 @@ class DeploymentTaskIntegrationTest {
      * @throws Exception
      */
     @Test
-    @Order(4)
+    @Order(6)
     void GIVEN_services_running_WHEN_new_service_breaks_failure_handling_policy_do_nothing_THEN_service_stays_broken(
             ExtensionContext context) throws Exception {
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
@@ -311,6 +413,8 @@ class DeploymentTaskIntegrationTest {
         groupToRootComponentsTopics.lookupTopics("YellowSignal").replaceAndWait(
                 ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
+
+        preloadLocalStoreContent();
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("FailureDoNothingDeployment.json").toURI(),
                 System.currentTimeMillis());
@@ -334,7 +438,7 @@ class DeploymentTaskIntegrationTest {
      * @throws Exception
      */
     @Test
-    @Order(5)
+    @Order(7)
     void GIVEN_services_running_WHEN_new_service_breaks_failure_handling_policy_rollback_THEN_services_are_rolled_back(
             ExtensionContext context) throws Exception {
         Map<String, Object> pkgDetails = new HashMap<>();
@@ -357,6 +461,8 @@ class DeploymentTaskIntegrationTest {
         groupToRootComponentsTopics.lookupTopics("YellowSignal").remove();
         groupToRootComponentsTopics.lookupTopics("BreakingService").replaceAndWait(
                 ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+
+        preloadLocalStoreContent();
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("FailureRollbackDeployment.json").toURI(),
                 System.currentTimeMillis());
@@ -375,7 +481,7 @@ class DeploymentTaskIntegrationTest {
     }
 
     @Test
-    @Order(6)
+    @Order(8)
     void GIVEN_deployment_in_progress_WHEN_deployment_task_is_cancelled_THEN_stop_processing() throws Exception {
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("AddNewServiceWithSafetyCheck.json").toURI(),
@@ -439,7 +545,7 @@ class DeploymentTaskIntegrationTest {
     }
 
     @Test
-    @Order(7)
+    @Order(9)
     void GIVEN_services_running_WHEN_new_deployment_asks_to_skip_safety_check_THEN_deployment_is_successful() throws Exception {
         // The previous test has NonDisruptableService 1.0.0 running in kernel that always returns false when its
         // safety check script is run, this test demonstrates that when a next deployment configured to skip safety
@@ -459,6 +565,50 @@ class DeploymentTaskIntegrationTest {
         assertEquals("1.0.1", kernel.findServiceTopic("NonDisruptableService")
                 .find("version").getOnce());
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
+    }
+
+    private static void assertRecipeArtifactExists(ComponentIdentifier compId) {
+        assertThat(componentStore.resolveRecipePath(compId).toFile(), anExistingFile());
+        Path artifactDirPath = kernel.getNucleusPaths().artifactPath().resolve(compId.getName())
+                .resolve(compId.getVersion().getValue());
+        assertThat(artifactDirPath.toFile(), anExistingDirectory());
+    }
+
+    private static void assertRecipeArtifactNotExists(ComponentIdentifier compId) {
+        assertThat(componentStore.resolveRecipePath(compId).toFile(), not(anExistingFile()));
+        Path artifactDirPath = kernel.getNucleusPaths().artifactPath().resolve(compId.getName())
+                .resolve(compId.getVersion().getValue());
+        assertThat(artifactDirPath.toFile(), not(anExistingDirectory()));
+    }
+
+    /* sync packages directory with local_store_content */
+    private static void preloadLocalStoreContent() throws URISyntaxException, IOException {
+        Path localStoreContentPath =
+                Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
+        copyFolderRecursively(localStoreContentPath, kernel.getNucleusPaths().componentStorePath(), REPLACE_EXISTING);
+    }
+
+    /* just copy recipe and artifacts of a single component-version */
+    private static void preloadLocalStoreContent(String compName, String version) throws URISyntaxException,
+            IOException {
+        try {
+            Path localStoreContentPath = Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
+            Files.copy(resolveRecipePathFromCompStoreRoot(localStoreContentPath, compName, version),
+                    resolveRecipePathFromCompStoreRoot(kernel.getNucleusPaths().componentStorePath(), compName, version));
+            copyFolderRecursively(resolveArtifactPathFromCompStoreRoot(localStoreContentPath, compName, version),
+                    resolveArtifactPathFromCompStoreRoot(kernel.getNucleusPaths().componentStorePath(), compName,
+                            version), REPLACE_EXISTING);
+        } catch (FileAlreadyExistsException e) {
+            // ignore
+        }
+    }
+
+    private static Path resolveRecipePathFromCompStoreRoot(Path compStoreRootPath, String name, String version) {
+        return compStoreRootPath.resolve("recipes").resolve(String.format("%s-%s.yaml", name, version));
+    }
+
+    private static Path resolveArtifactPathFromCompStoreRoot(Path compStoreRootPath, String name, String version) {
+        return compStoreRootPath.resolve("artifacts").resolve(name).resolve(version);
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")

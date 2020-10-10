@@ -10,6 +10,7 @@ import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentDirectoryManager.getSafeFileName;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
@@ -61,13 +63,14 @@ public class KernelAlternatives {
     /**
      * Constructor for KernelAlternatives, which manages the alternative launch directory of Kernel.
      *
-     * @param kernelAltsPath alternative launch directory of Kernel
+     * @param nucleusPaths nucleus paths
      */
-    public KernelAlternatives(Path kernelAltsPath) {
-        this.altsDir = kernelAltsPath.toAbsolutePath();
-        this.currentDir = kernelAltsPath.resolve(CURRENT_DIR).toAbsolutePath();
-        this.oldDir = kernelAltsPath.resolve(OLD_DIR).toAbsolutePath();
-        this.brokenDir = kernelAltsPath.resolve(BROKEN_DIR).toAbsolutePath();
+    @Inject
+    public KernelAlternatives(NucleusPaths nucleusPaths) {
+        this.altsDir = nucleusPaths.kernelAltsPath().toAbsolutePath();
+        this.currentDir = altsDir.resolve(CURRENT_DIR).toAbsolutePath();
+        this.oldDir = altsDir.resolve(OLD_DIR).toAbsolutePath();
+        this.brokenDir = altsDir.resolve(BROKEN_DIR).toAbsolutePath();
 
         try {
             setupInitLaunchDirIfAbsent();

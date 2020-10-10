@@ -38,6 +38,35 @@ public class DeploymentPackageConfiguration {
     @JsonProperty("ResolvedVersion")
     private String resolvedVersion;
 
+    @Deprecated
     @JsonProperty("Configuration")
     private Map<String, Object> configuration = new HashMap<>();
+
+    @JsonProperty("ConfigurationUpdate")
+    private ConfigurationUpdateOperation configurationUpdateOperation;
+
+    /**
+     * Constructor.
+     * @param packageName packageName
+     * @param rootComponent root
+     * @param resolvedVersion resolved
+     * @param configuration configuration. The field is being deprecated, and will be replaced by
+     *                      configurationUpdateOperation
+     */
+    @Deprecated
+    public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,
+                                          Map<String, Object> configuration) {
+        this.packageName = packageName;
+        this.rootComponent = rootComponent;
+        this.resolvedVersion = resolvedVersion;
+        this.configuration = configuration;
+    }
+
+    /**
+     * Constructor. Non provided fields are null.
+     * @param packageName packageName
+     */
+    public DeploymentPackageConfiguration(String packageName) {
+        this.packageName = packageName;
+    }
 }

@@ -19,10 +19,12 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CrashableFunction;
+import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,6 +47,7 @@ import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 public class KernelConfigResolver {
     private static final Logger LOGGER = LogManager.getLogger(KernelConfigResolver.class);
     public static final String VERSION_CONFIG_KEY = "version";
+    public static final String PREV_VERSION_CONFIG_KEY = "previousVersion";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
     static final String ARTIFACTS_NAMESPACE = "artifacts";
     static final String KERNEL_NAMESPACE = "kernel";
@@ -63,7 +66,7 @@ public class KernelConfigResolver {
     private static final String NO_RECIPE_ERROR_FORMAT = "Failed to find component recipe for {}";
 
     // Map from Namespace -> Key -> Function which returns the replacement value
-    private final Map<String, Map<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>>>
+    private final Map<String, Map<String, CrashableFunction<ComponentIdentifier, String, IOException>>>
             systemParameters = new HashMap<>();
 
     private final ComponentStore componentStore;
@@ -74,24 +77,25 @@ public class KernelConfigResolver {
      *
      * @param componentStore package store used to look up packages
      * @param kernel       kernel
+     * @param nucleusPaths nucleus paths
      */
     @Inject
-    public KernelConfigResolver(ComponentStore componentStore, Kernel kernel) {
+    public KernelConfigResolver(ComponentStore componentStore, Kernel kernel, NucleusPaths nucleusPaths) {
         this.componentStore = componentStore;
         this.kernel = kernel;
 
         // More system parameters can be added over time by extending this map with new namespaces/keys
-        HashMap<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> artifactNamespace
+        HashMap<String, CrashableFunction<ComponentIdentifier, String, IOException>> artifactNamespace
                 = new HashMap<>();
         artifactNamespace.put(PATH_KEY,
-                (id) -> componentStore.resolveArtifactDirectoryPath(id).toAbsolutePath().toString());
+                (id) -> nucleusPaths.artifactPath(id).toAbsolutePath().toString());
         artifactNamespace.put(DECOMPRESSED_PATH_KEY,
-                (id) -> componentStore.resolveAndSetupArtifactsDecompressedDirectory(id).toAbsolutePath().toString());
+                (id) -> nucleusPaths.unarchiveArtifactPath(id).toAbsolutePath().toString());
         systemParameters.put(ARTIFACTS_NAMESPACE, artifactNamespace);
 
-        HashMap<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> kernelNamespace
+        HashMap<String, CrashableFunction<ComponentIdentifier, String, IOException>> kernelNamespace
                 = new HashMap<>();
-        kernelNamespace.put(KERNEL_ROOT_PATH, (id) -> kernel.getRootPath().toAbsolutePath().toString());
+        kernelNamespace.put(KERNEL_ROOT_PATH, (id) -> nucleusPaths.rootPath().toAbsolutePath().toString());
         systemParameters.put(KERNEL_NAMESPACE, kernelNamespace);
     }
 
@@ -105,9 +109,10 @@ public class KernelConfigResolver {
      * @param rootPackages     root level packages
      * @return a kernel config map
      * @throws PackageLoadingException if any service package was unable to be loaded
+     * @throws IOException for directory issues
      */
     public Map<String, Object> resolve(List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
-                                       List<String> rootPackages) throws PackageLoadingException {
+                                       List<String> rootPackages) throws PackageLoadingException, IOException {
         Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache =
                 new ConcurrentHashMap<>();
         Map<String, Object> servicesConfig = new HashMap<>();
@@ -128,7 +133,7 @@ public class KernelConfigResolver {
                                                  List<ComponentIdentifier> packagesToDeploy,
                                                  Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>>
                                                          parameterAndDependencyCache)
-            throws PackageLoadingException {
+            throws PackageLoadingException, IOException {
         ComponentRecipe componentRecipe = componentStore.getPackageRecipe(componentIdentifier);
 
         Set<ComponentParameter> resolvedParams = resolveParameterValuesToUse(document, componentRecipe);
@@ -152,7 +157,8 @@ public class KernelConfigResolver {
         resolvedServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, dependencyConfig);
 
         // State information for deployments
-        resolvedServiceConfig.put(VERSION_CONFIG_KEY, componentRecipe.getVersion().getValue());
+        handleComponentVersionConfigs(
+                componentIdentifier, componentRecipe.getVersion().getValue(), resolvedServiceConfig);
         Map<String, String> map = new HashMap<>();
         for (ComponentParameter resolvedParam : resolvedParams) {
             map.put(resolvedParam.getName(), resolvedParam.getValue());
@@ -168,7 +174,7 @@ public class KernelConfigResolver {
     private Object interpolate(Object configValue, ComponentIdentifier componentIdentifier,
                                List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
                                Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>>
-                                       parameterAndDependencyCache) throws PackageLoadingException {
+                                       parameterAndDependencyCache) throws IOException {
         Object result = configValue;
 
         if (configValue instanceof String) {
@@ -193,7 +199,7 @@ public class KernelConfigResolver {
     private String replace(String stringValue, ComponentIdentifier componentIdentifier,
                            List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
                            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>>
-                                   parameterAndDependencyCache) throws PackageLoadingException {
+                                   parameterAndDependencyCache) throws IOException {
         // Handle some-component parameters
         Matcher matcher = SAME_INTERPOLATION_REGEX.matcher(stringValue);
         while (matcher.find()) {
@@ -248,9 +254,9 @@ public class KernelConfigResolver {
     private String lookupParameterValueForComponent(
             Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
             DeploymentDocument document, ComponentIdentifier component, String namespace, String key)
-            throws PackageLoadingException {
+            throws IOException {
         // Handle cross-component system parameters
-        Map<String, CrashableFunction<ComponentIdentifier, String, PackageLoadingException>> systemParams =
+        Map<String, CrashableFunction<ComponentIdentifier, String, IOException>> systemParams =
                 systemParameters.getOrDefault(namespace, Collections.emptyMap());
         if (systemParams.containsKey(key)) {
             return systemParams.get(key).apply(component);
@@ -288,6 +294,33 @@ public class KernelConfigResolver {
         });
         mainServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, mainDependencies);
         return mainServiceConfig;
+    }
+
+    /*
+     * Record current deployment version in service config. Rotate versions.
+     */
+    private void handleComponentVersionConfigs(ComponentIdentifier compId, String deploymentVersion,
+                                               Map<String, Object> newConfig) {
+        newConfig.put(VERSION_CONFIG_KEY, deploymentVersion);
+        Topic existingVersionTopic =
+                kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC, compId.getName(), VERSION_CONFIG_KEY);
+        if (existingVersionTopic == null) {
+            return;
+        }
+
+        String existingVersion = (String) existingVersionTopic.getOnce();
+        if (existingVersion.equals(deploymentVersion)) {
+            // preserve the prevVersion if it exists
+            Topic existingPrevVersionTopic =
+                    kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC, compId.getName(), PREV_VERSION_CONFIG_KEY);
+            if (existingPrevVersionTopic != null) {
+                String existingPrevVersion = (String) existingVersionTopic.getOnce();
+                newConfig.put(PREV_VERSION_CONFIG_KEY, existingPrevVersion);
+            }
+        } else {
+            // rotate versions if deploying a different version than the existing one
+            newConfig.put(PREV_VERSION_CONFIG_KEY, existingVersion);
+        }
     }
 
     /*
