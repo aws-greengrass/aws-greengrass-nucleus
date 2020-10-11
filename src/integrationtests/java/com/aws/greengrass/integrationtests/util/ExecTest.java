@@ -96,6 +96,7 @@ class ExecTest {
         exec.withShell(stdErrCommand);
         assertFalse(exec.successful(false));
         assertEquals(0, stdout.length());
+
         // new line for shell and 1 more for windows because it actually includes the trailing space before the 1>&2
         assertEquals(expectedOutput.length() + System.lineSeparator().length() + (Exec.isWindows ? 1 : 0),
                 stderr.length());
