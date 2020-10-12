@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PRIVATE_SCOPE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsIterableWithSize.iterableWithSize;
@@ -316,11 +315,11 @@ class ComponentStoreTest {
     @Test
     void GIVEN_artifacts_WHEN_list_by_artifact_THEN_result_is_correct() throws Exception {
         Set<ComponentIdentifier> mockComponents = new HashSet<>(Arrays.asList(
-                new ComponentIdentifier("Mock1", new Semver("1.1.0"), PRIVATE_SCOPE),
-                new ComponentIdentifier("Mock1", new Semver("1.2.0"), PRIVATE_SCOPE),
-                new ComponentIdentifier("Mock2", new Semver("2.1.0"), PRIVATE_SCOPE),
-                new ComponentIdentifier("Mock3", new Semver("3.1.0"), PRIVATE_SCOPE),
-                new ComponentIdentifier("Mock3", new Semver("3.2.0"), PRIVATE_SCOPE)
+                new ComponentIdentifier("Mock1", new Semver("1.1.0")),
+                new ComponentIdentifier("Mock1", new Semver("1.2.0")),
+                new ComponentIdentifier("Mock2", new Semver("2.1.0")),
+                new ComponentIdentifier("Mock3", new Semver("3.1.0")),
+                new ComponentIdentifier("Mock3", new Semver("3.2.0"))
         ));
 
         // mock these artifact exist
@@ -332,7 +331,7 @@ class ComponentStoreTest {
         Set<ComponentIdentifier> foundComponents = new HashSet<>();
         for (Map.Entry<String, Set<String>> foundEntry : foundComponentVersions.entrySet()) {
             for (String version : foundEntry.getValue()) {
-                foundComponents.add(new ComponentIdentifier(foundEntry.getKey(), new Semver(version), PRIVATE_SCOPE));
+                foundComponents.add(new ComponentIdentifier(foundEntry.getKey(), new Semver(version)));
             }
         }
         assertEquals(mockComponents, foundComponents);

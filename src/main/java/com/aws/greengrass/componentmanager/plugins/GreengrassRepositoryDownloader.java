@@ -168,8 +168,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         GetComponentArtifactRequest getComponentArtifactRequest =
                 new GetComponentArtifactRequest().withArtifactName(artifactName)
                         .withComponentName(componentIdentifier.getName())
-                        .withComponentVersion(componentIdentifier.getVersion().toString())
-                        .withScope(componentIdentifier.getScope());
+                        .withComponentVersion(componentIdentifier.getVersion().toString());
 
         // TODO: This is horribly bad code, but unfortunately, the service is configured to return 302 redirect and
         // the auto-generated SDK does NOT like that. The only way to handle this at the moment is to catch the
