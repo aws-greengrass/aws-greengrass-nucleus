@@ -8,20 +8,18 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
-
 /**
  * Helper function to get a logger with configurations separate from the root logger.
  */
 public class LogManagerHelper {
     private static final String LOG_FILE_EXTENSION = ".log";
-    private static final String KERNEL_CONFIG_PARAMETER_TOPIC = "rootLoggerConfig";
-    private static final String SERVICE_CONFIG_PARAMETER_TOPIC = "ComponentLoggerConfig";
+    private static final String KERNEL_CONFIG_PARAMETER_TOPIC = "logging";
+    private static final String SERVICE_CONFIG_PARAMETER_TOPIC = "ComponentLogging";
     private final Kernel kernel;
 
     public LogManagerHelper(Kernel kernel) {
         this.kernel = kernel;
-        this.kernel.getConfig().lookup(PARAMETERS_CONFIG_KEY, KERNEL_CONFIG_PARAMETER_TOPIC)
+        this.kernel.getConfig().lookup(KERNEL_CONFIG_PARAMETER_TOPIC)
                 .subscribe((why, newv) -> {
                     // TODO: Reconfigure all loggers using logging configuration in the kernel config.
                 });
@@ -34,7 +32,7 @@ public class LogManagerHelper {
      * @return  a logger with configuration to log to a los file with the same name.
      */
     public com.aws.greengrass.logging.api.Logger getComponentLogger(GreengrassService service) {
-        service.getConfig().lookup(PARAMETERS_CONFIG_KEY, SERVICE_CONFIG_PARAMETER_TOPIC)
+        service.getConfig().lookup(SERVICE_CONFIG_PARAMETER_TOPIC)
                 .subscribe((why, newv) -> {
                     // TODO: Reconfigure all service loggers using logging configuration in the service config.
                 });
