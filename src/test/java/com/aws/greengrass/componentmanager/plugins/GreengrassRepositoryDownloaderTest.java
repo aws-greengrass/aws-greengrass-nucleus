@@ -38,8 +38,7 @@ import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
@@ -83,7 +82,7 @@ class GreengrassRepositoryDownloaderTest {
                                                            .resolve("monitor_artifact_100.txt");
         when(connection.getInputStream()).thenReturn(Files.newInputStream(mockArtifactPath));
 
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), "private");
+        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
         Path artifactFilePath = saveToPath.resolve("artifact.txt");
@@ -97,7 +96,7 @@ class GreengrassRepositoryDownloaderTest {
         GetComponentArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
         assertEquals("CoolService", generatedRequest.getComponentName());
         assertEquals("1.0.0", generatedRequest.getComponentVersion());
-        assertEquals("private", generatedRequest.getScope());
+        assertNull(generatedRequest.getScope());
         assertEquals("artifactName", generatedRequest.getArtifactName());
 
         byte[] originalFile = Files.readAllBytes(mockArtifactPath);
@@ -118,7 +117,7 @@ class GreengrassRepositoryDownloaderTest {
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenThrow(IOException.class);
 
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
+        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         assertThrows(IOException.class, () -> downloader
                 .downloadToPath(pkgId, new ComponentArtifact(new URI("greengrass:binary"), null, null, null), null));
     }

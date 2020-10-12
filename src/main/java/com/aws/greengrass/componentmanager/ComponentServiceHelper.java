@@ -49,9 +49,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PRIVATE_SCOPE;
-import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PUBLIC_SCOPE;
-
 public class ComponentServiceHelper {
 
     private static final String PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT = "Error downloading recipe for package %s";
@@ -87,7 +84,7 @@ public class ComponentServiceHelper {
                 ret.addAll(componentSelectedMetadataList.stream().map(componentMetadata -> {
                     ComponentIdentifier componentIdentifier =
                             new ComponentIdentifier(componentMetadata.getComponentName(),
-                                    new Semver(componentMetadata.getComponentVersion()), componentMetadata.getScope());
+                                    new Semver(componentMetadata.getComponentVersion()));
                     return new ComponentMetadata(componentIdentifier, componentMetadata.getDependencies().stream()
                             .collect(Collectors.toMap(ComponentNameVersion::getComponentName,
                                     ComponentNameVersion::getComponentVersionConstraint)));
@@ -167,27 +164,9 @@ public class ComponentServiceHelper {
         GetComponentRequest getComponentRequest =
                 new GetComponentRequest().withComponentName(componentIdentifier.getName())
                         .withComponentVersion(componentIdentifier.getVersion().toString())
-                        .withType(RecipeFormatType.YAML).withScope(componentIdentifier.getScope());
+                        .withType(RecipeFormatType.YAML);
 
-        // If the scope is listed as PUBLIC, then always try to download the private version first and then PUBLIC
-        boolean privateFirst = false;
-        if (getComponentRequest.getScope().equalsIgnoreCase(PUBLIC_SCOPE)) {
-            privateFirst = true;
-            getComponentRequest.withScope(PRIVATE_SCOPE);
-        }
-
-        GetComponentResult getPackageResult;
-        try {
-            getPackageResult = download(getComponentRequest, componentIdentifier);
-        } catch (PackageDownloadException e) {
-            if (privateFirst) {
-                // We tried private and that failed, so try public now
-                getPackageResult = download(getComponentRequest.withScope(PUBLIC_SCOPE), componentIdentifier);
-            } else {
-                throw e;
-            }
-        }
-
+        GetComponentResult getPackageResult = download(getComponentRequest, componentIdentifier);
         return StandardCharsets.UTF_8.decode(getPackageResult.getRecipe()).toString();
     }
 
