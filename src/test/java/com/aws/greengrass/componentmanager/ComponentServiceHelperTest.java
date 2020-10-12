@@ -84,7 +84,7 @@ class ComponentServiceHelperTest {
         doReturn(testResult).when(client).getComponent(getComponentRequestArgumentCaptor.capture());
         String downloadPackageRecipeAsString = helper.downloadPackageRecipeAsString(
                 new ComponentIdentifier(ComponentTestResourceHelper.MONITORING_SERVICE_PACKAGE_NAME,
-                        new Semver("1.0.0"), "private"));
+                        new Semver("1.0.0")));
 
         assertEquals(recipeContents, downloadPackageRecipeAsString);
     }

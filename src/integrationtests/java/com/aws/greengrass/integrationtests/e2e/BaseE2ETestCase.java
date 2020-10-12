@@ -274,7 +274,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     private static ComponentIdentifier getLocalPackageIdentifier(ComponentIdentifier pkgIdCloud) {
         return new ComponentIdentifier(removeTestComponentNameCloudSuffix(pkgIdCloud.getName()),
-                pkgIdCloud.getVersion(), pkgIdCloud.getScope());
+                pkgIdCloud.getVersion());
     }
 
     private static void draftComponent(ComponentIdentifier pkgIdCloud) throws IOException {
@@ -450,7 +450,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     private static ComponentIdentifier createPackageIdentifier(String name, Semver version) {
-        return new ComponentIdentifier(getTestComponentNameInCloud(name), version, "private");
+        return new ComponentIdentifier(getTestComponentNameInCloud(name), version);
     }
 
     public static String getTestComponentNameInCloud(String name) {

@@ -57,7 +57,6 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
-import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PRIVATE_SCOPE;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
 
 public class ComponentManager implements InjectionActions {
@@ -305,6 +304,9 @@ public class ComponentManager implements InjectionActions {
         }
     }
 
+    // With simplified dependency resolving logic, recipe should be available when resolveComponentVersion,
+    // and should be availble on device at this step.
+    @Deprecated
     private ComponentRecipe findRecipeDownloadIfNotExisted(ComponentIdentifier componentIdentifier)
             throws PackageDownloadException, PackageLoadingException {
         Optional<ComponentRecipe> packageOptional = Optional.empty();
@@ -404,7 +406,7 @@ public class ComponentManager implements InjectionActions {
             }
             for (String compVersion : removeVersions) {
                 componentStore
-                        .deleteComponent(new ComponentIdentifier(compName, new Semver(compVersion), PRIVATE_SCOPE));
+                        .deleteComponent(new ComponentIdentifier(compName, new Semver(compVersion)));
             }
         }
         logger.atInfo("cleanup-stale-versions-finish").log();
