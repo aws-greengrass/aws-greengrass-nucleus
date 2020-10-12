@@ -9,7 +9,7 @@ ComponentDependencies:
     VersionRequirement: "=0.9.0"
 Manifests:
   - Platform:
-      os: macos
+      os: darwin
     Lifecycle:
       run: echo "Hello Greengrass. Don't mind me I'm going to be removed soon"
 
