@@ -15,8 +15,9 @@ import java.util.Map;
 public class ConfigurationUpdateOperation {
 
     @JsonProperty("MERGE")
-    Map<String, Object> valueToMerge;
+    Map valueToMerge;
 
     @JsonProperty("RESET")
     List<String> pathsToReset;
 }
+

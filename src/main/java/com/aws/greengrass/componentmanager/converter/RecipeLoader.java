@@ -90,7 +90,7 @@ public final class RecipeLoader {
                 .componentType(componentRecipe.getComponentType()).dependencies(dependencyPropertiesMap)
                 .lifecycle(platformSpecificManifest.getLifecycle())
                 .artifacts(convertArtifactsFromFile(platformSpecificManifest.getArtifacts()))
-
+                .componentConfiguration(componentRecipe.getComponentConfiguration())
                 .componentParameters(convertParametersFromFile(platformSpecificManifest.getParameters())).build();
 
         return Optional.of(packageRecipe);
