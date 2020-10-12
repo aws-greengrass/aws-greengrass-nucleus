@@ -23,18 +23,8 @@ public class LogManagerHelper {
         this.kernel = kernel;
         this.kernel.getConfig().lookup(PARAMETERS_CONFIG_KEY, KERNEL_CONFIG_PARAMETER_TOPIC)
                 .subscribe((why, newv) -> {
-                    // TODO: Subscribe to logging configuration in the kernel config and reconfigure all the loggers.
+                    // TODO: Reconfigure all loggers using logging configuration in the kernel config.
                 });
-    }
-
-    /**
-     * Get the logger for a particular component. The logs will be added to the a log file with the same name as the
-     * component if the logs are configured to be written to the disk.
-     * @param name  The name of the component
-     * @return  a logger with configuration to log to a los file with the same name.
-     */
-    public com.aws.greengrass.logging.api.Logger getComponentLogger(String name) {
-        return getComponentLogger(name, name + LOG_FILE_EXTENSION);
     }
 
     /**
@@ -46,20 +36,10 @@ public class LogManagerHelper {
     public com.aws.greengrass.logging.api.Logger getComponentLogger(GreengrassService service) {
         service.getConfig().lookup(PARAMETERS_CONFIG_KEY, SERVICE_CONFIG_PARAMETER_TOPIC)
                 .subscribe((why, newv) -> {
-                    // TODO: Subscribe to logging configuration in the service config and reconfigure all the loggers.
+                    // TODO: Reconfigure all service loggers using logging configuration in the service config.
                 });
 
-        return getComponentLogger(service.getName(), service.getName() + LOG_FILE_EXTENSION);
-    }
-
-    /**
-     * Get the logger for a particular component. The logs will be added to the a log file with the same name as the
-     * component if the logs are configured to be written to the disk.
-     * @param clazz  the clazz name is used by the Logger to return
-     * @return  a logger with configuration to log to a los file with the same name.
-     */
-    public com.aws.greengrass.logging.api.Logger getComponentLogger(Class<?> clazz) {
-        return getComponentLogger(clazz.getName());
+        return getComponentLogger(service.getServiceName(), service.getServiceName() + LOG_FILE_EXTENSION);
     }
 
     /**
