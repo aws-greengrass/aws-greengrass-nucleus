@@ -31,6 +31,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
@@ -87,6 +88,7 @@ class MqttReconnectTest extends BaseE2ETestCase {
     void GIVEN_new_deployment_while_device_online_WHEN_mqtt_disconnects_and_reconnects_THEN_job_executes_successfully(
             ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, MqttException.class);
+        ignoreExceptionUltimateCauseOfType(context, TimeoutException.class);
         ignoreExceptionWithMessage(context,
                 "No valid versions were found for this package based on provided requirement");
 
