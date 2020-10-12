@@ -124,7 +124,7 @@ public class KernelCommandLine {
             nucleusPaths.setRootPath(Paths.get(rootAbsolutePath).toAbsolutePath());
             //set root path for the telemetry logger
             TelemetryConfig.getInstance().setRoot(Paths.get(deTilde(ROOT_DIR_PREFIX)));
-            LogConfig.getInstance().setRoot(Paths.get(deTilde(ROOT_DIR_PREFIX)));
+            LogManager.setRoot(Paths.get(deTilde(ROOT_DIR_PREFIX)));
             nucleusPaths.initPaths(Paths.get(rootAbsolutePath).toAbsolutePath(),
                     Paths.get(deTilde(workPathName)).toAbsolutePath(),
                     Paths.get(deTilde(packageStorePathName)).toAbsolutePath(),
