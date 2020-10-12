@@ -8,16 +8,23 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+
 /**
  * Helper function to get a logger with configurations separate from the root logger.
  */
 public class LogManagerHelper {
     private static final String LOG_FILE_EXTENSION = ".log";
+    private static final String KERNEL_CONFIG_PARAMETER_TOPIC = "rootLoggerConfig";
+    private static final String SERVICE_CONFIG_PARAMETER_TOPIC = "ComponentLoggerConfig";
     private final Kernel kernel;
 
     public LogManagerHelper(Kernel kernel) {
         this.kernel = kernel;
-        // TODO: Subscribe to logging configuration in the kernel config and reconfigure all the loggers.
+        this.kernel.getConfig().lookup(PARAMETERS_CONFIG_KEY, KERNEL_CONFIG_PARAMETER_TOPIC)
+                .subscribe((why, newv) -> {
+                    // TODO: Subscribe to logging configuration in the kernel config and reconfigure all the loggers.
+                });
     }
 
     /**
@@ -29,6 +36,32 @@ public class LogManagerHelper {
     public com.aws.greengrass.logging.api.Logger getComponentLogger(String name) {
         return getComponentLogger(name, name + LOG_FILE_EXTENSION);
     }
+
+    /**
+     * Get the logger for a particular component. The logs will be added to the a log file with the same name as the
+     * component if the logs are configured to be written to the disk.
+     * @param service   The green grass service instance to use to subscribe to logger config.
+     * @return  a logger with configuration to log to a los file with the same name.
+     */
+    public com.aws.greengrass.logging.api.Logger getComponentLogger(GreengrassService service) {
+        service.getConfig().lookup(PARAMETERS_CONFIG_KEY, SERVICE_CONFIG_PARAMETER_TOPIC)
+                .subscribe((why, newv) -> {
+                    // TODO: Subscribe to logging configuration in the service config and reconfigure all the loggers.
+                });
+
+        return getComponentLogger(service.getName(), service.getName() + LOG_FILE_EXTENSION);
+    }
+
+    /**
+     * Get the logger for a particular component. The logs will be added to the a log file with the same name as the
+     * component if the logs are configured to be written to the disk.
+     * @param clazz  the clazz name is used by the Logger to return
+     * @return  a logger with configuration to log to a los file with the same name.
+     */
+    public com.aws.greengrass.logging.api.Logger getComponentLogger(Class<?> clazz) {
+        return getComponentLogger(clazz.getName());
+    }
+
     /**
      * Get the logger for a particular component. The logs will be added to the log file name provided in the method
      * signature if the logs are configured to be written to the disk.
@@ -36,7 +69,7 @@ public class LogManagerHelper {
      * @param fileName  The name of the log file.
      * @return a logger with configuration to log to a los file with the same name.
      */
-    public com.aws.greengrass.logging.api.Logger getComponentLogger(String name, String fileName) {
+    private com.aws.greengrass.logging.api.Logger getComponentLogger(String name, String fileName) {
         return LogManager.getLogger(name, LoggerConfiguration.builder().fileName(fileName).build());
     }
 }
