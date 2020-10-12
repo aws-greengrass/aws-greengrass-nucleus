@@ -1,0 +1,37 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: aws.iot.gg.test.integ.ComponentConfigTestService
+ComponentDescription: This is dedicated for testing component configuration
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+
+# Configuration section to test and assert
+# Texts below are used for assertion in DeploymentTaskIntegrationTest and need to change together.
+ComponentConfiguration:
+  DefaultConfiguration:
+    singleLevelKey: 'default value of singleLevelKey'
+    path:
+      leafKey: 'default value of /path/leafKey'
+    listKey:
+      - 'item1'
+      - 'item2'
+    emptyStringKey: ''
+    emptyListKey: []
+    emptyObjectKey: {}
+    defaultIsNullKey: null
+    willBeNullKey: 'I will be set to null soon'
+
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      # Texts below are used for assertion in DeploymentTaskIntegrationTest and need to change together.
+      run: >-
+        echo 'aws.iot.gg.test.integ.ComponentConfigTestService output
+        Value for /singleLevelKey: {configuration:/singleLevelKey}.
+        Value for /path/leafKey: {configuration:/path/leafKey}.
+        Value for /path: {configuration:/path}. I will be interpolated as a serialized JSON String.
+        Value for /listKey/0: {configuration:/listKey/0}.
+        Value for /emptyStringKey: {configuration:/emptyStringKey}.
+        Value for /defaultIsNullKey: {configuration:/defaultIsNullKey}.
+        Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}. I was not in the default value'

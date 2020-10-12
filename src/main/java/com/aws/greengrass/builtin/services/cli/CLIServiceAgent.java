@@ -55,8 +55,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
@@ -117,6 +119,10 @@ public class CLIServiceAgent {
             componentDetails
                     .setConfiguration(service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY).toPOJO());
         }
+        if (service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY) != null) {
+            componentDetails.setNestedConfiguration(
+                    service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY).toPOJO());
+        }
         return GetComponentDetailsResponse.builder().componentDetails(componentDetails).build();
     }
 
@@ -140,6 +146,11 @@ public class CLIServiceAgent {
                             if (service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY) != null) {
                                 componentDetails.setConfiguration(
                                         service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY).toPOJO());
+                            }
+                            if (service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY) != null) {
+                                componentDetails.setNestedConfiguration(
+                                        service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY)
+                                                .toPOJO());
                             }
                             return componentDetails;
                         }).collect(Collectors.toList());
@@ -218,7 +229,7 @@ public class CLIServiceAgent {
             Path kernelRecipeDirectoryPath = kernelPackageStorePath.resolve(ComponentStore.RECIPE_DIRECTORY);
             try {
                 Utils.copyFolderRecursively(recipeDirectoryPath, kernelRecipeDirectoryPath,
-                        StandardCopyOption.REPLACE_EXISTING);
+                                            StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
                 logger.atError().setCause(e).kv("Recipe Directory path", recipeDirectoryPath)
                         .log("Caught exception while updating the recipes");
@@ -230,7 +241,7 @@ public class CLIServiceAgent {
             Path kernelArtifactsDirectoryPath = kernelPackageStorePath.resolve(ComponentStore.ARTIFACT_DIRECTORY);
             try {
                 Utils.copyFolderRecursively(artifactsDirectoryPath, kernelArtifactsDirectoryPath,
-                        StandardCopyOption.REPLACE_EXISTING);
+                                            StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
                 logger.atError().setCause(e).kv("Artifact Directory path", artifactsDirectoryPath)
                         .log("Caught exception while updating the recipes");
@@ -249,31 +260,27 @@ public class CLIServiceAgent {
      */
     @SuppressWarnings("PMD.PreserveStackTrace")
     public CreateLocalDeploymentResponse createLocalDeployment(Topics serviceConfig,
-                                                               CreateLocalDeploymentRequest request)
-            throws ServiceError {
-        //All inputs are valid. If all inputs are empty, then user might just want to retrigger the deployment with new
+            @Nonnull CreateLocalDeploymentRequest request) throws ServiceError {
+        // All inputs are valid. If all inputs are empty, then user might just want to retrigger the deployment with new
         // recipes set using the updateRecipesAndArtifacts API.
         String deploymentId = UUID.randomUUID().toString();
-
         Map<String, ConfigurationUpdateOperation> configUpdate = null;
         if (request.getConfigurationUpdate() != null) {
             configUpdate = request.getConfigurationUpdate().entrySet().stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey,
-                            e -> {
-                                ConfigurationUpdateOperation configUpdateOption = new ConfigurationUpdateOperation();
-                                configUpdateOption.setValueToMerge((Map) e.getValue().get("MERGE"));
-                                configUpdateOption.setPathsToReset((List) e.getValue().get("RESET"));
-                                return configUpdateOption;
-                            }));
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> {
+                        ConfigurationUpdateOperation configUpdateOption = new ConfigurationUpdateOperation();
+                        configUpdateOption.setValueToMerge((Map) e.getValue().get("MERGE"));
+                        configUpdateOption.setPathsToReset((List) e.getValue().get("RESET"));
+                        return configUpdateOption;
+                    }));
         }
 
         LocalOverrideRequest localOverrideRequest = LocalOverrideRequest.builder().requestId(deploymentId)
                 .componentsToMerge(request.getRootComponentVersionsToAdd())
                 .componentsToRemove(request.getRootComponentsToRemove()).requestTimestamp(System.currentTimeMillis())
                 .groupName(request.getGroupName() == null || request.getGroupName().isEmpty() ? DEFAULT_GROUP_NAME
-                        : request.getGroupName())
-                .componentNameToConfig(request.getComponentToConfiguration())
-                .configurationUpdate(configUpdate).build();
+                                   : request.getGroupName())
+                .componentNameToConfig(request.getComponentToConfiguration()).configurationUpdate(configUpdate).build();
         String deploymentDocument;
         try {
             deploymentDocument = OBJECT_MAPPER.writeValueAsString(localOverrideRequest);
@@ -313,17 +320,16 @@ public class CLIServiceAgent {
      * @throws ResourceNotFoundError thrown when deployment with given Id not found
      */
     public GetLocalDeploymentStatusResponse getLocalDeploymentStatus(Topics serviceConfig,
-                                                                     GetLocalDeploymentStatusRequest request)
-            throws InvalidArgumentsError, ResourceNotFoundError {
+            GetLocalDeploymentStatusRequest request) throws InvalidArgumentsError, ResourceNotFoundError {
         validateGetLocalDeploymentStatusRequest(request);
         Topics localDeployments = serviceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
         if (localDeployments == null || localDeployments.findTopics(request.getDeploymentId()) == null) {
             throw new ResourceNotFoundError("Cannot find deployment", LOCAL_DEPLOYMENT_RESOURCE,
-                    request.getDeploymentId());
+                                            request.getDeploymentId());
         } else {
             Topics deployment = localDeployments.findTopics(request.getDeploymentId());
-            DeploymentStatus status = Coerce.toEnum(DeploymentStatus.class,
-                    deployment.find(DEPLOYMENT_STATUS_KEY_NAME));
+            DeploymentStatus status =
+                    Coerce.toEnum(DeploymentStatus.class, deployment.find(DEPLOYMENT_STATUS_KEY_NAME));
             return GetLocalDeploymentStatusResponse.builder().deployment(
                     LocalDeployment.builder().deploymentId(request.getDeploymentId()).status(status).build()).build();
         }
@@ -340,10 +346,9 @@ public class CLIServiceAgent {
         Topics localDeployments = serviceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
         localDeployments.forEach(topic -> {
             Topics topics = (Topics) topic;
-            persistedDeployments.add(LocalDeployment.builder()
-                    .deploymentId(topics.getName())
-                    .status(Coerce.toEnum(DeploymentStatus.class,
-                            topics.find(DEPLOYMENT_STATUS_KEY_NAME))).build());
+            persistedDeployments.add(LocalDeployment.builder().deploymentId(topics.getName())
+                                             .status(Coerce.toEnum(DeploymentStatus.class,
+                                                                   topics.find(DEPLOYMENT_STATUS_KEY_NAME))).build());
         });
         return ListLocalDeploymentResponse.builder().localDeployments(persistedDeployments).build();
     }
