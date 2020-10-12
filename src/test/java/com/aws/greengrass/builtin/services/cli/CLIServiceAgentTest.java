@@ -55,6 +55,7 @@ import java.util.UUID;
 
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.LOCAL_DEPLOYMENT_RESOURCE;
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.PERSISTENT_LOCAL_DEPLOYMENTS;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
@@ -122,6 +123,8 @@ class CLIServiceAgentTest {
         assertEquals(MOCK_VERSION, response.getComponentDetails().getVersion());
         assertEquals(Collections.singletonMap(MOCK_PARAM_KEY, MOCK_PARAM_VALUE),
                 response.getComponentDetails().getConfiguration());
+        assertEquals(Collections.singletonMap(MOCK_PARAM_KEY, MOCK_PARAM_VALUE),
+                     response.getComponentDetails().getNestedConfiguration());
     }
 
     @Test
@@ -158,12 +161,15 @@ class CLIServiceAgentTest {
                                                 .state(LifecycleState.RUNNING)
                                                 .version("1.0.0")
                                                 .configuration(Collections.singletonMap(MOCK_PARAM_KEY, MOCK_PARAM_VALUE))
+                                                .nestedConfiguration(
+                                                        Collections.singletonMap(MOCK_PARAM_KEY, MOCK_PARAM_VALUE))
                                                 .build();
         ComponentDetails componentDetails2 = ComponentDetails.builder()
                 .componentName("COMPONENT2")
                 .state(LifecycleState.FINISHED)
                 .version("0.9.1")
                 .configuration(Collections.singletonMap(MOCK_PARAM_KEY, MOCK_PARAM_VALUE))
+                .nestedConfiguration(Collections.singletonMap(MOCK_PARAM_KEY, MOCK_PARAM_VALUE))
                 .build();
         assertTrue(response.getComponents().contains(componentDetails1));
         assertTrue(response.getComponents().contains(componentDetails2));
@@ -451,6 +457,7 @@ class CLIServiceAgentTest {
             Topics mockParameters = mock(Topics.class);
             when(mockParameters.toPOJO()).thenReturn(parameters);
             when(mockTopics.findInteriorChild(eq(PARAMETERS_CONFIG_KEY))).thenReturn(mockParameters);
+            when(mockTopics.findInteriorChild(eq(CONFIGURATION_CONFIG_KEY))).thenReturn(mockParameters);
         }
         return mockService;
     }
