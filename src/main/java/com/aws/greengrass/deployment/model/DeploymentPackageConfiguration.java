@@ -16,8 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Class to represent a single package along with its dependencies
- * that comes in the deployment configuration.
+ * Class to represent a single package along with its dependencies that comes in the deployment configuration.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
@@ -38,6 +37,34 @@ public class DeploymentPackageConfiguration {
     @JsonProperty("ResolvedVersion")
     private String resolvedVersion;
 
+    @Deprecated
     @JsonProperty("Configuration")
     private Map<String, Object> configuration = new HashMap<>();
+
+    @JsonProperty("ConfigurationUpdate")
+    private ConfigurationUpdateOperation configurationUpdateOperation;
+
+    /**
+     * Constructor for no update configuration update for backward compatibility.
+     *
+     * @param packageName     name of package
+     * @param rootComponent   if it is root
+     * @param resolvedVersion resolved version
+     * @param configuration   configuration
+     */
+    public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,
+            Map<String, Object> configuration) {
+        this.packageName = packageName;
+        this.rootComponent = rootComponent;
+        this.resolvedVersion = resolvedVersion;
+        this.configuration = configuration;
+    }
+
+    /**
+     * Constructor. Non provided fields are null.
+     * @param packageName packageName
+     */
+    public DeploymentPackageConfiguration(String packageName) {
+        this.packageName = packageName;
+    }
 }

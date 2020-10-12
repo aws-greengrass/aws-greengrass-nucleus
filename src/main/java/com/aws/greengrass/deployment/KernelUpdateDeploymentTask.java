@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.deployment;
 
+import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -24,6 +26,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     private final Kernel kernel;
     private final Logger logger;
     private final Deployment deployment;
+    private final ComponentManager componentManager;
 
     /**
      * Constructor for DefaultDeploymentTask.
@@ -31,11 +34,14 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
      * @param kernel Kernel instance
      * @param logger Logger instance
      * @param deployment Deployment instance
+     * @param componentManager ComponentManager instance
      */
-    public KernelUpdateDeploymentTask(Kernel kernel, Logger logger, Deployment deployment) {
+    public KernelUpdateDeploymentTask(Kernel kernel, Logger logger, Deployment deployment,
+                                      ComponentManager componentManager) {
         this.kernel = kernel;
         this.deployment = deployment;
         this.logger = logger.dfltKv(DEPLOYMENT_ID_LOG_KEY, deployment.getDeploymentDocumentObj().getDeploymentId());
+        this.componentManager = componentManager;
     }
 
     @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
@@ -56,8 +62,10 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                         new ServiceUpdateException(deployment.getStageDetails()));
                 kernelAlts.rollbackCompletes();
             }
+
+            componentManager.cleanupStaleVersions();
             return result;
-        } catch (InterruptedException | IOException e) {
+        } catch (InterruptedException | IOException | PackageLoadingException e) {
             logger.atError("deployment-interrupted", e).log();
             try {
                 saveDeploymentStatusDetails(e.getMessage());
