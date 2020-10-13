@@ -78,6 +78,8 @@ public class DefaultActivator extends DeploymentActivator {
                 kernel.getConfig().updateMap(deploymentDocument.getTimestamp(), newConfig, DEPLOYMENT_MERGE_BEHAVIOR));
 
         // wait until topic listeners finished processing mergeMap changes.
+        kernel.getContext().runOnPublishQueueAndWait(() -> {});
+
         AtomicBoolean setDesiredStatesFailed = new AtomicBoolean();
         AtomicReference<Throwable> setDesiredStateFailureCause = new AtomicReference<>();
         kernel.getContext().runOnPublishQueue(() -> {
