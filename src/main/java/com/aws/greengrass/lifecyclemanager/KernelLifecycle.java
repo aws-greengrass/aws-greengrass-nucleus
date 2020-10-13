@@ -20,6 +20,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
+import com.aws.greengrass.util.NucleusPaths;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Setter;
@@ -56,6 +57,7 @@ public class KernelLifecycle {
     private final Kernel kernel;
     private final KernelCommandLine kernelCommandLine;
     private final Map<String, Class<?>> serviceImplementors = new HashMap<>();
+    private final NucleusPaths nucleusPaths;
     // setter for unit testing
     @Setter(AccessLevel.PACKAGE)
     private List<Class<? extends Startable>> startables = Arrays.asList(IPCService.class, AuthorizationService.class,
@@ -64,17 +66,25 @@ public class KernelLifecycle {
     private GreengrassService mainService;
     private final AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
 
-    public KernelLifecycle(Kernel kernel, KernelCommandLine kernelCommandLine) {
+    /**
+     * Constructor.
+     *
+     * @param kernel kernel
+     * @param kernelCommandLine command line
+     * @param nucleusPaths paths
+     */
+    public KernelLifecycle(Kernel kernel, KernelCommandLine kernelCommandLine, NucleusPaths nucleusPaths) {
         this.kernel = kernel;
         this.kernelCommandLine = kernelCommandLine;
+        this.nucleusPaths = nucleusPaths;
     }
 
     /**
      * Startup the Kernel and all services.
      */
     public void launch() {
-        logger.atInfo("system-start").kv("version", KERNEL_VERSION).kv("rootPath", kernel.getRootPath())
-                .kv("configPath", kernel.getConfigPath()).log("Launch Kernel");
+        logger.atInfo("system-start").kv("version", KERNEL_VERSION).kv("rootPath", nucleusPaths.rootPath())
+                .kv("configPath", nucleusPaths.configPath()).log("Launch Kernel");
 
         // Startup builtin non-services. This is blocking, so it will wait for them to be running.
         // This guarantees that IPC, for example, is running before any user code
@@ -111,11 +121,9 @@ public class KernelLifecycle {
     }
 
     void initConfigAndTlog() {
-        Path transactionLogPath = kernel.getConfigPath().resolve(Kernel.DEFAULT_CONFIG_TLOG_FILE);
-        Path configurationFile = kernel.getConfigPath().resolve(Kernel.DEFAULT_CONFIG_YAML_FILE);
-
-
         try {
+            Path transactionLogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_TLOG_FILE);
+            Path configurationFile = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_YAML_FILE);
             if (Objects.nonNull(kernelCommandLine.getProvidedConfigPathName())) {
                 // If a config file is provided, kernel will use the provided file as a new base
                 // and ignore existing config and tlog files.
@@ -151,7 +159,7 @@ public class KernelLifecycle {
         Queue<String> autostart = new LinkedList<>();
         try {
             EZPlugins pim = kernel.getContext().get(EZPlugins.class);
-            pim.withCacheDirectory(kernel.getRootPath().resolve("plugins"));
+            pim.withCacheDirectory(nucleusPaths.pluginPath());
             pim.annotated(ImplementsService.class, cl -> {
                 if (!GreengrassService.class.isAssignableFrom(cl)) {
                     logger.atError().log("{} needs to be a subclass of GreengrassService "

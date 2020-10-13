@@ -4,6 +4,10 @@ ComponentName: {{KernelIntegTestDependency}}
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
+ComponentDependencies:
+  {{Log}}:
+    VersionRequirement: '2.0'
+    DependencyType: Soft
 Manifests:
   - Platform:
       os: macos
@@ -11,10 +15,6 @@ Manifests:
       install:
         skipif: onpath git
         script: sudo KernelIntegTestDependency-1.0.0
-    Dependencies:
-      {{Log}}:
-        VersionRequirement: '2.0'
-        DependencyType: Soft
 
   - Platform:
       os: linux
@@ -22,7 +22,3 @@ Manifests:
       install:
         skipif: onpath git
         script: sudo KernelIntegTestDependency-1.0.0
-    Dependencies:
-        {{Log}}:
-          VersionRequirement: '2.0'
-          DependencyType: Soft

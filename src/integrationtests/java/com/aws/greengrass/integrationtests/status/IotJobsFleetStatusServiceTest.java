@@ -141,7 +141,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         // pre-load contents to package store
         Path localStoreContentPath =
                 Paths.get(IotJobsFleetStatusServiceTest.class.getResource("local_store_content").toURI());
-        copyFolderRecursively(localStoreContentPath, kernel.getComponentStorePath(), REPLACE_EXISTING);
+        copyFolderRecursively(localStoreContentPath, kernel.getNucleusPaths().componentStorePath(), REPLACE_EXISTING);
         kernel.launch();
         assertTrue(fssRunning.await(10, TimeUnit.SECONDS));
         assertTrue(deploymentServiceRunning.await(10, TimeUnit.SECONDS));

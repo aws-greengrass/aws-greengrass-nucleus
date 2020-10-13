@@ -31,8 +31,6 @@ import javax.inject.Inject;
 public class IotConnectionManager implements Closeable {
     // TODO: Move Iot related classes to a central location
     private static final Logger LOGGER = LogManager.getLogger(IotConnectionManager.class);
-    // TODO: ALPN support, and validate how does it work if port is also part of URL
-    private static final int IOT_PORT = 8443;
     // Max wait time for device to establish mTLS connection with IOT core
     private static final long TIMEOUT_FOR_CONNECTION_SETUP_SECONDS = Duration.ofMinutes(1).getSeconds();
     private final HttpClientConnectionManager connManager;
@@ -65,7 +63,7 @@ public class IotConnectionManager implements Closeable {
                     .create(new HttpClientConnectionManagerOptions().withClientBootstrap(clientBootstrap)
                             .withProxyOptions(ProxyUtils.getHttpProxyOptions(deviceConfiguration))
                             .withSocketOptions(new SocketOptions()).withTlsContext(new TlsContext(tlsCtxOptions))
-                            .withPort(IOT_PORT).withUri(URI.create(
+                            .withUri(URI.create(
                                     "https://" + Coerce.toString(deviceConfiguration.getIotCredentialEndpoint()))));
         }
     }

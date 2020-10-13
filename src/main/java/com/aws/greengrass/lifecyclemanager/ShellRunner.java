@@ -7,8 +7,8 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.ProxyUtils;
-import com.aws.greengrass.util.Utils;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -30,14 +30,16 @@ public interface ShellRunner {
         private static final String SCRIPT_NAME_KEY = "scriptName";
 
         @Inject
+        NucleusPaths nucleusPaths;
+
+        @Inject
         Kernel config;
 
         @Override
         public synchronized Exec setup(String note, String command, GreengrassService onBehalfOf) throws IOException {
             if (!isEmpty(command) && onBehalfOf != null) {
-                Path cwd = config.getWorkPath().resolve(onBehalfOf.getName());
+                Path cwd = nucleusPaths.workPath(onBehalfOf.getServiceName());
                 DeviceConfiguration deviceConfiguration = config.getContext().get(DeviceConfiguration.class);
-                Utils.createPaths(cwd);
                 return new Exec()
                         .withShell(command)
                         .withOut(s -> {

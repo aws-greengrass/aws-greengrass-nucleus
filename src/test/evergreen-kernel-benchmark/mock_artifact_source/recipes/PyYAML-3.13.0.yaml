@@ -4,5 +4,5 @@ ComponentName: PyYAML
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Publisher
 ComponentVersion: '3.13.0'
-manifests:
-  - lifecycle: {}
+Manifests:
+  - Lifecycle: {}

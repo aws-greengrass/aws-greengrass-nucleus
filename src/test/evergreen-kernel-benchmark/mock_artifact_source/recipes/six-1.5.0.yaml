@@ -4,5 +4,5 @@ ComponentName: six
 ComponentDescription: Test recipe for Greengrass Components
 ComponentPublisher: Publisher
 ComponentVersion: '1.5.0'
-manifests:
-  - lifecycle: {}
+Manifests:
+  - Lifecycle: {}

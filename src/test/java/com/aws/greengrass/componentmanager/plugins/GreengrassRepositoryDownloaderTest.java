@@ -30,20 +30,22 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class GreengrassRepositoryDownloaderTest {
+    private static final String SHA256 = "SHA-256";
 
     @Mock
     private HttpURLConnection connection;
@@ -80,23 +82,26 @@ class GreengrassRepositoryDownloaderTest {
                                                            .resolve("monitor_artifact_100.txt");
         when(connection.getInputStream()).thenReturn(Files.newInputStream(mockArtifactPath));
 
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), "private");
+        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
+        Path artifactFilePath = saveToPath.resolve("artifact.txt");
         Files.createDirectories(saveToPath);
-        downloader.downloadToPath(pkgId, new ComponentArtifact(new URI("greengrass:artifactName"), null, null, null),
-                saveToPath);
+        String checksum = Base64.getEncoder()
+                .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
+        downloader.downloadToPath(
+                pkgId, new ComponentArtifact(new URI("greengrass:artifactName"),
+                        checksum, SHA256, null), saveToPath);
 
         GetComponentArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
         assertEquals("CoolService", generatedRequest.getComponentName());
         assertEquals("1.0.0", generatedRequest.getComponentVersion());
-        assertEquals("private", generatedRequest.getScope());
+        assertNull(generatedRequest.getScope());
         assertEquals("artifactName", generatedRequest.getArtifactName());
 
         byte[] originalFile = Files.readAllBytes(mockArtifactPath);
-        byte[] downloadFile = Files.readAllBytes(saveToPath.resolve("artifact.txt"));
+        byte[] downloadFile = Files.readAllBytes(artifactFilePath);
         assertThat(Arrays.equals(originalFile, downloadFile), is(true));
-
         ComponentTestResourceHelper.cleanDirectory(testCache);
     }
 
@@ -112,7 +117,7 @@ class GreengrassRepositoryDownloaderTest {
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenThrow(IOException.class);
 
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), "CoolServiceARN");
+        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         assertThrows(IOException.class, () -> downloader
                 .downloadToPath(pkgId, new ComponentArtifact(new URI("greengrass:binary"), null, null, null), null));
     }

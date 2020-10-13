@@ -40,6 +40,7 @@ import java.util.Base64;
 import java.util.Collections;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
@@ -58,7 +59,6 @@ class S3DownloaderTest {
     private static final String VALID_ARTIFACT_CONTENT = "Sample artifact content";
     private static final String TEST_COMPONENT_NAME = "ComponentWithS3Artifacts";
     private static final String TEST_COMPONENT_VERSION = "1.0.0";
-    private static final String TEST_SCOPE = "private";
 
     @TempDir
     static Path tempDir;
@@ -100,7 +100,7 @@ class S3DownloaderTest {
                 Files.createDirectories(saveToPath);
             }
             s3Downloader.downloadToPath(
-                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
+                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
                     new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, VALID_ALGORITHM, null), saveToPath);
             byte[] downloadedFile = Files.readAllBytes(saveToPath.resolve("artifact.txt"));
             assertThat("Content of downloaded file should be same as the artifact content",
@@ -125,7 +125,7 @@ class S3DownloaderTest {
             Files.write(saveToPath.resolve("artifact.txt"), Collections.singletonList(VALID_ARTIFACT_CONTENT),
                     StandardCharsets.UTF_8);
             s3Downloader.downloadToPath(
-                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
+                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
                     new ComponentArtifact(new URI(VALID_ARTIFACT_URI), null, null, null), saveToPath);
             verify(s3Client, never()).getObject(any(GetObjectRequest.class));
         } finally {
@@ -139,7 +139,7 @@ class S3DownloaderTest {
         try {
             Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
             assertThrows(InvalidArtifactUriException.class, () -> s3Downloader.downloadToPath(
-                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
+                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
                     new ComponentArtifact(new URI(INVALID_ARTIFACT_URI), "somechecksum", VALID_ALGORITHM, null),
                     saveToPath));
         } finally {
@@ -166,7 +166,7 @@ class S3DownloaderTest {
                 Files.createDirectories(saveToPath);
             }
             assertThrows(PackageDownloadException.class, () -> s3Downloader.downloadToPath(
-                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
+                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
                     new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, VALID_ALGORITHM, null), saveToPath));
         } finally {
             if (getObjectResponse != null) {
@@ -198,7 +198,7 @@ class S3DownloaderTest {
                 Files.createDirectories(saveToPath);
             }
             assertThrows(PackageDownloadException.class, () -> s3Downloader.downloadToPath(
-                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
+                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
                     new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, "WrongAlgorithm", null), saveToPath));
         } finally {
             if (getObjectResponse != null) {
@@ -220,9 +220,31 @@ class S3DownloaderTest {
                 Files.createDirectories(saveToPath);
             }
             assertThrows(PackageDownloadException.class, () -> s3Downloader.downloadToPath(
-                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION), TEST_SCOPE),
+                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
                     new ComponentArtifact(new URI(VALID_ARTIFACT_URI), VALID_ARTIFACT_CHECKSUM, VALID_ALGORITHM, null),
                     saveToPath));
+        } finally {
+            ComponentTestResourceHelper.cleanDirectory(testCache);
+        }
+    }
+
+    @Test
+    void GIVEN_s3_artifact_exists_WHEN_check_download_required_THEN_return_false() throws Exception {
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
+        try {
+            Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
+            if (Files.notExists(saveToPath)) {
+                Files.createDirectories(saveToPath);
+            }
+            Path artifactFilePath = Files.write(saveToPath.resolve("artifact.txt"),
+                    Collections.singletonList(VALID_ARTIFACT_CONTENT),
+                    StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            String checksum = Base64.getEncoder()
+                    .encodeToString(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)));
+            boolean downloadRequired = s3Downloader.downloadRequired(
+                    new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
+                    new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, VALID_ALGORITHM, null), saveToPath);
+            assertFalse(downloadRequired);
         } finally {
             ComponentTestResourceHelper.cleanDirectory(testCache);
         }

@@ -11,12 +11,14 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -27,7 +29,9 @@ import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -37,13 +41,7 @@ class ShellRunnerTest extends GGServiceTestUtil {
     private Topic uniqueId;
 
     @Mock
-    private Kernel kernel;
-
-    @Mock
-    private Context context;
-
-    @Mock
-    private DeviceConfiguration deviceConfiguration;
+    private NucleusPaths nucleusPaths;
 
     @TempDir
     protected Path tempDir;
@@ -51,7 +49,7 @@ class ShellRunnerTest extends GGServiceTestUtil {
     private GreengrassService greengrassService;
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws IOException {
         Topics config = initializeMockedConfig();
         Topics servicePrivateTopics = mock(Topics.class);
         Topic mockTopic = mock(Topic.class);
@@ -61,21 +59,18 @@ class ShellRunnerTest extends GGServiceTestUtil {
         when(servicePrivateTopics.createLeafChild(anyString())).thenReturn(mockTopic);
         when(mockTopic.withParentNeedsToKnow(false)).thenReturn(mockTopic);
 
-        when(kernel.getContext()).thenReturn(context);
-        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
-
-        when(kernel.getWorkPath()).thenReturn(tempDir);
+        when(nucleusPaths.workPath(any())).thenReturn(tempDir);
+        lenient().when(nucleusPaths.workPath()).thenReturn(tempDir);
         greengrassService = new GreengrassService(config);
     }
 
     @Test
     void GIVEN_shell_command_WHEN_setup_THEN_sets_exec_cwd_to_work_path_with_service() throws Exception {
         try (Context context = new Context()) {
-            context.put(Kernel.class, kernel);
+            context.put(NucleusPaths.class, nucleusPaths);
             final ShellRunner shellRunner = context.get(ShellRunner.class);
             try (Exec exec = shellRunner.setup("note", "echo hi", greengrassService)) {
-                assertEquals(kernel.getWorkPath().resolve(greengrassService.getName()).toFile().toString(),
-                        exec.cwd().toString());
+                assertEquals(nucleusPaths.workPath().toFile().toString(), exec.cwd().toString());
             }
         }
     }
@@ -83,7 +78,7 @@ class ShellRunnerTest extends GGServiceTestUtil {
     @Test
     void GIVEN_shell_command_WHEN_run_in_foreground_THEN_succeeds() throws Exception {
         try (Context context = new Context()) {
-            context.put(Kernel.class, kernel);
+            context.put(NucleusPaths.class, nucleusPaths);
             final ShellRunner shellRunner = context.get(ShellRunner.class);
             try (Exec exec = shellRunner.setup("note", "echo hi", greengrassService)) {
                 boolean ok = shellRunner.successful(exec, "note", null, greengrassService);
@@ -103,7 +98,7 @@ class ShellRunnerTest extends GGServiceTestUtil {
         };
 
         try (Context context = new Context()) {
-            context.put(Kernel.class, kernel);
+            context.put(NucleusPaths.class, nucleusPaths);
             final ShellRunner shellRunner = context.get(ShellRunner.class);
             try (Exec exec = shellRunner.setup("note", "echo 0", greengrassService)) {
                 boolean ok = shellRunner.successful(exec, "note", background, greengrassService);
@@ -118,7 +113,7 @@ class ShellRunnerTest extends GGServiceTestUtil {
     @Test
     void GIVEN_shell_command_that_doesnt_exist_WHEN_run_in_foreground_THEN_fails() throws Exception {
         try (Context context = new Context()) {
-            context.put(Kernel.class, kernel);
+            context.put(NucleusPaths.class, nucleusPaths);
             final ShellRunner shellRunner = context.get(ShellRunner.class);
             try (Exec exec = shellRunner.setup("note", "there_is_no_such_program", greengrassService)) {
                 boolean ok = shellRunner.successful(exec, "note", null, greengrassService);
@@ -138,7 +133,7 @@ class ShellRunnerTest extends GGServiceTestUtil {
         };
 
         try (Context context = new Context()) {
-            context.put(Kernel.class, kernel);
+            context.put(NucleusPaths.class, nucleusPaths);
             final ShellRunner shellRunner = context.get(ShellRunner.class);
             try (Exec exec = shellRunner.setup("note", "there_is_no_such_program", greengrassService)) {
                 boolean ok = shellRunner.successful(exec, "note", background, greengrassService);

@@ -6,6 +6,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
+import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.ipc.services.cli.exceptions.ComponentNotFoundError;
@@ -29,6 +30,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.NucleusPaths;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -53,6 +55,7 @@ import java.util.UUID;
 
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.LOCAL_DEPLOYMENT_RESOURCE;
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.PERSISTENT_LOCAL_DEPLOYMENTS;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
@@ -65,6 +68,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -87,12 +91,17 @@ class CLIServiceAgentTest {
     @Mock
     private Kernel kernel;
     @Mock
+    private NucleusPaths nucleusPaths;
+    @Mock
     private DeploymentQueue deploymentQueue;
     private CLIServiceAgent cliServiceAgent;
     private final Context context = new Context();
 
+    private final ObjectMapper mapper = new ObjectMapper();
+
     @BeforeEach
     void setup() {
+        lenient().when(kernel.getNucleusPaths()).thenReturn(nucleusPaths);
         cliServiceAgent = new CLIServiceAgent(kernel, deploymentQueue);
     }
 
@@ -114,6 +123,8 @@ class CLIServiceAgentTest {
         assertEquals(MOCK_VERSION, response.getComponentDetails().getVersion());
         assertEquals(Collections.singletonMap(MOCK_PARAM_KEY, MOCK_PARAM_VALUE),
                 response.getComponentDetails().getConfiguration());
+        assertEquals(Collections.singletonMap(MOCK_PARAM_KEY, MOCK_PARAM_VALUE),
+                     response.getComponentDetails().getNestedConfiguration());
     }
 
     @Test
@@ -150,12 +161,15 @@ class CLIServiceAgentTest {
                                                 .state(LifecycleState.RUNNING)
                                                 .version("1.0.0")
                                                 .configuration(Collections.singletonMap(MOCK_PARAM_KEY, MOCK_PARAM_VALUE))
+                                                .nestedConfiguration(
+                                                        Collections.singletonMap(MOCK_PARAM_KEY, MOCK_PARAM_VALUE))
                                                 .build();
         ComponentDetails componentDetails2 = ComponentDetails.builder()
                 .componentName("COMPONENT2")
                 .state(LifecycleState.FINISHED)
                 .version("0.9.1")
                 .configuration(Collections.singletonMap(MOCK_PARAM_KEY, MOCK_PARAM_VALUE))
+                .nestedConfiguration(Collections.singletonMap(MOCK_PARAM_KEY, MOCK_PARAM_VALUE))
                 .build();
         assertTrue(response.getComponents().contains(componentDetails1));
         assertTrue(response.getComponents().contains(componentDetails2));
@@ -236,7 +250,7 @@ class CLIServiceAgentTest {
                 .artifactDirectoryPath(artifactsDirectoryPath.toString())
                 .recipeDirectoryPath(recipeDirectoryPath.toString())
                 .build();
-        when(kernel.getComponentStorePath()).thenReturn(kernelLocalStore);
+        when(nucleusPaths.componentStorePath()).thenReturn(kernelLocalStore);
         cliServiceAgent.updateRecipesAndArtifacts(request);
         assertTrue(Files.exists(kernelRecipesPath.resolve("MyComponent-1.0.0").resolve("recipe.yaml")));
         assertTrue(Files.exists(kernelArtifactsPath.resolve("MyComponent-1.0.0").resolve("binary.exe")));
@@ -270,7 +284,7 @@ class CLIServiceAgentTest {
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder()
                 .recipeDirectoryPath(recipeDirectoryPath.toString())
                 .build();
-        when(kernel.getComponentStorePath()).thenReturn(kernelLocalStore);
+        when(nucleusPaths.componentStorePath()).thenReturn(kernelLocalStore);
         cliServiceAgent.updateRecipesAndArtifacts(request);
         assertTrue(Files.exists(kernelRecipesPath.resolve("MyComponent-1.0.0").resolve("recipe.yaml")));
     }
@@ -292,7 +306,7 @@ class CLIServiceAgentTest {
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder()
                 .artifactDirectoryPath(artifactsDirectoryPath.toString())
                 .build();
-        when(kernel.getComponentStorePath()).thenReturn(kernelLocalStore);
+        when(nucleusPaths.componentStorePath()).thenReturn(kernelLocalStore);
         cliServiceAgent.updateRecipesAndArtifacts(request);
         assertTrue(Files.exists(kernelArtifactsPath.resolve("MyComponent-1.0.0").resolve("binary.exe")));
     }
@@ -307,12 +321,16 @@ class CLIServiceAgentTest {
         Map<String, Object> component1Configuration = new HashMap<>();
         component1Configuration.put("portNumber", 1000);
         componentToConfiguration.put("Component1", component1Configuration);
+        String configUpdateString = "{\"Component1\":{ \"MERGE\": {\"foo\": \"bar\"}}}";
+        Map<String, Map<String, Object>> configUpdateMap = mapper.readValue(configUpdateString, Map.class);
         CreateLocalDeploymentRequest request = CreateLocalDeploymentRequest.builder()
                                                 .groupName(MOCK_GROUP_NAME)
                                                 .rootComponentVersionsToAdd(componentToVersion)
                                                 .rootComponentsToRemove(componentsToRemove)
                                                 .componentToConfiguration(componentToConfiguration)
+                                                .configurationUpdate(configUpdateMap)
                                                 .build();
+
         when(deploymentQueue.offer(any())).thenReturn(true);
         Topics mockServiceConfig = mock(Topics.class);
         Topics mockLocalDeployments = mock(Topics.class);
@@ -331,6 +349,14 @@ class CLIServiceAgentTest {
         assertEquals(componentToVersion, localOverrideRequest.getComponentsToMerge());
         assertEquals(componentsToRemove, localOverrideRequest.getComponentsToRemove());
         assertEquals(componentToConfiguration, localOverrideRequest.getComponentNameToConfig());
+
+        Map<String, ConfigurationUpdateOperation> configUpdate = new HashMap<>();
+        ConfigurationUpdateOperation configUpdateComponent1 = new ConfigurationUpdateOperation();
+        configUpdateComponent1.setValueToMerge(new HashMap<String, Object>(){{
+            put("foo", "bar");
+        }});
+        configUpdate.put("Component1", configUpdateComponent1);
+        assertEquals(configUpdate, localOverrideRequest.getConfigurationUpdate());
     }
 
     @Test
@@ -431,6 +457,7 @@ class CLIServiceAgentTest {
             Topics mockParameters = mock(Topics.class);
             when(mockParameters.toPOJO()).thenReturn(parameters);
             when(mockTopics.findInteriorChild(eq(PARAMETERS_CONFIG_KEY))).thenReturn(mockParameters);
+            when(mockTopics.findInteriorChild(eq(CONFIGURATION_CONFIG_KEY))).thenReturn(mockParameters);
         }
         return mockService;
     }
