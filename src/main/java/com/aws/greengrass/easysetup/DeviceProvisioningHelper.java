@@ -131,7 +131,7 @@ public class DeviceProvisioningHelper {
      * @return created thing info
      */
     public ThingInfo createThingForE2ETests() {
-        return createThing(iotClient, E2E_TESTS_POLICY_NAME_PREFIX + UUID.randomUUID().toString(),
+        return createThing(iotClient, E2E_TESTS_POLICY_NAME_PREFIX,
                 E2E_TESTS_THING_NAME_PREFIX + UUID.randomUUID().toString());
     }
 
@@ -185,11 +185,11 @@ public class DeviceProvisioningHelper {
 
     /**
      * Clean up an existing thing from AWS account using the provided client.
-     *
-     * @param client iotClient to use
+     *  @param client iotClient to use
      * @param thing  thing info
+     * @param deletePolicies true if iot policies should be deleted
      */
-    public void cleanThing(IotClient client, ThingInfo thing) {
+    public void cleanThing(IotClient client, ThingInfo thing, boolean deletePolicies) {
         client.detachThingPrincipal(
                 DetachThingPrincipalRequest.builder().thingName(thing.thingName).principal(thing.certificateArn)
                         .build());
@@ -201,7 +201,9 @@ public class DeviceProvisioningHelper {
                 .policies()) {
             client.detachPolicy(
                     DetachPolicyRequest.builder().policyName(p.policyName()).target(thing.certificateArn).build());
-            client.deletePolicy(DeletePolicyRequest.builder().policyName(p.policyName()).build());
+            if (deletePolicies) {
+                client.deletePolicy(DeletePolicyRequest.builder().policyName(p.policyName()).build());
+            }
         }
         client.deleteCertificate(
                 DeleteCertificateRequest.builder().certificateId(thing.certificateId).forceDelete(true).build());
