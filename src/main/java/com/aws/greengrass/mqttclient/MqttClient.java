@@ -87,7 +87,6 @@ public class MqttClient implements Closeable {
     @SuppressWarnings("PMD.ImmutableField")
     private Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider;
     private X509CredentialsProvider credentialsProvider;
-    private String tesRoleAlias;
     private final List<AwsIotMqttClient> connections = new CopyOnWriteArrayList<>();
     private final Map<SubscribeRequest, AwsIotMqttClient> subscriptions = new ConcurrentHashMap<>();
     private final Map<MqttTopic, AwsIotMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
@@ -117,10 +116,8 @@ public class MqttClient implements Closeable {
         HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
 
         if (httpProxyOptions != null) {
-            kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS)
-                    .lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).subscribe((why, newv) -> {
-                tesRoleAlias = Coerce.toString(newv);
-            });
+            String tesRoleAlias = Coerce.toString(kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
+                    TOKEN_EXCHANGE_SERVICE_TOPICS).lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).getOnce());
 
             try (TlsContextOptions x509TlsOptions = TlsContextOptions.createWithMtlsFromPath(
                     Coerce.toString(deviceConfiguration.getCertificateFilePath()),
