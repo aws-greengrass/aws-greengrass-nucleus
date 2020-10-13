@@ -44,7 +44,7 @@ public class ComponentStore {
     public static final String RECIPE_DIRECTORY = "recipes";
     public static final String ARTIFACT_DIRECTORY = "artifacts";
     public static final String ARTIFACTS_DECOMPRESSED_DIRECTORY = "artifacts-unarchived";
-    private static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
+    public static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
     private final NucleusPaths nucleusPaths;
 
     /**
