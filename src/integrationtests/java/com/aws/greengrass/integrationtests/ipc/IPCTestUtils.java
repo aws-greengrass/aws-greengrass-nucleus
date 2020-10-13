@@ -136,7 +136,7 @@ public final class IPCTestUtils {
         socketOptions.type = SocketOptions.SocketType.STREAM;
         EventLoopGroup elg = new EventLoopGroup(1);
         ClientBootstrap clientBootstrap = new ClientBootstrap(elg, new HostResolver(elg));
-        String ipcServerSocketPath = kernel.getRootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+        String ipcServerSocketPath = kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
         ClientConnection.connect(ipcServerSocketPath, (short) 8033, socketOptions, null, clientBootstrap, new ClientConnectionHandler() {
             @Override
             protected void onConnectionSetup(ClientConnection connection, int errorCode) {
@@ -164,14 +164,16 @@ public final class IPCTestUtils {
 
     public static ClientConnectionContinuation sendOperationRequest(@NonNull ClientConnection clientConnection,
                                       String operationName,
-                                      byte[] payload) throws IOException {
+                                      byte[] payload, BiConsumer<List<Header>,byte[]> callback) throws IOException {
 
         ClientConnectionContinuation clientConnectionContinuation =
                 clientConnection.newStream(new ClientConnectionContinuationHandler() {
                     @Override
                     protected void onContinuationMessage(List<Header> headers, byte[] payload, MessageType messageType,
                                                          int messageFlags) {
-                        //Nothing to receive for update
+                        if (callback != null) {
+                            callback.accept(headers, payload);
+                        }
                     }
                 });
         Header messageType = Header.createHeader(":message-type", (int) MessageType.ApplicationMessage.getEnumValue());
@@ -216,5 +218,4 @@ public final class IPCTestUtils {
                 , MessageType.ApplicationMessage, 0);
         return clientConnectionContinuation;
     }
-
 }
