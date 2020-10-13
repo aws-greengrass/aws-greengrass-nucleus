@@ -120,12 +120,10 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
         //TODO: future maturity can use this to ask the service handler for AuthN per operation.
         //      boolean authorizeOperation(AuthenticationData, operationName)
         //      would be the additional method on EventStreamRPCServiceHandler
-        System.out.println("Received stream response for operation " + operationName);
 
         final Function<OperationContinuationHandlerContext, ? extends ServerConnectionContinuationHandler> registeredOperationHandlerFn =
                 serviceHandler.getOperationHandler(operationName);
         if (registeredOperationHandlerFn != null) {
-            System.out.println("Found registered handler " + registeredOperationHandlerFn.getClass());
             return registeredOperationHandlerFn.apply(operationContext);
         } else {
             return new ServerConnectionContinuationHandler(continuation) {

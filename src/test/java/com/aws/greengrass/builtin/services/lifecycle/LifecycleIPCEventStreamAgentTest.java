@@ -1,6 +1,5 @@
 package com.aws.greengrass.builtin.services.lifecycle;
 
-import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
@@ -18,6 +17,7 @@ import generated.software.amazon.awssdk.iot.greengrass.model.UpdateStateResponse
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
@@ -27,12 +27,12 @@ import software.amazon.eventstream.iot.server.OperationContinuationHandlerContex
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -66,10 +66,8 @@ public class LifecycleIPCEventStreamAgentTest {
     public void testUpdateStateHandler_successful_update() throws ServiceLoadException {
         UpdateStateRequest updateStateRequest = new UpdateStateRequest();
         updateStateRequest.setState(LifecycleState.ERRORED);
-        Context kernelContext = mock(Context.class);
         GreengrassService mockTestService = mock(GreengrassService.class);
-        when(kernelContext.get(eq(GreengrassService.class), eq(TEST_SERVICE))).thenReturn(mockTestService);
-        when(kernel.getContext()).thenReturn(kernelContext);
+        when(kernel.locate(TEST_SERVICE)).thenReturn(mockTestService);
         UpdateStateResponse response =
                 lifecycleIPCEventStreamAgent.getUpdateStateOperationHandler(mockContext).handleRequest(updateStateRequest);
         assertNotNull(response);
@@ -77,12 +75,10 @@ public class LifecycleIPCEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void testUpdateStateHandler_service_not_found() {
+    public void testUpdateStateHandler_service_not_found() throws ServiceLoadException {
         UpdateStateRequest updateStateRequest = new UpdateStateRequest();
         updateStateRequest.setState(LifecycleState.ERRORED);
-        Context kernelContext = mock(Context.class);
-        when(kernelContext.get(eq(GreengrassService.class), eq(TEST_SERVICE))).thenReturn(null);
-        when(kernel.getContext()).thenReturn(kernelContext);
+        when(kernel.locate(TEST_SERVICE)).thenThrow(new ServiceLoadException("error"));
         assertThrows(ResourceNotFoundError.class,
                 () -> lifecycleIPCEventStreamAgent.getUpdateStateOperationHandler(mockContext).handleRequest(updateStateRequest));
     }
@@ -114,7 +110,8 @@ public class LifecycleIPCEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void testSubscribeToComponent_request_from_removed_service() throws ServiceLoadException {
+    public void testSubscribeToComponent_request_from_removed_service(ExtensionContext context) throws ServiceLoadException {
+        ignoreExceptionOfType(context, ServiceLoadException.class);
         SubscribeToComponentUpdatesRequest subsRequest = new SubscribeToComponentUpdatesRequest();
         LifecycleIPCEventStreamAgent.SubscribeToComponentUpdateOperationHandler handler =
                 lifecycleIPCEventStreamAgent.getSubscribeToComponentUpdateHandler(mockContext);

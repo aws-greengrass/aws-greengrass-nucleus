@@ -31,7 +31,6 @@ import software.amazon.eventstream.iot.server.ServerStreamEventPublisher;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -87,16 +86,18 @@ public class LifecycleIPCEventStreamAgent {
         }
 
         @Override
+        @SuppressWarnings("PMD.PreserveStackTrace")
         public UpdateStateResponse handleRequest(UpdateStateRequest request) {
+            log.atInfo().log("Handling update state request");
             State s = State.valueOf(request.getState().toString());
             String serviceN = request.getServiceName() == null ? serviceName : request.getServiceName();
-            Optional<GreengrassService> service = Optional.ofNullable(kernel.getContext().get(GreengrassService.class,
-                    serviceN));
-
-            if (service.isPresent()) {
-                log.info("{} reported state : {}", service.get().getName(), s);
-                service.get().reportState(s);
-            } else {
+            GreengrassService service;
+            try {
+                log.atInfo().log("Updating the state of a service");
+                service = kernel.locate(serviceN);
+                service.reportState(s);
+                log.atInfo().log("Update the state of service {} to {}", serviceN, s.toString());
+            } catch (ServiceLoadException e) {
                 log.atWarn().kv("service name", request.getServiceName()).log("Service not present");
                 ResourceNotFoundError rnf = new ResourceNotFoundError();
                 rnf.setMessage("Service with given name not found");
@@ -104,6 +105,7 @@ public class LifecycleIPCEventStreamAgent {
                 rnf.setResourceName(request.getServiceName());
                 throw rnf;
             }
+
             return new UpdateStateResponse();
         }
 

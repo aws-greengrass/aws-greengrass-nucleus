@@ -5,6 +5,7 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.ipc.common.GGEventStreamConnectMessage;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.util.NucleusPaths;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
@@ -23,9 +24,7 @@ import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.eventstream.iot.server.AuthenticationData;
 import software.amazon.eventstream.iot.server.AuthenticationHandler;
-import software.amazon.eventstream.iot.server.Authorization;
 import software.amazon.eventstream.iot.server.AuthorizationHandler;
 
 import java.io.IOException;
@@ -41,9 +40,8 @@ import static com.aws.greengrass.ipc.IPCEventStreamService.IPC_SERVER_DOMAIN_SOC
 import static com.aws.greengrass.ipc.IPCEventStreamService.KERNEL_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class})
@@ -77,18 +75,13 @@ public class IPCEventStreamServiceTest {
 
     @BeforeEach
     public void setup() {
-        when(mockAuthenticationHandler.apply(anyList(), any())).thenReturn(new AuthenticationData() {
-            @Override
-            public String getIdentityLabel() {
-                return "Test";
-            }
-        });
-        when(mockAuthorizationHandler.apply(any())).thenReturn(Authorization.ACCEPT);
         when(greengrassCoreIPCService.getAuthenticationHandler()).thenReturn(mockAuthenticationHandler);
         when(greengrassCoreIPCService.getAuthorizationHandler()).thenReturn(mockAuthorizationHandler);
 
         ipcEventStreamService = new IPCEventStreamService(mockKernel, greengrassCoreIPCService, config);
-        when(mockKernel.getRootPath()).thenReturn(mockRootPath);
+        NucleusPaths nucleusPaths = mock(NucleusPaths.class);
+        when(mockKernel.getNucleusPaths()).thenReturn(nucleusPaths);
+        when(nucleusPaths.rootPath()).thenReturn(mockRootPath);
         when(config.getRoot()).thenReturn(mockRootTopics);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
                 eq(KERNEL_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
