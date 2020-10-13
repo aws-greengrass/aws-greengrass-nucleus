@@ -5,12 +5,14 @@
 
 package com.aws.greengrass.util.platforms;
 
+import com.aws.greengrass.util.FileSystemPermission;
 import org.zeroturnaround.exec.InvalidExitValueException;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
 import org.zeroturnaround.process.WindowsProcess;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
 public class WindowsPlatform extends Platform {
     @Override
@@ -41,5 +43,10 @@ public class WindowsPlatform extends Platform {
     @Override
     public int exitCodeWhenCommandDoesNotExist() {
         return 1;
+    }
+
+    @Override
+    public void setPermissions(FileSystemPermission permission, Path path) throws IOException {
+        // TODO: Implement using ACL for Windows
     }
 }

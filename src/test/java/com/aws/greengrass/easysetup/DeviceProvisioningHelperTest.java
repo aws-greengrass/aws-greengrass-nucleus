@@ -207,7 +207,7 @@ class DeviceProvisioningHelperTest {
         deviceProvisioningHelper.cleanThing(iotClient,
                 new DeviceProvisioningHelper.ThingInfo(getThingArn(), "thingname", "certarn", "certid", "certpem",
                         KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build(), "dataEndpoint",
-                        "credEndpoint"));
+                        "credEndpoint"), true);
         verify(iotClient, times(1)).detachThingPrincipal(any(DetachThingPrincipalRequest.class));
         verify(iotClient, times(1)).updateCertificate(any(UpdateCertificateRequest.class));
         verify(iotClient, times(1)).deleteCertificate(any(DeleteCertificateRequest.class));
