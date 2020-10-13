@@ -140,7 +140,8 @@ public class CLIServiceAgent {
                             }
                             if (service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY) != null) {
                                 componentDetails.setConfiguration(
-                                        service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY).toPOJO());
+                                        service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY)
+                                                .toPOJO());
                             }
                             return componentDetails;
                         }).collect(Collectors.toList());
