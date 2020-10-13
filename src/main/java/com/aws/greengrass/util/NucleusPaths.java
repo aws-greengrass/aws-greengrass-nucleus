@@ -135,7 +135,7 @@ public class NucleusPaths {
     public Path workPath(String serviceName) throws IOException {
         Path p = workPath().resolve(serviceName);
         Utils.createPaths(p);
-        Permissions.setWorkPathPermission(p);
+        Permissions.setServiceWorkPathPermission(p);
         return p;
     }
 
@@ -149,5 +149,10 @@ public class NucleusPaths {
 
     public Path pluginPath() {
         return rootPath.resolve("plugins");
+    }
+
+    public void setTelemetryPath(Path p) throws IOException {
+        Utils.createPaths(p);
+        Permissions.setTelemetryPermission(p);
     }
 }

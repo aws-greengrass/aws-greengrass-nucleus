@@ -49,16 +49,10 @@ import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.iam.IamClient;
-import software.amazon.awssdk.services.iam.model.DeletePolicyRequest;
-import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
-import software.amazon.awssdk.services.iam.model.DetachRolePolicyRequest;
-import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
 import software.amazon.awssdk.services.iot.model.DeleteConflictException;
-import software.amazon.awssdk.services.iot.model.DeleteRoleAliasRequest;
 import software.amazon.awssdk.services.iot.model.InvalidRequestException;
-import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
@@ -104,9 +98,9 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static final Region GAMMA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
     protected static final String THING_TARGET_TYPE = "thing";
-    private static final String TES_ROLE_NAME = "E2ETestsTesRole" + UUID.randomUUID().toString();
-    protected static final String TES_ROLE_ALIAS_NAME = "E2ETestsTesRoleAlias" + UUID.randomUUID().toString();
-    private static final String TES_ROLE_POLICY_NAME = "E2ETestsTesRolePolicy" + UUID.randomUUID().toString();
+    private static final String TES_ROLE_NAME = "E2ETestsTesRole";
+    protected static final String TES_ROLE_ALIAS_NAME = "E2ETestsTesRoleAlias";
+    private static final String TES_ROLE_POLICY_NAME = "E2ETestsTesRolePolicy";
     private static final String TES_ROLE_POLICY_DOCUMENT = "{\n"
             + "    \"Version\": \"2012-10-17\",\n"
             + "    \"Statement\": [\n"
@@ -212,7 +206,6 @@ public class BaseE2ETestCase implements AutoCloseable {
             }
         } finally {
             cleanUpTestComponentArtifactsFromS3();
-            cleanUpTesRoleAndAlias();
         }
     }
 
@@ -391,7 +384,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     protected void cleanup() {
-        deviceProvisioningHelper.cleanThing(iotClient, thingInfo);
+        deviceProvisioningHelper.cleanThing(iotClient, thingInfo, false);
         createdThingGroups.forEach(thingGroup-> IotJobsUtils.cleanThingGroup(iotClient, thingGroupName));
         createdThingGroups.clear();
         createdIotJobIds.forEach(jobId -> IotJobsUtils.cleanJob(iotClient, jobId));
@@ -423,21 +416,6 @@ public class BaseE2ETestCase implements AutoCloseable {
             logger.atInfo().kv("roleAlias", TES_ROLE_ALIAS_NAME)
                     .log("Waiting 5 seconds for TES to get credentials that work");
             Thread.sleep(5_000);
-        }
-    }
-
-    protected static void cleanUpTesRoleAndAlias() {
-        try {
-            iotClient.deleteRoleAlias(DeleteRoleAliasRequest.builder().roleAlias(TES_ROLE_ALIAS_NAME).build());
-
-            if (tesRolePolicyArn.isPresent()) {
-                iamClient.detachRolePolicy(DetachRolePolicyRequest.builder().roleName(TES_ROLE_NAME).policyArn(tesRolePolicyArn.get()).build());
-                iamClient.deletePolicy(DeletePolicyRequest.builder().policyArn(tesRolePolicyArn.get()).build());
-            }
-
-            iamClient.deleteRole(DeleteRoleRequest.builder().roleName(TES_ROLE_NAME).build());
-        } catch (ResourceNotFoundException | NoSuchEntityException e) {
-            logger.atInfo().addKeyValue("error-message", e.getMessage()).log("Could not clean up TES resources");
         }
     }
 
