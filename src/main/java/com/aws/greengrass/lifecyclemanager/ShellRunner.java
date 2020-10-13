@@ -33,13 +33,12 @@ public interface ShellRunner {
         NucleusPaths nucleusPaths;
 
         @Inject
-        Kernel config;
+        DeviceConfiguration deviceConfiguration;
 
         @Override
         public synchronized Exec setup(String note, String command, GreengrassService onBehalfOf) throws IOException {
             if (!isEmpty(command) && onBehalfOf != null) {
                 Path cwd = nucleusPaths.workPath(onBehalfOf.getServiceName());
-                DeviceConfiguration deviceConfiguration = config.getContext().get(DeviceConfiguration.class);
                 return new Exec()
                         .withShell(command)
                         .withOut(s -> {
