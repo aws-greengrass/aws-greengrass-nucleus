@@ -221,11 +221,11 @@ public class KernelConfigResolver {
         // State information for deployments
         handleComponentVersionConfigs(componentIdentifier, componentRecipe.getVersion().getValue(),
                                       resolvedServiceConfig);
-        Map<String, String> map = new HashMap<>();
+        Map<String, String> resolvedParamMap = new HashMap<>();
         for (ComponentParameter resolvedParam : resolvedParams) {
-            map.put(resolvedParam.getName(), resolvedParam.getValue());
+            resolvedParamMap.put(resolvedParam.getName(), resolvedParam.getValue());
         }
-        resolvedServiceConfig.put(PARAMETERS_CONFIG_KEY, map);
+        resolvedServiceConfig.put(PARAMETERS_CONFIG_KEY, resolvedParamMap);
 
         // Resolve config
         Optional<ConfigurationUpdateOperation> optionalConfigUpdate =
@@ -241,8 +241,9 @@ public class KernelConfigResolver {
         Map<String, Object> resolvedConfiguration =
                 resolveConfigurationToApply(optionalConfigUpdate.orElse(null), componentRecipe);
 
+        // merge resolved param and resolved configuration for backward compatibility
         resolvedServiceConfig
-                .put(CONFIGURATION_CONFIG_KEY, resolvedConfiguration == null ? new HashMap<>() : resolvedConfiguration);
+                .put(CONFIGURATION_CONFIG_KEY, deepMerge(resolvedConfiguration, resolvedParamMap));
 
         return resolvedServiceConfig;
     }
@@ -350,7 +351,7 @@ public class KernelConfigResolver {
     }
 
     private static Map<String, Object> deepMerge(@Nullable Map<String, Object> original,
-            @Nullable Map<String, Object> newMap) {
+            @Nullable Map<String, ?> newMap) {
 
         if (original == null) {
             if (newMap == null) {
@@ -369,7 +370,7 @@ public class KernelConfigResolver {
         }
 
         // start merging process
-        for (Map.Entry<String, Object> newMapEntry : newMap.entrySet()) {
+        for (Map.Entry<String, ?> newMapEntry : newMap.entrySet()) {
             String key = newMapEntry.getKey();
             Object newChild = newMapEntry.getValue();
             Object originalChild = original.get(key);
