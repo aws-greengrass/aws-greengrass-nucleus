@@ -8,7 +8,6 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
-import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
