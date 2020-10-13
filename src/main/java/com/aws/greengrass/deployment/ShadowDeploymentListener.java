@@ -135,6 +135,7 @@ public class ShadowDeploymentListener implements InjectionActions {
                     // exposed. Will make required change in CRT package to expose the error code and then update this
                     logger.atWarn().setCause(cause).log("Caught exception while subscribing to shadow topics, "
                             + "will retry shortly");
+                    continue;
                 }
                 if (cause instanceof InterruptedException) {
                     logger.atWarn().log("Interrupted while subscribing to shadow topics");

@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.util.platforms;
 
+import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import lombok.NoArgsConstructor;
@@ -15,6 +16,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -42,9 +45,7 @@ public class UnixPlatform extends Platform {
         Process proc = Runtime.getRuntime().exec(cmd);
         proc.waitFor();
         if (proc.exitValue() != 0) {
-            logger.atWarn()
-                    .kv("pid", pp.getPid())
-                    .kv("exit-code", proc.exitValue())
+            logger.atWarn().kv("pid", pp.getPid()).kv("exit-code", proc.exitValue())
                     .kv("stdout", inputStreamToString(proc.getInputStream()))
                     .kv("stderr", inputStreamToString(proc.getErrorStream()))
                     .log("pkill exited non-zero (process not found or other error)");
@@ -161,6 +162,15 @@ public class UnixPlatform extends Platform {
             return this;
         }
     }
+  
+    @Override
+    public void setPermissions(FileSystemPermission permission, Path path) throws IOException {
+        Files.setPosixFilePermissions(path, permission.toPosixFilePermissions());
+        if (permission.getOwnerUser() != null) {
+            Files.setOwner(path, path.getFileSystem().getUserPrincipalLookupService()
+                    .lookupPrincipalByName(permission.getOwnerUser()));
+        }
+    }
 
     List<Integer> getChildPids(Process process) throws IOException, InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
@@ -170,12 +180,9 @@ public class UnixPlatform extends Platform {
         Process proc = Runtime.getRuntime().exec(new String[]{"ps", "-ax", "-o", "pid,ppid"});
         proc.waitFor();
         if (proc.exitValue() != 0) {
-            logger.atWarn()
-                    .kv("pid", pp.getPid())
-                    .kv("exit-code", proc.exitValue())
+            logger.atWarn().kv("pid", pp.getPid()).kv("exit-code", proc.exitValue())
                     .kv("stdout", inputStreamToString(proc.getInputStream()))
-                    .kv("stderr", inputStreamToString(proc.getErrorStream()))
-                    .log("ps exited non-zero");
+                    .kv("stderr", inputStreamToString(proc.getErrorStream())).log("ps exited non-zero");
             throw new IOException("ps exited with " + proc.exitValue());
         }
 

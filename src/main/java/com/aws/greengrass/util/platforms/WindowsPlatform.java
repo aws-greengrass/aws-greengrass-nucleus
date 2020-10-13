@@ -6,12 +6,14 @@
 package com.aws.greengrass.util.platforms;
 
 import lombok.NoArgsConstructor;
+import com.aws.greengrass.util.FileSystemPermission;
 import org.zeroturnaround.exec.InvalidExitValueException;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
 import org.zeroturnaround.process.WindowsProcess;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
 public class WindowsPlatform extends Platform {
     @Override
@@ -91,5 +93,10 @@ public class WindowsPlatform extends Platform {
         public UserDecorator withGroup(String group) {
             throw new UnsupportedOperationException("runas with a group is not supported");
         }
+    }
+  
+    @Override
+    public void setPermissions(FileSystemPermission permission, Path path) throws IOException {
+        // TODO: Implement using ACL for Windows
     }
 }

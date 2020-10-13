@@ -9,8 +9,10 @@ import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.FileSystemPermission;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
 public abstract class Platform {
     protected static final Logger logger = LogManager.getLogger(Platform.class);
@@ -45,4 +47,13 @@ public abstract class Platform {
     public abstract int exitCodeWhenCommandDoesNotExist();
 
     public abstract UserDecorator getUserDecorator();
+
+    /**
+     * Set permissions on a path.
+     *
+     * @param permission permissions to set
+     * @param path path to apply to
+     * @throws IOException if any exception occurs while changing permissions
+     */
+    public abstract void setPermissions(FileSystemPermission permission, Path path) throws IOException;
 }
