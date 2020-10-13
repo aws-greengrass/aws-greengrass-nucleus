@@ -57,7 +57,6 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.mqttclient.AwsIotMqttClient.TOPIC_KEY;
 import static com.aws.greengrass.tes.TokenExchangeService.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
@@ -116,8 +115,8 @@ public class MqttClient implements Closeable {
         HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
 
         if (httpProxyOptions != null) {
-            String tesRoleAlias = Coerce.toString(kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
-                    TOKEN_EXCHANGE_SERVICE_TOPICS).lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).getOnce());
+            String tesRoleAlias = Coerce.toString(kernel.findServiceTopic(TOKEN_EXCHANGE_SERVICE_TOPICS)
+                    .lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC));
 
             try (TlsContextOptions x509TlsOptions = TlsContextOptions.createWithMtlsFromPath(
                     Coerce.toString(deviceConfiguration.getCertificateFilePath()),
