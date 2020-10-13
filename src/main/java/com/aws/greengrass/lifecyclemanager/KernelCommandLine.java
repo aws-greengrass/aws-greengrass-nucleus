@@ -148,6 +148,7 @@ public class KernelCommandLine {
 
         bootstrapManager = new BootstrapManager(kernel);
         kernel.getContext().put(BootstrapManager.class, bootstrapManager);
+        kernel.getContext().get(KernelAlternatives.class);
     }
 
     /**
