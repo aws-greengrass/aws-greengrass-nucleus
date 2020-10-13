@@ -56,7 +56,9 @@ public class KernelConfigResolver {
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PREV_VERSION_CONFIG_KEY = "previousVersion";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
-    public static final String CONFIGURATION_CONFIG_KEY = "configuration";
+
+    // for easier migration. TODO rename after removing param.
+    public static final String CONFIGURATION_CONFIG_KEY = "parameters";
 
     static final String ARTIFACTS_NAMESPACE = "artifacts";
     static final String KERNEL_NAMESPACE = "kernel";

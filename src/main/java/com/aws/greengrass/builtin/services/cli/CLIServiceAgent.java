@@ -59,7 +59,6 @@ import javax.annotation.Nonnull;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
@@ -115,13 +114,9 @@ public class CLIServiceAgent {
         if (service.getServiceConfig().find(VERSION_CONFIG_KEY) != null) {
             componentDetails.setVersion(Coerce.toString(service.getServiceConfig().find(VERSION_CONFIG_KEY).getOnce()));
         }
-        if (service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY) != null) {
-            componentDetails
-                    .setConfiguration(service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY).toPOJO());
-        }
         if (service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY) != null) {
-            componentDetails.setNestedConfiguration(
-                    service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY).toPOJO());
+            componentDetails
+                    .setConfiguration(service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY).toPOJO());
         }
         return GetComponentDetailsResponse.builder().componentDetails(componentDetails).build();
     }
@@ -143,14 +138,9 @@ public class CLIServiceAgent {
                                 componentDetails.setVersion(
                                         Coerce.toString(service.getServiceConfig().find(VERSION_CONFIG_KEY).getOnce()));
                             }
-                            if (service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY) != null) {
-                                componentDetails.setConfiguration(
-                                        service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY).toPOJO());
-                            }
                             if (service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY) != null) {
-                                componentDetails.setNestedConfiguration(
-                                        service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY)
-                                                .toPOJO());
+                                componentDetails.setConfiguration(
+                                        service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY).toPOJO());
                             }
                             return componentDetails;
                         }).collect(Collectors.toList());
