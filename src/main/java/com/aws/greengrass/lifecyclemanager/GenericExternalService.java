@@ -362,6 +362,8 @@ public class GenericExternalService extends GreengrassService {
         if (exec == null) {
             return new Pair<>(RunStatus.NothingDone, null);
         }
+        // TODO: Change artifact owner
+        // TODO: Set runas from override/default
         addEnv(exec, t.parent);
         logger.atDebug().setEventType("generic-service-run").log();
 
