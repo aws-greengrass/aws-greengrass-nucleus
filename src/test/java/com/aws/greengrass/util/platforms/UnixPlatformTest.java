@@ -5,13 +5,16 @@
 
 package com.aws.greengrass.util.platforms;
 
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 
-public class UnixPlatformTest {
+@ExtendWith({GGExtension.class})
+public class UnixPlatformTest   {
 
     private static String[] command = {"echo", "hello", "world"};
 

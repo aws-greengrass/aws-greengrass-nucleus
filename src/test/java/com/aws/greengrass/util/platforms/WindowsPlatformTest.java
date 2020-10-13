@@ -5,30 +5,21 @@
 
 package com.aws.greengrass.util.platforms;
 
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+
+@ExtendWith({GGExtension.class})
 public class WindowsPlatformTest {
 
     @Test
-    public void GIVEN_no_user_WHEN_decorate_THEN_do_not_generate_runas() {
-        assertThat(new WindowsPlatform.RunAsDecorator()
+    public void GIVEN_command_WHEN_decorate_THEN_is_decorated() {
+        assertThat(new WindowsPlatform.CmdDecorator()
                         .decorate("echo", "hello"),
-                is(arrayContaining("echo", "hello")));
-    }
-    @Test
-    public void GIVEN_user_WHEN_decorate_THEN_generate_runas() {
-        assertThat(new WindowsPlatform.RunAsDecorator()
-                        .withUser("foo@bar")
-                        .decorate("echo", "hello"),
-                is(arrayContaining("runas", "/user:foo@bar", "echo hello")));
-    }
-
-    @Test
-    public void GIVEN_group_THEN_throws() {
-        assertThrows(UnsupportedOperationException.class, () -> new WindowsPlatform.RunAsDecorator().withGroup("foo"));
+                is(arrayContaining("cmd.exe", "/C", "echo", "hello")));
     }
 }

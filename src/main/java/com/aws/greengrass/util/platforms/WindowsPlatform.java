@@ -48,7 +48,7 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public UserDecorator getUserDecorator() {
-        return new RunAsDecorator();
+        throw new UnsupportedOperationException("cannot run as another user");
     }
 
     @NoArgsConstructor
@@ -60,38 +60,6 @@ public class WindowsPlatform extends Platform {
             ret[1] = "/C";
             System.arraycopy(command, 0, ret, 2, command.length);
             return ret;
-        }
-    }
-
-    /**
-     * Decorate a command to run with another user.
-     * @see <a href="https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/cc771525(v=ws.11)">Windows Runas documentation</a>
-     */
-    @NoArgsConstructor
-    public static class RunAsDecorator implements UserDecorator {
-        private String user;
-
-        @Override
-        public String[] decorate(String... command) {
-            if (user == null) {
-                return command;
-            }
-            String[] ret = new String[3];
-            ret[0] = "runas";
-            ret[1] = "/user:" + user;
-            ret[2] = String.join(" ", command);
-            return ret;
-        }
-
-        @Override
-        public UserDecorator withUser(String user) {
-            this.user = user;
-            return this;
-        }
-
-        @Override
-        public UserDecorator withGroup(String group) {
-            throw new UnsupportedOperationException("runas with a group is not supported");
         }
     }
   
