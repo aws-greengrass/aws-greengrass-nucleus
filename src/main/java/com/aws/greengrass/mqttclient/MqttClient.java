@@ -108,13 +108,26 @@ public class MqttClient implements Closeable {
      * @param executorService     executor service
      */
     @Inject
-    @SuppressWarnings("PMD.ConfusingTernary")
     public MqttClient(Kernel kernel, DeviceConfiguration deviceConfiguration, ExecutorService executorService) {
         this(deviceConfiguration, null, executorService);
 
         HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
 
-        if (httpProxyOptions != null) {
+        if (httpProxyOptions == null) {
+            this.builderProvider = (clientBootstrap) -> AwsIotMqttConnectionBuilder
+                    .newMtlsBuilderFromPath(Coerce.toString(deviceConfiguration.getCertificateFilePath()),
+                            Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))
+                    .withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
+                    .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
+                    .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
+                    .withCleanSession(false).withBootstrap(clientBootstrap).withKeepAliveMs(Coerce.toInt(
+                            mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
+                    .withPingTimeoutMs(
+                            Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
+                    .withSocketOptions(new SocketOptions()).withTimeoutMs(
+                            Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT,
+                                    MQTT_SOCKET_TIMEOUT_KEY)));
+        } else {
             String tesRoleAlias = Coerce.toString(kernel.findServiceTopic(TOKEN_EXCHANGE_SERVICE_TOPICS)
                     .lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC));
 
@@ -153,20 +166,6 @@ public class MqttClient implements Closeable {
                         .withWebsocketSigningRegion(Coerce.toString(deviceConfiguration.getAWSRegion()))
                         .withWebsocketProxyOptions(httpProxyOptions);
             }
-        } else {
-            this.builderProvider = (clientBootstrap) -> AwsIotMqttConnectionBuilder
-                    .newMtlsBuilderFromPath(Coerce.toString(deviceConfiguration.getCertificateFilePath()),
-                            Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))
-                    .withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
-                    .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
-                    .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
-                    .withCleanSession(false).withBootstrap(clientBootstrap).withKeepAliveMs(Coerce.toInt(
-                            mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
-                    .withPingTimeoutMs(
-                            Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
-                    .withSocketOptions(new SocketOptions()).withTimeoutMs(
-                            Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT,
-                                    MQTT_SOCKET_TIMEOUT_KEY)));
         }
     }
 
