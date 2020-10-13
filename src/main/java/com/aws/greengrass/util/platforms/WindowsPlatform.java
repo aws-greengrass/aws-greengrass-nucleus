@@ -5,8 +5,8 @@
 
 package com.aws.greengrass.util.platforms;
 
-import lombok.NoArgsConstructor;
 import com.aws.greengrass.util.FileSystemPermission;
+import lombok.NoArgsConstructor;
 import org.zeroturnaround.exec.InvalidExitValueException;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
