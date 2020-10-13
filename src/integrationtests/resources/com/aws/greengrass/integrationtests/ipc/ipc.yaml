@@ -3,11 +3,20 @@ services:
   main:
     dependencies:
       - mqtt
+      - aws.greengrass.StreamManager
       - ServiceName
       - ServiceToBeRestarted
       - ServiceToBeStopped
   mqtt:
     lifecycle:
+    version: 1.0.0
+  aws.greengrass.StreamManager:
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 100
+        posix:
+          sleep 100
     version: 1.0.0
   ServiceName:
     lifecycle:
