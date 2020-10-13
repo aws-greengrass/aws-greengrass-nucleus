@@ -1,5 +1,6 @@
 package com.aws.greengrass.ipc.modules;
 
+import com.aws.greengrass.builtin.services.cli.CLIEventStreamAgent;
 import com.aws.greengrass.builtin.services.cli.CLIServiceAgent;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -43,6 +44,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
 import lombok.Data;
 
 import java.io.File;
@@ -59,6 +61,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.greengrass.ipc.IPCEventStreamService.KERNEL_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 
 @ImplementsService(name = CLIService.CLI_SERVICE, autostart = true)
@@ -74,6 +77,7 @@ public class CLIService extends GreengrassService {
     static final String GROUP_CLIENT_ID_PREFIX = "group-";
     static final FileSystemPermission DEFAULT_FILE_PERMISSION = new FileSystemPermission(null, null,
             true, true, false, false, false, false, false, false, false);
+    public static final String DOMAIN_SOCKET_PATH = "domain_socket_path";
 
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
     protected static final ObjectMapper OBJECT_MAPPER =
@@ -97,6 +101,12 @@ public class CLIService extends GreengrassService {
     @Inject
     private Kernel kernel;
 
+    @Inject
+    private CLIEventStreamAgent cliEventStreamAgent;
+
+    @Inject
+    private GreengrassCoreIPCService greengrassCoreIPCService;
+
     public CLIService(Topics topics) {
         super(topics);
     }
@@ -107,19 +117,24 @@ public class CLIService extends GreengrassService {
      * @param privateConfig Private config for the service
      * @param router {@link IPCRouter}
      * @param agent {@link CLIServiceAgent}
+     * @param cliEventStreamAgent {@link CLIEventStreamAgent}
      * @param deploymentStatusKeeper {@link DeploymentStatusKeeper}
      * @param authenticationHandler {@link AuthenticationHandler}
      * @param kernel {@link Kernel}
+     * @param greengrassCoreIPCService {@link GreengrassCoreIPCService}
      */
     public CLIService(Topics topics, Topics privateConfig, IPCRouter router, CLIServiceAgent agent,
+                      CLIEventStreamAgent cliEventStreamAgent,
                       DeploymentStatusKeeper deploymentStatusKeeper, AuthenticationHandler authenticationHandler,
-                      Kernel kernel) {
+                      Kernel kernel, GreengrassCoreIPCService greengrassCoreIPCService) {
         super(topics, privateConfig);
         this.router = router;
         this.agent = agent;
+        this.cliEventStreamAgent = cliEventStreamAgent;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.authenticationHandler = authenticationHandler;
         this.kernel = kernel;
+        this.greengrassCoreIPCService = greengrassCoreIPCService;
     }
 
     @Override
@@ -146,8 +161,28 @@ public class CLIService extends GreengrassService {
         });
     }
 
+    private void registerIpcEventStreamHandlers() {
+        greengrassCoreIPCService.setGetComponentDetailsHandler((context)
+                -> cliEventStreamAgent.getGetComponentDetailsHandler(context));
+        greengrassCoreIPCService.setListComponentsHandler((context)
+                -> cliEventStreamAgent.getListComponentsHandler(context));
+        greengrassCoreIPCService.setRestartComponentHandler((context)
+                -> cliEventStreamAgent.getRestartComponentsHandler(context));
+        greengrassCoreIPCService.setStopComponentHandler((context)
+                -> cliEventStreamAgent.getStopComponentsHandler(context));
+        greengrassCoreIPCService.setUpdateRecipesAndArtifactsHandler((context)
+                -> cliEventStreamAgent.getUpdateRecipesAndArtifactsHandler(context));
+        greengrassCoreIPCService.setCreateLocalDeploymentHandler((context)
+                -> cliEventStreamAgent.getCreateLocalDeploymentHandler(context, config));
+        greengrassCoreIPCService.setGetLocalDeploymentStatusHandler((context)
+                -> cliEventStreamAgent.getGetLocalDeploymentStatusHandler(context, config));
+        greengrassCoreIPCService.setListLocalDeploymentsHandler((context)
+                -> cliEventStreamAgent.getListLocalDeploymentsHandler(context, config));
+    }
+
     @Override
     protected void startup() throws InterruptedException {
+        registerIpcEventStreamHandlers();
         try {
             generateCliIpcInfo();
             reportState(State.RUNNING);
@@ -255,9 +290,11 @@ public class CLIService extends GreengrassService {
 
         Map<String, String> ipcInfo = new HashMap<>();
         ipcInfo.put(CLI_AUTH_TOKEN, cliAuthToken);
-        //TODO: Change the URL as per the new IPC
+        //TODO: Remove when UAT move to the new IPC
         ipcInfo.put(SOCKET_URL, Coerce.toString(
                 config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME)));
+        ipcInfo.put(DOMAIN_SOCKET_PATH, Coerce.toString(
+                config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_DOMAIN_SOCKET_FILEPATH)));
 
         Path filePath = directory.resolve(clientId);
         Files.write(filePath, OBJECT_MAPPER.writeValueAsString(ipcInfo)
@@ -299,9 +336,10 @@ public class CLIService extends GreengrassService {
 
     @SuppressWarnings("PMD.EmptyIfStmt")
     protected Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
-        agent.persistLocalDeployment(config, deploymentDetails);
+        cliEventStreamAgent.persistLocalDeployment(config, deploymentDetails);
         return true;
     }
+
 
     /**
      * Handle all requests for CLI from the CLI client.

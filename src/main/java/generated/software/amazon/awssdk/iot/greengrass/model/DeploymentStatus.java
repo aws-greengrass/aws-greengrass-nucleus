@@ -18,6 +18,6 @@ public enum DeploymentStatus {
   }
 
   public String getValue() {
-    return "value";
+    return value;
   }
 }

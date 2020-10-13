@@ -284,7 +284,7 @@ class IPCServicesTest {
             updateStateRequest.setState(LifecycleState.RUNNING);
             IPCTestUtils.sendOperationRequest(clientConnection,
                     "aws.greengrass#UpdateState",
-                    updateStateRequest.toPayload(gson));
+                    updateStateRequest.toPayload(gson), null);
             assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
 
         } finally {
@@ -314,7 +314,7 @@ class IPCServicesTest {
         updateStateRequest.setState(LifecycleState.ERRORED);
         ClientConnectionContinuation clientConnectionContinuation =
                 IPCTestUtils.sendOperationRequest(clientConnection, "aws.greengrass#UpdateState",
-                updateStateRequest.toPayload(gson));
+                updateStateRequest.toPayload(gson), null);
         assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
         clientConnectionContinuation.close();
     }
@@ -339,7 +339,7 @@ class IPCServicesTest {
                             deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(1).toMillis());
                             deferComponentUpdateRequest.setMessage("Test");
                             IPCTestUtils.sendOperationRequest(clientConnection, "aws.greengrass#DeferComponentUpdate"
-                                    , deferComponentUpdateRequest.toPayload(gson)).close();
+                                    , deferComponentUpdateRequest.toPayload(gson), null).close();
                         }
                         if (event.getPostUpdateEvent() != null) {
                             cdl.countDown();

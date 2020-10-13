@@ -79,7 +79,8 @@ public class IPCEventStreamService implements Startable, Closeable {
         socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
         socketOptions.type = SocketOptions.SocketType.STREAM;
         eventLoopGroup = new EventLoopGroup(1);
-        String ipcServerSocketPath = kernel.getRootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+        String ipcServerSocketPath = kernel.getNucleusPaths().rootPath()
+                .resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
         Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, KERNEL_DOMAIN_SOCKET_FILEPATH);
         kernelUri.withValue(ipcServerSocketPath);
         ipcServer = new IpcServer(eventLoopGroup, socketOptions, null, ipcServerSocketPath,

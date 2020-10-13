@@ -1,5 +1,6 @@
 package com.aws.greengrass.ipc.modules;
 
+import com.aws.greengrass.builtin.services.cli.CLIEventStreamAgent;
 import com.aws.greengrass.builtin.services.cli.CLIServiceAgent;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -45,6 +46,7 @@ import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.platforms.Group;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
+import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,6 +56,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.exceptions.misusing.InvalidUseOfMatchersException;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
 
 import java.io.File;
 import java.net.InetSocketAddress;
@@ -64,12 +67,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.LOCAL_DEPLOYMENT_RESOURCE;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.ipc.IPCEventStreamService.KERNEL_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_AUTH_TOKEN;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_SERVICE;
+import static com.aws.greengrass.ipc.modules.CLIService.DOMAIN_SOCKET_PATH;
 import static com.aws.greengrass.ipc.modules.CLIService.OBJECT_MAPPER;
 import static com.aws.greengrass.ipc.modules.CLIService.SOCKET_URL;
 import static com.aws.greengrass.ipc.modules.CLIService.posixGroups;
@@ -118,6 +124,10 @@ class CLIServiceTest extends GGServiceTestUtil {
     private Kernel kernel;
     @Mock
     private NucleusPaths nucleusPaths;
+    @Mock
+    private GreengrassCoreIPCService greengrassCoreIPCService;
+    @Mock
+    private CLIEventStreamAgent cliEventStreamAgent;
     @TempDir
     Path tmpDir;
 
@@ -136,8 +146,8 @@ class CLIServiceTest extends GGServiceTestUtil {
         cliConfigSpy = spy(Topics.of(context, CLI_SERVICE, serviceConfigSpy));
         privateConfigSpy = spy(Topics.of(context, PRIVATE_STORE_NAMESPACE_TOPIC, cliConfigSpy));
 
-        cliService = new CLIService(cliConfigSpy, privateConfigSpy, router, agent, deploymentStatusKeeper,
-                authenticationHandler, kernel);
+        cliService = new CLIService(cliConfigSpy, privateConfigSpy, router, agent, cliEventStreamAgent,
+                deploymentStatusKeeper, authenticationHandler, kernel, greengrassCoreIPCService);
         cliService.postInject();
         connectionContext = new ConnectionContext(SERVICEA, new InetSocketAddress(1), router);
     }
@@ -160,8 +170,11 @@ class CLIServiceTest extends GGServiceTestUtil {
         Topics mockRootTopics = mock(Topics.class);
         when(mockRootTopics.find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME))
                 .thenReturn(mockSocketUrlTopic);
+        when(mockRootTopics.find(SETENV_CONFIG_NAMESPACE, KERNEL_DOMAIN_SOCKET_FILEPATH))
+                .thenReturn(mockSocketUrlTopic);
         when(cliConfigSpy.getRoot()).thenReturn(mockRootTopics);
         cliService.startup();
+        verifyHandlersRegisteredForAllOperations();
         verify(authenticationHandler).registerAuthenticationTokenForExternalClient
                 (anyString(), startsWith("greengrass-cli-user"));
 
@@ -242,13 +255,24 @@ class CLIServiceTest extends GGServiceTestUtil {
         ipcInfo = OBJECT_MAPPER.readValue(Files.readAllBytes(authDir.resolve("group-456")), Map.class);
         assertEquals(MOCK_SOCKET_URL, ipcInfo.get(SOCKET_URL));
         assertEquals(MOCK_AUTH_TOKEN_2, ipcInfo.get(CLI_AUTH_TOKEN));
+        assertEquals(MOCK_SOCKET_URL, ipcInfo.get(DOMAIN_SOCKET_PATH));
+    }
+
+    private void verifyHandlersRegisteredForAllOperations() {
+        OperationContinuationHandlerContext mockContext = mock(OperationContinuationHandlerContext.class);
+        ArgumentCaptor<Function> argumentCaptor = ArgumentCaptor.forClass(Function.class);
+        verify(greengrassCoreIPCService).setGetComponentDetailsHandler(argumentCaptor.capture());
+        verify(greengrassCoreIPCService).setListComponentsHandler(argumentCaptor.capture());
+        argumentCaptor.getAllValues().stream().forEach(handler -> handler.apply(mockContext));
+        verify(cliEventStreamAgent).getGetComponentDetailsHandler(mockContext);
+        verify(cliEventStreamAgent).getListComponentsHandler(mockContext);
     }
 
     @Test
     void testDeploymentStatusChanged_calls() {
         Map<String, Object> deploymentDetails = new HashMap<>();
         cliService.deploymentStatusChanged(deploymentDetails);
-        verify(agent).persistLocalDeployment(cliConfigSpy, deploymentDetails);
+        verify(cliEventStreamAgent).persistLocalDeployment(cliConfigSpy, deploymentDetails);
     }
 
     @Test
