@@ -223,7 +223,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
 
         String customerAppStdout = stdouts.get(0);
-        assertThat(customerAppStdout, StringContains.containsString("This is a test"));
+        assertThat(customerAppStdout, containsString("This is a test"));
         assertThat(customerAppStdout, containsString("Value for /path/leafKey: default value of /path/leafKey."));
         assertThat(customerAppStdout, containsString("Value for /listKey/0: item1."));
         assertThat(customerAppStdout, containsString("Value for /newKey: {configuration:/newKey}"));
@@ -392,11 +392,11 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 .execution().statusDetails().detailsMap().get("error");
         assertThat(deploymentError, StringContains
                 .containsString("com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException"));
-        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("Mosquitto")));
+        assertThat(deploymentError, containsString(getTestComponentNameInCloud("Mosquitto")));
         assertThat(deploymentError,
-                StringContains.containsString(getTestComponentNameInCloud("SomeService") + "==1.0.0"));
+                containsString(getTestComponentNameInCloud("SomeService") + "==1.0.0"));
         assertThat(deploymentError,
-                StringContains.containsString(getTestComponentNameInCloud("SomeOldService") + "==0.9.0"));
+                containsString(getTestComponentNameInCloud("SomeOldService") + "==0.9.0"));
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)

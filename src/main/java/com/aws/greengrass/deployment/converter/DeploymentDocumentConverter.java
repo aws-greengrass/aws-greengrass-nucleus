@@ -81,6 +81,7 @@ public final class DeploymentDocumentConverter {
      * @param config config received from Iot cloud
      * @return equivalent {@link DeploymentDocument}
      */
+    @SuppressWarnings("PMD:NullAssignment") // this will be remove soon after switching to new createDeployment API
     public static DeploymentDocument convertFromFleetConfiguration(FleetConfiguration config) {
         ComponentUpdatePolicy componentUpdatePolicy =
                 new ComponentUpdatePolicy(config.getComponentUpdatePolicy().getTimeout(), ComponentUpdatePolicyAction
@@ -135,9 +136,12 @@ public final class DeploymentDocumentConverter {
             }
 
             deploymentDocument.getDeploymentPackageConfigurationList()
-                    .add(new DeploymentPackageConfiguration(pkgName, pkgInfo.isRootComponent(), pkgInfo.getVersion(),
-                                                            isConfigUpdate ? null : pkgInfo.getConfiguration(),
-                                                            isConfigUpdate ? configurationUpdateOperation : null));
+                    .add(isConfigUpdate ? new DeploymentPackageConfiguration(pkgName, pkgInfo.isRootComponent(),
+                                                                             pkgInfo.getVersion(),
+                                                                             configurationUpdateOperation)
+                                 : new DeploymentPackageConfiguration(pkgName, pkgInfo.isRootComponent(),
+                                                                      pkgInfo.getVersion(),
+                                                                      pkgInfo.getConfiguration()));
         }
         return deploymentDocument;
     }

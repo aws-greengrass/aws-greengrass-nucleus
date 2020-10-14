@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -248,7 +249,7 @@ class DeploymentDocumentConverterTest {
         assertNull(doc.getFailureHandlingPolicy());
         assertEquals(0L, doc.getTimestamp());
         assertThat(doc.getDeploymentPackageConfigurationList(),
-                   containsInAnyOrder(new DeploymentPackageConfiguration("pkgA", true, "1.0.0", null,
+                   containsInAnyOrder(new DeploymentPackageConfiguration("pkgA", true, "1.0.0", emptyMap(),
                                                                          configurationUpdateOperation),
                                       new DeploymentPackageConfiguration("pkgB", false, "1.1.0", configMapB)));
         assertThat(doc.getRootPackages(), containsInAnyOrder("pkgA"));
