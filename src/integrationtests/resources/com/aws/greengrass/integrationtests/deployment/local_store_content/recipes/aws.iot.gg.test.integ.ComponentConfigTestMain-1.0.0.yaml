@@ -1,0 +1,21 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: aws.iot.gg.test.integ.ComponentConfigTestMain
+ComponentDescription: This is a main that depends on aws.iot.gg.test.integ.ComponentConfigTestService-1.0.0.yaml
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+
+ComponentDependencies:
+  aws.iot.gg.test.integ.ComponentConfigTestService:
+    VersionRequirement: 1.0.0
+
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      run: >- ## Texts below are used for assertion in DeploymentTaskIntegrationTest and need to be changed together.
+        echo aws.iot.gg.test.integ.ComponentConfigTestMain output
+        Value for /singleLevelKey: {aws.iot.gg.test.integ.ComponentConfigTestService:configuration:/singleLevelKey}.
+        Value for /path/leafKey: {aws.iot.gg.test.integ.ComponentConfigTestService:configuration:/path/leafKey}.
+        Value for /listKey/0: {aws.iot.gg.test.integ.ComponentConfigTestService:configuration:/listKey/0}.
+        Value for /emptyStringKey: {aws.iot.gg.test.integ.ComponentConfigTestService:configuration:/emptyStringKey}.

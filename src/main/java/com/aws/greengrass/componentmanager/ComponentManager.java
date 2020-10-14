@@ -57,7 +57,6 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
-import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PRIVATE_SCOPE;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
 
 public class ComponentManager implements InjectionActions {
@@ -305,6 +304,9 @@ public class ComponentManager implements InjectionActions {
         }
     }
 
+    // With simplified dependency resolving logic, recipe should be available when resolveComponentVersion,
+    // and should be availble on device at this step.
+    @Deprecated
     private ComponentRecipe findRecipeDownloadIfNotExisted(ComponentIdentifier componentIdentifier)
             throws PackageDownloadException, PackageLoadingException {
         Optional<ComponentRecipe> packageOptional = Optional.empty();
@@ -347,36 +349,36 @@ public class ComponentManager implements InjectionActions {
                                 usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
             }
             ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
-            if (!downloader.downloadRequired(componentIdentifier, artifact, packageArtifactDirectory)) {
-                continue;
-            }
-            long downloadSize = downloader.getDownloadSize(componentIdentifier, artifact, packageArtifactDirectory);
-            long storeContentSize = componentStore.getContentSize();
-            if (storeContentSize + downloadSize > DEFAULT_MAX_STORE_SIZE_BYTES) {
-                throw new SizeLimitException(String.format(
-                        "Component store size limit reached: %d bytes existing, %d bytes needed,"
-                                + "%d bytes maximum allowed total", storeContentSize, downloadSize,
-                        DEFAULT_MAX_STORE_SIZE_BYTES));
-            }
 
-            File downloadedFile;
-            try {
-                downloadedFile = downloader.downloadToPath(componentIdentifier, artifact, packageArtifactDirectory);
-            } catch (IOException e) {
-                throw new PackageDownloadException(
-                        String.format("Failed to download package %s artifact %s", componentIdentifier, artifact), e);
+            if (downloader.downloadRequired(componentIdentifier, artifact, packageArtifactDirectory)) {
+                long downloadSize = downloader.getDownloadSize(componentIdentifier, artifact, packageArtifactDirectory);
+                long storeContentSize = componentStore.getContentSize();
+                if (storeContentSize + downloadSize > DEFAULT_MAX_STORE_SIZE_BYTES) {
+                    throw new SizeLimitException(String.format(
+                            "Component store size limit reached: %d bytes existing, %d bytes needed"
+                                    + ", %d bytes maximum allowed total", storeContentSize, downloadSize,
+                            DEFAULT_MAX_STORE_SIZE_BYTES));
+                }
+                try {
+                    downloader.downloadToPath(componentIdentifier, artifact, packageArtifactDirectory);
+                } catch (IOException e) {
+                    throw new PackageDownloadException(
+                            String.format("Failed to download package %s artifact %s", componentIdentifier, artifact),
+                            e);
+                }
             }
+            File artifactFile = downloader.getArtifactFile(packageArtifactDirectory, artifact, componentIdentifier);
 
             Unarchive unarchive = artifact.getUnarchive();
             if (unarchive == null) {
                 unarchive = Unarchive.NONE;
             }
 
-            if (downloadedFile != null && !unarchive.equals(Unarchive.NONE)) {
+            if (artifactFile != null && !unarchive.equals(Unarchive.NONE)) {
                 try {
                     Path unarchivePath = nucleusPaths.unarchiveArtifactPath(componentIdentifier,
-                            getFileName(downloadedFile));
-                    unarchiver.unarchive(unarchive, downloadedFile, unarchivePath);
+                            getFileName(artifactFile));
+                    unarchiver.unarchive(unarchive, artifactFile, unarchivePath);
                 } catch (IOException e) {
                     throw new PackageDownloadException(
                             String.format("Failed to unarchive package %s artifact %s", componentIdentifier, artifact),
@@ -404,7 +406,7 @@ public class ComponentManager implements InjectionActions {
             }
             for (String compVersion : removeVersions) {
                 componentStore
-                        .deleteComponent(new ComponentIdentifier(compName, new Semver(compVersion), PRIVATE_SCOPE));
+                        .deleteComponent(new ComponentIdentifier(compName, new Semver(compVersion)));
             }
         }
         logger.atInfo("cleanup-stale-versions-finish").log();

@@ -13,7 +13,7 @@ ComponentDependencies:
     DependencyType: Hard
 Manifests:
   - Platform:
-      os: macos
+      os: darwin
     Lifecycle:
       install:
         skipif: onpath git

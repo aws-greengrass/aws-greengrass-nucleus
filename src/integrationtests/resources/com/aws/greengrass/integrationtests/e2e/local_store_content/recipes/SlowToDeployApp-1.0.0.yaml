@@ -6,7 +6,7 @@ ComponentPublisher: Me
 ComponentVersion: '1.0.0'
 Manifests:
   - Platform:
-      os: macos
+      os: darwin
     Lifecycle:
       install: sleep 5
 

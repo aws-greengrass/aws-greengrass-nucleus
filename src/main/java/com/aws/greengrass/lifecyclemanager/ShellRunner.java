@@ -5,8 +5,10 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.ProxyUtils;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -29,6 +31,9 @@ public interface ShellRunner {
 
         @Inject
         NucleusPaths nucleusPaths;
+
+        @Inject
+        DeviceConfiguration deviceConfiguration;
 
         @Override
         public synchronized Exec setup(String note, String command, GreengrassService onBehalfOf) throws IOException {
@@ -54,6 +59,14 @@ public interface ShellRunner {
                         .setenv(TES_AUTH_HEADER,
                                 String.valueOf(onBehalfOf.getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
                                         .getOnce()))
+                        .setenv("HTTP_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                        .setenv("http_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                        .setenv("HTTPS_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                        .setenv("https_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                        .setenv("ALL_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                        .setenv("all_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                        .setenv("NO_PROXY", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration))
+                        .setenv("no_proxy", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration))
                         .cd(cwd.toFile().getAbsoluteFile())
                         .logger(onBehalfOf.logger);
             }

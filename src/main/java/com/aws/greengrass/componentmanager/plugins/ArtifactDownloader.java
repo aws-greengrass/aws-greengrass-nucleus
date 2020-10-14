@@ -55,6 +55,7 @@ public abstract class ArtifactDownloader {
             }
             logger.atDebug().setEventType("download-artifact").addKeyValue("packageIdentifier", componentIdentifier)
                     .addKeyValue("artifactUri", artifact.getArtifactUri()).log("Passed integrity check");
+            // TODO: Change permissions
         } catch (NoSuchAlgorithmException e) {
             throw new ArtifactChecksumMismatchException(
                     String.format(ARTIFACT_DOWNLOAD_EXCEPTION_FMT, artifact.getArtifactUri(),
@@ -143,13 +144,25 @@ public abstract class ArtifactDownloader {
      *
      * @param componentIdentifier package info
      * @param artifact artifact info
-     * @param saveToPath path of directory where the artifact is expected to exist
+     * @param artifactDir path of directory where the artifact is expected to exist
      * @return size of the artifact in bytes
      * @throws InvalidArtifactUriException if provided info results in invalid URI
      * @throws PackageDownloadException if error encountered
      */
     public abstract long getDownloadSize(ComponentIdentifier componentIdentifier, ComponentArtifact artifact,
-                                         Path saveToPath)
+                                         Path artifactDir)
             throws InvalidArtifactUriException, PackageDownloadException;
+
+    /**
+     * Get the artifact file.
+     *
+     * @param saveToPath          path of directory where the artifact is expected to exist
+     * @param artifact            artifact info
+     * @param componentIdentifier component info
+     * @return artifact file that was either downloaded or had been locally present
+     * @throws InvalidArtifactUriException if provided info results in invalid URI
+     */
+    public abstract File getArtifactFile(Path saveToPath, ComponentArtifact artifact,
+                                         ComponentIdentifier componentIdentifier) throws InvalidArtifactUriException;
 }
 

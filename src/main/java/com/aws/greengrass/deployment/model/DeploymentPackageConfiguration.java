@@ -16,8 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Class to represent a single package along with its dependencies
- * that comes in the deployment configuration.
+ * Class to represent a single package along with its dependencies that comes in the deployment configuration.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
@@ -46,21 +45,37 @@ public class DeploymentPackageConfiguration {
     private ConfigurationUpdateOperation configurationUpdateOperation;
 
     /**
-     * Constructor.
-     * @param packageName packageName
-     * @param rootComponent root
-     * @param resolvedVersion resolved
-     * @param configuration configuration. The field is being deprecated, and will be replaced by
-     *                      configurationUpdateOperation
+     * Constructor for no update configuration update for backward compatibility.
+     *
+     * @param packageName     name of package
+     * @param rootComponent   if it is root
+     * @param resolvedVersion resolved version
+     * @param configuration   configuration
      */
-    @Deprecated
     public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,
-                                          Map<String, Object> configuration) {
+            Map<String, Object> configuration) {
         this.packageName = packageName;
         this.rootComponent = rootComponent;
         this.resolvedVersion = resolvedVersion;
         this.configuration = configuration;
     }
+
+    /**
+     * Constructor for no legacy configuration.
+     *
+     * @param packageName     name of package
+     * @param rootComponent   if it is root
+     * @param resolvedVersion resolved version
+     * @param configurationUpdateOperation   configuration update
+     */
+    public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,
+            ConfigurationUpdateOperation configurationUpdateOperation) {
+        this.packageName = packageName;
+        this.rootComponent = rootComponent;
+        this.resolvedVersion = resolvedVersion;
+        this.configurationUpdateOperation = configurationUpdateOperation;
+    }
+
 
     /**
      * Constructor. Non provided fields are null.

@@ -9,7 +9,7 @@ ComponentDependencies:
     VersionRequirement: "=1.0.0"
 Manifests:
   - Platform:
-      os: macos
+      os: darwin
     Lifecycle:
       startup: echo "Hello this is mosquitto getting started"
       install: echo "Hello This is mosquitto being installed"

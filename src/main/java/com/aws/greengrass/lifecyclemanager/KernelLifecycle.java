@@ -116,6 +116,7 @@ public class KernelLifecycle {
         });
 
         kernel.writeEffectiveConfig();
+
         logger.atInfo().setEventType("system-start").addKeyValue("main", kernel.getMain()).log();
         startupAllServices();
     }

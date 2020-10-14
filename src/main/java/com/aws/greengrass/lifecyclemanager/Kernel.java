@@ -34,6 +34,7 @@ import com.aws.greengrass.util.DependencyOrder;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -518,8 +519,13 @@ public class Kernel {
         kernelCommandLine.parseArgs(args);
         config.lookupTopics(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         kernelLifecycle.initConfigAndTlog();
+        setupProxy();
         setupCloudEndpoint();
         return this;
+    }
+
+    private void setupProxy() {
+        ProxyUtils.setProxyProperties(context.get(DeviceConfiguration.class));
     }
 
     private void setupCloudEndpoint() {

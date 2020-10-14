@@ -67,7 +67,6 @@ import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
-import static com.aws.greengrass.componentmanager.models.ComponentIdentifier.PRIVATE_SCOPE;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -101,7 +100,6 @@ class ComponentManagerTest {
     private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
     private static final String ACTIVE_VERSION_STR = "2.0.0";
     private static final Semver ACTIVE_VERSION = new Semver(ACTIVE_VERSION_STR);
-    private static final String SCOPE = "private";
 
     private static final String DEPLOYMENT_CONFIGURATION_ID = "deploymentConfigurationId";
 
@@ -154,7 +152,7 @@ class ComponentManagerTest {
 
     @Test
     void GIVEN_artifact_list_empty_WHEN_attempt_download_artifact_THEN_do_nothing() throws Exception {
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
+        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
@@ -165,7 +163,7 @@ class ComponentManagerTest {
 
     @Test
     void GIVEN_artifact_from_gg_repo_WHEN_attempt_download_artifact_THEN_invoke_gg_downloader() throws Exception {
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
+        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
@@ -183,10 +181,11 @@ class ComponentManagerTest {
 
     @Test
     void GIVEN_artifact_from_gg_repo_WHEN_download_artifact_with_unarchive_THEN_calls_unarchiver() throws Exception {
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
+        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         when(artifactDownloader.downloadToPath(any(), any(), any())).thenReturn(new File("binary1"));
+        when(artifactDownloader.getArtifactFile(any(), any(), any())).thenReturn(new File("binary1"));
 
         componentManager.prepareArtifacts(pkgId,
                 Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null, null, Unarchive.ZIP),
@@ -199,7 +198,7 @@ class ComponentManagerTest {
 
     @Test
     void GIVEN_artifact_from_s3_WHEN_attempt_download_THEN_invoke_s3_downloader() throws Exception {
-        ComponentIdentifier pkgId = new ComponentIdentifier("SomeServiceWithArtifactsInS3", new Semver("1.0.0"), SCOPE);
+        ComponentIdentifier pkgId = new ComponentIdentifier("SomeServiceWithArtifactsInS3", new Semver("1.0.0"));
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
@@ -216,7 +215,7 @@ class ComponentManagerTest {
     @Test
     void GIVEN_artifact_provider_not_supported_WHEN_attempt_download_THEN_throw_package_exception()
             throws PackageLoadingException {
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
+        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
         Exception exception = assertThrows(PackageLoadingException.class, () -> componentManager.prepareArtifacts(pkgId,
@@ -227,7 +226,7 @@ class ComponentManagerTest {
     @Test
     void GIVEN_artifact_url_no_scheme_WHEN_attempt_download_THEN_throw_package_exception()
             throws PackageLoadingException {
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0" + ".0"), SCOPE);
+        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0" + ".0"));
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         Exception exception = assertThrows(PackageLoadingException.class, () -> componentManager.prepareArtifacts(pkgId,
@@ -237,7 +236,7 @@ class ComponentManagerTest {
 
     @Test
     void GIVEN_package_identifier_WHEN_request_to_prepare_package_THEN_task_succeed() throws Exception {
-        ComponentIdentifier pkgId = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"), SCOPE);
+        ComponentIdentifier pkgId = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"));
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
         String fileName = "MonitoringService-1.0.0.yaml";
@@ -265,7 +264,7 @@ class ComponentManagerTest {
     @Test
     void GIVEN_package_service_error_out_WHEN_request_to_prepare_package_THEN_task_error_out(ExtensionContext context)
             throws Exception {
-        ComponentIdentifier pkgId = new ComponentIdentifier("SomeService", new Semver("1.0.0"), SCOPE);
+        ComponentIdentifier pkgId = new ComponentIdentifier("SomeService", new Semver("1.0.0"));
         when(packageServiceHelper.downloadPackageRecipeAsString(any())).thenThrow(PackageDownloadException.class);
         ignoreExceptionUltimateCauseOfType(context, PackageDownloadException.class);
 
@@ -275,8 +274,8 @@ class ComponentManagerTest {
 
     @Test
     void GIVEN_prepare_packages_running_WHEN_prepare_cancelled_THEN_task_stops() throws Exception {
-        ComponentIdentifier pkgId1 = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"), SCOPE);
-        ComponentIdentifier pkgId2 = new ComponentIdentifier("CoolService", new Semver("1.0.0"), SCOPE);
+        ComponentIdentifier pkgId1 = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"));
+        ComponentIdentifier pkgId2 = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
 
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
@@ -545,7 +544,7 @@ class ComponentManagerTest {
     void GIVEN_component_WHEN_disk_space_critical_and_prepare_components_THEN_throws_exception(ExtensionContext context)
             throws Exception {
         // mock get recipe
-        ComponentIdentifier pkgId = new ComponentIdentifier("SimpleApp", new Semver("1.0.0"), SCOPE);
+        ComponentIdentifier pkgId = new ComponentIdentifier("SimpleApp", new Semver("1.0.0"));
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         String fileName = "SimpleApp-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
@@ -567,7 +566,7 @@ class ComponentManagerTest {
     void GIVEN_component_WHEN_component_store_full_and_prepare_components_THEN_throws_exception(ExtensionContext context)
             throws Exception {
         // mock get recipe
-        ComponentIdentifier pkgId = new ComponentIdentifier("SimpleApp", new Semver("1.0.0"), SCOPE);
+        ComponentIdentifier pkgId = new ComponentIdentifier("SimpleApp", new Semver("1.0.0"));
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         String fileName = "SimpleApp-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
@@ -619,11 +618,11 @@ class ComponentManagerTest {
 
         // THEN
         verify(componentStore, times(1)).deleteComponent(
-                new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("3.0.0"), PRIVATE_SCOPE));
+                new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("3.0.0")));
         verify(componentStore, times(1)).deleteComponent(
-                new ComponentIdentifier(anotherCompName, new Semver("1.0.0"), PRIVATE_SCOPE));
+                new ComponentIdentifier(anotherCompName, new Semver("1.0.0")));
         verify(componentStore, times(1)).deleteComponent(
-                new ComponentIdentifier(anotherCompName, new Semver("2.0.0"), PRIVATE_SCOPE));
+                new ComponentIdentifier(anotherCompName, new Semver("2.0.0")));
     }
 
     private static Map<String, String> getExpectedDependencies(Semver version) {
