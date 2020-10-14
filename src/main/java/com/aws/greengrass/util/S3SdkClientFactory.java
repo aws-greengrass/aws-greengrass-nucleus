@@ -41,7 +41,8 @@ public class S3SdkClientFactory {
             region = Region.of(Coerce.toString(deviceConfiguration.getAWSRegion()));
         }
         this.s3Client =
-                S3Client.builder().serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
+                S3Client.builder().httpClient(ProxyUtils.getSdkHttpClient())
+                        .serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
                         .credentialsProvider(credentialsProvider).region(region).build();
     }
 
@@ -53,6 +54,7 @@ public class S3SdkClientFactory {
      */
     public S3Client getClientForRegion(Region r) {
         return clientCache.computeIfAbsent(r, (region) -> S3Client.builder()
+                .httpClient(ProxyUtils.getSdkHttpClient())
                 .serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
                 .credentialsProvider(credentialsProvider).region(r).build());
     }
