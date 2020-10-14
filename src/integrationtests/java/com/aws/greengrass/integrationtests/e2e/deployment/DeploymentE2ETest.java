@@ -390,8 +390,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         String deploymentError = iotClient.describeJobExecution(
                 DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingInfo.getThingName()).build())
                 .execution().statusDetails().detailsMap().get("error");
-        assertThat(deploymentError, StringContains
-                .containsString("com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException"));
+        assertThat(deploymentError,
+                containsString("com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException"));
         assertThat(deploymentError, containsString(getTestComponentNameInCloud("Mosquitto")));
         assertThat(deploymentError,
                 containsString(getTestComponentNameInCloud("SomeService") + "==1.0.0"));
