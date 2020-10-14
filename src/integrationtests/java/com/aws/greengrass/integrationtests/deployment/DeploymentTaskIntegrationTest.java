@@ -540,12 +540,14 @@ class DeploymentTaskIntegrationTest {
     void GIVEN_a_deployment_with_dependency_has_config_WHEN_submitted_THEN_dependency_configs_are_interpolated()
             throws Exception {
         // Set up stdout listener to capture stdout for verify #2 interpolation
+        countDownLatch = new CountDownLatch(1);
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
             if (messageOnStdout != null && messageOnStdout.contains(
                     "aws.iot.gg.test.integ.ComponentConfigTestMain output")) {
+                countDownLatch.countDown();
                 stdouts.add(messageOnStdout);
             }
         };
