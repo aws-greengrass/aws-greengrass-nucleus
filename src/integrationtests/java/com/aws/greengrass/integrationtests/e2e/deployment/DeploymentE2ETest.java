@@ -14,7 +14,9 @@ import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.greengrass.integrationtests.e2e.util.IotJobsUtils;
@@ -32,7 +34,10 @@ import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import org.hamcrest.core.StringContains;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.hamcrest.collection.IsMapContaining;
+import org.hamcrest.collection.IsMapWithSize;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -50,10 +55,16 @@ import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
@@ -61,6 +72,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.StringContains.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -71,6 +83,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(GGExtension.class)
 @Tag("E2E")
 class DeploymentE2ETest extends BaseE2ETestCase {
+    private CountDownLatch stdoutCountdown;
 
 
     protected DeploymentE2ETest() throws Exception {
@@ -95,6 +108,9 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         // causing these tests to fail. There may be a race condition between DeploymentService startup logic and
         // creating new IoT job here.
         Thread.sleep(10_000);
+
+        DeploymentService deploymentService = (DeploymentService) kernel.locate(DEPLOYMENT_SERVICE_TOPICS);
+        deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
     }
 
 
@@ -160,23 +176,163 @@ class DeploymentE2ETest extends BaseE2ETestCase {
     @Test
     void GIVEN_target_service_has_dependencies_WHEN_deploys_target_service_THEN_service_and_dependencies_should_be_deployed()
             throws Exception {
-        // First Deployment to have some services running in Kernel which can be removed later
+
+        // Set up stdout listener to capture stdout for verify interpolation
+        List<String> stdouts = new CopyOnWriteArrayList<>();
+        Consumer<GreengrassLogMessage> listener = m -> {
+            Map<String, String> contexts = m.getContexts();
+            String messageOnStdout = contexts.get("stdout");
+            if (messageOnStdout != null && messageOnStdout.contains(
+                    "CustomerApp output.")) {
+                stdouts.add(messageOnStdout);
+                stdoutCountdown.countDown(); // countdown when received output to verify
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+
+        stdoutCountdown = new CountDownLatch(1);
+        // 1st Deployment to have some services running in Kernel with default configuration
         SetConfigurationRequest setRequest1 =
                 new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
                         .addPackagesEntry("CustomerApp",
-                                new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
-                                        .withConfiguration("{\"sampleText\":\"FCS integ test\"}"));
+                                new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
 
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
-                Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+                Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
         assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
-    }
 
+        // verify config in kernel
+        Map<String, Object> resultConfig = getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(
+                KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+
+        assertThat(resultConfig, IsMapWithSize.aMapWithSize(3));
+
+        assertThat(resultConfig, IsMapContaining.hasEntry("sampleText", "This is a test"));
+        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
+        assertThat(resultConfig, IsMapContaining.hasKey("path"));
+        assertThat((Map<String, String>) resultConfig.get("path"),
+                   IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
+
+        // verify stdout
+        assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
+
+        String customerAppStdout = stdouts.get(0);
+        assertThat(customerAppStdout, containsString("This is a test"));
+        assertThat(customerAppStdout, containsString("Value for /path/leafKey: default value of /path/leafKey."));
+        assertThat(customerAppStdout, containsString("Value for /listKey/0: item1."));
+        assertThat(customerAppStdout, containsString("Value for /newKey: {configuration:/newKey}"));
+
+        // reset countdown and stdouts
+        stdoutCountdown = new CountDownLatch(1);
+        stdouts.clear();
+
+        // 2nd deployment to merge
+        /*
+         * {
+         *   "MERGE": {
+         *     "sampleText": "updated value for sampleText",
+         *     "listKey": [
+         *       "item3"
+         *     ],
+         *     "path": {
+         *       "leafKey": "updated value of /path/leafKey"
+         *     }
+         *   }
+         * }
+         */
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode configUpdateInNode = mapper.createObjectNode();
+        ObjectNode mergeNode = configUpdateInNode.with("MERGE");
+        mergeNode.put("sampleText", "updated");
+        mergeNode.put("newKey", "updated");
+
+        mergeNode.withArray("listKey").add("item3");
+        mergeNode.with("path").put("leafKey", "updated");
+
+        String configUpdateJson = mapper.writeValueAsString(configUpdateInNode);
+
+        SetConfigurationRequest setRequest2 =
+                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                        .addPackagesEntry("CustomerApp",
+                                          new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
+                                                  .withConfiguration(configUpdateJson));
+
+        PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
+                                                        Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
+        assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
+
+        // verify config in kernel
+        resultConfig = getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(
+                KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+        assertThat(resultConfig, IsMapWithSize.aMapWithSize(4));
+
+        assertThat(resultConfig, IsMapContaining.hasEntry("sampleText", "updated"));
+        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
+        assertThat(resultConfig, IsMapContaining.hasKey("path"));
+        assertThat((Map<String, String>) resultConfig.get("path"),
+                   IsMapContaining.hasEntry("leafKey", "updated"));
+
+        // verify stdout
+        assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
+
+        customerAppStdout = stdouts.get(0);
+        assertThat(customerAppStdout, containsString("Value for /sampleText: updated"));
+        assertThat(customerAppStdout, containsString("Value for /path/leafKey: updated"));
+        assertThat(customerAppStdout, containsString("Value for /listKey/0: item3."));
+        assertThat(customerAppStdout, containsString("Value for /newKey: updated"));
+
+
+        // reset countdown and stdouts
+        stdoutCountdown = new CountDownLatch(1);
+        stdouts.clear();
+
+        // 3rd deployment to reset
+        SetConfigurationRequest setRequest3 =
+                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                        .addPackagesEntry("CustomerApp",
+                                          new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
+                                                  .withConfiguration("{\"RESET\": [\"/sampleText\", \"/path\"]}"));
+
+        PublishConfigurationResult publishResult3 = setAndPublishFleetConfiguration(setRequest3);
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult3.getJobId(), thingInfo.getThingName(),
+                                                        Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
+        assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
+
+        // verify config in kernel
+        resultConfig = getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(
+                KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+        assertThat(resultConfig, IsMapWithSize.aMapWithSize(4));
+
+        assertThat(resultConfig, IsMapContaining.hasEntry("sampleText", "This is a test"));
+        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
+        assertThat(resultConfig, IsMapContaining.hasKey("path"));
+        assertThat((Map<String, String>) resultConfig.get("path"),
+                   IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
+
+        // verify stdout
+        assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
+
+        customerAppStdout = stdouts.get(0);
+        assertThat(customerAppStdout, containsString("Value for /sampleText: This is a test"));
+        assertThat(customerAppStdout, containsString("Value for /path/leafKey: default value of /path/leafKey"));
+        assertThat(customerAppStdout, containsString("Value for /listKey/0: item3."));
+        assertThat(customerAppStdout, containsString("Value for /newKey: updated"));
+
+        // cleanup
+        Slf4jLogAdapter.removeGlobalListener(listener);
+    }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
@@ -233,13 +389,13 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         String deploymentError = iotClient.describeJobExecution(
                 DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingInfo.getThingName()).build())
                 .execution().statusDetails().detailsMap().get("error");
-        assertThat(deploymentError, StringContains
-                .containsString("com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException"));
-        assertThat(deploymentError, StringContains.containsString(getTestComponentNameInCloud("Mosquitto")));
         assertThat(deploymentError,
-                StringContains.containsString(getTestComponentNameInCloud("SomeService") + "==1.0.0"));
+                containsString("com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException"));
+        assertThat(deploymentError, containsString(getTestComponentNameInCloud("Mosquitto")));
         assertThat(deploymentError,
-                StringContains.containsString(getTestComponentNameInCloud("SomeOldService") + "==0.9.0"));
+                containsString(getTestComponentNameInCloud("SomeService") + "==1.0.0"));
+        assertThat(deploymentError,
+                containsString(getTestComponentNameInCloud("SomeOldService") + "==0.9.0"));
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)

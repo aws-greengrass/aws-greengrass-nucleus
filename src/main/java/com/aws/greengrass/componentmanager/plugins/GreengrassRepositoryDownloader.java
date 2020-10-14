@@ -146,7 +146,6 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     getArtifactDownloadURL(componentIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
             URL url = new URL(preSignedUrl);
             HttpURLConnection conn = connect(url);
-            conn.setRequestMethod("HEAD");
             long length = conn.getContentLengthLong();
             if (length == -1) {
                 throw new PackageDownloadException("Failed to get download size");
