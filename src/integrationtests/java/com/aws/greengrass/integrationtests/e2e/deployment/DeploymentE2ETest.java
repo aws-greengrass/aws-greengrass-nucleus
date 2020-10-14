@@ -38,7 +38,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.hamcrest.collection.IsMapContaining;
 import org.hamcrest.collection.IsMapWithSize;
-import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;

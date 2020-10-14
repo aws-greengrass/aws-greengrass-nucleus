@@ -26,6 +26,7 @@ import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.easysetup.DeviceProvisioningHelper;
 import com.aws.greengrass.integrationtests.e2e.util.IotJobsUtils;
@@ -74,6 +75,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -85,6 +87,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.STAGE_TO_ENDPOINT_FORMAT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -222,6 +225,10 @@ public class BaseE2ETestCase implements AutoCloseable {
                 , "-es", envStage.toString());
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString());
         setupTesRoleAndAlias();
+
+        // setting deployment feq to 1 sec to reduce testing time
+        DeploymentService deploymentService = (DeploymentService) kernel.locate(DEPLOYMENT_SERVICE_TOPICS);
+        deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
     }
 
     private static void initializePackageStore() throws Exception {
