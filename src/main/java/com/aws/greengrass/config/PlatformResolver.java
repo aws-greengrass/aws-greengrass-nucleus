@@ -24,8 +24,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.amazon.aws.iot.greengrass.component.common.PlatformHelper.findMoreSpecificOS;
-
 @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
 public final class PlatformResolver {
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
@@ -129,19 +127,12 @@ public final class PlatformResolver {
         // TODO: use UNRECOGNIZED instead.
         OS currentOS = OS.ALL;
         String sysver = Exec.sh("uname -a").toLowerCase();
-        String osNameFromSysProperty = System.getProperty("os.name").toLowerCase();
 
-        if (Files.exists(Paths.get("/bin/sh")) || Files.exists(Paths.get("/usr/bin/sh"))) {
-            currentOS = findMoreSpecificOS(currentOS, OS.UNIX);
-        }
         if (sysver.contains("darwin")) {
-            currentOS = findMoreSpecificOS(currentOS, OS.DARWIN);
-        }
-        if (osNameFromSysProperty.replaceAll("\\s","").contains("macos")) {
-            currentOS = findMoreSpecificOS(currentOS, OS.MAC_OS);
+            currentOS = OS.DARWIN;
         }
         if (Files.exists(Paths.get("/proc"))) {
-            currentOS = findMoreSpecificOS(currentOS, OS.LINUX);
+            currentOS = OS.LINUX;
         }
 
         /*
