@@ -154,14 +154,13 @@ public abstract class ArtifactDownloader {
             throws InvalidArtifactUriException, PackageDownloadException;
 
     /**
-     * Get the download size of an artifact file.
+     * Get the artifact file.
      *
-     * @param saveToPath path of directory where the artifact is expected to exist
-     * @param artifact artifact info
+     * @param saveToPath          path of directory where the artifact is expected to exist
+     * @param artifact            artifact info
      * @param componentIdentifier component info
      * @return artifact file that was either downloaded or had been locally present
      * @throws InvalidArtifactUriException if provided info results in invalid URI
-     * @throws PackageDownloadException if error encountered
      */
     public abstract File getArtifactFile(Path saveToPath, ComponentArtifact artifact,
                                          ComponentIdentifier componentIdentifier) throws InvalidArtifactUriException;

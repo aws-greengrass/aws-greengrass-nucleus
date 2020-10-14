@@ -73,7 +73,7 @@ class ComponentManagerIntegTest extends BaseITCase {
         kernel.getContext()
               .get(ComponentManager.class)
               .preparePackages(Collections.singletonList(ident))
-              .get(1000000, TimeUnit.SECONDS);
+              .get(10, TimeUnit.SECONDS);
 
         Path zipPath = nucleusPaths.unarchiveArtifactPath(ident, "zip");
         assertThat(zipPath.toFile(), anExistingDirectory());
