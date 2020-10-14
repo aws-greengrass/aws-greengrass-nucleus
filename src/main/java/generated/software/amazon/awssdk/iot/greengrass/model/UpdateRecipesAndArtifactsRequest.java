@@ -6,9 +6,9 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.Objects;
 import java.util.Optional;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 
-public class UpdateRecipesAndArtifactsRequest implements EventStreamableJsonMessage {
+public class UpdateRecipesAndArtifactsRequest implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#UpdateRecipesAndArtifactsRequest";
 
   public static final UpdateRecipesAndArtifactsRequest VOID;

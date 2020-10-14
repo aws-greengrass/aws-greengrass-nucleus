@@ -11,6 +11,7 @@ import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
+import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCServiceModel;
 import lombok.NoArgsConstructor;
 import software.amazon.awssdk.crt.eventstream.Header;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
@@ -67,7 +68,8 @@ public class IPCEventStreamService implements Startable, Closeable {
     public void startup() {
         greengrassCoreIPCService.getAllOperations().forEach(operation -> {
             greengrassCoreIPCService.setOperationHandler(operation,
-                    (context) -> new DebugLoggingOperationHandler(operation, context));
+                    (context) -> new DebugLoggingOperationHandler(GreengrassCoreIPCServiceModel.getInstance()
+                            .getOperationModelContext(operation), context));
         });
         greengrassCoreIPCService.setAuthenticationHandler(
                 (List<Header> headers, byte[] bytes) -> ipcAuthenticationHandler(headers, bytes));

@@ -8,9 +8,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 
-public class ComponentUpdatePolicyEvents implements EventStreamableJsonMessage {
+public class ComponentUpdatePolicyEvents implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ComponentUpdatePolicyEvents";
 
   private transient UnionMember setUnionMember;
@@ -84,6 +84,11 @@ public class ComponentUpdatePolicyEvents implements EventStreamableJsonMessage {
   }
 
   @Override
+  public void postFromJson() {
+    selfDesignateSetUnionMember();
+  }
+
+  @Override
   public boolean equals(Object rhs) {
     if (rhs == null) return false;
     if (!(rhs instanceof ComponentUpdatePolicyEvents)) return false;
@@ -102,9 +107,9 @@ public class ComponentUpdatePolicyEvents implements EventStreamableJsonMessage {
   }
 
   public enum UnionMember {
-    PRE_UPDATE_EVENT("PRE_UPDATE_EVENT", (ComponentUpdatePolicyEvents obj) -> obj.preUpdateEvent = Optional.empty(), (ComponentUpdatePolicyEvents obj) -> obj.preUpdateEvent != null && !obj.preUpdateEvent.isPresent()),
+    PRE_UPDATE_EVENT("PRE_UPDATE_EVENT", (ComponentUpdatePolicyEvents obj) -> obj.preUpdateEvent = Optional.empty(), (ComponentUpdatePolicyEvents obj) -> obj.preUpdateEvent != null && obj.preUpdateEvent.isPresent()),
 
-    POST_UPDATE_EVENT("POST_UPDATE_EVENT", (ComponentUpdatePolicyEvents obj) -> obj.postUpdateEvent = Optional.empty(), (ComponentUpdatePolicyEvents obj) -> obj.postUpdateEvent != null && !obj.postUpdateEvent.isPresent());
+    POST_UPDATE_EVENT("POST_UPDATE_EVENT", (ComponentUpdatePolicyEvents obj) -> obj.postUpdateEvent = Optional.empty(), (ComponentUpdatePolicyEvents obj) -> obj.postUpdateEvent != null && obj.postUpdateEvent.isPresent());
 
     private String fieldName;
 

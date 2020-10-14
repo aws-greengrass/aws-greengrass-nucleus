@@ -1,14 +1,15 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import com.google.gson.Gson;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import java.util.Objects;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 
-/**
- * Auto-generated empty model type
- */
-public final class UpdateStateResponse implements EventStreamableJsonMessage {
+public final class UpdateStateResponse implements EventStreamJsonMessage {
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#UpdateStateResponse";
+
   @Override
   public byte[] toPayload(final Gson gson) {
     return gson.toJson(this).getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -16,6 +17,22 @@ public final class UpdateStateResponse implements EventStreamableJsonMessage {
 
   @Override
   public String getApplicationModelType() {
-    return "aws.greengrass#UpdateStateResponse";
+    return APPLICATION_MODEL_TYPE;
+  }
+
+  @Override
+  public boolean isVoid() {
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(UpdateStateResponse.class);
+  }
+
+  @Override
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    return (rhs instanceof UpdateStateResponse);
   }
 }

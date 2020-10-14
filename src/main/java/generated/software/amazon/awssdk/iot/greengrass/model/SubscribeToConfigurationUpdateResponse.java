@@ -4,9 +4,9 @@ import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Objects;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 
-public class SubscribeToConfigurationUpdateResponse implements EventStreamableJsonMessage {
+public class SubscribeToConfigurationUpdateResponse implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#SubscribeToConfigurationUpdateResponse";
 
   public static final SubscribeToConfigurationUpdateResponse VOID;

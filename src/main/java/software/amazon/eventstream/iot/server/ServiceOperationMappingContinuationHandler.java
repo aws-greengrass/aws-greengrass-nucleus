@@ -57,7 +57,7 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
      * @param payload
      */
     protected void onConnectRequest(List<Header> headers, byte[] payload) {
-        int responseMessageFlag = 0;
+        final int[] responseMessageFlag = { 0 };
         MessageType acceptResponseType = MessageType.ConnectAck;
 
         final AuthenticationHandler authentication = serviceHandler.getAuthenticationHandler();
@@ -82,7 +82,7 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
             switch (authorizationDecision) {
                 case ACCEPT:
                     LOGGER.info("Connection accepted for " + authenticationData.getIdentityLabel());
-                    responseMessageFlag = MessageFlags.ConnectionAccepted.getByteValue();
+                    responseMessageFlag[0] = MessageFlags.ConnectionAccepted.getByteValue();
                     break;
                 case REJECT:
                     LOGGER.info("Connection rejected for: " + authenticationData.getIdentityLabel());
@@ -96,7 +96,8 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
             LOGGER.severe(String.format("%s occurred while attempting to authN/authZ connect: %s", e.getClass(), e.getMessage()));
         }
         finally {
-            connection.sendProtocolMessage(null, null, acceptResponseType, responseMessageFlag)
+            LOGGER.info("Sending connect response for " + authenticationData.getIdentityLabel());
+            connection.sendProtocolMessage(null, null, acceptResponseType, responseMessageFlag[0])
                 .whenComplete((res, ex) -> {
                     if (ex != null) {
                         LOGGER.severe(String.format("Sending connection response for %s threw exception (%s): %s",
@@ -105,11 +106,11 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                     else {
                         LOGGER.info("Successfully sent connection response for: " + authenticationData.getIdentityLabel());
                     }
+                    if (responseMessageFlag[0] != MessageFlags.ConnectionAccepted.getByteValue()) {
+                        LOGGER.info("Closing connection due to connection not being accepted...");
+                        connection.closeConnection(0);  //TODO: presuming zero means no shutdown error
+                    }
                 });
-
-            if (responseMessageFlag != MessageFlags.ConnectionAccepted.getByteValue()) {
-                connection.closeConnection(0);  //TODO: presuming zero means no shutdown error
-            }
         }
     }
 

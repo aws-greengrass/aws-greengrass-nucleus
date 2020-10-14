@@ -24,7 +24,7 @@ import generated.software.amazon.awssdk.iot.greengrass.model.UpdateStateResponse
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
 import software.amazon.eventstream.iot.server.ServerStreamEventPublisher;
 
@@ -110,9 +110,10 @@ public class LifecycleIPCEventStreamAgent {
         }
 
         @Override
-        public void handleStreamEvent(EventStreamableJsonMessage streamRequestEvent) {
-            // NA
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
+
         }
+
     }
 
 
@@ -157,9 +158,10 @@ public class LifecycleIPCEventStreamAgent {
         }
 
         @Override
-        public void handleStreamEvent(EventStreamableJsonMessage streamRequestEvent) {
-            // NA
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
+
         }
+
     }
 
     class DeferComponentUpdateHandler extends GeneratedAbstractDeferComponentUpdateOperationHandler {
@@ -196,8 +198,8 @@ public class LifecycleIPCEventStreamAgent {
         }
 
         @Override
-        public void handleStreamEvent(EventStreamableJsonMessage streamRequestEvent) {
-            // NA
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
+
         }
     }
 

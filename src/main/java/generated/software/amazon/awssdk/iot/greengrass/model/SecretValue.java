@@ -8,9 +8,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 
-public class SecretValue implements EventStreamableJsonMessage {
+public class SecretValue implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#SecretValue";
 
   private transient UnionMember setUnionMember;
@@ -84,6 +84,11 @@ public class SecretValue implements EventStreamableJsonMessage {
   }
 
   @Override
+  public void postFromJson() {
+    selfDesignateSetUnionMember();
+  }
+
+  @Override
   public boolean equals(Object rhs) {
     if (rhs == null) return false;
     if (!(rhs instanceof SecretValue)) return false;
@@ -102,9 +107,9 @@ public class SecretValue implements EventStreamableJsonMessage {
   }
 
   public enum UnionMember {
-    SECRET_STRING("SECRET_STRING", (SecretValue obj) -> obj.secretString = Optional.empty(), (SecretValue obj) -> obj.secretString != null && !obj.secretString.isPresent()),
+    SECRET_STRING("SECRET_STRING", (SecretValue obj) -> obj.secretString = Optional.empty(), (SecretValue obj) -> obj.secretString != null && obj.secretString.isPresent()),
 
-    SECRET_BINARY("SECRET_BINARY", (SecretValue obj) -> obj.secretBinary = Optional.empty(), (SecretValue obj) -> obj.secretBinary != null && !obj.secretBinary.isPresent());
+    SECRET_BINARY("SECRET_BINARY", (SecretValue obj) -> obj.secretBinary = Optional.empty(), (SecretValue obj) -> obj.secretBinary != null && obj.secretBinary.isPresent());
 
     private String fieldName;
 

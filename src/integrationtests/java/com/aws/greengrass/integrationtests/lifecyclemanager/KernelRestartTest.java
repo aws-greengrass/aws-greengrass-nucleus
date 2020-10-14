@@ -51,12 +51,12 @@ class KernelRestartTest extends BaseITCase {
         assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(kernel.locate("service_2").getConfig().find("setenv", "key1").getOnce(), is(equalTo("value1")));
-
+        System.out.println("Started the server");
         kernel.shutdown();
-
+        System.out.println("Stopped the server");
         // WHEN
         kernel = new Kernel().parseArgs().launch();
-
+        System.out.println("Restarting the server");
         // THEN
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED)));

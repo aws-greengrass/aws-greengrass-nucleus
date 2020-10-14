@@ -8,9 +8,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 
-public class ConfigurationUpdateEvents implements EventStreamableJsonMessage {
+public class ConfigurationUpdateEvents implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ConfigurationUpdateEvents";
 
   private transient UnionMember setUnionMember;
@@ -65,6 +65,11 @@ public class ConfigurationUpdateEvents implements EventStreamableJsonMessage {
   }
 
   @Override
+  public void postFromJson() {
+    selfDesignateSetUnionMember();
+  }
+
+  @Override
   public boolean equals(Object rhs) {
     if (rhs == null) return false;
     if (!(rhs instanceof ConfigurationUpdateEvents)) return false;
@@ -82,7 +87,7 @@ public class ConfigurationUpdateEvents implements EventStreamableJsonMessage {
   }
 
   public enum UnionMember {
-    CONFIGURATION_UPDATE_EVENT("CONFIGURATION_UPDATE_EVENT", (ConfigurationUpdateEvents obj) -> obj.configurationUpdateEvent = Optional.empty(), (ConfigurationUpdateEvents obj) -> obj.configurationUpdateEvent != null && !obj.configurationUpdateEvent.isPresent());
+    CONFIGURATION_UPDATE_EVENT("CONFIGURATION_UPDATE_EVENT", (ConfigurationUpdateEvents obj) -> obj.configurationUpdateEvent = Optional.empty(), (ConfigurationUpdateEvents obj) -> obj.configurationUpdateEvent != null && obj.configurationUpdateEvent.isPresent());
 
     private String fieldName;
 

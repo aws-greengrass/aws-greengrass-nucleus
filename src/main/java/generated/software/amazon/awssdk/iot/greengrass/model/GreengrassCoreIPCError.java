@@ -1,10 +1,10 @@
 package generated.software.amazon.awssdk.iot.greengrass.model;
 
 import java.lang.String;
-import software.amazon.eventstream.iot.EventStreamOperationError;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamOperationError;
 
-public abstract class GreengrassCoreIPCError extends EventStreamOperationError implements EventStreamableJsonMessage {
+public abstract class GreengrassCoreIPCError extends EventStreamOperationError implements EventStreamJsonMessage {
   GreengrassCoreIPCError(String errorCode, String errorMessage) {
     super("aws.greengrass#GreengrassCoreIPC", errorCode, errorMessage);
   }

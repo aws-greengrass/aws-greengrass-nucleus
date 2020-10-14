@@ -23,6 +23,7 @@
             <Package name="generated.software.amazon.awssdk.iot.greengrass.model"/>
             <Package name="software.amazon.eventstream.iot"/>
             <Package name="software.amazon.eventstream.iot.server"/>
+            <Package name="software.amazon.eventstream.iot.client"/>
         </Or>
     </Match>
 </FindBugsFilter>
