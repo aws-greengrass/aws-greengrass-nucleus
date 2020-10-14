@@ -90,6 +90,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.io.FileMatchers.anExistingDirectory;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -326,14 +327,6 @@ class DeploymentTaskIntegrationTest {
         // 1. The component's configurations are updated correctly in the kernel's config store
         // 2. The interpolation is correct by taking the newly updated configuration, that is consistent
 
-//        List<CountDownLatch> countDownLatches = new ArrayList<>();
-
-//        for (int i=0; i < 5; i++) {
-//             5 deployments and each need a countdown
-//            countDownLatches.add(new CountDownLatch(1));
-//        }
-
-
         // Set up stdout listener to capture stdout for verify #2 interpolation
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
@@ -378,7 +371,6 @@ class DeploymentTaskIntegrationTest {
                 .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY)
                 .toPOJO();
 
-        countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
         // Asserted values can be found in ComponentConfigTest_DeployDocument_2.json
         assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
         assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
@@ -396,6 +388,9 @@ class DeploymentTaskIntegrationTest {
         assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
 
         // verify interpolation result
+        assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+        String stdout = stdouts.get(0);
+
         assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: updated value of singleLevelKey."));
         assertTrue(stdouts.get(0).contains("Value for /path/leafKey: updated value of /path/leafKey."));
         assertTrue(stdouts.get(0).contains("Value for /listKey/0: item3."));
@@ -436,13 +431,15 @@ class DeploymentTaskIntegrationTest {
         assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(2));  // no more keys
 
         // verify interpolation result
-        countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
-        assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: updated value of singleLevelKey."));
-        assertTrue(stdouts.get(0).contains("Value for /path/leafKey: updated value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains("Value for /listKey/0: item3."));
-        assertTrue(stdouts.get(0).contains("Value for /emptyStringKey: ."));
-        assertTrue(stdouts.get(0).contains("Value for /defaultIsNullKey: updated value of defaultIsNullKey."));
-        assertTrue(stdouts.get(0).contains("Value for /newSingleLevelKey: value of newSingleLevelKey."));
+        assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+        stdout = stdouts.get(0);
+
+        assertThat(stdout, containsString("Value for /singleLevelKey: updated value of singleLevelKey."));
+        assertThat(stdout, containsString("Value for /path/leafKey: updated value of /path/leafKey."));
+        assertThat(stdout, containsString("Value for /listKey/0: item3."));
+        assertThat(stdout, containsString("Value for /emptyStringKey: ."));
+        assertThat(stdout, containsString("Value for /defaultIsNullKey: updated value of defaultIsNullKey."));
+        assertThat(stdout, containsString("Value for /newSingleLevelKey: value of newSingleLevelKey."));
         stdouts.clear();
 
         /*
@@ -479,13 +476,15 @@ class DeploymentTaskIntegrationTest {
         assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
 
         // verify interpolation result
-        countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
-        assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: updated value of singleLevelKey."));
-        assertTrue(stdouts.get(0).contains("Value for /path/leafKey: updated value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains("Value for /listKey/0: item1."));
-        assertTrue(stdouts.get(0).contains("Value for /emptyStringKey: ."));
-        assertTrue(stdouts.get(0).contains("Value for /defaultIsNullKey: updated value of defaultIsNullKey."));
-        assertTrue(stdouts.get(0).contains("Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
+        assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+        stdout = stdouts.get(0);
+
+        assertThat(stdout, containsString("Value for /singleLevelKey: updated value of singleLevelKey."));
+        assertThat(stdout, containsString("Value for /path/leafKey: updated value of /path/leafKey."));
+        assertThat(stdout, containsString("Value for /listKey/0: item1."));
+        assertThat(stdout, containsString("Value for /emptyStringKey: ."));
+        assertThat(stdout, containsString("Value for /defaultIsNullKey: updated value of defaultIsNullKey."));
+        assertThat(stdout, containsString("Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
         stdouts.clear();
 
         // 5th RESET entirely to default
@@ -522,15 +521,17 @@ class DeploymentTaskIntegrationTest {
                    IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
         // verify interpolation result
-        countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
-        assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: default value of singleLevelKey."));
-        assertTrue(stdouts.get(0).contains("Value for /path/leafKey: default value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains("Value for /path: {\"leafKey\":\"default value of /path/leafKey\"}"));
+        assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+        String stdout = stdouts.get(0);
 
-        assertTrue(stdouts.get(0).contains("Value for /listKey/0: item1."));
-        assertTrue(stdouts.get(0).contains("Value for /defaultIsNullKey: null"));
-        assertTrue(stdouts.get(0).contains("Value for /emptyStringKey: ."));
-        assertTrue(stdouts.get(0).contains("Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
+        assertThat(stdout, containsString("Value for /singleLevelKey: default value of singleLevelKey."));
+        assertThat(stdout, containsString("Value for /path/leafKey: default value of /path/leafKey."));
+        assertThat(stdout, containsString("Value for /path: {\"leafKey\":\"default value of /path/leafKey\"}"));
+
+        assertThat(stdout, containsString("Value for /listKey/0: item1."));
+        assertThat(stdout, containsString("Value for /defaultIsNullKey: null"));
+        assertThat(stdout, containsString("Value for /emptyStringKey: ."));
+        assertThat(stdout, containsString("Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
         stdouts.clear();
     }
 
@@ -539,12 +540,14 @@ class DeploymentTaskIntegrationTest {
     void GIVEN_a_deployment_with_dependency_has_config_WHEN_submitted_THEN_dependency_configs_are_interpolated()
             throws Exception {
         // Set up stdout listener to capture stdout for verify #2 interpolation
+        countDownLatch = new CountDownLatch(1);
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
             if (messageOnStdout != null && messageOnStdout.contains(
                     "aws.iot.gg.test.integ.ComponentConfigTestMain output")) {
+                countDownLatch.countDown();
                 stdouts.add(messageOnStdout);
             }
         };
@@ -560,10 +563,12 @@ class DeploymentTaskIntegrationTest {
         resultFuture.get(10, TimeUnit.SECONDS);
 
         // verify interpolation result
-        assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: default value of singleLevelKey."));
-        assertTrue(stdouts.get(0).contains("Value for /path/leafKey: default value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains("Value for /listKey/0: item1."));
-        assertTrue(stdouts.get(0).contains("Value for /emptyStringKey: ."));
+        assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+        String stdout = stdouts.get(0);
+        assertThat(stdout, containsString("Value for /singleLevelKey: default value of singleLevelKey."));
+        assertThat(stdout, containsString("Value for /path/leafKey: default value of /path/leafKey."));
+        assertThat(stdout, containsString("Value for /listKey/0: item1."));
+        assertThat(stdout, containsString("Value for /emptyStringKey: ."));
 
         Slf4jLogAdapter.removeGlobalListener(listener);
     }
