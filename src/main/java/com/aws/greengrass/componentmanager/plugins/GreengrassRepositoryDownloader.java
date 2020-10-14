@@ -125,6 +125,10 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     .addKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, componentIdentifier)
                     .addKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
                     .log("Failed to download artifact, but found it locally, using that version", e);
+            // TODO : In the download from cloud step we rely on the content-disposition header to get the
+            //  file name and that's the accurate name, but here we're only using the scheme specific part
+            //  of the URI when we don't find the file in cloud, we need to follow up on what is the
+            //  right way to get file name
             return saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
         }
         return null;
@@ -151,6 +155,15 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         } catch (IOException e) {
             throw new PackageDownloadException("Failed to get download size", e);
         }
+    }
+
+    @Override
+    public File getArtifactFile(Path artifactDir, ComponentArtifact artifact, ComponentIdentifier componentIdentifier) {
+        // TODO : In the download from cloud step we rely on the content-disposition header to get the
+        //  file name and that's the accurate name, but here we're only using the scheme specific part
+        //  of the URI when we don't find the file in cloud, we need to follow up on what is the
+        //  right way to get file name
+        return artifactDir.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
     }
 
     HttpURLConnection connect(URL url) throws IOException {

@@ -349,36 +349,36 @@ public class ComponentManager implements InjectionActions {
                                 usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
             }
             ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
-            if (!downloader.downloadRequired(componentIdentifier, artifact, packageArtifactDirectory)) {
-                continue;
-            }
-            long downloadSize = downloader.getDownloadSize(componentIdentifier, artifact, packageArtifactDirectory);
-            long storeContentSize = componentStore.getContentSize();
-            if (storeContentSize + downloadSize > DEFAULT_MAX_STORE_SIZE_BYTES) {
-                throw new SizeLimitException(String.format(
-                        "Component store size limit reached: %d bytes existing, %d bytes needed,"
-                                + "%d bytes maximum allowed total", storeContentSize, downloadSize,
-                        DEFAULT_MAX_STORE_SIZE_BYTES));
-            }
 
-            File downloadedFile;
-            try {
-                downloadedFile = downloader.downloadToPath(componentIdentifier, artifact, packageArtifactDirectory);
-            } catch (IOException e) {
-                throw new PackageDownloadException(
-                        String.format("Failed to download package %s artifact %s", componentIdentifier, artifact), e);
+            if (downloader.downloadRequired(componentIdentifier, artifact, packageArtifactDirectory)) {
+                long downloadSize = downloader.getDownloadSize(componentIdentifier, artifact, packageArtifactDirectory);
+                long storeContentSize = componentStore.getContentSize();
+                if (storeContentSize + downloadSize > DEFAULT_MAX_STORE_SIZE_BYTES) {
+                    throw new SizeLimitException(String.format(
+                            "Component store size limit reached: %d bytes existing, %d bytes needed,"
+                                    + "%d bytes maximum allowed total", storeContentSize, downloadSize,
+                            DEFAULT_MAX_STORE_SIZE_BYTES));
+                }
+                try {
+                    downloader.downloadToPath(componentIdentifier, artifact, packageArtifactDirectory);
+                } catch (IOException e) {
+                    throw new PackageDownloadException(
+                            String.format("Failed to download package %s artifact %s", componentIdentifier, artifact),
+                            e);
+                }
             }
+            File artifactFile = downloader.getArtifactFile(packageArtifactDirectory, artifact, componentIdentifier);
 
             Unarchive unarchive = artifact.getUnarchive();
             if (unarchive == null) {
                 unarchive = Unarchive.NONE;
             }
 
-            if (downloadedFile != null && !unarchive.equals(Unarchive.NONE)) {
+            if (artifactFile != null && !unarchive.equals(Unarchive.NONE)) {
                 try {
                     Path unarchivePath = nucleusPaths.unarchiveArtifactPath(componentIdentifier,
-                            getFileName(downloadedFile));
-                    unarchiver.unarchive(unarchive, downloadedFile, unarchivePath);
+                            getFileName(artifactFile));
+                    unarchiver.unarchive(unarchive, artifactFile, unarchivePath);
                 } catch (IOException e) {
                     throw new PackageDownloadException(
                             String.format("Failed to unarchive package %s artifact %s", componentIdentifier, artifact),
