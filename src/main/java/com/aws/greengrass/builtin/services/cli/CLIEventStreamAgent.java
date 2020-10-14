@@ -57,7 +57,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
 
 import java.io.IOException;
@@ -194,7 +194,7 @@ public class CLIEventStreamAgent {
         }
 
         @Override
-        public void handleStreamEvent(EventStreamableJsonMessage streamRequestEvent) {
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
 
         }
 
@@ -241,7 +241,7 @@ public class CLIEventStreamAgent {
         }
 
         @Override
-        public void handleStreamEvent(EventStreamableJsonMessage streamRequestEvent) {
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
 
         }
     }
@@ -283,7 +283,7 @@ public class CLIEventStreamAgent {
         }
 
         @Override
-        public void handleStreamEvent(EventStreamableJsonMessage streamRequestEvent) {
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
 
         }
     }
@@ -321,7 +321,7 @@ public class CLIEventStreamAgent {
         }
 
         @Override
-        public void handleStreamEvent(EventStreamableJsonMessage streamRequestEvent) {
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
 
         }
 
@@ -384,7 +384,7 @@ public class CLIEventStreamAgent {
         }
 
         @Override
-        public void handleStreamEvent(EventStreamableJsonMessage streamRequestEvent) {
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
 
         }
 
@@ -457,7 +457,7 @@ public class CLIEventStreamAgent {
         }
 
         @Override
-        public void handleStreamEvent(EventStreamableJsonMessage streamRequestEvent) {
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
             //NA
         }
     }
@@ -500,7 +500,7 @@ public class CLIEventStreamAgent {
         }
 
         @Override
-        public void handleStreamEvent(EventStreamableJsonMessage streamRequestEvent) {
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
 
         }
 
@@ -546,7 +546,7 @@ public class CLIEventStreamAgent {
         }
 
         @Override
-        public void handleStreamEvent(EventStreamableJsonMessage streamRequestEvent) {
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
 
         }
     }

@@ -1,6 +1,6 @@
 package software.amazon.eventstream.iot.server;
 
-import java.util.Set;
+import java.util.Collection;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -11,13 +11,16 @@ import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandle
  */
 public interface OperationContinuationHandlerFactory {
     Function<OperationContinuationHandlerContext, ? extends ServerConnectionContinuationHandler> getOperationHandler(final String operationName);
-    Set<String> getAllOperations();
+    Collection<String> getAllOperations();
     boolean hasHandlerForOperation(String operation);
+
+    //this may not be a good use of a default method impl as implementers can override it
+    //also InvalidServiceConfigurationException is a needed exception to be thrown from IpcServer
     default void validateAllOperationsSet() {
         if (!getAllOperations().stream().allMatch(op -> hasHandlerForOperation(op))) {
             String unmappedOperations = getAllOperations().stream()
                     .filter(op -> !hasHandlerForOperation(op)).collect(Collectors.joining(","));
-            throw new IllegalStateException(this.getClass().getName() +
+            throw new InvalidServiceConfigurationException(this.getClass().getName() +
                     " does not have all operations mapped! Unmapped operations: {" + unmappedOperations + "}");
         }
     }

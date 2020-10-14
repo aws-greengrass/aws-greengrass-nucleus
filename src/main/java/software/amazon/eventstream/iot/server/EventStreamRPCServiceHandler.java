@@ -1,5 +1,9 @@
 package software.amazon.eventstream.iot.server;
 
+import software.amazon.eventstream.iot.EventStreamRPCServiceModel;
+
+import java.util.Collection;
+
 public abstract class EventStreamRPCServiceHandler implements OperationContinuationHandlerFactory {
     private AuthenticationHandler authenticationHandler;
     private AuthorizationHandler authorizationHandler;
@@ -8,11 +12,15 @@ public abstract class EventStreamRPCServiceHandler implements OperationContinuat
         authorizationHandler = null;
     }
 
+    protected abstract EventStreamRPCServiceModel getServiceModel();
+
     /**
      * Probably only useful for logging
      * @return Returns the service name for the set of RPC operations
      */
-    public abstract String getServiceName();
+    public String getServiceName() {
+        return getServiceModel().getServiceName();
+    }
 
     /**
      * TODO: How may we want to protect this from being re-assigned after service creation?
@@ -29,6 +37,11 @@ public abstract class EventStreamRPCServiceHandler implements OperationContinuat
      */
     public AuthorizationHandler getAuthorizationHandler() {
         return authorizationHandler;
+    }
+
+    @Override
+    public Collection<String> getAllOperations() {
+        return getServiceModel().getAllOperations();
     }
 
     /**
