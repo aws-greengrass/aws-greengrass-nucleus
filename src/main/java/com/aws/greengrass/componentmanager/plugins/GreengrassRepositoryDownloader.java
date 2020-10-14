@@ -23,14 +23,12 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private static final Logger logger = LogManager.getLogger(GreengrassRepositoryDownloader.class);
     private static final String HTTP_HEADER_CONTENT_DISPOSITION = "Content-Disposition";
-    private static final String HTTP_HEADER_CONTENT_LENGTH = "Content-Length";
     private static final String HTTP_HEADER_LOCATION = "Location";
     private static final String ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT =
             "Failed to download artifact %s for package %s-%s";
@@ -145,15 +143,11 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             URL url = new URL(preSignedUrl);
             HttpURLConnection conn = connect(url);
             conn.setRequestMethod("HEAD");
-            Map<String, List<String>> headers = conn.getHeaderFields();
-            // TODO verify this works by trying on a real package
-            if (!headers.containsKey(HTTP_HEADER_CONTENT_LENGTH)
-                    || headers.get(HTTP_HEADER_CONTENT_LENGTH).size() != 1) {
-                throw new PackageDownloadException(HTTP_HEADER_CONTENT_LENGTH + " not found in response header");
+            long length = conn.getContentLengthLong();
+            if (length == -1) {
+                throw new PackageDownloadException("Failed to get download size");
             }
-            return Long.parseLong(headers.get(HTTP_HEADER_CONTENT_LENGTH).get(0));
-        } catch (NumberFormatException e) {
-            throw new PackageDownloadException("Got mal-formed Content-Length", e);
+            return length;
         } catch (IOException e) {
             throw new PackageDownloadException("Failed to get download size", e);
         }
