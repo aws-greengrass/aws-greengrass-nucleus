@@ -198,7 +198,8 @@ public class GreengrassSetup {
         }
     }
 
-    void performSetup() throws IOException, DeviceConfigurationException {
+    void performSetup() throws IOException, DeviceConfigurationException, URISyntaxException,
+            InvalidEnvironmentStageException {
         // Describe usage of the command
         if (showHelp) {
             outStream.println(SHOW_HELP_RESPONSE);
@@ -210,6 +211,9 @@ public class GreengrassSetup {
         }
 
         Kernel kernel = getKernel();
+
+        //initialize the device provisioning helper
+        this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, environmentStage, this.outStream);
 
         if (needProvisioning) {
             provision(kernel);
@@ -243,7 +247,7 @@ public class GreengrassSetup {
         outStream.println("Launched kernel successfully.");
     }
 
-    void parseArgs() throws URISyntaxException, InvalidEnvironmentStageException {
+    void parseArgs() {
         loop: while (getArg() != null) {
             switch (arg.toLowerCase()) {
                 case HELP_ARG:
@@ -349,9 +353,6 @@ public class GreengrassSetup {
         } catch (InvalidEnvironmentStageException e) {
             throw new RuntimeException(e);
         }
-
-        //initialize the device provisioning helper
-        this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, environmentStage, this.outStream);
     }
 
     @SuppressWarnings("PMD.NullAssignment")

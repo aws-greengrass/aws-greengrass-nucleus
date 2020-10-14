@@ -185,6 +185,7 @@ class ComponentManagerTest {
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         when(artifactDownloader.downloadToPath(any(), any(), any())).thenReturn(new File("binary1"));
+        when(artifactDownloader.getArtifactFile(any(), any(), any())).thenReturn(new File("binary1"));
 
         componentManager.prepareArtifacts(pkgId,
                 Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null, null, Unarchive.ZIP),
