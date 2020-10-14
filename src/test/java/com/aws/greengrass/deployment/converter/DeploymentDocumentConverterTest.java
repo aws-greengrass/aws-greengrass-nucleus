@@ -15,12 +15,14 @@ import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.deployment.model.PackageInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -210,6 +212,46 @@ class DeploymentDocumentConverterTest {
         assertThat(doc.getDeploymentPackageConfigurationList(),
                 containsInAnyOrder(new DeploymentPackageConfiguration("pkgA", true, "1.0.0", configMapA),
                         new DeploymentPackageConfiguration("pkgB", false, "1.1.0", configMapB)));
+        assertThat(doc.getRootPackages(), containsInAnyOrder("pkgA"));
+        assertEquals("thing/test", doc.getGroupName());
+    }
+
+    @Test
+    void GIVEN_fleet_configuration_with_config_update_WHEN_convert_to_deployment_doc_THEN_parse_successfully() {
+        String configurationArn = Arn.builder().withPartition("aws").withService("gg")
+                .withResource("configuration:thing/test:1").build().toString();
+        Map<String, Object> configMapA = new HashMap<String, Object>() {{
+            put(ConfigurationUpdateOperation.MERGE_KEY, ImmutableMap.of("param1", "value1"));
+            put(ConfigurationUpdateOperation.RESET_KEY, Arrays.asList("/path1", "/nested/path2"));
+        }};
+        Map<String, Object> configMapB = new HashMap<String, Object>() {{
+            put("param2", singletonMap("foo", "bar"));
+        }};
+        FleetConfiguration config =
+                FleetConfiguration.builder()
+                        .creationTimestamp(0L)
+                        .packages(new HashMap<String, PackageInfo>() {{
+                            put("pkgA", new PackageInfo(true, "1.0.0", configMapA));
+                            put("pkgB", new PackageInfo(false, "1.1.0", configMapB));
+                        }})
+                        .componentUpdatePolicy(new ComponentUpdatePolicy().withAction( "NOTIFY_COMPONENTS")
+                                                       .withTimeout(60))
+                        .configurationArn(configurationArn)
+                        .build();
+
+        DeploymentDocument doc = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
+
+        ConfigurationUpdateOperation configurationUpdateOperation = new ConfigurationUpdateOperation();
+        configurationUpdateOperation.setValueToMerge(ImmutableMap.of("param1", "value1"));
+        configurationUpdateOperation.setPathsToReset(Arrays.asList("/path1", "/nested/path2"));
+
+        assertEquals(configurationArn, doc.getDeploymentId());
+        assertNull(doc.getFailureHandlingPolicy());
+        assertEquals(0L, doc.getTimestamp());
+        assertThat(doc.getDeploymentPackageConfigurationList(),
+                   containsInAnyOrder(new DeploymentPackageConfiguration("pkgA", true, "1.0.0", emptyMap(),
+                                                                         configurationUpdateOperation),
+                                      new DeploymentPackageConfiguration("pkgB", false, "1.1.0", configMapB)));
         assertThat(doc.getRootPackages(), containsInAnyOrder("pkgA"));
         assertEquals("thing/test", doc.getGroupName());
     }

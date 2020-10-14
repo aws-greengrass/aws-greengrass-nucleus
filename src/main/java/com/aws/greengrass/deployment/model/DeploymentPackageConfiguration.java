@@ -61,6 +61,23 @@ public class DeploymentPackageConfiguration {
     }
 
     /**
+     * Constructor for no legacy configuration.
+     *
+     * @param packageName     name of package
+     * @param rootComponent   if it is root
+     * @param resolvedVersion resolved version
+     * @param configurationUpdateOperation   configuration update
+     */
+    public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,
+            ConfigurationUpdateOperation configurationUpdateOperation) {
+        this.packageName = packageName;
+        this.rootComponent = rootComponent;
+        this.resolvedVersion = resolvedVersion;
+        this.configurationUpdateOperation = configurationUpdateOperation;
+    }
+
+
+    /**
      * Constructor. Non provided fields are null.
      * @param packageName packageName
      */

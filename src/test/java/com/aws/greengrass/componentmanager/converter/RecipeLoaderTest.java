@@ -107,7 +107,6 @@ class RecipeLoaderTest {
 
     }
 
-
     @Test
     void GIVEN_a_recipe_file_and_no_matching_platform_WHEN_converts_THEN_returns_empty() throws Exception {
         // GIVEN
