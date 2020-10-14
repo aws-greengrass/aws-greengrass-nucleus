@@ -84,9 +84,10 @@ class MqttReconnectTest extends BaseE2ETestCase {
         cleanup();
     }
 
-    //TODO: re-enable flaky test
-    @Timeout(value = 10, unit = TimeUnit.MINUTES)
+
+    // TODO: Fix flaky test https://sim.amazon.com/issues/P40525318
     @Disabled
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
     void GIVEN_new_deployment_while_device_online_WHEN_mqtt_disconnects_and_reconnects_THEN_job_executes_successfully(
             ExtensionContext context) throws Exception {
