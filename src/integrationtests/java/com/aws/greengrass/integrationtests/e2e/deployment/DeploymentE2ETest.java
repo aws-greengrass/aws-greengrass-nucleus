@@ -14,6 +14,7 @@ import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
@@ -32,6 +33,7 @@ import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import org.hamcrest.collection.IsMapContaining;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,6 +51,9 @@ import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -70,6 +75,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(GGExtension.class)
 @Tag("E2E")
 class DeploymentE2ETest extends BaseE2ETestCase {
+    private CountDownLatch stdoutCountdown;
 
 
     protected DeploymentE2ETest() throws Exception {
@@ -157,12 +163,26 @@ class DeploymentE2ETest extends BaseE2ETestCase {
     @Test
     void GIVEN_target_service_has_dependencies_WHEN_deploys_target_service_THEN_service_and_dependencies_should_be_deployed()
             throws Exception {
-        // First Deployment to have some services running in Kernel which can be removed later
+
+        // Set up stdout listener to capture stdout for verify interpolation
+        List<String> stdouts = new CopyOnWriteArrayList<>();
+        Consumer<GreengrassLogMessage> listener = m -> {
+            Map<String, String> contexts = m.getContexts();
+            String messageOnStdout = contexts.get("stdout");
+            if (messageOnStdout != null && messageOnStdout.contains(
+                    "CustomerApp output: ")) {
+                stdouts.add(messageOnStdout);
+                stdoutCountdown.countDown(); // countdown when received output to verify
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+
+        stdoutCountdown = new CountDownLatch(1);
+        // First Deployment to have some services running in Kernel with default configuration
         SetConfigurationRequest setRequest1 =
                 new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
                         .addPackagesEntry("CustomerApp",
-                                new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
-                                        .withConfiguration("{\"sampleText\":\"FCS integ test\"}"));
+                                new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
 
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
@@ -172,6 +192,46 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
         assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
+
+        assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
+
+        String customerAppStdout = stdouts.get(0);
+        assertThat(customerAppStdout, StringContains.containsString("This is a test"));
+
+        assertThat(getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(
+                KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO(), IsMapContaining
+                           .hasEntry("sampleText", "This is a test"));
+
+
+        // reset countdown
+        stdoutCountdown = new CountDownLatch(1);
+
+        // second deployment
+        SetConfigurationRequest setRequest2 =
+                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                        .addPackagesEntry("CustomerApp",
+                                          new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
+                                                  .withConfiguration("{\"MERGE\": {\"sampleText\":\"FCS integ test\"}}"));
+
+        PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
+                                                        Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
+        assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
+
+        assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
+
+        customerAppStdout = stdouts.get(0);
+        assertThat(customerAppStdout, StringContains.containsString("FCS integ test"));
+
+        assertThat(getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(
+                KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO(), IsMapContaining
+                .hasEntry("sampleText", "FCS integ test"));
+
+        // cleanup
+        Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
 

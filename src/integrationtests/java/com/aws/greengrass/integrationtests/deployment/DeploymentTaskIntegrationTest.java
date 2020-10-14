@@ -326,14 +326,6 @@ class DeploymentTaskIntegrationTest {
         // 1. The component's configurations are updated correctly in the kernel's config store
         // 2. The interpolation is correct by taking the newly updated configuration, that is consistent
 
-//        List<CountDownLatch> countDownLatches = new ArrayList<>();
-
-//        for (int i=0; i < 5; i++) {
-//             5 deployments and each need a countdown
-//            countDownLatches.add(new CountDownLatch(1));
-//        }
-
-
         // Set up stdout listener to capture stdout for verify #2 interpolation
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
