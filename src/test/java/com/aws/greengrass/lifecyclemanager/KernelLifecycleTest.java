@@ -12,6 +12,7 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.ipc.IPCEventStreamService;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -67,6 +68,7 @@ class KernelLifecycleTest {
     private KernelLifecycle kernelLifecycle;
     private Context mockContext;
     private Configuration mockConfig;
+    private IPCEventStreamService mockIpcEventStreamService;
 
     @TempDir
     protected Path tempRootDir;
@@ -80,8 +82,10 @@ class KernelLifecycleTest {
         mockContext = mock(Context.class);
         mockConfig = mock(Configuration.class);
         mockPaths = mock(NucleusPaths.class);
+        mockIpcEventStreamService = mock(IPCEventStreamService.class);
         when(mockConfig.getRoot()).thenReturn(mock(Topics.class));
         when(mockKernel.getConfig()).thenReturn(mockConfig);
+        when(mockContext.get(IPCEventStreamService.class)).thenReturn(mockIpcEventStreamService);
         when(mockKernel.getContext()).thenReturn(mockContext);
         when(mockPaths.rootPath()).thenReturn(tempRootDir);
         when(mockPaths.configPath()).thenReturn(tempRootDir.resolve("config"));
