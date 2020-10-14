@@ -14,7 +14,7 @@ ComponentConfiguration:
 
 Manifests:
   - Platform:
-      os: macos
+      os: darwin
     Lifecycle:
       run: |-
         sleep 2

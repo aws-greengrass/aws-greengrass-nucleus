@@ -189,7 +189,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
 
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
-                Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+                Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
@@ -206,10 +206,11 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                            .hasEntry("sampleText", "This is a test"));
 
 
-        // reset countdown
+        // reset countdown and stdouts
         stdoutCountdown = new CountDownLatch(1);
+        stdouts.clear();
 
-        // second deployment
+        // 2nd deployment to merge
         SetConfigurationRequest setRequest2 =
                 new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
                         .addPackagesEntry("CustomerApp",
@@ -218,7 +219,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
-                                                        Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+                                                        Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
@@ -232,6 +233,140 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         assertThat(getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(
                 KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO(), IsMapContaining
                 .hasEntry("sampleText", "FCS integ test"));
+
+        // reset countdown and stdouts
+        stdoutCountdown = new CountDownLatch(1);
+        stdouts.clear();
+
+        // 3rd deployment to reset
+        SetConfigurationRequest setRequest3 =
+                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                        .addPackagesEntry("CustomerApp",
+                                          new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
+                                                  .withConfiguration("{\"RESET\": [\"/sampleText\"]}"));
+
+        PublishConfigurationResult publishResult3 = setAndPublishFleetConfiguration(setRequest3);
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult3.getJobId(), thingInfo.getThingName(),
+                                                        Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
+        assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
+
+        assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
+
+        customerAppStdout = stdouts.get(0);
+        assertThat(customerAppStdout, StringContains.containsString("This is a test"));
+
+        assertThat(getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(
+                KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO(), IsMapContaining
+                           .hasEntry("sampleText", "This is a test"));
+
+        // cleanup
+        Slf4jLogAdapter.removeGlobalListener(listener);
+    }
+
+
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
+//    @Test
+    // TODO
+    void GIVEN_target_service_has_dependencies_WHEN_deploys_target_service_THEN_service_and_dependencies_should_be_deployed_1()
+            throws Exception {
+
+        String componentName = "aws.iot.gg.e2e.integ.ComponentConfigTestService";
+
+        // Set up stdout listener to capture stdout for verify interpolation
+        List<String> stdouts = new CopyOnWriteArrayList<>();
+        Consumer<GreengrassLogMessage> listener = m -> {
+            Map<String, String> contexts = m.getContexts();
+            String messageOnStdout = contexts.get("stdout");
+            if (messageOnStdout != null && messageOnStdout.contains(
+                    "aws.iot.gg.test.e2e.ComponentConfigTestService output")) {
+                stdouts.add(messageOnStdout);
+                stdoutCountdown.countDown(); // countdown when received output to verify
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+
+        stdoutCountdown = new CountDownLatch(1);
+        // First Deployment to have some services running in Kernel with default configuration
+        SetConfigurationRequest setRequest1 =
+                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                        .addPackagesEntry(componentName,
+                                          new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
+        PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
+                                                        Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent(componentName)::getState, eventuallyEval(is(State.FINISHED)));
+
+        assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
+
+        String customerAppStdout = stdouts.get(0);
+        assertThat(customerAppStdout, StringContains.containsString("This is a test"));
+
+        assertThat(getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(
+                KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO(), IsMapContaining
+                           .hasEntry("sampleText", "This is a test"));
+
+
+        // reset countdown and stdouts
+        stdoutCountdown = new CountDownLatch(1);
+        stdouts.clear();
+
+        // 2nd deployment to merge
+        SetConfigurationRequest setRequest2 =
+                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                        .addPackagesEntry("CustomerApp",
+                                          new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
+                                                  .withConfiguration("{\"MERGE\": {\"sampleText\":\"FCS integ test\"}}"));
+
+        PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
+                                                        Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
+        assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
+
+        assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
+
+        customerAppStdout = stdouts.get(0);
+        assertThat(customerAppStdout, StringContains.containsString("FCS integ test"));
+
+        assertThat(getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(
+                KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO(), IsMapContaining
+                           .hasEntry("sampleText", "FCS integ test"));
+
+        // reset countdown and stdouts
+        stdoutCountdown = new CountDownLatch(1);
+        stdouts.clear();
+
+        // 3rd deployment to reset
+        SetConfigurationRequest setRequest3 =
+                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                        .addPackagesEntry("CustomerApp",
+                                          new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
+                                                  .withConfiguration("{\"RESET\": [\"/sampleText\"]}"));
+
+        PublishConfigurationResult publishResult3 = setAndPublishFleetConfiguration(setRequest3);
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult3.getJobId(), thingInfo.getThingName(),
+                                                        Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
+        assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
+
+        assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
+
+        customerAppStdout = stdouts.get(0);
+        assertThat(customerAppStdout, StringContains.containsString("This is a test"));
+
+        assertThat(getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(
+                KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO(), IsMapContaining
+                           .hasEntry("sampleText", "This is a test"));
 
         // cleanup
         Slf4jLogAdapter.removeGlobalListener(listener);

@@ -14,7 +14,7 @@ Manifests:
       startup: |-
         powershell -command "& sleep 2; echo \"CustomerApp succeeds on windows\"; exit 0"
   - Platform:
-      os: macos
+      os: darwin
     Lifecycle:
       startup: |-
         sleep 2

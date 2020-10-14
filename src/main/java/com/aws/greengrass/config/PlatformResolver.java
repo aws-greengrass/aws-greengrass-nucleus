@@ -137,9 +137,7 @@ public final class PlatformResolver {
         if (sysver.contains("darwin")) {
             currentOS = findMoreSpecificOS(currentOS, OS.DARWIN);
         }
-        if (osNameFromSysProperty.replaceAll("\\s","").contains("macos")) {
-            currentOS = findMoreSpecificOS(currentOS, OS.MAC_OS);
-        }
+
         if (Files.exists(Paths.get("/proc"))) {
             currentOS = findMoreSpecificOS(currentOS, OS.LINUX);
         }

@@ -13,7 +13,6 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -59,33 +58,10 @@ public class DeploymentPackageConfiguration {
         this.rootComponent = rootComponent;
         this.resolvedVersion = resolvedVersion;
         this.configuration = configuration;
-
-
-        if (configuration.containsKey(ConfigurationUpdateOperation.MERGE_KEY)) {
-            Object mergeVal = configuration.get(ConfigurationUpdateOperation.MERGE_KEY);
-
-            if (mergeVal instanceof Map) {
-                configurationUpdateOperation = new ConfigurationUpdateOperation();
-                configurationUpdateOperation.setValueToMerge((Map) mergeVal);
-            }
-        }
-        if (configuration.containsKey(ConfigurationUpdateOperation.RESET_KEY)) {
-            Object resetPaths = configuration.get(ConfigurationUpdateOperation.RESET_KEY);
-
-            if (resetPaths instanceof List) {
-                if (configurationUpdateOperation == null) {
-                    configurationUpdateOperation = new ConfigurationUpdateOperation();
-                }
-                configurationUpdateOperation.setPathsToReset((List<String>) resetPaths);
-            }
-        }
-
-
     }
 
     /**
      * Constructor. Non provided fields are null.
-     *
      * @param packageName packageName
      */
     public DeploymentPackageConfiguration(String packageName) {

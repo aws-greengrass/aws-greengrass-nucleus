@@ -14,8 +14,8 @@ import java.util.Map;
 @Data
 public class ConfigurationUpdateOperation {
 
-    static final String MERGE_KEY = "MERGE";
-    static final String RESET_KEY = "RESET";
+    public static final String MERGE_KEY = "MERGE";
+    public static final String RESET_KEY = "RESET";
 
     @JsonProperty(MERGE_KEY)
     Map valueToMerge;

@@ -8,6 +8,7 @@ package com.aws.greengrass.deployment.converter;
 import com.amazonaws.arn.Arn;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
+import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.FleetConfiguration;
@@ -42,7 +43,7 @@ public final class DeploymentDocumentConverter {
      * @return a converted DeploymentDocument
      */
     public static DeploymentDocument convertFromLocalOverrideRequestAndRoot(LocalOverrideRequest localOverrideRequest,
-                                                                            Map<String, String> runningRootComponents) {
+            Map<String, String> runningRootComponents) {
 
         // copy over existing root components
         Map<String, String> newRootComponents = new HashMap<>(runningRootComponents);
@@ -82,13 +83,13 @@ public final class DeploymentDocumentConverter {
      */
     public static DeploymentDocument convertFromFleetConfiguration(FleetConfiguration config) {
         ComponentUpdatePolicy componentUpdatePolicy =
-                new ComponentUpdatePolicy(config.getComponentUpdatePolicy().getTimeout(),
-                        ComponentUpdatePolicyAction.fromValue(config.getComponentUpdatePolicy().getAction()));
+                new ComponentUpdatePolicy(config.getComponentUpdatePolicy().getTimeout(), ComponentUpdatePolicyAction
+                        .fromValue(config.getComponentUpdatePolicy().getAction()));
         DeploymentDocument deploymentDocument = DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
                 .timestamp(config.getCreationTimestamp()).failureHandlingPolicy(config.getFailureHandlingPolicy())
                 // TODO: Use full featured component update policy and configuration validation policy with timeouts
-                .componentUpdatePolicy(componentUpdatePolicy)
-                .deploymentPackageConfigurationList(new ArrayList<>()).build();
+                .componentUpdatePolicy(componentUpdatePolicy).deploymentPackageConfigurationList(new ArrayList<>())
+                .build();
 
 
         String groupName;
@@ -108,9 +109,35 @@ public final class DeploymentDocumentConverter {
         for (Map.Entry<String, PackageInfo> entry : config.getPackages().entrySet()) {
             String pkgName = entry.getKey();
             PackageInfo pkgInfo = entry.getValue();
+
+            // Create component config update from the config field for backward compatibility
+            // TODO This will be removed along with the function when migrating to new createDeployment API
+            ConfigurationUpdateOperation configurationUpdateOperation = new ConfigurationUpdateOperation();
+            boolean isConfigUpdate = false;
+
+            Map<String, Object> configuration = pkgInfo.getConfiguration();
+            if (configuration.containsKey(ConfigurationUpdateOperation.MERGE_KEY)) {
+                isConfigUpdate = true;
+
+
+                Object mergeVal = configuration.get(ConfigurationUpdateOperation.MERGE_KEY);
+                if (mergeVal instanceof Map) {
+                    configurationUpdateOperation.setValueToMerge((Map) mergeVal);
+                }
+            }
+            if (configuration.containsKey(ConfigurationUpdateOperation.RESET_KEY)) {
+                isConfigUpdate = true;
+
+                Object resetPaths = configuration.get(ConfigurationUpdateOperation.RESET_KEY);
+                if (resetPaths instanceof List) {
+                    configurationUpdateOperation.setPathsToReset((List<String>) resetPaths);
+                }
+            }
+
             deploymentDocument.getDeploymentPackageConfigurationList()
                     .add(new DeploymentPackageConfiguration(pkgName, pkgInfo.isRootComponent(), pkgInfo.getVersion(),
-                            pkgInfo.getConfiguration()));
+                                                            isConfigUpdate ? null : pkgInfo.getConfiguration(),
+                                                            isConfigUpdate ? configurationUpdateOperation : null));
         }
         return deploymentDocument;
     }
@@ -124,12 +151,10 @@ public final class DeploymentDocumentConverter {
                 .isEmpty()) {
             packageConfigurations = new HashMap<>();
         } else {
-            packageConfigurations = localOverrideRequest.getComponentNameToConfig().entrySet().stream()
-                    .collect(Collectors.toMap(
-                            Map.Entry::getKey,
-                            entry -> new DeploymentPackageConfiguration(
-                                    entry.getKey(), false, ANY_VERSION, entry.getValue())
-                    ));
+            packageConfigurations = localOverrideRequest.getComponentNameToConfig().entrySet().stream().collect(
+                    Collectors.toMap(Map.Entry::getKey,
+                                     entry -> new DeploymentPackageConfiguration(entry.getKey(), false, ANY_VERSION,
+                                                                                 entry.getValue())));
         }
 
         if (localOverrideRequest.getConfigurationUpdate() != null) {
