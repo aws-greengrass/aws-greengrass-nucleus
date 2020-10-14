@@ -134,6 +134,8 @@ public class IPCEventStreamService implements Startable, Closeable {
     @Override
     public void close() {
         // TODO: Future does not complete, uncomment when fixed.
-        ipcServer.stopServer();
+        if (ipcServer != null) {
+            ipcServer.stopServer();
+        }
     }
 }
