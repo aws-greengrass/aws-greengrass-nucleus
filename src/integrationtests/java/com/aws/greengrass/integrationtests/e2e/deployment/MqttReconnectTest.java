@@ -18,6 +18,7 @@ import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -83,7 +84,9 @@ class MqttReconnectTest extends BaseE2ETestCase {
         cleanup();
     }
 
+    //TODO: re-enable flaky test
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
+    @Disabled
     @Test
     void GIVEN_new_deployment_while_device_online_WHEN_mqtt_disconnects_and_reconnects_THEN_job_executes_successfully(
             ExtensionContext context) throws Exception {
