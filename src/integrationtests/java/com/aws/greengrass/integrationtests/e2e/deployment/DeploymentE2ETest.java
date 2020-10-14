@@ -37,6 +37,7 @@ import org.hamcrest.collection.IsMapContaining;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -103,6 +104,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
     }
 
 
+    // TODO: Re-enable flaky test
+    @Disabled
     @Test
     void GIVEN_kernel_running_WHEN_device_deployment_adds_packages_THEN_new_services_should_be_running() throws Exception {
         CountDownLatch cdlDeploymentFinished = new CountDownLatch(1);
