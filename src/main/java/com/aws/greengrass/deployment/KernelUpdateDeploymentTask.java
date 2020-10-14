@@ -63,9 +63,9 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                 kernelAlts.rollbackCompletes();
             }
 
-            componentManager.cleanupStaleVersions();
+            //componentManager.cleanupStaleVersions();
             return result;
-        } catch (InterruptedException | IOException | PackageLoadingException e) {
+        } catch (InterruptedException | IOException e) {
             logger.atError("deployment-interrupted", e).log();
             try {
                 saveDeploymentStatusDetails(e.getMessage());

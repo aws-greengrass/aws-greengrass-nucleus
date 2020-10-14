@@ -342,25 +342,26 @@ public class ComponentManager implements InjectionActions {
             // check disk space before download
             //TODO refactor to check total size of artifacts from all components at once instead of one by one
             // because all artifacts must fit otherwise the deployment still fails.
-            long usableSpaceBytes = componentStore.getUsableSpace();
-            if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
-                throw new SizeLimitException(
-                        String.format("Disk space critical: %d bytes usable, %d bytes minimum allowed",
-                                usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
-            }
-            ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
-            if (!downloader.downloadRequired(componentIdentifier, artifact, packageArtifactDirectory)) {
-                continue;
-            }
-            long downloadSize = downloader.getDownloadSize(componentIdentifier, artifact, packageArtifactDirectory);
-            long storeContentSize = componentStore.getContentSize();
-            if (storeContentSize + downloadSize > DEFAULT_MAX_STORE_SIZE_BYTES) {
-                throw new SizeLimitException(String.format(
-                        "Component store size limit reached: %d bytes existing, %d bytes needed,"
-                                + "%d bytes maximum allowed total", storeContentSize, downloadSize,
-                        DEFAULT_MAX_STORE_SIZE_BYTES));
-            }
+            //long usableSpaceBytes = componentStore.getUsableSpace();
+            //if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
+            //    throw new SizeLimitException(
+            //            String.format("Disk space critical: %d bytes usable, %d bytes minimum allowed",
+            //                    usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
+            //}
+            //ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
+            //if (!downloader.downloadRequired(componentIdentifier, artifact, packageArtifactDirectory)) {
+            //    continue;
+            //}
+            //long downloadSize = downloader.getDownloadSize(componentIdentifier, artifact, packageArtifactDirectory);
+            //long storeContentSize = componentStore.getContentSize();
+            //if (storeContentSize + downloadSize > DEFAULT_MAX_STORE_SIZE_BYTES) {
+            //    throw new SizeLimitException(String.format(
+            //            "Component store size limit reached: %d bytes existing, %d bytes needed,"
+            //                    + "%d bytes maximum allowed total", storeContentSize, downloadSize,
+            //            DEFAULT_MAX_STORE_SIZE_BYTES));
+            //}
 
+            ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
             File downloadedFile;
             try {
                 downloadedFile = downloader.downloadToPath(componentIdentifier, artifact, packageArtifactDirectory);

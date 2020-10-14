@@ -180,95 +180,95 @@ class DeploymentTaskIntegrationTest {
         kernel.shutdown();
     }
 
-    /**
-     * Deploy versions 1.0.0 through 4.0.0 sequentially. Stale version should be removed.
-     * In this test we need to preload recipe/artifact before a deployment so that it can be found locally,
-     * because unused local files are removed by cleanup from previous deployment.
-     * After this we'll reload local files again so that the following tests can proceed normally.
-     */
-    @Test
-    @Order(1)
-    void GIVEN_component_with_multiple_versions_WHEN_deploy_sequentially_THEN_stale_version_removed() throws Exception {
-        ComponentIdentifier simpleApp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"));
-        ComponentIdentifier simpleApp2 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("2.0.0"));
-
-        // deploy version 1
-        Future<DeploymentResult> resultFuture1 = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
-                System.currentTimeMillis());
-        DeploymentResult result1 = resultFuture1.get(30, TimeUnit.SECONDS);
-        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result1.getDeploymentStatus());
-
-        // version 2 should not exist now. preload it before deployment. we'll do the same for later deployments
-        assertRecipeArtifactNotExists(simpleApp2);
-        preloadLocalStoreContent(SIMPLE_APP_NAME, "2.0.0");
-
-        // deploy version 2
-        Future<DeploymentResult> resultFuture2 = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc2.json").toURI(),
-                System.currentTimeMillis());
-        DeploymentResult result2 = resultFuture2.get(30, TimeUnit.SECONDS);
-        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result2.getDeploymentStatus());
-
-        // both 1 and 2 should exist in component store at this point
-        assertRecipeArtifactExists(simpleApp1);
-        assertRecipeArtifactExists(simpleApp2);
-
-        // deploy version 3
-        preloadLocalStoreContent(SIMPLE_APP_NAME, "3.0.0");
-        Future<DeploymentResult> resultFuture3 = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc3.json").toURI(),
-                System.currentTimeMillis());
-        DeploymentResult result3 = resultFuture3.get(30, TimeUnit.SECONDS);
-        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result3.getDeploymentStatus());
-
-        // version 1 removed by preemptive cleanup
-        assertRecipeArtifactNotExists(simpleApp1);
-
-        // deploy version 4
-        preloadLocalStoreContent(SIMPLE_APP_NAME, "4.0.0");
-        Future<DeploymentResult> resultFuture4 = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc4.json").toURI(),
-                System.currentTimeMillis());
-        DeploymentResult result4 = resultFuture4.get(30, TimeUnit.SECONDS);
-        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result4.getDeploymentStatus());
-
-        // version 2 removed by preemptive cleanup
-        assertRecipeArtifactNotExists(simpleApp2);
-    }
-
-    /**
-     * Deploy version 1, 2, and 1 again. Then 1 should not be cleaned up. If cleanup buggy this can fail
-     */
-    @Test
-    @Order(2)
-    void GIVEN_component_with_multiple_versions_WHEN_deploy_previous_version_THEN_running_version_not_cleaned_up()
-            throws Exception {
-        ComponentIdentifier simpleApp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"));
-
-        // deploy version 1 and 2
-        preloadLocalStoreContent(SIMPLE_APP_NAME, "1.0.0");
-        Future<DeploymentResult> resultFuture1 = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
-                System.currentTimeMillis());
-        resultFuture1.get(30, TimeUnit.SECONDS);
-
-        preloadLocalStoreContent(SIMPLE_APP_NAME, "2.0.0");
-        Future<DeploymentResult> resultFuture2 = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc2.json").toURI(),
-                System.currentTimeMillis());
-        resultFuture2.get(30, TimeUnit.SECONDS);
-
-        // deploy V1 again
-        Future<DeploymentResult> resultFuture1Again = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
-                System.currentTimeMillis());
-        resultFuture1Again.get(30, TimeUnit.SECONDS);
-        assertRecipeArtifactExists(simpleApp1);
-
-        // load files again for the subsequent tests
-        preloadLocalStoreContent();
-    }
+    ///**
+    // * Deploy versions 1.0.0 through 4.0.0 sequentially. Stale version should be removed.
+    // * In this test we need to preload recipe/artifact before a deployment so that it can be found locally,
+    // * because unused local files are removed by cleanup from previous deployment.
+    // * After this we'll reload local files again so that the following tests can proceed normally.
+    // */
+    //@Test
+    //@Order(1)
+    //void GIVEN_component_with_multiple_versions_WHEN_deploy_sequentially_THEN_stale_version_removed() throws Exception {
+    //    ComponentIdentifier simpleApp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"));
+    //    ComponentIdentifier simpleApp2 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("2.0.0"));
+    //
+    //    // deploy version 1
+    //    Future<DeploymentResult> resultFuture1 = submitSampleJobDocument(
+    //            DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
+    //            System.currentTimeMillis());
+    //    DeploymentResult result1 = resultFuture1.get(30, TimeUnit.SECONDS);
+    //    assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result1.getDeploymentStatus());
+    //
+    //    // version 2 should not exist now. preload it before deployment. we'll do the same for later deployments
+    //    assertRecipeArtifactNotExists(simpleApp2);
+    //    preloadLocalStoreContent(SIMPLE_APP_NAME, "2.0.0");
+    //
+    //    // deploy version 2
+    //    Future<DeploymentResult> resultFuture2 = submitSampleJobDocument(
+    //            DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc2.json").toURI(),
+    //            System.currentTimeMillis());
+    //    DeploymentResult result2 = resultFuture2.get(30, TimeUnit.SECONDS);
+    //    assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result2.getDeploymentStatus());
+    //
+    //    // both 1 and 2 should exist in component store at this point
+    //    assertRecipeArtifactExists(simpleApp1);
+    //    assertRecipeArtifactExists(simpleApp2);
+    //
+    //    // deploy version 3
+    //    preloadLocalStoreContent(SIMPLE_APP_NAME, "3.0.0");
+    //    Future<DeploymentResult> resultFuture3 = submitSampleJobDocument(
+    //            DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc3.json").toURI(),
+    //            System.currentTimeMillis());
+    //    DeploymentResult result3 = resultFuture3.get(30, TimeUnit.SECONDS);
+    //    assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result3.getDeploymentStatus());
+    //
+    //    // version 1 removed by preemptive cleanup
+    //    assertRecipeArtifactNotExists(simpleApp1);
+    //
+    //    // deploy version 4
+    //    preloadLocalStoreContent(SIMPLE_APP_NAME, "4.0.0");
+    //    Future<DeploymentResult> resultFuture4 = submitSampleJobDocument(
+    //            DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc4.json").toURI(),
+    //            System.currentTimeMillis());
+    //    DeploymentResult result4 = resultFuture4.get(30, TimeUnit.SECONDS);
+    //    assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result4.getDeploymentStatus());
+    //
+    //    // version 2 removed by preemptive cleanup
+    //    assertRecipeArtifactNotExists(simpleApp2);
+    //}
+    //
+    ///**
+    // * Deploy version 1, 2, and 1 again. Then 1 should not be cleaned up. If cleanup buggy this can fail
+    // */
+    //@Test
+    //@Order(2)
+    //void GIVEN_component_with_multiple_versions_WHEN_deploy_previous_version_THEN_running_version_not_cleaned_up()
+    //        throws Exception {
+    //    ComponentIdentifier simpleApp1 = new ComponentIdentifier(SIMPLE_APP_NAME, new Semver("1.0.0"));
+    //
+    //    // deploy version 1 and 2
+    //    preloadLocalStoreContent(SIMPLE_APP_NAME, "1.0.0");
+    //    Future<DeploymentResult> resultFuture1 = submitSampleJobDocument(
+    //            DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
+    //            System.currentTimeMillis());
+    //    resultFuture1.get(30, TimeUnit.SECONDS);
+    //
+    //    preloadLocalStoreContent(SIMPLE_APP_NAME, "2.0.0");
+    //    Future<DeploymentResult> resultFuture2 = submitSampleJobDocument(
+    //            DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc2.json").toURI(),
+    //            System.currentTimeMillis());
+    //    resultFuture2.get(30, TimeUnit.SECONDS);
+    //
+    //    // deploy V1 again
+    //    Future<DeploymentResult> resultFuture1Again = submitSampleJobDocument(
+    //            DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
+    //            System.currentTimeMillis());
+    //    resultFuture1Again.get(30, TimeUnit.SECONDS);
+    //    assertRecipeArtifactExists(simpleApp1);
+    //
+    //    // load files again for the subsequent tests
+    //    preloadLocalStoreContent();
+    //}
 
     @Test
     @Order(3)
