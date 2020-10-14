@@ -1,5 +1,7 @@
 package com.aws.greengrass.builtin.services.cli;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;
+import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeploymentQueue;
@@ -45,9 +47,11 @@ import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -58,6 +62,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.ComponentStore.RECIPE_FILE_NAME_FORMAT;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
@@ -219,8 +224,7 @@ public class CLIServiceAgent {
             Path recipeDirectoryPath = Paths.get(request.getRecipeDirectoryPath());
             Path kernelRecipeDirectoryPath = kernelPackageStorePath.resolve(ComponentStore.RECIPE_DIRECTORY);
             try {
-                Utils.copyFolderRecursively(recipeDirectoryPath, kernelRecipeDirectoryPath,
-                                            StandardCopyOption.REPLACE_EXISTING);
+                copyRecipes(recipeDirectoryPath, kernelRecipeDirectoryPath);
             } catch (IOException e) {
                 logger.atError().setCause(e).kv("Recipe Directory path", recipeDirectoryPath)
                         .log("Caught exception while updating the recipes");
@@ -238,6 +242,43 @@ public class CLIServiceAgent {
                         .log("Caught exception while updating the recipes");
                 throw new InvalidArtifactsDirectoryPathError(e.getMessage());
             }
+        }
+    }
+
+    private void copyRecipes(Path from, Path to) throws IOException {
+        for (Path r : Files.walk(from).collect(Collectors.toList())) {
+            String ext = Utils.extension(r.toString());
+            ComponentRecipe recipe = null;
+            if (r.toFile().length() == 0) {
+                logger.atInfo().log("Skipping recipe file {} because it is empty", r);
+                continue;
+            }
+            try {
+                switch (ext.toLowerCase()) {
+                    case "yaml":
+                    case "yml":
+                        recipe = SerializerFactory.getRecipeSerializer().readValue(r.toFile(), ComponentRecipe.class);
+                        break;
+                    case "json":
+                        recipe = SerializerFactory.getRecipeSerializerJson()
+                                .readValue(r.toFile(), ComponentRecipe.class);
+                        break;
+                    default:
+                        break;
+                }
+            } catch (IOException e) {
+                logger.atError().log("Error reading recipe file from {}", r, e);
+            }
+
+            if (recipe == null) {
+                continue;
+            }
+
+            // Write the recipe as YAML with the proper filename into the store
+            Path copyTo = to.resolve(String.format(RECIPE_FILE_NAME_FORMAT, recipe.getComponentName(),
+                    recipe.getComponentVersion().getValue()));
+            Files.write(copyTo, SerializerFactory.getRecipeSerializer().writeValueAsBytes(recipe),
+                    StandardOpenOption.WRITE, StandardOpenOption.CREATE);
         }
     }
 

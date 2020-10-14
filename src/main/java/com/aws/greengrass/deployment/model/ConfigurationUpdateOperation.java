@@ -14,10 +14,13 @@ import java.util.Map;
 @Data
 public class ConfigurationUpdateOperation {
 
-    @JsonProperty("MERGE")
+    public static final String MERGE_KEY = "MERGE";
+    public static final String RESET_KEY = "RESET";
+
+    @JsonProperty(MERGE_KEY)
     Map valueToMerge;
 
-    @JsonProperty("RESET")
+    @JsonProperty(RESET_KEY)
     List<String> pathsToReset;
 }
 

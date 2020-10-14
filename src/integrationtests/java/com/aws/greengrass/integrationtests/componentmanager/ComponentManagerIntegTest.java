@@ -53,11 +53,12 @@ class ComponentManagerIntegTest extends BaseITCase {
         kernel.getContext().put(ComponentStore.class, store);
         GreengrassRepositoryDownloader mockDownloader = mock(GreengrassRepositoryDownloader.class);
         kernel.getContext().put(GreengrassRepositoryDownloader.class, mockDownloader);
+        File artifactFile = store.resolveArtifactDirectoryPath(ident).resolve("zip.zip").toFile();
         when(mockDownloader.downloadRequired(any(), any(), any())).thenReturn(true);
+        when(mockDownloader.getArtifactFile(any(), any(), any())).thenReturn(artifactFile);
         when(mockDownloader.downloadToPath(any(), any(), any())).thenAnswer((i) -> {
-            File p = store.resolveArtifactDirectoryPath(ident).resolve("zip.zip").toFile();
-            Files.copy(getClass().getResourceAsStream("zip.zip"), p.toPath());
-            return p;
+            Files.copy(getClass().getResourceAsStream("zip.zip"), artifactFile.toPath());
+            return artifactFile;
         });
 
         ComponentServiceHelper mockServiceHelper = mock(ComponentServiceHelper.class);

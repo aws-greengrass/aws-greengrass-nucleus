@@ -114,7 +114,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         };
         Slf4jLogAdapter.addGlobalListener(logListener);
 
-        assertTrue(fssPublishLatch.await(30, TimeUnit.SECONDS));
+        assertTrue(fssPublishLatch.await(40, TimeUnit.SECONDS));
         verify(mqttClient, atLeastOnce()).publish(captor.capture());
 
         List<PublishRequest> prs = captor.getAllValues();
