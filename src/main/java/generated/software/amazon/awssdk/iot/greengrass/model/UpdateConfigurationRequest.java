@@ -9,9 +9,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 
-public class UpdateConfigurationRequest implements EventStreamableJsonMessage {
+public class UpdateConfigurationRequest implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#UpdateConfigurationRequest";
 
   public static final UpdateConfigurationRequest VOID;

@@ -27,6 +27,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Setter;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -65,6 +66,7 @@ public class KernelLifecycle {
     private List<Class<? extends Startable>> startables = Arrays.asList(IPCService.class, IPCEventStreamService.class,
             AuthorizationService.class, ConfigStoreIPCService.class, LifecycleIPCService.class,
             PubSubIPCService.class);
+    private final List<Class<? extends Closeable>> closeables = Arrays.asList(IPCEventStreamService.class);
     private ConfigurationWriter tlog;
     private GreengrassService mainService;
     private final AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
@@ -271,6 +273,10 @@ public class KernelLifecycle {
         try {
             logger.atInfo().setEventType("system-shutdown").addKeyValue("main", getMain()).log();
             stopAllServices(timeoutSeconds);
+
+            for (Class<? extends Closeable> c : closeables)  {
+                kernel.getContext().get(c).close();
+            }
 
             // Do not wait for tasks in the executor to end.
             ScheduledExecutorService scheduledExecutorService = kernel.getContext().get(ScheduledExecutorService.class);

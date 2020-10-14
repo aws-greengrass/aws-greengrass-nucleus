@@ -7,9 +7,9 @@ import java.lang.String;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 
-public class ListComponentsResponse implements EventStreamableJsonMessage {
+public class ListComponentsResponse implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ListComponentsResponse";
 
   public static final ListComponentsResponse VOID;

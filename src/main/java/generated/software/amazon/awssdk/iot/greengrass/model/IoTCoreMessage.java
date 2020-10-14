@@ -8,9 +8,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 
-public class IoTCoreMessage implements EventStreamableJsonMessage {
+public class IoTCoreMessage implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#IoTCoreMessage";
 
   private transient UnionMember setUnionMember;
@@ -65,6 +65,11 @@ public class IoTCoreMessage implements EventStreamableJsonMessage {
   }
 
   @Override
+  public void postFromJson() {
+    selfDesignateSetUnionMember();
+  }
+
+  @Override
   public boolean equals(Object rhs) {
     if (rhs == null) return false;
     if (!(rhs instanceof IoTCoreMessage)) return false;
@@ -82,7 +87,7 @@ public class IoTCoreMessage implements EventStreamableJsonMessage {
   }
 
   public enum UnionMember {
-    MESSAGE("MESSAGE", (IoTCoreMessage obj) -> obj.message = Optional.empty(), (IoTCoreMessage obj) -> obj.message != null && !obj.message.isPresent());
+    MESSAGE("MESSAGE", (IoTCoreMessage obj) -> obj.message = Optional.empty(), (IoTCoreMessage obj) -> obj.message != null && obj.message.isPresent());
 
     private String fieldName;
 

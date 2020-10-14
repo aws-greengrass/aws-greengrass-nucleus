@@ -1,8 +1,11 @@
 package software.amazon.eventstream.iot.server;
 
+import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.eventstream.ServerConnection;
@@ -14,6 +17,7 @@ import software.amazon.awssdk.crt.io.ServerBootstrap;
 import software.amazon.awssdk.crt.io.ServerTlsContext;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.crt.io.TlsContextOptions;
+import software.amazon.eventstream.iot.EventStreamRPCServiceModel;
 
 public class IpcServer implements AutoCloseable {
     private static final Logger LOGGER = Logger.getLogger(IpcServer.class.getName());
@@ -28,7 +32,7 @@ public class IpcServer implements AutoCloseable {
     private ServerBootstrap serverBootstrap;
     private ServerTlsContext tlsContext;
     private ServerListener listener;
-    private boolean serverRunning;
+    private AtomicBoolean serverRunning;
 
     public IpcServer(EventLoopGroup eventLoopGroup, SocketOptions socketOptions, TlsContextOptions tlsContextOptions, String hostname, int port, EventStreamRPCServiceHandler serviceHandler) {
         this.eventLoopGroup = eventLoopGroup;
@@ -37,19 +41,17 @@ public class IpcServer implements AutoCloseable {
         this.hostname = hostname;
         this.port = port;
         this.eventStreamRPCServiceHandler = serviceHandler;
-        this.serverRunning = false;
+        this.serverRunning = new AtomicBoolean(false);
     }
 
     /**
-     * Constructor supplied EventStreamRPCServiceHandler self validates that all expected operations
-     * have been wired (hand written -> dependency injected perhaps) before launching the service.
-     *
+     * Runs the server in the constructor supplied event loop group
      */
     public void runServer() {
-        if (serverRunning) {
-            throw new RuntimeException("Failed to start IpcServer. It is already started or has not completed a prior shutdown!");
-        }
         validateServiceHandler();
+        if (!serverRunning.compareAndSet(false, true)) {
+            throw new IllegalStateException("Failed to start IpcServer. It's already started or has not completed a prior shutdown!");
+        }
         serverBootstrap = new ServerBootstrap(eventLoopGroup);
         tlsContext = tlsContextOptions != null ? new ServerTlsContext(tlsContextOptions) : null;
         listener = new ServerListener(hostname, (short) port, socketOptions, tlsContext, serverBootstrap, new ServerListenerHandler() {
@@ -66,7 +68,6 @@ public class IpcServer implements AutoCloseable {
                     LOGGER.info("Server connection closed code [" + CRT.awsErrorString(errorCode) + "]: " + serverConnection.getResourceLogDescription());
                 }
             });
-        serverRunning = true;
         LOGGER.info("IpcServer started...");
     }
 
@@ -74,7 +75,7 @@ public class IpcServer implements AutoCloseable {
      * Stops running server and allows the caller to wait on a CompletableFuture
      */
     public CompletableFuture<Void> stopServer() {
-        if (serverRunning) {
+        if (serverRunning.compareAndSet(true, false)) {
             try {
                 if (listener != null) {
                     listener.close();
@@ -82,7 +83,6 @@ public class IpcServer implements AutoCloseable {
                 }
                 return CompletableFuture.completedFuture(null);
             } finally {
-                serverRunning = false;
                 listener = null;
                 try {
                     if (tlsContext != null) {
@@ -108,16 +108,41 @@ public class IpcServer implements AutoCloseable {
         stopServer();
     }
 
+    /**
+     * Constructor supplied EventStreamRPCServiceHandler self validates that all expected operations
+     * have been wired (hand written -> dependency injected perhaps) before launching the service.
+     *
+     * Also verifies that auth handlers have been set
+     */
     private void validateServiceHandler() {
-        eventStreamRPCServiceHandler.validateAllOperationsSet();
         if (eventStreamRPCServiceHandler.getAuthenticationHandler() == null) {
-            throw new IllegalStateException(String.format("%s authentication handler is not set!",
+            throw new InvalidServiceConfigurationException(String.format("%s authentication handler is not set!",
                     eventStreamRPCServiceHandler.getServiceName()));
         }
         if (eventStreamRPCServiceHandler.getAuthorizationHandler() == null) {
-            throw new IllegalStateException(String.format("%s authorization handler is not set!",
+            throw new InvalidServiceConfigurationException(String.format("%s authorization handler is not set!",
                     eventStreamRPCServiceHandler.getServiceName()));
         }
-    }
 
+        final EventStreamRPCServiceModel serviceModel = eventStreamRPCServiceHandler.getServiceModel();
+
+        if (serviceModel == null) {
+            throw new InvalidServiceConfigurationException("Handler must not have a null service model");
+        }
+
+        if (serviceModel.getServiceName() == null || serviceModel.getServiceName().isEmpty()) {
+            throw new InvalidServiceConfigurationException("Service model's name is null!");
+        }
+
+        final Set<String> unsetOperations = serviceModel.getAllOperations().stream().filter(operationName -> {
+            return serviceModel.getOperationModelContext(operationName) == null;
+        }).collect(Collectors.toSet());
+        if (!unsetOperations.isEmpty()) {
+            throw new InvalidServiceConfigurationException(String.format("Service has the following unset operations {%s}",
+                    unsetOperations.stream().collect(Collectors.joining(", "))));
+        }
+
+        //validates all handlers are set
+        eventStreamRPCServiceHandler.validateAllOperationsSet();
+    }
 }

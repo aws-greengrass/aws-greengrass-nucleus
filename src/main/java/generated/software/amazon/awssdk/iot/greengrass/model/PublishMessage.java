@@ -8,9 +8,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 
-public class PublishMessage implements EventStreamableJsonMessage {
+public class PublishMessage implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#PublishMessage";
 
   private transient UnionMember setUnionMember;
@@ -84,6 +84,11 @@ public class PublishMessage implements EventStreamableJsonMessage {
   }
 
   @Override
+  public void postFromJson() {
+    selfDesignateSetUnionMember();
+  }
+
+  @Override
   public boolean equals(Object rhs) {
     if (rhs == null) return false;
     if (!(rhs instanceof PublishMessage)) return false;
@@ -102,9 +107,9 @@ public class PublishMessage implements EventStreamableJsonMessage {
   }
 
   public enum UnionMember {
-    JSON_MESSAGE("JSON_MESSAGE", (PublishMessage obj) -> obj.jsonMessage = Optional.empty(), (PublishMessage obj) -> obj.jsonMessage != null && !obj.jsonMessage.isPresent()),
+    JSON_MESSAGE("JSON_MESSAGE", (PublishMessage obj) -> obj.jsonMessage = Optional.empty(), (PublishMessage obj) -> obj.jsonMessage != null && obj.jsonMessage.isPresent()),
 
-    BINARY_MESSAGE("BINARY_MESSAGE", (PublishMessage obj) -> obj.binaryMessage = Optional.empty(), (PublishMessage obj) -> obj.binaryMessage != null && !obj.binaryMessage.isPresent());
+    BINARY_MESSAGE("BINARY_MESSAGE", (PublishMessage obj) -> obj.binaryMessage = Optional.empty(), (PublishMessage obj) -> obj.binaryMessage != null && obj.binaryMessage.isPresent());
 
     private String fieldName;
 

@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
+import software.amazon.eventstream.iot.EventStreamRPCServiceModel;
 import software.amazon.eventstream.iot.server.EventStreamRPCServiceHandler;
 import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
 
@@ -96,8 +97,8 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   }
 
   @Override
-  public String getServiceName() {
-    return SERVICE_NAMESPACE + "#" + "GreengrassCoreIPC";
+  public EventStreamRPCServiceModel getServiceModel() {
+    return GreengrassCoreIPCServiceModel.getInstance();
   }
 
   public void setSubscribeToIoTCoreHandler(

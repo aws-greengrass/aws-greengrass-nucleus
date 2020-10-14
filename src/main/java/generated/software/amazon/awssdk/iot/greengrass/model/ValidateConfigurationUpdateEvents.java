@@ -8,9 +8,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import software.amazon.eventstream.iot.EventStreamableJsonMessage;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 
-public class ValidateConfigurationUpdateEvents implements EventStreamableJsonMessage {
+public class ValidateConfigurationUpdateEvents implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ValidateConfigurationUpdateEvents";
 
   private transient UnionMember setUnionMember;
@@ -66,6 +66,11 @@ public class ValidateConfigurationUpdateEvents implements EventStreamableJsonMes
   }
 
   @Override
+  public void postFromJson() {
+    selfDesignateSetUnionMember();
+  }
+
+  @Override
   public boolean equals(Object rhs) {
     if (rhs == null) return false;
     if (!(rhs instanceof ValidateConfigurationUpdateEvents)) return false;
@@ -83,7 +88,7 @@ public class ValidateConfigurationUpdateEvents implements EventStreamableJsonMes
   }
 
   public enum UnionMember {
-    VALIDATE_CONFIGURATION_UPDATE_EVENT("VALIDATE_CONFIGURATION_UPDATE_EVENT", (ValidateConfigurationUpdateEvents obj) -> obj.validateConfigurationUpdateEvent = Optional.empty(), (ValidateConfigurationUpdateEvents obj) -> obj.validateConfigurationUpdateEvent != null && !obj.validateConfigurationUpdateEvent.isPresent());
+    VALIDATE_CONFIGURATION_UPDATE_EVENT("VALIDATE_CONFIGURATION_UPDATE_EVENT", (ValidateConfigurationUpdateEvents obj) -> obj.validateConfigurationUpdateEvent = Optional.empty(), (ValidateConfigurationUpdateEvents obj) -> obj.validateConfigurationUpdateEvent != null && obj.validateConfigurationUpdateEvent.isPresent());
 
     private String fieldName;
 
