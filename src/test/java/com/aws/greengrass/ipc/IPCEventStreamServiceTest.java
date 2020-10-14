@@ -9,6 +9,7 @@ import com.aws.greengrass.util.NucleusPaths;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
+import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCServiceModel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -77,6 +78,7 @@ public class IPCEventStreamServiceTest {
     public void setup() {
         when(greengrassCoreIPCService.getAuthenticationHandler()).thenReturn(mockAuthenticationHandler);
         when(greengrassCoreIPCService.getAuthorizationHandler()).thenReturn(mockAuthorizationHandler);
+        when(greengrassCoreIPCService.getServiceModel()).thenReturn(GreengrassCoreIPCServiceModel.getInstance());
 
         ipcEventStreamService = new IPCEventStreamService(mockKernel, greengrassCoreIPCService, config);
         NucleusPaths nucleusPaths = mock(NucleusPaths.class);
