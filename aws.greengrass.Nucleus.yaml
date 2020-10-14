@@ -6,7 +6,7 @@ ComponentPublisher: AWS
 ComponentVersion: '0.0.0'
 Manifests:
   - Platform:
-      os: macos
+      os: darwin
     Parameters:
       - name: jvmOptions
         # TODO: consider change to nested structure
