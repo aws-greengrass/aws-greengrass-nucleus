@@ -13,6 +13,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.tes.LazyCredentialProvider;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.Utils;
 import lombok.Getter;
 
@@ -41,7 +42,7 @@ public class GreengrassComponentServiceClientFactory {
             DeviceConfiguration deviceConfiguration,
             LazyCredentialProvider credentialsProvider) {
         AWSEvergreenClientBuilder clientBuilder =
-                AWSEvergreenClientBuilder.standard();
+                AWSEvergreenClientBuilder.standard().withClientConfiguration(ProxyUtils.getClientConfiguration());
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
 
         if (!Utils.isEmpty(region)) {
