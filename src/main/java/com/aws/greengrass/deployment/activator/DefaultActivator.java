@@ -20,7 +20,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
@@ -80,7 +79,6 @@ public class DefaultActivator extends DeploymentActivator {
         // wait until topic listeners finished processing mergeMap changes.
         kernel.getContext().runOnPublishQueueAndWait(() -> {});
 
-        AtomicBoolean setDesiredStatesFailed = new AtomicBoolean();
         AtomicReference<Throwable> setDesiredStateFailureCause = new AtomicReference<>();
         kernel.getContext().runOnPublishQueue(() -> {
             // polling to wait for all services to be started.
@@ -90,12 +88,11 @@ public class DefaultActivator extends DeploymentActivator {
                 // This is added to allow deployments to fix broken services
                 servicesChangeManager.reinstallBrokenServices();
             } catch (ServiceLoadException e) {
-                setDesiredStatesFailed.set(true);
                 setDesiredStateFailureCause.set(e);
             }
         });
         // Do not block the publish queue to handle failure in setting desired states for services
-        if (setDesiredStatesFailed.get()) {
+        if (setDesiredStateFailureCause.get() != null) {
             handleFailure(servicesChangeManager, deploymentDocument, totallyCompleteFuture,
                     setDesiredStateFailureCause.get());
         }
@@ -142,7 +139,8 @@ public class DefaultActivator extends DeploymentActivator {
             return;
         }
         // wait until topic listeners finished processing read changes.
-        AtomicBoolean setDesiredStatesFailed = new AtomicBoolean();
+        kernel.getContext().runOnPublishQueueAndWait(() -> {});
+
         AtomicReference<Throwable> setDesiredStateFailureCause = new AtomicReference<>();
         kernel.getContext().runOnPublishQueue(() -> {
             // polling to wait for all services to be started.
@@ -150,17 +148,18 @@ public class DefaultActivator extends DeploymentActivator {
                 rollbackManager.startNewServices();
                 rollbackManager.reinstallBrokenServices();
             } catch (ServiceLoadException e) {
-                setDesiredStatesFailed.set(true);
                 setDesiredStateFailureCause.set(e);
             }
         });
         // Do not block the publish queue to handle failure in setting desired states for services
-        if (setDesiredStatesFailed.get()) {
+        if (setDesiredStateFailureCause.get() != null) {
             handleFailureRollback(totallyCompleteFuture, failureCause, setDesiredStateFailureCause.get());
         }
 
         try {
             Set<GreengrassService> servicesToTrackForRollback = rollbackManager.servicesToTrack();
+            logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrackForRollback", servicesToTrackForRollback)
+                    .log("Applied rollback service config. Waiting for services to complete update");
             waitForServicesToStart(servicesToTrackForRollback, mergeTime);
 
             rollbackManager.removeObsoleteServices();

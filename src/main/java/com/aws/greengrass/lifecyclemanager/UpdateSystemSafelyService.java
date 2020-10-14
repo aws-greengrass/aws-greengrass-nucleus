@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -155,10 +156,16 @@ public class UpdateSystemSafelyService extends GreengrassService {
             } else {
                 lifecycleIPCAgent.discardDeferComponentUpdateFutures();
                 logger.atDebug().setEventType("service-update-scheduled").log();
-                logger.atInfo().setEventType("service-update-start").log();
-                runUpdateActions();
-                logger.atInfo().setEventType("service-update-finish").log();
-
+                try {
+                    context.get(ExecutorService.class).submit(() -> {
+                        logger.atInfo().setEventType("service-update-start").log();
+                        runUpdateActions();
+                        logger.atInfo().setEventType("service-update-finish").log();
+                    }).get();
+                } catch (ExecutionException e) {
+                    logger.atError().setEventType("service-update-error")
+                            .log("Run update actions errored", e);
+                }
             }
         }
     }
