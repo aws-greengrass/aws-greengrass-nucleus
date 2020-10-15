@@ -88,15 +88,12 @@ public class LifecycleIPCEventStreamAgent {
         @Override
         @SuppressWarnings("PMD.PreserveStackTrace")
         public UpdateStateResponse handleRequest(UpdateStateRequest request) {
-            log.atInfo().log("Handling update state request");
             State s = State.valueOf(request.getState().toString());
             String serviceN = request.getServiceName() == null ? serviceName : request.getServiceName();
             GreengrassService service;
             try {
-                log.atInfo().log("Updating the state of a service");
                 service = kernel.locate(serviceN);
                 service.reportState(s);
-                log.atInfo().log("Update the state of service {} to {}", serviceN, s.toString());
             } catch (ServiceLoadException e) {
                 log.atWarn().kv("service name", request.getServiceName()).log("Service not present");
                 ResourceNotFoundError rnf = new ResourceNotFoundError();

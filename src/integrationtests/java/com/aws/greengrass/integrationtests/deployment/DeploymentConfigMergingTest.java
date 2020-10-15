@@ -6,6 +6,7 @@ package com.aws.greengrass.integrationtests.deployment;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
@@ -16,13 +17,7 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.BaseITCase;
-import com.aws.greengrass.ipc.IPCClientImpl;
-import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
-import com.aws.greengrass.ipc.services.lifecycle.Lifecycle;
-import com.aws.greengrass.ipc.services.lifecycle.LifecycleImpl;
-import com.aws.greengrass.ipc.services.lifecycle.PostComponentUpdateEvent;
-import com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent;
-import com.aws.greengrass.ipc.services.lifecycle.exceptions.LifecycleIPCException;
+import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -32,15 +27,23 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Coerce;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
+import generated.software.amazon.awssdk.iot.greengrass.model.ComponentUpdatePolicyEvents;
+import generated.software.amazon.awssdk.iot.greengrass.model.DeferComponentUpdateRequest;
+import generated.software.amazon.awssdk.iot.greengrass.model.SubscribeToComponentUpdatesRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import software.amazon.awssdk.crt.eventstream.ClientConnection;
 
+import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -57,8 +60,10 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
+import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.gson;
+import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
@@ -75,9 +80,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 class DeploymentConfigMergingTest extends BaseITCase {
+    private static final ObjectMapper OBJECT_MAPPER =
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private Kernel kernel;
     private DeploymentConfigMerger deploymentConfigMerger;
 
@@ -447,6 +456,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     }
 
     @Test
+    @SuppressWarnings("PMD.CloseResource")
     void GIVEN_a_running_service_is_not_disruptable_WHEN_deployed_THEN_deployment_waits() throws Throwable {
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("non_disruptable_service.yaml").toString());
@@ -461,32 +471,40 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // wait for main to finish
         assertTrue(mainFinished.await(10, TimeUnit.SECONDS));
 
-        KernelIPCClientConfig nonDisruptable = getIPCConfigForService("nondisruptable", kernel);
-        IPCClientImpl ipcClient = new IPCClientImpl(nonDisruptable);
-        Lifecycle lifecycle = new LifecycleImpl(ipcClient);
-
         AtomicInteger deferCount = new AtomicInteger(0);
         AtomicInteger preComponentUpdateCount = new AtomicInteger(0);
         CountDownLatch postComponentUpdateRecieved = new CountDownLatch(1);
-        lifecycle.subscribeToComponentUpdate((event) -> {
+        Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "nondisruptable",
+                PRIVATE_STORE_NAMESPACE_TOPIC);
+        String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+        final ClientConnection clientConnection = IPCTestUtils.connectClientForEventStreamIpc(authToken, kernel);
+        SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest = new SubscribeToComponentUpdatesRequest();
 
-            if (event instanceof PreComponentUpdateEvent) {
-                preComponentUpdateCount.getAndIncrement();
-                //defer update the first time
-                //no response the second time causes the kernel to move forward after default wait time
-                if (deferCount.get() < 1) {
+        IPCTestUtils.sendSubscribeOperationRequest(clientConnection, "aws.greengrass#SubscribeToComponentUpdates",
+                subscribeToComponentUpdatesRequest.toPayload(gson), (headers, payload) -> {
                     try {
-                        lifecycle.deferComponentUpdate("nondisruptable", TimeUnit.SECONDS.toMillis(5));
-                        deferCount.getAndIncrement();
-                    } catch (LifecycleIPCException e) {
+                        ComponentUpdatePolicyEvents event = OBJECT_MAPPER.readValue(payload,
+                                ComponentUpdatePolicyEvents.class);
+
+                        if (event.getPreUpdateEvent() != null ) {
+                            preComponentUpdateCount.getAndIncrement();
+                            if (deferCount.get() < 1) {
+                                DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+                                deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(5).toMillis());
+                                deferComponentUpdateRequest.setMessage("Test");
+                                IPCTestUtils.sendOperationRequest(clientConnection, "aws.greengrass#DeferComponentUpdate", deferComponentUpdateRequest
+                                        .toPayload(gson), null).close();
+                                deferCount.getAndIncrement();
+                            }
+                        }
+                        if (event.getPostUpdateEvent() != null) {
+                            postComponentUpdateRecieved.countDown();
+                            clientConnection.closeConnection(0);
+                        }
+                    } catch (IOException e) {
+                        fail("received invalid update policy event");
                     }
-                }
-            }
-            if (event instanceof PostComponentUpdateEvent) {
-                postComponentUpdateRecieved.countDown();
-                ipcClient.disconnect();
-            }
-        });
+                });
 
         Map<String, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
         Future<DeploymentResult> future =
@@ -498,6 +516,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         assertTrue(postComponentUpdateRecieved.await(15,TimeUnit.SECONDS));
         assertEquals(2, preComponentUpdateCount.get());
+        clientConnection.close();
     }
 
     @Test
