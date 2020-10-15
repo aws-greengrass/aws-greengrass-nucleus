@@ -6,6 +6,7 @@ package com.aws.greengrass.deployment.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,6 +22,7 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
 @Setter
+@Builder
 @AllArgsConstructor
 @NoArgsConstructor
 @EqualsAndHashCode
@@ -43,6 +45,9 @@ public class DeploymentPackageConfiguration {
 
     @JsonProperty("ConfigurationUpdate")
     private ConfigurationUpdateOperation configurationUpdateOperation;
+
+    @JsonProperty("RunWith")
+    private RunWith runWith;
 
     /**
      * Constructor for no update configuration update for backward compatibility.

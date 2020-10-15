@@ -36,6 +36,7 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
@@ -50,6 +51,8 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
@@ -83,14 +86,18 @@ import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMP
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
+import static com.aws.greengrass.integrationtests.util.SudoUtil.assumeCanSudoShell;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.io.FileMatchers.anExistingDirectory;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -723,6 +730,68 @@ class DeploymentTaskIntegrationTest {
         assertThrows(ServiceLoadException.class, () -> kernel.locate("CustomerApp"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("Mosquitto"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("GreenSignal"));
+    }
+    /**
+     * Start a service running with a user, then deploy an update to change the user and ensure the correct user
+     * stops the process and starts the new one.
+     */
+    @Test
+    @Order(5) // deploy before tests that break services
+    @EnabledOnOs(OS.LINUX)
+    void GIVEN_a_deployment_with_runwith_config_WHEN_submitted_THEN_runwith_updated() throws Exception {
+        ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
+                GreengrassService.class.getName());
+
+        assumeCanSudoShell(kernel, true);
+
+        countDownLatch = new CountDownLatch(2);
+        // Set up stdout listener to capture stdout for verifying users
+        List<String> stdouts = new CopyOnWriteArrayList<>();
+        Consumer<GreengrassLogMessage> listener = m -> {
+            Map<String, String> contexts = m.getContexts();
+            String messageOnStdout = contexts.get("stdout");
+            if (messageOnStdout != null && messageOnStdout.contains("with user")) {
+                stdouts.add(messageOnStdout);
+                countDownLatch.countDown();
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+
+
+        /*
+         * 1st deployment. Default Config.
+         */
+        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentWithUser_1.json").toURI(),
+                System.currentTimeMillis());
+        resultFuture.get(10, TimeUnit.SECONDS);
+
+        // verify user
+        String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
+                .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
+        assertEquals("123456", user);
+        countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
+        assertThat(stdouts, hasItem(containsString("installing app with user root")));
+        assertThat(stdouts, hasItem(containsString("starting app with user #123456")));
+
+        stdouts.clear();
+        /*
+         * 2nd deployment. Change user
+         */
+        countDownLatch = new CountDownLatch(2);
+        resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentWithUser_2.json").toURI(),
+                System.currentTimeMillis());
+        resultFuture.get(10, TimeUnit.SECONDS);
+        user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
+                .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
+        assertEquals("54321", user);
+
+        countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
+        assertThat(stdouts, hasItem(containsString("stopping app with user #123456")));
+        assertThat(stdouts, hasItem(containsString("starting app with user #54321")));
+
+        Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
     /**

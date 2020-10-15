@@ -39,7 +39,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,6 +47,9 @@ import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_GROUP_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -231,19 +233,29 @@ public class KernelConfigResolver {
         }
         resolvedServiceConfig.put(PARAMETERS_CONFIG_KEY, resolvedParamMap);
 
-        // Resolve config
-        Optional<ConfigurationUpdateOperation> optionalConfigUpdate =
+        Optional<DeploymentPackageConfiguration> optionalDeploymentPackageConfig =
                 document.getDeploymentPackageConfigurationList().stream()
                         .filter(e -> e.getPackageName().equals(componentRecipe.getComponentName()))
 
                         // only allow update config for root
                         // no need to check version because root's version will be pinned
-                        .filter(DeploymentPackageConfiguration::isRootComponent)
-                        .map(DeploymentPackageConfiguration::getConfigurationUpdateOperation).filter(Objects::nonNull)
-                        .findAny();
+                        .filter(DeploymentPackageConfiguration::isRootComponent).findAny();
 
-        Map<String, Object> resolvedConfiguration =
-                resolveConfigurationToApply(optionalConfigUpdate.orElse(null), componentRecipe);
+        Optional<ConfigurationUpdateOperation> optionalConfigUpdate = Optional.empty();
+        if (optionalDeploymentPackageConfig.isPresent()) {
+            DeploymentPackageConfiguration packageConfiguration = optionalDeploymentPackageConfig.get();
+            optionalConfigUpdate = Optional.ofNullable(packageConfiguration.getConfigurationUpdateOperation());
+
+            if (packageConfiguration.getRunWith() != null) {
+                Map<String, String> runWith = new HashMap<>(2);
+                runWith.put(POSIX_USER_KEY, packageConfiguration.getRunWith().getPosixUser());
+                runWith.put(POSIX_GROUP_KEY, packageConfiguration.getRunWith().getPosixGroup());
+                resolvedServiceConfig.put(RUN_WITH_NAMESPACE_TOPIC, runWith);
+            }
+        }
+
+        Map<String, Object> resolvedConfiguration = resolveConfigurationToApply(optionalConfigUpdate.orElse(null),
+                componentRecipe);
 
         // merge resolved param and resolved configuration for backward compatibility
         resolvedServiceConfig

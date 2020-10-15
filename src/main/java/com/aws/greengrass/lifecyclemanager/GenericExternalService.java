@@ -6,15 +6,19 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.AuthenticationHandler;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
@@ -31,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
@@ -43,8 +48,17 @@ public class GenericExternalService extends GreengrassService {
                     "SIGTSTP", "SIGTTIN", "SIGTTOU", "SIGURG", "SIGXCPU", "SIGXFSZ", "SIGVTALRM", "SIGPROF", "SIGWINCH",
                     "SIGIO", "SIGPWR", "SIGSYS",};
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
-    private static final Pattern skipcmd = Pattern.compile(SKIP_COMMAND_REGEX);
+    private static final Pattern SKIPCMD = Pattern.compile(SKIP_COMMAND_REGEX);
+
+    protected String runWithUser;
+    protected String runWithGroup;
+    protected String runWithShell;
+
+    @Inject
+    protected DeviceConfiguration deviceConfiguration;
+
     private final List<Exec> lifecycleProcesses = new CopyOnWriteArrayList<>();
+
 
     /**
      * Create a new GenericExternalService.
@@ -77,8 +91,9 @@ public class GenericExternalService extends GreengrassService {
                 return;
             }
 
-            // Restart service for changes to the lifecycle config or if environment variables changed
-            if (child.childOf(SERVICE_LIFECYCLE_NAMESPACE_TOPIC) || child.childOf(SETENV_CONFIG_NAMESPACE)) {
+            // Restart service for changes to the lifecycle config, environment variables, or runwith
+            if (child.childOf(SERVICE_LIFECYCLE_NAMESPACE_TOPIC) || child.childOf(SETENV_CONFIG_NAMESPACE)
+                    || child.childOf(RUN_WITH_NAMESPACE_TOPIC)) {
                 requestRestart();
             }
         });
@@ -151,6 +166,11 @@ public class GenericExternalService extends GreengrassService {
         return atomicExitCode.get();
     }
 
+    private boolean isPrivilegeRequired(String lifecycleName) {
+        return Coerce.toBoolean(config.findOrDefault(false, SERVICE_LIFECYCLE_NAMESPACE_TOPIC, lifecycleName,
+                Lifecycle.REQUIRES_PRIVILEGE_NAMESPACE_TOPIC));
+    }
+
     /**
      * Check if bootstrap step needs to run during service update. Called during deployments to determine deployment
      * workflow.
@@ -203,6 +223,8 @@ public class GenericExternalService extends GreengrassService {
     protected synchronized void startup() throws InterruptedException {
         stopAllLifecycleProcesses();
 
+        storeInitialRunWithConfiguration();
+
         long startingStateGeneration = getStateGeneration();
 
         Pair<RunStatus, Exec> result = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
@@ -234,6 +256,7 @@ public class GenericExternalService extends GreengrassService {
     private synchronized void handleRunScript() throws InterruptedException {
         stopAllLifecycleProcesses();
         long startingStateGeneration = getStateGeneration();
+
 
         Pair<RunStatus, Exec> result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
@@ -325,6 +348,31 @@ public class GenericExternalService extends GreengrassService {
     }
 
     /**
+     * Store user, group, and shell that will be used to run the service. This should be used throughout the lifecycle.
+     * This information can change with a deployment, but a the service *must* execute the lifecycle steps with the
+     * same user/group/shell that was configured when it started.
+     */
+    protected void storeInitialRunWithConfiguration() {
+        String user = null;
+        String group = null;
+        String shell = null;
+
+        // TODO: Add support for Windows
+        if (PlatformResolver.RANKS.get().containsKey("posix")) {
+            user = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixUser());
+            group = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixGroup());
+            // shell cannot be changed from kernel default
+            shell = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixShell());
+
+            user = Coerce.toString(config.findOrDefault(user, RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
+            group = Coerce.toString(config.findOrDefault(group, RUN_WITH_NAMESPACE_TOPIC, POSIX_GROUP_KEY));
+        }
+        this.runWithUser = user;
+        this.runWithGroup = group;
+        this.runWithShell = shell;
+    }
+
+    /**
      * Run one of the commands defined in the config on the command line.
      *
      * @param name         name of the command to run ("run", "install", "startup", "bootstrap").
@@ -340,16 +388,17 @@ public class GenericExternalService extends GreengrassService {
             return new Pair<>(RunStatus.NothingDone, null);
         }
         if (n instanceof Topic) {
-            return run((Topic) n, Coerce.toString(((Topic) n).getOnce()), background, trackingList);
+            return run((Topic) n, Coerce.toString(n), background, trackingList, isPrivilegeRequired(name));
         }
         if (n instanceof Topics) {
-            return run((Topics) n, background, trackingList);
+            return run((Topics) n, background, trackingList, isPrivilegeRequired(name));
         }
         return new Pair<>(RunStatus.NothingDone, null);
     }
 
     @SuppressWarnings("PMD.CloseResource")
-    protected Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, List<Exec> trackingList)
+    protected Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, List<Exec> trackingList,
+                                        boolean requiresPrivilege)
             throws InterruptedException {
         final ShellRunner shellRunner = context.get(ShellRunner.class);
         Exec exec;
@@ -362,8 +411,10 @@ public class GenericExternalService extends GreengrassService {
         if (exec == null) {
             return new Pair<>(RunStatus.NothingDone, null);
         }
+        exec = addUser(exec, requiresPrivilege);
+        exec = addShell(exec);
+
         // TODO: Change artifact owner
-        // TODO: Set runas from override/default
         addEnv(exec, t.parent);
         logger.atDebug().setEventType("generic-service-run").log();
 
@@ -376,7 +427,8 @@ public class GenericExternalService extends GreengrassService {
         return new Pair<>(ret, exec);
     }
 
-    protected Pair<RunStatus, Exec> run(Topics t, IntConsumer background, List<Exec> trackingList)
+    protected Pair<RunStatus, Exec> run(Topics t, IntConsumer background, List<Exec> trackingList,
+                                        boolean requiresPrivilege)
             throws InterruptedException {
         try {
             if (shouldSkip(t)) {
@@ -389,7 +441,7 @@ public class GenericExternalService extends GreengrassService {
 
         Node script = t.getChild("script");
         if (script instanceof Topic) {
-            return run((Topic) script, Coerce.toString(((Topic) script).getOnce()), background, trackingList);
+            return run((Topic) script, Coerce.toString(script), background, trackingList, requiresPrivilege);
         } else {
             logger.atError().setEventType("generic-service-invalid-config").addKeyValue("configNode", t.getFullName())
                     .log("Missing script");
@@ -407,7 +459,7 @@ public class GenericExternalService extends GreengrassService {
                 expr = expr.substring(1).trim();
                 neg = true;
             }
-            Matcher m = skipcmd.matcher(expr);
+            Matcher m = SKIPCMD.matcher(expr);
             if (m.matches()) {
                 switch (m.group(1)) {
                     case "onpath":
@@ -442,5 +494,67 @@ public class GenericExternalService extends GreengrassService {
                 }
             });
         }
+    }
+
+    Exec addUserGroup(Exec exec) {
+        return addUserGroup(exec, runWithUser, runWithGroup);
+    }
+
+    private Exec addUserGroup(Exec exec, String user, String group) {
+        boolean validUser = !Utils.isEmpty(user);
+        if (validUser) {
+            exec = exec.withUser(user);
+            boolean validGroup = !Utils.isEmpty(group);
+            if (validGroup) {
+                exec = exec.withGroup(group);
+            }
+        }
+        return exec;
+    }
+
+    /**
+     * Add privileged user to the Exec.
+     *
+     * @param exec the exec to modify.
+     * @return the exec.
+     */
+    protected Exec addPrivilegedUser(Exec exec) {
+        if (Exec.isWindows) {
+            logger.atWarn("Windows lifecycle steps cannot run as different users");
+            return exec;
+        }
+        String user = Platform.getInstance().getPrivilegedUser();
+        String group = Platform.getInstance().getPrivilegedGroup();
+        return addUserGroup(exec, user, group);
+    }
+
+    /**
+     * Add the shell saved when service initially started to the Exec.
+     *
+     * @param exec the Exec to modify.
+     * @return the Exec
+     */
+    protected Exec addShell(Exec exec) {
+        if (Exec.isWindows) {
+            return exec;
+        }
+        return exec.usingShell(runWithShell);
+    }
+
+    /**
+     * Set the user to run the command as. This loads the user that was configured when the service initially started.
+     * If privilege is required for the command, the privileged user is loaded instead.
+     *
+     * @param exec the execution to modify.
+     * @param requiresPrivilege whether the step requires privilege or not.
+     * @return the exec.
+     */
+    protected Exec addUser(Exec exec, boolean requiresPrivilege) {
+        if (requiresPrivilege) {
+            exec = addPrivilegedUser(exec);
+        } else {
+            exec = addUserGroup(exec);
+        }
+        return exec;
     }
 }

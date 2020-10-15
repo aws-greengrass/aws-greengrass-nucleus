@@ -14,8 +14,13 @@ import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
+import java.io.File;
+import java.nio.file.Files;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -24,6 +29,7 @@ import java.util.concurrent.TimeoutException;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.integrationtests.util.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,6 +44,11 @@ class GenericExternalServiceTest extends BaseITCase {
 
     private Kernel kernel;
 
+    @BeforeEach
+    void beforeEach() {
+        kernel = new Kernel();
+    }
+
     @AfterEach
     void afterEach() {
         kernel.shutdown();
@@ -47,7 +58,6 @@ class GenericExternalServiceTest extends BaseITCase {
     void GIVEN_service_config_with_broken_skipif_config_WHEN_launch_service_THEN_service_moves_to_error_state()
             throws Throwable {
         // GIVEN
-        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("skipif_broken.yaml").toString());
 
         CountDownLatch testErrored = new CountDownLatch(1);
@@ -66,7 +76,6 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_service_with_timeout_WHEN_timeout_expires_THEN_move_service_to_errored() throws InterruptedException {
-        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("service_timesout.yaml").toString());
         kernel.launch();
         CountDownLatch ServicesAErroredLatch = new CountDownLatch(1);
@@ -88,7 +97,6 @@ class GenericExternalServiceTest extends BaseITCase {
     @Test
     void GIVEN_service_shutdown_with_timeout_WHEN_timeout_expires_THEN_service_still_closes()
             throws InterruptedException, ServiceLoadException, TimeoutException, ExecutionException {
-        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("service_shutdown_timesout.yaml").toString());
         kernel.launch();
         CountDownLatch mainRunning = new CountDownLatch(1);
@@ -106,7 +114,7 @@ class GenericExternalServiceTest extends BaseITCase {
     @Test
     void GIVEN_service_with_dynamically_loaded_config_WHEN_dynamic_config_changes_THEN_service_does_not_restart()
             throws Exception {
-        kernel = new Kernel();
+
         kernel.parseArgs("-i", getClass().getResource("service_with_dynamic_config.yaml").toString());
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -139,7 +147,6 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_running_service_WHEN_install_config_changes_THEN_service_reinstalls() throws Exception {
-        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("service_with_dynamic_config.yaml").toString());
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -168,7 +175,6 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_running_service_WHEN_version_config_changes_THEN_service_reinstalls() throws Exception {
-        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("service_with_dynamic_config.yaml").toString());
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -196,7 +202,6 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_running_service_WHEN_run_config_changes_THEN_service_restarts() throws Exception {
-        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("service_with_dynamic_config.yaml").toString());
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -225,7 +230,6 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_running_service_WHEN_setenv_config_changes_THEN_service_restarts() throws Exception {
-        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("service_with_dynamic_config.yaml").toString());
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -253,7 +257,6 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_bootstrap_command_WHEN_bootstrap_THEN_command_runs_and_returns_exit_code() throws Exception {
-        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("service_with_just_bootstrap.yaml").toString()).launch();
 
         CountDownLatch mainFinished = new CountDownLatch(1);
@@ -278,7 +281,6 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_bootstrap_command_WHEN_runs_longer_than_5_sec_THEN_timeout_exception_is_thrown() throws Exception {
-        kernel = new Kernel();
         kernel.parseArgs("-i", getClass().getResource("service_with_just_bootstrap.yaml").toString()).launch();
 
         CountDownLatch mainFinished = new CountDownLatch(1);
@@ -296,5 +298,51 @@ class GenericExternalServiceTest extends BaseITCase {
 
         // this runs 5 seconds
         assertThrows(TimeoutException.class, serviceWithJustBootstrapAndShouldTimeout::bootstrap);
+    }
+
+    @EnabledOnOs(OS.LINUX)
+    @Test
+    void GIVEN_linux_default_user_WHEN_runs_THEN_runs_with_default_user() throws Exception {
+        runPosixUserShellTest("config_run_with_user.yaml", "123456");
+
+    }
+
+    @EnabledOnOs(OS.LINUX)
+    @Test
+    void GIVEN_linux_default_shell_WHEN_runs_THEN_runs_with_default_shell() throws Exception {
+        runPosixUserShellTest("config_run_with_user_shell.yaml", "123456");
+    }
+
+    @EnabledOnOs(OS.LINUX)
+    @Test
+    void GIVEN_linux_requires_privilege_WHEN_runs_THEN_runs_with_root() throws Exception {
+        runPosixUserShellTest("config_run_with_privilege.yaml", "0");
+    }
+
+    private void runPosixUserShellTest(String file, String expectedUid) throws Exception {
+        kernel.parseArgs("-i", getClass().getResource(file).toString());
+
+        // skip when running as a user that cannot sudo to shell
+        assumeCanSudoShell(kernel, true);
+
+        // create file for test to write UID into
+        File testFile = File.createTempFile("user-test", ".txt");
+        testFile.deleteOnExit();
+        assertTrue(testFile.setWritable(true, false), "could not set test file to be writable");
+        GenericExternalService service = (GenericExternalService) kernel.locate("echo_service");
+        service.getServiceConfig().find(SETENV_CONFIG_NAMESPACE, "output_path").withValue(testFile.getAbsolutePath());
+
+        CountDownLatch main = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((s, oldState, newState) -> {
+            if (s.getName().equals("main") && newState.equals(State.FINISHED)) {
+                main.countDown();
+            }
+        });
+        kernel.launch();
+
+        assertTrue(main.await(10, TimeUnit.SECONDS));
+
+        String user = Files.newBufferedReader(testFile.toPath()).readLine();
+        assertEquals(expectedUid, user);
     }
 }

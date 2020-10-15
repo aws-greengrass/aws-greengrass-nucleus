@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -16,11 +17,22 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ExecTest {
+
+    private String readLink(String path) throws IOException {
+        Path p = Paths.get(path);
+        if (Files.isSymbolicLink(p)) {
+            return Files.readSymbolicLink(p).toString();
+        }
+        return path;
+    }
+
     @Test
     void Given_exec_WHEN_commands_executed_using_static_methods_THEN_success() throws InterruptedException, IOException {
         if (Exec.isWindows) {
@@ -33,7 +45,7 @@ class ExecTest {
         assertEquals(s, Exec.sh(command));
         String s2 = Exec.sh("ifconfig -a;echo Hello");
         assertTrue(s2.contains("Hello"));
-        String expectedDir = System.getProperty("user.home");
+        String expectedDir = readLink(System.getProperty("user.home"));
         assertEquals(expectedDir, Exec.sh(new File(expectedDir), command));
         assertEquals(expectedDir, Exec.sh(Paths.get(expectedDir), command));
         assertTrue(Exec.successful(false, command));
@@ -108,31 +120,35 @@ class ExecTest {
         final Exec exec = new Exec();
         final String getWorkingDirCmd = Exec.isWindows ? "cd" : "pwd";
 
+        // resolve links in-case user.dir or user.home is a symlink
+
         // By default Exec uses home as current directory for exec
-        Path expectedDir = Paths.get(System.getProperty("user.dir"));
-        String defaultDir = exec.withShell(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(0, expectedDir.compareTo(Paths.get(defaultDir)));
+        Path expectedDir = Paths.get(readLink(System.getProperty("user.dir")));
+        Path defaultDir = Paths.get(readLink(exec.withShell(getWorkingDirCmd).execAndGetStringOutput()));
+        assertThat(expectedDir, is(defaultDir));
 
         // Now change it to some other directory
         expectedDir = Paths.get("/").toAbsolutePath();
-        String changedDir = exec.cd(expectedDir.toString()).withShell(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(0, expectedDir.compareTo(Paths.get(changedDir)));
+        Path changedDir =
+                Paths.get(exec.cd(expectedDir.toString()).withShell(getWorkingDirCmd).execAndGetStringOutput());
+        assertThat(expectedDir, is(expectedDir));
 
         // Now use the file argument to change into another directory again
         // File argument would use the current directory ("/") as base
-        expectedDir = Paths.get(System.getProperty("user.home")).toAbsolutePath();
-        changedDir = exec.cd(expectedDir.toString()).withShell(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(0, expectedDir.compareTo(Paths.get(changedDir)));
+        expectedDir = Paths.get(readLink(System.getProperty("user.home"))).toAbsolutePath();
+        changedDir = Paths.get(exec.cd(expectedDir.toString()).withShell(getWorkingDirCmd).execAndGetStringOutput());
+        assertThat(changedDir, is(expectedDir));
 
         // Now change it to root again
         expectedDir = Paths.get("/").toAbsolutePath();
-        changedDir = exec.cd(expectedDir.toString()).withShell(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(0, expectedDir.compareTo(Paths.get(changedDir)));
+        changedDir = Paths.get(exec.cd(expectedDir.toString()).withShell(getWorkingDirCmd).execAndGetStringOutput());
+        assertThat(changedDir, is(expectedDir));
 
         // by default cd change to home directory
-        expectedDir = Paths.get(System.getProperty("user.home"));
-        changedDir = exec.cd(/* no argument */).withShell(getWorkingDirCmd).execAndGetStringOutput();
-        assertEquals(0, expectedDir.compareTo(Paths.get(changedDir)));
+        expectedDir = Paths.get(readLink(System.getProperty("user.home")));
+        changedDir =
+                Paths.get(readLink(exec.cd(/* no argument */).withShell(getWorkingDirCmd).execAndGetStringOutput()));
+        assertThat(changedDir, is(expectedDir));
         exec.close();
     }
 

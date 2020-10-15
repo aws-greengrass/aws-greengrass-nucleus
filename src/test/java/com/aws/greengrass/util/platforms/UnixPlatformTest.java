@@ -39,7 +39,8 @@ public class UnixPlatformTest   {
                         .withUser("100")
                         .withGroup("200")
                         .decorate(command),
-                is(arrayContaining("sudo", "-E", "-u", "\\#100", "-g", "\\#200", "--", "echo", "hello", "world")));
+
+                is(arrayContaining("sudo", "-E", "-u", "#100", "-g", "#200", "--", "echo", "hello", "world")));
     }
 
     @Test

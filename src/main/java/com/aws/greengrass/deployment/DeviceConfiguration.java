@@ -41,9 +41,11 @@ public class DeviceConfiguration {
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
-    private static final String DEVICE_PARAM_ENV_STAGE = "envStage";
-    private static final String DEFAULT_ENV_STAGE = "prod";
-
+    public static final String RUN_WITH_TOPIC = "runWithDefault";
+    public static final String RUN_WITH_DEFAULT_POSIX_USER = "posixUser";
+    public static final String RUN_WITH_DEFAULT_POSIX_GROUP = "posixGroup";
+    public static final String RUN_WITH_DEFAULT_WINDOWS_USER = "windowsUser";
+    public static final String RUN_WITH_DEFAULT_POSIX_SHELL = "posixShell";
     public static final String DEVICE_NETWORK_PROXY_NAMESPACE = "networkProxy";
     public static final String DEVICE_PROXY_NAMESPACE = "proxy";
     public static final String DEVICE_PARAM_NO_PROXY_ADDRESSES = "noProxyAddresses";
@@ -51,6 +53,8 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_PROXY_USERNAME = "username";
     public static final String DEVICE_PARAM_PROXY_PASSWORD = "password";
 
+    private static final String DEVICE_PARAM_ENV_STAGE = "envStage";
+    private static final String DEFAULT_ENV_STAGE = "prod";
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
@@ -133,6 +137,26 @@ public class DeviceConfiguration {
 
             return region;
         };
+    }
+
+    public Topics getRunWithTopic() {
+        return getTopics(RUN_WITH_TOPIC);
+    }
+
+    public Topic getRunWithDefaultPosixUser() {
+        return getRunWithTopic().lookup(RUN_WITH_DEFAULT_POSIX_USER);
+    }
+
+    public Topic getRunWithDefaultPosixGroup() {
+        return getRunWithTopic().lookup(RUN_WITH_DEFAULT_POSIX_GROUP);
+    }
+
+    public Topic getRunWithDefaultPosixShell() {
+        return getRunWithTopic().lookup(RUN_WITH_DEFAULT_POSIX_SHELL).dflt("sh");
+    }
+
+    public Topic getRunWithDefaultWindowsUser() {
+        return getRunWithTopic().lookup(RUN_WITH_DEFAULT_WINDOWS_USER);
     }
 
     public Topic getThingName() {

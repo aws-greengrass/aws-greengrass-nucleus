@@ -19,6 +19,7 @@ import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
+import com.aws.greengrass.deployment.model.RunWith;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -48,10 +49,15 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_GROUP_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -139,10 +145,21 @@ class KernelConfigResolverTest {
                 getPackage(TEST_INPUT_PACKAGE_B, "2.3.0", Collections.emptyMap(), Collections.emptyMap(),
                         TEST_INPUT_PACKAGE_B);
 
-        DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
-        DeploymentPackageConfiguration dependencyPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, false, "=2.3", Collections.emptyMap());
+        DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion("=1.2")
+                .configuration(Collections.emptyMap())
+                .runWith(RunWith.builder().posixUser("foo").posixGroup("bar").build())
+                .build();
+
+        DeploymentPackageConfiguration dependencyPackageDeploymentConfig =  DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_B)
+                .rootComponent(false)
+                .resolvedVersion("=2.3")
+                .configuration(Collections.emptyMap())
+                .build();
+
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig,
@@ -172,6 +189,15 @@ class KernelConfigResolverTest {
         assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
         assertThat("Must contain dependency service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_B));
 
+        Map<String, Object> serviceA = (Map<String, Object>)servicesConfig.get(TEST_INPUT_PACKAGE_A);
+        assertThat("Service A must contain runWith", serviceA, hasKey(RUN_WITH_NAMESPACE_TOPIC));
+        Map<String, Object> runWith = (Map<String, Object>)serviceA.get(RUN_WITH_NAMESPACE_TOPIC);
+        assertThat("Service A must set posix user", runWith, hasEntry(POSIX_USER_KEY, "foo"));
+        assertThat("Service A must set posix group", runWith, hasEntry(POSIX_GROUP_KEY, "bar"));
+
+        Map<String, Object> serviceB = (Map<String, Object>)servicesConfig.get(TEST_INPUT_PACKAGE_B);
+        assertThat("Service B must not have runWith", serviceB, not(hasKey(RUN_WITH_NAMESPACE_TOPIC)));
+
         // dependencies
         assertThat("Main service must depend on new service",
                 dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
@@ -199,6 +225,50 @@ class KernelConfigResolverTest {
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig))
                                                         .build();
+
+        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
+        when(nucleusPaths.unarchiveArtifactPath(rootComponentIdentifier)).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
+        when(kernel.getMain()).thenReturn(mainService);
+        when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(
+                Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
+        when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
+        when(alreadyRunningService.isBuiltin()).thenReturn(true);
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths);
+        Map<String, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        // service config
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+        assertThat("Must contain main service", servicesConfig, hasKey("main"));
+        assertThat("Must contain updated service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
+
+        // dependencies
+        assertThat("Main service must depend on updated service",
+                dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
+    }
+
+    @Test
+    void GIVEN_deployment_change_run_with_for_existing_package_WHEN_config_resolution_requested_THEN_update_service() throws Exception {
+        // GIVEN
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2.0", Semver.SemverType.NPM));
+        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
+
+        ComponentRecipe rootComponentRecipe =
+                getPackage(TEST_INPUT_PACKAGE_A, "1.2.0", Collections.emptyMap(), Collections.emptyMap(),
+                        TEST_INPUT_PACKAGE_A);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig))
+                .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
         when(nucleusPaths.unarchiveArtifactPath(rootComponentIdentifier)).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
@@ -465,8 +535,11 @@ class KernelConfigResolverTest {
         ComponentRecipe rootComponentRecipe = getComponent(TEST_INPUT_PACKAGE_A, "1.2.0", Collections.emptyMap(),
                 node, "/startup/paramA", null, null);
 
-        DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, ">=1.2", null, null);
+        DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion(">=1.2")
+                .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
                 .build();
@@ -500,8 +573,11 @@ class KernelConfigResolverTest {
         ComponentRecipe rootComponentRecipe = getComponent(TEST_INPUT_PACKAGE_A, "1.2.0", Collections.emptyMap(),
                 node, "/startup/paramA", null, null);
 
-        DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, ">=1.2", null, null);
+        DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion(">=1.2")
+                .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
                 .build();
@@ -544,8 +620,12 @@ class KernelConfigResolverTest {
         ConfigurationUpdateOperation updateOperation = new ConfigurationUpdateOperation();
         updateOperation.setValueToMerge(Collections.singletonMap("startup", Collections.singletonMap("paramA",
                 "valueC")));
-        DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, ">=1.2", null, updateOperation);
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion(">=1.2")
+                .configurationUpdateOperation(updateOperation)
+                .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
                 .build();
@@ -587,8 +667,12 @@ class KernelConfigResolverTest {
 
         ConfigurationUpdateOperation updateOperation = new ConfigurationUpdateOperation();
         updateOperation.setPathsToReset(Arrays.asList("/startup/paramA", "/startup/paramB"));
-        DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, ">=1.2", null, updateOperation);
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion(">=1.2")
+                .configurationUpdateOperation(updateOperation)
+                .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
                 .build();
@@ -648,15 +732,25 @@ class KernelConfigResolverTest {
                 getComponent(TEST_INPUT_PACKAGE_C, "3.4.0", Collections.emptyMap(),
                         null, "/startup/paramA", TEST_INPUT_PACKAGE_B, "/startup/paramB");
 
-        DeploymentPackageConfiguration componentDeploymentConfigA =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", null, null);
+        DeploymentPackageConfiguration componentDeploymentConfigA = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion("=1.2")
+                .build();
         ConfigurationUpdateOperation updateOperation = new ConfigurationUpdateOperation();
         updateOperation.setValueToMerge(Collections.singletonMap("startup", Collections.singletonMap("paramB",
                 "valueB1")));
-        DeploymentPackageConfiguration componentDeploymentConfigB =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_B, true, "=2.3", null, updateOperation);
-        DeploymentPackageConfiguration componentDeploymentConfigC =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_C, true, "=3.4", null, null);
+        DeploymentPackageConfiguration componentDeploymentConfigB = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_B)
+                .rootComponent(true)
+                .resolvedVersion("=2.3")
+                .configurationUpdateOperation(updateOperation)
+                .build();
+        DeploymentPackageConfiguration componentDeploymentConfigC = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_C)
+                .rootComponent(true)
+                .resolvedVersion("=3.4")
+                .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(Arrays.asList(componentDeploymentConfigA,
                         componentDeploymentConfigB, componentDeploymentConfigC))

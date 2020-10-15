@@ -37,7 +37,7 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    public CommandDecorator getShellDecorator() {
+    public ShellDecorator getShellDecorator() {
         return new CmdDecorator();
     }
 
@@ -51,8 +51,19 @@ public class WindowsPlatform extends Platform {
         throw new UnsupportedOperationException("cannot run as another user");
     }
 
+    @Override
+    public String getPrivilegedGroup() {
+        return null;
+    }
+
+    @Override
+    public String getPrivilegedUser() {
+        return null;
+    }
+
     @NoArgsConstructor
-    public static class CmdDecorator implements CommandDecorator {
+    public static class CmdDecorator implements ShellDecorator {
+
         @Override
         public String[] decorate(String... command) {
             String[] ret = new String[command.length + 2];
@@ -60,6 +71,11 @@ public class WindowsPlatform extends Platform {
             ret[1] = "/C";
             System.arraycopy(command, 0, ret, 2, command.length);
             return ret;
+        }
+
+        @Override
+        public ShellDecorator withShell(String shell) {
+            throw new UnsupportedOperationException("changing shell is not supported");
         }
     }
   
