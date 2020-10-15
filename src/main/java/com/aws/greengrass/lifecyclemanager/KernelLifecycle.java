@@ -285,7 +285,11 @@ public class KernelLifecycle {
             //Stop the telemetry logger context after each test so we can delete the telemetry log files that are
             // created during the test.
             TelemetryConfig.getInstance().closeContext();
+            // Stop all the contexts for the loggers.
             LogConfig.getInstance().closeContext();
+            for (LogConfig logConfig : LogManager.getLogConfigurations().values()) {
+                logConfig.closeContext();
+            }
             logger.atInfo("context-shutdown-initiated").log();
             kernel.getContext().close();
             logger.atInfo("context-shutdown-complete").log();
