@@ -42,8 +42,7 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class PeriodicFleetStatusServiceTest extends BaseITCase {
@@ -101,10 +100,21 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
+        CountDownLatch allComponentsInFssUpdate = new CountDownLatch(1);
 
-        // Sleep for more time than the FSS publish interval so that we have all the data.
-        TimeUnit.SECONDS.sleep(50);
-        verify(mqttClient, atLeastOnce()).publish(captor.capture());
+        when(mqttClient.publish(captor.capture())).thenAnswer(i -> {
+            Object argument = i.getArgument(0);
+            PublishRequest publishRequest = (PublishRequest) argument;
+            FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(publishRequest.getPayload(),
+                    FleetStatusDetails.class);
+            if (componentNamesToCheck.size() == fleetStatusDetails.getComponentStatusDetails().size()) {
+                allComponentsInFssUpdate.countDown();
+            }
+            return new CompletableFuture<>();
+        });
+
+        // Wait for some time for the publish request to have all the components update.
+        assertTrue(allComponentsInFssUpdate.await(20, TimeUnit.SECONDS));
 
         List<PublishRequest> prs = captor.getAllValues();
         // Get the last FSS publish request which should have all the components information.
