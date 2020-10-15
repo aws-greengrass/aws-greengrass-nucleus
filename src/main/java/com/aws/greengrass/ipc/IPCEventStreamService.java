@@ -23,6 +23,8 @@ import software.amazon.eventstream.iot.server.IpcServer;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
 import javax.inject.Inject;
 
@@ -55,6 +57,7 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     private SocketOptions socketOptions;
     private EventLoopGroup eventLoopGroup;
+    private String ipcServerSocketPath;
 
     IPCEventStreamService(Kernel kernel,
                                  GreengrassCoreIPCService greengrassCoreIPCService,
@@ -81,7 +84,7 @@ public class IPCEventStreamService implements Startable, Closeable {
         socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
         socketOptions.type = SocketOptions.SocketType.STREAM;
         eventLoopGroup = new EventLoopGroup(1);
-        String ipcServerSocketPath = kernel.getNucleusPaths().rootPath()
+        ipcServerSocketPath = kernel.getNucleusPaths().rootPath()
                 .resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
         Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, KERNEL_DOMAIN_SOCKET_FILEPATH);
         kernelUri.withValue(ipcServerSocketPath);
@@ -133,9 +136,19 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     @Override
     public void close() {
-        // TODO: Future does not complete, uncomment when fixed.
+        // TODO: Future does not complete, wait on them when fixed.
         if (ipcServer != null) {
             ipcServer.stopServer();
+        }
+        eventLoopGroup.close();
+        socketOptions.close();
+        if (ipcServerSocketPath != null && Files.exists(Paths.get(ipcServerSocketPath))) {
+            try {
+                logger.atInfo().log("Deleting the ipc server socket descriptor file");
+                Files.delete(Paths.get(ipcServerSocketPath));
+            } catch (IOException e) {
+                logger.atWarn().log("Failed to delete the ipc server socket descriptor file");
+            }
         }
     }
 }
