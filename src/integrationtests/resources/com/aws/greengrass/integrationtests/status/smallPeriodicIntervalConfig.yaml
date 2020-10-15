@@ -6,4 +6,4 @@ services:
         all: echo All installed
   FleetStatusService:
     parameters:
-      periodicUpdateIntervalSec: 10
+      periodicUpdateIntervalSec: 30
