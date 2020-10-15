@@ -10,8 +10,6 @@ import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.logging.impl.GreengrassLogMessage;
-import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.ComponentStatusDetails;
@@ -39,21 +37,18 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class PeriodicFleetStatusServiceTest extends BaseITCase {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static DeviceConfiguration deviceConfiguration;
     private static Kernel kernel;
-    private Consumer<GreengrassLogMessage> logListener;
     private final Set<String> componentNamesToCheck = new HashSet<>();
 
     @TempDir
@@ -105,37 +100,41 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
-        CountDownLatch fssPublishLatch = new CountDownLatch(1);
-        logListener = eslm -> {
-            if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
-                    && eslm.getMessage().equals("Status update published to FSS")) {
-                fssPublishLatch.countDown();
-            }
-        };
-        Slf4jLogAdapter.addGlobalListener(logListener);
+        CountDownLatch allComponentsInFssUpdate = new CountDownLatch(1);
 
-        assertTrue(fssPublishLatch.await(40, TimeUnit.SECONDS));
-        verify(mqttClient, atLeastOnce()).publish(captor.capture());
+        when(mqttClient.publish(captor.capture())).thenAnswer(i -> {
+            Object argument = i.getArgument(0);
+            PublishRequest publishRequest = (PublishRequest) argument;
+            FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(publishRequest.getPayload(),
+                    FleetStatusDetails.class);
+            if (componentNamesToCheck.size() == fleetStatusDetails.getComponentStatusDetails().size()) {
+                allComponentsInFssUpdate.countDown();
+            }
+            return CompletableFuture.completedFuture(0);
+        });
+
+        // Wait for some time for the publish request to have all the components update.
+        assertTrue(allComponentsInFssUpdate.await(20, TimeUnit.SECONDS));
 
         List<PublishRequest> prs = captor.getAllValues();
-        for (PublishRequest pr : prs) {
-            try {
-                FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(),
-                        FleetStatusDetails.class);
-                assertEquals("ThingName", fleetStatusDetails.getThing());
-                assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-                assertEquals(0, fleetStatusDetails.getSequenceNumber());
-                assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-                String allUpdatedComponentNames = fleetStatusDetails.getComponentStatusDetails().stream()
-                        .map(ComponentStatusDetails::getComponentName).collect(Collectors.joining(", "));
-                assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size(),
-                        "Not all components were updated. Updated Components names are: "
-                                + allUpdatedComponentNames + ". All Components: " +
-                                String.join(", ", componentNamesToCheck));
-                fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
-                    componentNamesToCheck.remove(componentStatusDetails.getComponentName());
-                });
-            } catch (UnrecognizedPropertyException ignored) { }
+        // Get the last FSS publish request which should have all the components information.
+        PublishRequest pr = prs.get(prs.size() - 1);
+        try {
+            FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(),
+                    FleetStatusDetails.class);
+            assertEquals("ThingName", fleetStatusDetails.getThing());
+            assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+            assertNotNull(fleetStatusDetails.getComponentStatusDetails());
+            String allUpdatedComponentNames = fleetStatusDetails.getComponentStatusDetails().stream()
+                    .map(ComponentStatusDetails::getComponentName).collect(Collectors.joining(", "));
+            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size(),
+                    "Not all components were updated. Updated Components names are: "
+                            + allUpdatedComponentNames + ". All Components: " +
+                            String.join(", ", componentNamesToCheck));
+            fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
+                componentNamesToCheck.remove(componentStatusDetails.getComponentName());
+            });
+        } catch (UnrecognizedPropertyException ignored) {
         }
         assertEquals(0, componentNamesToCheck.size());
     }
