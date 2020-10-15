@@ -5,7 +5,9 @@ package com.aws.greengrass.util;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.platforms.CommandDecorator;
 import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.UserDecorator;
 import lombok.Getter;
 
 import java.io.BufferedReader;
@@ -99,6 +101,8 @@ public final class Exec implements Closeable {
     AtomicInteger numberOfCopiers;
     private String[] environment = defaultEnvironment;
     private String[] cmds;
+    private CommandDecorator shellDecorator;
+    private CommandDecorator userDecorator;
     private File dir = userdir;
     private long timeout = -1;
     private TimeUnit timeunit = TimeUnit.SECONDS;
@@ -278,13 +282,62 @@ public final class Exec implements Closeable {
         return dir;
     }
 
+    /**
+     * Set the command to execute.
+     * @param c a command.
+     * @return this.
+     */
     public Exec withExec(String... c) {
         cmds = c;
         return this;
     }
 
-    public Exec withShell(String s) {
-        return withExec(Platform.getInstance().getShellForCommand(s));
+    /**
+     * Decorate a command so that it executes in a shell.
+     *
+     * @param command a command to execute.
+     * @return this.
+     */
+    public Exec withShell(String... command) {
+        withShell();
+        return withExec(command);
+    }
+
+    /**
+     * Execute the command in a shell.
+     *
+     * @return this.
+     */
+    public Exec withShell() {
+        shellDecorator = Platform.getInstance().getShellDecorator();
+        return this;
+    }
+
+    /**
+     * Execute the command as the specified user.
+     *
+     * @param user a user name or identifier.
+     * @return this.
+     */
+    public Exec withUser(String user) {
+        userDecorator = Platform.getInstance().getUserDecorator().withUser(user);
+        return this;
+    }
+
+    /**
+     * Execute the command as the specified user and group.
+     *
+     * @param user  a user name or identifier.
+     * @param group a group name or identifier.
+     * @return this.
+     */
+    public Exec withUserGroup(String user, String group) {
+        UserDecorator decorator = Platform.getInstance().getUserDecorator().withUser(user);
+        if (group != null) {
+            decorator = decorator.withGroup(group);
+        }
+        userDecorator = decorator;
+        return this;
     }
 
     /**
@@ -317,12 +370,19 @@ public final class Exec implements Closeable {
 
     @SuppressWarnings("PMD.AvoidRethrowingException")
     private void exec() throws InterruptedException, IOException {
+        String[] decorated = cmds;
+        if (shellDecorator != null) {
+            decorated = shellDecorator.decorate(decorated);
+        }
+        if (userDecorator != null) {
+            decorated = userDecorator.decorate(decorated);
+        }
         // Don't run anything if the current thread is currently interrupted
         if (Thread.currentThread().isInterrupted()) {
             logger.atWarn().kv("command", this).log("Refusing to execute because the active thread is interrupted");
             throw new InterruptedException();
         }
-        process = Runtime.getRuntime().exec(cmds, environment, dir);
+        process = Runtime.getRuntime().exec(decorated, environment, dir);
         stderrc = new Copier(process.getErrorStream(), stderr);
         stdoutc = new Copier(process.getInputStream(), stdout);
         stderrc.start();

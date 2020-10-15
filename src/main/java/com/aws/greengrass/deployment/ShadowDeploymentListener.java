@@ -19,11 +19,11 @@ import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotshadow.IotShadowClient;
-import software.amazon.awssdk.iot.iotshadow.model.GetShadowRequest;
-import software.amazon.awssdk.iot.iotshadow.model.GetShadowSubscriptionRequest;
+import software.amazon.awssdk.iot.iotshadow.model.GetNamedShadowRequest;
+import software.amazon.awssdk.iot.iotshadow.model.GetNamedShadowSubscriptionRequest;
 import software.amazon.awssdk.iot.iotshadow.model.ShadowState;
-import software.amazon.awssdk.iot.iotshadow.model.UpdateShadowRequest;
-import software.amazon.awssdk.iot.iotshadow.model.UpdateShadowSubscriptionRequest;
+import software.amazon.awssdk.iot.iotshadow.model.UpdateNamedShadowRequest;
+import software.amazon.awssdk.iot.iotshadow.model.UpdateNamedShadowSubscriptionRequest;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -48,6 +48,7 @@ public class ShadowDeploymentListener implements InjectionActions {
     private static final long WAIT_TIME_TO_SUBSCRIBE_AGAIN_IN_MS = Duration.ofMinutes(2).toMillis();
     private static final Logger logger = LogManager.getLogger(ShadowDeploymentListener.class);
     public static final String CONFIGURATION_ARN_LOG_KEY_NAME = "CONFIGURATION_ARN";
+    public static final String DEPLOYMENT_SHADOW_NAME = "AWSManagedGreengrassDeployment";
     //Keeps track of the deployment config-arn and the desired state, in the order in which deployments
     //were received.
     private final Queue<Pair<String, Map<String, Object>>> desiredStateQueue = new ConcurrentLinkedQueue<>();
@@ -110,21 +111,26 @@ public class ShadowDeploymentListener implements InjectionActions {
     private void subscribeToShadowTopics() {
         while (true) {
             try {
-                UpdateShadowSubscriptionRequest updateShadowSubscriptionRequest = new UpdateShadowSubscriptionRequest();
-                updateShadowSubscriptionRequest.thingName = thingName;
-                iotShadowClient.SubscribeToUpdateShadowAccepted(updateShadowSubscriptionRequest,
+                UpdateNamedShadowSubscriptionRequest updateNamedShadowSubscriptionRequest =
+                        new UpdateNamedShadowSubscriptionRequest();
+                updateNamedShadowSubscriptionRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
+                updateNamedShadowSubscriptionRequest.thingName = thingName;
+                iotShadowClient.SubscribeToUpdateNamedShadowAccepted(updateNamedShadowSubscriptionRequest,
                         QualityOfService.AT_LEAST_ONCE, updateShadowResponse ->
                                 shadowUpdated(updateShadowResponse.state.desired, updateShadowResponse.version),
                         (e) -> logger.atError().log("Error processing updateShadowResponse", e))
                         .get(TIMEOUT_FOR_SUBSCRIBING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
-                GetShadowSubscriptionRequest request = new GetShadowSubscriptionRequest();
-                request.thingName = thingName;
-                logger.info("Subscribed to update device shadow topics" + thingName);
-                iotShadowClient.SubscribeToGetShadowAccepted(request, QualityOfService.AT_MOST_ONCE,
+                logger.info("Subscribed to update named shadow accepted topic");
+                GetNamedShadowSubscriptionRequest getNamedShadowSubscriptionRequest
+                        = new GetNamedShadowSubscriptionRequest();
+                getNamedShadowSubscriptionRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
+                getNamedShadowSubscriptionRequest.thingName = thingName;
+                iotShadowClient.SubscribeToGetNamedShadowAccepted(getNamedShadowSubscriptionRequest,
+                        QualityOfService.AT_MOST_ONCE,
                         getShadowResponse -> shadowUpdated(getShadowResponse.state.desired, getShadowResponse.version),
                         (e) -> logger.atError().log("Error processing getShadowResponse", e))
                         .get(TIMEOUT_FOR_SUBSCRIBING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
-                logger.info("Subscribed to get device shadow topics" + thingName);
+                logger.info("Subscribed to get named shadow topic");
                 return;
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();
@@ -162,9 +168,11 @@ public class ShadowDeploymentListener implements InjectionActions {
     }
 
     private void publishToGetDeviceShadowTopic() {
-        GetShadowRequest getShadowRequest = new GetShadowRequest();
-        getShadowRequest.thingName = thingName;
-        iotShadowClient.PublishGetShadow(getShadowRequest, QualityOfService.AT_LEAST_ONCE);
+        GetNamedShadowRequest getNamedShadowRequest = new GetNamedShadowRequest();
+        getNamedShadowRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
+        getNamedShadowRequest.thingName = thingName;
+        iotShadowClient.PublishGetNamedShadow(getNamedShadowRequest, QualityOfService.AT_LEAST_ONCE);
+        logger.info("Published to get named shadow topic");
     }
 
     @SuppressFBWarnings
@@ -193,10 +201,11 @@ public class ShadowDeploymentListener implements InjectionActions {
             try {
                 ShadowState shadowState = new ShadowState();
                 shadowState.reported = new HashMap<>(desired.getRight());
-                UpdateShadowRequest updateShadowRequest = new UpdateShadowRequest();
-                updateShadowRequest.thingName = thingName;
-                updateShadowRequest.state = shadowState;
-                iotShadowClient.PublishUpdateShadow(updateShadowRequest, QualityOfService.AT_LEAST_ONCE)
+                UpdateNamedShadowRequest updateNamedShadowRequest = new UpdateNamedShadowRequest();
+                updateNamedShadowRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
+                updateNamedShadowRequest.thingName = thingName;
+                updateNamedShadowRequest.state = shadowState;
+                iotShadowClient.PublishUpdateNamedShadow(updateNamedShadowRequest, QualityOfService.AT_LEAST_ONCE)
                         .get(TIMEOUT_FOR_PUBLISHING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
                 desiredStateQueue.remove();
                 logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
