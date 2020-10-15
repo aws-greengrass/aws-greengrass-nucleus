@@ -30,7 +30,7 @@ jobs:
           -jvmArgs "-Xms1m -Xmx64m -XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -XX:GCTimeRatio=19
           -XX:NativeMemoryTracking=summary -Xss232k"
           -prof com.aws.greengrass.jmh.profilers.ForcedGcMemoryProfiler
-      - run: rm -rf ~/.m2/repositories/com/aws/iot/evergreen-kernel
+      - run: rm -rf ~/.m2/repository/com/aws/iot/evergreen-kernel
         continue-on-error: true
         if: always()
       - name: Upload JMH Result

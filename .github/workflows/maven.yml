@@ -96,7 +96,7 @@ jobs:
           mvn -ntp -U install -DskipTests
           mvn -ntp -U -f src/test/evergreen-kernel-benchmark install
         if: matrix.os == 'Linux'
-      - run: rm -rf ~/.m2/repositories/com/aws/iot/evergreen-kernel
+      - run: rm -rf ~/.m2/repository/com/aws/iot/evergreen-kernel
         continue-on-error: true
         if: always()
   publish:
