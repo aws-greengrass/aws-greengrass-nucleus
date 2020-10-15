@@ -1,6 +1,5 @@
 package com.aws.greengrass.lifecyclemanager;
 
-import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
@@ -24,8 +23,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.stream.Stream;
 
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.KERNEL_CONFIG_LOGGING_TOPICS;
 import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.SERVICE_CONFIG_LOGGING_TOPICS;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.io.FileMatchers.aFileNamed;
@@ -58,13 +55,13 @@ class LogManagerHelperTest {
 
     @Test
     void GIVEN_mock_service_WHEN_getComponentLogger_THEN_logs_to_correct_log_file() throws IOException {
-        Configuration kernelConfig = mock(Configuration.class);
+        //Configuration kernelConfig = mock(Configuration.class);
         Topics componentTopics = mock(Topics.class);
         when(mockGreengrassService.getServiceName()).thenReturn("MockService");
         when(mockGreengrassService.getConfig()).thenReturn(componentTopics);
-        when(mockKernel.getConfig()).thenReturn(kernelConfig);
-        when(kernelConfig.lookup(SERVICES_NAMESPACE_TOPIC, "", KERNEL_CONFIG_LOGGING_TOPICS))
-                .thenReturn(mock(Topic.class));
+        //when(mockKernel.getConfig()).thenReturn(kernelConfig);
+        //when(kernelConfig.lookup(SERVICES_NAMESPACE_TOPIC, "", KERNEL_CONFIG_LOGGING_TOPICS))
+        //        .thenReturn(mock(Topic.class));
         when(componentTopics.lookup(SERVICE_CONFIG_LOGGING_TOPICS)).thenReturn(mock(Topic.class));
         logManagerHelper = new LogManagerHelper(mockKernel);
 

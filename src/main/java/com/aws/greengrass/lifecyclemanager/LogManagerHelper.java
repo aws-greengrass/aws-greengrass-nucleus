@@ -8,8 +8,6 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
 
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
-
 /**
  * Helper function to get a logger with configurations separate from the root logger.
  */
@@ -17,19 +15,20 @@ public class LogManagerHelper {
     static final String KERNEL_CONFIG_LOGGING_TOPICS = "logging";
     static final String SERVICE_CONFIG_LOGGING_TOPICS = "ComponentLogging";
     private static final String LOG_FILE_EXTENSION = ".log";
-    private final Kernel kernel;
+    //private final Kernel kernel;
 
     /**
      * Constructor for LogManagerHelper.
      * @param kernel {@link Kernel}
      */
+    @SuppressWarnings("PMD.UnusedFormalParameter")
     public LogManagerHelper(Kernel kernel) {
-        this.kernel = kernel;
-        // TODO; Use KERNEL_COMPONENT_NAME here
-        this.kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, "", KERNEL_CONFIG_LOGGING_TOPICS)
-                .subscribe((why, newv) -> {
-                    // TODO: Reconfigure all loggers using logging configuration in the kernel config.
-                });
+        //this.kernel = kernel;
+        // TODO: uncomment this after KERNEL_COMPONENT_NAME is available to use.
+        //this.kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, KERNEL_COMPONENT_NAME, KERNEL_CONFIG_LOGGING_TOPICS)
+        //        .subscribe((why, newv) -> {
+        //            // TODO: Reconfigure all loggers using logging configuration in the kernel config.
+        //        });
     }
 
     /**
