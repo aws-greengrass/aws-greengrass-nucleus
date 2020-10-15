@@ -4,7 +4,7 @@
                           https://maven.apache.org/xsd/settings-1.0.0.xsd">
     <servers>
         <server>
-            <id>evergreen-dev-snapshot</id>
+            <id>greengrass-dev-snapshot</id>
             <username>${access-key-id}</username>
             <password>${access-key-secret}</password>
         </server>

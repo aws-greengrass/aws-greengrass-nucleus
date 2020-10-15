@@ -274,7 +274,6 @@ public class Kernel {
     }
 
     public void writeEffectiveConfig() {
-        // TODO: what file extension should we use?  The syntax is yaml, but the semantics are "evergreen"
         writeEffectiveConfig(context.get(NucleusPaths.class).configPath().resolve(DEFAULT_CONFIG_YAML_FILE));
     }
 
@@ -327,7 +326,7 @@ public class Kernel {
     }
 
     /**
-     * Locate an EvergreenService by name in the kernel context.
+     * Locate a GreengrassService by name in the kernel context.
      *
      * @param name name of the service to find
      * @return found service or null
@@ -401,7 +400,7 @@ public class Kernel {
             // If found class, try to load service class from plugins.
             if (clazz != null) {
                 try {
-                    // Lookup the service topics here because the Topics passed into the EvergreenService
+                    // Lookup the service topics here because the Topics passed into the GreengrassService
                     // constructor must not be null
                     Topics topics = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
 
@@ -421,7 +420,7 @@ public class Kernel {
                                 .withNewerValue(0L, clazz.getAnnotation(ImplementsService.class).version());
                     }
 
-                    logger.atInfo("evergreen-service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName())
+                    logger.atInfo("service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName())
                             .log();
                     return ret;
                 } catch (Throwable ex) {

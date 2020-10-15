@@ -128,7 +128,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
     void cleanUp() {
         ses.shutdownNow();
         fleetStatusService.shutdown();
-        fleetStatusService.clearEvergreenServiceSet();
+        fleetStatusService.clearServiceSet();
     }
 
     @Test
@@ -438,7 +438,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         // Update the state of an EG service.
         addGlobalStateChangeListenerArgumentCaptor.getValue()
                 .globalServiceStateChanged(mockGreengrassService1, State.INSTALLED, State.RUNNING);
-        fleetStatusService.addEvergreenServicesToPreviouslyKnownServicesList(Collections.singletonList(
+        fleetStatusService.addServicesToPreviouslyKnownServicesList(Collections.singletonList(
                 mockGreengrassService1), Instant.MIN);
 
         map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
