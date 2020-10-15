@@ -15,7 +15,7 @@ jobs:
       - greengrass
     strategy:
       matrix:
-        os: [Linux, Windows]
+        os: [Linux]
     name: Build on ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
