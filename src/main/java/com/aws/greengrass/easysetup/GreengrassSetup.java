@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.ThingInfo;
+import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
 
 /**
  * Easy setup for getting started with Greengrass kernel on a device.
@@ -50,6 +51,8 @@ public class GreengrassSetup {
             + " AWS services using the device certificate\n"
             + "\t--install-cli, -ic\t\tY/N Indicate if you want to install Greengrass device CLI\n"
             + "\t--setup-system-service, -ss\t\tY/N Indicate if you want to setup Greengrass as a system service\n";
+
+    private static final String SHOW_VERSION_RESPONSE = "AWS Greengrass v%s";
 
     private static final String HELP_ARG = "--help";
     private static final String HELP_ARG_SHORT = "-h";
@@ -115,6 +118,8 @@ public class GreengrassSetup {
     private static final String KERNEL_START_ARG_SHORT = "-s";
     private static final boolean KERNEL_START_ARG_DEFAULT = true;
 
+    private static final String VERSION_ARG = "--version";
+
     // TODO : Add optional input for credentials, currently creds are assumed to be set into env vars
 
     private static final Logger logger = LogManager.getLogger(GreengrassSetup.class);
@@ -127,6 +132,7 @@ public class GreengrassSetup {
     private int argpos = 0;
     private String arg;
     private boolean showHelp = false;
+    private boolean showVersion = false;
     private String thingName = THING_NAME_DEFAULT;
     private String thingGroupName = THING_GROUP_NAME_DEFAULT;
     private String policyName = POLICY_NAME_DEFAULT;
@@ -199,6 +205,10 @@ public class GreengrassSetup {
             outStream.println(SHOW_HELP_RESPONSE);
             return;
         }
+        if (showVersion) {
+            outStream.println(String.format(SHOW_VERSION_RESPONSE, KERNEL_VERSION));
+            return;
+        }
 
         Kernel kernel = getKernel();
 
@@ -243,6 +253,9 @@ public class GreengrassSetup {
                 case HELP_ARG:
                 case HELP_ARG_SHORT:
                     this.showHelp = true;
+                    break loop;
+                case VERSION_ARG:
+                    this.showVersion = true;
                     break loop;
                 case KERNEL_CONFIG_ARG:
                 case KERNEL_CONFIG_ARG_SHORT:
