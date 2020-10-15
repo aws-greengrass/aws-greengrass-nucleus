@@ -63,7 +63,7 @@ class ServiceDependencyLifecycleTest {
 
     private static final int TEST_ROUTINE_SHORT_TIMEOUT = 15;
     private static final int TEST_ROUTINE_MEDIUM_TIMEOUT = 20;
-    //private static final int TEST_ROUTINE_LONG_TIMEOUT = 30;
+    private static final int TEST_ROUTINE_LONG_TIMEOUT = 30;
 
     private Kernel kernel;
 
@@ -204,8 +204,9 @@ class ServiceDependencyLifecycleTest {
         when(doc1.getDeploymentId()).thenReturn("removeHardDep");
         when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel,
-                () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), configRemoveDep).get(10, TimeUnit.SECONDS),
+        testRoutine(TEST_ROUTINE_LONG_TIMEOUT, kernel,
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), configRemoveDep).get(60,
+                        TimeUnit.SECONDS),
                 "dependency removed", expectedDepRemoved, unexpectedDepRemoved);
 
 
