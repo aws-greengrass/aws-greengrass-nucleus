@@ -14,9 +14,9 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
  * Helper function to get a logger with configurations separate from the root logger.
  */
 public class LogManagerHelper {
+    static final String KERNEL_CONFIG_LOGGING_TOPICS = "logging";
+    static final String SERVICE_CONFIG_LOGGING_TOPICS = "ComponentLogging";
     private static final String LOG_FILE_EXTENSION = ".log";
-    private static final String KERNEL_CONFIG_LOGGING_TOPICS = "logging";
-    private static final String SERVICE_CONFIG_LOGGING_TOPICS = "ComponentLogging";
     private final Kernel kernel;
 
     /**
