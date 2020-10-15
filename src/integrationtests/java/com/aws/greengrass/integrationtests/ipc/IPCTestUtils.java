@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public final class IPCTestUtils {
 
-    static Gson gson = EventStreamServiceModel.GSON;
+    public static Gson gson = EventStreamServiceModel.GSON;
 
     public static String TEST_SERVICE_NAME = "ServiceName";
 
