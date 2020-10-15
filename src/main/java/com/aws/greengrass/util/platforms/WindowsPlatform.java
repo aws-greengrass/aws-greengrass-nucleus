@@ -6,6 +6,7 @@
 package com.aws.greengrass.util.platforms;
 
 import com.aws.greengrass.util.FileSystemPermission;
+import lombok.NoArgsConstructor;
 import org.zeroturnaround.exec.InvalidExitValueException;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
@@ -36,8 +37,8 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    public String[] getShellForCommand(String command) {
-        return new String[]{"cmd.exe", "/C", command};
+    public CommandDecorator getShellDecorator() {
+        return new CmdDecorator();
     }
 
     @Override
@@ -45,6 +46,23 @@ public class WindowsPlatform extends Platform {
         return 1;
     }
 
+    @Override
+    public UserDecorator getUserDecorator() {
+        throw new UnsupportedOperationException("cannot run as another user");
+    }
+
+    @NoArgsConstructor
+    public static class CmdDecorator implements CommandDecorator {
+        @Override
+        public String[] decorate(String... command) {
+            String[] ret = new String[command.length + 2];
+            ret[0] = "cmd.exe";
+            ret[1] = "/C";
+            System.arraycopy(command, 0, ret, 2, command.length);
+            return ret;
+        }
+    }
+  
     @Override
     public void setPermissions(FileSystemPermission permission, Path path) throws IOException {
         // TODO: Implement using ACL for Windows
