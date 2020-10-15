@@ -571,4 +571,24 @@ public class DeploymentService extends GreengrassService {
         }
         return allGroupNames;
     }
+
+    /**
+     * Checks whether a component is a root component or not.
+     * @param componentName The name of the component.
+     * @return a boolean indicating whether a component is a root component or not.
+     */
+    public boolean isComponentRoot(String componentName) {
+        Topics groupToRootComponentsTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
+        AtomicBoolean isRoot = new AtomicBoolean(false);
+        if (groupToRootComponentsTopics != null) {
+            groupToRootComponentsTopics.children.values().stream().map(n -> (Topics) n)
+                    .forEach(topics -> topics.children.values().stream().map(n -> (Topics) n)
+                            .forEach(componentTopics -> {
+                                if (componentName.equals(componentTopics.getName())) {
+                                    isRoot.set(true);
+                                }
+                            }));
+        }
+        return isRoot.get();
+    }
 }
