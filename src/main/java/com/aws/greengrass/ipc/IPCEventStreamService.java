@@ -86,6 +86,14 @@ public class IPCEventStreamService implements Startable, Closeable {
         eventLoopGroup = new EventLoopGroup(1);
         ipcServerSocketPath = kernel.getNucleusPaths().rootPath()
                 .resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+        if (Files.exists(Paths.get(ipcServerSocketPath))) {
+            try {
+                logger.atDebug().log("Deleting the ipc server socket descriptor file");
+                Files.delete(Paths.get(ipcServerSocketPath));
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file");
+            }
+        }
         Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, KERNEL_DOMAIN_SOCKET_FILEPATH);
         kernelUri.withValue(ipcServerSocketPath);
         ipcServer = new IpcServer(eventLoopGroup, socketOptions, null, ipcServerSocketPath,
@@ -140,15 +148,12 @@ public class IPCEventStreamService implements Startable, Closeable {
         if (ipcServer != null) {
             ipcServer.stopServer();
         }
-        eventLoopGroup.close();
-        socketOptions.close();
-        if (ipcServerSocketPath != null && Files.exists(Paths.get(ipcServerSocketPath))) {
-            try {
-                logger.atInfo().log("Deleting the ipc server socket descriptor file");
-                Files.delete(Paths.get(ipcServerSocketPath));
-            } catch (IOException e) {
-                logger.atWarn().log("Failed to delete the ipc server socket descriptor file");
-            }
+        if (eventLoopGroup != null) {
+            eventLoopGroup.close();
         }
+        if (socketOptions != null) {
+        socketOptions.close();
+        }
+
     }
 }
