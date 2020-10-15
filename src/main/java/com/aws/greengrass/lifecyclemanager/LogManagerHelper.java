@@ -19,6 +19,10 @@ public class LogManagerHelper {
     private static final String SERVICE_CONFIG_LOGGING_TOPICS = "ComponentLogging";
     private final Kernel kernel;
 
+    /**
+     * Constructor for LogManagerHelper.
+     * @param kernel {@link Kernel}
+     */
     public LogManagerHelper(Kernel kernel) {
         this.kernel = kernel;
         // TODO; Use KERNEL_COMPONENT_NAME here
