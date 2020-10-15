@@ -10,6 +10,7 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.hamcrest.MatcherAssert;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -34,7 +35,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class LogManagerHelperTest {
     @TempDir
-    protected static Path tempRootDir;
+    protected Path tempRootDir;
     @Mock
     private Kernel mockKernel;
     @Mock
@@ -42,12 +43,15 @@ class LogManagerHelperTest {
 
     private LogManagerHelper logManagerHelper;
 
-    @BeforeAll
-    static void setupLogger() {
-        LogManager.getRootLogConfiguration().setStore(LogStore.FILE);
+    @BeforeEach
+    void setup() {
         LogManager.setRoot(tempRootDir.resolve("logs"));
     }
 
+    @BeforeAll
+    static void setupLogger() {
+        LogManager.getRootLogConfiguration().setStore(LogStore.FILE);
+    }
     @AfterAll
     static void cleanupLogger() {
         LogManager.getRootLogConfiguration().setStore(LogStore.CONSOLE);
