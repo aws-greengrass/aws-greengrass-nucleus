@@ -20,7 +20,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
@@ -43,6 +42,7 @@ public class DefaultActivator extends DeploymentActivator {
     }
 
     @Override
+    @SuppressWarnings("PMD.PrematureDeclaration")
     public void activate(Map<String, Object> newConfig, Deployment deployment,
                          CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         Map<String, Object> serviceConfig;
@@ -63,11 +63,10 @@ public class DefaultActivator extends DeploymentActivator {
             return;
         }
 
-        String deploymentId = deploymentDocument.getDeploymentId();
         DeploymentConfigMerger.AggregateServicesChangeManager servicesChangeManager =
                 new DeploymentConfigMerger.AggregateServicesChangeManager(kernel, serviceConfig);
 
-        // Get the timestamp before mergeMap(). It will be used to check whether services have started.
+        // Get the timestamp before updateMap(). It will be used to check whether services have started.
         long mergeTime = System.currentTimeMillis();
 
         // when deployment adds a new dependency (component B) to component A
@@ -77,24 +76,17 @@ public class DefaultActivator extends DeploymentActivator {
                 kernel.getConfig().updateMap(deploymentDocument.getTimestamp(), newConfig, DEPLOYMENT_MERGE_BEHAVIOR));
 
         // wait until topic listeners finished processing mergeMap changes.
-        kernel.getContext().runOnPublishQueueAndWait(() -> {});
-
-        AtomicReference<Throwable> setDesiredStateFailureCause = new AtomicReference<>();
-        kernel.getContext().runOnPublishQueue(() -> {
+        Throwable setDesiredStateFailureCause = kernel.getContext().runOnPublishQueueAndWait(() -> {
             // polling to wait for all services to be started.
-            try {
-                servicesChangeManager.startNewServices();
-                // Restart any services that may have been broken before this deployment
-                // This is added to allow deployments to fix broken services
-                servicesChangeManager.reinstallBrokenServices();
-            } catch (ServiceLoadException e) {
-                setDesiredStateFailureCause.set(e);
-            }
+            servicesChangeManager.startNewServices();
+            // Restart any services that may have been broken before this deployment
+            // This is added to allow deployments to fix broken services
+            servicesChangeManager.reinstallBrokenServices();
         });
-        // Do not block the publish queue to handle failure in setting desired states for services
-        if (setDesiredStateFailureCause.get() != null) {
+        if (setDesiredStateFailureCause != null) {
             handleFailure(servicesChangeManager, deploymentDocument, totallyCompleteFuture,
-                    setDesiredStateFailureCause.get());
+                    setDesiredStateFailureCause);
+            return;
         }
 
         try {
@@ -105,7 +97,8 @@ public class DefaultActivator extends DeploymentActivator {
             logger.atDebug(MERGE_CONFIG_EVENT_KEY)
                     .log("new/updated services are running, will now remove old services");
             servicesChangeManager.removeObsoleteServices();
-            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).log("All services updated");
+            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
+                    .log("All services updated");
             totallyCompleteFuture.complete(new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null));
         } catch (InterruptedException | ExecutionException | ServiceUpdateException | ServiceLoadException e) {
             handleFailure(servicesChangeManager, deploymentDocument, totallyCompleteFuture, e);
@@ -139,21 +132,13 @@ public class DefaultActivator extends DeploymentActivator {
             return;
         }
         // wait until topic listeners finished processing read changes.
-        kernel.getContext().runOnPublishQueueAndWait(() -> {});
-
-        AtomicReference<Throwable> setDesiredStateFailureCause = new AtomicReference<>();
-        kernel.getContext().runOnPublishQueue(() -> {
-            // polling to wait for all services to be started.
-            try {
+        Throwable setDesiredStateFailureCause = kernel.getContext().runOnPublishQueueAndWait(() -> {
                 rollbackManager.startNewServices();
                 rollbackManager.reinstallBrokenServices();
-            } catch (ServiceLoadException e) {
-                setDesiredStateFailureCause.set(e);
-            }
         });
-        // Do not block the publish queue to handle failure in setting desired states for services
-        if (setDesiredStateFailureCause.get() != null) {
-            handleFailureRollback(totallyCompleteFuture, failureCause, setDesiredStateFailureCause.get());
+        if (setDesiredStateFailureCause != null) {
+            handleFailureRollback(totallyCompleteFuture, failureCause, setDesiredStateFailureCause);
+            return;
         }
 
         try {
