@@ -110,7 +110,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
             if (componentNamesToCheck.size() == fleetStatusDetails.getComponentStatusDetails().size()) {
                 allComponentsInFssUpdate.countDown();
             }
-            return new CompletableFuture<>();
+            return CompletableFuture.completedFuture(0);
         });
 
         // Wait for some time for the publish request to have all the components update.
