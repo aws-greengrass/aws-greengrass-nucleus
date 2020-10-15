@@ -8,6 +8,7 @@ package com.aws.greengrass.util.platforms;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
+import lombok.NoArgsConstructor;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
 
@@ -59,8 +60,8 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String[] getShellForCommand(String command) {
-        return new String[]{"sh", "-c", command};
+    public CommandDecorator getShellDecorator() {
+        return new ShellDecorator();
     }
 
     @Override
@@ -68,6 +69,100 @@ public class UnixPlatform extends Platform {
         return 127;
     }
 
+    @Override
+    public UserDecorator getUserDecorator() {
+        return new SudoDecorator();
+    }
+
+    /**
+     * Decorate a command to run in a shell.
+     */
+    public static class ShellDecorator implements CommandDecorator {
+
+        private static final String DEFAULT_SHELL = "sh";
+        private static final String DEFAULT_ARG = "-c";
+        private String shell;
+        private String arg;
+
+        /**
+         * Create a new instance using the default shell (sh).
+         */
+        public ShellDecorator() {
+            this(DEFAULT_SHELL, DEFAULT_ARG);
+        }
+
+        /**
+         * Create a new instance for a given shell command and shell argument for taking in string input.
+         * @param shell the shell.
+         * @param arg optional argument for passing string data into the shell.
+         */
+        public ShellDecorator(String shell, String arg) {
+            this.shell = shell;
+            this.arg = arg;
+        }
+
+        @Override
+        public String[] decorate(String... command) {
+            boolean hasArg = !Utils.isEmpty(arg);
+            int size = hasArg ? 3 : 2;
+            String[] ret = new String[size];
+            ret[0] = shell;
+            if (hasArg) {
+                ret[1] = arg;
+            }
+            ret[size - 1] = String.join(" ", command);
+            return ret;
+        }
+    }
+
+    /**
+     * Decorator for running a command as a different user/group with `sudo`.
+     */
+    @NoArgsConstructor
+    public static class SudoDecorator implements UserDecorator {
+        private String user;
+        private String group;
+
+        @Override
+        public String[] decorate(String... command) {
+            // do nothing if no user set
+            if (user == null) {
+                return command;
+            }
+            int size = (group == null) ? 5 : 7;
+            String[] ret = new String[command.length + size];
+            ret[0] = "sudo";
+            ret[1] = "-E";  // pass env vars through
+            ret[2] = "-u";
+            if (user.chars().allMatch(Character::isDigit)) {
+                user = "\\#" + user;
+            }
+            ret[3] = user;
+            if (group != null) {
+                ret[4] = "-g";
+                if (group.chars().allMatch(Character::isDigit)) {
+                    group = "\\#" + group;
+                }
+                ret[5] = group;
+            }
+            ret[size - 1] = "--";
+            System.arraycopy(command, 0, ret, size, command.length);
+            return ret;
+        }
+
+        @Override
+        public UserDecorator withUser(String user) {
+            this.user = user;
+            return this;
+        }
+
+        @Override
+        public UserDecorator withGroup(String group) {
+            this.group = group;
+            return this;
+        }
+    }
+  
     @Override
     public void setPermissions(FileSystemPermission permission, Path path) throws IOException {
         Files.setPosixFilePermissions(path, permission.toPosixFilePermissions());
