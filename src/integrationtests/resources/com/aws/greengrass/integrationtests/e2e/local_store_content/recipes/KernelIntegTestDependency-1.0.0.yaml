@@ -10,7 +10,7 @@ ComponentDependencies:
     DependencyType: Soft
 Manifests:
   - Platform:
-      os: macos
+      os: darwin
     Lifecycle:
       install:
         skipif: onpath git

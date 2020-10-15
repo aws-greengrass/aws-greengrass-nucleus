@@ -125,6 +125,13 @@ public class S3Downloader extends ArtifactDownloader {
         }
     }
 
+    @Override
+    public File getArtifactFile(Path artifactDir, ComponentArtifact artifact, ComponentIdentifier componentIdentifier)
+            throws InvalidArtifactUriException {
+        S3ObjectPath s3ObjectPath = getS3PathForURI(artifact.getArtifactUri(), componentIdentifier);
+        return artifactDir.resolve(extractFileName(s3ObjectPath.key)).toFile();
+    }
+
     private S3Client getRegionClientForBucket(String bucket) {
         GetBucketLocationRequest getBucketLocationRequest = GetBucketLocationRequest.builder().bucket(bucket).build();
         String region = s3Client.getBucketLocation(getBucketLocationRequest).locationConstraintAsString();

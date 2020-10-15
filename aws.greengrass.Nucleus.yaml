@@ -4,14 +4,12 @@ ComponentName: aws.greengrass.Nucleus
 ComponentDescription: Core functionality for device side orchestration of deployments and lifecycle management for execution of Greengrass components and applications.
 ComponentPublisher: AWS
 ComponentVersion: '0.0.0'
+ComponentConfiguration:
+  DefaultConfiguration:
+    jvmOptions: -Xms512m -Xmx512m
 Manifests:
   - Platform:
-      os: macos
-    Parameters:
-      - name: jvmOptions
-        # TODO: consider change to nested structure
-        value: -Xms512m -Xmx512m
-        type: STRING
+      os: darwin
     Artifacts:
       - URI: s3://gg-dev-artifacts/$componentName/$version/aws.greengrass.nucleus.zip
         Unarchive: zip
@@ -26,17 +24,12 @@ Manifests:
 
             rm -r "$KERNEL_ROOT"/alts/current/*
 
-            echo "{{params:jvmOptions.value}}" > "$KERNEL_ROOT/alts/current/launch.params"
+            echo "{configuration:/jvmOptions}" > "$KERNEL_ROOT/alts/current/launch.params"
             ln -sf "$UNPACK_DIR" "$KERNEL_ROOT/alts/current/distro"
             exit 100
 
   - Platform:
       os: linux
-    Parameters:
-      - name: jvmOptions
-        # TODO: consider change to nested structure
-        value: -Xms512m -Xmx512m
-        type: STRING
     Artifacts:
       - URI: s3://gg-dev-artifacts/$componentName/$version/aws.greengrass.nucleus.zip
         Unarchive: zip
@@ -51,6 +44,6 @@ Manifests:
 
           rm -r "$KERNEL_ROOT"/alts/current/*
 
-          echo "{{params:jvmOptions.value}}" > "$KERNEL_ROOT/alts/current/launch.params"
+          echo "{configuration:/jvmOptions}" > "$KERNEL_ROOT/alts/current/launch.params"
           ln -sf "$UNPACK_DIR" "$KERNEL_ROOT/alts/current/distro"
           exit 100

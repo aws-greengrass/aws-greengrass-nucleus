@@ -1,5 +1,8 @@
 package com.aws.greengrass.builtin.services.cli;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;
+import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
+import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -33,6 +36,7 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +50,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -55,7 +60,7 @@ import java.util.UUID;
 
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.LOCAL_DEPLOYMENT_RESOURCE;
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.PERSISTENT_LOCAL_DEPLOYMENTS;
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.DEFAULT_GROUP_NAME;
@@ -232,13 +237,15 @@ class CLIServiceAgentTest {
         Path artifactsDirectoryPath = tempDirectory.resolve("artifactsDirectory");
         Path recipeDirectoryPath = tempDirectory.resolve("recipeDirectoryPath");
 
-        File componentRecipeDirectory = new File(recipeDirectoryPath.resolve("MyComponent-1.0.0").toString());
+        File componentRecipeDirectory = recipeDirectoryPath.toFile();
         componentRecipeDirectory.mkdirs();
-        File recipeFile = new File(componentRecipeDirectory.getAbsolutePath(), "recipe.yaml");
-        recipeFile.createNewFile();
-        File componentArtifacatDirectory = new File(artifactsDirectoryPath.resolve("MyComponent-1.0.0").toString());
-        componentArtifacatDirectory.mkdirs();
-        File artifactFile = new File(componentArtifacatDirectory.getAbsolutePath(), "binary.exe");
+        Path recipeFile = componentRecipeDirectory.toPath().resolve("recipe.yaml");
+        Files.write(recipeFile, SerializerFactory.getRecipeSerializer().writeValueAsBytes(ComponentRecipe.builder()
+                        .componentName("MyComponent").recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                        .componentVersion(new Semver("1.0.0")).build()));
+        File componentArtifactDirectory = new File(artifactsDirectoryPath.resolve("MyComponent-1.0.0").toString());
+        componentArtifactDirectory.mkdirs();
+        File artifactFile = new File(componentArtifactDirectory.getAbsolutePath(), "binary.exe");
         artifactFile.createNewFile();
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder()
                 .artifactDirectoryPath(artifactsDirectoryPath.toString())
@@ -246,7 +253,7 @@ class CLIServiceAgentTest {
                 .build();
         when(nucleusPaths.componentStorePath()).thenReturn(kernelLocalStore);
         cliServiceAgent.updateRecipesAndArtifacts(request);
-        assertTrue(Files.exists(kernelRecipesPath.resolve("MyComponent-1.0.0").resolve("recipe.yaml")));
+        assertTrue(Files.exists(kernelRecipesPath.resolve("MyComponent-1.0.0.yaml")));
         assertTrue(Files.exists(kernelArtifactsPath.resolve("MyComponent-1.0.0").resolve("binary.exe")));
     }
 
@@ -271,16 +278,19 @@ class CLIServiceAgentTest {
         kernelRecipeDirectory.mkdirs();
         Path recipeDirectoryPath = tempDirectory.resolve("recipeDirectoryPath");
 
-        File componentRecipeDirectory = new File(recipeDirectoryPath.resolve("MyComponent-1.0.0").toString());
+        File componentRecipeDirectory = recipeDirectoryPath.toFile();
         componentRecipeDirectory.mkdirs();
-        File recipeFile = new File(componentRecipeDirectory.getAbsolutePath(), "recipe.yaml");
-        recipeFile.createNewFile();
+        Path recipeFile = componentRecipeDirectory.toPath().resolve("MyComponent.yaml");
+        Files.write(recipeFile, SerializerFactory.getRecipeSerializer().writeValueAsBytes(ComponentRecipe.builder()
+                        .componentName("MyComponent").recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                        .componentVersion(new Semver("1.0.0")).build()),
+                StandardOpenOption.CREATE);
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder()
                 .recipeDirectoryPath(recipeDirectoryPath.toString())
                 .build();
         when(nucleusPaths.componentStorePath()).thenReturn(kernelLocalStore);
         cliServiceAgent.updateRecipesAndArtifacts(request);
-        assertTrue(Files.exists(kernelRecipesPath.resolve("MyComponent-1.0.0").resolve("recipe.yaml")));
+        assertTrue(Files.exists(kernelRecipesPath.resolve("MyComponent-1.0.0.yaml")));
     }
 
     @Test
@@ -293,9 +303,9 @@ class CLIServiceAgentTest {
 
         Path artifactsDirectoryPath = tempDirectory.resolve("artifactsDirectory");
 
-        File componentArtifacatDirectory = new File(artifactsDirectoryPath.resolve("MyComponent-1.0.0").toString());
-        componentArtifacatDirectory.mkdirs();
-        File artifactFile = new File(componentArtifacatDirectory.getAbsolutePath(), "binary.exe");
+        File componentArtifactDirectory = new File(artifactsDirectoryPath.resolve("MyComponent-1.0.0").toString());
+        componentArtifactDirectory.mkdirs();
+        File artifactFile = new File(componentArtifactDirectory.getAbsolutePath(), "binary.exe");
         artifactFile.createNewFile();
         UpdateRecipesAndArtifactsRequest request = UpdateRecipesAndArtifactsRequest.builder()
                 .artifactDirectoryPath(artifactsDirectoryPath.toString())
@@ -450,7 +460,7 @@ class CLIServiceAgentTest {
         if (parameters != null) {
             Topics mockParameters = mock(Topics.class);
             when(mockParameters.toPOJO()).thenReturn(parameters);
-            when(mockTopics.findInteriorChild(eq(PARAMETERS_CONFIG_KEY))).thenReturn(mockParameters);
+            when(mockTopics.findInteriorChild(eq(CONFIGURATION_CONFIG_KEY))).thenReturn(mockParameters);
         }
         return mockService;
     }

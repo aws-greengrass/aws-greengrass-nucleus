@@ -10,7 +10,7 @@ ComponentConfiguration:
 
 Manifests:
   - Platform:
-      os: macos
+      os: darwin
     Parameters:
       - name: NumApprovals
         type: NUMBER

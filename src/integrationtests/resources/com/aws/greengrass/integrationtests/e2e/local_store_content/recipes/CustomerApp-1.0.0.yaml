@@ -10,27 +10,18 @@ ComponentDependencies:
 ComponentConfiguration:
   DefaultConfiguration:
     sampleText: This is a test
-
+    path:
+      leafKey: 'default value of /path/leafKey'
+    listKey:
+      - 'item1'
+      - 'item2'
 Manifests:
   - Platform:
-      os: macos
-    Parameters:
-      - name: sampleText
-        value: This is a test
-        type: STRING
+      os: all
     Lifecycle:
-      run: |-
-        sleep 2
-        echo "Hello Greengrass. {{params:sampleText.value}}"
-        echo "Hello Greengrass. {configuration:/sampleText}"
-
-  - Platform:
-      os: linux
-    Parameters:
-      - name: sampleText
-        value: This is a test
-        type: STRING
-    Lifecycle:
-      run: |-
-        sleep 2
-        echo "Hello Greengrass. {configuration:/sampleText}"
+      run: >-
+        echo 'Hello Greengrass. CustomerApp output.
+        Value for /sampleText: {configuration:/sampleText}.
+        Value for /path/leafKey: {configuration:/path/leafKey}.
+        Value for /newKey: {configuration:/newKey}.
+        Value for /listKey/0: {configuration:/listKey/0}.'

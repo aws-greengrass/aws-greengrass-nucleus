@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.models;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentConfiguration;
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
@@ -32,6 +33,8 @@ public class ComponentRecipe {
     String description;
 
     String publisher;
+
+    ComponentConfiguration componentConfiguration;
 
     // The following fields are the platform specific and has already been resolved when loading from the recipe file
     @Builder.Default
