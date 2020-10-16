@@ -251,7 +251,7 @@ class KernelConfigResolverTest {
         assertThat("Main service must depend on updated service",
                 dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
     }
-    
+
     @Test
     void GIVEN_deployment_with_parameters_set_WHEN_config_resolution_requested_THEN_parameters_should_be_interpolated()
             throws Exception {
@@ -576,7 +576,7 @@ class KernelConfigResolverTest {
         ConfigurationUpdateOperation updateOperation = new ConfigurationUpdateOperation();
         updateOperation.setValueToMerge(Collections.singletonMap("startup", Collections.singletonMap("paramA",
                 "valueC")));
-        DeploymentPackageConfiguration rootPackageDeploymentConfig =DeploymentPackageConfiguration.builder()
+        DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
                 .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion(">=1.2")
@@ -623,7 +623,7 @@ class KernelConfigResolverTest {
 
         ConfigurationUpdateOperation updateOperation = new ConfigurationUpdateOperation();
         updateOperation.setPathsToReset(Arrays.asList("/startup/paramA", "/startup/paramB"));
-        DeploymentPackageConfiguration rootPackageDeploymentConfig =DeploymentPackageConfiguration.builder()
+        DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
                 .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion(">=1.2")
