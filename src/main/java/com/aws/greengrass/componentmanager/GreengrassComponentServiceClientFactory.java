@@ -68,7 +68,12 @@ public class GreengrassComponentServiceClientFactory {
             DeviceConfiguration deviceConfiguration) throws TLSAuthException {
 
         ClientConfiguration clientConfiguration = ProxyUtils.getClientConfiguration();
-        configureClientMutualTLS(clientConfiguration, deviceConfiguration);
+        try {
+            configureClientMutualTLS(clientConfiguration, deviceConfiguration);
+        } catch (TLSAuthException e) {
+            logger.atWarn("configure-greengrass-mutual-auth")
+                    .log("Error during configure greengrass client mutual auth", e);
+        }
         AWSEvergreenClientBuilder clientBuilder =
                 AWSEvergreenClientBuilder.standard().withClientConfiguration(clientConfiguration);
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
@@ -76,14 +81,14 @@ public class GreengrassComponentServiceClientFactory {
         if (!Utils.isEmpty(region)) {
             if (!Utils.isEmpty(greengrassServiceEndpoint)) {
                 // Region and endpoint are both required when updating endpoint config
-                logger.atInfo("initialize-cms-client").addKeyValue("service-endpoint", greengrassServiceEndpoint)
+                logger.atInfo("initialize-greengrass-client").addKeyValue("service-endpoint", greengrassServiceEndpoint)
                         .addKeyValue("service-region", region).log();
                 EndpointConfiguration endpointConfiguration =
                         new EndpointConfiguration(greengrassServiceEndpoint, region);
                 clientBuilder.withEndpointConfiguration(endpointConfiguration);
             } else {
                 // This section is to override default region if needed
-                logger.atInfo("initialize-cms-client").addKeyValue("service-region", region).log();
+                logger.atInfo("initialize-greengrass-client").addKeyValue("service-region", region).log();
                 clientBuilder.withRegion(region);
             }
         }
