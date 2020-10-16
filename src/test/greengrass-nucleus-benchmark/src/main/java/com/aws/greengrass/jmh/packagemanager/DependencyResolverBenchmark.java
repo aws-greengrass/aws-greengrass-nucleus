@@ -67,7 +67,7 @@ public class DependencyResolverBenchmark {
 
             // pre-load contents to package store
             Path localStoreContentPath = Paths.get(System.getProperty("user.dir"))
-                    .resolve("src/test/evergreen-kernel-benchmark/mock_artifact_source");
+                    .resolve("src/test/greengrass-nucleus-benchmark/mock_artifact_source");
 
             // pre-load contents to package store
             copyFolderRecursively(localStoreContentPath, kernel.getNucleusPaths().componentStorePath());

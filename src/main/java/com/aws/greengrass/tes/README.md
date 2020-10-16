@@ -1,10 +1,10 @@
 # TokenExchangeService
 It is responsible for vending AWS credentials for device certificates, so that components running
-on Evergreen can seamlessly communicate with cloud using AWS clients.
+on Greengrass can seamlessly communicate with cloud using AWS clients.
 
 # Startup
-1. [***TokenExchangeService***](/src/main/java/com/aws/iot/evergreen/tes/TokenExchangeService.java) starts as an
-evergreen service, which is by default disabled. After startup, it queries AWS credentials corresponding to
+1. [***TokenExchangeService***](/src/main/java/com/aws/greengrass/tes/TokenExchangeService.java) starts as a
+greengrass service, which is by default disabled. After startup, it queries AWS credentials corresponding to
 your roleAlias and starts up HTTP server at custom port which vends credentials at url "/2016-11-01
 /credentialprovider/".
 

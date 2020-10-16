@@ -94,9 +94,9 @@ jobs:
         # Changes can break the benchmark, so compile it now to make sure it is buildable
         run: |
           mvn -ntp -U install -DskipTests
-          mvn -ntp -U -f src/test/evergreen-kernel-benchmark install
+          mvn -ntp -U -f src/test/greengrass-nucleus-benchmark install
         if: matrix.os == 'Linux'
-      - run: rm -rf ~/.m2/repository/com/aws/iot/evergreen-kernel
+      - run: rm -rf ~/.m2/repository/com/aws/greengrass/nucleus
         continue-on-error: true
         if: always()
   publish:

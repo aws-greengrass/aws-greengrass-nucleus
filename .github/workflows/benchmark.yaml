@@ -17,20 +17,20 @@ jobs:
       - name: Build EG with Maven
         run: mvn -ntp -U install -DskipTests
       - name: Build benchmark with Maven
-        run: mvn -ntp -U -f src/test/evergreen-kernel-benchmark install
+        run: mvn -ntp -U -f src/test/greengrass-nucleus-benchmark install
       - name: JMH Benchmark
         # The JVM arguments provided below are intended to tune the JVM to keep the heap as small as possible
         # and to release unused heap space back to the OS
         # -foe is "fail on error" so that if an error happens, then the benchmark will be failed instead of silently
         # pass
         run: >-
-          java -jar src/test/evergreen-kernel-benchmark/target/benchmarks.jar
+          java -jar src/test/greengrass-nucleus-benchmark/target/benchmarks.jar
           -rf json
           -foe true
           -jvmArgs "-Xms1m -Xmx64m -XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -XX:GCTimeRatio=19
           -XX:NativeMemoryTracking=summary -Xss232k"
           -prof com.aws.greengrass.jmh.profilers.ForcedGcMemoryProfiler
-      - run: rm -rf ~/.m2/repository/com/aws/iot/evergreen-kernel
+      - run: rm -rf ~/.m2/repository/com/aws/greengrass/nucleus
         continue-on-error: true
         if: always()
       - name: Upload JMH Result
