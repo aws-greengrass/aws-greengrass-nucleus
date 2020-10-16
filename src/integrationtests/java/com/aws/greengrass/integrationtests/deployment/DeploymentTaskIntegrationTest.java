@@ -307,19 +307,19 @@ class DeploymentTaskIntegrationTest {
             }
         };
         Slf4jLogAdapter.addGlobalListener(listener);
+        try {
+            Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument.json").toURI(), System.currentTimeMillis());
 
-        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument.json").toURI(),
-                System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
 
-        resultFuture.get(10, TimeUnit.SECONDS);
-
-        countDownLatch.await(10, TimeUnit.SECONDS);
-        Set<String> listOfStdoutMessagesTapped = outputMessagesToTimestamp.keySet();
-        assertThat(listOfStdoutMessagesTapped, containsInAnyOrder(Matchers.equalTo(TEST_CUSTOMER_APP_STRING),
-                                                                  Matchers.equalTo(TEST_MOSQUITTO_STRING),
-                                                                  Matchers.equalTo(TEST_TICK_TOCK_STRING)));
-        Slf4jLogAdapter.removeGlobalListener(listener);
+            countDownLatch.await(10, TimeUnit.SECONDS);
+            Set<String> listOfStdoutMessagesTapped = outputMessagesToTimestamp.keySet();
+            assertThat(listOfStdoutMessagesTapped, containsInAnyOrder(Matchers.equalTo(TEST_CUSTOMER_APP_STRING),
+                    Matchers.equalTo(TEST_MOSQUITTO_STRING), Matchers.equalTo(TEST_TICK_TOCK_STRING)));
+        } finally {
+            Slf4jLogAdapter.removeGlobalListener(listener);
+        }
 
         // Check that ClassService is a raw GreengrassService and not a GenericExternalService
         assertEquals(GreengrassService.class, kernel.locate("ClassService").getClass());
@@ -346,168 +346,156 @@ class DeploymentTaskIntegrationTest {
             }
         };
         Slf4jLogAdapter.addGlobalListener(listener);
+        try {
 
+            /*
+             * 1st deployment. Default Config.
+             */
+            countDownLatch = new CountDownLatch(1);
+            Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_1.json").toURI(),
+                    System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
 
-        /*
-         * 1st deployment. Default Config.
-         */
-        countDownLatch = new CountDownLatch(1);
-        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_1.json").toURI(),
-                System.currentTimeMillis());
-        resultFuture.get(10, TimeUnit.SECONDS);
+            // verify config in config store and interpolation result
+            Map<String, Object> resultConfig =
+                    kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
 
-        // verify config in config store and interpolation result
-        Map<String, Object> resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
-                .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY)
-                .toPOJO();
+            verifyDefaultValueIsApplied(stdouts, resultConfig);
 
-        verifyDefaultValueIsApplied(stdouts, resultConfig);
+            /*
+             * 2nd deployment. MERGE existing keys.
+             */
+            countDownLatch = new CountDownLatch(1); // reset countdown
+            resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_2.json").toURI(),
+                    System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
 
-        /*
-         * 2nd deployment. MERGE existing keys.
-         */
-        countDownLatch = new CountDownLatch(1); // reset countdown
-        resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_2.json").toURI(),
-                System.currentTimeMillis());
-        resultFuture.get(10, TimeUnit.SECONDS);
+            // verify config in config store
+            resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
 
-        // verify config in config store
-        resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
-                .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY)
-                .toPOJO();
+            // Asserted values can be found in ComponentConfigTest_DeployDocument_2.json
+            assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
+            assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", "updated value of defaultIsNullKey"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
 
-        // Asserted values can be found in ComponentConfigTest_DeployDocument_2.json
-        assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
-        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
-        assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
-        assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
-        assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
-        assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", "updated value of defaultIsNullKey"));
-        assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
+            assertThat(resultConfig, IsMapContaining.hasKey("path"));
+            assertThat(resultConfig, IsMapWithSize.aMapWithSize(8));    // no more keys
 
-        assertThat(resultConfig, IsMapContaining.hasKey("path"));
-        assertThat(resultConfig, IsMapWithSize.aMapWithSize(8));    // no more keys
+            assertThat((Map<String, String>) resultConfig.get("path"), IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
+            assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
 
-        assertThat((Map<String, String>) resultConfig.get("path"),
-                   IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
-        assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
+            // verify interpolation result
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            String stdout = stdouts.get(0);
 
-        // verify interpolation result
-        assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
-        String stdout = stdouts.get(0);
+            assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: updated value of singleLevelKey."));
+            assertTrue(stdouts.get(0).contains("Value for /path/leafKey: updated value of /path/leafKey."));
+            assertTrue(stdouts.get(0).contains("Value for /listKey/0: item3."));
+            assertTrue(stdouts.get(0).contains("Value for /emptyStringKey: ."));
+            assertTrue(stdouts.get(0).contains("Value for /defaultIsNullKey: updated value of defaultIsNullKey."));
+            assertTrue(stdouts.get(0).contains("Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
+            stdouts.clear();
 
-        assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: updated value of singleLevelKey."));
-        assertTrue(stdouts.get(0).contains("Value for /path/leafKey: updated value of /path/leafKey."));
-        assertTrue(stdouts.get(0).contains("Value for /listKey/0: item3."));
-        assertTrue(stdouts.get(0).contains("Value for /emptyStringKey: ."));
-        assertTrue(stdouts.get(0).contains("Value for /defaultIsNullKey: updated value of defaultIsNullKey."));
-        assertTrue(stdouts.get(0).contains("Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
-        stdouts.clear();
+            /*
+             * 3rd deployment MERGE not existed keys
+             */
+            countDownLatch = new CountDownLatch(1); // reset countdown
+            resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_3.json").toURI(),
+                    System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
 
-        /*
-         * 3rd deployment MERGE not existed keys
-         */
-        countDownLatch = new CountDownLatch(1); // reset countdown
-        resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_3.json").toURI(),
-                System.currentTimeMillis());
-        resultFuture.get(10, TimeUnit.SECONDS);
+            // verify config in config store
+            resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+            assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
+            assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", "updated value of defaultIsNullKey"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
 
-        // verify config in config store
-        resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
-                .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY)
-                .toPOJO();
-        assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
-        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
-        assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
-        assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
-        assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
-        assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", "updated value of defaultIsNullKey"));
-        assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
+            assertThat(resultConfig, IsMapContaining.hasKey("path"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("newSingleLevelKey", "value of newSingleLevelKey"));
+            assertThat(resultConfig, IsMapWithSize.aMapWithSize(9));    // no more keys
 
-        assertThat(resultConfig, IsMapContaining.hasKey("path"));
-        assertThat(resultConfig, IsMapContaining.hasEntry("newSingleLevelKey", "value of newSingleLevelKey"));
-        assertThat(resultConfig, IsMapWithSize.aMapWithSize(9));    // no more keys
+            assertThat((Map<String, String>) resultConfig.get("path"), IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
+            assertThat((Map<String, String>) resultConfig.get("path"), IsMapContaining.hasEntry("newLeafKey", "value of /path/newLeafKey"));
+            assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(2));  // no more keys
 
-        assertThat((Map<String, String>) resultConfig.get("path"),
-                   IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
-        assertThat((Map<String, String>) resultConfig.get("path"),
-                   IsMapContaining.hasEntry("newLeafKey", "value of /path/newLeafKey"));
-        assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(2));  // no more keys
+            // verify interpolation result
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            stdout = stdouts.get(0);
 
-        // verify interpolation result
-        assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
-        stdout = stdouts.get(0);
+            assertThat(stdout, containsString("Value for /singleLevelKey: updated value of singleLevelKey."));
+            assertThat(stdout, containsString("Value for /path/leafKey: updated value of /path/leafKey."));
+            assertThat(stdout, containsString("Value for /listKey/0: item3."));
+            assertThat(stdout, containsString("Value for /emptyStringKey: ."));
+            assertThat(stdout, containsString("Value for /defaultIsNullKey: updated value of defaultIsNullKey."));
+            assertThat(stdout, containsString("Value for /newSingleLevelKey: value of newSingleLevelKey."));
+            stdouts.clear();
 
-        assertThat(stdout, containsString("Value for /singleLevelKey: updated value of singleLevelKey."));
-        assertThat(stdout, containsString("Value for /path/leafKey: updated value of /path/leafKey."));
-        assertThat(stdout, containsString("Value for /listKey/0: item3."));
-        assertThat(stdout, containsString("Value for /emptyStringKey: ."));
-        assertThat(stdout, containsString("Value for /defaultIsNullKey: updated value of defaultIsNullKey."));
-        assertThat(stdout, containsString("Value for /newSingleLevelKey: value of newSingleLevelKey."));
-        stdouts.clear();
+            /*
+             * 4th deployment. RESET.
+             */
+            countDownLatch = new CountDownLatch(1); // reset countdown
+            resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_4.json").toURI(),
+                    System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
 
-        /*
-         * 4th deployment. RESET.
-         */
-        countDownLatch = new CountDownLatch(1); // reset countdown
-        resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_4.json").toURI(),
-                System.currentTimeMillis());
-        resultFuture.get(10, TimeUnit.SECONDS);
+            // verify config in config store
+            resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+            assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
+            assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", "updated value of defaultIsNullKey"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
 
-        // verify config in config store
-        resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
-                .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY)
-                .toPOJO();
-        assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
-        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
-        assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
-        assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
-        assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
-        assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", "updated value of defaultIsNullKey"));
-        assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
+            assertThat(resultConfig, IsMapContaining.hasKey("path"));
+            assertThat((Map<String, String>) resultConfig.get("path"), IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
 
-        assertThat(resultConfig, IsMapContaining.hasKey("path"));
-        assertThat((Map<String, String>) resultConfig.get("path"),
-                   IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
-
-        assertFalse(resultConfig.containsKey("newSingleLevelKey"),
+            assertFalse(resultConfig.containsKey("newSingleLevelKey"),
                     "newSingleLevelKey should be cleared after RESET because it doesn't have a default value");
-        assertThat(resultConfig, IsMapWithSize.aMapWithSize(8));    // no more keys
+            assertThat(resultConfig, IsMapWithSize.aMapWithSize(8));    // no more keys
 
-        assertFalse(((Map<String, String>) resultConfig.get("path")).containsKey("newLeafKey"),
+            assertFalse(((Map<String, String>) resultConfig.get("path")).containsKey("newLeafKey"),
                     "/path/newSingleLevelKey should be cleared after RESET because it doesn't have a default value");
-        assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
+            assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
 
-        // verify interpolation result
-        assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
-        stdout = stdouts.get(0);
+            // verify interpolation result
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            stdout = stdouts.get(0);
 
-        assertThat(stdout, containsString("Value for /singleLevelKey: updated value of singleLevelKey."));
-        assertThat(stdout, containsString("Value for /path/leafKey: updated value of /path/leafKey."));
-        assertThat(stdout, containsString("Value for /listKey/0: item1."));
-        assertThat(stdout, containsString("Value for /emptyStringKey: ."));
-        assertThat(stdout, containsString("Value for /defaultIsNullKey: updated value of defaultIsNullKey."));
-        assertThat(stdout, containsString("Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
-        stdouts.clear();
+            assertThat(stdout, containsString("Value for /singleLevelKey: updated value of singleLevelKey."));
+            assertThat(stdout, containsString("Value for /path/leafKey: updated value of /path/leafKey."));
+            assertThat(stdout, containsString("Value for /listKey/0: item1."));
+            assertThat(stdout, containsString("Value for /emptyStringKey: ."));
+            assertThat(stdout, containsString("Value for /defaultIsNullKey: updated value of defaultIsNullKey."));
+            assertThat(stdout, containsString("Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
+            stdouts.clear();
 
-        // 5th RESET entirely to default
-        countDownLatch = new CountDownLatch(1); // reset countdown
-        resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_5.json").toURI(),
-                System.currentTimeMillis());
-        resultFuture.get(10, TimeUnit.SECONDS);
+            // 5th RESET entirely to default
+            countDownLatch = new CountDownLatch(1); // reset countdown
+            resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_5.json").toURI(),
+                    System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
 
-        // verify config in config store and interpolation result
-        resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
-                .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY)
-                .toPOJO();
-        verifyDefaultValueIsApplied(stdouts, resultConfig);
-
-        Slf4jLogAdapter.removeGlobalListener(listener);
+            // verify config in config store and interpolation result
+            resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+            verifyDefaultValueIsApplied(stdouts, resultConfig);
+        } finally {
+            Slf4jLogAdapter.removeGlobalListener(listener);
+        }
     }
 
     private void verifyDefaultValueIsApplied(List<String> stdouts, Map<String, Object> resultConfig)
@@ -560,24 +548,25 @@ class DeploymentTaskIntegrationTest {
         };
         Slf4jLogAdapter.addGlobalListener(listener);
 
+        try {
+            /*
+             * 1st deployment. Default Config.
+             */
+            Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("CrossComponentConfigTest_DeployDocument.json").toURI(),
+                    System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
 
-        /*
-         * 1st deployment. Default Config.
-         */
-        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("CrossComponentConfigTest_DeployDocument.json").toURI(),
-                System.currentTimeMillis());
-        resultFuture.get(10, TimeUnit.SECONDS);
-
-        // verify interpolation result
-        assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
-        String stdout = stdouts.get(0);
-        assertThat(stdout, containsString("Value for /singleLevelKey: default value of singleLevelKey."));
-        assertThat(stdout, containsString("Value for /path/leafKey: default value of /path/leafKey."));
-        assertThat(stdout, containsString("Value for /listKey/0: item1."));
-        assertThat(stdout, containsString("Value for /emptyStringKey: ."));
-
-        Slf4jLogAdapter.removeGlobalListener(listener);
+            // verify interpolation result
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            String stdout = stdouts.get(0);
+            assertThat(stdout, containsString("Value for /singleLevelKey: default value of singleLevelKey."));
+            assertThat(stdout, containsString("Value for /path/leafKey: default value of /path/leafKey."));
+            assertThat(stdout, containsString("Value for /listKey/0: item1."));
+            assertThat(stdout, containsString("Value for /emptyStringKey: ."));
+        } finally {
+            Slf4jLogAdapter.removeGlobalListener(listener);
+        }
     }
 
 
@@ -597,61 +586,42 @@ class DeploymentTaskIntegrationTest {
         };
         Slf4jLogAdapter.addGlobalListener(listener);
 
+        try {
+            /*
+             * 1st deployment. Default Config.
+             */
+            Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("SystemConfigTest_DeployDocument.json").toURI(),
+                    System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
 
-        /*
-         * 1st deployment. Default Config.
-         */
-        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("SystemConfigTest_DeployDocument.json").toURI(),
-                System.currentTimeMillis());
-        resultFuture.get(10, TimeUnit.SECONDS);
+            // The main comes from SystemConfigTest_DeployDocument.json
+            String mainComponentName = "aws.iot.gg.test.integ.SystemConfigTest";
+            String mainComponentNameVer = "0.0.1";
 
-        // The main comes from SystemConfigTest_DeployDocument.json
-        String mainComponentName = "aws.iot.gg.test.integ.SystemConfigTest";
-        String mainComponentNameVer = "0.0.1";
+            // The dependency is specified in aws.iot.gg.test.integ.SystemConfigTest-0.1.1
+            String otherComponentName = "GreenSignal";
+            String otherComponentVer = "1.0.0";
 
-        // The dependency is specified in aws.iot.gg.test.integ.SystemConfigTest-0.1.1
-        String otherComponentName = "GreenSignal";
-        String otherComponentVer = "1.0.0";
+            // verify interpolation result
+            assertTrue(stdouts.get(0).contains("I'm kernel's root path: " + rootDir.toAbsolutePath().toString()));
 
-        // verify interpolation result
-        assertTrue(stdouts.get(0).contains("I'm kernel's root path: " + rootDir.toAbsolutePath().toString()));
+            assertTrue(stdouts.get(0).contains("I'm my own artifact path: " + rootDir.resolve("packages").resolve(ComponentStore.ARTIFACT_DIRECTORY).resolve(mainComponentName).resolve(mainComponentNameVer)
+                    .toAbsolutePath().toString()));
 
-        assertTrue(stdouts.get(0)
-                           .contains("I'm my own artifact path: " + rootDir.resolve("packages")
-                                   .resolve(ComponentStore.ARTIFACT_DIRECTORY)
-                                   .resolve(mainComponentName)
-                                   .resolve(mainComponentNameVer)
-                                   .toAbsolutePath()
-                                   .toString()));
-
-        assertTrue(stdouts.get(0)
-                           .contains("I'm my own artifact decompressed path: " + rootDir.resolve("packages")
-                                   .resolve(ComponentStore.ARTIFACTS_DECOMPRESSED_DIRECTORY)
-                                   .resolve(mainComponentName)
-                                   .resolve(mainComponentNameVer)
-                                   .toAbsolutePath()
-                                   .toString()));
+            assertTrue(stdouts.get(0).contains("I'm my own artifact decompressed path: " + rootDir.resolve("packages").resolve(ComponentStore.ARTIFACTS_DECOMPRESSED_DIRECTORY).resolve(mainComponentName)
+                    .resolve(mainComponentNameVer).toAbsolutePath().toString()));
 
 
-        assertTrue(stdouts.get(0)
-                           .contains("I'm GreenSignal's artifact path: " + rootDir.resolve("packages")
-                                   .resolve(ComponentStore.ARTIFACT_DIRECTORY)
-                                   .resolve(otherComponentName)
-                                   .resolve(otherComponentVer)
-                                   .toAbsolutePath()
-                                   .toString()));
+            assertTrue(stdouts.get(0).contains("I'm GreenSignal's artifact path: " + rootDir.resolve("packages").resolve(ComponentStore.ARTIFACT_DIRECTORY).resolve(otherComponentName).resolve(otherComponentVer)
+                    .toAbsolutePath().toString()));
 
-        assertTrue(stdouts.get(0)
-                           .contains("I'm GreenSignal's artifact decompressed path: " + rootDir.resolve("packages")
-                                   .resolve(ComponentStore.ARTIFACTS_DECOMPRESSED_DIRECTORY)
-                                   .resolve(otherComponentName)
-                                   .resolve(otherComponentVer)
-                                   .toAbsolutePath()
-                                   .toString()));
-
-
-        Slf4jLogAdapter.removeGlobalListener(listener);
+            assertTrue(stdouts.get(0).contains(
+                    "I'm GreenSignal's artifact decompressed path: " + rootDir.resolve("packages").resolve(ComponentStore.ARTIFACTS_DECOMPRESSED_DIRECTORY).resolve(otherComponentName)
+                            .resolve(otherComponentVer).toAbsolutePath().toString()));
+        } finally {
+            Slf4jLogAdapter.removeGlobalListener(listener);
+        }
     }
 
     @Test
@@ -675,16 +645,17 @@ class DeploymentTaskIntegrationTest {
             }
         };
         Slf4jLogAdapter.addGlobalListener(listener);
-        groupToRootComponentsTopics.lookupTopics("CustomerApp")
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        try {
+            groupToRootComponentsTopics.lookupTopics("CustomerApp").replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
 
-        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI(),
-                System.currentTimeMillis());
-        resultFuture.get(10, TimeUnit.SECONDS);
-        countDownLatch.await(10, TimeUnit.SECONDS);
-        assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
-        Slf4jLogAdapter.removeGlobalListener(listener);
+            Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI(), System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
+            countDownLatch.await(10, TimeUnit.SECONDS);
+            assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
+        } finally {
+            Slf4jLogAdapter.removeGlobalListener(listener);
+        }
     }
 
     /**
@@ -756,42 +727,42 @@ class DeploymentTaskIntegrationTest {
             }
         };
         Slf4jLogAdapter.addGlobalListener(listener);
+        try {
+            /*
+             * 1st deployment. Default Config.
+             */
+            Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentWithUser_1.json").toURI(),
+                    System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
 
+            // verify user
+            String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
+                    .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
+            assertEquals("123456", user);
+            countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
+            assertThat(stdouts, hasItem(containsString("installing app with user root")));
+            assertThat(stdouts, hasItem(containsString("starting app with user #123456")));
 
-        /*
-         * 1st deployment. Default Config.
-         */
-        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentWithUser_1.json").toURI(),
-                System.currentTimeMillis());
-        resultFuture.get(10, TimeUnit.SECONDS);
+            stdouts.clear();
+            /*
+             * 2nd deployment. Change user
+             */
+            countDownLatch = new CountDownLatch(2);
+            resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentWithUser_2.json").toURI(),
+                    System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
+            user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
+                    .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
+            assertEquals("54321", user);
 
-        // verify user
-        String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
-                .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
-        assertEquals("123456", user);
-        countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
-        assertThat(stdouts, hasItem(containsString("installing app with user root")));
-        assertThat(stdouts, hasItem(containsString("starting app with user #123456")));
-
-        stdouts.clear();
-        /*
-         * 2nd deployment. Change user
-         */
-        countDownLatch = new CountDownLatch(2);
-        resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentWithUser_2.json").toURI(),
-                System.currentTimeMillis());
-        resultFuture.get(10, TimeUnit.SECONDS);
-        user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
-                .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
-        assertEquals("54321", user);
-
-        countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
-        assertThat(stdouts, hasItem(containsString("stopping app with user #123456")));
-        assertThat(stdouts, hasItem(containsString("starting app with user #54321")));
-
-        Slf4jLogAdapter.removeGlobalListener(listener);
+            countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
+            assertThat(stdouts, hasItem(containsString("stopping app with user #123456")));
+            assertThat(stdouts, hasItem(containsString("starting app with user #54321")));
+        } finally {
+            Slf4jLogAdapter.removeGlobalListener(listener);
+        }
     }
 
     /**
@@ -940,29 +911,26 @@ class DeploymentTaskIntegrationTest {
             }
         };
         Slf4jLogAdapter.addGlobalListener(listener);
+        try {
+            resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("UpdateServiceWithSafetyCheck.json").toURI(), System.currentTimeMillis());
 
-        resultFuture = submitSampleJobDocument(
-                DeploymentTaskIntegrationTest.class.getResource("UpdateServiceWithSafetyCheck.json").toURI(),
-                System.currentTimeMillis());
+            assertTrue(cdlUpdateStarted.await(40, TimeUnit.SECONDS));
+            resultFuture.cancel(true);
 
-        assertTrue(cdlUpdateStarted.await(40, TimeUnit.SECONDS));
-        resultFuture.cancel(true);
+            assertTrue(cdlMergeCancelled.await(30, TimeUnit.SECONDS));
 
-        assertTrue(cdlMergeCancelled.await(30, TimeUnit.SECONDS));
+            services = kernel.orderedDependencies().stream().filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                    .map(greengrassService -> greengrassService.getName()).collect(Collectors.toList());
 
-        services = kernel.orderedDependencies()
-                .stream()
-                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(greengrassService -> greengrassService.getName())
-                .collect(Collectors.toList());
-
-        // should contain main, NonDisruptableService 1.0.0
-        assertEquals(2, services.size());
-        assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
-        assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
-        assertEquals("1.0.0", kernel.findServiceTopic("NonDisruptableService").find("version").getOnce());
-
-        Slf4jLogAdapter.removeGlobalListener(listener);
+            // should contain main, NonDisruptableService 1.0.0
+            assertEquals(2, services.size());
+            assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
+            assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
+            assertEquals("1.0.0", kernel.findServiceTopic("NonDisruptableService").find("version").getOnce());
+        } finally {
+            Slf4jLogAdapter.removeGlobalListener(listener);
+        }
     }
 
     @Test

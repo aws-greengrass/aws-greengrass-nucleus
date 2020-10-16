@@ -6,7 +6,6 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.config.Node;
-import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
@@ -351,25 +350,22 @@ public class GenericExternalService extends GreengrassService {
      * Store user, group, and shell that will be used to run the service. This should be used throughout the lifecycle.
      * This information can change with a deployment, but service *must* execute the lifecycle steps with the same
      * user/group/shell that was configured when it started.
+     *
+     * If no RunWith configuration is provided (either from kernel or the service), all lifecycle steps execute as the
+     * kernel user.
      */
     protected void storeInitialRunWithConfiguration() {
-        String user = null;
-        String group = null;
-        String shell = null;
-
         // TODO: Add support for Windows
-        if (PlatformResolver.RANKS.get().containsKey("posix")) {
-            user = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixUser());
-            group = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixGroup());
+        if (!Exec.isWindows) {
+            runWithUser = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixUser());
+            runWithGroup = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixGroup());
             // shell cannot be changed from kernel default
-            shell = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixShell());
+            runWithShell = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixShell());
 
-            user = Coerce.toString(config.findOrDefault(user, RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
-            group = Coerce.toString(config.findOrDefault(group, RUN_WITH_NAMESPACE_TOPIC, POSIX_GROUP_KEY));
+            runWithUser = Coerce.toString(config.findOrDefault(runWithUser, RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
+            runWithGroup = Coerce.toString(config.findOrDefault(runWithGroup, RUN_WITH_NAMESPACE_TOPIC,
+                    POSIX_GROUP_KEY));
         }
-        this.runWithUser = user;
-        this.runWithGroup = group;
-        this.runWithShell = shell;
     }
 
     /**
@@ -496,11 +492,11 @@ public class GenericExternalService extends GreengrassService {
         }
     }
 
-    Exec addUserGroup(Exec exec) {
+    protected Exec addUserGroup(Exec exec) {
         return addUserGroup(exec, runWithUser, runWithGroup);
     }
 
-    private Exec addUserGroup(Exec exec, String user, String group) {
+    protected Exec addUserGroup(Exec exec, String user, String group) {
         boolean validUser = !Utils.isEmpty(user);
         if (validUser) {
             exec = exec.withUser(user);
