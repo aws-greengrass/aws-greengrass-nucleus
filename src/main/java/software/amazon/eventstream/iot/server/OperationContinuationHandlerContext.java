@@ -24,12 +24,6 @@ public class OperationContinuationHandlerContext {
         this.authenticationData = authenticationData;
     }
 
-    public OperationContinuationHandlerContext() {
-        this.serverConnection = null;
-        this.continuation = null;
-        this.authenticationData = null;
-    }
-
     public ServerConnection getServerConnection() {
         return serverConnection;
     }

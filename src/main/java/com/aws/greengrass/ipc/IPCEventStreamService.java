@@ -10,9 +10,9 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
-import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCServiceModel;
 import lombok.NoArgsConstructor;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel;
 import software.amazon.awssdk.crt.eventstream.Header;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.SocketOptions;
@@ -152,7 +152,16 @@ public class IPCEventStreamService implements Startable, Closeable {
             eventLoopGroup.close();
         }
         if (socketOptions != null) {
-        socketOptions.close();
+            socketOptions.close();
+        }
+        if (Files.exists(Paths.get(ipcServerSocketPath))) {
+            try {
+                logger.atDebug().log("Deleting the ipc server socket descriptor file during shutdown");
+                Files.delete(Paths.get(ipcServerSocketPath));
+            } catch (IOException e) {
+                logger.atError().setCause(e)
+                        .log("Failed to delete the ipc server socket descriptor file during shutdown ");
+            }
         }
 
     }

@@ -8,7 +8,6 @@ import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 import software.amazon.eventstream.iot.EventStreamRPCServiceModel;
 import software.amazon.eventstream.iot.OperationModelContext;
 
-import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -59,13 +58,11 @@ public class OperationResponse<ResponseType extends EventStreamJsonMessage,
      */
     public CompletableFuture<ResponseType> getResponse() {
         //semantics here are: if the request was never successfully sent
-        //then the request flush future holds the exception thrown so
-        //waiting for the response future will certainly never complete
-        //and never reveal the request attempt failed or the reason to
-        //the caller waiting for the response. The strategy here is to
-        //surface that possible error if asking for the response and skipping
-        //message flush check. It should be impossible to have a successful
-        //response future completed with a request flush
+        //then the request flush future holds the exception thrown so that
+        //must be made visible of the caller waits for the response directly.
+        //It is impossible to have a successful response future completed
+        //with a request flush never having completed or having thrown an
+        //exception.
         return requestFlushFuture.thenCompose((v) -> responseFuture);
     }
 
@@ -73,6 +70,7 @@ public class OperationResponse<ResponseType extends EventStreamJsonMessage,
      * Publish stream events on an open operation's event stream.
      * @param streamEvent event to publish
      */
+    @Override
     public CompletableFuture<Void> sendStreamEvent(final StreamRequestType streamEvent) {
         try {
             final List<Header> headers = new LinkedList<>();
@@ -83,14 +81,13 @@ public class OperationResponse<ResponseType extends EventStreamJsonMessage,
             final byte[] payload = operationModelContext.getServiceModel()
                     .toJson(streamEvent);
             return continuation.sendMessage(headers, payload,
-                    MessageType.ApplicationMessage, MessageFlags.TerminateStream.getByteValue())
+                    MessageType.ApplicationMessage, 0)
                     .whenComplete((res, ex) -> {
-                        isClosed.set(true);
-                        continuation.close();
                         if (ex != null) {
-                            LOGGER.warning(String.format("%s caught %s while closing the event stream: %s",
+                            LOGGER.warning(String.format("%s caught %s while sending message the event stream: %s",
                                     operationModelContext.getOperationName(), ex.getClass().getName(),
                                     ex.getMessage()));
+                            closeStream();
                         }
                     });
         } catch (Exception e) {
@@ -105,12 +102,12 @@ public class OperationResponse<ResponseType extends EventStreamJsonMessage,
      *
      * @return
      */
-    public CompletableFuture<Void> closeEventStream() {
+    @Override
+    public CompletableFuture<Void> closeStream() {
         if (continuation != null && !continuation.isNull()) {
             return continuation.sendMessage(null, null,
                     MessageType.ApplicationMessage, MessageFlags.TerminateStream.getByteValue())
                     .whenComplete((res, ex) -> {
-                        isClosed.set(true);
                         continuation.close();
                         if (ex != null) {
                             LOGGER.warning(String.format("%s threw %s while closing the event stream: %s",
@@ -123,7 +120,7 @@ public class OperationResponse<ResponseType extends EventStreamJsonMessage,
     }
 
     /**
-     * Tests if the stream is closed
+     * Checks if the stream is closed
      * @return
      */
     public boolean isClosed() {
@@ -132,8 +129,8 @@ public class OperationResponse<ResponseType extends EventStreamJsonMessage,
 
     @Override
     public void close() throws Exception {
-        if (!isClosed.get()) {
-            closeEventStream();
+        if (isClosed.compareAndSet(false, true)) {
+            closeStream();
         }
     }
 }
