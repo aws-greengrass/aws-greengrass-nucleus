@@ -72,8 +72,8 @@ import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE
 public class DeviceProvisioningHelper {
 
     public static final Map<EnvironmentStage, String> GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
-            EnvironmentStage.PROD, "evergreen.%s.amazonaws.com",
-            EnvironmentStage.GAMMA, "evergreen-gamma.%s.amazonaws.com",
+            EnvironmentStage.PROD, "greengrass-ats.iot.%s.amazonaws.com:8443/greengrass",
+            EnvironmentStage.GAMMA, "greengrass-ats.gamma.%s.iot.amazonaws.com:8443/greengrass",
             EnvironmentStage.BETA, "greengrass-ats.beta.%s.iot.amazonaws.com:8443/greengrass"
     );
 

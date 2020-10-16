@@ -44,12 +44,6 @@ import static java.util.regex.Pattern.CASE_INSENSITIVE;
 @SuppressWarnings("PMD.ConfusingTernary")
 public class GreengrassComponentServiceClientFactory {
 
-    private static final Pattern KEY_PATTERN =
-            Pattern.compile("-+BEGIN\\s+.*PRIVATE\\s+KEY[^-]*-+(?:\\s|\\r|\\n)+" + // Header
-                            "([a-z0-9+/=\\r\\n]+)" +                       // Base64 text
-                            "-+END\\s+.*PRIVATE\\s+KEY[^-]*-+",            // Footer
-                    CASE_INSENSITIVE);
-
     public static final String CONTEXT_COMPONENT_SERVICE_ENDPOINT = "greengrassServiceEndpoint";
     private static final Logger logger = LogManager.getLogger(GreengrassComponentServiceClientFactory.class);
 
@@ -60,12 +54,11 @@ public class GreengrassComponentServiceClientFactory {
      *
      * @param greengrassServiceEndpoint String containing service endpoint
      * @param deviceConfiguration       Device configuration
-     * @throws TLSAuthException Cannot initialize mutual TLS connection socket
      */
     @Inject
     public GreengrassComponentServiceClientFactory(
             @Named(CONTEXT_COMPONENT_SERVICE_ENDPOINT) String greengrassServiceEndpoint,
-            DeviceConfiguration deviceConfiguration) throws TLSAuthException {
+            DeviceConfiguration deviceConfiguration) {
 
         ClientConfiguration clientConfiguration = ProxyUtils.getClientConfiguration();
         try {
