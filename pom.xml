@@ -205,6 +205,11 @@
             <!--change it to 1.0.0-SNAPSHOT once caches clear-->
             <version>1.0.0-event-stream-rpc-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk15on</artifactId>
+            <version>1.66</version>
+        </dependency>
     </dependencies>
     <pluginRepositories>
         <pluginRepository>

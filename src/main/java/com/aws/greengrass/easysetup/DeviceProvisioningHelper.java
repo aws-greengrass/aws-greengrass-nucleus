@@ -71,10 +71,10 @@ import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE
 @Getter
 public class DeviceProvisioningHelper {
 
-    public static final Map<EnvironmentStage, String> STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
+    public static final Map<EnvironmentStage, String> GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
             EnvironmentStage.PROD, "evergreen.%s.amazonaws.com",
             EnvironmentStage.GAMMA, "evergreen-gamma.%s.amazonaws.com",
-            EnvironmentStage.BETA, "evergreen-beta.%s.amazonaws.com"
+            EnvironmentStage.BETA, "greengrass-ats.beta.%s.iot.amazonaws.com:8443/greengrass"
     );
 
     private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
@@ -154,7 +154,8 @@ public class DeviceProvisioningHelper {
                     "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n"
                             + "      \"Effect\": \"Allow\",\n      \"Action\": [\n"
                             + "                \"iot:Connect\",\n                \"iot:Publish\",\n"
-                            + "                \"iot:Subscribe\",\n                \"iot:Receive\"\n],\n"
+                            + "                \"iot:Subscribe\",\n                \"iot:Receive\",\n"
+                            + "                \"greengrass:*\"\n],\n"
                             + "      \"Resource\": \"*\"\n    }\n  ]\n}").build());
         }
 

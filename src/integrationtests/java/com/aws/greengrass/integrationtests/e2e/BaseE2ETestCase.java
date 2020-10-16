@@ -66,6 +66,7 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.File;
 import java.io.IOException;
@@ -85,7 +86,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.STAGE_TO_ENDPOINT_FORMAT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -95,6 +95,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @ExtendWith(GGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
+    private static final Map<IotSdkClientFactory.EnvironmentStage, String> STAGE_TO_ENDPOINT_FORMAT =
+            ImmutableMap.of(
+            IotSdkClientFactory.EnvironmentStage.PROD, "evergreen.%s.amazonaws.com",
+            IotSdkClientFactory.EnvironmentStage.GAMMA, "evergreen-gamma.%s.amazonaws.com",
+            IotSdkClientFactory.EnvironmentStage.BETA, "evergreen-beta.%s.amazonaws.com"
+    );
+
     protected static final Region GAMMA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
     protected static final String THING_TARGET_TYPE = "thing";
@@ -123,7 +130,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     private static final String testComponentSuffix = "_" + UUID.randomUUID().toString();
     protected static Optional<String> tesRolePolicyArn;
-    protected static final IotSdkClientFactory.EnvironmentStage envStage = IotSdkClientFactory.EnvironmentStage.GAMMA;
+    protected static final IotSdkClientFactory.EnvironmentStage envStage = IotSdkClientFactory.EnvironmentStage.BETA;
 
     protected final Set<String> createdIotJobIds = new HashSet<>();
     protected final Set<String> createdThingGroups = new HashSet<>();
