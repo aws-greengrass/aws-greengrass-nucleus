@@ -153,7 +153,7 @@ class DeploymentTaskIntegrationTest {
     static void setupKernel() {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
-        kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResourceø("onlyMain.yaml").toString());
+        kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
 
         kernel.launch();
 

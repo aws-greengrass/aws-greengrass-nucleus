@@ -23,20 +23,19 @@ public final class SudoUtil {
     }
 
     /**
-     * Skip test if current user cannot sudo to default kernel shell. Logbash should be enabled for systems where users
-     * cannot sudo to shell, but can sudo to logbash.
+     * Skip test if current user cannot sudo to default kernel shell.
      *
-     * @param kernel        a kernel to check.
+     * @param kernel a kernel to check.
      */
     public static void assumeCanSudoShell(Kernel kernel) {
         assumeTrue(canSudoShell(kernel), "cannot sudo to shell as current user");
     }
 
     /**
-     * Check if current user can sudo to default kernel shell. Logbash should be enabled for systems where users cannot
-     * sudo to shell, but can sudo to logbash.
+     * Check if current user can sudo to default kernel shell. Attempt to fallback to other shell commands if
+     * default fails.
      *
-     * @param kernel        a kernel to check.
+     * @param kernel a kernel to check.
      */
     public static boolean canSudoShell(Kernel kernel) {
         DeviceConfiguration config = new DeviceConfiguration(kernel);
