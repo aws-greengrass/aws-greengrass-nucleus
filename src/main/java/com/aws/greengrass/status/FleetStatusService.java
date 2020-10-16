@@ -290,7 +290,7 @@ public class FleetStatusService extends GreengrassService {
         List<ComponentStatusDetails> components = new ArrayList<>();
         long sequenceNumber;
         synchronized (greengrassServiceSet) {
-            // If there are no evergreen services to be updated, do not send an update.
+            // If there are no Greengrass services to be updated, do not send an update.
             if (greengrassServiceSet.isEmpty()) {
                 return;
             }
@@ -400,12 +400,12 @@ public class FleetStatusService extends GreengrassService {
     }
 
     /**
-     * Used for unit tests only. Adds a list of evergreen services of previously
+     * Used for unit tests only. Adds a list of Greengrass services of previously
      *
-     * @param greengrassServices List of evergreen services to add
+     * @param greengrassServices List of Greengrass services to add
      * @param instant           last time the service was processed.
      */
-    void addEvergreenServicesToPreviouslyKnownServicesList(List<GreengrassService> greengrassServices,
+    void addServicesToPreviouslyKnownServicesList(List<GreengrassService> greengrassServices,
                                                            Instant instant) {
         greengrassServices.forEach(greengrassService -> allServiceNamesMap.put(greengrassService, instant));
     }
@@ -413,7 +413,7 @@ public class FleetStatusService extends GreengrassService {
     /**
      * Used for unit tests only.
      */
-    void clearEvergreenServiceSet() {
+    void clearServiceSet() {
         updatedGreengrassServiceSet.clear();
     }
 
