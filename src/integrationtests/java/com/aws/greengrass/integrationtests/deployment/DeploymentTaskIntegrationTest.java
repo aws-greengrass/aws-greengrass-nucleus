@@ -321,7 +321,7 @@ class DeploymentTaskIntegrationTest {
                                                                   Matchers.equalTo(TEST_TICK_TOCK_STRING)));
         Slf4jLogAdapter.removeGlobalListener(listener);
 
-        // Check that ClassService is a raw EvergreenService and not a GenericExternalService
+        // Check that ClassService is a raw GreengrassService and not a GenericExternalService
         assertEquals(GreengrassService.class, kernel.locate("ClassService").getClass());
     }
 

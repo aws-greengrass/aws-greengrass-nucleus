@@ -1,4 +1,4 @@
-# JMH Benchmarks for Evergreen
+# JMH Benchmarks for Greengrass
 This sub-project contains JMH benchmarks for the Greengrass project.
 
 These benchmarks measure important metrics including execution time and memory usage.
