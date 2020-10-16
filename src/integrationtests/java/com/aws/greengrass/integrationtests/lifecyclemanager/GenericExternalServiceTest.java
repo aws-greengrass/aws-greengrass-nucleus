@@ -18,6 +18,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -26,6 +29,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
@@ -35,6 +39,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFI
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -300,26 +305,11 @@ class GenericExternalServiceTest extends BaseITCase {
         assertThrows(TimeoutException.class, serviceWithJustBootstrapAndShouldTimeout::bootstrap);
     }
 
-    @EnabledOnOs(OS.LINUX)
-    @Test
-    void GIVEN_linux_default_user_WHEN_runs_THEN_runs_with_default_user() throws Exception {
-        runPosixUserShellTest("config_run_with_user.yaml", "123456");
-
-    }
-
-    @EnabledOnOs(OS.LINUX)
-    @Test
-    void GIVEN_linux_default_shell_WHEN_runs_THEN_runs_with_default_shell() throws Exception {
-        runPosixUserShellTest("config_run_with_user_shell.yaml", "123456");
-    }
-
-    @EnabledOnOs(OS.LINUX)
-    @Test
-    void GIVEN_linux_requires_privilege_WHEN_runs_THEN_runs_with_root() throws Exception {
-        runPosixUserShellTest("config_run_with_privilege.yaml", "0");
-    }
-
-    private void runPosixUserShellTest(String file, String expectedUid) throws Exception {
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    @ParameterizedTest
+    @MethodSource("posixTestUserConfig")
+    void GIVEN_posix_default_user_WHEN_runs_THEN_runs_with_default_user(String file, String expectedUid)
+            throws Exception {
         kernel.parseArgs("-i", getClass().getResource(file).toString());
 
         // skip when running as a user that cannot sudo to shell
@@ -344,5 +334,13 @@ class GenericExternalServiceTest extends BaseITCase {
 
         String user = Files.newBufferedReader(testFile.toPath()).readLine();
         assertEquals(expectedUid, user);
+    }
+
+    static Stream<Arguments> posixTestUserConfig() {
+        return Stream.of(
+                arguments("config_run_with_user.yaml", "123456"),
+                arguments("config_run_with_user_shell.yaml", "123456"),
+                arguments("config_run_with_privilege.yaml", "0")
+        );
     }
 }
