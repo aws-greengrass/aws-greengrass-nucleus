@@ -323,7 +323,7 @@ class GenericExternalServiceTest extends BaseITCase {
         kernel.parseArgs("-i", getClass().getResource(file).toString());
 
         // skip when running as a user that cannot sudo to shell
-        assumeCanSudoShell(kernel, true);
+        assumeCanSudoShell(kernel);
 
         // create file for test to write UID into
         File testFile = File.createTempFile("user-test", ".txt");

@@ -153,7 +153,7 @@ class DeploymentTaskIntegrationTest {
     static void setupKernel() {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
-        kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
+        kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResourceø("onlyMain.yaml").toString());
 
         kernel.launch();
 
@@ -742,7 +742,7 @@ class DeploymentTaskIntegrationTest {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
 
-        assumeCanSudoShell(kernel, true);
+        assumeCanSudoShell(kernel);
 
         countDownLatch = new CountDownLatch(2);
         // Set up stdout listener to capture stdout for verifying users

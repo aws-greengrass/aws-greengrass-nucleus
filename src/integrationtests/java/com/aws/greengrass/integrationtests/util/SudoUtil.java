@@ -1,3 +1,6 @@
+/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 */
+
 package com.aws.greengrass.integrationtests.util;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -10,7 +13,10 @@ import java.io.IOException;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 public final class SudoUtil {
-    private static final String LOGBASH = "/usr/bin/logbash";
+    /**
+     * Alternative shell commands to try if default (sh) is not enabled for sudo
+      */
+    private static final String[] FALLBACK_SHELL_COMMANDS = {"/usr/bin/logbash"};
 
     private SudoUtil() {
 
@@ -21,10 +27,9 @@ public final class SudoUtil {
      * cannot sudo to shell, but can sudo to logbash.
      *
      * @param kernel        a kernel to check.
-     * @param enableLogbash set to true if a fallback to {@value #LOGBASH} should be enabled.
      */
-    public static void assumeCanSudoShell(Kernel kernel, boolean enableLogbash) {
-        assumeTrue(canSudoShell(kernel, enableLogbash), "cannot sudo to shell as current user");
+    public static void assumeCanSudoShell(Kernel kernel) {
+        assumeTrue(canSudoShell(kernel), "cannot sudo to shell as current user");
     }
 
     /**
@@ -32,18 +37,19 @@ public final class SudoUtil {
      * sudo to shell, but can sudo to logbash.
      *
      * @param kernel        a kernel to check.
-     * @param enableLogbash set to true if a fallback to {@value #LOGBASH} should be enabled.
      */
-    public static boolean canSudoShell(Kernel kernel, boolean enableLogbash) {
+    public static boolean canSudoShell(Kernel kernel) {
         DeviceConfiguration config = new DeviceConfiguration(kernel);
         String shell = Coerce.toString(config.getRunWithDefaultPosixShell().getOnce());
 
         if (canSudoShell(shell)) {
             return true;
         }
-        if (enableLogbash && canSudoShell(LOGBASH)) {
-            config.getRunWithDefaultPosixShell().withValue(LOGBASH);
-            return true;
+        for (String cmd : FALLBACK_SHELL_COMMANDS) {
+            if (canSudoShell(cmd)) {
+                config.getRunWithDefaultPosixShell().withValue(cmd);
+                return true;
+            }
         }
         return false;
     }
