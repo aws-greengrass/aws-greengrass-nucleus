@@ -7,9 +7,6 @@ services:
     lifecycle:
 
   mqtt:
-    resources:
-      - evergreen_1._mqtt._tcp.local
-      - evergreen_1._http._tcp.local
     lifecycle:
 
   ServiceName:

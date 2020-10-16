@@ -56,8 +56,8 @@ def convert_units(input_unit):
 
 
 def main():
-    namespace = "Evergreen/Benchmark"
-    evergreen_jar_path = "target/Evergreen.jar"
+    namespace = "Greengrass/Benchmark"
+    greengrass_jar_path = "target/Greengrass.jar"
 
     with open("jmh-result.json", "r") as f:
         report = json.load(f)
@@ -68,8 +68,8 @@ def main():
     secondary_metric_names = set()
 
     # Add jar size metric (if we can find the jar)
-    if os.path.exists(evergreen_jar_path):
-        jar_size = os.path.getsize(evergreen_jar_path)
+    if os.path.exists(greengrass_jar_path):
+        jar_size = os.path.getsize(greengrass_jar_path)
         jar_size_metric_name = "JarSize"
         datapoints.append({
             "MetricName": jar_size_metric_name,
@@ -201,7 +201,7 @@ def main():
                 } for i, name in enumerate(secondary_metric_names)]
             ]
         }
-        put_dashboard_retryable(cw, "EvergreenBenchmarks", dashboard_data)
+        put_dashboard_retryable(cw, "GreengrassBenchmarks", dashboard_data)
 
         # Only continue to run for pull requests
         return
