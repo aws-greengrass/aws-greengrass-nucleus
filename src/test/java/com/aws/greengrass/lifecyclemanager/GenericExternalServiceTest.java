@@ -97,10 +97,8 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
         }
     }
 
-    @EnabledOnOs({ OS.WINDOWS })
     @Test
-    void GIVEN_posix_runwith_info_on_windows_WHEN_exec_add_group_THEN_do_not_use_runwith() throws Exception {
-        // no stubbing of posix keys - nothing should be saved
+    void GIVEN_no_runwith_info_WHEN_exec_add_group_THEN_do_not_decorate_command_with_user() throws Exception {
         ges.storeInitialRunWithConfiguration();
 
         try (Exec exec = ges.addUserGroup(new Exec().withExec("echo", "hello"))) {
