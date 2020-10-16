@@ -19,6 +19,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.util.NucleusPaths;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -289,6 +290,11 @@ public class KernelLifecycle {
             logger.atInfo("context-shutdown-complete").log();
         } catch (Throwable ex) {
             logger.atError("system-shutdown-error", ex).log();
+        }
+        // Stop all the contexts for the loggers.
+        LogConfig.getInstance().closeContext();
+        for (LogConfig logConfig : LogManager.getLogConfigurations().values()) {
+            logConfig.closeContext();
         }
     }
 
