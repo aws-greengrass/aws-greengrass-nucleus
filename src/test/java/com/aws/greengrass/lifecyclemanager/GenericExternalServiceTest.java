@@ -82,7 +82,7 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
 
     @EnabledOnOs({ OS.LINUX, OS.MAC })
     @Test
-    void GIVEN_runwith_info_WHEN_exec_add_group_THEN_use_runwith() throws Exception {
+    void GIVEN_posix_runwith_info_WHEN_exec_add_group_THEN_use_runwith() throws Exception {
         doReturn("foo").when(config).findOrDefault(nullable(String.class),
                 eq(RUN_WITH_NAMESPACE_TOPIC),
                 eq(POSIX_USER_KEY));
@@ -92,9 +92,26 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
 
         ges.storeInitialRunWithConfiguration();
 
-
         try (Exec exec = ges.addUserGroup(new Exec().withExec("echo", "hello"))) {
             assertThat(exec.getCommand(), arrayContaining("sudo", "-E", "-u", "foo", "-g", "bar", "--", "echo", "hello"));
         }
     }
+
+    @EnabledOnOs({ OS.WINDOWS })
+    @Test
+    void GIVEN_posix_runwith_info_on_windows_WHEN_exec_add_group_THEN_do_not_use_runwith() throws Exception {
+        doReturn("foo").when(config).findOrDefault(nullable(String.class),
+                eq(RUN_WITH_NAMESPACE_TOPIC),
+                eq(POSIX_USER_KEY));
+        doReturn("bar").when(config).findOrDefault(nullable(String.class),
+                eq(RUN_WITH_NAMESPACE_TOPIC),
+                eq(POSIX_GROUP_KEY));
+
+        ges.storeInitialRunWithConfiguration();
+
+        try (Exec exec = ges.addUserGroup(new Exec().withExec("echo", "hello"))) {
+            assertThat(exec.getCommand(), arrayContaining("echo", "hello"));
+        }
+    }
+
 }
