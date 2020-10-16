@@ -2,16 +2,16 @@ package com.aws.greengrass.ipc.modules;
 
 import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import generated.software.amazon.awssdk.iot.greengrass.GeneratedAbstractDeferComponentUpdateOperationHandler;
-import generated.software.amazon.awssdk.iot.greengrass.GeneratedAbstractSubscribeToComponentUpdatesOperationHandler;
-import generated.software.amazon.awssdk.iot.greengrass.GeneratedAbstractUpdateStateOperationHandler;
-import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.aws.greengrass.GeneratedAbstractDeferComponentUpdateOperationHandler;
+import software.amazon.awssdk.aws.greengrass.GeneratedAbstractSubscribeToComponentUpdatesOperationHandler;
+import software.amazon.awssdk.aws.greengrass.GeneratedAbstractUpdateStateOperationHandler;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
 
 import java.util.function.Function;

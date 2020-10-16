@@ -6,27 +6,27 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import generated.software.amazon.awssdk.iot.greengrass.GeneratedAbstractDeferComponentUpdateOperationHandler;
-import generated.software.amazon.awssdk.iot.greengrass.GeneratedAbstractSubscribeToComponentUpdatesOperationHandler;
-import generated.software.amazon.awssdk.iot.greengrass.GeneratedAbstractUpdateStateOperationHandler;
-import generated.software.amazon.awssdk.iot.greengrass.model.ComponentUpdatePolicyEvents;
-import generated.software.amazon.awssdk.iot.greengrass.model.DeferComponentUpdateRequest;
-import generated.software.amazon.awssdk.iot.greengrass.model.DeferComponentUpdateResponse;
-import generated.software.amazon.awssdk.iot.greengrass.model.InvalidArgumentError;
-import generated.software.amazon.awssdk.iot.greengrass.model.PostComponentUpdateEvent;
-import generated.software.amazon.awssdk.iot.greengrass.model.PreComponentUpdateEvent;
-import generated.software.amazon.awssdk.iot.greengrass.model.ResourceNotFoundError;
-import generated.software.amazon.awssdk.iot.greengrass.model.ServiceError;
-import generated.software.amazon.awssdk.iot.greengrass.model.SubscribeToComponentUpdatesRequest;
-import generated.software.amazon.awssdk.iot.greengrass.model.SubscribeToComponentUpdatesResponse;
-import generated.software.amazon.awssdk.iot.greengrass.model.UpdateStateRequest;
-import generated.software.amazon.awssdk.iot.greengrass.model.UpdateStateResponse;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
+import software.amazon.awssdk.aws.greengrass.GeneratedAbstractDeferComponentUpdateOperationHandler;
+import software.amazon.awssdk.aws.greengrass.GeneratedAbstractSubscribeToComponentUpdatesOperationHandler;
+import software.amazon.awssdk.aws.greengrass.GeneratedAbstractUpdateStateOperationHandler;
+import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
+import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
+import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateResponse;
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentError;
+import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
+import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
+import software.amazon.awssdk.aws.greengrass.model.ResourceNotFoundError;
+import software.amazon.awssdk.aws.greengrass.model.ServiceError;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesResponse;
+import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
+import software.amazon.awssdk.aws.greengrass.model.UpdateStateResponse;
+import software.amazon.eventstream.iot.StreamEventPublisher;
 import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
-import software.amazon.eventstream.iot.server.ServerStreamEventPublisher;
 
 import java.util.HashSet;
 import java.util.List;
@@ -40,7 +40,7 @@ import javax.inject.Inject;
 public class LifecycleIPCEventStreamAgent {
 
     @Getter (AccessLevel.PACKAGE)
-    private final ConcurrentHashMap<String, Set<ServerStreamEventPublisher<ComponentUpdatePolicyEvents>>>
+    private final ConcurrentHashMap<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>>
             componentUpdateListeners = new ConcurrentHashMap<>();
 
     // When a PreComponentUpdateEvent is pushed to components, a future is created for each component. When the
@@ -88,12 +88,15 @@ public class LifecycleIPCEventStreamAgent {
         @Override
         @SuppressWarnings("PMD.PreserveStackTrace")
         public UpdateStateResponse handleRequest(UpdateStateRequest request) {
+            log.atInfo().log("Got update state request for service " + serviceName);
             State s = State.valueOf(request.getState().toString());
             String serviceN = request.getServiceName() == null ? serviceName : request.getServiceName();
             GreengrassService service;
             try {
                 service = kernel.locate(serviceN);
+                log.atInfo().log("Located the service");
                 service.reportState(s);
+                log.atInfo().log("Reported the state");
             } catch (ServiceLoadException e) {
                 log.atWarn().kv("service name", request.getServiceName()).log("Service not present");
                 ResourceNotFoundError rnf = new ResourceNotFoundError();
@@ -209,7 +212,7 @@ public class LifecycleIPCEventStreamAgent {
     public void sendPreComponentUpdateEvent(PreComponentUpdateEvent preComponentUpdateEvent,
                                             List<Future<DeferUpdateRequest>> deferUpdateFutures) {
         discardDeferComponentUpdateFutures();
-        for (Map.Entry<String, Set<ServerStreamEventPublisher<ComponentUpdatePolicyEvents>>> entry
+        for (Map.Entry<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>> entry
                 : componentUpdateListeners.entrySet()) {
             String serviceName = entry.getKey();
             entry.getValue().forEach(subscribeHandler -> {
@@ -232,7 +235,7 @@ public class LifecycleIPCEventStreamAgent {
      * @param postComponentUpdateEvent event sent to subscribed components
      */
     public void sendPostComponentUpdateEvent(PostComponentUpdateEvent postComponentUpdateEvent) {
-        for (Map.Entry<String, Set<ServerStreamEventPublisher<ComponentUpdatePolicyEvents>>> entry
+        for (Map.Entry<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>> entry
                 : componentUpdateListeners.entrySet()) {
             String serviceName = entry.getKey();
             entry.getValue().forEach(subscribeHandler -> {

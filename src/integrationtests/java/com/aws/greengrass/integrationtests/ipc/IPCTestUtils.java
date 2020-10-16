@@ -11,52 +11,45 @@ import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.util.Coerce;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.Gson;
-import lombok.NonNull;
-import software.amazon.awssdk.crt.eventstream.ClientConnection;
-import software.amazon.awssdk.crt.eventstream.ClientConnectionContinuation;
-import software.amazon.awssdk.crt.eventstream.ClientConnectionContinuationHandler;
-import software.amazon.awssdk.crt.eventstream.ClientConnectionHandler;
 import software.amazon.awssdk.crt.eventstream.Header;
-import software.amazon.awssdk.crt.eventstream.MessageType;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
-import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.eventstream.iot.EventStreamServiceModel;
+import software.amazon.eventstream.iot.MessageAmendInfo;
+import software.amazon.eventstream.iot.client.EventStreamRPCConnection;
+import software.amazon.eventstream.iot.client.EventStreamRPCConnectionConfig;
 
-import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.ipc.IPCEventStreamService.IPC_SERVER_DOMAIN_SOCKET_FILENAME;
 import static com.aws.greengrass.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 
 public final class IPCTestUtils {
-
-    public static Gson gson = EventStreamServiceModel.GSON;
 
     public static String TEST_SERVICE_NAME = "ServiceName";
 
     private static ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    private static int STREAM_ID = 1;
     private IPCTestUtils() {
 
     }
@@ -133,97 +126,58 @@ public final class IPCTestUtils {
         return awaitServiceLatch;
     }
 
-    @SuppressWarnings("PMD.CloseResource") // the connect message is closed still PMD failure comes
-    public static ClientConnection connectClientForEventStreamIpc(String authToken, Kernel kernel) throws IOException,
-            InterruptedException,
-            ExecutionException {
-        final ClientConnection[] clientConnectionArray = {null};
-        SocketOptions socketOptions = new SocketOptions();
-        socketOptions.connectTimeoutMs = 3000;
-        socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
-        socketOptions.type = SocketOptions.SocketType.STREAM;
-        EventLoopGroup elg = new EventLoopGroup(1);
-        ClientBootstrap clientBootstrap = new ClientBootstrap(elg, new HostResolver(elg));
-        String ipcServerSocketPath = kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
-        ClientConnection.connect(ipcServerSocketPath, (short) 8033, socketOptions, null, clientBootstrap, new ClientConnectionHandler() {
-            @Override
-            protected void onConnectionSetup(ClientConnection connection, int errorCode) {
-                clientConnectionArray[0] = connection;
-            }
 
-            @Override
-            protected void onProtocolMessage(List<Header> headers, byte[] payload, MessageType messageType, int messageFlags) {
+    @SuppressWarnings("PMD.CloseResource")
+    public static EventStreamRPCConnection connectToGGCOverEventStreamIPC(SocketOptions socketOptions,
+                                                                          String authToken,
+                                                                          Kernel kernel) throws ExecutionException,
+            InterruptedException {
 
-            }
+        try (EventLoopGroup elGroup = new EventLoopGroup(1); ClientBootstrap clientBootstrap = new ClientBootstrap(elGroup, null)) {
 
-            @Override
-            protected void onConnectionClosed(int closeReason) {
+            String ipcServerSocketPath = kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+            final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elGroup,
+                    socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER, () -> {
+                final List<Header> headers = new LinkedList<>();
+                GGEventStreamConnectMessage connectMessage = new GGEventStreamConnectMessage();
+                connectMessage.setAuthToken(authToken);
+                String payload = null;
+                try {
+                    payload = OBJECT_MAPPER.writeValueAsString(connectMessage);
+                } catch (JsonProcessingException e) {
+                    fail("Failed to create connect message");
+                }
+                return new MessageAmendInfo(headers, payload.getBytes(StandardCharsets.UTF_8));
+            });
+            final CompletableFuture<Void> connected = new CompletableFuture<>();
+            final EventStreamRPCConnection connection = new EventStreamRPCConnection(config);
+            final boolean disconnected[] = {false};
+            final int disconnectedCode[] = {-1};
+            //this is a bit cumbersome but does not prevent a convenience wrapper from exposing a sync
+            //connect() or a connect() that returns a CompletableFuture that errors
+            //this could be wrapped by utility methods to provide a more
+            connection.connect(new EventStreamRPCConnection.LifecycleHandler() {
+                //only called on successful connection. That is full on Connect -> ConnectAck(ConnectionAccepted=true)
+                @Override
+                public void onConnect() {
+                    connected.complete(null);
+                }
 
-            }
-        }).get();
+                @Override
+                public void onDisconnect(int errorCode) {
+                    disconnected[0] = true;
+                    disconnectedCode[0] = errorCode;
+                }
 
-        GGEventStreamConnectMessage connectMessagePayloadStructure =
-                GGEventStreamConnectMessage.builder().authToken(authToken).build();
-        String payload = OBJECT_MAPPER.writeValueAsString(connectMessagePayloadStructure);
-        clientConnectionArray[0].sendProtocolMessage(null, payload.getBytes(StandardCharsets.UTF_8), MessageType.Connect,
-                0).get();
-        return clientConnectionArray[0];
-    }
-
-    public static ClientConnectionContinuation sendOperationRequest(@NonNull ClientConnection clientConnection,
-                                      String operationName,
-                                      byte[] payload, BiConsumer<List<Header>,byte[]> callback) throws IOException {
-
-        ClientConnectionContinuation clientConnectionContinuation =
-                clientConnection.newStream(new ClientConnectionContinuationHandler() {
-                    @Override
-                    protected void onContinuationMessage(List<Header> headers, byte[] payload, MessageType messageType,
-                                                         int messageFlags) {
-                        if (callback != null) {
-                            callback.accept(headers, payload);
-                        }
-                    }
-                });
-        Header messageType = Header.createHeader(":message-type", (int) MessageType.ApplicationMessage.getEnumValue());
-        Header operation = Header.createHeader("operation", operationName);
-        Header streamId = Header.createHeader(":stream-id", STREAM_ID++);
-
-        List<Header> messageHeaders = new ArrayList<>(3);
-        messageHeaders.add(messageType);
-        messageHeaders.add(streamId);
-        messageHeaders.add(operation);
-
-        clientConnectionContinuation.activate(operationName, messageHeaders, payload
-                , MessageType.ApplicationMessage, 0);
-        return clientConnectionContinuation;
-    }
-
-    public static ClientConnectionContinuation sendSubscribeOperationRequest(@NonNull ClientConnection clientConnection,
-                                                     String operationName,
-                                                     byte[] payload,
-                                                     BiConsumer<List<Header>,byte[]> callback) throws IOException {
-
-        ClientConnectionContinuation clientConnectionContinuation =
-                clientConnection.newStream(new ClientConnectionContinuationHandler() {
-                    @Override
-                    protected void onContinuationMessage(List<Header> headers, byte[] payload, MessageType messageType,
-                                                         int messageFlags) {
-                        callback.accept(headers, payload);
-                    }
-                });
-        Header messageType = Header.createHeader(":message-type", (int) MessageType.ApplicationMessage.getEnumValue());
-        Header operation = Header.createHeader("operation", operationName);
-        Header messageFlags = Header.createHeader(":message-flags", 0);
-        Header streamId = Header.createHeader(":stream-id", STREAM_ID++);
-
-        List<Header> messageHeaders = new ArrayList<>(3);
-        messageHeaders.add(messageType);
-        messageHeaders.add(messageFlags);
-        messageHeaders.add(streamId);
-        messageHeaders.add(operation);
-
-        clientConnectionContinuation.activate(operationName, messageHeaders, payload
-                , MessageType.ApplicationMessage, 0);
-        return clientConnectionContinuation;
+                //This on error is for any errors that is connection level, including problems during connect()
+                @Override
+                public boolean onError(Throwable t) {
+                    connected.completeExceptionally(t);
+                    return true;    //hints at handler to disconnect due to this error
+                }
+            });
+            connected.get();
+            return connection;
+        }
     }
 }

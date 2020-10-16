@@ -188,6 +188,8 @@ public class EventStreamRPCClient {
                     operationModelContext.getStreamingResponseApplicationModelType().get()), isInitial,
                     responseFuture, streamResponseHandler, continuation);
         } else if (isInitial) {
+            System.out.println("Application mode type is " + applicationModelType.get());
+            System.out.println("application model in context is " + operationModelContext.getResponseApplicationModelType());
             //mismatch between type on the wire and type expected by the operation
             if (!applicationModelType.get().equals(operationModelContext.getResponseApplicationModelType())) {
                 handleError(new UnmappedDataException(operationModelContext.getResponseTypeClass()),

@@ -46,7 +46,6 @@ import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.platforms.Group;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
-import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,6 +55,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.exceptions.misusing.InvalidUseOfMatchersException;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
 
 import java.io.File;

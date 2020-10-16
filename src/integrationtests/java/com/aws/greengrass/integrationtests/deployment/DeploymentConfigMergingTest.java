@@ -27,28 +27,31 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Coerce;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
-import generated.software.amazon.awssdk.iot.greengrass.model.ComponentUpdatePolicyEvents;
-import generated.software.amazon.awssdk.iot.greengrass.model.DeferComponentUpdateRequest;
-import generated.software.amazon.awssdk.iot.greengrass.model.SubscribeToComponentUpdatesRequest;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import software.amazon.awssdk.crt.eventstream.ClientConnection;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
+import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
+import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.eventstream.iot.client.EventStreamRPCConnection;
+import software.amazon.eventstream.iot.client.StreamResponseHandler;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -60,7 +63,6 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.gson;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
@@ -80,15 +82,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 class DeploymentConfigMergingTest extends BaseITCase {
-    private static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private Kernel kernel;
     private DeploymentConfigMerger deploymentConfigMerger;
+    private static SocketOptions socketOptions;
+
+    @BeforeAll
+    void initialize() {
+        socketOptions = new SocketOptions();
+        socketOptions.connectTimeoutMs = 3000;
+        socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
+        socketOptions.type = SocketOptions.SocketType.STREAM;
+    }
 
     @BeforeEach
     void before(TestInfo testInfo) {
@@ -101,6 +108,13 @@ class DeploymentConfigMergingTest extends BaseITCase {
     void after() {
         if (kernel != null) {
             kernel.shutdown();
+        }
+    }
+
+    @AfterAll
+    void tearDown() {
+        if (socketOptions != null) {
+            socketOptions.close();
         }
     }
 
@@ -477,34 +491,42 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "nondisruptable",
                 PRIVATE_STORE_NAMESPACE_TOPIC);
         String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
-        final ClientConnection clientConnection = IPCTestUtils.connectClientForEventStreamIpc(authToken, kernel);
+        final EventStreamRPCConnection clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions,
+                authToken,
+                kernel);
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest = new SubscribeToComponentUpdatesRequest();
-
-        IPCTestUtils.sendSubscribeOperationRequest(clientConnection, "aws.greengrass#SubscribeToComponentUpdates",
-                subscribeToComponentUpdatesRequest.toPayload(gson), (headers, payload) -> {
-                    try {
-                        ComponentUpdatePolicyEvents event = OBJECT_MAPPER.readValue(payload,
-                                ComponentUpdatePolicyEvents.class);
-
-                        if (event.getPreUpdateEvent() != null ) {
+        greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest,
+                Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+                    @Override
+                    public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                        if (streamEvent.getPreUpdateEvent() != null) {
                             preComponentUpdateCount.getAndIncrement();
                             if (deferCount.get() < 1) {
                                 DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
                                 deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(5).toMillis());
                                 deferComponentUpdateRequest.setMessage("Test");
-                                IPCTestUtils.sendOperationRequest(clientConnection, "aws.greengrass#DeferComponentUpdate", deferComponentUpdateRequest
-                                        .toPayload(gson), null).close();
+                                greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest,
+                                        Optional.empty());
                                 deferCount.getAndIncrement();
+                            } if (streamEvent.getPostUpdateEvent() != null) {
+                                postComponentUpdateRecieved.countDown();
+                                clientConnection.disconnect();
                             }
                         }
-                        if (event.getPostUpdateEvent() != null) {
-                            postComponentUpdateRecieved.countDown();
-                            clientConnection.closeConnection(0);
-                        }
-                    } catch (IOException e) {
-                        fail("received invalid update policy event");
                     }
-                });
+
+                    @Override
+                    public boolean onStreamError(Throwable error) {
+                        return false;
+                    }
+
+                    @Override
+                    public void onStreamClosed() {
+
+                    }
+                }
+        ));
 
         Map<String, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
         Future<DeploymentResult> future =
@@ -516,7 +538,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         assertTrue(postComponentUpdateRecieved.await(15,TimeUnit.SECONDS));
         assertEquals(2, preComponentUpdateCount.get());
-        clientConnection.close();
     }
 
     @Test

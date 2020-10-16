@@ -22,15 +22,6 @@ import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import generated.software.amazon.awssdk.iot.greengrass.model.ComponentUpdatePolicyEvents;
-import generated.software.amazon.awssdk.iot.greengrass.model.DeferComponentUpdateRequest;
-import generated.software.amazon.awssdk.iot.greengrass.model.LifecycleState;
-import generated.software.amazon.awssdk.iot.greengrass.model.PostComponentUpdateEvent;
-import generated.software.amazon.awssdk.iot.greengrass.model.PreComponentUpdateEvent;
-import generated.software.amazon.awssdk.iot.greengrass.model.SubscribeToComponentUpdatesRequest;
-import generated.software.amazon.awssdk.iot.greengrass.model.UpdateStateRequest;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -40,8 +31,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
-import software.amazon.awssdk.crt.eventstream.ClientConnection;
-import software.amazon.awssdk.crt.eventstream.ClientConnectionContinuation;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
+import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
+import software.amazon.awssdk.aws.greengrass.model.LifecycleState;
+import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
+import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
+import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
+import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.eventstream.iot.client.EventStreamRPCConnection;
+import software.amazon.eventstream.iot.client.StreamResponseHandler;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -61,7 +62,6 @@ import java.util.function.Consumer;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.gson;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
@@ -75,23 +75,20 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 class IPCServicesTest {
 
     private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
     private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
-    private static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @TempDir
     static Path tempRootDir;
 
     private static Kernel kernel;
-    private static ClientConnection clientConnection;
+    private static EventStreamRPCConnection clientConnection;
     private IPCClient client;
+    private static SocketOptions socketOptions;
 
     @BeforeAll
     static void beforeAll() throws InterruptedException, IOException, ExecutionException {
@@ -100,13 +97,20 @@ class IPCServicesTest {
         Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, TEST_SERVICE_NAME,
                 PRIVATE_STORE_NAMESPACE_TOPIC);
         String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
-        clientConnection = IPCTestUtils.connectClientForEventStreamIpc(authToken, kernel);
+        socketOptions = new SocketOptions();
+        socketOptions.connectTimeoutMs = 3000;
+        socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
+        socketOptions.type = SocketOptions.SocketType.STREAM;
+        clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
     }
 
     @AfterAll
     static void afterAll() throws InterruptedException {
         if (clientConnection != null) {
-            clientConnection.closeConnection(0);
+            clientConnection.disconnect();
+        }
+        if (socketOptions != null) {
+            socketOptions.close();
         }
         kernel.shutdown();
     }
@@ -257,8 +261,7 @@ class IPCServicesTest {
         CountDownLatch cdl = new CountDownLatch(1);
         CountDownLatch started = new CountDownLatch(2);
         GreengrassService startupService = kernel.locate("StartupService");
-        ClientConnection clientConnection = null;
-        ClientConnectionContinuation clientConnectionContinuation = null;
+        EventStreamRPCConnection clientConnection = null;
         try {
             kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
                 if ("StartupService".equals(service.getName())) {
@@ -278,23 +281,16 @@ class IPCServicesTest {
             Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "StartupService",
                     PRIVATE_STORE_NAMESPACE_TOPIC);
             String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
-            clientConnection = IPCTestUtils.connectClientForEventStreamIpc(authToken, kernel);
+            clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
             UpdateStateRequest updateStateRequest = new UpdateStateRequest();
             updateStateRequest.setServiceName("StartupService");
             updateStateRequest.setState(LifecycleState.RUNNING);
-            IPCTestUtils.sendOperationRequest(clientConnection,
-                    "aws.greengrass#UpdateState",
-                    updateStateRequest.toPayload(gson), null);
+            GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+            greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty());
             assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
 
         } finally {
             startupService.close().get();
-            if (clientConnection != null) {
-                clientConnection.close();
-            }
-            if (clientConnectionContinuation != null) {
-                clientConnectionContinuation.close();
-            }
         }
     }
 
@@ -312,11 +308,9 @@ class IPCServicesTest {
         });
         UpdateStateRequest updateStateRequest = new UpdateStateRequest();
         updateStateRequest.setState(LifecycleState.ERRORED);
-        ClientConnectionContinuation clientConnectionContinuation =
-                IPCTestUtils.sendOperationRequest(clientConnection, "aws.greengrass#UpdateState",
-                updateStateRequest.toPayload(gson), null);
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+        greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty()).getResponse().get(10, TimeUnit.SECONDS);
         assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
-        clientConnectionContinuation.close();
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -326,28 +320,33 @@ class IPCServicesTest {
         SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest =
                 new SubscribeToComponentUpdatesRequest();
         CountDownLatch cdl = new CountDownLatch(2);
-        ClientConnectionContinuation clientConnectionContinuation =
-                IPCTestUtils.sendSubscribeOperationRequest(clientConnection, "aws.greengrass#SubscribeToComponentUpdates",
-                subscribeToComponentUpdatesRequest.toPayload(gson), (headers, payload) -> {
-                    try {
-                        ComponentUpdatePolicyEvents event = OBJECT_MAPPER.readValue(payload,
-                                ComponentUpdatePolicyEvents.class);
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+        greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest, Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+            @Override
+            public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                if (streamEvent.getPreUpdateEvent() != null ) {
+                    cdl.countDown();
+                    DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+                    deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(1).toMillis());
+                    deferComponentUpdateRequest.setMessage("Test");
+                    greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
+                }
+                if (streamEvent.getPostUpdateEvent() != null) {
+                    cdl.countDown();
+                }
+            }
 
-                        if (event.getPreUpdateEvent() != null ) {
-                            cdl.countDown();
-                            DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
-                            deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(1).toMillis());
-                            deferComponentUpdateRequest.setMessage("Test");
-                            IPCTestUtils.sendOperationRequest(clientConnection, "aws.greengrass#DeferComponentUpdate"
-                                    , deferComponentUpdateRequest.toPayload(gson), null).close();
-                        }
-                        if (event.getPostUpdateEvent() != null) {
-                            cdl.countDown();
-                        }
-                    } catch (IOException e) {
-                        fail("received invalid update policy event");
-                    }
-                });
+            @Override
+            public boolean onStreamError(Throwable error) {
+                return false;
+            }
+
+            @Override
+            public void onStreamClosed() {
+
+            }
+        }));
+
         CountDownLatch subscriptionLatch = new CountDownLatch(1);
         Slf4jLogAdapter.addGlobalListener(m->{
             m.getMessage().contains("subscribed to component update");
@@ -363,8 +362,5 @@ class IPCServicesTest {
         futureList.get(0).get(Duration.ofSeconds(2).toMillis(), TimeUnit.SECONDS);
         lifecycleIPCEventStreamAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
         assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
-        clientConnectionContinuation.close();
-        System.out.println("Test successful");
-        clientConnection.closeConnection(0);
     }
 }

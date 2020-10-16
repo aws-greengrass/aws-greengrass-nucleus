@@ -72,7 +72,26 @@ public abstract class EventStreamRPCServiceModel {
             }
             return Optional.empty();
         }
+    }
 
+    /**
+     * Used to compare two members of a blob shape for equality. Array equals nesting
+     * inside of an Optional doesn't work
+     * @param lhs
+     * @param rhs
+     * @return
+     */
+    public static boolean blobTypeEquals(Optional<byte[]> lhs, Optional<byte[]> rhs) {
+        if (lhs.equals(rhs)) {
+            //both are same instance, both are same contained array, or both are empty
+            return true;
+        }
+        if (!lhs.isPresent() || !rhs.isPresent()) {
+            //if just one or the other is empty at this point
+            return false;
+        }
+        //now we know both are present so compare the arrays
+        return Arrays.equals(lhs.get(), rhs.get());
     }
 
     public abstract String getServiceName();
@@ -178,6 +197,10 @@ public abstract class EventStreamRPCServiceModel {
         } catch (Exception e) {
             throw new SerializationException(message, e);
         }
+    }
+
+    public String toJsonString(final EventStreamJsonMessage message) {
+        return new String(toJson(message), StandardCharsets.UTF_8);
     }
 
     /**
