@@ -51,7 +51,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -277,8 +276,7 @@ public class CLIServiceAgent {
             // Write the recipe as YAML with the proper filename into the store
             Path copyTo = to.resolve(String.format(RECIPE_FILE_NAME_FORMAT, recipe.getComponentName(),
                     recipe.getComponentVersion().getValue()));
-            Files.write(copyTo, SerializerFactory.getRecipeSerializer().writeValueAsBytes(recipe),
-                    StandardOpenOption.WRITE, StandardOpenOption.CREATE);
+            Files.write(copyTo, SerializerFactory.getRecipeSerializer().writeValueAsBytes(recipe));
         }
     }
 
