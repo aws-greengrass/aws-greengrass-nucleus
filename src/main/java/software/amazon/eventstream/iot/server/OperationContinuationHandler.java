@@ -14,6 +14,7 @@ import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandle
 import software.amazon.eventstream.iot.EventStreamClosedException;
 import software.amazon.eventstream.iot.EventStreamRPCServiceModel;
 import software.amazon.eventstream.iot.OperationModelContext;
+import software.amazon.eventstream.iot.StreamEventPublisher;
 import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
 import software.amazon.eventstream.iot.model.EventStreamOperationError;
 
@@ -21,7 +22,7 @@ public abstract class OperationContinuationHandler
             <RequestType extends EventStreamJsonMessage, ResponseType extends EventStreamJsonMessage,
             StreamingRequestType extends EventStreamJsonMessage, StreamingResponseType extends EventStreamJsonMessage>
         extends ServerConnectionContinuationHandler
-        implements ServerStreamEventPublisher<StreamingResponseType> {
+        implements StreamEventPublisher<StreamingResponseType> {
     private static final Logger LOGGER = Logger.getLogger(OperationContinuationHandler.class.getName());
 
     private OperationContinuationHandlerContext context;

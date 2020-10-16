@@ -13,8 +13,8 @@ import com.aws.greengrass.dependency.Crashable;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.util.Pair;
-import generated.software.amazon.awssdk.iot.greengrass.model.PostComponentUpdateEvent;
-import generated.software.amazon.awssdk.iot.greengrass.model.PreComponentUpdateEvent;
+import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
+import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
 
 import java.time.Clock;
 import java.util.ArrayList;

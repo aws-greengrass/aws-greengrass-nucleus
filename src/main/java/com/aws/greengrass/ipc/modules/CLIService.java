@@ -39,8 +39,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
 import lombok.Data;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 
 import java.io.File;
 import java.io.IOException;

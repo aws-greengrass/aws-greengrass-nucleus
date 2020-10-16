@@ -1,37 +1,25 @@
 package software.amazon.eventstream.iot.client;
 
+import software.amazon.eventstream.iot.StreamEventPublisher;
+import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
+
 import java.util.concurrent.CompletableFuture;
 
-public interface StreamResponse<ResponseType, StreamRequestType> {
-
+public interface StreamResponse<ResponseType extends EventStreamJsonMessage, StreamRequestType extends EventStreamJsonMessage>
+                        extends StreamEventPublisher<StreamRequestType> {
     /**
-     * Allows waiting
+     * Completable future indicating flush of the request that initiated the stream operation
      *
      * @return
      */
     CompletableFuture<Void> getRequestFlushFuture();
 
     /**
-     * Get the response completable future to wait on the initial response
-     * if there is one.
+     * Completable future for retrieving the initial-response of the stream operation
      *
      * @return
      */
     CompletableFuture<ResponseType> getResponse();
-
-    /**
-     * Publish stream events on an open operation's event stream.
-     *
-     * @param streamEvent event to publish
-     */
-    CompletableFuture<Void> sendStreamEvent(final StreamRequestType streamEvent);
-
-    /**
-     * Initiate a close on the event stream from the client side.
-     *
-     * @return
-     */
-    CompletableFuture<Void> closeEventStream();
 
     /**
      * Tests if the stream is closed

@@ -20,9 +20,9 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
-import generated.software.amazon.awssdk.iot.greengrass.GreengrassCoreIPCService;
 import lombok.AccessLevel;
 import lombok.Setter;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
