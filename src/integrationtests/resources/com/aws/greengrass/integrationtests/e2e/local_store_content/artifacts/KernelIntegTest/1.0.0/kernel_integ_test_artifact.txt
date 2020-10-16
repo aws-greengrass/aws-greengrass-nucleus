@@ -1,1 +1,1 @@
-Integration test artifact for Evergreen Kernel
+Integration test artifact for Greengrass Nucleus

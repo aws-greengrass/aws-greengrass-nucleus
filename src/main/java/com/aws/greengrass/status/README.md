@@ -10,12 +10,12 @@ The QoS for FSS would be 1 since we need the information to reach the cloud at l
 There is an initial jitter added for each device to emit the periodic based updates. This is to ensure not all the devices within the fleet
 update their fleet statuses at the same time.
 
-Since there is a limit of 128 KB per message on MoonRaker, the fleet status service will chunk the message to make sure that each message
-has the max size of 128 KB. 
+Since there is a limit of 128 KB per message on IoT Core, the fleet status service will chunk the message to make sure
+ that each message has the max size of 128 KB. 
 
 # Startup
-1. [***FleetStatusService***](/src/main/java/com/aws/iot/evergreen/fss/FleetStatusService.java) starts as an
-evergreen service, which is by default enabled. It starts a timer to update the information about all the components running
+1. [***FleetStatusService***](/src/main/java/com/aws/greengrass/fss/FleetStatusService.java) starts as a greengrass
+ service, which is by default enabled. It starts a timer to update the information about all the components running
 in the kernel after a specific interval.
 
 # Shutdown

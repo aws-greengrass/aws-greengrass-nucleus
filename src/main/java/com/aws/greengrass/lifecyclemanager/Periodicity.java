@@ -50,7 +50,7 @@ public final class Periodicity {
     }
 
     /**
-     * Get Periodicity for an EvergreenService based on its config.
+     * Get Periodicity for an GreengrassService based on its config.
      *
      * @param s service to get periodicity of
      * @return the periodicity (or null)

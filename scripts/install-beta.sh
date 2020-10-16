@@ -16,7 +16,7 @@ AWS_REGION="us-east-1"
 # expected files
 NUCLEUS_ZIP="aws.greengrass.nucleus.zip"
 CLI_ZIP="aws-greengrass-cli.zip"
-CLI_DIR="evergreen-cli-1.0-SNAPSHOT"
+CLI_DIR="cli-1.0-SNAPSHOT"
 HTTP_JAR="aws-greengrass-http.jar"
 
 # make sure required file/directory exist

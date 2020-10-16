@@ -108,7 +108,7 @@ public class KernelCommandLine {
             }
         }
         if (Utils.isEmpty(rootAbsolutePath)) {
-            rootAbsolutePath = "~/.evergreen";  // Default to hidden subdirectory of home.
+            rootAbsolutePath = "~/.greengrass";  // Default to hidden subdirectory of home.
         }
         rootAbsolutePath = deTilde(rootAbsolutePath);
 

@@ -1,20 +1,20 @@
 # Models
-1. [***DeploymentDocument***](/src/main/java/com/aws/iot/evergreen/deployment/model/DeploymentDocument.java) 
+1. [***DeploymentDocument***](/src/main/java/com/aws/greengrass/deployment/model/DeploymentDocument.java) 
 Represents the json document which contains the desired state for the device 
-2. [***Deployment***](/src/main/java/com/aws/iot/evergreen/deployment/model/Deployment.java) Represents creation of a
+2. [***Deployment***](/src/main/java/com/aws/greengrass/deployment/model/Deployment.java) Represents creation of a
  new desired state for the device. This can come from multiple sources like IotJobs, device shadow or local CLI. Each
   Deployment is uniquely identified
 
 # Startup
-1. [***DeploymentService***](/src/main/java/com/aws/iot/evergreen/deployment/DeploymentService.java) starts as an 
-evergreen service and initializes [***IotJobsHelper***](/src/main/java/com/aws/iot/evergreen/deployment/IotJobsHelper.java).   
+1. [***DeploymentService***](/src/main/java/com/aws/greengrass/deployment/DeploymentService.java) starts as a
+Greengrass service and initializes [***IotJobsHelper***](/src/main/java/com/aws/greengrass/deployment/IotJobsHelper.java).   
 2. *IotJobsHelper* connects to AWS Iot cloud and subscribes to the Iot jobs mqtt topics. 
 3. As part of dependency injection, DeploymentService also initializes a Queue called *DeploymentsQueue*, which holds 
 *Deployment* objects. *IotJobsHelper* and *DeploymentService* communicate via the *DeploymentsQueue*. 
  
 # Workflow
 ## Successful deployment via IotJobs
-1. [***IotJobsHelper***](/src/main/java/com/aws/iot/evergreen/deployment/IotJobsHelper.java) receives notification when
+1. [***IotJobsHelper***](/src/main/java/com/aws/greengrass/deployment/IotJobsHelper.java) receives notification when
     - A new job is created in cloud.
     - A job is completed (FAILED/SUCCEEDED)
     - A job is cancelled 
@@ -28,7 +28,7 @@ device requests for next pending job at this time then it will receive job with 
 via the *DeploymentsQueue*
 4. *DeploymentService* polls the queue and upon receiving a Deployment, starts processing the deployment and stores 
 current deployment metadata (id and type (IOT_JOBS) of the deployment) it is currently processing
-5. *DeploymentService* waits for the deployment to get completed and then invokes [***DeploymentStatusKeeper***](/src/main/java/com/aws/iot/evergreen/deployment/DeploymentStatusKeeper.java)
+5. *DeploymentService* waits for the deployment to get completed and then invokes [***DeploymentStatusKeeper***](/src/main/java/com/aws/greengrass/deployment/DeploymentStatusKeeper.java)
 to update the status of the job in the cloud. Deployment Service then resets the current deployment metadata. Service 
 only processes one deployment at a time
 
@@ -39,7 +39,7 @@ request the next pending job and will get either the next job in list or an empt
 3. Device then identifies that the current job "Job1" has been cancelled and attempts to cancel the ongoing "Job1" 
   
 ## Successful deployment via Shadow
-1. [***ShadowDeploymentListener***](/src/main/java/com/aws/iot/evergreen/deployment/ShadowDeploymentListener.java) subscribes to the below topics of device's classic shadow
+1. [***ShadowDeploymentListener***](/src/main/java/com/aws/greengrass/deployment/ShadowDeploymentListener.java) subscribes to the below topics of device's classic shadow
     - update/accepted topic to listen to changes in the shadows desired state
     - get/accepted topic. ShadowDeploymentListener publishes to get topic to retrieve the shadow state when the device starts up or re-connects after being offline.
      This is required as the device can miss shadow update notifications when offline.
@@ -65,13 +65,13 @@ If they are not in sync, the cloud sets the desired cstate with value from repor
     1. If the ongoing deployment cannot be cancelled then, it would run its course and then  new deployment will bring the device to desired state
  
 ## Successful deployment via LOCAL
-1. [***LocalDeploymentListener***](/src/main/java/com/aws/iot/evergreen/deployment/LocalDeploymentListener.java) 
+1. [***LocalDeploymentListener***](/src/main/java/com/aws/greengrass/deployment/LocalDeploymentListener.java) 
 receives 
 the instruction from CLI to create a deployment. Upon getting such instruction *LocalDeploymentListener* create a 
 *Deployment* object and put it in *DeploymentsQueue*
 2. *DeploymentService* polls the queue and upon receiving a Deployment, starts processing the deployment and stores 
    the id and type (LOCAL) of the deployment it is currently processing
-3. *DeploymentService* waits for the deployment to get completed and then invokes [***DeploymentStatusKeeper***](/src/main/java/com/aws/iot/evergreen/deployment/DeploymentStatusKeeper.java) 
+3. *DeploymentService* waits for the deployment to get completed and then invokes [***DeploymentStatusKeeper***](/src/main/java/com/aws/greengrass/deployment/DeploymentStatusKeeper.java) 
 to update the status of the job. Currently *DeploymentStatusKeeper* does not do anything for LOCAL deployment types
     
 ## Multiple Group Deployments
@@ -81,15 +81,16 @@ that results in a deployment on every device in that group. As device can belong
  deployment for one group does not remove the components deployed previously as part of another group. Any 
  deployments done outside of ThingGroup are treated as belonging to DEFAULT group. This would include individual 
  device deployment (done via Iot Device shadows), local deployment (without mentioning any group).
- 1. [***DeploymentService***](/src/main/java/com/aws/iot/evergreen/deployment/DeploymentService.java) maintains a 
+ 1. [***DeploymentService***](/src/main/java/com/aws/greengrass/deployment/DeploymentService.java) maintains a 
  mapping of groupName to the root components and their version constraints, deployed as 
  part of that group. This 
- mapping is stored in the DeploymentService's [***Configuration***](/src/main/java/com/aws/iot/evergreen/config/Configuration.java).
+ mapping is stored in the DeploymentService's [***Configuration***](/src/main/java/com/aws/greengrass/config/Configuration.java).
  2. Upon receiving a new deployment from the *DeploymentsQueue*, when constructing the new configuration for the 
- kernel, the [***DeploymentTask***](/src/main/java/com/aws/iot/evergreen/deployment/model/DeploymentTask.java) uses the 
+ kernel, the [***DeploymentTask***](/src/main/java/com/aws/greengrass/deployment/model/DeploymentTask.java) uses the 
  saved mapping to calculate the set of root components. For the group that is being deployed, it takes the root 
  components from the deployment document. For all other groups it takes the root components from the saved mapping.
- 3. [***DependencyResolver***](/src/main/java/com/aws/iot/evergreen/packagemanager/DependencyResolver.java) uses the saved mapping to calculate 
+ 3. [***DependencyResolver***](/src/main/java/com/aws/greengrass/componentmanager/DependencyResolver.java) uses the
+  saved mapping to calculate 
  version constraints on all components. For the group being deployed it takes the version constraints from the 
  deployment document and for other groups it takes the version constraints from the saved mapping.
  4. Upon successful completion of deployment, the DeploymentService replaces the entry of deployed group with the 
@@ -105,7 +106,7 @@ During an intrusive deployment, multiple Kernel instances will be launched to co
  running at a time). The old instance has to persist and hand over deployment information and progress to the next
   one.
   
-Deployment stage can be interpreted by both Kernel and [***DeploymentService***](/src/main/java/com/aws/iot/evergreen/deployment/DeploymentService.java). 
+Deployment stage can be interpreted by both Kernel and [***DeploymentService***](/src/main/java/com/aws/greengrass/deployment/DeploymentService.java). 
 * DEFAULT: No ongoing deployment or in non-intrusive workflow of deployments
 * BOOTSTRAP: Execution of bootstrap lifecycle steps, which can be intrusive
 * KERNEL_ACTIVATION: Kernel restarts into a new instance with new configurations, and DeploymentService will continue
