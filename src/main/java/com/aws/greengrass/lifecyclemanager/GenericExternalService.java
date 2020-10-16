@@ -351,8 +351,10 @@ public class GenericExternalService extends GreengrassService {
      * This information can change with a deployment, but service *must* execute the lifecycle steps with the same
      * user/group/shell that was configured when it started.
      *
-     * If no RunWith configuration is provided (either from kernel or the service), all lifecycle steps execute as the
-     * kernel user.
+     * <p>
+     * If no RunWith configuration is provided (either from kernel or the service), all lifecycle steps
+     * execute as the kernel user.
+     * </p>
      */
     protected void storeInitialRunWithConfiguration() {
         // TODO: Add support for Windows
