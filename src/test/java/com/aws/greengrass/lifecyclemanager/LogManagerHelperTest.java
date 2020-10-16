@@ -9,6 +9,7 @@ import com.aws.greengrass.logging.impl.config.LogStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.hamcrest.MatcherAssert;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,14 @@ class LogManagerHelperTest {
     @BeforeEach
     void setup() {
         LogManager.setRoot(tempRootDir.resolve("logs"));
+    }
+
+    @AfterEach
+    void cleanup() {
+        LogConfig.getInstance().closeContext();
+        for (LogConfig logConfig : LogManager.getLogConfigurations().values()) {
+            logConfig.closeContext();
+        }
     }
 
     @BeforeAll
