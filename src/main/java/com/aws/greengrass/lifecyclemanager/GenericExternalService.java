@@ -349,8 +349,8 @@ public class GenericExternalService extends GreengrassService {
 
     /**
      * Store user, group, and shell that will be used to run the service. This should be used throughout the lifecycle.
-     * This information can change with a deployment, but a the service *must* execute the lifecycle steps with the
-     * same user/group/shell that was configured when it started.
+     * This information can change with a deployment, but service *must* execute the lifecycle steps with the same
+     * user/group/shell that was configured when it started.
      */
     protected void storeInitialRunWithConfiguration() {
         String user = null;
