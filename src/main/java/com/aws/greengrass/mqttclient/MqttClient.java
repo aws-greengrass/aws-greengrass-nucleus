@@ -77,15 +77,16 @@ public class MqttClient implements Closeable {
     static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     public static final int MAX_SUBSCRIPTIONS_PER_CONNECTION = 50;
     public static final String CLIENT_ID_KEY = "clientId";
+    public static final int EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS = 2;
 
     // Use read lock for MQTT operations and write lock when changing the MQTT connection
     private final ReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
     private final DeviceConfiguration deviceConfiguration;
     private final Topics mqttTopics;
     private final AtomicReference<Future<?>> reconfigureFuture = new AtomicReference<>();
+    private X509CredentialsProvider credentialsProvider;
     @SuppressWarnings("PMD.ImmutableField")
     private Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider;
-    private X509CredentialsProvider credentialsProvider;
     private final List<AwsIotMqttClient> connections = new CopyOnWriteArrayList<>();
     private final Map<SubscribeRequest, AwsIotMqttClient> subscriptions = new ConcurrentHashMap<>();
     private final Map<MqttTopic, AwsIotMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
@@ -139,32 +140,31 @@ public class MqttClient implements Closeable {
                         Coerce.toString(deviceConfiguration.getRootCAFilePath()));
 
                 try (ClientTlsContext x509TlsContext = new ClientTlsContext(x509TlsOptions)) {
-                    this.credentialsProvider = new X509CredentialsProvider.X509CredentialsProviderBuilder()
-                            .withClientBootstrap(clientBootstrap)
-                            .withTlsContext(x509TlsContext)
-                            .withEndpoint(Coerce.toString(deviceConfiguration.getIotCredentialEndpoint()))
-                            .withRoleAlias(tesRoleAlias)
-                            .withThingName(Coerce.toString(deviceConfiguration.getThingName()))
-                            .withProxyOptions(httpProxyOptions)
-                            .build();
-                }
+                    this.credentialsProvider =
+                            new X509CredentialsProvider.X509CredentialsProviderBuilder()
+                                    .withClientBootstrap(clientBootstrap).withTlsContext(x509TlsContext)
+                                    .withEndpoint(Coerce.toString(deviceConfiguration.getIotCredentialEndpoint()))
+                                    .withRoleAlias(tesRoleAlias)
+                                    .withThingName(Coerce.toString(deviceConfiguration.getThingName()))
+                                    .withProxyOptions(httpProxyOptions).build();
 
-                this.builderProvider = (clientBootstrap) -> AwsIotMqttConnectionBuilder
-                        .newMtlsBuilderFromPath(null, null)
-                        .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
-                        .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
-                        .withCleanSession(false)
-                        .withBootstrap(clientBootstrap)
-                        .withKeepAliveMs(Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
-                                MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
-                        .withPingTimeoutMs(Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT,
-                                MQTT_PING_TIMEOUT_KEY)))
-                        .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(mqttTopics.findOrDefault(
-                                DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)))
-                        .withClientId(Coerce.toString(deviceConfiguration.getThingName()))
-                        .withWebsockets(true)
-                        .withWebsocketSigningRegion(Coerce.toString(deviceConfiguration.getAWSRegion()))
-                        .withWebsocketProxyOptions(httpProxyOptions);
+                    this.builderProvider =
+                            (clientBootstrap) -> AwsIotMqttConnectionBuilder.newMtlsBuilderFromPath(null, null)
+                                    .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
+                                    .withCleanSession(false)
+                                    .withBootstrap(clientBootstrap)
+                                    .withKeepAliveMs(Coerce.toInt(mqttTopics
+                                            .findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
+                                                    MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
+                                    .withPingTimeoutMs(Coerce.toInt(
+                                            mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
+                                    .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(mqttTopics
+                                    .findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)))
+                                    .withWebsockets(true)
+                                    .withWebsocketCredentialsProvider(credentialsProvider)
+                                    .withWebsocketSigningRegion(Coerce.toString(deviceConfiguration.getAWSRegion()))
+                                    .withWebsocketProxyOptions(httpProxyOptions);
+                }
             }
         }
     }
@@ -407,8 +407,8 @@ public class MqttClient implements Closeable {
         // Name client by thingName-<number> except for the first connection which will just be thingName
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
                 : "-" + connections.size() + 1);
-        return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), credentialsProvider,
-                this::getMessageHandlerForClient, clientId, mqttTopics, callbackEventManager);
+        return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
+                clientId, mqttTopics, callbackEventManager);
     }
 
     public boolean connected() {
@@ -418,15 +418,20 @@ public class MqttClient implements Closeable {
     @Override
     public synchronized void close() {
         connections.forEach(AwsIotMqttClient::close);
+        if (credentialsProvider != null) {
+            credentialsProvider.close();
+        }
         clientBootstrap.close();
         hostResolver.close();
         eventLoopGroup.close();
         try {
-            eventLoopGroup.getShutdownCompleteFuture().get();
+            eventLoopGroup.getShutdownCompleteFuture().get(EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
             logger.atError().log("Error shutting down event loop", e);
+        } catch (TimeoutException e) {
+            logger.atError().log("Timed out shutting down event loop", e);
         }
     }
 

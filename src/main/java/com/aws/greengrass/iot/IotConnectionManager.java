@@ -28,6 +28,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.mqttclient.MqttClient.EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS;
+
 public class IotConnectionManager implements Closeable {
     // TODO: Move Iot related classes to a central location
     private static final Logger LOGGER = LogManager.getLogger(IotConnectionManager.class);
@@ -102,11 +104,13 @@ public class IotConnectionManager implements Closeable {
         resolver.close();
         eventLoopGroup.close();
         try {
-            eventLoopGroup.getShutdownCompleteFuture().get();
+            eventLoopGroup.getShutdownCompleteFuture().get(EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
             LOGGER.atError().log("Error shutting down event loop", e);
+        } catch (TimeoutException e) {
+            LOGGER.atError().log("Timed out shutting down event loop", e);
         }
     }
 }
