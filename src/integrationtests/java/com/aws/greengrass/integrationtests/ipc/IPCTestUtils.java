@@ -4,29 +4,23 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.model.Deployment;
-import com.aws.greengrass.ipc.common.GGEventStreamConnectMessage;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
 import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.util.Coerce;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import software.amazon.awssdk.crt.eventstream.Header;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.eventstream.iot.MessageAmendInfo;
+import software.amazon.eventstream.iot.client.GreengrassConnectMessageSupplier;
 import software.amazon.eventstream.iot.client.EventStreamRPCConnection;
 import software.amazon.eventstream.iot.client.EventStreamRPCConnectionConfig;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -137,18 +131,8 @@ public final class IPCTestUtils {
 
             String ipcServerSocketPath = kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elGroup,
-                    socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER, () -> {
-                final List<Header> headers = new LinkedList<>();
-                GGEventStreamConnectMessage connectMessage = new GGEventStreamConnectMessage();
-                connectMessage.setAuthToken(authToken);
-                String payload = null;
-                try {
-                    payload = OBJECT_MAPPER.writeValueAsString(connectMessage);
-                } catch (JsonProcessingException e) {
-                    fail("Failed to create connect message");
-                }
-                return new MessageAmendInfo(headers, payload.getBytes(StandardCharsets.UTF_8));
-            });
+                    socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER,
+                    GreengrassConnectMessageSupplier.connectMessageSupplier(authToken));
             final CompletableFuture<Void> connected = new CompletableFuture<>();
             final EventStreamRPCConnection connection = new EventStreamRPCConnection(config);
             final boolean disconnected[] = {false};
