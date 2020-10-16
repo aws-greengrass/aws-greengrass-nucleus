@@ -251,51 +251,7 @@ class KernelConfigResolverTest {
         assertThat("Main service must depend on updated service",
                 dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
     }
-
-    @Test
-    void GIVEN_deployment_change_run_with_for_existing_package_WHEN_config_resolution_requested_THEN_update_service() throws Exception {
-        // GIVEN
-        ComponentIdentifier rootComponentIdentifier =
-                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2.0", Semver.SemverType.NPM));
-        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
-
-        ComponentRecipe rootComponentRecipe =
-                getPackage(TEST_INPUT_PACKAGE_A, "1.2.0", Collections.emptyMap(), Collections.emptyMap(),
-                        TEST_INPUT_PACKAGE_A);
-
-        DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
-        DeploymentDocument document = DeploymentDocument.builder()
-                .deploymentPackageConfigurationList(
-                        Arrays.asList(rootPackageDeploymentConfig))
-                .build();
-
-        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
-        when(nucleusPaths.unarchiveArtifactPath(rootComponentIdentifier)).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
-        when(kernel.getMain()).thenReturn(mainService);
-        when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
-        when(mainService.getName()).thenReturn("main");
-        when(mainService.getDependencies()).thenReturn(
-                Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
-        when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
-        when(alreadyRunningService.isBuiltin()).thenReturn(true);
-
-        // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths);
-        Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
-
-        // THEN
-        // service config
-        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
-        assertThat("Must contain main service", servicesConfig, hasKey("main"));
-        assertThat("Must contain updated service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
-
-        // dependencies
-        assertThat("Main service must depend on updated service",
-                dependencyListContains("main", TEST_INPUT_PACKAGE_A, servicesConfig));
-    }
-
+    
     @Test
     void GIVEN_deployment_with_parameters_set_WHEN_config_resolution_requested_THEN_parameters_should_be_interpolated()
             throws Exception {
