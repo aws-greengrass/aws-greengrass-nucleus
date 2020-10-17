@@ -9,11 +9,11 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.ProxyUtils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
 import software.amazon.awssdk.crt.CRT;
-import software.amazon.awssdk.crt.auth.credentials.X509CredentialsProvider;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
 import javax.inject.Provider;
 
 /**
@@ -45,7 +44,6 @@ class AwsIotMqttClient implements Closeable {
             .dfltKv(MqttClient.CLIENT_ID_KEY, (Supplier<String>) this::getClientId);
 
     private final Provider<AwsIotMqttConnectionBuilder> builderProvider;
-    private final X509CredentialsProvider credentialsProvider;
     @Getter
     private final String clientId;
     @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
@@ -88,12 +86,10 @@ class AwsIotMqttClient implements Closeable {
     private final Map<String, QualityOfService> subscriptionTopics = new ConcurrentHashMap<>();
 
     AwsIotMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
-                     @Nullable X509CredentialsProvider credentialsProvider,
                      Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler,
                      String clientId, Topics mqttTopics,
                      CallbackEventManager callbackEventManager) {
         this.builderProvider = builderProvider;
-        this.credentialsProvider = credentialsProvider;
         this.clientId = clientId;
         this.mqttTopics = mqttTopics;
         this.messageHandler = messageHandler.apply(this);
@@ -150,9 +146,6 @@ class AwsIotMqttClient implements Closeable {
         // Always use the builder provider here so that the builder is updated with whatever
         // the latest device config is
         try (AwsIotMqttConnectionBuilder builder = builderProvider.get()) {
-            if (credentialsProvider != null) {
-                builder.withWebsocketCredentialsProvider(credentialsProvider);
-            }
             builder.withConnectionEventCallbacks(connectionEventCallback);
             builder.withClientId(clientId);
 
@@ -160,15 +153,25 @@ class AwsIotMqttClient implements Closeable {
             // Set message handler for this connection to be our global message handler in MqttClient.
             // The handler will then send out the message to all subscribers after appropriate filtering.
             connection.onMessage(messageHandler);
-            logger.atDebug().log("Connecting to AWS IoT Core");
+            logger.atInfo().log("Connecting to AWS IoT Core");
             return connection.connect().thenApply((sessionPresent) -> {
                 currentlyConnected.set(true);
-                logger.atDebug().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
+                logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
 
                 if (!sessionPresent) {
                     resubscribe();
                 }
                 return sessionPresent;
+            }).whenComplete((session, error) -> {
+                if (error != null) {
+                    logger.atError().log("Unable to connect to AWS IoT Core", error);
+                    if (ProxyUtils.getProxyConfiguration() != null) {
+                        logger.atInfo().log("You are using a proxy which uses a websocket connection and "
+                                + "TokenExchangeService credentials. Verify that the IAM role which the IoT Role "
+                                + "Alias is aliasing has a policy which allows for iot:Connect, iot:Subscribe, "
+                                + "iot:Publish, and iot:Receive.");
+                    }
+                }
             });
         }
     }

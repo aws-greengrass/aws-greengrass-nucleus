@@ -71,7 +71,7 @@ class AwsIotMqttClientTest {
         when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
 
-        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, null, (x) -> null, "A", mockTopic,
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
                 callbackEventManager);
         assertFalse(client.connected());
 
@@ -101,9 +101,9 @@ class AwsIotMqttClientTest {
     @Test
     void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_resumed_THEN_oneTimeCallbacks_would_be_executed_once() {
 
-        AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, null, (x) -> null, "A", mockTopic,
+        AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
                 callbackEventManager);
-        AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, null, (x) -> null, "B", mockTopic,
+        AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
                 callbackEventManager);
         boolean sessionPresent = false;
         // callbackEventManager.hasCallBacked is originally set as False
@@ -129,9 +129,9 @@ class AwsIotMqttClientTest {
     @Test
     void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_interrupted_THEN_oneTimeCallbacks_would_be_executed_once() {
 
-        AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, null, (x) -> null, "A", mockTopic,
+        AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
                 callbackEventManager);
-        AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, null, (x) -> null, "B", mockTopic,
+        AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
                 callbackEventManager);
         callbackEventManager.runOnConnectionResumed(false);
         assertTrue(callbackEventManager.hasCallbacked());
