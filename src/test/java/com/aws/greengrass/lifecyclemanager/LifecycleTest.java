@@ -112,7 +112,7 @@ class LifecycleTest {
     }
 
     @AfterEach
-    void stop() throws IOException {
+    void stop() throws IOException, InterruptedException {
         if (lifecycle != null) {
             lifecycle.setClosed(true);
             lifecycle.requestStop();
@@ -120,6 +120,8 @@ class LifecycleTest {
         context.get(ScheduledExecutorService.class).shutdownNow();
         context.get(ExecutorService.class).shutdownNow();
         context.close();
+        context.get(ExecutorService.class).awaitTermination(5, TimeUnit.SECONDS);
+        context.get(ScheduledExecutorService.class).awaitTermination(5, TimeUnit.SECONDS);
     }
 
     @Test
@@ -299,6 +301,7 @@ class LifecycleTest {
         // set lifecycle thread with min priority
         ExecutorService executorService = null;
         try {
+            context.get(ExecutorService.class).shutdownNow();
             executorService = Executors.newCachedThreadPool(new MinPriorityThreadFactory());
             context.put(Executor.class, executorService);
             context.put(ExecutorService.class, executorService);
@@ -346,6 +349,7 @@ class LifecycleTest {
         } finally {
             if (executorService != null) {
                 executorService.shutdownNow();
+                executorService.awaitTermination(5, TimeUnit.SECONDS);
             }
         }
     }
