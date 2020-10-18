@@ -15,6 +15,7 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import lombok.Setter;
@@ -47,6 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.STATE_TOPIC_NAME;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -109,10 +111,12 @@ class LifecycleTest {
         lenient().when(greengrassService.getPrivateConfig()).thenReturn(config.lookupTopics(PRIVATE_STORE_NAMESPACE_TOPIC));
         lenient().when(greengrassService.getContext()).thenReturn(context);
         lenient().when(greengrassService.dependencyReady()).thenReturn(true);
+        lenient().when(greengrassService.getState()).thenAnswer((a) -> State.values()[Coerce
+                .toInt(greengrassService.getPrivateConfig().findLeafChild(STATE_TOPIC_NAME))]);
     }
 
     @AfterEach
-    void stop() throws IOException {
+    void stop() throws IOException, InterruptedException {
         if (lifecycle != null) {
             lifecycle.setClosed(true);
             lifecycle.requestStop();
@@ -120,6 +124,8 @@ class LifecycleTest {
         context.get(ScheduledExecutorService.class).shutdownNow();
         context.get(ExecutorService.class).shutdownNow();
         context.close();
+        context.get(ExecutorService.class).awaitTermination(5, TimeUnit.SECONDS);
+        context.get(ScheduledExecutorService.class).awaitTermination(5, TimeUnit.SECONDS);
     }
 
     @Test
@@ -299,6 +305,7 @@ class LifecycleTest {
         // set lifecycle thread with min priority
         ExecutorService executorService = null;
         try {
+            context.get(ExecutorService.class).shutdownNow();
             executorService = Executors.newCachedThreadPool(new MinPriorityThreadFactory());
             context.put(Executor.class, executorService);
             context.put(ExecutorService.class, executorService);
@@ -346,6 +353,7 @@ class LifecycleTest {
         } finally {
             if (executorService != null) {
                 executorService.shutdownNow();
+                executorService.awaitTermination(5, TimeUnit.SECONDS);
             }
         }
     }
@@ -376,16 +384,23 @@ class LifecycleTest {
         lifecycle.requestStart();
         assertTrue(reachedRunning1.await(5, TimeUnit.SECONDS));
         verify(lifecycle, timeout(2000)).setState(any(), eq(State.RUNNING));
+        // We verify that setState is called, but that doesn't verify that the call to setState ended which is what
+        // we actually need to know in order to move on to the next part of the test.
+        // So, validate that it has actually set the state to be running before reporting
+        // the next error. Otherwise, it may register an error from STARTING instead of from RUNNING
+        assertThat(greengrassService::getState, eventuallyEval(is(State.RUNNING)));
 
         // Report 1st error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning2.await(5, TimeUnit.SECONDS));
         verify(lifecycle, timeout(2000).times(2)).setState(any(), eq(State.RUNNING));
+        assertThat(greengrassService::getState, eventuallyEval(is(State.RUNNING)));
 
         // Report 2nd error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning3.await(5, TimeUnit.SECONDS));
         verify(lifecycle, timeout(2000).times(3)).setState(any(), eq(State.RUNNING));
+        assertThat(greengrassService::getState, eventuallyEval(is(State.RUNNING)));
 
         // Report 3rd error
         lifecycle.reportState(State.ERRORED);

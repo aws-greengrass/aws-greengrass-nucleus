@@ -26,11 +26,11 @@ jobs:
       - run: rm -rf /tmp/*
         continue-on-error: true
       - name: Build with Maven
-        run: mvn -ntp -U clean verify
+        run: mvn -ntp -U verify
         shell: cmd
         if: matrix.os == 'Windows'
       - name: Build with Maven
-        run: mvn -ntp -U clean verify
+        run: mvn -ntp -U verify
         if: matrix.os != 'Windows'
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
@@ -90,6 +90,18 @@ jobs:
           show_class_names: true
           # Use a unique name for the report and comment
           report_name: Integration Tests Coverage Report
+      - name: Check compatibility
+        run: >-
+          mvn -ntp japicmp:cmp -DskipTests &&
+          pip3 -q install agithub &&
+          python3 .github/scripts/binaryCompatibility.py --input target/japicmp/default-cli.xml --token "${{ github.token }}"
+        if: github.event_name == 'pull_request' && matrix.os == 'Linux'
+      - name: Upload Compatibility Report
+        uses: actions/upload-artifact@v1.0.0
+        with:
+          name: Binary Compatibility Report
+          path: target/japicmp/default-cli.html
+        if: github.event_name == 'pull_request' && matrix.os == 'Linux'
       - name: Build benchmark with Maven
         # Changes can break the benchmark, so compile it now to make sure it is buildable
         run: |
