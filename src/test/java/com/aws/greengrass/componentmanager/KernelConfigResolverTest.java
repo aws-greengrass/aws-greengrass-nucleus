@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.vdurmont.semver4j.Semver;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -124,6 +125,11 @@ class KernelConfigResolverTest {
         path = Paths.get("Artifacts", TEST_INPUT_PACKAGE_A);
         lenient().when(nucleusPaths.artifactPath(any())).thenReturn(path.toAbsolutePath());
         lenient().when(kernel.getConfig()).thenReturn(new Configuration(new Context()));
+    }
+
+    @AfterEach
+    void afterEach() throws IOException {
+        kernel.getConfig().context.close();
     }
 
     @Test

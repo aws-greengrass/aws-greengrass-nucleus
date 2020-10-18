@@ -7,7 +7,6 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.logging.impl.config.LogStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import org.hamcrest.MatcherAssert;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -22,11 +21,13 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.stream.Stream;
+import java.util.List;
 
 import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.SERVICE_CONFIG_LOGGING_TOPICS;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.io.FileMatchers.aFileNamed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -46,7 +47,7 @@ class LogManagerHelperTest {
 
     @BeforeEach
     void setup() {
-        LogManager.setRoot(tempRootDir.resolve("logs"));
+        LogManager.setRoot(tempRootDir);
     }
 
     @AfterEach
@@ -84,15 +85,15 @@ class LogManagerHelperTest {
 
         LogConfig logConfig = LogManager.getLogConfigurations().get("MockService");
         File logFile = new File(logConfig.getStoreName());
-        MatcherAssert.assertThat(logFile, aFileNamed(equalToIgnoringCase("MockService.log")));
+        assertThat(logFile, aFileNamed(equalToIgnoringCase("MockService.log")));
         assertTrue(logFile.length() > 0);
-        try (Stream<String> lines = Files.lines(Paths.get(LogManager.getRootLogConfiguration().getStoreName()))) {
-            assertTrue(lines.allMatch(s -> s.contains("Something")));
-        }
+        List<String> lines = Files.readAllLines(logFile.toPath());
+        assertThat(lines, hasSize(1));
+        assertThat(lines.get(0), containsString("Something"));
 
         File ggLogFile = new File(LogManager.getRootLogConfiguration().getStoreName());
-        MatcherAssert.assertThat(ggLogFile, aFileNamed(equalToIgnoringCase("greengrass.log")));
+        assertThat(ggLogFile, aFileNamed(equalToIgnoringCase("greengrass.log")));
+        System.out.println(Files.readAllLines(ggLogFile.toPath()));
         assertEquals(0, ggLogFile.length());
-
     }
 }
