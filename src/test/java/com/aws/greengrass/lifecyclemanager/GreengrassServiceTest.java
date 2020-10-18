@@ -56,7 +56,7 @@ class GreengrassServiceTest extends GGServiceTestUtil {
     void beforeEach() throws IOException, URISyntaxException, ServiceLoadException {
         Path configPath = Paths.get(this.getClass().getResource("services.yaml").toURI());
         context = spy(new Context());
-        when(context.get(Kernel.class)).thenReturn(kernel);
+        context.put(Kernel.class, kernel);
         configuration = new Configuration(context);
         configuration.read(configPath);
         Topics root = configuration.getRoot();

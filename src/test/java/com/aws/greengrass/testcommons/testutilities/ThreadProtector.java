@@ -29,16 +29,13 @@ public class ThreadProtector implements AfterAllCallback {
     public void afterAll(ExtensionContext context) throws Exception {
         List<Thread> liveThreads = getThreads();
         if (!liveThreads.isEmpty()) {
-            System.err.println("Threads are still running: " + liveThreads);
-
-            /*
             // Wait, then try again and see if they're still running
-            Thread.sleep(2000);
+            Thread.sleep(200);
             liveThreads = getThreads();
             if (!liveThreads.isEmpty()) {
-                fail("Threads are still running: " + liveThreads);
+                System.err.println("Threads are still running: " + liveThreads);
+//                fail("Threads are still running: " + liveThreads);
             }
-             */
         }
     }
 
