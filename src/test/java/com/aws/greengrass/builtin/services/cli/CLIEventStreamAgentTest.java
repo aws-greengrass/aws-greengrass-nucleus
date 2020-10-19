@@ -43,8 +43,9 @@ import software.amazon.awssdk.aws.greengrass.model.ServiceError;
 import software.amazon.awssdk.aws.greengrass.model.StopComponentRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateRecipesAndArtifactsRequest;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
+import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 import software.amazon.awssdk.utils.ImmutableMap;
-import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
+
 
 import java.io.IOException;
 import java.nio.file.Files;

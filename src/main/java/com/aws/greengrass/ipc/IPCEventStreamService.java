@@ -16,10 +16,10 @@ import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel;
 import software.amazon.awssdk.crt.eventstream.Header;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.eventstream.iot.server.AuthenticationData;
-import software.amazon.eventstream.iot.server.Authorization;
-import software.amazon.eventstream.iot.server.DebugLoggingOperationHandler;
-import software.amazon.eventstream.iot.server.IpcServer;
+import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
+import software.amazon.awssdk.eventstreamrpc.Authorization;
+import software.amazon.awssdk.eventstreamrpc.DebugLoggingOperationHandler;
+import software.amazon.awssdk.eventstreamrpc.IpcServer;
 
 import java.io.Closeable;
 import java.io.IOException;

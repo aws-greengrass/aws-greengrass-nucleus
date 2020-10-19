@@ -6,9 +6,10 @@ import java.lang.String;
 import java.util.Optional;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentRequest;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentResponse;
-import software.amazon.eventstream.iot.EventStreamRPCServiceModel;
-import software.amazon.eventstream.iot.OperationModelContext;
-import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
+import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
+
 
 public class RestartComponentOperationContext implements OperationModelContext<RestartComponentRequest, RestartComponentResponse, EventStreamJsonMessage, EventStreamJsonMessage> {
   @Override

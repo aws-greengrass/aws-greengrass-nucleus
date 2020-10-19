@@ -6,9 +6,10 @@ import java.lang.String;
 import java.util.Optional;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToValidateConfigurationUpdatesRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToValidateConfigurationUpdatesResponse;
-import software.amazon.eventstream.iot.EventStreamRPCServiceModel;
-import software.amazon.eventstream.iot.OperationModelContext;
-import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
+import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
+
 
 public class SubscribeToValidateConfigurationUpdatesOperationContext implements OperationModelContext<SubscribeToValidateConfigurationUpdatesRequest, SubscribeToValidateConfigurationUpdatesResponse, EventStreamJsonMessage, EventStreamJsonMessage> {
   @Override

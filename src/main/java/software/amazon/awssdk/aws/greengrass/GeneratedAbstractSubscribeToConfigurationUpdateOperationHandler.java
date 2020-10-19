@@ -4,10 +4,11 @@ import java.lang.Override;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationUpdateEvents;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToConfigurationUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToConfigurationUpdateResponse;
-import software.amazon.eventstream.iot.OperationModelContext;
-import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
-import software.amazon.eventstream.iot.server.OperationContinuationHandler;
-import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
+import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandler;
+import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
+import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
+
 
 public abstract class GeneratedAbstractSubscribeToConfigurationUpdateOperationHandler extends OperationContinuationHandler<SubscribeToConfigurationUpdateRequest, SubscribeToConfigurationUpdateResponse, EventStreamJsonMessage, ConfigurationUpdateEvents> {
   protected GeneratedAbstractSubscribeToConfigurationUpdateOperationHandler(

@@ -56,9 +56,9 @@ import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
 import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
+import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 import software.amazon.awssdk.utils.ImmutableMap;
-import software.amazon.eventstream.iot.client.EventStreamRPCConnection;
-import software.amazon.eventstream.iot.client.StreamResponseHandler;
 
 import java.io.File;
 import java.io.IOException;

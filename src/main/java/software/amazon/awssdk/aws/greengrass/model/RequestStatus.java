@@ -1,9 +1,11 @@
 package software.amazon.awssdk.aws.greengrass.model;
 
 import com.google.gson.annotations.SerializedName;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
+
 import java.lang.Override;
 import java.lang.String;
-import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
+
 
 public enum RequestStatus implements EventStreamJsonMessage {
   @SerializedName("SUCCEEDED")

@@ -29,10 +29,11 @@ import software.amazon.awssdk.aws.greengrass.model.UpdateConfigurationRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateRecipesAndArtifactsRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
 import software.amazon.awssdk.aws.greengrass.model.ValidateAuthorizationTokenRequest;
-import software.amazon.eventstream.iot.client.EventStreamRPCClient;
-import software.amazon.eventstream.iot.client.EventStreamRPCConnection;
-import software.amazon.eventstream.iot.client.StreamResponseHandler;
-import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCClient;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
+import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
+
 
 public class GreengrassCoreIPCClient extends EventStreamRPCClient implements GreengrassCoreIPC {
   public GreengrassCoreIPCClient(final EventStreamRPCConnection connection) {

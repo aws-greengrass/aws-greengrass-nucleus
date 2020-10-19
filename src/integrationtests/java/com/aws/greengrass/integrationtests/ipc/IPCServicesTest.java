@@ -40,8 +40,9 @@ import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.eventstream.iot.client.EventStreamRPCConnection;
-import software.amazon.eventstream.iot.client.StreamResponseHandler;
+
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
+import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -256,6 +257,7 @@ class IPCServicesTest {
     }
 
 
+    @SuppressWarnings("PMD.CloseResource")
     @Test
     void GIVEN_LifecycleClient_WHEN_update_state_and_service_dies_THEN_service_errored() throws Exception {
         CountDownLatch cdl = new CountDownLatch(1);
@@ -290,6 +292,7 @@ class IPCServicesTest {
             assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
 
         } finally {
+            clientConnection.close();
             startupService.close().get();
         }
     }

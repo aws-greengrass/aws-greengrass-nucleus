@@ -21,10 +21,8 @@
         <Or>
             <Package name="software.amazon.awssdk.aws.greengrass"/>
             <Package name="software.amazon.awssdk.aws.greengrass.model"/>
-            <Package name="software.amazon.eventstream.iot"/>
-            <Package name="software.amazon.eventstream.iot.server"/>
-            <Package name="software.amazon.eventstream.iot.client"/>
-            <Package name="software.amazon.eventstream.iot.model"/>
+            <Package name="software.amazon.awssdk.eventstreamrpc"/>
+            <Package name="software.amazon.awssdk.eventstreamrpc.model"/>
         </Or>
     </Match>
 </FindBugsFilter>

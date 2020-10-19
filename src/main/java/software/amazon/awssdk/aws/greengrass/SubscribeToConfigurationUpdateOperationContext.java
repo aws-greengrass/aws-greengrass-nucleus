@@ -7,9 +7,10 @@ import java.util.Optional;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationUpdateEvents;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToConfigurationUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToConfigurationUpdateResponse;
-import software.amazon.eventstream.iot.EventStreamRPCServiceModel;
-import software.amazon.eventstream.iot.OperationModelContext;
-import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
+import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
+
 
 public class SubscribeToConfigurationUpdateOperationContext implements OperationModelContext<SubscribeToConfigurationUpdateRequest, SubscribeToConfigurationUpdateResponse, EventStreamJsonMessage, ConfigurationUpdateEvents> {
   @Override

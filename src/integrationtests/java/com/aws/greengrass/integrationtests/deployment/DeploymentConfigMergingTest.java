@@ -42,8 +42,9 @@ import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.eventstream.iot.client.EventStreamRPCConnection;
-import software.amazon.eventstream.iot.client.StreamResponseHandler;
+
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
+import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -90,7 +91,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     private static SocketOptions socketOptions;
 
     @BeforeAll
-    void initialize() {
+    static void initialize() {
         socketOptions = new SocketOptions();
         socketOptions.connectTimeoutMs = 3000;
         socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
@@ -111,7 +112,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     }
 
     @AfterAll
-    void tearDown() {
+    static void tearDown() {
         if (socketOptions != null) {
             socketOptions.close();
         }
