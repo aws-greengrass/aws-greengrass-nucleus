@@ -82,6 +82,8 @@ public final class EncryptionUtils {
         // We can't use Java internal APIs to parse ASN.1 structures, so we build a PKCS#8 key Java can understand
         int pkcs1Length = pkcs1Bytes.length;
         int totalLength = pkcs1Length + 22;
+        // reference to https://github.com/Mastercard/client-encryption-java/blob/master/src/main/java/com/mastercard/developer/utils/EncryptionUtils.java#L95-L100
+        // this method can save us from importing BouncyCastle as dependency
         byte[] pkcs8Header = {0x30, (byte) 0x82, (byte) ((totalLength >> 8) & 0xff), (byte) (totalLength & 0xff),
                 // Sequence + total length
                 0x2, 0x1, 0x0, // Integer (0)

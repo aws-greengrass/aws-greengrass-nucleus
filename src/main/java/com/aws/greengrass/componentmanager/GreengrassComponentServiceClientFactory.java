@@ -140,7 +140,7 @@ public class GreengrassComponentServiceClientFactory {
 
             KeyStore keyStore = KeyStore.getInstance("PKCS12");
             keyStore.load(null);
-            keyStore.setKeyEntry("private-key", privateKey, "password".toCharArray(),
+            keyStore.setKeyEntry("private-key", privateKey, null,
                     certificateChain.stream().toArray(Certificate[]::new));
 
             KeyManagerFactory keyManagerFactory =
