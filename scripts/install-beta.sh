@@ -46,9 +46,6 @@ for arg in "$@" ; do
   esac
 done
 
-# unzip
-(unzip $CLI_ZIP && unzip $NUCLEUS_ZIP) || { echo "Install failed. Cannot unzip"; exit 1; }
-
 # remove existing installation if requested
 if "$FRESH_INSTALL" && [ -d "$GG_ROOT_DIR" ]; then
   echo "Attempting fresh install. This will delete the existing directory: $GG_ROOT_DIR"
@@ -59,6 +56,13 @@ if "$FRESH_INSTALL" && [ -d "$GG_ROOT_DIR" ]; then
     *) echo "Aborted.";;
   esac
 fi
+
+# Make the directory, if it fails, create it as root and then give us permissions
+GG_INSTALL_DIR = "$GG_ROOT_DIR"/first-install
+mkdir -p "$GG_INSTALL_DIR" &2>/dev/null || (sudo mkdir -p "$GG_INSTALL_DIR" && sudo chmod -R 777 "$GG_ROOT_DIR")
+
+# unzip
+(unzip $CLI_ZIP && unzip $NUCLEUS_ZIP -d "$GG_INSTALL_DIR") || { echo "Install failed. Cannot unzip"; exit 1; }
 
 # install CLI if not already
 if type 'greengrass-cli' > /dev/null 2>&1; then
@@ -77,8 +81,9 @@ echo "Installation complete. Installed at: $GG_ROOT_DIR"
 
 if "$LAUNCH_WITH_DEFAULT"; then
   echo "Starting Greengrass"
-  java -Droot="$GG_ROOT_DIR" -Dlog.store=FILE -jar lib/Greengrass.jar \
+  java -Droot="$GG_ROOT_DIR" -Dlog.store=FILE -jar "$GG_INSTALL_DIR"/lib/Greengrass.jar \
     --aws-region "$AWS_REGION" --provision true --setup-tes true
 else
+  java -Droot="$GG_ROOT_DIR" -Dlog.store=FILE -jar "$GG_INSTALL_DIR"/lib/Greengrass.jar --start false
   echo "You can now start Greengrass"
 fi
