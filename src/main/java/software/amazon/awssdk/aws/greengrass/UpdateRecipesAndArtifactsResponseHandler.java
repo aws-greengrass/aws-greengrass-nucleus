@@ -4,9 +4,10 @@ import java.lang.Override;
 import java.lang.Void;
 import java.util.concurrent.CompletableFuture;
 import software.amazon.awssdk.aws.greengrass.model.UpdateRecipesAndArtifactsResponse;
-import software.amazon.eventstream.iot.client.OperationResponse;
-import software.amazon.eventstream.iot.client.StreamResponse;
-import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
+import software.amazon.awssdk.eventstreamrpc.OperationResponse;
+import software.amazon.awssdk.eventstreamrpc.StreamResponse;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
+
 
 public final class UpdateRecipesAndArtifactsResponseHandler implements StreamResponse<UpdateRecipesAndArtifactsResponse, EventStreamJsonMessage> {
   private final OperationResponse<UpdateRecipesAndArtifactsResponse, EventStreamJsonMessage> operationResponse;

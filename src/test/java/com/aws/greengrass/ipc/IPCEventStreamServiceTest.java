@@ -25,8 +25,7 @@ import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.eventstream.iot.server.AuthenticationHandler;
-import software.amazon.eventstream.iot.server.AuthorizationHandler;
+import software.amazon.awssdk.eventstreamrpc.AuthorizationHandler;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -70,7 +69,7 @@ public class IPCEventStreamServiceTest {
     @Mock
     private GreengrassCoreIPCService greengrassCoreIPCService;
     @Mock
-    private AuthenticationHandler mockAuthenticationHandler;
+    private software.amazon.awssdk.eventstreamrpc.AuthenticationHandler mockAuthenticationHandler;
     @Mock
     private AuthorizationHandler mockAuthorizationHandler;
 

@@ -88,9 +88,9 @@ import software.amazon.awssdk.aws.greengrass.model.ValidateAuthorizationTokenReq
 import software.amazon.awssdk.aws.greengrass.model.ValidateAuthorizationTokenResponse;
 import software.amazon.awssdk.aws.greengrass.model.ValidateConfigurationUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.ValidateConfigurationUpdateEvents;
-import software.amazon.eventstream.iot.EventStreamRPCServiceModel;
-import software.amazon.eventstream.iot.OperationModelContext;
-import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
+import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
   private static final GreengrassCoreIPCServiceModel INSTANCE = new GreengrassCoreIPCServiceModel();

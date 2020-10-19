@@ -21,8 +21,8 @@ import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRe
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateResponse;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
-import software.amazon.eventstream.iot.server.AuthenticationData;
-import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
+import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
+import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;

@@ -1,13 +1,15 @@
 package software.amazon.awssdk.aws.greengrass.model;
 
 import com.google.gson.annotations.Expose;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
+
 import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
+
 
 public class GetSecretValueResponse implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#GetSecretValueResponse";

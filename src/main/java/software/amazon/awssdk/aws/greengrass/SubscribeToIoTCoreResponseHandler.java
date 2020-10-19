@@ -4,9 +4,10 @@ import java.lang.Override;
 import java.lang.Void;
 import java.util.concurrent.CompletableFuture;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreResponse;
-import software.amazon.eventstream.iot.client.OperationResponse;
-import software.amazon.eventstream.iot.client.StreamResponse;
-import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
+import software.amazon.awssdk.eventstreamrpc.OperationResponse;
+import software.amazon.awssdk.eventstreamrpc.StreamResponse;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
+
 
 public final class SubscribeToIoTCoreResponseHandler implements StreamResponse<SubscribeToIoTCoreResponse, EventStreamJsonMessage> {
   private final OperationResponse<SubscribeToIoTCoreResponse, EventStreamJsonMessage> operationResponse;

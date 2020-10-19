@@ -3,10 +3,10 @@ package software.amazon.awssdk.aws.greengrass;
 import java.lang.Override;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentRequest;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentResponse;
-import software.amazon.eventstream.iot.OperationModelContext;
-import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
-import software.amazon.eventstream.iot.server.OperationContinuationHandler;
-import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
+import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandler;
+import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
+import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 public abstract class GeneratedAbstractRestartComponentOperationHandler extends OperationContinuationHandler<RestartComponentRequest, RestartComponentResponse, EventStreamJsonMessage, EventStreamJsonMessage> {
   protected GeneratedAbstractRestartComponentOperationHandler(
