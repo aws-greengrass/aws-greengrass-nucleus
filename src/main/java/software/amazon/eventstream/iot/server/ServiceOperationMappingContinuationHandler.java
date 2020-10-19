@@ -126,7 +126,10 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                 serviceHandler.getOperationHandler(operationName);
         if (registeredOperationHandlerFn != null) {
             System.out.println("registeredOperationHandler for operation "+ operationName + "is " + registeredOperationHandlerFn.getClass());
-            return registeredOperationHandlerFn.apply(operationContext);
+            ServerConnectionContinuationHandler handler = registeredOperationHandlerFn.apply(operationContext);
+            System.out.println("Handler for operation is " + handler.getClass());
+//            return registeredOperationHandlerFn.apply(operationContext);
+            return handler;
         } else {
             return new ServerConnectionContinuationHandler(continuation) {
                 @Override

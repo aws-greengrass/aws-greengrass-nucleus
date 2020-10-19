@@ -10,14 +10,12 @@ import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.util.Coerce;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.eventstream.iot.client.GreengrassConnectMessageSupplier;
 import software.amazon.eventstream.iot.client.EventStreamRPCConnection;
 import software.amazon.eventstream.iot.client.EventStreamRPCConnectionConfig;
+import software.amazon.eventstream.iot.client.GreengrassConnectMessageSupplier;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -34,16 +32,11 @@ import static com.aws.greengrass.ipc.IPCEventStreamService.IPC_SERVER_DOMAIN_SOC
 import static com.aws.greengrass.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 
 public final class IPCTestUtils {
 
     public static String TEST_SERVICE_NAME = "ServiceName";
-
-    private static ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private IPCTestUtils() {
 
     }

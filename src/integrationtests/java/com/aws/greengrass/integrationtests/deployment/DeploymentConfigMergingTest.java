@@ -99,7 +99,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
     @BeforeEach
     void before(TestInfo testInfo) {
-        System.out.println("Running test: " + testInfo.getDisplayName());
         kernel = new Kernel();
         deploymentConfigMerger = new DeploymentConfigMerger(kernel);
     }
