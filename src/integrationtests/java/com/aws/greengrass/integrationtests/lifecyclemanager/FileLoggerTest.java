@@ -8,6 +8,9 @@ package com.aws.greengrass.integrationtests.lifecyclemanager;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.logging.impl.config.LogFormat;
+import com.aws.greengrass.logging.impl.config.LogStore;
 import org.hamcrest.MatcherAssert;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -21,6 +24,7 @@ import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.io.FileMatchers.aFileNamed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 class FileLoggerTest extends BaseITCase {
@@ -28,15 +32,13 @@ class FileLoggerTest extends BaseITCase {
 
     @BeforeAll
     static void beforeAll() {
-        System.setProperty("log.fmt", "JSON");
-        System.setProperty("log.file.sizeInKB", "10240");
-        System.setProperty("log.file.fileSizeInKB", "1024");
-        System.setProperty("log.store", "FILE");
+        LogManager.getRootLogConfiguration().setStoreType(LogStore.FILE);
+        LogManager.getRootLogConfiguration().setFormat(LogFormat.TEXT);
     }
 
     @AfterAll
     static void cleanup() {
-        System.setProperty("log.store", "CONSOLE");
+        LogManager.getRootLogConfiguration().setStore(LogStore.CONSOLE);
     }
 
     @AfterEach
@@ -56,6 +58,7 @@ class FileLoggerTest extends BaseITCase {
         // verify that log file exists are the correct location.
         File logFile = tempRootDir.resolve("logs").resolve("greengrass.log").toFile();
         MatcherAssert.assertThat(logFile, aFileNamed(equalToIgnoringCase("greengrass.log")));
+        assertTrue(logFile.length() > 0);
     }
 
     @Test
@@ -74,5 +77,6 @@ class FileLoggerTest extends BaseITCase {
         File oldLogFile = tempRootDir.resolve("logs").resolve("greengrass.log").toFile();
         MatcherAssert.assertThat(logFile, aFileNamed(equalToIgnoringCase("greengrass.log")));
         assertEquals(0, oldLogFile.length());
+        assertTrue(logFile.length() > 0);
     }
 }
