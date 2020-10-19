@@ -56,7 +56,8 @@ import org.mockito.Mock;
 import org.mockito.exceptions.misusing.InvalidUseOfMatchersException;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
-import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
+import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
+
 
 import java.io.File;
 import java.net.InetSocketAddress;

@@ -3,10 +3,11 @@ package software.amazon.awssdk.aws.greengrass;
 import java.lang.Override;
 import software.amazon.awssdk.aws.greengrass.model.GetLocalDeploymentStatusRequest;
 import software.amazon.awssdk.aws.greengrass.model.GetLocalDeploymentStatusResponse;
-import software.amazon.eventstream.iot.OperationModelContext;
-import software.amazon.eventstream.iot.model.EventStreamJsonMessage;
-import software.amazon.eventstream.iot.server.OperationContinuationHandler;
-import software.amazon.eventstream.iot.server.OperationContinuationHandlerContext;
+import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandler;
+import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
+import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
+
 
 public abstract class GeneratedAbstractGetLocalDeploymentStatusOperationHandler extends OperationContinuationHandler<GetLocalDeploymentStatusRequest, GetLocalDeploymentStatusResponse, EventStreamJsonMessage, EventStreamJsonMessage> {
   protected GeneratedAbstractGetLocalDeploymentStatusOperationHandler(

@@ -13,9 +13,9 @@ import com.aws.greengrass.util.Coerce;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.eventstream.iot.client.EventStreamRPCConnection;
-import software.amazon.eventstream.iot.client.EventStreamRPCConnectionConfig;
-import software.amazon.eventstream.iot.client.GreengrassConnectMessageSupplier;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
+import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
 
 import java.net.URI;
 import java.net.URISyntaxException;
