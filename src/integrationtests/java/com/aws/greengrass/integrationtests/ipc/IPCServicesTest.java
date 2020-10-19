@@ -299,7 +299,6 @@ class IPCServicesTest {
     void GIVEN_LifeCycleEventStreamClient_WHEN_update_state_THEN_service_state_changes() throws Exception {
         CountDownLatch cdl = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState ) ->{
-
             if(TEST_SERVICE_NAME.equals(service.getName())){
                 if(newState.equals(State.ERRORED) && oldState.equals(State.RUNNING)){
                     cdl.countDown();
@@ -309,7 +308,7 @@ class IPCServicesTest {
         UpdateStateRequest updateStateRequest = new UpdateStateRequest();
         updateStateRequest.setState(LifecycleState.ERRORED);
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
-        greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty()).getResponse().get(10, TimeUnit.SECONDS);
+        greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty()).getResponse().get();
         assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
     }
 
