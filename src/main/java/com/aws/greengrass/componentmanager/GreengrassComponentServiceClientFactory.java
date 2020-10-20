@@ -145,7 +145,7 @@ public class GreengrassComponentServiceClientFactory {
 
             KeyManagerFactory keyManagerFactory =
                     KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            keyManagerFactory.init(keyStore, "password".toCharArray());
+            keyManagerFactory.init(keyStore, null);
             return keyManagerFactory.getKeyManagers();
         } catch (GeneralSecurityException | IOException e) {
             throw new TLSAuthException("Failed to get key manager", e);
