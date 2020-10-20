@@ -60,8 +60,9 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public CommandDecorator getShellDecorator() {
-        return new ShellDecorator();
+
+    public ShellDecorator getShellDecorator() {
+        return new ShDecorator();
     }
 
     @Override
@@ -74,11 +75,20 @@ public class UnixPlatform extends Platform {
         return new SudoDecorator();
     }
 
+    @Override
+    public String getPrivilegedGroup() {
+        return "root";
+    }
+
+    @Override
+    public String getPrivilegedUser() {
+        return "root";
+    }
+
     /**
      * Decorate a command to run in a shell.
      */
-    public static class ShellDecorator implements CommandDecorator {
-
+    public static class ShDecorator implements ShellDecorator {
         private static final String DEFAULT_SHELL = "sh";
         private static final String DEFAULT_ARG = "-c";
         private String shell;
@@ -87,7 +97,8 @@ public class UnixPlatform extends Platform {
         /**
          * Create a new instance using the default shell (sh).
          */
-        public ShellDecorator() {
+
+        public ShDecorator() {
             this(DEFAULT_SHELL, DEFAULT_ARG);
         }
 
@@ -96,7 +107,7 @@ public class UnixPlatform extends Platform {
          * @param shell the shell.
          * @param arg optional argument for passing string data into the shell.
          */
-        public ShellDecorator(String shell, String arg) {
+        public ShDecorator(String shell, String arg) {
             this.shell = shell;
             this.arg = arg;
         }
@@ -106,12 +117,18 @@ public class UnixPlatform extends Platform {
             boolean hasArg = !Utils.isEmpty(arg);
             int size = hasArg ? 3 : 2;
             String[] ret = new String[size];
-            ret[0] = shell;
+            ret[0] = Utils.isEmpty(shell) ? DEFAULT_SHELL : shell;
             if (hasArg) {
                 ret[1] = arg;
             }
             ret[size - 1] = String.join(" ", command);
             return ret;
+        }
+
+        @Override
+        public ShellDecorator withShell(String shell) {
+            this.shell = shell;
+            return this;
         }
     }
 
@@ -135,13 +152,13 @@ public class UnixPlatform extends Platform {
             ret[1] = "-E";  // pass env vars through
             ret[2] = "-u";
             if (user.chars().allMatch(Character::isDigit)) {
-                user = "\\#" + user;
+                user = "#" + user;
             }
             ret[3] = user;
             if (group != null) {
                 ret[4] = "-g";
                 if (group.chars().allMatch(Character::isDigit)) {
-                    group = "\\#" + group;
+                    group = "#" + group;
                 }
                 ret[5] = group;
             }

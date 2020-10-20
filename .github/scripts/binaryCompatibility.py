@@ -9,6 +9,13 @@ import xml.etree.ElementTree as ET
 from agithub.GitHub import GitHub
 
 
+def findall_recursive(node, element):
+    for item in node.findall(element):
+        yield item
+    for item in list(node):
+        yield from findall_recursive(item, element)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', type=argparse.FileType('r'), help='Input file to parse')
@@ -37,7 +44,7 @@ def main():
             any_incompatible = True
         if any_incompatible:
             body += f" because of " \
-                    f"{', '.join([x.text for x in clazz.findall('compatibilityChanges/compatibilityChange')])}"
+                    f"{', '.join({x.text for x in findall_recursive(clazz, 'compatibilityChanges/compatibilityChange')})}"
         else:
             body += "fully compatible"
         body += "\n"

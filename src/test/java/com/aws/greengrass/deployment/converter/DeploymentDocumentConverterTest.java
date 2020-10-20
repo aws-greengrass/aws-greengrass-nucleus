@@ -249,9 +249,20 @@ class DeploymentDocumentConverterTest {
         assertNull(doc.getFailureHandlingPolicy());
         assertEquals(0L, doc.getTimestamp());
         assertThat(doc.getDeploymentPackageConfigurationList(),
-                   containsInAnyOrder(new DeploymentPackageConfiguration("pkgA", true, "1.0.0", emptyMap(),
-                                                                         configurationUpdateOperation),
-                                      new DeploymentPackageConfiguration("pkgB", false, "1.1.0", configMapB)));
+                   containsInAnyOrder(
+                           DeploymentPackageConfiguration.builder()
+                                   .packageName("pkgA")
+                                   .rootComponent(true)
+                                   .resolvedVersion("1.0.0")
+                                   .configuration(emptyMap())
+                                   .configurationUpdateOperation(configurationUpdateOperation)
+                                   .build(),
+                           DeploymentPackageConfiguration.builder()
+                                   .packageName("pkgB")
+                                   .rootComponent(false)
+                                   .resolvedVersion("1.1.0")
+                                   .configuration(configMapB)
+                                   .build()));
         assertThat(doc.getRootPackages(), containsInAnyOrder("pkgA"));
         assertEquals("thing/test", doc.getGroupName());
     }

@@ -1,0 +1,25 @@
+---
+system:
+  runWithDefault:
+    posixUser: 123456
+
+services:
+  main:
+    dependencies:
+      - echo_service
+    lifecycle:
+      posix:
+        run:
+          echo "Running main"
+  echo_service:
+    setenv:
+      output_path: ./out
+    lifecycle:
+      install:
+        posix:
+          id
+      run:
+        posix: |-
+          echo $output_path
+          id -u > $output_path
+    version: 1.0.0

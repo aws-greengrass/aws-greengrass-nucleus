@@ -42,11 +42,15 @@ public abstract class Platform {
     public abstract void killProcessAndChildren(Process process, boolean force)
             throws IOException, InterruptedException;
 
-    public abstract CommandDecorator getShellDecorator();
+    public abstract ShellDecorator getShellDecorator();
 
     public abstract int exitCodeWhenCommandDoesNotExist();
 
     public abstract UserDecorator getUserDecorator();
+
+    public abstract String getPrivilegedGroup();
+
+    public abstract String getPrivilegedUser();
 
     /**
      * Set permissions on a path.
