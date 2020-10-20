@@ -274,10 +274,13 @@ public class IotJobsHelper implements InjectionActions {
         this.iotJobsClient = iotJobsClientFactory.getIotJobsClient(connection);
         logger.dfltKv("ThingName", (Supplier<String>) () ->
                 Coerce.toString(deviceConfiguration.getThingName()));
-        subscribeToJobsTopics();
-        logger.atInfo().log("Connection established to Iot cloud");
-        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS,
-                this::deploymentStatusChanged, IotJobsHelper.class.getName());
+
+        executorService.submit(() -> {
+            subscribeToJobsTopics();
+            logger.atInfo().log("Connection established to IoT cloud");
+            deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS,
+                    this::deploymentStatusChanged, IotJobsHelper.class.getName());
+        });
     }
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
