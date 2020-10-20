@@ -190,7 +190,7 @@ public abstract class EventStreamRPCServiceModel {
             final String stringJson = new String(json, StandardCharsets.UTF_8);
             //this feels like a hack. I'd prefer if java objects with no fields set serialized to being an empty object
             //rather than "null"
-            if (null == stringJson || "null".equals(stringJson)) {
+            if (null == stringJson || "null".equals(stringJson) || stringJson.isEmpty()) {
                 return "{}".getBytes(StandardCharsets.UTF_8);
             }
             return json;
