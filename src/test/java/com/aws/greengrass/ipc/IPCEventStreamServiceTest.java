@@ -3,8 +3,9 @@ package com.aws.greengrass.ipc;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.ipc.common.GGEventStreamConnectMessage;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.NucleusPaths;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,6 +27,7 @@ import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.AuthorizationHandler;
+import software.amazon.awssdk.eventstreamrpc.GreengrassEventStreamConnectMessage;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -44,7 +46,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class})
+@ExtendWith({MockitoExtension.class, GGExtension.class})
 public class IPCEventStreamServiceTest {
     private IPCEventStreamService ipcEventStreamService;
     protected static ObjectMapper OBJECT_MAPPER =
@@ -101,11 +103,8 @@ public class IPCEventStreamServiceTest {
 
         try (EventLoopGroup elg = new EventLoopGroup(1);
              ClientBootstrap clientBootstrap = new ClientBootstrap(elg, new HostResolver(elg));
-             SocketOptions socketOptions = new SocketOptions()) {
+             SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC()) {
 
-            socketOptions.connectTimeoutMs = 3000;
-            socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
-            socketOptions.type = SocketOptions.SocketType.STREAM;
             String ipcServerSocketPath = mockRootPath.resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
             ClientConnection
                     .connect(ipcServerSocketPath, (short) DEFAULT_PORT_NUMBER, socketOptions, null, clientBootstrap, new ClientConnectionHandler() {
@@ -126,8 +125,9 @@ public class IPCEventStreamServiceTest {
                         }
                     }).get();
             assertTrue(connectionLatch.await(2, TimeUnit.SECONDS));
-            GGEventStreamConnectMessage connectMessagePayloadStructure =
-                    GGEventStreamConnectMessage.builder().authToken("authToken").build();
+            GreengrassEventStreamConnectMessage connectMessagePayloadStructure =
+                    new GreengrassEventStreamConnectMessage();
+            connectMessagePayloadStructure.setAuthToken("authToken");
             String payload = OBJECT_MAPPER.writeValueAsString(connectMessagePayloadStructure);
             clientConnectionArray[0].sendProtocolMessage(null, payload.getBytes(StandardCharsets.UTF_8),
                     MessageType.Connect, 0).get();

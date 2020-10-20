@@ -129,7 +129,7 @@ public class LifecycleIPCEventStreamAgent {
 
         @Override
         protected void onStreamClosed() {
-            log.atInfo("Stream closed for subscribeToComponentUpdate");
+            log.atInfo().log("Stream closed for subscribeToComponentUpdate");
             componentUpdateListeners.get(serviceName).remove(this);
             if (componentUpdateListeners.get(serviceName).isEmpty()) {
                 componentUpdateListeners.remove(serviceName);
