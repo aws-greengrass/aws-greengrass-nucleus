@@ -5,8 +5,8 @@ package com.aws.greengrass.util;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.platforms.CommandDecorator;
 import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.UserDecorator;
 import lombok.Getter;
 
@@ -101,8 +101,10 @@ public final class Exec implements Closeable {
     AtomicInteger numberOfCopiers;
     private String[] environment = defaultEnvironment;
     private String[] cmds;
-    private CommandDecorator shellDecorator;
-    private CommandDecorator userDecorator;
+
+    private ShellDecorator shellDecorator;
+    private UserDecorator userDecorator;
+
     private File dir = userdir;
     private long timeout = -1;
     private TimeUnit timeunit = TimeUnit.SECONDS;
@@ -293,7 +295,7 @@ public final class Exec implements Closeable {
     }
 
     /**
-     * Decorate a command so that it executes in a shell.
+     * Decorate a command so that it executes in a default shell.
      *
      * @param command a command to execute.
      * @return this.
@@ -304,7 +306,7 @@ public final class Exec implements Closeable {
     }
 
     /**
-     * Execute the command in a shell.
+     * Execute the command in a default shell.
      *
      * @return this.
      */
@@ -314,29 +316,41 @@ public final class Exec implements Closeable {
     }
 
     /**
-     * Execute the command as the specified user.
+     * Execute the command using the specified shell.
+     *
+     * @param shell the shell to use.
+     * @return this.
+     */
+    public Exec usingShell(String shell) {
+        shellDecorator = Platform.getInstance().getShellDecorator().withShell(shell);
+        return this;
+    }
+
+    /**
+     * Execute the command with the specified user.
      *
      * @param user a user name or identifier.
      * @return this.
      */
     public Exec withUser(String user) {
-        userDecorator = Platform.getInstance().getUserDecorator().withUser(user);
+        if (userDecorator == null) {
+            userDecorator = Platform.getInstance().getUserDecorator();
+        }
+        userDecorator.withUser(user);
         return this;
     }
 
     /**
-     * Execute the command as the specified user and group.
+     * Execute the command with the specified group.
      *
-     * @param user  a user name or identifier.
      * @param group a group name or identifier.
      * @return this.
      */
-    public Exec withUserGroup(String user, String group) {
-        UserDecorator decorator = Platform.getInstance().getUserDecorator().withUser(user);
-        if (group != null) {
-            decorator = decorator.withGroup(group);
+    public Exec withGroup(String group) {
+        if (userDecorator == null) {
+            userDecorator = Platform.getInstance().getUserDecorator();
         }
-        userDecorator = decorator;
+        userDecorator.withGroup(group);
         return this;
     }
 
@@ -368,8 +382,12 @@ public final class Exec implements Closeable {
         return this;
     }
 
-    @SuppressWarnings("PMD.AvoidRethrowingException")
-    private void exec() throws InterruptedException, IOException {
+    /**
+     * Get the command to execute. This will be decorated if shell and user/group have been provided.
+     *
+     * @return the command.
+     */
+    public String[] getCommand() {
         String[] decorated = cmds;
         if (shellDecorator != null) {
             decorated = shellDecorator.decorate(decorated);
@@ -377,12 +395,17 @@ public final class Exec implements Closeable {
         if (userDecorator != null) {
             decorated = userDecorator.decorate(decorated);
         }
+        return decorated;
+    }
+
+    @SuppressWarnings("PMD.AvoidRethrowingException")
+    private void exec() throws InterruptedException, IOException {
         // Don't run anything if the current thread is currently interrupted
         if (Thread.currentThread().isInterrupted()) {
             logger.atWarn().kv("command", this).log("Refusing to execute because the active thread is interrupted");
             throw new InterruptedException();
         }
-        process = Runtime.getRuntime().exec(decorated, environment, dir);
+        process = Runtime.getRuntime().exec(getCommand(), environment, dir);
         stderrc = new Copier(process.getErrorStream(), stderr);
         stdoutc = new Copier(process.getInputStream(), stdout);
         stderrc.start();
