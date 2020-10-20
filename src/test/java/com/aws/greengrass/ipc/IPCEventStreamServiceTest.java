@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.ipc.IPCEventStreamService.IPC_SERVER_DOMAIN_SOCKET_FILENAME;
-import static com.aws.greengrass.ipc.IPCEventStreamService.KERNEL_DOMAIN_SOCKET_FILEPATH;
+import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
@@ -87,7 +87,7 @@ public class IPCEventStreamServiceTest {
         when(nucleusPaths.rootPath()).thenReturn(mockRootPath);
         when(config.getRoot()).thenReturn(mockRootTopics);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
-                eq(KERNEL_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
+                eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
         ipcEventStreamService.startup();
     }
 

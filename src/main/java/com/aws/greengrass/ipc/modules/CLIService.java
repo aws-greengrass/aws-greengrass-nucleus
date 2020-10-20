@@ -61,7 +61,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
-import static com.aws.greengrass.ipc.IPCEventStreamService.KERNEL_DOMAIN_SOCKET_FILEPATH;
+import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 
 @ImplementsService(name = CLIService.CLI_SERVICE, autostart = true)
@@ -294,7 +294,7 @@ public class CLIService extends GreengrassService {
         ipcInfo.put(SOCKET_URL, Coerce.toString(
                 config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME)));
         ipcInfo.put(DOMAIN_SOCKET_PATH, Coerce.toString(
-                config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_DOMAIN_SOCKET_FILEPATH)));
+                config.getRoot().find(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH)));
 
         Path filePath = directory.resolve(clientId);
         Files.write(filePath, OBJECT_MAPPER.writeValueAsString(ipcInfo)

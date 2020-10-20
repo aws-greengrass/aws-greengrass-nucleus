@@ -58,7 +58,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 
-
 import java.io.File;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
@@ -72,7 +71,7 @@ import java.util.function.Function;
 
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.LOCAL_DEPLOYMENT_RESOURCE;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
-import static com.aws.greengrass.ipc.IPCEventStreamService.KERNEL_DOMAIN_SOCKET_FILEPATH;
+import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_AUTH_TOKEN;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_SERVICE;
@@ -171,7 +170,7 @@ class CLIServiceTest extends GGServiceTestUtil {
         Topics mockRootTopics = mock(Topics.class);
         when(mockRootTopics.find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME))
                 .thenReturn(mockSocketUrlTopic);
-        when(mockRootTopics.find(SETENV_CONFIG_NAMESPACE, KERNEL_DOMAIN_SOCKET_FILEPATH))
+        when(mockRootTopics.find(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH))
                 .thenReturn(mockSocketUrlTopic);
         when(cliConfigSpy.getRoot()).thenReturn(mockRootTopics);
         cliService.startup();
