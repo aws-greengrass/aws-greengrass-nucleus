@@ -208,8 +208,8 @@ public class UpdateSystemSafelyService extends GreengrassService {
                         if (timeToRecheck > maxTimeToReCheck) {
                             maxTimeToReCheck = timeToRecheck;
                             logger.atInfo().setEventType("service-update-deferred")
-                                    .log("deferred by {} for {} millis with message {}",
-                                            deferRequest.getMessage(), deferRequest.getRecheckTimeInMs(),
+                                    .log("deferred for {} millis with message {}",
+                                            deferRequest.getRecheckTimeInMs(),
                                             deferRequest.getMessage());
                         }
                     } catch (ExecutionException e) {

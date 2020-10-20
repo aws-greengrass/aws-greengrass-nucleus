@@ -48,6 +48,8 @@ public class LifecycleIPCEventStreamAgent {
     // sendPreComponentUpdateEvent will have reference to the set of futures.
     // deferUpdateFuturesMap maps the context of a component to the future created for the component.
     // This map is from service name to the Futures. Only one (latest) Future per service is maintained.
+    //TODO: Remove the DeferUpdateRequest when we remove the LifecycleIPCAgent. Keeping it right now so both old and new
+    // IPC can work.
     @Getter (AccessLevel.PACKAGE)
     private final Map<String, CompletableFuture<DeferUpdateRequest>> deferUpdateFuturesMap =
             new ConcurrentHashMap<>();
