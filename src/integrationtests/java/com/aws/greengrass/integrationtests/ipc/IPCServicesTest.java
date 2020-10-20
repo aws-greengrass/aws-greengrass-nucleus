@@ -20,6 +20,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
@@ -40,7 +41,6 @@ import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
 import software.amazon.awssdk.crt.io.SocketOptions;
-
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
@@ -98,10 +98,7 @@ class IPCServicesTest {
         Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, TEST_SERVICE_NAME,
                 PRIVATE_STORE_NAMESPACE_TOPIC);
         String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
-        socketOptions = new SocketOptions();
-        socketOptions.connectTimeoutMs = 3000;
-        socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
-        socketOptions.type = SocketOptions.SocketType.STREAM;
+        socketOptions = TestUtils.getSocketOptionsForIPC();
         clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
     }
 

@@ -2,7 +2,6 @@ package com.aws.greengrass.ipc;
 
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
-import com.aws.greengrass.ipc.common.GGEventStreamConnectMessage;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -19,6 +18,7 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
 import software.amazon.awssdk.eventstreamrpc.Authorization;
 import software.amazon.awssdk.eventstreamrpc.DebugLoggingOperationHandler;
+import software.amazon.awssdk.eventstreamrpc.GreengrassEventStreamConnectMessage;
 import software.amazon.awssdk.eventstreamrpc.IpcServer;
 
 import java.io.Closeable;
@@ -113,8 +113,8 @@ public class IPCEventStreamService implements Startable, Closeable {
         String authToken = null;
 
         try {
-            GGEventStreamConnectMessage connectMessage = OBJECT_MAPPER.readValue(payload,
-                    GGEventStreamConnectMessage.class);
+            GreengrassEventStreamConnectMessage connectMessage = OBJECT_MAPPER.readValue(payload,
+                    GreengrassEventStreamConnectMessage.class);
             authToken = connectMessage.getAuthToken();
         } catch (IOException e) {
             String errorMessage = "Invalid auth token in connect message";
@@ -143,6 +143,7 @@ public class IPCEventStreamService implements Startable, Closeable {
     }
 
     @Override
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public void close() {
         // TODO: Future does not complete, wait on them when fixed.
         if (ipcServer != null) {
@@ -150,19 +151,10 @@ public class IPCEventStreamService implements Startable, Closeable {
         }
         if (eventLoopGroup != null) {
             eventLoopGroup.close();
+            //TODO: Wait for ELG to close. Right now the future does not complete, thus timing out.
         }
         if (socketOptions != null) {
             socketOptions.close();
         }
-        if (Files.exists(Paths.get(ipcServerSocketPath))) {
-            try {
-                logger.atDebug().log("Deleting the ipc server socket descriptor file during shutdown");
-                Files.delete(Paths.get(ipcServerSocketPath));
-            } catch (IOException e) {
-                logger.atError().setCause(e)
-                        .log("Failed to delete the ipc server socket descriptor file during shutdown ");
-            }
-        }
-
     }
 }

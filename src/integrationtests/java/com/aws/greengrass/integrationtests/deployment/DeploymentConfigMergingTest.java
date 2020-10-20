@@ -23,9 +23,12 @@ import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
@@ -42,7 +45,6 @@ import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
 import software.amazon.awssdk.crt.io.SocketOptions;
-
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
@@ -89,13 +91,11 @@ class DeploymentConfigMergingTest extends BaseITCase {
     private Kernel kernel;
     private DeploymentConfigMerger deploymentConfigMerger;
     private static SocketOptions socketOptions;
+    private static Logger logger = LogManager.getLogger(DeploymentConfigMergingTest.class);
 
     @BeforeAll
     static void initialize() {
-        socketOptions = new SocketOptions();
-        socketOptions.connectTimeoutMs = 3000;
-        socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
-        socketOptions.type = SocketOptions.SocketType.STREAM;
+        socketOptions = TestUtils.getSocketOptionsForIPC();
     }
 
     @BeforeEach
@@ -518,6 +518,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
                     @Override
                     public boolean onStreamError(Throwable error) {
+                        logger.atError().setCause(error).log("Caught an error on the stream");
                         return false;
                     }
 

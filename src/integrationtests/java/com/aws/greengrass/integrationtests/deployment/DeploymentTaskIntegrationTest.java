@@ -31,6 +31,7 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -153,10 +154,7 @@ class DeploymentTaskIntegrationTest {
     @BeforeAll
     static void initialize() {
         outputMessagesToTimestamp = new HashMap<>();
-        socketOptions = new SocketOptions();
-        socketOptions.connectTimeoutMs = 3000;
-        socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
-        socketOptions.type = SocketOptions.SocketType.STREAM;
+        socketOptions = TestUtils.getSocketOptionsForIPC();
         logger = LogManager.getLogger(DeploymentTaskIntegrationTest.class);
     }
 
