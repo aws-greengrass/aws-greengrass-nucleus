@@ -351,7 +351,7 @@ class IPCServicesTest {
             m.getMessage().contains("subscribed to component update");
             subscriptionLatch.countDown();
         });
-        assertTrue(subscriptionLatch.await(2, TimeUnit.SECONDS));
+        assertTrue(subscriptionLatch.await(5, TimeUnit.SECONDS));
         // TODO: When Cli support safe update setting in local deployment, then create a local deployment here to
         //  trigger update
         LifecycleIPCEventStreamAgent lifecycleIPCEventStreamAgent =
