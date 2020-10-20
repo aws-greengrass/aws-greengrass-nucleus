@@ -119,9 +119,9 @@ public class AuthorizationHandler  {
 
                     try (LockScope scope = LockScope.lock(rwLock.writeLock())) {
 
-                        for (Map.Entry<String, List<AuthorizationPolicy>> masterPolicyList :
+                        for (Map.Entry<String, List<AuthorizationPolicy>> primaryPolicyList :
                                 componentToAuthZConfig.entrySet()) {
-                            String policyType = masterPolicyList.getKey();
+                            String policyType = primaryPolicyList.getKey();
                             if (!reloadedPolicies.containsKey(policyType)) {
                                 //If the policyType already exists and was not reparsed correctly and/or removed from
                                 //the newly parsed list, delete it from our store since it is now an unwanted relic

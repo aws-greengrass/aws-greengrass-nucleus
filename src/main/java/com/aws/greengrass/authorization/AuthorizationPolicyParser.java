@@ -48,14 +48,14 @@ public final class AuthorizationPolicyParser {
      */
     public Map<String, List<AuthorizationPolicy>> parseAllAuthorizationPolicies(Kernel kernel) {
 
-        Map<String, List<AuthorizationPolicy>> masterAuthorizationPolicyMap = new HashMap<>();
+        Map<String, List<AuthorizationPolicy>> primaryAuthorizationPolicyMap = new HashMap<>();
 
         Topics allServices = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC);
 
         if (allServices == null) {
             logger.atInfo("load-authorization-all-services-component-config-retrieval-error")
                     .log("Unable to retrieve services config");
-            return masterAuthorizationPolicyMap;
+            return primaryAuthorizationPolicyMap;
         }
 
         //For each component
@@ -89,10 +89,10 @@ public final class AuthorizationPolicyParser {
                 List<AuthorizationPolicy> policyList = policyTypeList.getValue();
 
                 //If multiple components have policies for the same policy type
-                masterAuthorizationPolicyMap.computeIfAbsent(policyType, k -> new ArrayList<>()).addAll(policyList);
+                primaryAuthorizationPolicyMap.computeIfAbsent(policyType, k -> new ArrayList<>()).addAll(policyList);
             }
         }
-        return masterAuthorizationPolicyMap;
+        return primaryAuthorizationPolicyMap;
     }
 
     /**
