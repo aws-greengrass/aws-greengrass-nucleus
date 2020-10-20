@@ -59,7 +59,7 @@ fi
 
 # Make the directory, if it fails, create it as root and then give us permissions
 GG_INSTALL_DIR="$GG_ROOT_DIR"/first-install
-mkdir -p "$GG_INSTALL_DIR" &2>/dev/null || (sudo mkdir -p "$GG_INSTALL_DIR" && sudo chmod -R 777 "$GG_ROOT_DIR")
+mkdir -p "$GG_INSTALL_DIR" 2>/dev/null || (sudo mkdir -p "$GG_INSTALL_DIR" && sudo chmod -R 777 "$GG_ROOT_DIR")
 
 # unzip
 (unzip $CLI_ZIP && unzip $NUCLEUS_ZIP -d "$GG_INSTALL_DIR") || { echo "Install failed. Cannot unzip"; exit 1; }
