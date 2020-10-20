@@ -11,11 +11,19 @@ public interface EventStreamJsonMessage {
     /**
      * Serialize this object into a JSON payload. Does not validate object being serialized
      *
+     * WARNING: implementers should not override this method. This could be an abstract class
+     * with final implementations for serialization/deserialization. Or better yet, rework
+     * how it works
+     *
      * @param gson
      * @return
      */
     default byte[] toPayload(final Gson gson) {
-        return gson.toJson(this).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        final String payloadString = gson.toJson(this);
+        if (payloadString == null || payloadString.isEmpty() || payloadString.equals("null")) {
+            return "{}".getBytes(StandardCharsets.UTF_8);
+        }
+        return gson.toJson(this).getBytes(StandardCharsets.UTF_8);
     }
 
     default EventStreamJsonMessage fromJson(final Gson gson, byte[] payload) {

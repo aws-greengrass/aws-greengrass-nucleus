@@ -7,7 +7,7 @@ import com.google.gson.annotations.SerializedName;
 /**
  * Root error type returned by any continuation error message
  *
- * TODO: To mimik public AWS SDK clients, any exception thrown by
+ * TODO: To mimic public AWS SDK clients, any exception thrown by
  *       a given service should inherit from it's generated model
  *       service exception.
  */
@@ -51,15 +51,4 @@ public abstract class EventStreamOperationError
      * @return
      */
     public String getErrorCode() { return _errorCode; }
-
-    /**
-     * Serialize this object into a JSON payload. Does not validate object being serialized
-     *
-     * @param gson
-     * @return
-     */
-    @Override
-    public byte[] toPayload(Gson gson) {
-        return new byte[0];
-    }
 }

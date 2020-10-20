@@ -107,6 +107,18 @@ public class EventStreamRPCConnection implements AutoCloseable {
                                 //TODO: do we have a sensible error code to use here?
                                 connection.closeConnection(0);
                             }
+                        } else if (MessageType.ProtocolError.equals(messageType) || MessageType.ServerError.equals(messageType)) {
+                            LOGGER.severe("Received " + messageType.name() + ": " + CRT.awsErrorName(CRT.awsLastError()));
+                            //TODO: if there is a payload, it's likely possible to pull out a message field
+                            //      should be a ConnectionError() exception type that throws and contains this
+                            //      message.
+                            try {
+                                lifecycleHandler.onError(new RuntimeException("Received " + messageType.name()));
+                            } catch (Exception e) {
+                                LOGGER.warning("Connection lifecycle handler threw "
+                                        + e.getClass().getName() + " onError(): " +  e.getMessage());
+                            }
+                            connection.closeConnection(0);
                         } else {    //don't kill entire connection over this
                             LOGGER.severe("Unprocessed message type: " + messageType.name());
                         }
