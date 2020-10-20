@@ -422,6 +422,7 @@
                 <configuration>
                     <excludes>
                         <exclude>**/*Exception*</exclude>
+                        <exclude>**/awssdk/**</exclude>
                     </excludes>
                     <propertyName>surefire.argLine</propertyName>
                     <skip>${skipTests}</skip>
