@@ -30,13 +30,10 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS;
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC;
-import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC;
-import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -47,6 +44,8 @@ import static org.mockito.internal.verification.VerificationModeFactory.atLeast;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class TelemetryAgentTest extends BaseITCase {
+    private static final int aggregateInterval = 2;
+    private static final int publishInterval = 4;
     private Kernel kernel;
     @Mock
     private MqttClient mqttClient;
@@ -75,34 +74,31 @@ class TelemetryAgentTest extends BaseITCase {
         //WHEN
         CountDownLatch telemetryRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals(TELEMETRY_AGENT_SERVICE_TOPICS) &&
-                    service.getState().equals(State.RUNNING)) {
-                telemetryRunning.countDown();
+            if (service.getName().equals(TELEMETRY_AGENT_SERVICE_TOPICS)) {
+                if (service.getState().equals(State.RUNNING)) {
+                    telemetryRunning.countDown();
+                }
                 ta = (TelemetryAgent) service;
+                ta.setPeriodicPublishMetricsIntervalSec(publishInterval);
+                ta.setPeriodicAggregateMetricsIntervalSec(aggregateInterval);
+                ta.schedulePeriodicAggregateMetrics(true);
+                ta.schedulePeriodicPublishMetrics(true);
             }
-
         });
         kernel.launch();
         assertTrue(telemetryRunning.await(10, TimeUnit.SECONDS), "TelemetryAgent is not in RUNNING state.");
         Topics telTopics = kernel.findServiceTopic(TELEMETRY_AGENT_SERVICE_TOPICS);
         assertNotNull(telTopics);
-        int aggregateInterval = Coerce.toInt(telTopics.find(PARAMETERS_CONFIG_KEY,
-                TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC));
-        int periodicInterval = Coerce.toInt(telTopics.find(PARAMETERS_CONFIG_KEY,
-                TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC));
-        //telemetry configurations are set correctly
-        assertEquals(2, aggregateInterval);
-        assertEquals(4, periodicInterval);
         long lastAgg = Coerce.toLong(telTopics.find(RUNTIME_STORE_NAMESPACE_TOPIC,
                 TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC));
 
         //wait till the first publish
-        TimeUnit.SECONDS.sleep(periodicInterval + 1);
+        TimeUnit.SECONDS.sleep(publishInterval + 1);
         assertTrue(Coerce.toLong(telTopics.find(RUNTIME_STORE_NAMESPACE_TOPIC,
                 TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC)) > lastAgg);
         assertNotNull(ta.getPeriodicPublishMetricsFuture(), "periodic publish future is not scheduled.");
         long delay = ta.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
-        assertTrue(delay <= periodicInterval);
+        assertTrue(delay <= publishInterval);
         // telemetry logs are always written to ~root/telemetry
         assertEquals(kernel.getNucleusPaths().rootPath().resolve("telemetry"),
                 TelemetryConfig.getTelemetryDirectory());

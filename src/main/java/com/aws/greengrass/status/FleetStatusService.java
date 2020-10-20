@@ -20,7 +20,9 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.MqttChunkedPayloadPublisher;
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.lang3.RandomUtils;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
@@ -55,11 +57,10 @@ public class FleetStatusService extends GreengrassService {
     public static final String FLEET_STATUS_SERVICE_TOPICS = "FleetStatusService";
     public static final String DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC =
             "$aws/things/{thingName}/greengrassv2/health/json";
-    static final String FLEET_STATUS_SERVICE_PUBLISH_TOPICS = "fleetStatusServicePublishTopic";
     static final String FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC = "periodicUpdateIntervalSec";
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
-    private static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 86_400;
+    static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 86_400;
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
 
     private String updateTopic;
@@ -80,8 +81,9 @@ public class FleetStatusService extends GreengrassService {
     private final ConcurrentHashMap<GreengrassService, Instant> allServiceNamesMap = new ConcurrentHashMap<>();
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
     private final Object periodicUpdateInProgressLock = new Object();
+    @Setter // Needed for integration tests.
+    @Getter(AccessLevel.PACKAGE) // Needed for unit tests.
     private int periodicUpdateIntervalSec;
-    private String fleetStatusServicePublishTopic = DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC;
     private ScheduledFuture<?> periodicUpdateFuture;
 
     @Getter
@@ -110,6 +112,22 @@ public class FleetStatusService extends GreengrassService {
     @Inject
     public FleetStatusService(Topics topics, MqttClient mqttClient, DeploymentStatusKeeper deploymentStatusKeeper,
                               Kernel kernel, DeviceConfiguration deviceConfiguration) {
+        this(topics, mqttClient, deploymentStatusKeeper, kernel, deviceConfiguration,
+                DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC);
+    }
+
+    /**
+     * Constructor for FleetStatusService.
+     *
+     * @param topics                        root Configuration topic for this service
+     * @param mqttClient                    {@link MqttClient}
+     * @param deploymentStatusKeeper        {@link DeploymentStatusKeeper}
+     * @param kernel                        {@link Kernel}
+     * @param deviceConfiguration           {@link DeviceConfiguration}
+     * @param periodicUpdateIntervalSec     interval for cadence based status update.
+     */
+    public FleetStatusService(Topics topics, MqttClient mqttClient, DeploymentStatusKeeper deploymentStatusKeeper,
+                              Kernel kernel, DeviceConfiguration deviceConfiguration, int periodicUpdateIntervalSec) {
         super(topics);
 
         this.mqttClient = mqttClient;
@@ -117,6 +135,7 @@ public class FleetStatusService extends GreengrassService {
         this.kernel = kernel;
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
         this.architecture = System.getProperty("os.arch");
+        this.periodicUpdateIntervalSec = periodicUpdateIntervalSec;
 
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
 
@@ -130,15 +149,16 @@ public class FleetStatusService extends GreengrassService {
         topics.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
-                    periodicUpdateIntervalSec = Coerce.toInt(newv);
+                    int newPeriodicUpdateIntervalSec = Coerce.toInt(newv);
+                    // Do not update the scheduled interval if it is less than the default.
+                    if (newPeriodicUpdateIntervalSec < DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC) {
+                        return;
+                    }
+                    this.periodicUpdateIntervalSec = newPeriodicUpdateIntervalSec;
                     if (periodicUpdateFuture != null) {
                         schedulePeriodicFleetStatusDataUpdate(false);
                     }
                 });
-
-        topics.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_SERVICE_PUBLISH_TOPICS)
-                .dflt(DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC)
-                .subscribe((why, newv) -> fleetStatusServicePublishTopic = Coerce.toString(newv));
 
         topics.getContext().addGlobalStateChangeListener(this::handleServiceStateChange);
 
@@ -156,12 +176,18 @@ public class FleetStatusService extends GreengrassService {
     private void updateThingNameAndPublishTopic(String newThingName) {
         if (newThingName != null) {
             thingName = newThingName;
-            updateTopic = fleetStatusServicePublishTopic.replace("{thingName}", thingName);
+            updateTopic = DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC.replace("{thingName}", thingName);
             this.publisher.setUpdateTopic(updateTopic);
         }
     }
 
-    private void schedulePeriodicFleetStatusDataUpdate(boolean isDuringConnectionResumed) {
+    /**
+     * Schedule cadence based periodic updates for fleet status.
+     *
+     * @param isDuringConnectionResumed boolean to indicate if the cadence based update is being rescheduled after
+     *                                  connection resumed.
+     */
+    public void schedulePeriodicFleetStatusDataUpdate(boolean isDuringConnectionResumed) {
         // If the last periodic update was missed, update the fleet status service for all running services.
         // Else update only the statuses of the services whose status changed (if any) and if the method is called
         // due to a MQTT connection resumption.
