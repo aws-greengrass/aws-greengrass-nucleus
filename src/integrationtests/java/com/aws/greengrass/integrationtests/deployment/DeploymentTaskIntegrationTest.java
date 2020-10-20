@@ -892,8 +892,7 @@ class DeploymentTaskIntegrationTest {
                 PRIVATE_STORE_NAMESPACE_TOPIC);
         String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
         final EventStreamRPCConnection clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions,
-                authToken,
-                kernel);
+                authToken, kernel);
         SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest = new SubscribeToComponentUpdatesRequest();
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest, Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
@@ -931,7 +930,7 @@ class DeploymentTaskIntegrationTest {
         CountDownLatch cdlUpdateStarted = new CountDownLatch(1);
         CountDownLatch cdlMergeCancelled = new CountDownLatch(1);
         Consumer<GreengrassLogMessage> listener = m -> {
-            if (m.getMessage() != null && m.getMessage().contains("deferred by NonDisruptableService")) {
+            if (m.getMessage() != null && m.getMessage().contains("deferred for 60000 millis with message Test")) {
                 cdlUpdateStarted.countDown();
             }
             if (m.getMessage() != null && m.getMessage()
