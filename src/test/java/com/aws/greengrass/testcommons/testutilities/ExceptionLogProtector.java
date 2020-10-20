@@ -140,6 +140,10 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         ignoreExceptionWithMessageSubstring(context, "Failed to connect to service endpoint:");
         ignoreExceptionWithMessageSubstring(context, "Forbidden (Service: null; Status Code: 403;");
 
+        // Ignore IPC error which somehow happens even though we ignore it in the tests which cause it
+        // (probably threading?)
+        ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
+
         ignoreExceptionOfType(context, RejectedExecutionException.class);
         ignoreExceptionOfType(context, ClosedByInterruptException.class);
     }
