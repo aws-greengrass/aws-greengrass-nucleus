@@ -66,7 +66,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.LOCAL_DEPLOYMENT_RESOURCE;
-import static com.aws.greengrass.ipc.IPCEventStreamService.KERNEL_DOMAIN_SOCKET_FILEPATH;
+import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_AUTH_TOKEN;
 import static com.aws.greengrass.ipc.modules.CLIService.CLI_IPC_INFO_FILENAME;
@@ -160,7 +160,7 @@ class CLIServiceTest extends GGServiceTestUtil {
         Topics mockRootTopics = mock(Topics.class);
         when(mockRootTopics.find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME))
                 .thenReturn(mockSocketUrlTopic);
-        when(mockRootTopics.find(SETENV_CONFIG_NAMESPACE, KERNEL_DOMAIN_SOCKET_FILEPATH))
+        when(mockRootTopics.find(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH))
                 .thenReturn(mockSocketUrlTopic);
         when(cliConfigSpy.getRoot()).thenReturn(mockRootTopics);
         cliService.startup();

@@ -37,7 +37,7 @@ public class IPCEventStreamService implements Startable, Closeable {
                 new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipcEventStreamServer";
-    public static final String KERNEL_DOMAIN_SOCKET_FILEPATH = "AWS_GG_KERNEL_DOMAIN_SOCKET_FILEPATH";
+    public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH = "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH";
 
     private static Logger logger = LogManager.getLogger(IPCEventStreamService.class);
 
@@ -94,7 +94,7 @@ public class IPCEventStreamService implements Startable, Closeable {
                 logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file");
             }
         }
-        Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, KERNEL_DOMAIN_SOCKET_FILEPATH);
+        Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
         kernelUri.withValue(ipcServerSocketPath);
         ipcServer = new IpcServer(eventLoopGroup, socketOptions, null, ipcServerSocketPath,
                 DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
