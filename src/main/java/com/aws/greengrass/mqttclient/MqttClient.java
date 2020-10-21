@@ -8,8 +8,11 @@ package com.aws.greengrass.mqttclient;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttclient.spool.Spool;
+import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.ProxyUtils;
@@ -38,6 +41,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -92,6 +97,8 @@ public class MqttClient implements Closeable {
     private final HostResolver hostResolver;
     private final ClientBootstrap clientBootstrap;
     private final CallbackEventManager callbackEventManager = new CallbackEventManager();
+    private final Spool spool;
+    private final ScheduledExecutorService ses;
 
     //
     // TODO: Handle timeouts and retries
@@ -102,10 +109,12 @@ public class MqttClient implements Closeable {
      *
      * @param deviceConfiguration device configuration
      * @param executorService     executor service
+     * @param ses                 scheduled executor service
      */
     @Inject
-    public MqttClient(DeviceConfiguration deviceConfiguration, ExecutorService executorService) {
-        this(deviceConfiguration, null, executorService);
+    public MqttClient(Kernel kernel, DeviceConfiguration deviceConfiguration, ExecutorService executorService,
+                      ScheduledExecutorService ses) {
+        this(deviceConfiguration, null, executorService, ses);
 
         HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
 
@@ -165,8 +174,10 @@ public class MqttClient implements Closeable {
 
     protected MqttClient(DeviceConfiguration deviceConfiguration,
                          Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
-                         ExecutorService executorService) {
+                         ExecutorService executorService,
+                         ScheduledExecutorService ses) {
         this.deviceConfiguration = deviceConfiguration;
+        this.ses = ses;
 
         // If anything in the device configuration changes, then we wil need to reconnect to the cloud
         // using the new settings. We do this by calling reconnect() on all of our connections
@@ -212,6 +223,8 @@ public class MqttClient implements Closeable {
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
+        spool = new Spool(mqttTopics);
+        spoolMessage();
     }
 
     /**
@@ -328,8 +341,59 @@ public class MqttClient implements Closeable {
      * @param request publish request
      */
     public CompletableFuture<Integer> publish(PublishRequest request) {
-        return getConnection(false).publish(new MqttMessage(request.getTopic(), request.getPayload()), request.getQos(),
-                request.isRetain());
+        boolean onlineFlag = callbackEventManager.hasCallbacked();
+        boolean willDropTheRequest = !onlineFlag && request.getQos().getValue() == 0
+                && !spool.getSpoolConfig().isKeepQos0WhenOffline();
+
+        if (willDropTheRequest) {
+            return CompletableFuture.completedFuture(0);
+        }
+
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        try {
+            spool.addMessage(request);
+        } catch (InterruptedException e) {
+            future.completeExceptionally(e);
+            return future;
+        }
+        return CompletableFuture.completedFuture(0);
+    }
+
+    /**
+     * The scheduled executor service may try to drain the spooler queue every 5 seconds.
+     */
+    public void spoolMessage() {
+        boolean onlineFlag = callbackEventManager.hasCallbacked();
+
+        ScheduledFuture<?> handler =
+                ses.scheduleWithFixedDelay(() -> {
+                    try {
+                        while (onlineFlag && spool.messageCount() > 0) {
+                            Long id = spool.popId();
+                            SpoolMessage messageToBePublished = spool.getMessageById(id);
+                            boolean exceedMaxRetried = messageToBePublished.getRetried().getAndIncrement()
+                                    > spool.getSpoolConfig().maxRetried;
+                            if (exceedMaxRetried) {
+                                spool.removeMessageById(id);
+                                continue;
+                            }
+
+                            PublishRequest request = messageToBePublished.getPublishRequest();
+                            getConnection(false)
+                                    .publish(new MqttMessage(request.getTopic(),
+                                            request.getPayload()), request.getQos(), request.isRetain())
+                                    .whenComplete((packageId, throwable) -> {
+                                        if (packageId != null) {
+                                            spool.removeMessageById(id);
+                                        } else {
+                                            spool.addId(id);
+                                        }
+                                    });
+                        }
+                    } catch (Throwable t) {
+                        logger.atError().log("Caught exception while spooling the message", t);
+                    }
+                }, 0, 5, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("PMD.CloseResource")
