@@ -147,7 +147,7 @@ public class CLIService extends GreengrassService {
     }
 
     @Override
-    protected void startup() throws InterruptedException{
+    protected void startup() throws InterruptedException {
         try {
             generateCliIpcInfo();
             reportState(State.RUNNING);
