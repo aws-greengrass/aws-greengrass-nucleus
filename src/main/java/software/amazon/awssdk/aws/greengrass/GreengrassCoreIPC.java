@@ -1,5 +1,6 @@
 package software.amazon.awssdk.aws.greengrass;
 
+import java.util.Optional;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationUpdateEvents;
 import software.amazon.awssdk.aws.greengrass.model.CreateLocalDeploymentRequest;
@@ -27,11 +28,9 @@ import software.amazon.awssdk.aws.greengrass.model.UpdateConfigurationRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateRecipesAndArtifactsRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
 import software.amazon.awssdk.aws.greengrass.model.ValidateAuthorizationTokenRequest;
+import software.amazon.awssdk.aws.greengrass.model.ValidateConfigurationUpdateEvents;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
-
-import java.util.Optional;
-
 
 public interface GreengrassCoreIPC {
   SubscribeToIoTCoreResponseHandler subscribeToIoTCore(final SubscribeToIoTCoreRequest request,
@@ -67,7 +66,7 @@ public interface GreengrassCoreIPC {
 
   SubscribeToValidateConfigurationUpdatesResponseHandler subscribeToValidateConfigurationUpdates(
       final SubscribeToValidateConfigurationUpdatesRequest request,
-      final Optional<StreamResponseHandler<EventStreamJsonMessage>> streamResponseHandler);
+      final Optional<StreamResponseHandler<ValidateConfigurationUpdateEvents>> streamResponseHandler);
 
   ValidateAuthorizationTokenResponseHandler validateAuthorizationToken(
       final ValidateAuthorizationTokenRequest request,

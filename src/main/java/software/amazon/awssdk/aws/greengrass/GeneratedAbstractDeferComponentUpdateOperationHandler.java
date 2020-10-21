@@ -8,7 +8,6 @@ import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext
 import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-
 public abstract class GeneratedAbstractDeferComponentUpdateOperationHandler extends OperationContinuationHandler<DeferComponentUpdateRequest, DeferComponentUpdateResponse, EventStreamJsonMessage, EventStreamJsonMessage> {
   protected GeneratedAbstractDeferComponentUpdateOperationHandler(
       OperationContinuationHandlerContext context) {

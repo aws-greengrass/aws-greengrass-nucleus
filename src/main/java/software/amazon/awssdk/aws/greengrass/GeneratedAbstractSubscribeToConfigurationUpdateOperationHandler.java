@@ -9,7 +9,6 @@ import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext
 import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-
 public abstract class GeneratedAbstractSubscribeToConfigurationUpdateOperationHandler extends OperationContinuationHandler<SubscribeToConfigurationUpdateRequest, SubscribeToConfigurationUpdateResponse, EventStreamJsonMessage, ConfigurationUpdateEvents> {
   protected GeneratedAbstractSubscribeToConfigurationUpdateOperationHandler(
       OperationContinuationHandlerContext context) {
