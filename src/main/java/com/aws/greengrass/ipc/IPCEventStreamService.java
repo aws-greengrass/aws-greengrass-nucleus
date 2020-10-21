@@ -32,6 +32,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFI
 
 @NoArgsConstructor
 public class IPCEventStreamService implements Startable, Closeable {
+    public static final long DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS = 5;
     public static final int DEFAULT_PORT_NUMBER = 8033;
     private static final ObjectMapper OBJECT_MAPPER =
                 new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)

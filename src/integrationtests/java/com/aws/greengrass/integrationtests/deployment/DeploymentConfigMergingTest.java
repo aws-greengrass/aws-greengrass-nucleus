@@ -501,7 +501,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
                                 DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
                                 deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(7).toMillis());
                                 deferComponentUpdateRequest.setMessage("Test");
-                                greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
+                                greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest,
+                                        Optional.empty());
                                 deferCount.getAndIncrement();
                             }
                         }
@@ -519,7 +520,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
                     @Override
                     public void onStreamClosed() {
-
+                        logger.atWarn().log("Stream closed by the server");
                     }
                 }
         ));
