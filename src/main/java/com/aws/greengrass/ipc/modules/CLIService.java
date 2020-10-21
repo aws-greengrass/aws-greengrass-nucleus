@@ -147,7 +147,7 @@ public class CLIService extends GreengrassService {
     }
 
     @Override
-    protected void startup() {
+    protected void startup() throws InterruptedException{
         try {
             generateCliIpcInfo();
             reportState(State.RUNNING);
@@ -156,8 +156,6 @@ public class CLIService extends GreengrassService {
                     .setCause(e)
                     .log("Failed to create cli_ipc_info file");
             reportState(State.ERRORED);
-        } catch (InterruptedException e) {
-            requestStop();
         }
     }
 
@@ -195,7 +193,7 @@ public class CLIService extends GreengrassService {
             generateCliIpcInfoForEffectiveUser(authTokenDir);
             return;
         }
-        String posixGroups = Coerce.toString(authorizedPosixGroups.getOnce());
+        String posixGroups = Coerce.toString(authorizedPosixGroups);
         if (posixGroups == null || posixGroups.length() == 0) {
             generateCliIpcInfoForEffectiveUser(authTokenDir);
             return;
@@ -217,16 +215,16 @@ public class CLIService extends GreengrassService {
     private synchronized void generateCliIpcInfoForEffectiveUser(Path directory)
             throws UnauthenticatedException, IOException, InterruptedException {
         String defaultClientId = USER_CLIENT_ID_PREFIX + Platform.getInstance().getEffectiveUID();
-        File ipcInfoFile = generateCliIpcInfoForClient(defaultClientId, directory);
+        Path ipcInfoFile = generateCliIpcInfoForClient(defaultClientId, directory);
         if (ipcInfoFile == null) {
             return;
         }
-        Platform.getInstance().setPermissions(DEFAULT_FILE_PERMISSION, ipcInfoFile.toPath());
+        Platform.getInstance().setPermissions(DEFAULT_FILE_PERMISSION, ipcInfoFile);
     }
 
     private synchronized void generateCliIpcInfoForPosixGroup(Group group, Path directory)
             throws UnauthenticatedException, IOException {
-        File ipcInfoFile = generateCliIpcInfoForClient(getClientIdForGroup(group.getId()), directory);
+        Path ipcInfoFile = generateCliIpcInfoForClient(getClientIdForGroup(group.getId()), directory);
         if (ipcInfoFile == null) {
             return;
         }
@@ -234,16 +232,16 @@ public class CLIService extends GreengrassService {
         FileSystemPermission filePermission = new FileSystemPermission(null, group.getName(), true, true, false,
                 true, false, false, false, false, false);
         try {
-            Platform.getInstance().setPermissions(filePermission, ipcInfoFile.toPath());
+            Platform.getInstance().setPermissions(filePermission, ipcInfoFile);
         } catch (IOException e) {
-            logger.atError().kv("file", ipcInfoFile.toPath()).kv("permission", filePermission)
+            logger.atError().kv("file", ipcInfoFile).kv("permission", filePermission)
                     .kv("groupOwner", group.getName()).log("Failed to set up posix file permissions and group owner. "
-                    + "Admin may have to manually update the file permission so that CLI authentication"
+                    + "Admin may have to manually update the file permission so that CLI authentication "
                     + "works as intended", e);
         }
     }
 
-    private synchronized File generateCliIpcInfoForClient(String clientId, Path directory)
+    private synchronized Path generateCliIpcInfoForClient(String clientId, Path directory)
             throws UnauthenticatedException, IOException {
         if (clientIdToAuthToken.containsKey(clientId)) {
             // Duplicate user input. No need to override auth token.
@@ -265,7 +263,7 @@ public class CLIService extends GreengrassService {
         Files.write(filePath, OBJECT_MAPPER.writeValueAsString(ipcInfo)
                 .getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         ipcInfo.clear();
-        return new File(filePath.toString());
+        return filePath;
     }
 
     private String getAuthClientIdentifier(String clientId) {
@@ -283,10 +281,14 @@ public class CLIService extends GreengrassService {
         File[] allContents = authTokenDir.toFile().listFiles();
         if (allContents != null) {
             for (File file : allContents) {
-                file.delete();
+                try {
+                    Files.delete(file.toPath());
+                } catch (IOException e) {
+                    logger.atWarn().log("Unable to delete auth file " + file, e);
+                }
             }
         }
-        logger.atInfo().log("Auth tokens have been revoked and auth files have been cleaned up");
+        logger.atInfo().log("Auth tokens have been revoked");
     }
 
     @Data

@@ -101,7 +101,7 @@ public class AuthenticationHandler implements InjectionActions {
         // Making it available only for CLIService right now. If it needs to be extended, requesting service can be
         // taken as a parameter
         if (!authenticatedService.equals(CLIService.CLI_SERVICE)) {
-            logger.atError().kv("Requesting service name", CLIService.CLI_SERVICE)
+            logger.atError().kv("requestingServiceName", CLIService.CLI_SERVICE)
                     .log("Invalid requesting auth token for service to register/revoke external client token");
             throw new UnauthenticatedException("Invalid requesting auth token for service");
         }
@@ -127,7 +127,7 @@ public class AuthenticationHandler implements InjectionActions {
         if (tokenTopic == null) {
             return false;
         }
-        tokenTopic.withParentNeedsToKnow(false).remove();
+        tokenTopic.remove();
         return true;
     }
 
