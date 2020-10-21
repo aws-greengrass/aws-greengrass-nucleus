@@ -319,6 +319,11 @@ class IPCServicesTest {
         SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest =
                 new SubscribeToComponentUpdatesRequest();
         CountDownLatch cdl = new CountDownLatch(2);
+        CountDownLatch subscriptionLatch = new CountDownLatch(1);
+        Slf4jLogAdapter.addGlobalListener(m->{
+            m.getMessage().contains("subscribed to component update");
+            subscriptionLatch.countDown();
+        });
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest, Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
             @Override
@@ -346,11 +351,6 @@ class IPCServicesTest {
             }
         }));
 
-        CountDownLatch subscriptionLatch = new CountDownLatch(1);
-        Slf4jLogAdapter.addGlobalListener(m->{
-            m.getMessage().contains("subscribed to component update");
-            subscriptionLatch.countDown();
-        });
         assertTrue(subscriptionLatch.await(5, TimeUnit.SECONDS));
         // TODO: When Cli support safe update setting in local deployment, then create a local deployment here to
         //  trigger update
