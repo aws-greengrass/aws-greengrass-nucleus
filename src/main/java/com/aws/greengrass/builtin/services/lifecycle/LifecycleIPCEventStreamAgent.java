@@ -96,9 +96,7 @@ public class LifecycleIPCEventStreamAgent {
             GreengrassService service;
             try {
                 service = kernel.locate(serviceN);
-                log.atInfo().log("Located the service");
                 service.reportState(s);
-                log.atInfo().log("Reported the state");
             } catch (ServiceLoadException e) {
                 log.atWarn().kv("service name", request.getServiceName()).log("Service not present");
                 ResourceNotFoundError rnf = new ResourceNotFoundError();
@@ -242,7 +240,7 @@ public class LifecycleIPCEventStreamAgent {
             String serviceName = entry.getKey();
             entry.getValue().forEach(subscribeHandler -> {
                 ComponentUpdatePolicyEvents componentUpdatePolicyEvents = new ComponentUpdatePolicyEvents();
-                log.atInfo().kv("serviceName", serviceName).log("Sending postComponentUpdate event");
+                log.atDebug().kv("serviceName", serviceName).log("Sending postComponentUpdate event to");
                 componentUpdatePolicyEvents.setPostUpdateEvent(postComponentUpdateEvent);
                 subscribeHandler.sendStreamEvent(componentUpdatePolicyEvents);
             });
