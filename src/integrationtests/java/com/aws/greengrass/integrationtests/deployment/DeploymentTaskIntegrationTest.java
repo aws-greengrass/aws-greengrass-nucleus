@@ -60,7 +60,6 @@ import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRe
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
-import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.File;
@@ -792,7 +791,6 @@ class DeploymentTaskIntegrationTest {
     @Order(6)
     void GIVEN_services_running_WHEN_new_service_breaks_failure_handling_policy_do_nothing_THEN_service_stays_broken(
             ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, MqttException.class);
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
@@ -843,7 +841,6 @@ class DeploymentTaskIntegrationTest {
     @Order(7)
     void GIVEN_services_running_WHEN_new_service_breaks_failure_handling_policy_rollback_THEN_services_are_rolled_back(
             ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, MqttException.class);
         Map<String, Object> pkgDetails = new HashMap<>();
         pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0");
         groupToRootComponentsTopics.lookupTopics("RedSignal").replaceAndWait(pkgDetails);
