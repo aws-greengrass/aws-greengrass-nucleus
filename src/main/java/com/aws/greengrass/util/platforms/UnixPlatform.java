@@ -17,9 +17,12 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -189,6 +192,12 @@ public class UnixPlatform extends Platform {
         if (permission.getOwnerUser() != null) {
             Files.setOwner(path, path.getFileSystem().getUserPrincipalLookupService()
                     .lookupPrincipalByName(permission.getOwnerUser()));
+        }
+        if (permission.getOwnerGroup() != null) {
+            PosixFileAttributeView posixFile = Files.getFileAttributeView(path,
+                    PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+            posixFile.setGroup(FileSystems.getDefault().getUserPrincipalLookupService()
+                    .lookupPrincipalByGroupName(permission.getOwnerGroup()));
         }
     }
 

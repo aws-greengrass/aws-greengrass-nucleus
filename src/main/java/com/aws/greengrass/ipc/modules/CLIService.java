@@ -35,6 +35,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.platforms.Group;
 import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -47,14 +48,9 @@ import lombok.Data;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
-import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.GroupPrincipal;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -76,7 +72,8 @@ public class CLIService extends GreengrassService {
 
     static final String USER_CLIENT_ID_PREFIX = "user-";
     static final String GROUP_CLIENT_ID_PREFIX = "group-";
-    static final String GROUP_BASED_POSIX_FILE_PERMISSION = "rw-r-----";
+    static final FileSystemPermission DEFAULT_FILE_PERMISSION = new FileSystemPermission(null, null,
+            true, true, false, false, false, false, false, false, false);
 
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
     protected static final ObjectMapper OBJECT_MAPPER =
@@ -224,9 +221,7 @@ public class CLIService extends GreengrassService {
         if (ipcInfoFile == null) {
             return;
         }
-        ipcInfoFile.setReadable(false, false);
-        ipcInfoFile.setReadable(true, true);
-        ipcInfoFile.setWritable(true, true);
+        Platform.getInstance().setPermissions(DEFAULT_FILE_PERMISSION, ipcInfoFile.toPath());
     }
 
     private synchronized void generateCliIpcInfoForPosixGroup(Group group, Path directory)
@@ -236,17 +231,12 @@ public class CLIService extends GreengrassService {
             return;
         }
 
-        // This only supports POSIX compliant file permission right now. We will need to
-        // change this when trying to support Greengrass in Non-POSIX OS.
+        FileSystemPermission filePermission = new FileSystemPermission(null, group.getName(), true, true, false,
+                true, false, false, false, false, false);
         try {
-            GroupPrincipal groupPrincipal = FileSystems.getDefault().getUserPrincipalLookupService()
-                    .lookupPrincipalByGroupName(group.getName());
-            PosixFileAttributeView posixFile = Files.getFileAttributeView(ipcInfoFile.toPath(),
-                    PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
-            posixFile.setPermissions(PosixFilePermissions.fromString(GROUP_BASED_POSIX_FILE_PERMISSION));
-            posixFile.setGroup(groupPrincipal);
+            Platform.getInstance().setPermissions(filePermission, ipcInfoFile.toPath());
         } catch (IOException e) {
-            logger.atError().kv("file", ipcInfoFile.toPath()).kv("permission", GROUP_BASED_POSIX_FILE_PERMISSION)
+            logger.atError().kv("file", ipcInfoFile.toPath()).kv("permission", filePermission)
                     .kv("groupOwner", group.getName()).log("Failed to set up posix file permissions and group owner. "
                     + "Admin may have to manually update the file permission so that CLI authentication"
                     + "works as intended", e);
