@@ -1,14 +1,10 @@
 package software.amazon.awssdk.aws.greengrass.model;
 
-import com.google.gson.annotations.Expose;
-import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
-
 import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Objects;
-import java.util.Optional;
-
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 public class SubscribeToValidateConfigurationUpdatesResponse implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#SubscribeToValidateConfigurationUpdatesResponse";
@@ -24,25 +20,7 @@ public class SubscribeToValidateConfigurationUpdatesResponse implements EventStr
     };
   }
 
-  @Expose(
-      serialize = true,
-      deserialize = true
-  )
-  private Optional<ValidateConfigurationUpdateEvents> messages;
-
   public SubscribeToValidateConfigurationUpdatesResponse() {
-    this.messages = Optional.empty();
-  }
-
-  public ValidateConfigurationUpdateEvents getMessages() {
-    if (messages.isPresent()) {
-      return messages.get();
-    }
-    return null;
-  }
-
-  public void setMessages(final ValidateConfigurationUpdateEvents messages) {
-    this.messages = Optional.ofNullable(messages);
   }
 
   @Override
@@ -57,12 +35,11 @@ public class SubscribeToValidateConfigurationUpdatesResponse implements EventStr
     if (this == rhs) return true;
     final SubscribeToValidateConfigurationUpdatesResponse other = (SubscribeToValidateConfigurationUpdatesResponse)rhs;
     boolean isEquals = true;
-    isEquals = isEquals && this.messages.equals(other.messages);
     return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(messages);
+    return Objects.hash();
   }
 }

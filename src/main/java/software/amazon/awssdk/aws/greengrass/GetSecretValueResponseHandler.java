@@ -8,7 +8,6 @@ import software.amazon.awssdk.eventstreamrpc.OperationResponse;
 import software.amazon.awssdk.eventstreamrpc.StreamResponse;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-
 public final class GetSecretValueResponseHandler implements StreamResponse<GetSecretValueResponse, EventStreamJsonMessage> {
   private final OperationResponse<GetSecretValueResponse, EventStreamJsonMessage> operationResponse;
 

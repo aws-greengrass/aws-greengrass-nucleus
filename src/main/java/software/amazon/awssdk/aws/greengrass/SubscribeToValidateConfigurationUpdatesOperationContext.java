@@ -6,12 +6,12 @@ import java.lang.String;
 import java.util.Optional;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToValidateConfigurationUpdatesRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToValidateConfigurationUpdatesResponse;
+import software.amazon.awssdk.aws.greengrass.model.ValidateConfigurationUpdateEvents;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
 import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-
-public class SubscribeToValidateConfigurationUpdatesOperationContext implements OperationModelContext<SubscribeToValidateConfigurationUpdatesRequest, SubscribeToValidateConfigurationUpdatesResponse, EventStreamJsonMessage, EventStreamJsonMessage> {
+public class SubscribeToValidateConfigurationUpdatesOperationContext implements OperationModelContext<SubscribeToValidateConfigurationUpdatesRequest, SubscribeToValidateConfigurationUpdatesResponse, EventStreamJsonMessage, ValidateConfigurationUpdateEvents> {
   @Override
   public EventStreamRPCServiceModel getServiceModel() {
     return GreengrassCoreIPCServiceModel.getInstance();
@@ -48,8 +48,8 @@ public class SubscribeToValidateConfigurationUpdatesOperationContext implements 
   }
 
   @Override
-  public Optional<Class<EventStreamJsonMessage>> getStreamingResponseTypeClass() {
-    return Optional.empty();
+  public Optional<Class<ValidateConfigurationUpdateEvents>> getStreamingResponseTypeClass() {
+    return Optional.of(ValidateConfigurationUpdateEvents.class);
   }
 
   public Optional<String> getStreamingRequestApplicationModelType() {
@@ -58,6 +58,6 @@ public class SubscribeToValidateConfigurationUpdatesOperationContext implements 
 
   @Override
   public Optional<String> getStreamingResponseApplicationModelType() {
-    return Optional.empty();
+    return Optional.of(ValidateConfigurationUpdateEvents.APPLICATION_MODEL_TYPE);
   }
 }

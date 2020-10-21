@@ -1,21 +1,13 @@
 package software.amazon.awssdk.aws.greengrass.model;
 
-import com.google.gson.Gson;
-import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
-
 import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Objects;
-
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 public final class ListLocalDeploymentsRequest implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ListLocalDeploymentsRequest";
-
-  @Override
-  public byte[] toPayload(final Gson gson) {
-    return gson.toJson(this).getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  }
 
   @Override
   public String getApplicationModelType() {

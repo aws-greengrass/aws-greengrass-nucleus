@@ -8,7 +8,6 @@ import software.amazon.awssdk.eventstreamrpc.OperationResponse;
 import software.amazon.awssdk.eventstreamrpc.StreamResponse;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-
 public final class ListComponentsResponseHandler implements StreamResponse<ListComponentsResponse, EventStreamJsonMessage> {
   private final OperationResponse<ListComponentsResponse, EventStreamJsonMessage> operationResponse;
 

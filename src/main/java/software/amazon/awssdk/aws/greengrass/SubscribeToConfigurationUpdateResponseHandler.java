@@ -8,7 +8,6 @@ import software.amazon.awssdk.eventstreamrpc.OperationResponse;
 import software.amazon.awssdk.eventstreamrpc.StreamResponse;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-
 public final class SubscribeToConfigurationUpdateResponseHandler implements StreamResponse<SubscribeToConfigurationUpdateResponse, EventStreamJsonMessage> {
   private final OperationResponse<SubscribeToConfigurationUpdateResponse, EventStreamJsonMessage> operationResponse;
 

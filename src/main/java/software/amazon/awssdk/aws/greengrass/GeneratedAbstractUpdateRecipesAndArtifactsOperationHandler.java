@@ -8,7 +8,6 @@ import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext
 import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-
 public abstract class GeneratedAbstractUpdateRecipesAndArtifactsOperationHandler extends OperationContinuationHandler<UpdateRecipesAndArtifactsRequest, UpdateRecipesAndArtifactsResponse, EventStreamJsonMessage, EventStreamJsonMessage> {
   protected GeneratedAbstractUpdateRecipesAndArtifactsOperationHandler(
       OperationContinuationHandlerContext context) {

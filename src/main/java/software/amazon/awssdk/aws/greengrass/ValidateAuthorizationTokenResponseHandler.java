@@ -8,7 +8,6 @@ import software.amazon.awssdk.eventstreamrpc.OperationResponse;
 import software.amazon.awssdk.eventstreamrpc.StreamResponse;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-
 public final class ValidateAuthorizationTokenResponseHandler implements StreamResponse<ValidateAuthorizationTokenResponse, EventStreamJsonMessage> {
   private final OperationResponse<ValidateAuthorizationTokenResponse, EventStreamJsonMessage> operationResponse;
 

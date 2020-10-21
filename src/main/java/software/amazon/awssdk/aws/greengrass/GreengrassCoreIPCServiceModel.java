@@ -269,6 +269,7 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OBJECT_MODEL_MAP.put(ListComponentsResponse.APPLICATION_MODEL_TYPE, ListComponentsResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(DeferComponentUpdateRequest.APPLICATION_MODEL_TYPE, DeferComponentUpdateRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(SendConfigurationValidityReportRequest.APPLICATION_MODEL_TYPE, SendConfigurationValidityReportRequest.class);
+    SERVICE_OBJECT_MODEL_MAP.put(InvalidArgumentError.APPLICATION_MODEL_TYPE, InvalidArgumentError.class);
     SERVICE_OBJECT_MODEL_MAP.put(UpdateConfigurationRequest.APPLICATION_MODEL_TYPE, UpdateConfigurationRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(ConflictError.APPLICATION_MODEL_TYPE, ConflictError.class);
     SERVICE_OBJECT_MODEL_MAP.put(FailedUpdateConditionCheckError.APPLICATION_MODEL_TYPE, FailedUpdateConditionCheckError.class);
@@ -292,7 +293,6 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OBJECT_MODEL_MAP.put(GetConfigurationResponse.APPLICATION_MODEL_TYPE, GetConfigurationResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToTopicRequest.APPLICATION_MODEL_TYPE, SubscribeToTopicRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToTopicResponse.APPLICATION_MODEL_TYPE, SubscribeToTopicResponse.class);
-    SERVICE_OBJECT_MODEL_MAP.put(InvalidArgumentError.APPLICATION_MODEL_TYPE, InvalidArgumentError.class);
     SERVICE_OBJECT_MODEL_MAP.put(GetComponentDetailsRequest.APPLICATION_MODEL_TYPE, GetComponentDetailsRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(GetComponentDetailsResponse.APPLICATION_MODEL_TYPE, GetComponentDetailsResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToComponentUpdatesResponse.APPLICATION_MODEL_TYPE, SubscribeToComponentUpdatesResponse.class);

@@ -8,7 +8,6 @@ import software.amazon.awssdk.eventstreamrpc.OperationResponse;
 import software.amazon.awssdk.eventstreamrpc.StreamResponse;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-
 public final class UnsubscribeFromIoTCoreResponseHandler implements StreamResponse<UnsubscribeFromIoTCoreResponse, EventStreamJsonMessage> {
   private final OperationResponse<UnsubscribeFromIoTCoreResponse, EventStreamJsonMessage> operationResponse;
 
