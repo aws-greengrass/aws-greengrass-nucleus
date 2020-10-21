@@ -39,6 +39,7 @@ import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.unix.UnixPlatform;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
@@ -49,6 +50,8 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
@@ -99,6 +102,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@DisabledOnOs(OS.WINDOWS)
 class IPCCliTest {
 
     private static Kernel kernel;
@@ -421,7 +425,7 @@ class IPCCliTest {
         for (String group : groups.split(" ")) {
             long gid;
             try {
-                gid = Platform.getInstance().getGroup(group).getId();
+                gid = ((UnixPlatform)Platform.getInstance()).lookupGroupByName(group).getGID();
                 return Long.toString(gid);
             } catch (IOException | NumberFormatException ignore) {
             }

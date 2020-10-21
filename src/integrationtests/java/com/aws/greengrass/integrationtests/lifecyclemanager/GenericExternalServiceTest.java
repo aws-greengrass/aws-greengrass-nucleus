@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
+import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
@@ -12,7 +13,10 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.RunWith;
+import com.aws.greengrass.lifecyclemanager.RunWithArtifactHandler;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.util.NucleusPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,7 +26,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -52,6 +58,23 @@ class GenericExternalServiceTest extends BaseITCase {
     @BeforeEach
     void beforeEach() {
         kernel = new Kernel();
+        kernel.getContext().put(RunWithArtifactHandler.class, new NoOpArtifactHandler(kernel.getNucleusPaths()));
+    }
+
+    /**
+     * Integration tests run as non-root user cannot change artifacts. This will skip the ownership update so tests
+     * will pass.
+     */
+    private static class NoOpArtifactHandler extends RunWithArtifactHandler {
+
+        public NoOpArtifactHandler(NucleusPaths paths) {
+            super(paths);
+        }
+
+        @Override
+        public void updateOwner(ComponentIdentifier id, RunWith runWith) throws IOException {
+            // do nothing
+        }
     }
 
     @AfterEach
@@ -332,14 +355,16 @@ class GenericExternalServiceTest extends BaseITCase {
 
         assertTrue(main.await(10, TimeUnit.SECONDS));
 
-        String user = Files.newBufferedReader(testFile.toPath()).readLine();
-        assertEquals(expectedUid, user);
+        try (BufferedReader userReader = Files.newBufferedReader(testFile.toPath())) {
+            String user = userReader.readLine();
+            assertEquals(expectedUid, user);
+        }
     }
 
     static Stream<Arguments> posixTestUserConfig() {
         return Stream.of(
-                arguments("config_run_with_user.yaml", "123456"),
-                arguments("config_run_with_user_shell.yaml", "123456"),
+                arguments("config_run_with_user.yaml", "1"),
+                arguments("config_run_with_user_shell.yaml", "1"),
                 arguments("config_run_with_privilege.yaml", "0")
         );
     }

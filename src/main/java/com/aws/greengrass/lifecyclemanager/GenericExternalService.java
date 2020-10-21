@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -13,6 +14,7 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.AuthenticationHandler;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
+import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Pair;
@@ -25,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
@@ -49,15 +52,22 @@ public class GenericExternalService extends GreengrassService {
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern SKIPCMD = Pattern.compile(SKIP_COMMAND_REGEX);
 
-    protected String runWithUser;
-    protected String runWithGroup;
-    protected String runWithShell;
-
     @Inject
     protected DeviceConfiguration deviceConfiguration;
 
     private final List<Exec> lifecycleProcesses = new CopyOnWriteArrayList<>();
 
+    @Inject
+    protected Kernel kernel;
+
+    @Inject
+    protected RunWithArtifactHandler artifactHandler;
+
+    protected RunWith runWith;
+
+    protected boolean artifactOwnershipUpdateRequired;
+
+    protected final Platform platform;
 
     /**
      * Create a new GenericExternalService.
@@ -65,11 +75,22 @@ public class GenericExternalService extends GreengrassService {
      * @param c root topic for this service.
      */
     public GenericExternalService(Topics c) {
-        this(c, c.lookupTopics(PRIVATE_STORE_NAMESPACE_TOPIC));
+        this(c, Platform.getInstance());
     }
 
-    protected GenericExternalService(Topics c, Topics privateSpace) {
+    /**
+     * Create a new GenericExternalService.
+     *
+     * @param c root topic for this service.
+     * @param platform the platform instance to use.
+     */
+    public GenericExternalService(Topics c, Platform platform) {
+        this(c, c.lookupTopics(PRIVATE_STORE_NAMESPACE_TOPIC), platform);
+    }
+
+    protected GenericExternalService(Topics c, Topics privateSpace, Platform platform) {
         super(c, privateSpace);
+        this.platform = platform;
 
         // when configuration reloads and child Topic changes, restart/re-install the service.
         c.subscribe((what, child) -> {
@@ -211,6 +232,12 @@ public class GenericExternalService extends GreengrassService {
     protected synchronized void install() throws InterruptedException {
         stopAllLifecycleProcesses();
 
+        // we want to process artifacts before running the install script
+        if (!storeInitialRunWithConfiguration()) {
+            serviceErrored("Error while determining run with configuration");
+            return;
+        }
+
         if (run(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses).getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in install");
         }
@@ -222,7 +249,10 @@ public class GenericExternalService extends GreengrassService {
     protected synchronized void startup() throws InterruptedException {
         stopAllLifecycleProcesses();
 
-        storeInitialRunWithConfiguration();
+        if (!storeInitialRunWithConfiguration()) {
+            serviceErrored("Error while loading run with configuration. Service cannot be started");
+            return;
+        }
 
         long startingStateGeneration = getStateGeneration();
 
@@ -255,7 +285,6 @@ public class GenericExternalService extends GreengrassService {
     private synchronized void handleRunScript() throws InterruptedException {
         stopAllLifecycleProcesses();
         long startingStateGeneration = getStateGeneration();
-
 
         Pair<RunStatus, Exec> result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
@@ -316,6 +345,7 @@ public class GenericExternalService extends GreengrassService {
             stopAllLifecycleProcesses();
             logger.atInfo().setEventType("generic-service-shutdown").log();
         }
+        artifactOwnershipUpdateRequired = true;
     }
 
     private synchronized void stopAllLifecycleProcesses() {
@@ -350,23 +380,52 @@ public class GenericExternalService extends GreengrassService {
      * Store user, group, and shell that will be used to run the service. This should be used throughout the lifecycle.
      * This information can change with a deployment, but service *must* execute the lifecycle steps with the same
      * user/group/shell that was configured when it started.
-     *
-     * <p>
-     * If no RunWith configuration is provided (either from kernel or the service), all lifecycle steps
-     * execute as the kernel user.
-     * </p>
      */
-    protected void storeInitialRunWithConfiguration() {
-        // TODO: Add support for Windows
-        if (!Exec.isWindows) {
-            runWithUser = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixUser());
-            runWithGroup = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixGroup());
-            // shell cannot be changed from kernel default
-            runWithShell = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixShell());
+    protected boolean storeInitialRunWithConfiguration() {
+        Optional<RunWith> opt = platform.getRunWithGenerator().generate(deviceConfiguration, config);
+        if (opt.isPresent()) {
+            runWith = opt.get();
 
-            runWithUser = Coerce.toString(config.findOrDefault(runWithUser, RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
-            runWithGroup = Coerce.toString(config.findOrDefault(runWithGroup, RUN_WITH_NAMESPACE_TOPIC,
-                    POSIX_GROUP_KEY));
+            LogEventBuilder logEvent = logger.atDebug().kv("user", runWith.getUser());
+            if (runWith.getGroup() != null) {
+                logEvent.kv("group", runWith.getGroup());
+            }
+            if (runWith.getShell() != null) {
+                logEvent.kv("shell", runWith.getShell());
+            }
+            logEvent.log("saving user information for service execution");
+            return true;
+        } else {
+            logger.atError().log("Could not determine user/group to run with for service");
+            return false;
+        }
+    }
+
+    /**
+     * Ownership of all files in the artifact directory is updated to reflect the current runWithUser and runWithGroup.
+     *
+     * @return <tt>true</tt> if the update succeeds, otherwise false.
+     */
+    protected boolean updateArtifactOwner() {
+        // no artifacts if no version key
+        if (config.findLeafChild(VERSION_CONFIG_KEY) == null) {
+            return true;
+        }
+
+        ComponentIdentifier id = ComponentIdentifier.fromServiceTopics(config);
+        try {
+            artifactHandler.updateOwner(id, runWith);
+            return true;
+        } catch (IOException e) {
+            LogEventBuilder logEvent = logger.atError()
+                    .setEventType("update-artifact-owner")
+                    .setCause(e)
+                    .kv("user", runWith.getUser());
+            if (runWith.getGroup() != null) {
+                logEvent.kv("group", runWith.getGroup());
+            }
+            logEvent.log("Error updating service artifact owner");
+            return false;
         }
     }
 
@@ -398,6 +457,13 @@ public class GenericExternalService extends GreengrassService {
     protected Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, List<Exec> trackingList,
                                         boolean requiresPrivilege)
             throws InterruptedException {
+        if (artifactOwnershipUpdateRequired) {
+            if (updateArtifactOwner()) {
+                artifactOwnershipUpdateRequired = false;
+            } else {
+                logger.atWarn().log("Service artifacts may not be accessible to user");
+            }
+        }
         final ShellRunner shellRunner = context.get(ShellRunner.class);
         Exec exec;
         try {
@@ -412,7 +478,6 @@ public class GenericExternalService extends GreengrassService {
         exec = addUser(exec, requiresPrivilege);
         exec = addShell(exec);
 
-        // TODO: Change artifact owner
         addEnv(exec, t.parent);
         logger.atDebug().setEventType("generic-service-run").log();
 
@@ -495,7 +560,7 @@ public class GenericExternalService extends GreengrassService {
     }
 
     protected Exec addUserGroup(Exec exec) {
-        return addUserGroup(exec, runWithUser, runWithGroup);
+        return addUserGroup(exec, runWith.getUser(), runWith.getGroup());
     }
 
     protected Exec addUserGroup(Exec exec, String user, String group) {
@@ -536,7 +601,7 @@ public class GenericExternalService extends GreengrassService {
         if (Exec.isWindows) {
             return exec;
         }
-        return exec.usingShell(runWithShell);
+        return exec.usingShell(runWith.getShell());
     }
 
     /**

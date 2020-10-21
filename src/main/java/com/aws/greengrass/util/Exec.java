@@ -21,12 +21,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 /**
@@ -398,14 +400,23 @@ public final class Exec implements Closeable {
         return decorated;
     }
 
+    /**
+     * Execute a command.
+     *
+     * @returns the process exit code.
+     * @throws InterruptedException if the command is interrupted while running.
+     * @throws IOException if an error occurs while executing.
+     */
     @SuppressWarnings("PMD.AvoidRethrowingException")
-    private void exec() throws InterruptedException, IOException {
+    public Optional<Integer> exec() throws InterruptedException, IOException {
         // Don't run anything if the current thread is currently interrupted
         if (Thread.currentThread().isInterrupted()) {
             logger.atWarn().kv("command", this).log("Refusing to execute because the active thread is interrupted");
             throw new InterruptedException();
         }
-        process = Runtime.getRuntime().exec(getCommand(), environment, dir);
+        final String[] command = getCommand();
+        logger.atTrace().kv("command", (Supplier<String>) () -> String.join(" ", command)).log();
+        process = Runtime.getRuntime().exec(command, environment, dir);
         stderrc = new Copier(process.getErrorStream(), stderr);
         stdoutc = new Copier(process.getInputStream(), stdout);
         stderrc.start();
@@ -431,7 +442,9 @@ public final class Exec implements Closeable {
             }
             stderrc.join(5000);
             stdoutc.join(5000);
+            return Optional.of(process.exitValue());
         }
+        return Optional.empty();
     }
 
     /**

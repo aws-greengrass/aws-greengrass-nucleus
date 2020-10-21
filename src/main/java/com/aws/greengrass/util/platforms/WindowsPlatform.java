@@ -5,6 +5,10 @@
 
 package com.aws.greengrass.util.platforms;
 
+import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.lifecyclemanager.RunWith;
 import com.aws.greengrass.util.FileSystemPermission;
 import lombok.NoArgsConstructor;
 import org.zeroturnaround.exec.InvalidExitValueException;
@@ -14,6 +18,8 @@ import org.zeroturnaround.process.WindowsProcess;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.EnumSet;
+import java.util.Optional;
 
 public class WindowsPlatform extends Platform {
     @Override
@@ -61,6 +67,48 @@ public class WindowsPlatform extends Platform {
         return null;
     }
 
+    @Override
+    public RunWithGenerator getRunWithGenerator() {
+        return new RunWithGenerator() {
+            @Override
+            public void validateDefaultConfiguration(DeviceConfiguration deviceConfig)
+                    throws DeviceConfigurationException {
+                // do nothing
+            }
+
+            @Override
+            public Optional<RunWith> generate(DeviceConfiguration deviceConfig, Topics config) {
+                return Optional.of(RunWith.builder().user(System.getProperty("user.name")).build());
+            }
+        };
+    }
+
+    @Override
+    protected void setPermissions(FileSystemPermission permission, Path path,
+                                  EnumSet<FileSystemPermission.Option> options) throws IOException {
+        // TODO: Implement using ACL for Windows
+    }
+
+    @Override
+    public UserAttributes lookupUserByName(String user) throws IOException {
+        return null;
+    }
+
+    @Override
+    public UserAttributes lookupUserByIdentifier(String identifier) throws IOException {
+        return null;
+    }
+
+    @Override
+    public BasicAttributes lookupGroupByName(String group) throws IOException {
+        return null;
+    }
+
+    @Override
+    public BasicAttributes lookupGroupByIdentifier(String identifier) throws IOException {
+        return null;
+    }
+
     @NoArgsConstructor
     public static class CmdDecorator implements ShellDecorator {
 
@@ -78,21 +126,6 @@ public class WindowsPlatform extends Platform {
             throw new UnsupportedOperationException("changing shell is not supported");
         }
     }
-  
-    @Override
-    public void setPermissions(FileSystemPermission permission, Path path) throws IOException {
-        // TODO: Implement using ACL for Windows
-    }
 
-    @Override
-    public Group getGroup(String posixGroup) {
-        // TODO: support windows platform
-        return new Group("0", 0);
-    }
 
-    @Override
-    public int getEffectiveUID() {
-        // TODO: support windows platform
-        return 0;
-    }
 }

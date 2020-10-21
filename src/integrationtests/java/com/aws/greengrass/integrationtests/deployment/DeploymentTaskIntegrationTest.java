@@ -37,6 +37,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
@@ -62,6 +63,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -156,7 +158,6 @@ class DeploymentTaskIntegrationTest {
         kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
 
         kernel.launch();
-
         // get required instances from context
         componentManager = kernel.getContext().get(ComponentManager.class);
         componentStore = kernel.getContext().get(ComponentStore.class);
@@ -175,6 +176,9 @@ class DeploymentTaskIntegrationTest {
 
         // pre-load contents to package store
         preloadLocalStoreContent();
+
+        assumeCanSudoShell(kernel);
+
     }
 
     @AfterEach
@@ -713,7 +717,6 @@ class DeploymentTaskIntegrationTest {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
 
-        assumeCanSudoShell(kernel);
 
         countDownLatch = new CountDownLatch(2);
         // Set up stdout listener to capture stdout for verifying users
@@ -739,27 +742,34 @@ class DeploymentTaskIntegrationTest {
             // verify user
             String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
                     .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
-            assertEquals("123456", user);
+            assertEquals("nobody", user);
             countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
             assertThat(stdouts, hasItem(containsString("installing app with user root")));
-            assertThat(stdouts, hasItem(containsString("starting app with user #123456")));
-
+            assertThat(stdouts, hasItem(containsString("starting app with user nobody")));
             stdouts.clear();
             /*
              * 2nd deployment. Change user
              */
             countDownLatch = new CountDownLatch(2);
-            resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentWithUser_2.json").toURI(),
-                    System.currentTimeMillis());
+
+            // update component to runas the user running the test
+            String doc = Utils.inputStreamToString(DeploymentTaskIntegrationTest.class.getResource(
+                    "SampleJobDocumentWithUser_2.json").openStream());
+            String currentUser = System.getProperty("user.name");
+            doc = String.format(doc, currentUser);
+            File f = File.createTempFile("user-deployment", ".json");
+            f.deleteOnExit();
+            Files.write(f.toPath(), doc.getBytes(StandardCharsets.UTF_8));
+
+            resultFuture = submitSampleJobDocument(f.toURI(), System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
             user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
                     .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
-            assertEquals("54321", user);
+            assertEquals(currentUser, user);
 
             countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
-            assertThat(stdouts, hasItem(containsString("stopping app with user #123456")));
-            assertThat(stdouts, hasItem(containsString("starting app with user #54321")));
+            assertThat(stdouts, hasItem(containsString("stopping app with user nobody")));
+            assertThat(stdouts, hasItem(containsString(String.format("starting app with user %s", currentUser))));
         } finally {
             Slf4jLogAdapter.removeGlobalListener(listener);
         }

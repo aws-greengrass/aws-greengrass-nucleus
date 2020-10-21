@@ -1,9 +1,9 @@
 /*
- * Copyright Amazon.com Inc. or its affiliates.
- * SPDX-License-Identifier: Apache-2.0
+ *  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *  SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.util.platforms;
+package com.aws.greengrass.util.platforms.unix;
 
 import java.io.IOException;
 import java.util.List;

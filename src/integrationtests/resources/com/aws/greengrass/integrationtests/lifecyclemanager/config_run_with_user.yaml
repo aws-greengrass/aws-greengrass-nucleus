@@ -1,7 +1,8 @@
 ---
 system:
   runWithDefault:
-    posixUser: 123456
+    posixUser: bin
+    posixGroup: bin
 
 services:
   main:
