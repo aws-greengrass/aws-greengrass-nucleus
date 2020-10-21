@@ -156,8 +156,10 @@ class KernelTest {
         assertThat(od, hasSize(4));
 
         // Now that 2 is a dependency of 1, 2 has to be ordered before 1
-        assertEquals(service2, od.get(0));
-        assertThat(od.get(1), anyOf(is(service1), is(nucleus)));
+        // Possible orders are -> [service2, service1, nucleus, main]; [nucleus, service2, service1, main]
+        // and [service2, nucleus, service1, main]
+        assertThat(od.get(0), anyOf(is(service2), is(nucleus)));
+        assertThat(od.get(1), anyOf(is(service1), is(service2), is(nucleus)));
         assertThat(od.get(2), anyOf(is(service1), is(nucleus)));
         assertEquals(mockMain, od.get(3));
     }
