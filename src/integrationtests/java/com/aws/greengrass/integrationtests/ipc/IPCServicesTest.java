@@ -231,9 +231,7 @@ class IPCServicesTest {
     void GIVEN_ConfigStoreEventStreamClient_WHEN_report_config_validation_status_THEN_inform_validation_requester()
             throws Exception {
         CountDownLatch cdl = new CountDownLatch(1);
-        Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "ServiceName",
-                PRIVATE_STORE_NAMESPACE_TOPIC);
-        String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+        String authToken = IPCTestUtils.getAuthTokeForService(kernel,TEST_SERVICE_NAME);
         try (EventStreamRPCConnection clientConnection =
                      IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel)) {
 
@@ -300,9 +298,7 @@ class IPCServicesTest {
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
         Topic configToUpdate = configuration.lookup("SomeKeyToUpdate").withNewerValue(0, "InitialValue");
         CountDownLatch cdl = new CountDownLatch(1);
-        Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "ServiceName",
-                PRIVATE_STORE_NAMESPACE_TOPIC);
-        String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+        String authToken = IPCTestUtils.getAuthTokeForService(kernel,TEST_SERVICE_NAME);
         try (EventStreamRPCConnection clientConnection =
                      IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel)) {
             CountDownLatch subscriptionLatch = new CountDownLatch(1);
@@ -362,9 +358,7 @@ class IPCServicesTest {
         Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
         custom.createLeafChild("abc").withValue("ABC");
         custom.createInteriorChild("DDF").createLeafChild("A").withValue("C");
-        Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "ServiceName",
-                PRIVATE_STORE_NAMESPACE_TOPIC);
-        String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+        String authToken = IPCTestUtils.getAuthTokeForService(kernel,TEST_SERVICE_NAME);
         try (EventStreamRPCConnection clientConnection =
                      IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel)) {
             GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
