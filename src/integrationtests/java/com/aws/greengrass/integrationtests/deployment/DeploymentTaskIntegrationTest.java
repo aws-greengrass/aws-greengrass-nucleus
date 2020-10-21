@@ -91,11 +91,8 @@ import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMP
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.integrationtests.util.SudoUtil.assumeCanSudoShell;
-import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
@@ -888,9 +885,7 @@ class DeploymentTaskIntegrationTest {
                 System.currentTimeMillis());
         resultFuture.get(30, TimeUnit.SECONDS);
 
-        Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "NonDisruptableService",
-                PRIVATE_STORE_NAMESPACE_TOPIC);
-        String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+        String authToken = IPCTestUtils.getAuthTokeForService(kernel, "NonDisruptableService");
         final EventStreamRPCConnection clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions,
                 authToken, kernel);
         SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest = new SubscribeToComponentUpdatesRequest();
@@ -908,6 +903,7 @@ class DeploymentTaskIntegrationTest {
 
             @Override
             public boolean onStreamError(Throwable error) {
+                logger.atError().setCause(error).log("Stream closed due to error");
                 return false;
             }
 
