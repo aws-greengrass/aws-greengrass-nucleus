@@ -121,7 +121,7 @@ class AwsIotMqttClient implements Closeable {
 
     }
 
-    CompletableFuture<Integer> publish(MqttMessage message, QualityOfService qos, boolean retain) {
+    CompletableFuture<Integer> publish(MqttMessage message, QualityOfService qos, boolean retain)      {
         return connect().thenCompose((b) -> {
             logger.atTrace().kv(TOPIC_KEY, message.getTopic()).kv(QOS_KEY, qos.name()).kv("retain", retain)
                     .log("Publishing message");
