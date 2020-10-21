@@ -75,7 +75,7 @@ public class IPCEventStreamService implements Startable, Closeable {
                             .getOperationModelContext(operation), context));
         });
         greengrassCoreIPCService.setAuthenticationHandler(
-                (List<Header> headers, byte[] bytes) -> ipcAuthenticationHandler(headers, bytes));
+                (List<Header> headers, byte[] bytes) -> ipcAuthenticationHandler(bytes));
         greengrassCoreIPCService.setAuthorizationHandler(
                 authenticationData -> ipcAuthorizationHandler(authenticationData));
 
@@ -109,7 +109,7 @@ public class IPCEventStreamService implements Startable, Closeable {
     }
 
     @SuppressWarnings({"PMD.UnusedFormalParameter", "PMD.PreserveStackTrace"})
-    private AuthenticationData ipcAuthenticationHandler(List<Header> headers, byte[] payload) {
+    private AuthenticationData ipcAuthenticationHandler(byte[] payload) {
         String authToken = null;
 
         try {

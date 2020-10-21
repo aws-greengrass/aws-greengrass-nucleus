@@ -22,7 +22,6 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
-import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
@@ -78,9 +77,6 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETER
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
-import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
@@ -112,9 +108,7 @@ class IPCServicesTest {
     static void beforeAll() throws InterruptedException, IOException, ExecutionException {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCServicesTest.class, TEST_SERVICE_NAME);
-        Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, TEST_SERVICE_NAME,
-                PRIVATE_STORE_NAMESPACE_TOPIC);
-        String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+        String authToken = IPCTestUtils.getAuthTokeForService(kernel,TEST_SERVICE_NAME);
         socketOptions = TestUtils.getSocketOptionsForIPC();
         clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
     }
@@ -445,9 +439,7 @@ class IPCServicesTest {
             });
             startupService.requestStart();
             assertTrue(started.await(10, TimeUnit.SECONDS));
-            Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "StartupService",
-                    PRIVATE_STORE_NAMESPACE_TOPIC);
-            String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+            String authToken = IPCTestUtils.getAuthTokeForService(kernel,TEST_SERVICE_NAME);
             clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
             UpdateStateRequest updateStateRequest = new UpdateStateRequest();
             updateStateRequest.setServiceName("StartupService");
@@ -517,7 +509,7 @@ class IPCServicesTest {
             public void onStreamClosed() {
 
             }
-        }));
+        })).getResponse().get(10, TimeUnit.SECONDS);
 
         assertTrue(subscriptionLatch.await(5, TimeUnit.SECONDS));
         // TODO: When Cli support safe update setting in local deployment, then create a local deployment here to

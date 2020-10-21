@@ -145,28 +145,28 @@ public class CLIEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void test_GetListComponent_success() {
+    public void test_GetListComponent_success() throws IOException {
         ListComponentsRequest request = new ListComponentsRequest();
         GreengrassService mockTestService = mock(GreengrassService.class);
         GreengrassService mockMainService = mock(GreengrassService.class);
         when(mockTestService.getName()).thenReturn(TEST_SERVICE);
         when(mockTestService.getState()).thenReturn(State.RUNNING);
-        Context context = new Context();
-        Topics mockServiceConfig = Topics.of(context, TEST_SERVICE, null);
-        mockServiceConfig.lookup(VERSION_CONFIG_KEY).withValue("1.0.0");
-        Map<String, Object> mockParameterConfig = ImmutableMap.of("param1", "value1");
-        mockServiceConfig.lookupTopics(PARAMETERS_CONFIG_KEY).replaceAndWait(mockParameterConfig);
-        when(mockTestService.getServiceConfig()).thenReturn(mockServiceConfig);
-        when(mockMainService.getName()).thenReturn("main");
-        when(kernel.getMain()).thenReturn(mockMainService);
-        when(kernel.orderedDependencies()).thenReturn(Arrays.asList(mockTestService, mockMainService));
-        ListComponentsResponse response =
-                cliEventStreamAgent.getListComponentsHandler(mockContext).handleRequest(request);
-        assertEquals(1, response.getComponents().size());
-        ComponentDetails componentDetails = response.getComponents().get(0);
-        assertEquals(TEST_SERVICE, componentDetails.getComponentName());
-        assertEquals(mockParameterConfig, componentDetails.getConfiguration());
-        assertEquals("1.0.0", componentDetails.getVersion());
+        try (Context context = new Context()) {
+            Topics mockServiceConfig = Topics.of(context, TEST_SERVICE, null);
+            mockServiceConfig.lookup(VERSION_CONFIG_KEY).withValue("1.0.0");
+            Map<String, Object> mockParameterConfig = ImmutableMap.of("param1", "value1");
+            mockServiceConfig.lookupTopics(PARAMETERS_CONFIG_KEY).replaceAndWait(mockParameterConfig);
+            when(mockTestService.getServiceConfig()).thenReturn(mockServiceConfig);
+            when(mockMainService.getName()).thenReturn("main");
+            when(kernel.getMain()).thenReturn(mockMainService);
+            when(kernel.orderedDependencies()).thenReturn(Arrays.asList(mockTestService, mockMainService));
+            ListComponentsResponse response = cliEventStreamAgent.getListComponentsHandler(mockContext).handleRequest(request);
+            assertEquals(1, response.getComponents().size());
+            ComponentDetails componentDetails = response.getComponents().get(0);
+            assertEquals(TEST_SERVICE, componentDetails.getComponentName());
+            assertEquals(mockParameterConfig, componentDetails.getConfiguration());
+            assertEquals("1.0.0", componentDetails.getVersion());
+        }
     }
 
     @Test
@@ -346,62 +346,59 @@ public class CLIEventStreamAgentTest {
     public void testGetLocalDeploymentStatus_successful() throws IOException {
         Topics localDeployments = mock(Topics.class);
         Topics mockCliConfig = mock(Topics.class);
-        Context context = new Context();
-        String deploymentId = UUID.randomUUID().toString();
-        Topics mockLocalDeployment = Topics.of(context, deploymentId, null);
-        mockLocalDeployment.lookup(DEPLOYMENT_STATUS_KEY_NAME).withValue(DeploymentStatus.IN_PROGRESS.toString());
-        when(mockCliConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS)).thenReturn(localDeployments);
-        when(localDeployments.findTopics(deploymentId)).thenReturn(mockLocalDeployment);
-        GetLocalDeploymentStatusRequest request = new GetLocalDeploymentStatusRequest();
-        request.setDeploymentId(deploymentId);
-        GetLocalDeploymentStatusResponse response = cliEventStreamAgent.getGetLocalDeploymentStatusHandler(mockContext,
-                        mockCliConfig).handleRequest(request);
-        assertEquals(deploymentId, response.getDeployment().getDeploymentId());
-        assertEquals(DeploymentStatus.IN_PROGRESS, response.getDeployment().getStatus());
-        context.close();
+        try (Context context = new Context()) {
+            String deploymentId = UUID.randomUUID().toString();
+            Topics mockLocalDeployment = Topics.of(context, deploymentId, null);
+            mockLocalDeployment.lookup(DEPLOYMENT_STATUS_KEY_NAME).withValue(DeploymentStatus.IN_PROGRESS.toString());
+            when(mockCliConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS)).thenReturn(localDeployments);
+            when(localDeployments.findTopics(deploymentId)).thenReturn(mockLocalDeployment);
+            GetLocalDeploymentStatusRequest request = new GetLocalDeploymentStatusRequest();
+            request.setDeploymentId(deploymentId);
+            GetLocalDeploymentStatusResponse response = cliEventStreamAgent
+                    .getGetLocalDeploymentStatusHandler(mockContext, mockCliConfig).handleRequest(request);
+            assertEquals(deploymentId, response.getDeployment().getDeploymentId());
+            assertEquals(DeploymentStatus.IN_PROGRESS, response.getDeployment().getStatus());
+        }
     }
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
     public void testListLocalDeployment_no_local_deployments() throws IOException {
         Topics mockCliConfig = mock(Topics.class);
-        Context context = new Context();
-        Topics localDeployments = Topics.of(context, "localDeployments", null);
-        when(mockCliConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS)).thenReturn(localDeployments);
-        ListLocalDeploymentsRequest request = new ListLocalDeploymentsRequest();
-        ListLocalDeploymentsResponse response = cliEventStreamAgent.getListLocalDeploymentsHandler(mockContext,
-                mockCliConfig).handleRequest(request);
-        assertEquals(0, response.getLocalDeployments().size());
-        context.close();
+        try(Context context = new Context()) {
+            Topics localDeployments = Topics.of(context, "localDeployments", null);
+            when(mockCliConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS)).thenReturn(localDeployments);
+            ListLocalDeploymentsRequest request = new ListLocalDeploymentsRequest();
+            ListLocalDeploymentsResponse response = cliEventStreamAgent
+                    .getListLocalDeploymentsHandler(mockContext, mockCliConfig).handleRequest(request);
+            assertEquals(0, response.getLocalDeployments().size());
+        }
     }
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
     public void testListLocalDeployment_successful() throws IOException {
         Topics mockCliConfig = mock(Topics.class);
-        Context context = new Context();
-        Topics localDeployments = Topics.of(context, "localDeployments", null);
-        String deploymentId1 = UUID.randomUUID().toString();
-        localDeployments.lookupTopics(deploymentId1).lookup(DEPLOYMENT_STATUS_KEY_NAME)
-                .withValue(DeploymentStatus.IN_PROGRESS.toString());
-        String deploymentId2 = UUID.randomUUID().toString();
-        localDeployments.lookupTopics(deploymentId2).lookup(DEPLOYMENT_STATUS_KEY_NAME)
-                .withValue(DeploymentStatus.SUCCEEDED.toString());
-        when(mockCliConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS)).thenReturn(localDeployments);
-        ListLocalDeploymentsRequest request = new ListLocalDeploymentsRequest();
-        ListLocalDeploymentsResponse response = cliEventStreamAgent.getListLocalDeploymentsHandler(mockContext,
-                mockCliConfig).handleRequest(request);
-        assertEquals(2, response.getLocalDeployments().size());
-        response.getLocalDeployments().stream().forEach(ld -> {
-            if (ld.getDeploymentId().equals(deploymentId1)) {
-                assertEquals(DeploymentStatus.IN_PROGRESS, ld.getStatus());
-            } else if (ld.getDeploymentId().equals(deploymentId2)) {
-                assertEquals(DeploymentStatus.SUCCEEDED, ld.getStatus());
-            } else {
-                fail("Invalid deploymentId found in list of local deployments");
-            }
-        });
-        context.close();
+        try(Context context = new Context()) {
+            Topics localDeployments = Topics.of(context, "localDeployments", null);
+            String deploymentId1 = UUID.randomUUID().toString();
+            localDeployments.lookupTopics(deploymentId1).lookup(DEPLOYMENT_STATUS_KEY_NAME).withValue(DeploymentStatus.IN_PROGRESS.toString());
+            String deploymentId2 = UUID.randomUUID().toString();
+            localDeployments.lookupTopics(deploymentId2).lookup(DEPLOYMENT_STATUS_KEY_NAME).withValue(DeploymentStatus.SUCCEEDED.toString());
+            when(mockCliConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS)).thenReturn(localDeployments);
+            ListLocalDeploymentsRequest request = new ListLocalDeploymentsRequest();
+            ListLocalDeploymentsResponse response = cliEventStreamAgent
+                    .getListLocalDeploymentsHandler(mockContext, mockCliConfig).handleRequest(request);
+            assertEquals(2, response.getLocalDeployments().size());
+            response.getLocalDeployments().stream().forEach(ld -> {
+                if (ld.getDeploymentId().equals(deploymentId1)) {
+                    assertEquals(DeploymentStatus.IN_PROGRESS, ld.getStatus());
+                } else if (ld.getDeploymentId().equals(deploymentId2)) {
+                    assertEquals(DeploymentStatus.SUCCEEDED, ld.getStatus());
+                } else {
+                    fail("Invalid deploymentId found in list of local deployments");
+                }
+            });
+        }
     }
-
 }

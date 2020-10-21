@@ -182,7 +182,7 @@ public class CLIEventStreamAgent {
 
             if (service.getServiceConfig().find(VERSION_CONFIG_KEY) != null) {
                 componentDetails.setVersion(Coerce.toString(service.getServiceConfig()
-                        .find(VERSION_CONFIG_KEY).getOnce()));
+                        .find(VERSION_CONFIG_KEY)));
             }
             if (service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY) != null) {
                 componentDetails

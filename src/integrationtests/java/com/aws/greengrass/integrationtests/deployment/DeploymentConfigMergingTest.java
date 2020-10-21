@@ -6,7 +6,6 @@ package com.aws.greengrass.integrationtests.deployment;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
-import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
@@ -66,9 +65,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
-import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
@@ -488,9 +485,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         AtomicInteger deferCount = new AtomicInteger(0);
         AtomicInteger preComponentUpdateCount = new AtomicInteger(0);
         CountDownLatch postComponentUpdateRecieved = new CountDownLatch(1);
-        Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "nondisruptable",
-                PRIVATE_STORE_NAMESPACE_TOPIC);
-        String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+        String authToken = IPCTestUtils.getAuthTokeForService(kernel, "nondisruptable");
         final EventStreamRPCConnection clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions,
                 authToken,
                 kernel);
