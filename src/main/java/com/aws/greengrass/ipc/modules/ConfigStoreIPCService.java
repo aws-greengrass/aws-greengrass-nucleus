@@ -6,6 +6,7 @@
 package com.aws.greengrass.ipc.modules;
 
 import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCAgent;
+import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgent;
 import com.aws.greengrass.ipc.ConnectionContext;
 import com.aws.greengrass.ipc.IPCRouter;
 import com.aws.greengrass.ipc.Startable;
@@ -24,6 +25,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
@@ -36,17 +38,25 @@ public class ConfigStoreIPCService implements Startable {
 
     private final IPCRouter router;
     private final ConfigStoreIPCAgent agent;
+    private final ConfigStoreIPCEventStreamAgent eventStreamAgent;
+    private final GreengrassCoreIPCService greengrassCoreIPCService;
 
     /**
      * Constructor.
      *
      * @param router ipc router
      * @param agent config store ipc agent
+     * @param eventStreamAgent {@link ConfigStoreIPCEventStreamAgent}
+     * @param greengrassCoreIPCService {@link GreengrassCoreIPCService}
      */
     @Inject
-    public ConfigStoreIPCService(IPCRouter router, ConfigStoreIPCAgent agent) {
+    public ConfigStoreIPCService(IPCRouter router, ConfigStoreIPCAgent agent,
+                                 ConfigStoreIPCEventStreamAgent eventStreamAgent,
+                                 GreengrassCoreIPCService greengrassCoreIPCService) {
         this.router = router;
         this.agent = agent;
+        this.eventStreamAgent = eventStreamAgent;
+        this.greengrassCoreIPCService = greengrassCoreIPCService;
     }
 
     /**
@@ -129,5 +139,17 @@ public class ConfigStoreIPCService implements Startable {
                     .addKeyValue("destination", destination.name())
                     .log("Failed to register service callback to destination");
         }
+
+        greengrassCoreIPCService.setUpdateConfigurationHandler(
+                (context) -> eventStreamAgent.getUpdateConfigurationHandler(context));
+        greengrassCoreIPCService.setSendConfigurationValidityReportHandler(
+                (context) -> eventStreamAgent.getSendConfigurationValidityReportHandler(context));
+        greengrassCoreIPCService.setGetConfigurationHandler(
+                (context) -> eventStreamAgent.getGetConfigurationHandler(context));
+        greengrassCoreIPCService.setSubscribeToConfigurationUpdateHandler(
+                (context) -> eventStreamAgent.getConfigurationUpdateHandler(context));
+        greengrassCoreIPCService.setSubscribeToValidateConfigurationUpdatesHandler(
+                (context) -> eventStreamAgent.getValidateConfigurationUpdatesHandler(context));
+
     }
 }
