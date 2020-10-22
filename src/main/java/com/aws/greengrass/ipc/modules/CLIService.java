@@ -180,25 +180,6 @@ public class CLIService extends GreengrassService {
                 -> cliEventStreamAgent.getListLocalDeploymentsHandler(context, config));
     }
 
-    private void registerIpcEventStreamHandlers() {
-        greengrassCoreIPCService.setGetComponentDetailsHandler((context)
-                -> cliEventStreamAgent.getGetComponentDetailsHandler(context));
-        greengrassCoreIPCService.setListComponentsHandler((context)
-                -> cliEventStreamAgent.getListComponentsHandler(context));
-        greengrassCoreIPCService.setRestartComponentHandler((context)
-                -> cliEventStreamAgent.getRestartComponentsHandler(context));
-        greengrassCoreIPCService.setStopComponentHandler((context)
-                -> cliEventStreamAgent.getStopComponentsHandler(context));
-        greengrassCoreIPCService.setUpdateRecipesAndArtifactsHandler((context)
-                -> cliEventStreamAgent.getUpdateRecipesAndArtifactsHandler(context));
-        greengrassCoreIPCService.setCreateLocalDeploymentHandler((context)
-                -> cliEventStreamAgent.getCreateLocalDeploymentHandler(context, config));
-        greengrassCoreIPCService.setGetLocalDeploymentStatusHandler((context)
-                -> cliEventStreamAgent.getGetLocalDeploymentStatusHandler(context, config));
-        greengrassCoreIPCService.setListLocalDeploymentsHandler((context)
-                -> cliEventStreamAgent.getListLocalDeploymentsHandler(context, config));
-    }
-
     @Override
     protected void startup() throws InterruptedException {
         registerIpcEventStreamHandlers();
