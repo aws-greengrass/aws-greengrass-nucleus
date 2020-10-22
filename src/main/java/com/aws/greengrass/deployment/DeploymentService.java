@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -579,16 +580,21 @@ public class DeploymentService extends GreengrassService {
      */
     public boolean isComponentRoot(String componentName) {
         Topics groupToRootComponentsTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
-        AtomicBoolean isRoot = new AtomicBoolean(false);
         if (groupToRootComponentsTopics != null) {
-            groupToRootComponentsTopics.children.values().stream().map(n -> (Topics) n)
-                    .forEach(topics -> topics.children.values().stream().map(n -> (Topics) n)
-                            .forEach(componentTopics -> {
-                                if (componentName.equals(componentTopics.getName())) {
-                                    isRoot.set(true);
-                                }
-                            }));
+            for (Node node: groupToRootComponentsTopics.children.values()) {
+                if (node instanceof Topics) {
+                    Topics groupTopics = (Topics) node;
+                    for (Node componentNode: groupTopics.children.values()) {
+                        if (componentNode instanceof Topics) {
+                            Topics componentTopics = (Topics) componentNode;
+                            if (componentName.equals(componentTopics.getName())) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
         }
-        return isRoot.get();
+        return false;
     }
 }
