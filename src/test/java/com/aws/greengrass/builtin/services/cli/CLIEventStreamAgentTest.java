@@ -1,5 +1,7 @@
 package com.aws.greengrass.builtin.services.cli;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;
+import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -15,6 +17,7 @@ import com.aws.greengrass.util.NucleusPaths;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -63,6 +66,7 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ST
 import static com.aws.greengrass.ipc.common.IPCErrorStrings.DEPLOYMENTS_QUEUE_NOT_INITIALIZED;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -251,7 +255,13 @@ public class CLIEventStreamAgentTest {
         Path mockRecipesDirectoryPath = Files.createTempDirectory("mockRecipesDirectoryPath");
         request.setRecipeDirectoryPath(mockRecipesDirectoryPath.toString());
         Path componentPath = Files.createDirectories(mockRecipesDirectoryPath.resolve("SampleComponent-1.0.0"));
-        Files.createFile(componentPath.resolve("sampleRecipe.xml"));
+        Path recipeFilePath = Files.createFile(componentPath.resolve("sampleRecipe.yml"));
+        ComponentRecipe componentRecipe = ComponentRecipe.builder()
+                .componentName("SampleComponent")
+                .componentVersion(new Semver("1.0.0"))
+                .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                .build();
+        Files.write(recipeFilePath, OBJECT_MAPPER.writeValueAsBytes(componentRecipe));
         Files.createFile(mockArtifactsDirectoryPath.resolve("artifact.zip"));
         Files.createDirectories(mockPath.resolve(ComponentStore.RECIPE_DIRECTORY));
         Files.createDirectories(mockPath.resolve(ComponentStore.ARTIFACT_DIRECTORY));
@@ -260,8 +270,34 @@ public class CLIEventStreamAgentTest {
         when(nucleusPaths.componentStorePath()).thenReturn(mockPath);
         cliEventStreamAgent.getUpdateRecipesAndArtifactsHandler(mockContext).handleRequest(request);
         assertTrue(Files.exists(mockPath.resolve(ComponentStore.RECIPE_DIRECTORY)
-                .resolve("SampleComponent-1.0.0").resolve("sampleRecipe.xml")));
+                .resolve("SampleComponent-1.0.0.yaml")));
         assertTrue(Files.exists(mockPath.resolve(ComponentStore.ARTIFACT_DIRECTORY).resolve("artifact.zip")));
+    }
+
+    @Test
+    public void testUpdateRecipesAndArtifacts_redundant_dir_path(ExtensionContext context) throws IOException {
+        ignoreExceptionOfType(context, NoSuchFileException.class);
+        UpdateRecipesAndArtifactsRequest request = new UpdateRecipesAndArtifactsRequest();
+        request.setArtifactsDirectoryPath(mockPath.toString());
+        request.setRecipeDirectoryPath(mockPath.toString());
+        Path recipeFilePath = Files.createFile(mockPath.resolve("sampleRecipe.yml"));
+        ComponentRecipe componentRecipe = ComponentRecipe.builder()
+                .componentName("SampleComponent")
+                .componentVersion(new Semver("1.0.0"))
+                .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                .build();
+        Files.write(recipeFilePath, OBJECT_MAPPER.writeValueAsBytes(componentRecipe));
+        Files.createDirectories(mockPath.resolve(ComponentStore.RECIPE_DIRECTORY));
+        Files.createDirectories(mockPath.resolve(ComponentStore.ARTIFACT_DIRECTORY));
+        Files.createFile(mockPath.resolve("artifact.zip"));
+        NucleusPaths nucleusPaths = mock(NucleusPaths.class);
+        when(kernel.getNucleusPaths()).thenReturn(nucleusPaths);
+        when(nucleusPaths.componentStorePath()).thenReturn(mockPath);
+        assertThrows(InvalidArtifactsDirectoryPathError.class,
+                () -> cliEventStreamAgent.getUpdateRecipesAndArtifactsHandler(mockContext).handleRequest(request));
+        assertTrue(Files.exists(mockPath.resolve(ComponentStore.RECIPE_DIRECTORY)
+                .resolve("SampleComponent-1.0.0.yaml")));
+        assertFalse(Files.exists(mockPath.resolve(ComponentStore.ARTIFACT_DIRECTORY).resolve("artifact.zip")));
     }
 
     @Test
