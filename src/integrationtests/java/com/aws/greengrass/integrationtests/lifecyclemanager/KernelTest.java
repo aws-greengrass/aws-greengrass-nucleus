@@ -5,10 +5,16 @@
 
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
+import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.ConfigurationReader;
+import com.aws.greengrass.config.ConfigurationWriter;
+import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import lombok.EqualsAndHashCode;
@@ -18,6 +24,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -29,6 +36,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -314,6 +324,45 @@ class KernelTest extends BaseITCase {
             actualTransitions.forEach(System.err::println);
             fail("Didn't see all expected state transitions");
         }
+    }
+
+    @Test
+    void GIVEN_kernel_running_WHEN_truncate_tlog_THEN_current_config_saved_and_using_new_tlog() throws Throwable {
+        kernel = new Kernel().parseArgs().launch();
+        Context context = kernel.getContext();
+        Configuration config = context.get(Configuration.class);
+        Path configPath = kernel.getNucleusPaths().configPath();
+        KernelLifecycle kernelLifecycle = context.get(KernelLifecycle.class);
+
+        // create a tlog that's not interrupted by truncation. goal is to be consistent with this one
+        context.runOnPublishQueueAndWait(() -> {
+            kernel.writeEffectiveConfigAsTransactionLog(configPath.resolve("full.tlog"));
+            ConfigurationWriter.logTransactionsTo(config, configPath.resolve("full.tlog")).flushImmediately(true);
+        });
+
+        // create some test topics
+        Topic testTopic1 = config.lookup("testTopic1").withValue("initial");
+        Topic testTopic2 = config.lookup("deep", "testTopic2").withValue("initial");
+
+        kernelLifecycle.truncateTlog();
+
+        // update test topics
+        testTopic1.withNewerValue( System.currentTimeMillis(),"updated");
+        testTopic2.withNewerValue( System.currentTimeMillis(),"updated");
+
+        // block update to check equivalence
+        context.runOnPublishQueueAndWait(() -> {
+            Configuration fullConfig = ConfigurationReader.createFromTLog(new Context(), configPath.resolve("full.tlog"));
+            Configuration oldConfig = ConfigurationReader.createFromTLog(new Context(), configPath.resolve("config.tlog.old"));
+            Configuration newConfig = ConfigurationReader.createFromTLog(new Context(), configPath.resolve("config.tlog"));
+            // old tlog should have old value
+            assertEquals("initial", oldConfig.lookup("testTopic1").getOnce());
+            assertEquals("initial", oldConfig.lookup("deep", "testTopic2").getOnce());
+            // new tlog should contain current config
+            Map<String, Object> fullConfigMap = fullConfig.toPOJO();
+            Map<String, Object> newConfigMap = newConfig.toPOJO();
+            assertThat(newConfigMap, is(fullConfigMap));
+        });
     }
 
     private static class ExpectedStdoutPattern {

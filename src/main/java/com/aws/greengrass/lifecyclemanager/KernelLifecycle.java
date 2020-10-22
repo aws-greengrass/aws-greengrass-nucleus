@@ -31,6 +31,7 @@ import lombok.Setter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -156,6 +157,26 @@ public class KernelLifecycle {
             throw new RuntimeException(ioe);
         }
 
+    }
+
+    public void truncateTlog() throws Throwable {
+        logger.atInfo("truncate-tlog").log("started");
+        Path regularTlogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_TLOG_FILE);
+        Path oldTlogPath = regularTlogPath.resolveSibling(regularTlogPath.getFileName() + ".old");
+        Throwable error = kernel.getContext().runOnPublishQueueAndWait(() -> {
+            tlog.flushImmediately(true);
+            close(tlog);
+            logger.atDebug("truncate-tlog").log("current tlog writer closed");
+            Files.move(regularTlogPath, oldTlogPath, StandardCopyOption.REPLACE_EXISTING);
+            logger.atDebug("truncate-tlog").log("existing tlog renamed to " + oldTlogPath);
+            kernel.writeEffectiveConfigAsTransactionLog(regularTlogPath);
+            logger.atDebug("truncate-tlog").log("current effective config written to " + regularTlogPath);
+            tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), regularTlogPath).flushImmediately(true);
+            logger.atDebug("truncate-tlog").log("tlog writer resumed");
+        });
+        if (error != null) {
+            throw error;
+        }
     }
 
     @SuppressWarnings("PMD.CloseResource")
