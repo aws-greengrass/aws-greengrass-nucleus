@@ -74,14 +74,7 @@ public class AuthenticationHandler implements InjectionActions {
     public String registerAuthenticationTokenForExternalClient(String requestingAuthToken,
                                                                String clientIdentifier)
             throws UnauthenticatedException {
-        String authenticatedService = doAuthentication(requestingAuthToken);
-        // Making it available only for CLIService right now. If it needs to be extended, requesting service can be
-        // taken as a parameter
-        if (!authenticatedService.equals(CLIService.CLI_SERVICE)) {
-            logger.atError().kv("Requesting service name", CLIService.CLI_SERVICE)
-                    .log("Invalid requesting auth token for service");
-            throw new UnauthenticatedException("Invalid requesting auth token for service");
-        }
+        authenticateRequestsForExternalClient(requestingAuthToken);
         return generateAuthenticationToken(clientIdentifier);
     }
 
@@ -101,6 +94,41 @@ public class AuthenticationHandler implements InjectionActions {
         } else {
             return generateAuthenticationToken(clientIdentifier);
         }
+    }
+
+    private void authenticateRequestsForExternalClient(String requestingAuthToken) throws UnauthenticatedException {
+        String authenticatedService = doAuthentication(requestingAuthToken);
+        // Making it available only for CLIService right now. If it needs to be extended, requesting service can be
+        // taken as a parameter
+        if (!authenticatedService.equals(CLIService.CLI_SERVICE)) {
+            logger.atError().kv("requestingServiceName", CLIService.CLI_SERVICE)
+                    .log("Invalid requesting auth token for service to register/revoke external client token");
+            throw new UnauthenticatedException("Invalid requesting auth token for service");
+        }
+    }
+
+    /**
+     * Revoke an auth token for an external client which is not part of Greengrass. Only authenticated EG service can
+     * revoke such a token.
+     * @param requestingAuthToken Auth token of the requesting service
+     * @param authTokenToRevoke The auth token to revoke
+     * @return true if authTokenToRevoke existed and is now removed, false if authTokenToRevoke does not exist.
+     * @throws UnauthenticatedException thrown when the requestAuthToken is invalid
+     */
+    public boolean revokeAuthenticationTokenForExternalClient(String requestingAuthToken, String authTokenToRevoke)
+            throws UnauthenticatedException {
+        authenticateRequestsForExternalClient(requestingAuthToken);
+        return revokeAuthenticationToken(authTokenToRevoke);
+    }
+
+    private boolean revokeAuthenticationToken(String authTokenToRevoke) {
+        Topic tokenTopic = config.lookup(GreengrassService.SERVICES_NAMESPACE_TOPIC,
+                AUTHENTICATION_TOKEN_LOOKUP_KEY, authTokenToRevoke);
+        if (tokenTopic == null) {
+            return false;
+        }
+        tokenTopic.remove();
+        return true;
     }
 
     /**
