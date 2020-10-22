@@ -67,6 +67,9 @@ public final class Permissions {
     }
 
     public static void setLoggerPermission(Path p) throws IOException {
+    }
+
+    public static void setCliIpcInfoPermission(Path p) throws IOException {
         platform.setPermissions(OWNER_RWX_EVERYONE_RX, p);
     }
 }
