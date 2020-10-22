@@ -59,8 +59,7 @@ class IPCAuthorizationTest {
 
     @BeforeAll
     static void beforeAll() throws InterruptedException {
-        kernel = prepareKernelFromConfigFile("ipc.yaml", IPCAuthorizationTest.class, TEST_SERVICE_NAME,
-                STREAM_MANAGER_SERVICE_NAME);
+        kernel = prepareKernelFromConfigFile("ipc.yaml", IPCAuthorizationTest.class, TEST_SERVICE_NAME);
     }
 
     @AfterAll
