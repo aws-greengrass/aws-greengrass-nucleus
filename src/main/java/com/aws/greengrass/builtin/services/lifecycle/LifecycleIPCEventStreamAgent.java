@@ -28,6 +28,7 @@ import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext
 import software.amazon.awssdk.eventstreamrpc.StreamEventPublisher;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -158,7 +159,7 @@ public class LifecycleIPCEventStreamAgent {
             componentUpdateListeners.putIfAbsent(serviceName, new HashSet<>());
             componentUpdateListeners.get(serviceName).add(this);
             log.atInfo().log("{} subscribed to component update", serviceName);
-            return new SubscribeToComponentUpdatesResponse();
+            return SubscribeToComponentUpdatesResponse.VOID;
         }
 
         @Override
@@ -191,13 +192,14 @@ public class LifecycleIPCEventStreamAgent {
             }
 
             CompletableFuture<DeferUpdateRequest> deferComponentUpdateRequestFuture =
-                    deferUpdateFuturesMap.get(serviceName);
+                deferUpdateFuturesMap.remove(serviceName);
             if (deferComponentUpdateRequestFuture == null) {
                 throw new ServiceError("Time limit to respond to PreComponentUpdateEvent exceeded");
+            } else {
+                deferComponentUpdateRequestFuture
+                        .complete(new DeferUpdateRequest(serviceName, request.getMessage(),
+                                request.getRecheckAfterMs()));
             }
-            deferComponentUpdateRequestFuture.complete(new DeferUpdateRequest(serviceName,
-                    request.getMessage(), request.getRecheckAfterMs()));
-            deferUpdateFuturesMap.remove(serviceName);
             return new DeferComponentUpdateResponse();
         }
 
@@ -211,11 +213,11 @@ public class LifecycleIPCEventStreamAgent {
      * Signal components about pending component updates.
      *
      * @param preComponentUpdateEvent event sent to subscribed components
-     * @param deferUpdateFutures      futures tracking the response to preComponentUpdateEvent
      */
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    public void sendPreComponentUpdateEvent(PreComponentUpdateEvent preComponentUpdateEvent,
-                                            List<Future<DeferUpdateRequest>> deferUpdateFutures) {
+    public List<Future<DeferUpdateRequest>> sendPreComponentUpdateEvent(
+            PreComponentUpdateEvent preComponentUpdateEvent) {
+        List<Future<DeferUpdateRequest>> deferUpdateFutures = new ArrayList<>();
         discardDeferComponentUpdateFutures();
         for (Map.Entry<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>> entry
                 : componentUpdateListeners.entrySet()) {
@@ -239,6 +241,7 @@ public class LifecycleIPCEventStreamAgent {
                 deferUpdateFuturesMap.put(serviceName, deferUpdateFuture);
             });
         }
+        return deferUpdateFutures;
     }
 
     /**
