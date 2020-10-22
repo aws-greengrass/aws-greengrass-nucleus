@@ -104,7 +104,7 @@ public class MqttProxyIPCAgent {
             try {
                 doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
             } catch (AuthorizationException e) {
-                LOGGER.atError().cause(e).log(e.getMessage());
+                LOGGER.atError().cause(e).log();
                 throw new UnauthorizedError(String.format("Authorization failed with error %s:%s", e, e.getMessage()));
             }
 
@@ -181,7 +181,7 @@ public class MqttProxyIPCAgent {
             try {
                 doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
             } catch (AuthorizationException e) {
-                LOGGER.atError().cause(e).log(e.getMessage());
+                LOGGER.atError().cause(e).log();
                 throw new UnauthorizedError(String.format("Authorization failed with error %s:%s", e, e.getMessage()));
             }
 

@@ -35,7 +35,6 @@ import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
-import software.amazon.awssdk.eventstreamrpc.UnmappedDataException;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -50,7 +49,6 @@ import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -183,7 +181,6 @@ public class IPCMqttProxyTest {
     @Test
     void GIVEN_MqttProxyEventStreamClient_WHEN_called_unsubscribe_THEN_unsubscribed(ExtensionContext context)
             throws Exception {
-        ignoreExceptionOfType(context, UnmappedDataException.class);
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
         subscribeToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
