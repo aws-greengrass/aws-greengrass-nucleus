@@ -11,6 +11,8 @@ import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
 import com.aws.greengrass.ipc.exceptions.UnauthorizedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.Coerce;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -19,14 +21,24 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.model.ValidateAuthorizationTokenRequest;
+import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
+import static com.aws.greengrass.authorization.AuthorizationIPCAgent.STREAM_MANAGER_SERVICE_NAME;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.greengrass.ipc.AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY;
+import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
@@ -42,6 +54,8 @@ class IPCAuthorizationTest {
     private static Kernel kernel;
     private IPCClient client;
     private AuthorizationClient authorizationClient;
+    private static EventStreamRPCConnection clientConnection;
+    private static SocketOptions socketOptions;
 
     @BeforeAll
     static void beforeAll() throws InterruptedException {
@@ -50,6 +64,12 @@ class IPCAuthorizationTest {
 
     @AfterAll
     static void afterAll() {
+        if (clientConnection != null) {
+            clientConnection.disconnect();
+        }
+        if (socketOptions != null) {
+            socketOptions.close();
+        }
         kernel.shutdown();
     }
 
@@ -109,5 +129,21 @@ class IPCAuthorizationTest {
 
         AuthorizationResponse response = authorizationClient.validateToken(authTokenTopic.getName());
         assertTrue(response.isAuthorized());
+    }
+
+    @Test
+    void GIVEN_authorizationEventStreamClient_valid_token_provided_THEN_succeeds() throws Exception {
+        Topics servicePrivateConfig = kernel.getConfig()
+                .findTopics(SERVICES_NAMESPACE_TOPIC, STREAM_MANAGER_SERVICE_NAME, PRIVATE_STORE_NAMESPACE_TOPIC);
+        String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+        socketOptions = TestUtils.getSocketOptionsForIPC();
+        clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
+
+        ValidateAuthorizationTokenRequest request = new ValidateAuthorizationTokenRequest();
+        request.setToken(authToken);
+
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+        assertTrue(greengrassCoreIPCClient.validateAuthorizationToken(request, Optional.empty()).getResponse()
+                .get(30, TimeUnit.SECONDS).isIsValid());
     }
 }

@@ -3,11 +3,15 @@ services:
   main:
     dependencies:
       - mqtt
+      - aws.greengrass.StreamManager
       - ServiceName
       - ServiceToBeRestarted
       - ServiceToBeStopped
   mqtt:
     lifecycle:
+    version: 1.0.0
+  aws.greengrass.StreamManager:
+    lifecycle: {}
     version: 1.0.0
   ServiceName:
     lifecycle:
