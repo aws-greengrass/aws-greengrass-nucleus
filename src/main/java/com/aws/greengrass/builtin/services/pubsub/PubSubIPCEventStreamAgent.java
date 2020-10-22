@@ -1,5 +1,8 @@
 package com.aws.greengrass.builtin.services.pubsub;
 
+import com.aws.greengrass.authorization.AuthorizationHandler;
+import com.aws.greengrass.authorization.Permission;
+import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.ipc.services.pubsub.PubSubUnsubscribeRequest;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -14,6 +17,7 @@ import software.amazon.awssdk.aws.greengrass.model.PublishToTopicResponse;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicResponse;
 import software.amazon.awssdk.aws.greengrass.model.SubscriptionResponseMessage;
+import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 import software.amazon.awssdk.eventstreamrpc.StreamEventPublisher;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
@@ -26,6 +30,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
+
 public class PubSubIPCEventStreamAgent {
     private static final Logger log = LogManager.getLogger(PubSubIPCEventStreamAgent.class);
     private static final String SERVICE_NAME = "service-name";
@@ -33,13 +39,14 @@ public class PubSubIPCEventStreamAgent {
     private final Map<String, Set<Object>> allSourcesListeners = new ConcurrentHashMap<>();
     @Getter(AccessLevel.PACKAGE)
     private final Map<String, Map<String, Set<Object>>> particularSourcesListeners = new ConcurrentHashMap<>();
-    @Getter(AccessLevel.PACKAGE)
-    private final Map<String, StreamEventPublisher<SubscriptionResponseMessage>> serviceToPublisherMap =
-            new ConcurrentHashMap<>();
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
     private ExecutorService executor;
+
+    @Inject
+    @Setter(AccessLevel.PACKAGE)
+    private AuthorizationHandler authorizationHandler;
 
     public SubscribeToTopicOperationHandler getSubscribeToTopicHandler(
             OperationContinuationHandlerContext context) {
@@ -158,8 +165,16 @@ public class PubSubIPCEventStreamAgent {
             // NA
         }
 
+        @SuppressWarnings("PMD.PreserveStackTrace")
         @Override
         public PublishToTopicResponse handleRequest(PublishToTopicRequest publishRequest) {
+            try {
+                doAuthorization(this.getOperationModelContext().getOperationName(), serviceName,
+                        publishRequest.getTopic());
+            } catch (AuthorizationException e) {
+                throw new UnauthorizedError(e.getMessage());
+            }
+
             return handlePublishToTopicRequest(publishRequest, serviceName);
         }
 
@@ -208,13 +223,19 @@ public class PubSubIPCEventStreamAgent {
 
         }
 
+        @SuppressWarnings("PMD.PreserveStackTrace")
         @Override
         public SubscribeToTopicResponse handleRequest(SubscribeToTopicRequest subscribeRequest) {
+            try {
+                doAuthorization(this.getOperationModelContext().getOperationName(), serviceName,
+                        subscribeRequest.getTopic());
+            } catch (AuthorizationException e) {
+                throw new UnauthorizedError(e.getMessage());
+            }
             handleSubscribeToTopicRequest(subscribeRequest, serviceName, this);
             if (Utils.isNotEmpty(subscribeRequest.getSource())) {
                 subscribeToSource = subscribeRequest.getSource();
             }
-            serviceToPublisherMap.put(serviceName, this);
             subscribeTopic = subscribeRequest.getTopic();
             return new SubscribeToTopicResponse();
         }
@@ -223,5 +244,15 @@ public class PubSubIPCEventStreamAgent {
         public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
             // NA
         }
+    }
+
+    private void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
+        authorizationHandler.isAuthorized(
+                PUB_SUB_SERVICE_NAME,
+                Permission.builder()
+                        .principal(serviceName)
+                        .operation(opName)
+                        .resource(topic)
+                        .build());
     }
 }

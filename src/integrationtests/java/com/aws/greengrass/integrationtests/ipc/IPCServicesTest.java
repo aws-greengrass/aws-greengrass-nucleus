@@ -41,13 +41,7 @@ import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesResponse;
-import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicResponse;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
-import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
-import software.amazon.awssdk.aws.greengrass.model.PublishMessage;
-import software.amazon.awssdk.aws.greengrass.model.PublishToTopicRequest;
-import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicRequest;
-import software.amazon.awssdk.aws.greengrass.model.SubscriptionResponseMessage;
 
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
@@ -66,7 +60,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
@@ -81,9 +74,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -382,125 +372,5 @@ class IPCServicesTest {
         futureList.get(0).get(Duration.ofSeconds(2).toMillis(), TimeUnit.SECONDS);
         lifecycleIPCEventStreamAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
         assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
-    }
-
-    @Test
-    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
-    void GIVEN_PubSubEventStreamClient_WHEN_subscribe_and_unsubscribe_THEN_publishes_only_once() throws Exception {
-        String topicName = "topicName";
-        SubscribeToTopicRequest subscribeToTopicRequest = new SubscribeToTopicRequest();
-        subscribeToTopicRequest.setTopic(topicName);
-        CountDownLatch cdl = new CountDownLatch(1);
-        AtomicInteger atomicInteger = new AtomicInteger();
-
-        CountDownLatch subscriptionLatch = new CountDownLatch(1);
-        Slf4jLogAdapter.addGlobalListener(m -> {
-            if (m.getMessage().contains("Subscribing to topic")) {
-                subscriptionLatch.countDown();
-            }
-        });
-        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
-        CompletableFuture<SubscribeToTopicResponse> fut =
-                greengrassCoreIPCClient.subscribeToTopic(subscribeToTopicRequest,
-                        Optional.of(new StreamResponseHandler<SubscriptionResponseMessage>() {
-                            @Override
-                            public void onStreamEvent(SubscriptionResponseMessage message) {
-                                assertNotNull(message.getBinaryMessage());
-                                assertNull(message.getJsonMessage());
-                                assertEquals("ABCDEFG", new String(message.getBinaryMessage().getMessage()));
-                                atomicInteger.incrementAndGet();
-                                cdl.countDown();
-                            }
-
-                            @Override
-                            public boolean onStreamError(Throwable error) {
-                                logger.atError().log("Received a stream error", error);
-                                return false;
-                            }
-
-                            @Override
-                            public void onStreamClosed() {
-
-                            }
-                        })).getResponse();
-        try {
-            fut.get(3, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            logger.atError().setCause(e).log("Error when subscribing to component updates");
-            fail("Caught exception when subscribing to component updates");
-        }
-        assertTrue(subscriptionLatch.await(10, TimeUnit.SECONDS));
-
-        PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
-        publishToTopicRequest.setTopic(topicName);
-        PublishMessage publishMessage = new PublishMessage();
-        BinaryMessage binaryMessage = new BinaryMessage();
-        binaryMessage.setMessage("ABCDEFG".getBytes());
-        publishMessage.setBinaryMessage(binaryMessage);
-        publishToTopicRequest.setPublishMessage(publishMessage);
-        greengrassCoreIPCClient.publishToTopic(publishToTopicRequest, Optional.empty()).getResponse().get(10, TimeUnit.SECONDS);
-        assertTrue(cdl.await(20, TimeUnit.SECONDS));
-    }
-
-    @Test
-    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
-    void GIVEN_PubSubEventStreamClient_WHEN_subscribe_to_another_source_THEN_does_not_publish()
-            throws Exception {
-        String topicName = "topicName";
-        String sourceName = "sourceName";
-        SubscribeToTopicRequest subscribeToTopicRequest = new SubscribeToTopicRequest();
-        subscribeToTopicRequest.setTopic(topicName);
-        subscribeToTopicRequest.setSource(sourceName);
-        CountDownLatch cdl = new CountDownLatch(1);
-        AtomicInteger atomicInteger = new AtomicInteger();
-
-        CountDownLatch subscriptionLatch = new CountDownLatch(1);
-        Slf4jLogAdapter.addGlobalListener(m -> {
-            if (m.getMessage().contains("Subscribing to topic")) {
-                subscriptionLatch.countDown();
-            }
-        });
-        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
-        CompletableFuture<SubscribeToTopicResponse> fut =
-                greengrassCoreIPCClient.subscribeToTopic(subscribeToTopicRequest,
-                Optional.of(new StreamResponseHandler<SubscriptionResponseMessage>() {
-                    @Override
-                    public void onStreamEvent(SubscriptionResponseMessage message) {
-                        assertNotNull(message.getBinaryMessage());
-                        assertNull(message.getJsonMessage());
-                        assertEquals("ABCDEFG", new String(message.getBinaryMessage().getMessage()));
-                        atomicInteger.incrementAndGet();
-                        cdl.countDown();
-                    }
-
-                    @Override
-                    public boolean onStreamError(Throwable error) {
-                        logger.atError().log("Received a stream error", error);
-                        return false;
-                    }
-
-                    @Override
-                    public void onStreamClosed() {
-
-                    }
-                })).getResponse();
-        try {
-            fut.get(3, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            logger.atError().setCause(e).log("Error when subscribing to component updates");
-            fail("Caught exception when subscribing to component updates");
-        }
-        assertTrue(subscriptionLatch.await(10, TimeUnit.SECONDS));
-
-        PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
-        publishToTopicRequest.setTopic(topicName);
-        PublishMessage publishMessage = new PublishMessage();
-        BinaryMessage binaryMessage = new BinaryMessage();
-        binaryMessage.setMessage("ABCDEFG".getBytes());
-        publishMessage.setBinaryMessage(binaryMessage);
-        publishToTopicRequest.setPublishMessage(publishMessage);
-        greengrassCoreIPCClient.publishToTopic(publishToTopicRequest, Optional.empty()).getResponse().get(10, TimeUnit.SECONDS);
-        assertFalse(cdl.await(10, TimeUnit.SECONDS));
-        assertEquals(0, atomicInteger.get());
     }
 }

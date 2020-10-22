@@ -65,6 +65,8 @@ public class PubSubIPCService implements Startable, InjectionActions {
                 .map(PubSubClientOpCodes::name)
                 .map(String::toLowerCase)
                 .collect(Collectors.toList());
+        opCodes.add(GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC);
+        opCodes.add(GreengrassCoreIPCService.PUBLISH_TO_TOPIC);
         try {
             authorizationHandler.registerComponent(PUB_SUB_SERVICE_NAME, new HashSet<>(opCodes));
         } catch (AuthorizationException e) {
