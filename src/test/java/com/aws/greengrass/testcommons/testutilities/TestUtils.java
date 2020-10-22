@@ -4,6 +4,7 @@
 package com.aws.greengrass.testcommons.testutilities;
 
 import com.aws.greengrass.util.Pair;
+import software.amazon.awssdk.crt.io.SocketOptions;
 
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
@@ -121,5 +122,13 @@ public final class TestUtils {
                 command.run();
             }
         };
+    }
+
+    public static SocketOptions getSocketOptionsForIPC() {
+        SocketOptions socketOptions = new SocketOptions();
+        socketOptions.connectTimeoutMs = 3000;
+        socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
+        socketOptions.type = SocketOptions.SocketType.STREAM;
+        return socketOptions;
     }
 }

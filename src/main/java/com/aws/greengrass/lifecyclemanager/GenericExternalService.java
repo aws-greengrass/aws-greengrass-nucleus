@@ -15,6 +15,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.AuthenticationHandler;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.logging.api.LogEventBuilder;
+import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Pair;
@@ -35,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
@@ -51,6 +53,9 @@ public class GenericExternalService extends GreengrassService {
                     "SIGIO", "SIGPWR", "SIGSYS",};
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern SKIPCMD = Pattern.compile(SKIP_COMMAND_REGEX);
+    protected static final String EXIT_CODE = "exitCode";
+    // Logger which write to a file for just this service
+    protected final Logger separateLogger;
 
     @Inject
     protected DeviceConfiguration deviceConfiguration;
@@ -91,6 +96,10 @@ public class GenericExternalService extends GreengrassService {
     protected GenericExternalService(Topics c, Topics privateSpace, Platform platform) {
         super(c, privateSpace);
         this.platform = platform;
+
+        this.separateLogger = LogManagerHelper.getComponentLogger(this).createChild();
+        separateLogger.dfltKv(SERVICE_NAME_KEY, getServiceName());
+        separateLogger.dfltKv(CURRENT_STATE_METRIC_NAME, (Supplier<State>) this::getState);
 
         // when configuration reloads and child Topic changes, restart/re-install the service.
         c.subscribe((what, child) -> {
@@ -260,7 +269,8 @@ public class GenericExternalService extends GreengrassService {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
             synchronized (this) {
-                logger.atInfo().kv("exitCode", exit).log("Startup script exited");
+                logger.atInfo().kv(EXIT_CODE, exit).log("Startup script exited");
+                separateLogger.atInfo().kv(EXIT_CODE, exit).log("Startup script exited");
                 State state = getState();
                 if (startingStateGeneration == getStateGeneration()
                         && State.STARTING.equals(state) || State.RUNNING.equals(state)) {
@@ -290,7 +300,8 @@ public class GenericExternalService extends GreengrassService {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
             synchronized (this) {
-                logger.atInfo().kv("exitCode", exit).log("Run script exited");
+                logger.atInfo().kv(EXIT_CODE, exit).log("Run script exited");
+                separateLogger.atInfo().kv(EXIT_CODE, exit).log("Run script exited");
                 if (startingStateGeneration == getStateGeneration() && currentOrReportedStateIs(State.RUNNING)) {
                     if (exit == 0) {
                         logger.atInfo().setEventType("generic-service-stopping").log("Service finished running");
