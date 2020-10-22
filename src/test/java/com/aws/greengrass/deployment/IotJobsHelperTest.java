@@ -10,6 +10,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
+import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -94,6 +95,8 @@ class IotJobsHelperTest {
     @Mock
     private IotJobsClient mockIotJobsClient;
     @Mock
+    private FleetStatusService mockFleetStatusService;
+    @Mock
     MqttClient mockMqttClient;
 
     @Captor
@@ -111,7 +114,8 @@ class IotJobsHelperTest {
     @BeforeEach
     void setup() throws Exception {
         iotJobsHelper = new IotJobsHelper(deviceConfiguration, mockIotJobsClientFactory, mockDeploymentQueue,
-                deploymentStatusKeeper, executorService,mockKernel, mockWrapperMqttConnectionFactory, mockMqttClient);
+                deploymentStatusKeeper, executorService,mockKernel, mockWrapperMqttConnectionFactory, mockMqttClient,
+                mockFleetStatusService);
         Topic mockThingNameTopic = mock(Topic.class);
         when(mockThingNameTopic.getOnce()).thenReturn(TEST_THING_NAME);
         when(deviceConfiguration.getThingName()).thenReturn(mockThingNameTopic);
@@ -136,6 +140,7 @@ class IotJobsHelperTest {
         verify(mockIotJobsClient).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(mockIotJobsClient).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
         verify(mockIotJobsClient).SubscribeToDescribeJobExecutionRejected(any(), any(), any());
+        verify(mockFleetStatusService).updateFleetStatusUpdateForAllComponents();
     }
 
     @Test

@@ -65,6 +65,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -108,13 +109,13 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         cf.complete(null);
         when(mockIotJobsClient.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
                 any(QualityOfService.class))).thenAnswer(invocationOnMock -> {
-                    verify(mockIotJobsClient, atLeastOnce()).SubscribeToUpdateJobExecutionAccepted(any(),
-                            eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
-                    Consumer<UpdateJobExecutionResponse> jobResponseConsumer = jobsAcceptedHandlerCaptor.getValue();
-                    UpdateJobExecutionResponse mockJobExecutionResponse = mock(UpdateJobExecutionResponse.class);
-                    jobResponseConsumer.accept(mockJobExecutionResponse);
-                    return cf;
-                });
+            verify(mockIotJobsClient, atLeastOnce()).SubscribeToUpdateJobExecutionAccepted(any(),
+                    eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
+            Consumer<UpdateJobExecutionResponse> jobResponseConsumer = jobsAcceptedHandlerCaptor.getValue();
+            UpdateJobExecutionResponse mockJobExecutionResponse = mock(UpdateJobExecutionResponse.class);
+            jobResponseConsumer.accept(mockJobExecutionResponse);
+            return cf;
+        });
         kernel = new Kernel();
         kernel.parseArgs("-i", IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml").toString());
         kernel.getContext().put(MqttClient.class, mqttClient);
@@ -176,30 +177,34 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         verify(mqttClient, atLeastOnce()).publish(captor.capture());
 
         List<PublishRequest> prs = captor.getAllValues();
-        for (PublishRequest pr : prs) {
-            try {
-                FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(),
-                        FleetStatusDetails.class);
-                assertEquals("ThingName", fleetStatusDetails.getThing());
-                assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-                assertEquals(0, fleetStatusDetails.getSequenceNumber());
-                assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-                assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
-                fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
-                    componentNamesToCheck.remove(componentStatusDetails.getComponentName());
-                    if (componentStatusDetails.getComponentName().equals("CustomerApp")) {
-                        assertEquals("1.0.0", componentStatusDetails.getVersion());
-                        assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
-                        assertEquals(MOCK_FLEET_CONFIG_ARN, componentStatusDetails.getFleetConfigArns().get(0));
-                        assertEquals(State.FINISHED, componentStatusDetails.getState());
-                    } else if (componentStatusDetails.getComponentName().equals("Mosquitto")) {
-                        assertEquals("1.0.0", componentStatusDetails.getVersion());
-                        assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
-                        assertEquals(MOCK_FLEET_CONFIG_ARN, componentStatusDetails.getFleetConfigArns().get(0));
-                        assertEquals(State.RUNNING, componentStatusDetails.getState());
-                    }
-                });
-            } catch (UnrecognizedPropertyException ignored) { }
+        // Get the last FSS publish request which should have all the components information.
+        PublishRequest pr = prs.get(prs.size() - 1);
+        try {
+            FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(),
+                    FleetStatusDetails.class);
+            assertEquals("ThingName", fleetStatusDetails.getThing());
+            assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+            assertNotNull(fleetStatusDetails.getComponentStatusDetails());
+            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
+            fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
+                componentNamesToCheck.remove(componentStatusDetails.getComponentName());
+                if (componentStatusDetails.getComponentName().equals("CustomerApp")) {
+                    assertEquals("1.0.0", componentStatusDetails.getVersion());
+                    assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
+                    assertEquals(MOCK_FLEET_CONFIG_ARN, componentStatusDetails.getFleetConfigArns().get(0));
+                    assertEquals(State.FINISHED, componentStatusDetails.getState());
+                    assertTrue(componentStatusDetails.isRoot());
+                } else if (componentStatusDetails.getComponentName().equals("Mosquitto")) {
+                    assertEquals("1.0.0", componentStatusDetails.getVersion());
+                    assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
+                    assertEquals(MOCK_FLEET_CONFIG_ARN, componentStatusDetails.getFleetConfigArns().get(0));
+                    assertEquals(State.RUNNING, componentStatusDetails.getState());
+                    assertFalse(componentStatusDetails.isRoot());
+                } else {
+                    assertFalse(componentStatusDetails.isRoot());
+                }
+            });
+        } catch (UnrecognizedPropertyException ignored) {
         }
         assertEquals(0, componentNamesToCheck.size());
     }
