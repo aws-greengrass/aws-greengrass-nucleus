@@ -28,6 +28,7 @@ import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext
 import software.amazon.awssdk.eventstreamrpc.StreamEventPublisher;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -35,9 +36,13 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS;
+
 public class LifecycleIPCEventStreamAgent {
+    private static final String SERVICE_NAME_LOG_KEY = "service name";
 
     @Getter (AccessLevel.PACKAGE)
     private final ConcurrentHashMap<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>>
@@ -98,7 +103,7 @@ public class LifecycleIPCEventStreamAgent {
                 service = kernel.locate(serviceN);
                 service.reportState(s);
             } catch (ServiceLoadException e) {
-                log.atWarn().kv("service name", request.getServiceName()).log("Service not present");
+                log.atWarn().kv(SERVICE_NAME_LOG_KEY, request.getServiceName()).log("Service not present");
                 ResourceNotFoundError rnf = new ResourceNotFoundError();
                 rnf.setMessage("Service with given name not found");
                 rnf.setResourceType("Service/Component");
@@ -142,7 +147,7 @@ public class LifecycleIPCEventStreamAgent {
             try {
                 kernel.locate(serviceName);
             } catch (ServiceLoadException e) {
-                log.atWarn().kv("service name", serviceName).setCause(e)
+                log.atWarn().kv(SERVICE_NAME_LOG_KEY, serviceName).setCause(e)
                         .log("Got subscribe to component update request from a "
                         + "service that is not found in Greengrass");
                 ResourceNotFoundError rnf = new ResourceNotFoundError();
@@ -154,7 +159,7 @@ public class LifecycleIPCEventStreamAgent {
             componentUpdateListeners.putIfAbsent(serviceName, new HashSet<>());
             componentUpdateListeners.get(serviceName).add(this);
             log.atInfo().log("{} subscribed to component update", serviceName);
-            return new SubscribeToComponentUpdatesResponse();
+            return SubscribeToComponentUpdatesResponse.VOID;
         }
 
         @Override
@@ -187,13 +192,14 @@ public class LifecycleIPCEventStreamAgent {
             }
 
             CompletableFuture<DeferUpdateRequest> deferComponentUpdateRequestFuture =
-                    deferUpdateFuturesMap.get(serviceName);
+                deferUpdateFuturesMap.remove(serviceName);
             if (deferComponentUpdateRequestFuture == null) {
                 throw new ServiceError("Time limit to respond to PreComponentUpdateEvent exceeded");
+            } else {
+                deferComponentUpdateRequestFuture
+                        .complete(new DeferUpdateRequest(serviceName, request.getMessage(),
+                                request.getRecheckAfterMs()));
             }
-            deferComponentUpdateRequestFuture.complete(new DeferUpdateRequest(serviceName,
-                    request.getMessage(), request.getRecheckAfterMs()));
-            deferUpdateFuturesMap.remove(serviceName);
             return new DeferComponentUpdateResponse();
         }
 
@@ -207,10 +213,11 @@ public class LifecycleIPCEventStreamAgent {
      * Signal components about pending component updates.
      *
      * @param preComponentUpdateEvent event sent to subscribed components
-     * @param deferUpdateFutures      futures tracking the response to preComponentUpdateEvent
      */
-    public void sendPreComponentUpdateEvent(PreComponentUpdateEvent preComponentUpdateEvent,
-                                            List<Future<DeferUpdateRequest>> deferUpdateFutures) {
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public List<Future<DeferUpdateRequest>> sendPreComponentUpdateEvent(
+            PreComponentUpdateEvent preComponentUpdateEvent) {
+        List<Future<DeferUpdateRequest>> deferUpdateFutures = new ArrayList<>();
         discardDeferComponentUpdateFutures();
         for (Map.Entry<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>> entry
                 : componentUpdateListeners.entrySet()) {
@@ -219,7 +226,14 @@ public class LifecycleIPCEventStreamAgent {
                 log.atInfo().kv("serviceName", serviceName).log("Sending preComponentUpdate event");
                 ComponentUpdatePolicyEvents componentUpdatePolicyEvents = new ComponentUpdatePolicyEvents();
                 componentUpdatePolicyEvents.setPreUpdateEvent(preComponentUpdateEvent);
-                subscribeHandler.sendStreamEvent(componentUpdatePolicyEvents);
+                try {
+                    subscribeHandler.sendStreamEvent(componentUpdatePolicyEvents)
+                            .get(DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    log.atError().setCause(e).kv(SERVICE_NAME_LOG_KEY, serviceName)
+                            .log("Failed to send the pre component update on stream");
+                   return;
+                }
                 CompletableFuture<DeferUpdateRequest> deferUpdateFuture = new CompletableFuture<>();
                 deferUpdateFutures.add(deferUpdateFuture);
                 // If there are multiple pre component events sent to same service, we will store the latest future
@@ -227,6 +241,7 @@ public class LifecycleIPCEventStreamAgent {
                 deferUpdateFuturesMap.put(serviceName, deferUpdateFuture);
             });
         }
+        return deferUpdateFutures;
     }
 
     /**
@@ -234,6 +249,7 @@ public class LifecycleIPCEventStreamAgent {
      *
      * @param postComponentUpdateEvent event sent to subscribed components
      */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public void sendPostComponentUpdateEvent(PostComponentUpdateEvent postComponentUpdateEvent) {
         for (Map.Entry<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>> entry
                 : componentUpdateListeners.entrySet()) {
@@ -242,7 +258,15 @@ public class LifecycleIPCEventStreamAgent {
                 ComponentUpdatePolicyEvents componentUpdatePolicyEvents = new ComponentUpdatePolicyEvents();
                 log.atDebug().kv("serviceName", serviceName).log("Sending postComponentUpdate event to");
                 componentUpdatePolicyEvents.setPostUpdateEvent(postComponentUpdateEvent);
-                subscribeHandler.sendStreamEvent(componentUpdatePolicyEvents);
+
+                try {
+                    subscribeHandler.sendStreamEvent(componentUpdatePolicyEvents)
+                            .get(DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    log.atError().setCause(e).kv(SERVICE_NAME_LOG_KEY, serviceName)
+                            .log("Failed to send the post component update on stream");
+                    return;
+                }
             });
         }
     }
