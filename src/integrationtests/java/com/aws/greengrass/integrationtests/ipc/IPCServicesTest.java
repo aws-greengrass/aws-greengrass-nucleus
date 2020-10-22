@@ -18,6 +18,8 @@ import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport;
 import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
@@ -38,6 +40,7 @@ import software.amazon.awssdk.aws.greengrass.model.LifecycleState;
 import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesResponse;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
@@ -46,7 +49,6 @@ import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -72,12 +74,14 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 class IPCServicesTest {
 
     private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
     private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
+    private static Logger logger = LogManager.getLogger(IPCServicesTest.class);
 
     @TempDir
     static Path tempRootDir;
@@ -304,7 +308,7 @@ class IPCServicesTest {
         assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
     }
 
-    @SuppressWarnings("PMD.CloseResource")
+    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
     void GIVEN_LifeCycleEventStreamClient_WHEN_subscribe_to_component_update_THEN_service_receives_update() throws Exception {
 
@@ -317,7 +321,9 @@ class IPCServicesTest {
             subscriptionLatch.countDown();
         });
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
-        greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest, Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+        CompletableFuture<SubscribeToComponentUpdatesResponse> fut =
+                greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest,
+                Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
             @Override
             public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
                 if (streamEvent.getPreUpdateEvent() != null ) {
@@ -325,7 +331,12 @@ class IPCServicesTest {
                     DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
                     deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(1).toMillis());
                     deferComponentUpdateRequest.setMessage("Test");
-                    greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
+                    try {
+                        greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty()).getResponse()
+                                .get(5, TimeUnit.SECONDS);
+                    } catch (Exception e) {
+                        fail("Failed to send defer component updated");
+                    }
                 }
                 if (streamEvent.getPostUpdateEvent() != null) {
                     cdl.countDown();
@@ -334,6 +345,7 @@ class IPCServicesTest {
 
             @Override
             public boolean onStreamError(Throwable error) {
+                logger.atError().setCause(error).log("Caught stream error");
                 return false;
             }
 
@@ -341,15 +353,21 @@ class IPCServicesTest {
             public void onStreamClosed() {
 
             }
-        })).getResponse().get(10, TimeUnit.SECONDS);
+        })).getResponse();
+        try {
+            fut.get(10, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            logger.atError().setCause(e).log("Error when subscribing to component updates");
+            fail("Caught exception when subscribing to component updates");
+        }
 
         assertTrue(subscriptionLatch.await(5, TimeUnit.SECONDS));
         // TODO: When Cli support safe update setting in local deployment, then create a local deployment here to
         //  trigger update
         LifecycleIPCEventStreamAgent lifecycleIPCEventStreamAgent =
                 kernel.getContext().get(LifecycleIPCEventStreamAgent.class);
-        List<Future<DeferUpdateRequest>> futureList = new ArrayList<>();
-        lifecycleIPCEventStreamAgent.sendPreComponentUpdateEvent(new PreComponentUpdateEvent(), futureList);
+        List<Future<DeferUpdateRequest>> futureList =
+                lifecycleIPCEventStreamAgent.sendPreComponentUpdateEvent(new PreComponentUpdateEvent());
         futureList.get(0).get(Duration.ofSeconds(2).toMillis(), TimeUnit.SECONDS);
         lifecycleIPCEventStreamAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
         assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
