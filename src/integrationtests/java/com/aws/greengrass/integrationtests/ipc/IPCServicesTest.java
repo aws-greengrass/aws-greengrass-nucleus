@@ -392,6 +392,13 @@ class IPCServicesTest {
         subscribeToTopicRequest.setTopic(topicName);
         CountDownLatch cdl = new CountDownLatch(1);
         AtomicInteger atomicInteger = new AtomicInteger();
+
+        CountDownLatch subscriptionLatch = new CountDownLatch(1);
+        Slf4jLogAdapter.addGlobalListener(m -> {
+            if (m.getMessage().contains("Subscribing to topic")) {
+                subscriptionLatch.countDown();
+            }
+        });
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         CompletableFuture<SubscribeToTopicResponse> fut =
                 greengrassCoreIPCClient.subscribeToTopic(subscribeToTopicRequest,
@@ -422,17 +429,6 @@ class IPCServicesTest {
             logger.atError().setCause(e).log("Error when subscribing to component updates");
             fail("Caught exception when subscribing to component updates");
         }
-
-        CountDownLatch subscriptionLatch = new CountDownLatch(1);
-        CountDownLatch unsubscriptionLatch = new CountDownLatch(1);
-        Slf4jLogAdapter.addGlobalListener(m -> {
-            if (m.getMessage().contains("Subscribing to topic")) {
-                subscriptionLatch.countDown();
-            }
-            if (m.getMessage().contains("Unsubscribing from topic")) {
-                unsubscriptionLatch.countDown();
-            }
-        });
         assertTrue(subscriptionLatch.await(10, TimeUnit.SECONDS));
 
         PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
@@ -457,6 +453,13 @@ class IPCServicesTest {
         subscribeToTopicRequest.setSource(sourceName);
         CountDownLatch cdl = new CountDownLatch(1);
         AtomicInteger atomicInteger = new AtomicInteger();
+
+        CountDownLatch subscriptionLatch = new CountDownLatch(1);
+        Slf4jLogAdapter.addGlobalListener(m -> {
+            if (m.getMessage().contains("Subscribing to topic")) {
+                subscriptionLatch.countDown();
+            }
+        });
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         CompletableFuture<SubscribeToTopicResponse> fut =
                 greengrassCoreIPCClient.subscribeToTopic(subscribeToTopicRequest,
@@ -487,13 +490,6 @@ class IPCServicesTest {
             logger.atError().setCause(e).log("Error when subscribing to component updates");
             fail("Caught exception when subscribing to component updates");
         }
-
-        CountDownLatch subscriptionLatch = new CountDownLatch(1);
-        Slf4jLogAdapter.addGlobalListener(m -> {
-            if (m.getMessage().contains("Subscribing to topic")) {
-                subscriptionLatch.countDown();
-            }
-        });
         assertTrue(subscriptionLatch.await(10, TimeUnit.SECONDS));
 
         PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
