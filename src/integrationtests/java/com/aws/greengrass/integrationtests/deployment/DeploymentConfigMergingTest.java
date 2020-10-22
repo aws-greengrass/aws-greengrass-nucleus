@@ -43,6 +43,7 @@ import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesResponse;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
@@ -54,6 +55,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -82,6 +84,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 class DeploymentConfigMergingTest extends BaseITCase {
@@ -467,7 +470,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     }
 
     @Test
-    @SuppressWarnings("PMD.CloseResource")
+    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     void GIVEN_a_running_service_is_not_disruptable_WHEN_deployed_THEN_deployment_waits() throws Throwable {
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("non_disruptable_service.yaml").toString());
@@ -491,6 +494,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 kernel);
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest = new SubscribeToComponentUpdatesRequest();
+        CompletableFuture<SubscribeToComponentUpdatesResponse> fut =
         greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest,
                 Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
                     @Override
@@ -523,7 +527,13 @@ class DeploymentConfigMergingTest extends BaseITCase {
                         logger.atWarn().log("Stream closed by the server");
                     }
                 }
-        ));
+        )).getResponse();
+        try {
+            fut.get(3, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            logger.atError().setCause(e).log("Error when subscribing to component updates");
+            fail("Caught exception when subscribing to component updates");
+        }
 
         Map<String, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
         Future<DeploymentResult> future =

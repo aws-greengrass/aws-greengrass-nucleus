@@ -215,6 +215,8 @@ class CLIServiceTest extends GGServiceTestUtil {
         Topics mockRootTopics = mock(Topics.class);
         when(mockRootTopics.find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME))
                 .thenReturn(mockSocketUrlTopic);
+        when(mockRootTopics.find(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH))
+                .thenReturn(mockSocketUrlTopic);
         when(cliConfigSpy.getRoot()).thenReturn(mockRootTopics);
 
         Topic mockPosixGroupsTopic = mock(Topic.class);

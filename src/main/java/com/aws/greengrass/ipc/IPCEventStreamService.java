@@ -97,6 +97,10 @@ public class IPCEventStreamService implements Startable, Closeable {
         }
         Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
         kernelUri.withValue(ipcServerSocketPath);
+
+        // For domain sockets:
+        // 1. Port number is ignored. IpcServer does not accept a null value so we are using a default value.
+        // 2. The hostname parameter expects the socket filepath
         ipcServer = new IpcServer(eventLoopGroup, socketOptions, null, ipcServerSocketPath,
                 DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
         ipcServer.runServer();

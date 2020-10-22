@@ -514,7 +514,7 @@ class IPCServicesTest {
             }
         })).getResponse();
         try {
-            fut.get(10, TimeUnit.SECONDS);
+            fut.get(3, TimeUnit.SECONDS);
         } catch (Exception e) {
             logger.atError().setCause(e).log("Error when subscribing to component updates");
             fail("Caught exception when subscribing to component updates");

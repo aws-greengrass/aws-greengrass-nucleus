@@ -183,8 +183,6 @@ public class Topic extends Node {
 
     @Override
     protected void fire(WhatHappened what) {
-        logger.atDebug().setEventType("config-node-update").addKeyValue("configNode", getFullName())
-                .addKeyValue("reason", what.name()).log();
         for (Watcher s : watchers) {
             if (s instanceof Subscriber) {
                 ((Subscriber) s).published(what, this);
