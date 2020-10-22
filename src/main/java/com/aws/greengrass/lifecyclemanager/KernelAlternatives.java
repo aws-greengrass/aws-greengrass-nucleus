@@ -106,7 +106,7 @@ public class KernelAlternatives {
     }
 
     public boolean isLaunchDirSetup() {
-        // TODO: check for file and directory corruptions
+        // GG_NEEDS_REVIEW: TODO: check for file and directory corruptions
         return currentDir.toFile().exists();
     }
 
@@ -166,7 +166,7 @@ public class KernelAlternatives {
      */
     public Deployment.DeploymentStage determineDeploymentStage(BootstrapManager bootstrapManager,
                                                                DeploymentDirectoryManager deploymentDirectoryManager) {
-        // TODO: validate if any directory is corrupted
+        // GG_NEEDS_REVIEW: TODO: validate if any directory is corrupted
         if (oldDir.toFile().exists()) {
             try {
                 Path persistedBootstrapTasks = deploymentDirectoryManager.getBootstrapTaskFilePath();

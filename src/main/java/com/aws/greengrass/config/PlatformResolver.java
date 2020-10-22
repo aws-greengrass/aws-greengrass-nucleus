@@ -41,7 +41,7 @@ public final class PlatformResolver {
                     .architecture(getArchInfo())
                     .build();
         } catch (InterruptedException | IOException e) {
-            // TODO: Better err handling
+            // GG_NEEDS_REVIEW: TODO: Better err handling
             logger.atError().setCause(e).log("Fail to read platform info");
             return Platform.builder()
                     .os(OS.ALL)
@@ -65,7 +65,7 @@ public final class PlatformResolver {
         Map<String, Integer> ranks = new HashMap<>();
         // figure out what OS we're running and add applicable tags
         // The more specific a tag is, the higher its rank should be
-        // TODO: use better way to determine if a field is platform specific. Eg: using 'platform$' prefix.
+        //GG_NEEDS_REVIEW: TODO:use better way to determine if a field is platform specific. Eg:using 'platform$' prefix
         ranks.put("all", 0);
         ranks.put("any", 0);
         if (Files.exists(Paths.get("/bin/sh")) || Files.exists(Paths.get("/bin/bash"))
@@ -93,7 +93,7 @@ public final class PlatformResolver {
                 }
                 if (sysver.contains("darwin")) {
                     ranks.put("darwin", 10);
-                    // TODO: currently we assume darwin is MacOS
+                    // GG_NEEDS_REVIEW: TODO: currently we assume darwin is MacOS
                     ranks.put("macos", 20);
                 }
                 if (sysver.contains("raspbian")) {
@@ -124,7 +124,7 @@ public final class PlatformResolver {
             return OS.WINDOWS;
         }
 
-        // TODO: use UNRECOGNIZED instead.
+        // GG_NEEDS_REVIEW: TODO: use UNRECOGNIZED instead.
         OS currentOS = OS.ALL;
         String sysver = Exec.sh("uname -a").toLowerCase();
 
@@ -171,7 +171,7 @@ public final class PlatformResolver {
         if ("aarch64".equals(arch)) {
             return Architecture.AARCH64;
         }
-        // TODO: use UNRECOGNIZED instead.
+        // GG_NEEDS_REVIEW: TODO: use UNRECOGNIZED instead.
         return Architecture.ALL;
     }
 
@@ -197,7 +197,7 @@ public final class PlatformResolver {
     }
 
     @Deprecated // Still used in source code for existing tests that use multi-platform config.yaml when kernel starts.
-    // TODO Remove from source code and put into test utils
+    // GG_NEEDS_REVIEW: TODO Remove from source code and put into test utils
     public static Object resolvePlatform(Map<String, Object> input) {
         return resolvePlatform(RANKS.get(), input);
     }

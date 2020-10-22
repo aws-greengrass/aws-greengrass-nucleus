@@ -224,7 +224,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      * @throws IOException on I/O error
      */
     public void persistBootstrapTaskList(Path persistedTaskFilePath) throws IOException {
-        // TODO: add file validation
+        // GG_NEEDS_REVIEW: TODO: add file validation
         Objects.requireNonNull(persistedTaskFilePath);
         logger.atInfo().kv("filePath", persistedTaskFilePath).log("Saving bootstrap task list to file");
         Files.deleteIfExists(persistedTaskFilePath);
@@ -244,7 +244,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      * @throws ClassNotFoundException deserialization of the file content fails
      */
     public void loadBootstrapTaskList(Path persistedTaskFilePath) throws IOException {
-        // TODO: validate file
+        // GG_NEEDS_REVIEW: TODO: validate file
         Objects.requireNonNull(persistedTaskFilePath);
 
         try (InputStream input = Files.newInputStream(persistedTaskFilePath)) {

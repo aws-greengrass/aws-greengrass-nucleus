@@ -43,7 +43,7 @@ import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE
 public class DeviceConfiguration {
 
     public static final String DEFAULT_NUCLEUS_COMPONENT_NAME = "aws.greengrass.Nucleus";
-    // TODO : Version should come from the installer based on which nucleus version it installed
+    // GG_NEEDS_REVIEW: TODO : Version should come from the installer based on which nucleus version it installed
     public static final String NUCLEUS_COMPONENT_VERSION = "0.0.0";
 
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
@@ -151,7 +151,7 @@ public class DeviceConfiguration {
     private void initializeNucleusComponentConfig() {
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY)
                 .withValue(ComponentType.NUCLEUS.name());
-        // TODO : Take version as an input from the installer script
+        // GG_NEEDS_REVIEW: TODO : Take version as an input from the installer script
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY)
                 .withValue(NUCLEUS_COMPONENT_VERSION);
         ArrayList<String> mainDependencies = (ArrayList) kernel.getConfig().getRoot()

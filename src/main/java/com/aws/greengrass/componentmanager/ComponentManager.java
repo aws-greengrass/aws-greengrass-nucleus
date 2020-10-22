@@ -243,7 +243,7 @@ public class ComponentManager implements InjectionActions {
     }
 
     // With simplified dependency resolving logic, recipe should be available when resolveComponentVersion,
-    // and should be availble on device at this step.
+    // and should be available on device at this step.
     @Deprecated
     private ComponentRecipe findRecipeDownloadIfNotExisted(ComponentIdentifier componentIdentifier)
             throws PackageDownloadException, PackageLoadingException {
@@ -278,8 +278,8 @@ public class ComponentManager implements InjectionActions {
 
         for (ComponentArtifact artifact : artifacts) {
             // check disk space before download
-            //TODO refactor to check total size of artifacts from all components at once instead of one by one
-            // because all artifacts must fit otherwise the deployment still fails.
+            // GG_NEEDS_REVIEW: TODO refactor to check total size of artifacts from all components at once instead of
+            //  one by one because all artifacts must fit otherwise the deployment still fails.
             long usableSpaceBytes = componentStore.getUsableSpace();
             if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
                 throw new SizeLimitException(

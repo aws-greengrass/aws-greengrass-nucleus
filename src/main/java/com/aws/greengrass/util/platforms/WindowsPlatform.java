@@ -81,18 +81,18 @@ public class WindowsPlatform extends Platform {
   
     @Override
     public void setPermissions(FileSystemPermission permission, Path path) throws IOException {
-        // TODO: Implement using ACL for Windows
+        // GG_NEEDS_REVIEW: TODO: Implement using ACL for Windows
     }
 
     @Override
     public Group getGroup(String posixGroup) {
-        // TODO: support windows platform
+        // GG_NEEDS_REVIEW: TODO: support windows platform
         return new Group("0", 0);
     }
 
     @Override
     public int getEffectiveUID() {
-        // TODO: support windows platform
+        // GG_NEEDS_REVIEW: TODO: support windows platform
         return 0;
     }
 }

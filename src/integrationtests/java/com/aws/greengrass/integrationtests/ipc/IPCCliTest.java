@@ -365,7 +365,7 @@ class IPCCliTest {
 
         String validGid;
         if (Exec.isWindows) {
-            // TODO support windows
+            // GG_NEEDS_REVIEW: TODO support windows
             validGid = "0";
         } else {
             validGid = selectAValidGid();

@@ -52,7 +52,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 @NoArgsConstructor
 public class DynamicComponentConfigurationValidator {
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
-    // TODO : Add configurable timeout and change this to a more appropriate(probably longer) default value
+    // GG_NEEDS_REVIEW: TODO : Add configurable timeout and change this to a better(probably longer) default value
     private static final long DEFAULT_TIMEOUT = Duration.ofSeconds(20).toMillis();
     private static final Logger logger = LogManager.getLogger(DynamicComponentConfigurationValidator.class);
 
@@ -123,8 +123,8 @@ public class DynamicComponentConfigurationValidator {
             }
             Map<String, Object> proposedServiceConfig = (Map) serviceConfig;
 
-            // TODO: Check recipe flag for if service can handle dynamic configuration if not, it'll be restarted
-            //  since it's likely if services can't handle dynamic config they are not IPC aware at all
+            // GG_NEEDS_REVIEW: TODO: Check recipe flag for if service can handle dynamic configuration if not, it'll be
+            //  restarted since it's likely if services can't handle dynamic config they are not IPC aware at all
             if (!willChildTopicChange(proposedServiceConfig, currentServiceConfig, VERSION_CONFIG_KEY,
                     proposedTimestamp) && willChildTopicsChange(proposedServiceConfig, currentServiceConfig,
                     PARAMETERS_CONFIG_KEY, proposedTimestamp)) {
@@ -192,7 +192,7 @@ public class DynamicComponentConfigurationValidator {
             }
             if (validationRequested) {
                 try {
-                    // TODO : Use configurable timeout from deployment document
+                    // GG_NEEDS_REVIEW: TODO : Use configurable timeout from deployment document
                     CompletableFuture.allOf(componentsToValidate.stream().map(ComponentToValidate::getResponse)
                             .collect(Collectors.toSet()).toArray(new CompletableFuture[0]))
                             .get(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
@@ -222,10 +222,10 @@ public class DynamicComponentConfigurationValidator {
                     valid = false;
                 }
             }
-            //TODO: Remove when all UATs move to new IPC
+            // GG_NEEDS_REVIEW: TODO: Remove when all UATs move to new IPC
             if (validationRequestedFromOldIpc) {
                 try {
-                    // TODO : Use configurable timeout from deployment document
+                    // GG_NEEDS_REVIEW: TODO : Use configurable timeout from deployment document
                     CompletableFuture.allOf(componentsToValidate.stream().map(ComponentToValidate::getOldResponse)
                             .collect(Collectors.toSet()).toArray(new CompletableFuture[0]))
                             .get(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
@@ -270,7 +270,7 @@ public class DynamicComponentConfigurationValidator {
                 configStoreIPCEventStreamAgent.discardValidationReportTracker(c.componentName, c.response);
                 c.response.cancel(true);
 
-                //TODO: Remove when all tests moved to new IPC
+                // GG_NEEDS_REVIEW: TODO: Remove when all tests moved to new IPC
                 configStoreIPCAgent.discardValidationReportTracker(c.componentName, c.oldResponse);
                 c.oldResponse.cancel(true);
                 //------------------Remove when all tests moved to new IPC-------------------
