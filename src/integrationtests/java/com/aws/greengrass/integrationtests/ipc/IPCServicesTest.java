@@ -4,6 +4,8 @@
 package com.aws.greengrass.integrationtests.ipc;
 
 import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCAgent;
+import com.aws.greengrass.builtin.services.lifecycle.DeferUpdateRequest;
+import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
@@ -14,11 +16,13 @@ import com.aws.greengrass.ipc.services.configstore.ConfigStore;
 import com.aws.greengrass.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport;
 import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus;
-import com.aws.greengrass.ipc.services.lifecycle.Lifecycle;
-import com.aws.greengrass.ipc.services.lifecycle.LifecycleImpl;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
@@ -29,14 +33,30 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
+import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
+import software.amazon.awssdk.aws.greengrass.model.LifecycleState;
+import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
+import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesResponse;
+import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
+import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
+import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
@@ -54,26 +74,40 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 class IPCServicesTest {
 
-    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 2;
+    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
+    private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
+    private static Logger logger = LogManager.getLogger(IPCServicesTest.class);
 
     @TempDir
     static Path tempRootDir;
 
     private static Kernel kernel;
+    private static EventStreamRPCConnection clientConnection;
     private IPCClient client;
+    private static SocketOptions socketOptions;
 
     @BeforeAll
-    static void beforeAll() throws InterruptedException {
+    static void beforeAll() throws InterruptedException, IOException, ExecutionException {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCServicesTest.class, TEST_SERVICE_NAME);
+        String authToken = IPCTestUtils.getAuthTokeForService(kernel,TEST_SERVICE_NAME);
+        socketOptions = TestUtils.getSocketOptionsForIPC();
+        clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
     }
 
     @AfterAll
     static void afterAll() throws InterruptedException {
+        if (clientConnection != null) {
+            clientConnection.disconnect();
+        }
+        if (socketOptions != null) {
+            socketOptions.close();
+        }
         kernel.shutdown();
     }
 
@@ -88,7 +122,9 @@ class IPCServicesTest {
 
     @AfterEach
     void afterEach() throws IOException {
-        client.disconnect();
+        if (client != null) {
+            client.disconnect();
+        }
     }
 
 
@@ -215,35 +251,15 @@ class IPCServicesTest {
         }
     }
 
-    @Test
-    void GIVEN_LifeCycleClient_WHEN_update_state_THEN_service_state_changes() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
-        client = new IPCClientImpl(config);
-        CountDownLatch cdl = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState ) ->{
 
-            if(TEST_SERVICE_NAME.equals(service.getName())){
-                if(newState.equals(State.ERRORED) && oldState.equals(State.RUNNING)){
-                    cdl.countDown();
-                }
-            }
-        });
-        Lifecycle lifecycle = new LifecycleImpl(client);
-        lifecycle.updateState("ERRORED");
-        assertTrue(cdl.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
-    }
-
+    @SuppressWarnings("PMD.CloseResource")
     @Test
     void GIVEN_LifecycleClient_WHEN_update_state_and_service_dies_THEN_service_errored() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("StartupService", kernel);
-        client = new IPCClientImpl(config);
-        CountDownLatch cdl = new CountDownLatch(2);
-        CountDownLatch started = new CountDownLatch(1);
-
+        CountDownLatch cdl = new CountDownLatch(1);
+        CountDownLatch started = new CountDownLatch(2);
         GreengrassService startupService = kernel.locate("StartupService");
+        EventStreamRPCConnection clientConnection = null;
         try {
-            startupService.requestStart();
-
             kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
                 if ("StartupService".equals(service.getName())) {
                     if (newState.equals(State.STARTING)) {
@@ -257,13 +273,103 @@ class IPCServicesTest {
                     }
                 }
             });
+            startupService.requestStart();
             assertTrue(started.await(10, TimeUnit.SECONDS));
-            Lifecycle lifecycle = new LifecycleImpl(client);
-            lifecycle.updateState("RUNNING");
-            assertTrue(cdl.await(10, TimeUnit.SECONDS));
+            String authToken = IPCTestUtils.getAuthTokeForService(kernel,TEST_SERVICE_NAME);
+            clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
+            UpdateStateRequest updateStateRequest = new UpdateStateRequest();
+            updateStateRequest.setServiceName("StartupService");
+            updateStateRequest.setState(LifecycleState.RUNNING);
+            GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+            greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty());
+            assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
+
         } finally {
+            clientConnection.close();
             startupService.close().get();
         }
     }
 
+    @SuppressWarnings("PMD.CloseResource")
+    @Test
+    void GIVEN_LifeCycleEventStreamClient_WHEN_update_state_THEN_service_state_changes() throws Exception {
+        CountDownLatch cdl = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState ) ->{
+            if(TEST_SERVICE_NAME.equals(service.getName())){
+                if(newState.equals(State.ERRORED) && oldState.equals(State.RUNNING)){
+                    cdl.countDown();
+                }
+            }
+        });
+        UpdateStateRequest updateStateRequest = new UpdateStateRequest();
+        updateStateRequest.setState(LifecycleState.ERRORED);
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+        greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty()).getResponse().get();
+        assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
+    }
+
+    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
+    @Test
+    void GIVEN_LifeCycleEventStreamClient_WHEN_subscribe_to_component_update_THEN_service_receives_update() throws Exception {
+
+        SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest =
+                new SubscribeToComponentUpdatesRequest();
+        CountDownLatch cdl = new CountDownLatch(2);
+        CountDownLatch subscriptionLatch = new CountDownLatch(1);
+        Slf4jLogAdapter.addGlobalListener(m->{
+            m.getMessage().contains("subscribed to component update");
+            subscriptionLatch.countDown();
+        });
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+        CompletableFuture<SubscribeToComponentUpdatesResponse> fut =
+                greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest,
+                Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+            @Override
+            public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                if (streamEvent.getPreUpdateEvent() != null ) {
+                    cdl.countDown();
+                    DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+                    deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(1).toMillis());
+                    deferComponentUpdateRequest.setMessage("Test");
+                    try {
+                        greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty()).getResponse()
+                                .get(5, TimeUnit.SECONDS);
+                    } catch (Exception e) {
+                        fail("Failed to send defer component updated");
+                    }
+                }
+                if (streamEvent.getPostUpdateEvent() != null) {
+                    cdl.countDown();
+                }
+            }
+
+            @Override
+            public boolean onStreamError(Throwable error) {
+                logger.atError().setCause(error).log("Caught stream error");
+                return false;
+            }
+
+            @Override
+            public void onStreamClosed() {
+
+            }
+        })).getResponse();
+        try {
+            fut.get(3, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            logger.atError().setCause(e).log("Error when subscribing to component updates");
+            fail("Caught exception when subscribing to component updates");
+        }
+
+        assertTrue(subscriptionLatch.await(5, TimeUnit.SECONDS));
+        // TODO: When Cli support safe update setting in local deployment, then create a local deployment here to
+        //  trigger update
+        LifecycleIPCEventStreamAgent lifecycleIPCEventStreamAgent =
+                kernel.getContext().get(LifecycleIPCEventStreamAgent.class);
+        List<Future<DeferUpdateRequest>> futureList =
+                lifecycleIPCEventStreamAgent.sendPreComponentUpdateEvent(new PreComponentUpdateEvent());
+        futureList.get(0).get(Duration.ofSeconds(2).toMillis(), TimeUnit.SECONDS);
+        lifecycleIPCEventStreamAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
+        assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
+    }
 }
