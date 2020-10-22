@@ -17,6 +17,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
+import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.SerializerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -115,6 +116,9 @@ public class IotJobsHelper implements InjectionActions {
 
     @Inject
     private DeploymentStatusKeeper deploymentStatusKeeper;
+
+    @Inject
+    private FleetStatusService fleetStatusService;
 
     @Inject
     private Kernel kernel;
@@ -235,7 +239,8 @@ public class IotJobsHelper implements InjectionActions {
                   ExecutorService executorService,
                   Kernel kernel,
                   WrapperMqttConnectionFactory wrapperMqttConnectionFactory,
-                  MqttClient mqttClient) {
+                  MqttClient mqttClient,
+                  FleetStatusService fleetStatusService) {
         this.deviceConfiguration = deviceConfiguration;
         this.iotJobsClientFactory = iotJobsClientFactory;
         this.deploymentQueue = deploymentQueue;
@@ -244,6 +249,7 @@ public class IotJobsHelper implements InjectionActions {
         this.kernel = kernel;
         this.wrapperMqttConnectionFactory = wrapperMqttConnectionFactory;
         this.mqttClient = mqttClient;
+        this.fleetStatusService = fleetStatusService;
     }
 
     private static void unwrapExecutionException(ExecutionException e)
@@ -280,6 +286,7 @@ public class IotJobsHelper implements InjectionActions {
             logger.atInfo().log("Connection established to IoT cloud");
             deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS,
                     this::deploymentStatusChanged, IotJobsHelper.class.getName());
+            this.fleetStatusService.updateFleetStatusUpdateForAllComponents();
         });
     }
 
