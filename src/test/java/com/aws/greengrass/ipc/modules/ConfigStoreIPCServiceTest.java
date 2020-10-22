@@ -6,6 +6,7 @@
 package com.aws.greengrass.ipc.modules;
 
 import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCAgent;
+import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgent;
 import com.aws.greengrass.ipc.ConnectionContext;
 import com.aws.greengrass.ipc.IPCRouter;
 import com.aws.greengrass.ipc.common.FrameReader;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 
 import java.net.InetSocketAddress;
 
@@ -47,9 +49,12 @@ class ConfigStoreIPCServiceTest {
 
     @Mock
     private IPCRouter router;
-
     @Mock
     private ConfigStoreIPCAgent agent;
+    @Mock
+    private ConfigStoreIPCEventStreamAgent eventStreamAgent;
+    @Mock
+    private GreengrassCoreIPCService greengrassCoreIPCService;
 
     private ConnectionContext connectionContext;
 
@@ -57,7 +62,7 @@ class ConfigStoreIPCServiceTest {
 
     @BeforeEach
     void setup() {
-        configStoreIPCService = new ConfigStoreIPCService(router, agent);
+        configStoreIPCService = new ConfigStoreIPCService(router, agent, eventStreamAgent, greengrassCoreIPCService);
         configStoreIPCService.startup();
 
         connectionContext = new ConnectionContext("ServiceA", new InetSocketAddress(1), router);
