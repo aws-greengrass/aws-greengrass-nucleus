@@ -1,6 +1,11 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.deployment;
 
-import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCAgent;
+import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgent;
 import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -9,8 +14,6 @@ import com.aws.greengrass.deployment.exceptions.DynamicConfigurationValidationEx
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
-import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport;
-import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -23,6 +26,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityReport;
+import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityStatus;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -51,7 +56,7 @@ class DynamicComponentConfigurationValidatorTest {
     private static final long DEFAULT_DEPLOYMENT_TIMESTAMP = 100;
 
     @Mock
-    private ConfigStoreIPCAgent configStoreIPCAgent;
+    private ConfigStoreIPCEventStreamAgent configStoreIPCAgent;
 
     @Mock
     private Kernel kernel;
@@ -79,8 +84,9 @@ class DynamicComponentConfigurationValidatorTest {
     void GIVEN_deployment_changes_service_config_WHEN_service_validates_config_THEN_succeed() throws Exception {
         when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
             CompletableFuture<ConfigurationValidityReport> validityReportFuture = invocationOnMock.getArgument(2);
-            validityReportFuture
-                    .complete(ConfigurationValidityReport.builder().status(ConfigurationValidityStatus.VALID).build());
+            ConfigurationValidityReport validityReport = new ConfigurationValidityReport();
+            validityReport.setStatus(ConfigurationValidityStatus.ACCEPTED);
+            validityReportFuture.complete(validityReport);
             return true;
         });
         createMockGenericExternalService("OldService");
@@ -102,9 +108,10 @@ class DynamicComponentConfigurationValidatorTest {
             throws Exception {
         when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
             CompletableFuture<ConfigurationValidityReport> validityReportFuture = invocationOnMock.getArgument(2);
-            validityReportFuture.complete(
-                    ConfigurationValidityReport.builder().status(ConfigurationValidityStatus.INVALID)
-                            .message("Proposed configuration is invalid").build());
+            ConfigurationValidityReport validityReport = new ConfigurationValidityReport();
+            validityReport.setStatus(ConfigurationValidityStatus.REJECTED);
+            validityReport.setMessage("Proposed configuration is invalid");
+            validityReportFuture.complete(validityReport);
             return true;
         });
         createMockGenericExternalService("OldService");
@@ -238,8 +245,9 @@ class DynamicComponentConfigurationValidatorTest {
             throws Exception {
         when(configStoreIPCAgent.validateConfiguration(any(), any(), any())).thenAnswer(invocationOnMock -> {
             CompletableFuture<ConfigurationValidityReport> validityReportFuture = invocationOnMock.getArgument(2);
-            validityReportFuture
-                    .complete(ConfigurationValidityReport.builder().status(ConfigurationValidityStatus.VALID).build());
+            ConfigurationValidityReport validityReport = new ConfigurationValidityReport();
+            validityReport.setStatus(ConfigurationValidityStatus.ACCEPTED);
+            validityReportFuture.complete(validityReport);
             return true;
         });
         createMockGenericExternalService("OldService");
