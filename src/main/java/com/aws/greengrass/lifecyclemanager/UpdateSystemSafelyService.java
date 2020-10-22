@@ -17,7 +17,6 @@ import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
 
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -152,8 +151,8 @@ public class UpdateSystemSafelyService extends GreengrassService {
             //TODO: set isGgcRestarting to true if the updates involves kernel restart
             PreComponentUpdateEvent preComponentUpdateEvent = new PreComponentUpdateEvent();
             preComponentUpdateEvent.setIsGgcRestarting(false);
-            List<Future<DeferUpdateRequest>> deferRequestFutures = new ArrayList<>();
-            lifecycleIPCAgent.sendPreComponentUpdateEvent(preComponentUpdateEvent, deferRequestFutures);
+            List<Future<DeferUpdateRequest>> deferRequestFutures =
+                    lifecycleIPCAgent.sendPreComponentUpdateEvent(preComponentUpdateEvent);
 
             // TODO: Remove when move all UATs and integ tests to lifecycle APIs on new IPC
             com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent preComponentUpdateEventOld =
