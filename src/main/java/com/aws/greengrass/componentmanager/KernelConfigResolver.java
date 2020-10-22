@@ -6,6 +6,7 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentConfiguration;
+import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentParameter;
@@ -49,7 +50,6 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
-import static com.aws.greengrass.deployment.DeviceConfiguration.NUCLEUS_COMPONENT_TYPE;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_GROUP_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
@@ -728,7 +728,7 @@ public class KernelConfigResolver {
      */
     private String getNucleusComponentName(Map<String, Object> newServiceConfig) {
         Optional<String> nucleusComponentName = newServiceConfig.keySet().stream()
-                .filter(s -> NUCLEUS_COMPONENT_TYPE.equals(getComponentType(newServiceConfig.get(s)))).findAny();
+                .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(newServiceConfig.get(s)))).findAny();
         if (nucleusComponentName.isPresent()) {
             return nucleusComponentName.get();
         }

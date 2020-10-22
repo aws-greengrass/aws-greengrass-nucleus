@@ -1,5 +1,6 @@
 package com.aws.greengrass.tes;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.config.Configuration;
@@ -35,11 +36,12 @@ import java.util.concurrent.Executors;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS;
 import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
-import static com.aws.greengrass.deployment.DeviceConfiguration.NUCLEUS_COMPONENT_TYPE_SHORT;
+import static com.aws.greengrass.deployment.DeviceConfiguration.NUCLEUS_COMPONENT_VERSION;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
@@ -90,7 +92,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
         when(kernel.getConfig()).thenReturn(configuration);
         Topics servicesTopics = Topics.of(context, SERVICES_NAMESPACE_TOPIC, null);
-        Topic componentTypeTopic = Topic.of(context, SERVICE_TYPE_TOPIC_KEY, NUCLEUS_COMPONENT_TYPE_SHORT);
+        Topic componentTypeTopic = Topic.of(context, SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.name());
+        Topic componentVersionTopic = Topic.of(context, VERSION_CONFIG_KEY, NUCLEUS_COMPONENT_VERSION);
         Topic componentStoreSizeLimitTopic = Topic.of(context, COMPONENT_STORE_MAX_SIZE_BYTES, 10_000_000_000L);
         Topic deploymentPollingFrequency = Topic.of(context, SERVICE_TYPE_TOPIC_KEY, 15L);
         Topic mainDependenciesTopic = Topic.of(context, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC,
@@ -100,8 +103,10 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
                 SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)).thenReturn(new ArrayList<String>());
         when(configuration.getRoot()).thenReturn(root);
         when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC)).thenReturn(servicesTopics);
-        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY,
-                NUCLEUS_COMPONENT_TYPE_SHORT)).thenReturn(componentTypeTopic);
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY))
+                .thenReturn(componentTypeTopic);
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY))
+                .thenReturn(componentVersionTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 COMPONENT_STORE_MAX_SIZE_BYTES)).thenReturn(componentStoreSizeLimitTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,

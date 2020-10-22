@@ -49,7 +49,6 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.time.Duration;
-import software.amazon.awssdk.crt.mqtt.MqttException;
 
 import java.util.ArrayList;
 import java.util.Arrays;

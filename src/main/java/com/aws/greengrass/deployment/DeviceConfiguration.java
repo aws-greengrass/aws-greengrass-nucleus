@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.deployment;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.regions.DefaultAwsRegionProviderChain;
 import com.aws.greengrass.config.CaseInsensitiveString;
@@ -27,6 +28,7 @@ import java.util.Optional;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
@@ -41,15 +43,16 @@ import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE
 public class DeviceConfiguration {
 
     public static final String DEFAULT_NUCLEUS_COMPONENT_NAME = "aws.greengrass.Nucleus";
-    // TODO : The type should come from common model, remove these once it's available
-    public static final String NUCLEUS_COMPONENT_TYPE = "aws.greengrass.nucleus";
-    public static final String NUCLEUS_COMPONENT_TYPE_SHORT = "Nucleus";
+    // TODO : Version should come from the installer based on which nucleus version it installed
+    public static final String NUCLEUS_COMPONENT_VERSION = "0.0.0";
+
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
     public static final String DEVICE_PARAM_IOT_DATA_ENDPOINT = "iotDataEndpoint";
     public static final String DEVICE_PARAM_IOT_CRED_ENDPOINT = "iotCredEndpoint";
     public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
+    public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
     public static final String RUN_WITH_TOPIC = "runWithDefault";
@@ -72,7 +75,6 @@ public class DeviceConfiguration {
 
     private static final String DEVICE_PARAM_ENV_STAGE = "envStage";
     private static final String DEFAULT_ENV_STAGE = "prod";
-
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
@@ -137,7 +139,7 @@ public class DeviceConfiguration {
     private String getNucleusComponentName() {
         Optional<CaseInsensitiveString> nucleusComponent =
                 kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet().stream()
-                        .filter(s -> NUCLEUS_COMPONENT_TYPE_SHORT.equals(getComponentType(s.toString()))).findAny();
+                        .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(s.toString()))).findAny();
         if (nucleusComponent.isPresent()) {
             return nucleusComponent.get().toString();
         } else {
@@ -147,8 +149,11 @@ public class DeviceConfiguration {
     }
 
     private void initializeNucleusComponentConfig() {
-        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY,
-                NUCLEUS_COMPONENT_TYPE_SHORT);
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY)
+                .withValue(ComponentType.NUCLEUS.name());
+        // TODO : Take version as an input from the installer script
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY)
+                .withValue(NUCLEUS_COMPONENT_VERSION);
         ArrayList<String> mainDependencies = (ArrayList) kernel.getConfig().getRoot()
                 .findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
                         SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
