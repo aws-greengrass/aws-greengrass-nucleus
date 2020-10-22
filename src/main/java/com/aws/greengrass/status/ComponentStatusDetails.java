@@ -27,6 +27,8 @@ public class ComponentStatusDetails {
 
     private String statusDetails;
 
+    private boolean isRoot;
+
     @JsonProperty("status")
     private State state;
 }
