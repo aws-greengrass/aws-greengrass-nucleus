@@ -17,4 +17,12 @@
             <Bug pattern="EI_EXPOSE_REP2"/>
         </Or>
     </Match>
+    <Match>
+        <Or>
+            <Package name="software.amazon.awssdk.aws.greengrass"/>
+            <Package name="software.amazon.awssdk.aws.greengrass.model"/>
+            <Package name="software.amazon.awssdk.eventstreamrpc"/>
+            <Package name="software.amazon.awssdk.eventstreamrpc.model"/>
+        </Or>
+    </Match>
 </FindBugsFilter>
