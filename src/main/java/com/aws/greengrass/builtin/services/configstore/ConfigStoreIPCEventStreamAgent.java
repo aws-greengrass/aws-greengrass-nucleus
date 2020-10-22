@@ -129,7 +129,7 @@ public class ConfigStoreIPCEventStreamAgent {
          */
         @Override
         public SendConfigurationValidityReportResponse handleRequest(SendConfigurationValidityReportRequest request) {
-            // TODO: Input validation. https://sim.amazon.com/issues/P32540011
+            // TODO: Input validation. P32540011
             logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC report config validation request");
             // TODO : Edge case - With the current API model, there is no way to associate a validation report from
             //  client with the event sent from server, meaning if event 1 from server was abandoned due to timeout,
@@ -449,7 +449,7 @@ public class ConfigStoreIPCEventStreamAgent {
         @Override
         public SubscribeToValidateConfigurationUpdatesResponse handleRequest(
                 SubscribeToValidateConfigurationUpdatesRequest request) {
-            // TODO: Input validation. https://sim.amazon.com/issues/P32540011
+            // TODO: Input validation. P32540011
             configValidationListeners.computeIfAbsent(serviceName, key -> sendConfigValidationEvent());
             logger.atInfo().kv(SERVICE_NAME, serviceName).log("Config IPC subscribe to config validation request");
             return new SubscribeToValidateConfigurationUpdatesResponse();

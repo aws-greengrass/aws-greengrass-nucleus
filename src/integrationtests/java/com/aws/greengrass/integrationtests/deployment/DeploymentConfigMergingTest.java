@@ -529,7 +529,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 deploymentConfigMerger.mergeInNewConfig(testDeployment(), currentConfig);
 
         // update should be deferred for 5 seconds
-        assertThrows(TimeoutException.class, () -> future.get(5, TimeUnit.SECONDS),
+        assertThrows(TimeoutException.class, () -> future.get(20, TimeUnit.SECONDS),
                 "Merge should not happen within 5 seconds");
 
         assertTrue(postComponentUpdateRecieved.await(15,TimeUnit.SECONDS));
