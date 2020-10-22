@@ -1,5 +1,7 @@
 package com.aws.greengrass.builtin.services.cli;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;
+import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeploymentQueue;
@@ -61,6 +63,7 @@ import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -75,6 +78,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.LOCAL_DEPLOYMENT_RESOURCE;
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.PERSISTENT_LOCAL_DEPLOYMENTS;
+import static com.aws.greengrass.componentmanager.ComponentStore.RECIPE_FILE_NAME_FORMAT;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
@@ -350,13 +354,7 @@ public class CLIEventStreamAgent {
                 Path recipeDirectoryPath = Paths.get(request.getRecipeDirectoryPath());
                 Path kernelRecipeDirectoryPath = kernelPackageStorePath.resolve(ComponentStore.RECIPE_DIRECTORY);
                 try {
-                    if (recipeDirectoryPath.equals(kernelPackageStorePath)) {
-                        logger.atWarn().log("Requested recipe directory path is same as kernel recipe "
-                                + "directory path. Nothing to do");
-                    } else {
-                        Utils.copyFolderRecursively(recipeDirectoryPath, kernelRecipeDirectoryPath,
-                                StandardCopyOption.REPLACE_EXISTING);
-                    }
+                    copyRecipes(recipeDirectoryPath, kernelRecipeDirectoryPath);
                 } catch (IOException e) {
                     logger.atError().setCause(e).kv("Recipe Directory path", recipeDirectoryPath)
                             .log("Caught exception while updating the recipes");
@@ -367,9 +365,11 @@ public class CLIEventStreamAgent {
                 Path artifactsDirectoryPath = Paths.get(request.getArtifactsDirectoryPath());
                 Path kernelArtifactsDirectoryPath = kernelPackageStorePath.resolve(ComponentStore.ARTIFACT_DIRECTORY);
                 try {
-                    if (artifactsDirectoryPath.equals(kernelArtifactsDirectoryPath)) {
-                        logger.atWarn().log("Requested artifacts directory path is same as kernel artifacts "
-                                + "directory path. Nothing to do");
+                    if (kernelArtifactsDirectoryPath.startsWith(artifactsDirectoryPath)) {
+                        String errorString = "Requested artifacts directory path is parent of kernel artifacts "
+                                + "directory path. Specify another path to avoid recursive copy";
+                        logger.atError().log(errorString);
+                        throw new InvalidArtifactsDirectoryPathError(errorString);
                     } else {
                         Utils.copyFolderRecursively(artifactsDirectoryPath, kernelArtifactsDirectoryPath,
                                 StandardCopyOption.REPLACE_EXISTING);
@@ -393,6 +393,43 @@ public class CLIEventStreamAgent {
             String artifactsDirectoryPath = request.getArtifactsDirectoryPath();
             if (StringUtils.isEmpty(recipeDirectoryPath) && StringUtils.isEmpty(artifactsDirectoryPath)) {
                 throw new InvalidArgumentsError("Need to provide at least one of the directory paths to update");
+            }
+        }
+
+        private void copyRecipes(Path from, Path to) throws IOException {
+            for (Path r : Files.walk(from).collect(Collectors.toList())) {
+                String ext = Utils.extension(r.toString());
+                ComponentRecipe recipe = null;
+                if (r.toFile().length() == 0) {
+                    logger.atInfo().log("Skipping recipe file {} because it is empty", r);
+                    continue;
+                }
+                try {
+                    switch (ext.toLowerCase()) {
+                        case "yaml":
+                        case "yml":
+                            recipe = SerializerFactory.getRecipeSerializer().readValue(r.toFile(),
+                                    ComponentRecipe.class);
+                            break;
+                        case "json":
+                            recipe = SerializerFactory.getRecipeSerializerJson()
+                                    .readValue(r.toFile(), ComponentRecipe.class);
+                            break;
+                        default:
+                            break;
+                    }
+                } catch (IOException e) {
+                    logger.atError().log("Error reading recipe file from {}", r, e);
+                }
+
+                if (recipe == null) {
+                    continue;
+                }
+
+                // Write the recipe as YAML with the proper filename into the store
+                Path copyTo = to.resolve(String.format(RECIPE_FILE_NAME_FORMAT, recipe.getComponentName(),
+                        recipe.getComponentVersion().getValue()));
+                Files.write(copyTo, SerializerFactory.getRecipeSerializer().writeValueAsBytes(recipe));
             }
         }
     }

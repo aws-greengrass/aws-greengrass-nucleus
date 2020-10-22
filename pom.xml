@@ -203,7 +203,7 @@
             <groupId>software.amazon.awssdk.crt</groupId>
             <artifactId>aws-crt</artifactId>
             <!--change it to 1.0.0-SNAPSHOT once caches clear-->
-            <version>1.0.0-event-stream-rpc-SNAPSHOT</version>
+            <version>1.0.0-SNAPSHOT</version>
         </dependency>
     </dependencies>
     <pluginRepositories>
