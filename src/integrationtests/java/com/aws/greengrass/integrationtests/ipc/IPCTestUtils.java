@@ -7,6 +7,7 @@ import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
 import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
+import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.util.Coerce;
@@ -62,20 +63,27 @@ public final class IPCTestUtils {
 
         // ensure awaitIpcServiceLatch starts
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(serviceNames.length);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+        GlobalStateChangeListener listener = getListenerForServiceRunning(awaitIpcServiceLatch, serviceNames);
+        kernel.getContext().addGlobalStateChangeListener(listener);
+
+        kernel.launch();
+        assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
+        kernel.getContext().removeGlobalStateChangeListener(listener);
+        return kernel;
+    }
+
+    public static GlobalStateChangeListener getListenerForServiceRunning(CountDownLatch countDownLatch,
+                                                                         String... serviceNames) {
+        return (service, oldState, newState) -> {
             if (serviceNames != null && serviceNames.length != 0) {
                 for (String serviceName:serviceNames) {
                     if (service.getName().equals(serviceName) && newState.equals(State.RUNNING)) {
-                        awaitIpcServiceLatch.countDown();
+                        countDownLatch.countDown();
                         break;
                     }
                 }
             }
-        });
-
-        kernel.launch();
-        assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
-        return kernel;
+        };
     }
 
     public static CountDownLatch waitForDeploymentToBeSuccessful(String deploymentId, Kernel kernel) {

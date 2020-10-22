@@ -15,6 +15,8 @@ import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
 import com.aws.greengrass.ipc.services.configstore.ConfigStore;
 import com.aws.greengrass.ipc.services.configstore.ConfigStoreImpl;
+import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport;
+import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -485,7 +487,7 @@ class IPCServicesTest {
                 Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
             @Override
             public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
-                if (streamEvent.getPreUpdateEvent() != null) {
+                if (streamEvent.getPreUpdateEvent() != null ) {
                     cdl.countDown();
                     DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
                     deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(1).toMillis());
