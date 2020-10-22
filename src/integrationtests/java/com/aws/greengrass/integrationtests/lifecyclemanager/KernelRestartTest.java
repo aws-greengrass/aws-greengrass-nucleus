@@ -40,8 +40,7 @@ class KernelRestartTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_kernel_shuts_down_WHEN_kernel_restarts_with_same_root_dir_THEN_it_should_get_back_to_prev_state()
-            throws ServiceLoadException {
+    void GIVEN_kernel_shuts_down_WHEN_kernel_restarts_with_same_root_dir_THEN_it_should_get_back_to_prev_state() throws ServiceLoadException, InterruptedException {
         // GIVEN
         kernel = new Kernel()
                 .parseArgs("-i", this.getClass().getResource("kernel_restart_initial_config.yaml").toString());
@@ -51,12 +50,9 @@ class KernelRestartTest extends BaseITCase {
         assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(kernel.locate("service_2").getConfig().find("setenv", "key1").getOnce(), is(equalTo("value1")));
-
         kernel.shutdown();
-
         // WHEN
         kernel = new Kernel().parseArgs().launch();
-
         // THEN
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED)));
