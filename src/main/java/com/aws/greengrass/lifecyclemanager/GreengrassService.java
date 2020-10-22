@@ -56,7 +56,7 @@ public class GreengrassService implements InjectionActions {
     public static final String RUN_WITH_NAMESPACE_TOPIC = "runWith";
     public static final String POSIX_USER_KEY = "posixUser";
     public static final String POSIX_GROUP_KEY = "posixGroup";
-    private static final String CURRENT_STATE_METRIC_NAME = "currentState";
+    public static final String CURRENT_STATE_METRIC_NAME = "currentState";
 
     @Getter
     protected final Topics config;
@@ -103,7 +103,7 @@ public class GreengrassService implements InjectionActions {
         // TODO: Validate syntax for lifecycle keywords and fail early
         // skipif will require validation for onpath/exists etc. keywords
 
-        this.logger = LogManager.getLogger(getServiceName()).createChild();
+        this.logger = LogManager.getLogger(this.getClass()).createChild();
         logger.dfltKv(SERVICE_NAME_KEY, getServiceName());
         logger.dfltKv(CURRENT_STATE_METRIC_NAME, (Supplier<State>) this::getState);
 

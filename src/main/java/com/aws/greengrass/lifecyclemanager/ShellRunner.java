@@ -6,6 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.ProxyUtils;
@@ -39,16 +40,17 @@ public interface ShellRunner {
         public synchronized Exec setup(String note, String command, GreengrassService onBehalfOf) throws IOException {
             if (!isEmpty(command) && onBehalfOf != null) {
                 Path cwd = nucleusPaths.workPath(onBehalfOf.getServiceName());
-                return new Exec()
+                Logger logger = getLoggerToUse(onBehalfOf);
+                Exec exec = new Exec()
                         .withShell(command)
                         .withOut(s -> {
                             String ss = s.toString().trim();
-                            onBehalfOf.logger.atInfo().setEventType("shell-runner-stdout").kv(SCRIPT_NAME_KEY, note)
+                            logger.atInfo().setEventType("shell-runner-stdout").kv(SCRIPT_NAME_KEY, note)
                                     .kv("stdout", ss).log();
                         })
                         .withErr(s -> {
                             String ss = s.toString().trim();
-                            onBehalfOf.logger.atWarn().setEventType("shell-runner-stderr").kv(SCRIPT_NAME_KEY, note)
+                            logger.atWarn().setEventType("shell-runner-stderr").kv(SCRIPT_NAME_KEY, note)
                                     .kv("stderr", ss).log();
                         })
                         .setenv("SVCUID",
@@ -59,28 +61,42 @@ public interface ShellRunner {
                         .setenv(TES_AUTH_HEADER,
                                 String.valueOf(onBehalfOf.getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
                                         .getOnce()))
-                        .setenv("HTTP_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
-                        .setenv("http_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
-                        .setenv("HTTPS_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
-                        .setenv("https_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
-                        .setenv("ALL_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
-                        .setenv("all_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
-                        .setenv("NO_PROXY", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration))
-                        .setenv("no_proxy", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration))
                         .cd(cwd.toFile().getAbsoluteFile())
-                        .logger(onBehalfOf.logger);
+                        .logger(logger);
+
+                if (ProxyUtils.getProxyConfiguration() != null) {
+                    exec.setenv("HTTP_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                            .setenv("http_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                            .setenv("HTTPS_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                            .setenv("https_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                            .setenv("ALL_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                            .setenv("all_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                            .setenv("NO_PROXY", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration))
+                            .setenv("no_proxy", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration));
+                }
+                return exec;
+
             }
             return null;
+        }
+
+        private Logger getLoggerToUse(GreengrassService onBehalfOf) {
+            Logger logger = onBehalfOf.logger;
+            if (onBehalfOf instanceof GenericExternalService) {
+                logger = ((GenericExternalService) onBehalfOf).separateLogger;
+            }
+            return logger;
         }
 
         @Override
         public boolean successful(Exec e, String note, IntConsumer background, GreengrassService onBehalfOf)
                 throws InterruptedException {
-            onBehalfOf.logger.atInfo("shell-runner-start").kv(SCRIPT_NAME_KEY, note).kv("command", e.toString()).log();
+            Logger logger = getLoggerToUse(onBehalfOf);
+            logger.atInfo("shell-runner-start").kv(SCRIPT_NAME_KEY, note).kv("command", e.toString()).log();
             try {
                 if (background == null) {
                     if (!e.successful(true)) {
-                        onBehalfOf.logger.atWarn("shell-runner-error").kv(SCRIPT_NAME_KEY, note)
+                        logger.atWarn("shell-runner-error").kv(SCRIPT_NAME_KEY, note)
                                 .kv("command", e.toString()).log();
                         return false;
                     }
@@ -88,7 +104,7 @@ public interface ShellRunner {
                     e.background(background);
                 }
             } catch (IOException ex) {
-                onBehalfOf.logger.atError("shell-runner-error").kv(SCRIPT_NAME_KEY, note).kv("command", e.toString())
+                logger.atError("shell-runner-error").kv(SCRIPT_NAME_KEY, note).kv("command", e.toString())
                         .log("Error while running process", ex);
                 return false;
             }

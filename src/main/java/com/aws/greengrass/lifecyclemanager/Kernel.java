@@ -132,7 +132,6 @@ public class Kernel {
         context.put(KernelLifecycle.class, kernelLifecycle);
         context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
         context.put(DeploymentActivatorFactory.class, new DeploymentActivatorFactory(this));
-        context.put(LogManagerHelper.class, new LogManagerHelper(this));
         context.put(Clock.class, Clock.systemUTC());
         Map<String, String> typeToClassMap = new ConcurrentHashMap<>();
         typeToClassMap.put("lambda", "com.aws.greengrass.lambdamanager.UserLambdaService");

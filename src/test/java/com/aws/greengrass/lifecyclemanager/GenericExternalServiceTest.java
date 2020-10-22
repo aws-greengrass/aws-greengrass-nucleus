@@ -6,6 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import com.aws.greengrass.util.Exec;
@@ -22,6 +23,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_GROUP_
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.SERVICE_CONFIG_LOGGING_TOPICS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -37,6 +39,8 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
 
     @BeforeEach
     void beforeEach() {
+        lenient().doReturn(Topics.of(context, SERVICE_CONFIG_LOGGING_TOPICS, null))
+                .when(config).lookupTopics(eq(SERVICE_CONFIG_LOGGING_TOPICS));
         lenient().doReturn(Topic.of(context, VERSION_CONFIG_KEY, "1.0.0")).when(config).find(eq(VERSION_CONFIG_KEY));
         ges = new GenericExternalService(initializeMockedConfig());
         ges.deviceConfiguration = mock(DeviceConfiguration.class);

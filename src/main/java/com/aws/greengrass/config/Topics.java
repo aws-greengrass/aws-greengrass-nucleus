@@ -380,9 +380,6 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     protected void childChanged(WhatHappened what, Node child) {
-        logger.atDebug().setEventType("config-node-child-update").addKeyValue("configNode", getFullName())
-                .addKeyValue("reason", what.name()).log();
-
         for (Watcher s : watchers) {
             if (s instanceof ChildChanged) {
                 ((ChildChanged) s).childChanged(what, child);

@@ -116,10 +116,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
     void GIVEN_kernel_running_WHEN_device_deployment_adds_packages_THEN_new_services_should_be_running() throws Exception {
         CountDownLatch cdlDeploymentFinished = new CountDownLatch(1);
         Consumer<GreengrassLogMessage> listener = m -> {
-            if (m.getMessage() != null && m.getLoggerName().equals("DeploymentService")) {
-                if (m.getMessage().contains("Current deployment finished")) {
-                    cdlDeploymentFinished.countDown();
-                }
+            if (m.getMessage() != null && m.getMessage().contains("Current deployment finished")) {
+                cdlDeploymentFinished.countDown();
             }
         };
         Slf4jLogAdapter.addGlobalListener(listener);
