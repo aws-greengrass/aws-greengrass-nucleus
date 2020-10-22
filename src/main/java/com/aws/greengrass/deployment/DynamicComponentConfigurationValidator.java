@@ -1,6 +1,11 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.deployment;
 
-import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCAgent;
+import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgent;
 import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topics;
@@ -8,8 +13,6 @@ import com.aws.greengrass.deployment.exceptions.DynamicConfigurationValidationEx
 import com.aws.greengrass.deployment.exceptions.InvalidConfigFormatException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentResult;
-import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport;
-import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -21,6 +24,8 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityReport;
+import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityStatus;
 
 import java.time.Duration;
 import java.util.HashSet;
@@ -47,14 +52,14 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 public class DynamicComponentConfigurationValidator {
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     // TODO : Add configurable timeout and change this to a more appropriate(probably longer) default value
-    private static final long DEFAULT_TIMEOUT = Duration.ofSeconds(10).toMillis();
+    private static final long DEFAULT_TIMEOUT = Duration.ofSeconds(20).toMillis();
     private static final Logger logger = LogManager.getLogger(DynamicComponentConfigurationValidator.class);
 
     @Inject
     private Kernel kernel;
 
     @Inject
-    private ConfigStoreIPCAgent configStoreIPCAgent;
+    private ConfigStoreIPCEventStreamAgent configStoreIPCAgent;
 
     /**
      * Dynamically validate proposed configuration for a deployment.
@@ -190,7 +195,7 @@ public class DynamicComponentConfigurationValidator {
                         // so we will no longer be blocked on any of the response futures
                         ConfigurationValidityReport report = componentToValidate.response.join();
 
-                        if (ConfigurationValidityStatus.INVALID.equals(report.getStatus())) {
+                        if (ConfigurationValidityStatus.REJECTED.equals(report.getStatus())) {
                             failureMsg = String.format("%s { name = %s, message = %s }", failureMsg,
                                     componentToValidate.componentName, report.getMessage());
                             logger.atError().kv("component", componentToValidate.componentName)
@@ -198,6 +203,7 @@ public class DynamicComponentConfigurationValidator {
                                     .log("Component reported that its to-be-deployed configuration is invalid");
                             valid = false;
                         }
+                        componentToValidate.response.join();
                     }
                 } catch (InterruptedException | ExecutionException | TimeoutException | CancellationException
                         | CompletionException e) {
