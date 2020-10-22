@@ -11,12 +11,7 @@ services:
     lifecycle:
     version: 1.0.0
   aws.greengrass.StreamManager:
-    lifecycle:
-      run:
-        windows:
-          powershell -command sleep 100
-        posix:
-          sleep 100
+    lifecycle: {}
     version: 1.0.0
   ServiceName:
     lifecycle:
