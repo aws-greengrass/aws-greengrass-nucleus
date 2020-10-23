@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -30,6 +31,9 @@ import javax.inject.Inject;
 import static com.aws.greengrass.util.Utils.extension;
 
 public class Configuration {
+    public final AtomicBoolean configUnderUpdate = new AtomicBoolean(false);
+    public final Object configUpdateNotifier = new Object();
+
     private static final java.util.regex.Pattern SEPARATOR = java.util.regex.Pattern.compile("[./] *");
     public final Context context;
     final Topics root;
@@ -141,7 +145,15 @@ public class Configuration {
         if (!(resolvedPlatformMap instanceof Map)) {
             throw new IllegalArgumentException("Invalid config after resolving platform: " + resolvedPlatformMap);
         }
+        // TODO: avoid sending multiple changed/childChanged event when the entire config is being updated.
+        configUnderUpdate.set(true);
         root.updateFromMap((Map<String, Object>) resolvedPlatformMap, updateBehavior);
+        context.runOnPublishQueue(() -> {
+            synchronized (configUpdateNotifier) {
+                configUnderUpdate.set(false);
+                configUpdateNotifier.notifyAll();
+            }
+        });
     }
 
     public Map<String, Object> toPOJO() {
