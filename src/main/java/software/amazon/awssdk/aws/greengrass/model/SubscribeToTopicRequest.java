@@ -28,15 +28,8 @@ public class SubscribeToTopicRequest implements EventStreamJsonMessage {
   )
   private Optional<String> topic;
 
-  @Expose(
-      serialize = true,
-      deserialize = true
-  )
-  private Optional<String> source;
-
   public SubscribeToTopicRequest() {
     this.topic = Optional.empty();
-    this.source = Optional.empty();
   }
 
   public String getTopic() {
@@ -48,17 +41,6 @@ public class SubscribeToTopicRequest implements EventStreamJsonMessage {
 
   public void setTopic(final String topic) {
     this.topic = Optional.of(topic);
-  }
-
-  public String getSource() {
-    if (source.isPresent()) {
-      return source.get();
-    }
-    return null;
-  }
-
-  public void setSource(final String source) {
-    this.source = Optional.ofNullable(source);
   }
 
   @Override
@@ -74,12 +56,11 @@ public class SubscribeToTopicRequest implements EventStreamJsonMessage {
     final SubscribeToTopicRequest other = (SubscribeToTopicRequest)rhs;
     boolean isEquals = true;
     isEquals = isEquals && this.topic.equals(other.topic);
-    isEquals = isEquals && this.source.equals(other.source);
     return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(topic, source);
+    return Objects.hash(topic);
   }
 }
