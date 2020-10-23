@@ -47,6 +47,7 @@ public class IPCEventStreamService implements Startable, Closeable {
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipcEventStreamServer";
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./ipcEventStreamServer";
     // This is relative to component's CWD
+    // components CWD is <kernel-root-path>/work/component
     public static final String IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME = "../../ipcEventStreamServer";
 
     public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH = "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH";
@@ -183,6 +184,18 @@ public class IPCEventStreamService implements Startable, Closeable {
     @Override
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public void close() {
+
+
+        // The symlink does not seem to get removed when removed during start up in the IPCEventStreamServiceTest
+        if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
+            try {
+                logger.atDebug().log("Deleting the ipc server socket descriptor file symlink");
+                Files.delete(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK));
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file symlink");
+            }
+        }
+
         // GG_NEEDS_REVIEW: TODO: Future does not complete, wait on them when fixed.
         if (ipcServer != null) {
             ipcServer.stopServer();
