@@ -12,7 +12,6 @@ import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.mqttclient.SubscribeRequest;
 import com.aws.greengrass.mqttclient.UnsubscribeRequest;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.aws.greengrass.util.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,14 +26,11 @@ import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreResponse;
 import software.amazon.awssdk.aws.greengrass.model.QOS;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreResponse;
-import software.amazon.awssdk.aws.greengrass.model.UnsubscribeFromIoTCoreRequest;
-import software.amazon.awssdk.aws.greengrass.model.UnsubscribeFromIoTCoreResponse;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
-import software.amazon.awssdk.eventstreamrpc.StreamEventPublisher;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
@@ -147,12 +143,8 @@ public class MqttProxyIPCAgentTest {
             SubscribeRequest capturedSubscribeRequest = subscribeRequestArgumentCaptor.getValue();
             assertThat(capturedSubscribeRequest.getTopic(), is(TEST_TOPIC));
             assertThat(capturedSubscribeRequest.getQos(), is(QualityOfService.AT_LEAST_ONCE));
-            Pair<StreamEventPublisher<IoTCoreMessage>, Consumer<MqttMessage>> listener = mqttProxyIPCAgent
-                    .getSubscribeListeners().get(TEST_SERVICE).get(TEST_TOPIC);
-            assertThat(listener.getLeft(), is(subscribeToIoTCoreOperationHandler));
-            Consumer<MqttMessage> callback = capturedSubscribeRequest.getCallback();
-            assertThat(listener.getRight(), is(callback));
 
+            Consumer<MqttMessage> callback = capturedSubscribeRequest.getCallback();
             MqttMessage message = new MqttMessage(TEST_TOPIC, TEST_PAYLOAD);
             doReturn(new CompletableFuture<>()).when(subscribeToIoTCoreOperationHandler).sendStreamEvent(any());
             callback.accept(message);
@@ -166,44 +158,6 @@ public class MqttProxyIPCAgentTest {
             UnsubscribeRequest capturedUnsubscribedRequest = unsubscribeRequestArgumentCaptor.getValue();
             assertThat(capturedUnsubscribedRequest.getTopic(), is(TEST_TOPIC));
             assertThat(capturedUnsubscribedRequest.getCallback(), is(callback));
-            assertThat(mqttProxyIPCAgent.getSubscribeListeners().containsKey(TEST_SERVICE), is(false));
-        }
-    }
-
-    @Test
-    void GIVEN_MqttProxyIPCAgent_WHEN_unsubscribe_from_topic_THEN_topic_unsubscribed() throws Exception {
-        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
-        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
-        UnsubscribeFromIoTCoreRequest unsubscribeFromIoTCoreRequest = new UnsubscribeFromIoTCoreRequest();
-        unsubscribeFromIoTCoreRequest.setTopicName(TEST_TOPIC);
-
-        ArgumentCaptor<SubscribeRequest> subscribeRequestArgumentCaptor
-                = ArgumentCaptor.forClass(SubscribeRequest.class);
-        ArgumentCaptor<UnsubscribeRequest> unsubscribeRequestArgumentCaptor
-                = ArgumentCaptor.forClass(UnsubscribeRequest.class);
-
-        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
-                     = spy(mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext))) {
-            subscribeToIoTCoreOperationHandler.handleRequest(subscribeToIoTCoreRequest);
-            verify(mqttClient).subscribe(subscribeRequestArgumentCaptor.capture());
-            Consumer<MqttMessage> callback = subscribeRequestArgumentCaptor.getValue().getCallback();
-
-            doReturn(new CompletableFuture<>()).when(subscribeToIoTCoreOperationHandler).closeStream();
-
-            try (MqttProxyIPCAgent.UnsubscribeFromIoTCoreOperationHandler unsubscribeFromIoTCoreOperationHandler
-                         = mqttProxyIPCAgent.getUnsubscribeFromIoTCoreOperationHandler(mockContext)) {
-                UnsubscribeFromIoTCoreResponse unsubscribeFromIoTCoreResponse
-                        = unsubscribeFromIoTCoreOperationHandler.handleRequest(unsubscribeFromIoTCoreRequest);
-
-                assertNotNull(unsubscribeFromIoTCoreResponse);
-                verify(subscribeToIoTCoreOperationHandler).closeStream();
-
-                verify(mqttClient).unsubscribe(unsubscribeRequestArgumentCaptor.capture());
-                UnsubscribeRequest capturedUnsubscribedRequest = unsubscribeRequestArgumentCaptor.getValue();
-                assertThat(capturedUnsubscribedRequest.getTopic(), is(TEST_TOPIC));
-                assertThat(capturedUnsubscribedRequest.getCallback(), is(callback));
-                assertThat(mqttProxyIPCAgent.getSubscribeListeners().containsKey(TEST_SERVICE), is(false));
-            }
         }
     }
 }

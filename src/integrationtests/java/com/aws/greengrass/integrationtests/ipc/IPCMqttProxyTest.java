@@ -17,19 +17,18 @@ import com.aws.greengrass.mqttclient.UnsubscribeRequest;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.SubscribeToIoTCoreResponseHandler;
 import software.amazon.awssdk.aws.greengrass.model.IoTCoreMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.QOS;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreRequest;
-import software.amazon.awssdk.aws.greengrass.model.UnsubscribeFromIoTCoreRequest;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
@@ -72,8 +71,8 @@ public class IPCMqttProxyTest {
     private static EventStreamRPCConnection clientConnection;
     private static SocketOptions socketOptions;
 
-    @BeforeAll
-    static void beforeAll() throws Exception {
+    @BeforeEach
+    void beforeEach() throws Exception {
         mqttClient = mock(MqttClient.class);
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
 
@@ -96,8 +95,8 @@ public class IPCMqttProxyTest {
         clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
     }
 
-    @AfterAll
-    static void afterAll() {
+    @AfterEach
+    void afterEach() {
         if (clientConnection != null) {
             clientConnection.disconnect();
         }
@@ -135,7 +134,7 @@ public class IPCMqttProxyTest {
     @Test
     void GIVEN_MqttProxyEventStreamClient_WHEN_called_subscribe_THEN_subscribed_and_message_received()
             throws Exception {
-        CountDownLatch cdl = new CountDownLatch(1);
+        CountDownLatch messageLatch = new CountDownLatch(1);
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
         subscribeToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
@@ -146,7 +145,7 @@ public class IPCMqttProxyTest {
             public void onStreamEvent(IoTCoreMessage streamEvent) {
                 if (Arrays.equals(streamEvent.getMessage().getPayload(), TEST_PAYLOAD)
                         && streamEvent.getMessage().getTopicName().equals(TEST_TOPIC)) {
-                    cdl.countDown();
+                    messageLatch.countDown();
                 }
             }
 
@@ -162,8 +161,9 @@ public class IPCMqttProxyTest {
             }
         };
 
-        greengrassCoreIPCClient.subscribeToIoTCore(subscribeToIoTCoreRequest, Optional.of(streamResponseHandler))
-                .getResponse().get(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS);
+        SubscribeToIoTCoreResponseHandler responseHandler = greengrassCoreIPCClient.subscribeToIoTCore(
+                subscribeToIoTCoreRequest, Optional.of(streamResponseHandler));
+        responseHandler.getResponse().get(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS);
 
         ArgumentCaptor<SubscribeRequest> subscribeRequestArgumentCaptor
                 = ArgumentCaptor.forClass(SubscribeRequest.class);
@@ -175,47 +175,11 @@ public class IPCMqttProxyTest {
         Consumer<MqttMessage> callback = capturedSubscribeRequest.getCallback();
         MqttMessage message = new MqttMessage(TEST_TOPIC, TEST_PAYLOAD);
         callback.accept(message);
-        assertTrue(cdl.await(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS));
-    }
+        assertTrue(messageLatch.await(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS));
 
-    @Test
-    void GIVEN_MqttProxyEventStreamClient_WHEN_called_unsubscribe_THEN_unsubscribed(ExtensionContext context)
-            throws Exception {
-        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
-        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
-        subscribeToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
-        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
-
-        StreamResponseHandler<IoTCoreMessage> streamResponseHandler = new StreamResponseHandler<IoTCoreMessage>() {
-            @Override
-            public void onStreamEvent(IoTCoreMessage streamEvent) {
-
-            }
-
-            @Override
-            public boolean onStreamError(Throwable error) {
-                logger.atError().cause(error).log("Subscribe stream errored");
-                return false;
-            }
-
-            @Override
-            public void onStreamClosed() {
-
-            }
-        };
-
-        greengrassCoreIPCClient.subscribeToIoTCore(subscribeToIoTCoreRequest, Optional.of(streamResponseHandler))
-                .getResponse().get(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS);
-
-        ArgumentCaptor<SubscribeRequest> subscribeRequestArgumentCaptor
-                = ArgumentCaptor.forClass(SubscribeRequest.class);
-        verify(mqttClient).subscribe(subscribeRequestArgumentCaptor.capture());
-        Consumer<MqttMessage> callback = subscribeRequestArgumentCaptor.getValue().getCallback();
-
-        UnsubscribeFromIoTCoreRequest unsubscribeFromIoTCoreRequest = new UnsubscribeFromIoTCoreRequest();
-        unsubscribeFromIoTCoreRequest.setTopicName(TEST_TOPIC);
-        greengrassCoreIPCClient.unsubscribeFromIoTCore(unsubscribeFromIoTCoreRequest, Optional.empty()).getResponse()
-                .get(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS);
+        //close stream -> unsubscribe
+        responseHandler.closeStream();
+        Thread.sleep(5);
 
         ArgumentCaptor<UnsubscribeRequest> unsubscribeRequestArgumentCaptor
                 = ArgumentCaptor.forClass(UnsubscribeRequest.class);

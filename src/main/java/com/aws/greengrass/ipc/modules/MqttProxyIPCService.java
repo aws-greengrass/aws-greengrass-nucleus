@@ -34,7 +34,6 @@ public class MqttProxyIPCService implements Startable, InjectionActions {
 
     @Override
     public void postInject() {
-        // Unsubscribe operation doesn't require authorization
         List<String> opNames = Arrays.asList(GreengrassCoreIPCService.PUBLISH_TO_IOT_CORE,
                 GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE);
         try {
@@ -51,7 +50,5 @@ public class MqttProxyIPCService implements Startable, InjectionActions {
                 (context) -> mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(context));
         greengrassCoreIPCService.setSubscribeToIoTCoreHandler(
                 (context) -> mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(context));
-        greengrassCoreIPCService.setUnsubscribeFromIoTCoreHandler(
-                (context) -> mqttProxyIPCAgent.getUnsubscribeFromIoTCoreOperationHandler(context));
     }
 }
