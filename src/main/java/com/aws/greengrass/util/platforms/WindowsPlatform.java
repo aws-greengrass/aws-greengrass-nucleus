@@ -23,7 +23,8 @@ import java.util.Optional;
 
 public class WindowsPlatform extends Platform {
     @Override
-    public void killProcessAndChildren(Process process, boolean force) throws IOException, InterruptedException {
+    public void killProcessAndChildren(Process process, boolean force, UserDecorator userDecorator) throws IOException,
+            InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
         ((WindowsProcess) pp).setIncludeChildren(true);
         ((WindowsProcess) pp).setGracefulDestroyEnabled(true);

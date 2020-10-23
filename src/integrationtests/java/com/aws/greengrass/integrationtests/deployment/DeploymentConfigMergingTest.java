@@ -430,7 +430,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         });
 
         //wait for main to run
-        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS));
+        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS), "main running");
 
         Map<String, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
         Map<String, Map> servicesConfig = (Map<String, Map>) currentConfig.get(SERVICES_NAMESPACE_TOPIC);
@@ -458,7 +458,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // ensure context finish all tasks
         kernel.getContext().runOnPublishQueueAndWait(() -> {});
         // ensuring config value for sleeperA is removed
-        assertFalse(kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC).children.containsKey("sleeperA"));
+        assertFalse(kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC).children.containsKey("sleeperA"),
+                "sleeperA removed");
         // ensure kernel no longer holds a reference of sleeperA
         assertThrows(ServiceLoadException.class, () -> kernel.locate("sleeperA"));
 

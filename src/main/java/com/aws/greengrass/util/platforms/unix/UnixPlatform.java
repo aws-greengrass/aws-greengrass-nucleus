@@ -23,11 +23,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
-import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -35,6 +35,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +64,7 @@ public class UnixPlatform extends Platform {
     private static final String POSIX_GROUP_FILE = "/etc/group";
 
     private static UnixUserAttributes CURRENT_USER;
+    private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
 
     private final UnixRunWithGenerator runWithGenerator;
 
@@ -83,14 +85,16 @@ public class UnixPlatform extends Platform {
      * @return the output of id (either an integer string or name of the user/group) or empty if an error occurs.
      */
     private static Optional<String> id(String id, IdOption option, boolean loadName) {
-        String[] cmd = new String[2 + (loadName ? 1 : 0) + (Utils.isEmpty(id) ? 0 : 1)];
-        cmd[0] = "id";
+        boolean loadSelf = Utils.isEmpty(id);
+        String[] cmd = new String[2 + (loadName ? 1 : 0) + (loadSelf ? 0 : 1)];
+        int i = 0;
+        cmd[i] = "id";
         switch (option) {
             case Group:
-                cmd[1] = "-g";
+                cmd[++i] = "-g";
                 break;
             case User:
-                cmd[1] = "-u";
+                cmd[++i] = "-u";
                 break;
             default:
                 logger.atDebug().setEventType("id-lookup")
@@ -99,10 +103,10 @@ public class UnixPlatform extends Platform {
                 return Optional.empty();
         }
         if (loadName) {
-            cmd[2] = "-n";
+            cmd[++i] = "-n";
         }
-        if (!Utils.isEmpty(id)) {
-            cmd[cmd.length - 1] = id;
+        if (!loadSelf) {
+            cmd[++i] = id;
         }
 
         StringBuilder out = new StringBuilder();
@@ -114,16 +118,22 @@ public class UnixPlatform extends Platform {
             if (exit.isPresent() && exit.get() == 0) {
                 return Optional.of(out.toString().trim());
             }
-        } catch (InterruptedException | IOException e) {
+        } catch (InterruptedException e) {
+            Arrays.stream(e.getSuppressed()).forEach((t) -> {
+                logger.atError().setCause(e).log("interrupted");
+            });
+            cause = e;
+        } catch (IOException e) {
             cause = e;
         }
         LogEventBuilder logEvent = logger.atWarn().setEventType("id-lookup");
         if (option == IdOption.Group) {
             logEvent.kv("group", id);
-        } else if (option == IdOption.User) {
+        } else if (option == IdOption.User && !loadSelf) {
             logEvent.kv("user", id);
         }
-        logEvent.kv(STDOUT, out).kv(STDERR, err).setCause(cause).log("Error while looking up id");
+        logEvent.kv(STDOUT, out).kv(STDERR, err).setCause(cause).log("Error while looking up id"
+                + (loadSelf ? " for current user" : ""));
         return Optional.empty();
     }
 
@@ -135,7 +145,7 @@ public class UnixPlatform extends Platform {
     private static synchronized UnixUserAttributes loadCurrentUser() throws IOException {
         if (CURRENT_USER == null) {
             Optional<String> id = id(null, IdOption.User, false);
-            id.orElseThrow(() -> new IOException("Could not lookup current user"));
+            id.orElseThrow(() -> new IOException("Could not lookup current user: " + System.getProperty("user.name")));
 
             Optional<String> name = id(null, IdOption.User, true);
 
@@ -147,6 +157,7 @@ public class UnixPlatform extends Platform {
             group.orElseThrow(() -> new IOException("Could not lookup primary group for current user: " + id.get()));
 
             CURRENT_USER = builder.primaryGid(Integer.parseInt(group.get())).build();
+            CURRENT_USER_PRIMARY_GROUP = lookupGroup(group.get());
         }
         return CURRENT_USER;
     }
@@ -160,10 +171,8 @@ public class UnixPlatform extends Platform {
 
         if (isNumeric) {
             builder.principalIdentifier(user);
-            builder.principalName(user);
-        } else {
-            builder.principalName(user);
         }
+        builder.principalName(user);
         Optional<String> id = id(user, IdOption.User, isNumeric);
         if (id.isPresent()) {
             if (isNumeric) {
@@ -204,6 +213,11 @@ public class UnixPlatform extends Platform {
                 }
             }
         }
+
+        // if customer put in an ID it does not need to exist on the system
+        if (name.chars().allMatch(Character::isDigit)) {
+            return UnixGroupAttributes.builder().principalName(name).principalIdentifier(name).build();
+        }
         throw new IOException("Unrecognized group: " + name);
     }
 
@@ -233,12 +247,16 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public void killProcessAndChildren(Process process, boolean force) throws IOException, InterruptedException {
+    public void killProcessAndChildren(Process process, boolean force, UserDecorator userDecorator)
+            throws IOException, InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
 
         logger.atDebug().log("Running pkill to kill child processes of pid {}", pp.getPid());
         // Use pkill to kill all subprocesses under the main shell
         String[] cmd = {"pkill", "-" + (force ? SIGKILL : SIGINT), "-P", Integer.toString(pp.getPid())};
+        if (userDecorator != null) {
+            cmd = userDecorator.decorate(cmd);
+        }
         Process proc = Runtime.getRuntime().exec(cmd);
         proc.waitFor();
         if (proc.exitValue() != 0) {
@@ -324,7 +342,7 @@ public class UnixPlatform extends Platform {
         };
 
         if (options.contains(FileSystemPermission.Option.Recurse)) {
-            FileVisitor<Path> setOwnerVisitor = new FileVisitor<Path>() {
+            Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                     setPerm.apply(dir);
@@ -336,18 +354,7 @@ public class UnixPlatform extends Platform {
                     setPerm.apply(file);
                     return FileVisitResult.CONTINUE;
                 }
-
-                @Override
-                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                    return FileVisitResult.CONTINUE;
-                }
-            };
-            Files.walkFileTree(path, setOwnerVisitor);
+            });
         } else {
             setPerm.apply(path);
         }
@@ -460,10 +467,23 @@ public class UnixPlatform extends Platform {
             if (user == null) {
                 return command;
             }
+
+            try {
+                loadCurrentUser();
+            } catch (IOException e) {
+                // ignore error here - it shouldn't happen and in worst case it will sudo to current user
+            }
+
             // no sudo necessary if running as current user
-            if (user.equals(System.getProperty("user.name")) && group == null) {
+            if (CURRENT_USER != null && CURRENT_USER_PRIMARY_GROUP != null
+                    && (CURRENT_USER.getPrincipalName().equals(user)
+                        || CURRENT_USER.getPrincipalIdentifier().equals(user))
+                    && (group == null
+                        || CURRENT_USER_PRIMARY_GROUP.getPrincipalIdentifier().equals(group)
+                        || CURRENT_USER_PRIMARY_GROUP.getPrincipalName().equals(group))) {
                 return command;
             }
+
             int size = (group == null) ? 6 : 8;
             String[] ret = new String[command.length + size];
             ret[0] = "sudo";

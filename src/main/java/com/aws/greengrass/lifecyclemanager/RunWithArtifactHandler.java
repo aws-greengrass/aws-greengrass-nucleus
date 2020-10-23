@@ -12,6 +12,7 @@ import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.inject.Inject;
 
@@ -67,7 +68,7 @@ public class RunWithArtifactHandler {
                 .build();
 
         CrashableFunction<Path, Void, IOException> f = (p) -> {
-            if (p.toFile().exists()) {
+            if (Files.exists(p)) {
                 platform.setPermissions(permission, p, Recurse, IgnorePermission);
             }
             return null;

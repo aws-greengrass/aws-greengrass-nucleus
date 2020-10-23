@@ -7,6 +7,7 @@ import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.testcommons.testutilities.UniqueRootPathBeforeAll;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
@@ -100,7 +101,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@ExtendWith(GGExtension.class)
+@ExtendWith({GGExtension.class, UniqueRootPathBeforeAll.class})
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DisabledOnOs(OS.WINDOWS)
 class IPCCliTest {
@@ -116,13 +117,16 @@ class IPCCliTest {
     @BeforeAll
     static void beforeAll() throws InterruptedException, ServiceLoadException {
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCCliTest.class, CLI_SERVICE, TEST_SERVICE_NAME);
+
         DeploymentService deploymentService = (DeploymentService) kernel.locate(DEPLOYMENT_SERVICE_TOPICS);
         deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
     }
 
     @AfterAll
     static void afterAll() {
-        kernel.shutdown();
+        if (kernel != null) {
+            kernel.shutdown();
+        }
     }
 
     @BeforeEach

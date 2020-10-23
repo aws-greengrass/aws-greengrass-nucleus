@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
-import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
@@ -13,10 +12,10 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.lifecyclemanager.RunWith;
-import com.aws.greengrass.lifecyclemanager.RunWithArtifactHandler;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
-import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.logging.impl.GreengrassLogMessage;
+import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
+import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,22 +25,25 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
-import static com.aws.greengrass.integrationtests.util.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -58,23 +60,7 @@ class GenericExternalServiceTest extends BaseITCase {
     @BeforeEach
     void beforeEach() {
         kernel = new Kernel();
-        kernel.getContext().put(RunWithArtifactHandler.class, new NoOpArtifactHandler(kernel.getNucleusPaths()));
-    }
-
-    /**
-     * Integration tests run as non-root user cannot change artifacts. This will skip the ownership update so tests
-     * will pass.
-     */
-    private static class NoOpArtifactHandler extends RunWithArtifactHandler {
-
-        public NoOpArtifactHandler(NucleusPaths paths) {
-            super(paths);
-        }
-
-        @Override
-        public void updateOwner(ComponentIdentifier id, RunWith runWith) throws IOException {
-            // do nothing
-        }
+        NoOpArtifactHandler.register(kernel);
     }
 
     @AfterEach
@@ -331,19 +317,29 @@ class GenericExternalServiceTest extends BaseITCase {
     @EnabledOnOs({OS.LINUX, OS.MAC})
     @ParameterizedTest
     @MethodSource("posixTestUserConfig")
-    void GIVEN_posix_default_user_WHEN_runs_THEN_runs_with_default_user(String file, String expectedUid)
+    void GIVEN_posix_default_user_WHEN_runs_THEN_runs_with_default_user(String file, String expectedInstallUid,
+                                                                        String expectedRunUid)
             throws Exception {
+
+        CountDownLatch countDownLatch = new CountDownLatch(2);
+        // Set up stdout listener to capture stdout for verifying users
+        List<String> stdouts = new CopyOnWriteArrayList<>();
+        Consumer<GreengrassLogMessage> listener = m -> {
+            Map<String, String> contexts = m.getContexts();
+            String messageOnStdout = contexts.get("stdout");
+            if (messageOnStdout != null
+                    && (messageOnStdout.contains("run as")
+                        || messageOnStdout.contains("install as") )) {
+                stdouts.add(messageOnStdout);
+                countDownLatch.countDown();
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+
         kernel.parseArgs("-i", getClass().getResource(file).toString());
 
         // skip when running as a user that cannot sudo to shell
         assumeCanSudoShell(kernel);
-
-        // create file for test to write UID into
-        File testFile = File.createTempFile("user-test", ".txt");
-        testFile.deleteOnExit();
-        assertTrue(testFile.setWritable(true, false), "could not set test file to be writable");
-        GenericExternalService service = (GenericExternalService) kernel.locate("echo_service");
-        service.getServiceConfig().find(SETENV_CONFIG_NAMESPACE, "output_path").withValue(testFile.getAbsolutePath());
 
         CountDownLatch main = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((s, oldState, newState) -> {
@@ -353,19 +349,17 @@ class GenericExternalServiceTest extends BaseITCase {
         });
         kernel.launch();
 
-        assertTrue(main.await(10, TimeUnit.SECONDS));
+        assertTrue(main.await(10, TimeUnit.SECONDS), "main finished");
 
-        try (BufferedReader userReader = Files.newBufferedReader(testFile.toPath())) {
-            String user = userReader.readLine();
-            assertEquals(expectedUid, user);
-        }
+        assertThat(stdouts, hasItem(containsString(String.format("install as %s", expectedInstallUid))));
+        assertThat(stdouts, hasItem(containsString(String.format("run as %s", expectedRunUid))));
     }
 
     static Stream<Arguments> posixTestUserConfig() {
         return Stream.of(
-                arguments("config_run_with_user.yaml", "1"),
-                arguments("config_run_with_user_shell.yaml", "1"),
-                arguments("config_run_with_privilege.yaml", "0")
+                arguments("config_run_with_user.yaml", "1", "1"),
+                arguments("config_run_with_user_shell.yaml", "1", "1"),
+                arguments("config_run_with_privilege.yaml", "1", "0")
         );
     }
 }

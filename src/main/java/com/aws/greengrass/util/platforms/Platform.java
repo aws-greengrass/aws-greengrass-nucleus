@@ -44,7 +44,7 @@ public abstract class Platform implements UserPlatform {
         return INSTANCE;
     }
 
-    public abstract void killProcessAndChildren(Process process, boolean force)
+    public abstract void killProcessAndChildren(Process process, boolean force, UserDecorator userDecorator)
             throws IOException, InterruptedException;
 
     public abstract ShellDecorator getShellDecorator();

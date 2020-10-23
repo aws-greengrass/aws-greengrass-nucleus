@@ -1,4 +1,8 @@
 ---
+system:
+  runWithDefault:
+    posixUser: nobody
+
 services:
   git:
     lifecycle:

@@ -6,6 +6,7 @@ package com.aws.greengrass.integrationtests.ipc;
 import com.aws.greengrass.authorization.AuthorizationModule;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.testcommons.testutilities.UniqueRootPathBeforeAll;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
@@ -15,17 +16,14 @@ import com.aws.greengrass.ipc.services.pubsub.PubSubImpl;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Pair;
-
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -39,16 +37,13 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith(GGExtension.class)
+@ExtendWith({GGExtension.class, UniqueRootPathBeforeAll.class})
 class IPCPubSubTest {
 
-    @TempDir
-    static Path tempRootDir;
     private static int TIMEOUT_FOR_PUBSUB_SECONDS = 2;
     private static Kernel kernel;
     private static IPCClient client;
@@ -57,7 +52,6 @@ class IPCPubSubTest {
 
     @BeforeAll
     static void beforeEach(ExtensionContext context) throws InterruptedException {
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         ignoreExceptionOfType(context, InterruptedException.class);
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.

@@ -12,6 +12,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
+import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
@@ -83,6 +84,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         socketOptions = TestUtils.getSocketOptionsForIPC();
         kernel = new Kernel();
+        NoOpArtifactHandler.register(kernel);
         deploymentConfigMerger = new DeploymentConfigMerger(kernel);
         kernel.parseArgs("-i",
                 DynamicComponentConfigurationValidationTest.class.getResource("onlyMain.yaml").toString());

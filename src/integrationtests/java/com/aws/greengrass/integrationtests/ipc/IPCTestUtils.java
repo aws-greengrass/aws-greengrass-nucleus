@@ -5,6 +5,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
 import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
@@ -59,8 +60,8 @@ public final class IPCTestUtils {
 
     public static Kernel prepareKernelFromConfigFile(String configFile, Class testClass, String... serviceNames) throws InterruptedException {
         Kernel kernel = new Kernel();
+        NoOpArtifactHandler.register(kernel);
         kernel.parseArgs("-i", testClass.getResource(configFile).toString());
-
         // ensure awaitIpcServiceLatch starts
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(serviceNames.length);
         GlobalStateChangeListener listener = getListenerForServiceRunning(awaitIpcServiceLatch, serviceNames);

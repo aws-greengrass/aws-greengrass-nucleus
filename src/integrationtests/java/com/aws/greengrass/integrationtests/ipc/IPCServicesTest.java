@@ -10,6 +10,7 @@ import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgen
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.testcommons.testutilities.UniqueRootPathBeforeAll;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
@@ -31,7 +32,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.aws.greengrass.GetConfigurationResponseHandler;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
@@ -59,7 +59,6 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -91,16 +90,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@ExtendWith(GGExtension.class)
+@ExtendWith({GGExtension.class, UniqueRootPathBeforeAll.class})
 class IPCServicesTest {
-
     private final static Logger log = LogManager.getLogger(IPCServicesTest.class);
-    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
-    private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
-    private static Logger logger = LogManager.getLogger(IPCServicesTest.class);
-
-    @TempDir
-    static Path tempRootDir;
+    private final static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
+    private final static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
+    private final static Logger logger = LogManager.getLogger(IPCServicesTest.class);
 
     private static Kernel kernel;
     private static EventStreamRPCConnection clientConnection;
@@ -109,7 +104,6 @@ class IPCServicesTest {
 
     @BeforeAll
     static void beforeAll() throws InterruptedException, IOException, ExecutionException {
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCServicesTest.class, TEST_SERVICE_NAME);
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, TEST_SERVICE_NAME);
         socketOptions = TestUtils.getSocketOptionsForIPC();
@@ -124,7 +118,9 @@ class IPCServicesTest {
         if (socketOptions != null) {
             socketOptions.close();
         }
-        kernel.shutdown();
+        if (kernel != null) {
+            kernel.shutdown();
+        }
     }
 
     @BeforeEach

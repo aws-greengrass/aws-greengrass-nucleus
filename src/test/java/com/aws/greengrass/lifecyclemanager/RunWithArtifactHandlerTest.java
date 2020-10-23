@@ -17,9 +17,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileSystem;
 import java.nio.file.Path;
+import java.nio.file.spi.FileSystemProvider;
 
 import static com.aws.greengrass.util.FileSystemPermission.Option.IgnorePermission;
 import static com.aws.greengrass.util.FileSystemPermission.Option.Recurse;
@@ -56,15 +57,18 @@ public class RunWithArtifactHandlerTest {
     @Mock
     Path nonExisting;
 
+    @SuppressWarnings("PMD.CloseResource")
     @BeforeEach
-    void beforeEach() {
-        File existingFile = mock(File.class);
-        lenient().doReturn(true).when(existingFile).exists();
-        lenient().doReturn(existingFile).when(existing).toFile();
+    void beforeEach() throws IOException {
+        FileSystem fs = mock(FileSystem.class);
+        FileSystemProvider fsProvider = mock(FileSystemProvider.class);
 
-        File nonExistingFile = mock(File.class);
-        lenient().doReturn(false).when(nonExistingFile).exists();
-        lenient().doReturn(nonExistingFile).when(nonExisting).toFile();
+        lenient().doReturn(fsProvider).when(fs).provider();
+
+        lenient().doThrow(IOException.class).when(fsProvider).checkAccess(eq(nonExisting));
+
+        lenient().doReturn(fs).when(existing).getFileSystem();
+        lenient().doReturn(fs).when(nonExisting).getFileSystem();
 
         doReturn("foo").when(runWith).getUser();
         doReturn("bar").when(runWith).getGroup();

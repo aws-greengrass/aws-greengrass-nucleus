@@ -403,7 +403,7 @@ public final class Exec implements Closeable {
     /**
      * Execute a command.
      *
-     * @returns the process exit code.
+     * @returns the process exit code if it is not a background process.
      * @throws InterruptedException if the command is interrupted while running.
      * @throws IOException if an error occurs while executing.
      */
@@ -495,10 +495,10 @@ public final class Exec implements Closeable {
         Platform platformInstance = Platform.getInstance();
 
         try {
-            platformInstance.killProcessAndChildren(p, false);
+            platformInstance.killProcessAndChildren(p, false, userDecorator);
             // TODO: configurable timeout?
             if (!p.waitFor(2, TimeUnit.SECONDS)) {
-                platformInstance.killProcessAndChildren(p, true);
+                platformInstance.killProcessAndChildren(p, true, userDecorator);
                 if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
                     throw new IOException("Could not stop " + this);
                 }
@@ -506,7 +506,7 @@ public final class Exec implements Closeable {
         } catch (InterruptedException e) {
             // If we're interrupted make sure to kill the process before returning
             try {
-                platformInstance.killProcessAndChildren(p, true);
+                platformInstance.killProcessAndChildren(p, true, userDecorator);
             } catch (InterruptedException ignore) {
             }
         }

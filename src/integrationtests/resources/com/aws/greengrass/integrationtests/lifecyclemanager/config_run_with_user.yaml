@@ -13,14 +13,9 @@ services:
         run:
           echo "Running main"
   echo_service:
-    setenv:
-      output_path: ./out
     lifecycle:
       install:
-        posix:
-          id
+        posix: echo "install as `id -u`"
       run:
-        posix: |-
-          echo $output_path
-          id -u > $output_path
+        posix: echo "run as `id -u`"
     version: 1.0.0

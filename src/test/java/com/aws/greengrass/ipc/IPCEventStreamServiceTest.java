@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.ipc.IPCEventStreamService.IPC_SERVER_DOMAIN_SOCKET_FILENAME;
@@ -97,7 +98,7 @@ public class IPCEventStreamServiceTest {
     }
 
     @Test
-    public void testClientConnection() throws InterruptedException, IOException, ExecutionException {
+    public void testClientConnection() throws InterruptedException, IOException, ExecutionException, TimeoutException {
         final ClientConnection[] clientConnectionArray = {null};
         CountDownLatch connectionLatch = new CountDownLatch(1);
 
@@ -123,7 +124,7 @@ public class IPCEventStreamServiceTest {
                         protected void onConnectionClosed(int closeReason) {
 
                         }
-                    }).get();
+                    }).get(10, TimeUnit.SECONDS);
             assertTrue(connectionLatch.await(2, TimeUnit.SECONDS));
             GreengrassEventStreamConnectMessage connectMessagePayloadStructure =
                     new GreengrassEventStreamConnectMessage();

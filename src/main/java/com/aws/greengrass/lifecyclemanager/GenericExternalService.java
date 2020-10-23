@@ -70,8 +70,6 @@ public class GenericExternalService extends GreengrassService {
 
     protected RunWith runWith;
 
-    protected boolean artifactOwnershipUpdateRequired;
-
     protected final Platform platform;
 
     /**
@@ -241,12 +239,6 @@ public class GenericExternalService extends GreengrassService {
     protected synchronized void install() throws InterruptedException {
         stopAllLifecycleProcesses();
 
-        // we want to process artifacts before running the install script
-        if (!storeInitialRunWithConfiguration()) {
-            serviceErrored("Error while determining run with configuration");
-            return;
-        }
-
         if (run(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses).getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in install");
         }
@@ -257,11 +249,6 @@ public class GenericExternalService extends GreengrassService {
     @Override
     protected synchronized void startup() throws InterruptedException {
         stopAllLifecycleProcesses();
-
-        if (!storeInitialRunWithConfiguration()) {
-            serviceErrored("Error while loading run with configuration. Service cannot be started");
-            return;
-        }
 
         long startingStateGeneration = getStateGeneration();
 
@@ -345,6 +332,7 @@ public class GenericExternalService extends GreengrassService {
         }
     }
 
+    @SuppressWarnings("PMD.NullAssignment")
     @Override
     protected synchronized void shutdown() {
         logger.atInfo().log("Shutdown initiated");
@@ -356,7 +344,7 @@ public class GenericExternalService extends GreengrassService {
             stopAllLifecycleProcesses();
             logger.atInfo().setEventType("generic-service-shutdown").log();
         }
-        artifactOwnershipUpdateRequired = true;
+        runWith = null; // reset runWith - a deployment can change user info
     }
 
     private synchronized void stopAllLifecycleProcesses() {
@@ -455,6 +443,8 @@ public class GenericExternalService extends GreengrassService {
         if (n == null) {
             return new Pair<>(RunStatus.NothingDone, null);
         }
+
+
         if (n instanceof Topic) {
             return run((Topic) n, Coerce.toString(n), background, trackingList, isPrivilegeRequired(name));
         }
@@ -466,15 +456,16 @@ public class GenericExternalService extends GreengrassService {
 
     @SuppressWarnings("PMD.CloseResource")
     protected Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, List<Exec> trackingList,
-                                        boolean requiresPrivilege)
-            throws InterruptedException {
-        if (artifactOwnershipUpdateRequired) {
-            if (updateArtifactOwner()) {
-                artifactOwnershipUpdateRequired = false;
-            } else {
+                                        boolean requiresPrivilege) throws InterruptedException {
+        if (runWith == null) {
+            if (!storeInitialRunWithConfiguration()) {
+                return new Pair<>(RunStatus.Errored, null);
+            }
+            if (!updateArtifactOwner()) {
                 logger.atWarn().log("Service artifacts may not be accessible to user");
             }
         }
+
         final ShellRunner shellRunner = context.get(ShellRunner.class);
         Exec exec;
         try {
