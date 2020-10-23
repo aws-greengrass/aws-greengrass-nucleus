@@ -4,8 +4,8 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
-import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.DependencyResolver;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
@@ -111,6 +111,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     private GreengrassService mockGreengrassService;
     @Mock
     private DeploymentDirectoryManager deploymentDirectoryManager;
+    @Mock
+    private DeviceConfiguration deviceConfiguration;
 
     private Thread deploymentServiceThread;
 
@@ -125,11 +127,12 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         initializeMockedConfig();
 
         lenient().when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
-
+        Topic pollingFrequency = Topic.of(context, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 1L);
+        when(deviceConfiguration.getDeploymentPollingFrequencySeconds()).thenReturn(pollingFrequency);
         // Creating the class to be tested
         deploymentService = new DeploymentService(config, mockExecutorService, dependencyResolver, componentManager,
                 kernelConfigResolver, deploymentConfigMerger, deploymentStatusKeeper, deploymentDirectoryManager,
-                context, mockKernel);
+                context, mockKernel, deviceConfiguration);
         deploymentService.postInject();
 
         deploymentQueue = new DeploymentQueue();
@@ -153,7 +156,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         @BeforeEach
         void setup() {
-            deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
+            Topic pollingFrequency = Topic.of(context, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 1L);
+            lenient().when(deviceConfiguration.getDeploymentPollingFrequencySeconds()).thenReturn(pollingFrequency);
             String deploymentDocument
                     = new BufferedReader(new InputStreamReader(
                     getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
