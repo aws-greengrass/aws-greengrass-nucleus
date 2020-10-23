@@ -6,8 +6,22 @@ import java.lang.String;
 import java.util.Objects;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-public final class PublishToTopicResponse implements EventStreamJsonMessage {
+/**
+ * Generated empty model type not defined in model
+ */
+public class PublishToTopicResponse implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#PublishToTopicResponse";
+
+  public static final PublishToTopicResponse VOID;
+
+  static {
+    VOID = new PublishToTopicResponse() {
+      @Override
+      public final boolean isVoid() {
+        return true;
+      }
+    };
+  }
 
   @Override
   public String getApplicationModelType() {
