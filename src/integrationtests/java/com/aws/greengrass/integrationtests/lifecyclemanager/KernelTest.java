@@ -25,7 +25,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -40,7 +39,6 @@ import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYC
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -338,7 +336,7 @@ class KernelTest extends BaseITCase {
         Path configPath = kernel.getNucleusPaths().configPath();
         KernelLifecycle kernelLifecycle = context.get(KernelLifecycle.class);
 
-        // create a tlog that's not interrupted by truncation. goal is to be consistent with this one
+        // create a tlog that's not interrupted by truncation workflow. goal is to be consistent with this one
         context.runOnPublishQueueAndWait(() -> {
             kernel.writeEffectiveConfigAsTransactionLog(configPath.resolve("full.tlog"));
             ConfigurationWriter.logTransactionsTo(config, configPath.resolve("full.tlog")).flushImmediately(true);
@@ -346,23 +344,21 @@ class KernelTest extends BaseITCase {
 
         // create some test topics
         Topic testTopic1 = config.lookup("testTopic1").withValue("initial");
-
-        // make it auto truncate in the next write
-        long currSize = Files.size(configPath.resolve("config.tlog"));
-        kernelLifecycle.getTlog().withMaxFileSize(currSize);
-        testTopic1.withNewerValue(System.currentTimeMillis(),"triggering truncate");
+        context.runOnPublishQueueAndWait(() -> {
+            // make truncate run by setting a small size
+            kernelLifecycle.getTlog().withMaxFileSize(1);
+            testTopic1.withNewerValue(System.currentTimeMillis(), "triggering truncate");
+            // immediately queue a task to increase max size to prevent repeated truncation
+            context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxFileSize(100_000));
+        });
+        // wait for things to finish
         Thread.sleep(1000);
-        kernelLifecycle.getTlog().withMaxFileSize(10_000);
         testTopic1.withNewerValue(System.currentTimeMillis(),"should be in new log");
 
-        // block update to check equivalence
+        // block and check equivalence
         context.runOnPublishQueueAndWait(() -> {
             Configuration fullConfig = ConfigurationReader.createFromTLog(new Context(), configPath.resolve("full.tlog"));
-            Configuration oldConfig = ConfigurationReader.createFromTLog(new Context(), configPath.resolve("config.tlog.old"));
             Configuration newConfig = ConfigurationReader.createFromTLog(new Context(), configPath.resolve("config.tlog"));
-            // old tlog should have old value
-            assertEquals("triggering truncate", oldConfig.lookup("testTopic1").getOnce());
-            // new tlog should contain current config
             Map<String, Object> fullConfigMap = fullConfig.toPOJO();
             Map<String, Object> newConfigMap = newConfig.toPOJO();
             assertThat(newConfigMap, is(fullConfigMap));
