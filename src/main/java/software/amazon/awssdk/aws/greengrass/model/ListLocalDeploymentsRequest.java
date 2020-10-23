@@ -6,8 +6,22 @@ import java.lang.String;
 import java.util.Objects;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-public final class ListLocalDeploymentsRequest implements EventStreamJsonMessage {
+/**
+ * Generated empty model type not defined in model
+ */
+public class ListLocalDeploymentsRequest implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ListLocalDeploymentsRequest";
+
+  public static final ListLocalDeploymentsRequest VOID;
+
+  static {
+    VOID = new ListLocalDeploymentsRequest() {
+      @Override
+      public final boolean isVoid() {
+        return true;
+      }
+    };
+  }
 
   @Override
   public String getApplicationModelType() {
