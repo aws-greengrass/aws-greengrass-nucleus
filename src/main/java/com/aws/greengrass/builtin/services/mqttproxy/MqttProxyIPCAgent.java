@@ -79,6 +79,7 @@ public class MqttProxyIPCAgent {
 
         }
 
+        @SuppressWarnings("PMD.PreserveStackTrace")
         @Override
         public PublishToIoTCoreResponse handleRequest(PublishToIoTCoreRequest request) {
             String topic = request.getTopicName();
@@ -141,6 +142,7 @@ public class MqttProxyIPCAgent {
             }
         }
 
+        @SuppressWarnings("PMD.PreserveStackTrace")
         @Override
         public SubscribeToIoTCoreResponse handleRequest(SubscribeToIoTCoreRequest request) {
             String topic = request.getTopicName();
