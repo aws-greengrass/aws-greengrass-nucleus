@@ -6,8 +6,22 @@ import java.lang.String;
 import java.util.Objects;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-public final class UpdateStateResponse implements EventStreamJsonMessage {
+/**
+ * Generated empty model type not defined in model
+ */
+public class UpdateStateResponse implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#UpdateStateResponse";
+
+  public static final UpdateStateResponse VOID;
+
+  static {
+    VOID = new UpdateStateResponse() {
+      @Override
+      public final boolean isVoid() {
+        return true;
+      }
+    };
+  }
 
   @Override
   public String getApplicationModelType() {

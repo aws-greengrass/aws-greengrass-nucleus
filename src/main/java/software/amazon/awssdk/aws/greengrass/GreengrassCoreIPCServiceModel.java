@@ -76,8 +76,6 @@ import software.amazon.awssdk.aws.greengrass.model.SubscribeToValidateConfigurat
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToValidateConfigurationUpdatesResponse;
 import software.amazon.awssdk.aws.greengrass.model.SubscriptionResponseMessage;
 import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
-import software.amazon.awssdk.aws.greengrass.model.UnsubscribeFromIoTCoreRequest;
-import software.amazon.awssdk.aws.greengrass.model.UnsubscribeFromIoTCoreResponse;
 import software.amazon.awssdk.aws.greengrass.model.UpdateConfigurationRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateConfigurationResponse;
 import software.amazon.awssdk.aws.greengrass.model.UpdateRecipesAndArtifactsRequest;
@@ -120,10 +118,6 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
   public static final String SUBSCRIBE_TO_CONFIGURATION_UPDATE = SERVICE_NAMESPACE + "#" + "SubscribeToConfigurationUpdate";
 
   private static final SubscribeToConfigurationUpdateOperationContext _SUBSCRIBE_TO_CONFIGURATION_UPDATE_OPERATION_CONTEXT = new SubscribeToConfigurationUpdateOperationContext();
-
-  public static final String UNSUBSCRIBE_FROM_IOT_CORE = SERVICE_NAMESPACE + "#" + "UnsubscribeFromIoTCore";
-
-  private static final UnsubscribeFromIoTCoreOperationContext _UNSUBSCRIBE_FROM_IOT_CORE_OPERATION_CONTEXT = new UnsubscribeFromIoTCoreOperationContext();
 
   public static final String LIST_COMPONENTS = SERVICE_NAMESPACE + "#" + "ListComponents";
 
@@ -206,8 +200,6 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OPERATION_SET.add(PUBLISH_TO_IOT_CORE);
     SERVICE_OPERATION_MODEL_MAP.put(SUBSCRIBE_TO_CONFIGURATION_UPDATE, _SUBSCRIBE_TO_CONFIGURATION_UPDATE_OPERATION_CONTEXT);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CONFIGURATION_UPDATE);
-    SERVICE_OPERATION_MODEL_MAP.put(UNSUBSCRIBE_FROM_IOT_CORE, _UNSUBSCRIBE_FROM_IOT_CORE_OPERATION_CONTEXT);
-    SERVICE_OPERATION_SET.add(UNSUBSCRIBE_FROM_IOT_CORE);
     SERVICE_OPERATION_MODEL_MAP.put(LIST_COMPONENTS, _LIST_COMPONENTS_OPERATION_CONTEXT);
     SERVICE_OPERATION_SET.add(LIST_COMPONENTS);
     SERVICE_OPERATION_MODEL_MAP.put(DEFER_COMPONENT_UPDATE, _DEFER_COMPONENT_UPDATE_OPERATION_CONTEXT);
@@ -246,7 +238,6 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OPERATION_SET.add(CREATE_LOCAL_DEPLOYMENT);
     SERVICE_OBJECT_MODEL_MAP.put(PublishToTopicResponse.APPLICATION_MODEL_TYPE, PublishToTopicResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(PublishToIoTCoreResponse.APPLICATION_MODEL_TYPE, PublishToIoTCoreResponse.class);
-    SERVICE_OBJECT_MODEL_MAP.put(UnsubscribeFromIoTCoreResponse.APPLICATION_MODEL_TYPE, UnsubscribeFromIoTCoreResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(ListComponentsRequest.APPLICATION_MODEL_TYPE, ListComponentsRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(DeferComponentUpdateResponse.APPLICATION_MODEL_TYPE, DeferComponentUpdateResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(SendConfigurationValidityReportResponse.APPLICATION_MODEL_TYPE, SendConfigurationValidityReportResponse.class);
@@ -265,9 +256,9 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToConfigurationUpdateRequest.APPLICATION_MODEL_TYPE, SubscribeToConfigurationUpdateRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToConfigurationUpdateResponse.APPLICATION_MODEL_TYPE, SubscribeToConfigurationUpdateResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(ResourceNotFoundError.APPLICATION_MODEL_TYPE, ResourceNotFoundError.class);
-    SERVICE_OBJECT_MODEL_MAP.put(UnsubscribeFromIoTCoreRequest.APPLICATION_MODEL_TYPE, UnsubscribeFromIoTCoreRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(ListComponentsResponse.APPLICATION_MODEL_TYPE, ListComponentsResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(DeferComponentUpdateRequest.APPLICATION_MODEL_TYPE, DeferComponentUpdateRequest.class);
+    SERVICE_OBJECT_MODEL_MAP.put(InvalidArgumentsError.APPLICATION_MODEL_TYPE, InvalidArgumentsError.class);
     SERVICE_OBJECT_MODEL_MAP.put(SendConfigurationValidityReportRequest.APPLICATION_MODEL_TYPE, SendConfigurationValidityReportRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(InvalidArgumentError.APPLICATION_MODEL_TYPE, InvalidArgumentError.class);
     SERVICE_OBJECT_MODEL_MAP.put(UpdateConfigurationRequest.APPLICATION_MODEL_TYPE, UpdateConfigurationRequest.class);
@@ -280,7 +271,6 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OBJECT_MODEL_MAP.put(UpdateRecipesAndArtifactsRequest.APPLICATION_MODEL_TYPE, UpdateRecipesAndArtifactsRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(InvalidRecipeDirectoryPathError.APPLICATION_MODEL_TYPE, InvalidRecipeDirectoryPathError.class);
     SERVICE_OBJECT_MODEL_MAP.put(InvalidArtifactsDirectoryPathError.APPLICATION_MODEL_TYPE, InvalidArtifactsDirectoryPathError.class);
-    SERVICE_OBJECT_MODEL_MAP.put(InvalidArgumentsError.APPLICATION_MODEL_TYPE, InvalidArgumentsError.class);
     SERVICE_OBJECT_MODEL_MAP.put(RestartComponentRequest.APPLICATION_MODEL_TYPE, RestartComponentRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(RestartComponentResponse.APPLICATION_MODEL_TYPE, RestartComponentResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(ComponentNotFoundError.APPLICATION_MODEL_TYPE, ComponentNotFoundError.class);
@@ -352,10 +342,6 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
   public static SubscribeToConfigurationUpdateOperationContext getSubscribeToConfigurationUpdateModelContext(
       ) {
     return _SUBSCRIBE_TO_CONFIGURATION_UPDATE_OPERATION_CONTEXT;
-  }
-
-  public static UnsubscribeFromIoTCoreOperationContext getUnsubscribeFromIoTCoreModelContext() {
-    return _UNSUBSCRIBE_FROM_IOT_CORE_OPERATION_CONTEXT;
   }
 
   public static ListComponentsOperationContext getListComponentsModelContext() {

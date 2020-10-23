@@ -107,7 +107,7 @@
             <groupId>com.aws.iot</groupId>
             <artifactId>component-common</artifactId>
             <!-- change back to 0.0.0-SNAPSHOT after common model is updated in repo -->
-            <version>0.0.0-config_platform-SNAPSHOT</version>
+            <version>0.0.0-SNAPSHOT</version>
         </dependency>
         <!-- TODO: This is temporary, adding because there is some confusion about which version
         of core should be used for the AWS SDK (2.x or 1.x). Will be removed once the pom file for
