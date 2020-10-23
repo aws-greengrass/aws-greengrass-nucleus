@@ -162,8 +162,14 @@ public final class PlatformResolver {
         if ("x86_64".equals(arch) || "amd64".equals(arch)) {
             return Architecture.AMD64; // x86_64 & amd64 are same
         }
+        if ("i386".equals(arch) || "x86".equals(arch)) {
+            return Architecture.X86;
+        }
         if (arch.contains("arm")) {
             return Architecture.ARM;
+        }
+        if ("aarch64".equals(arch)) {
+            return Architecture.AARCH64;
         }
         // TODO: use UNRECOGNIZED instead.
         return Architecture.ALL;
