@@ -485,7 +485,7 @@ class IPCServicesTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
-    void GIVEN_LifeCycleEventStreamClient_WHEN_defer_component_THEN_InvalidArgumentError() throws Exception {
+    void GIVEN_LifeCycleEventStreamClient_WHEN_defer_component_THEN_InvalidArgumentsError() throws Exception {
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
         deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(1).toMillis());
