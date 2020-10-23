@@ -24,7 +24,6 @@ import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToValidateConfigurationUpdatesRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscriptionResponseMessage;
-import software.amazon.awssdk.aws.greengrass.model.UnsubscribeFromIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateConfigurationRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateRecipesAndArtifactsRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
@@ -68,14 +67,6 @@ public class GreengrassCoreIPCClient extends EventStreamRPCClient implements Gre
       final Optional<StreamResponseHandler<ConfigurationUpdateEvents>> streamResponseHandler) {
     final SubscribeToConfigurationUpdateOperationContext operationContext = GreengrassCoreIPCServiceModel.getSubscribeToConfigurationUpdateModelContext();
     return new SubscribeToConfigurationUpdateResponseHandler(doOperationInvoke(operationContext, request, streamResponseHandler));
-  }
-
-  @Override
-  public UnsubscribeFromIoTCoreResponseHandler unsubscribeFromIoTCore(
-      final UnsubscribeFromIoTCoreRequest request,
-      final Optional<StreamResponseHandler<EventStreamJsonMessage>> streamResponseHandler) {
-    final UnsubscribeFromIoTCoreOperationContext operationContext = GreengrassCoreIPCServiceModel.getUnsubscribeFromIoTCoreModelContext();
-    return new UnsubscribeFromIoTCoreResponseHandler(doOperationInvoke(operationContext, request, streamResponseHandler));
   }
 
   @Override

@@ -6,8 +6,22 @@ import java.lang.String;
 import java.util.Objects;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-public final class DeferComponentUpdateResponse implements EventStreamJsonMessage {
+/**
+ * Generated empty model type not defined in model
+ */
+public class DeferComponentUpdateResponse implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#DeferComponentUpdateResponse";
+
+  public static final DeferComponentUpdateResponse VOID;
+
+  static {
+    VOID = new DeferComponentUpdateResponse() {
+      @Override
+      public final boolean isVoid() {
+        return true;
+      }
+    };
+  }
 
   @Override
   public String getApplicationModelType() {
