@@ -6,8 +6,22 @@ import java.lang.String;
 import java.util.Objects;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-public final class SubscribeToComponentUpdatesRequest implements EventStreamJsonMessage {
+/**
+ * Generated empty model type not defined in model
+ */
+public class SubscribeToComponentUpdatesRequest implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#SubscribeToComponentUpdatesRequest";
+
+  public static final SubscribeToComponentUpdatesRequest VOID;
+
+  static {
+    VOID = new SubscribeToComponentUpdatesRequest() {
+      @Override
+      public final boolean isVoid() {
+        return true;
+      }
+    };
+  }
 
   @Override
   public String getApplicationModelType() {

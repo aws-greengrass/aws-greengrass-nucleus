@@ -6,6 +6,7 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentConfiguration;
+import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentParameter;
@@ -39,6 +40,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,6 +49,7 @@ import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_GROUP_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
@@ -178,7 +181,9 @@ public class KernelConfigResolver {
                     .put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, interpolatedLifecycle);
         }
 
-        servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages));
+        String nucleusComponentName = getNucleusComponentName(servicesConfig);
+        servicesConfig.putIfAbsent(nucleusComponentName, getNucleusComponentConfig(nucleusComponentName));
+        servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages, nucleusComponentName));
 
         // Services need to be under the services namespace in kernel config
         return Collections.singletonMap(SERVICES_NAMESPACE_TOPIC, servicesConfig);
@@ -700,7 +705,7 @@ public class KernelConfigResolver {
     /*
      * Compute the config for main service
      */
-    private Map<String, Object> getMainConfig(List<String> rootPackages) {
+    private Map<String, Object> getMainConfig(List<String> rootPackages, String nucleusComponentName) {
         Map<String, Object> mainServiceConfig = new HashMap<>();
         ArrayList<String> mainDependencies = new ArrayList<>(rootPackages);
         kernel.getMain().getDependencies().forEach((greengrassService, dependencyType) -> {
@@ -709,8 +714,38 @@ public class KernelConfigResolver {
                 mainDependencies.add(greengrassService.getName() + ":" + dependencyType);
             }
         });
+
+        // Make Nucleus component sticky
+        mainDependencies.add(nucleusComponentName);
+
         mainServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, mainDependencies);
         return mainServiceConfig;
+    }
+
+    /*
+     * If the deployment's service config has a component of type Nucleus use that, if it doesn't,
+     * fall back to the first party Nucleus component
+     */
+    private String getNucleusComponentName(Map<String, Object> newServiceConfig) {
+        Optional<String> nucleusComponentName = newServiceConfig.keySet().stream()
+                .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(newServiceConfig.get(s)))).findAny();
+        if (nucleusComponentName.isPresent()) {
+            return nucleusComponentName.get();
+        }
+        return DEFAULT_NUCLEUS_COMPONENT_NAME;
+    }
+
+    private Object getNucleusComponentConfig(String nucleusComponentName) {
+        Topics nucleusServiceTopics = kernel.findServiceTopic(nucleusComponentName);
+        return Objects.isNull(nucleusServiceTopics) ? null : nucleusServiceTopics.toPOJO();
+    }
+
+    private String getComponentType(Object serviceConfig) {
+        String componentType = null;
+        if (serviceConfig instanceof Map) {
+            componentType = Coerce.toString(((Map<String, Object>) serviceConfig).get(SERVICE_TYPE_TOPIC_KEY));
+        }
+        return componentType;
     }
 
     /*

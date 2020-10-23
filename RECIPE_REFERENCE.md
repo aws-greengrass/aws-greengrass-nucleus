@@ -82,7 +82,7 @@ Publisher of component
 ComponentPublisher: Amazon
 ```
 ### Component Type
-Describe component runtime mode, support values: `aws.greengrass.plugin`, `aws.greengrass.lambda`, `aws.greengrass.generic`, default is `aws.greengrass.generic`
+Describe component runtime mode, support values: `aws.greengrass.plugin`, `aws.greengrass.lambda`, `aws.greengrass.generic`, `aws.greengrass.nucleus`, default is `aws.greengrass.generic`
 ```yaml
 ComponentType: aws.greengrass.generic
 ```

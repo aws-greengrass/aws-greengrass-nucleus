@@ -1,16 +1,22 @@
 package com.aws.greengrass.tes;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
+import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,19 +29,33 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS;
+import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
+import static com.aws.greengrass.deployment.DeviceConfiguration.NUCLEUS_COMPONENT_VERSION;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
+import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE_NAME;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -51,6 +71,15 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
     @Mock
     CredentialRequestHandler mockCredentialHandler;
 
+    @Mock
+    Kernel kernel;
+
+    @Mock
+    Configuration configuration;
+
+    @Mock
+    Context context;
+
     ArgumentCaptor<String> stringArgumentCaptor = ArgumentCaptor.forClass(String.class);
 
     ArgumentCaptor<Set<String>> operationsCaptor = ArgumentCaptor.forClass(Set.class);
@@ -61,6 +90,36 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         serviceFullName = TOKEN_EXCHANGE_SERVICE_TOPICS;
         initializeMockedConfig();
         when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
+        when(kernel.getConfig()).thenReturn(configuration);
+        Topics servicesTopics = Topics.of(context, SERVICES_NAMESPACE_TOPIC, null);
+        Topic componentTypeTopic = Topic.of(context, SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.name());
+        Topic componentVersionTopic = Topic.of(context, VERSION_CONFIG_KEY, NUCLEUS_COMPONENT_VERSION);
+        Topic componentStoreSizeLimitTopic = Topic.of(context, COMPONENT_STORE_MAX_SIZE_BYTES, 10_000_000_000L);
+        Topic deploymentPollingFrequency = Topic.of(context, SERVICE_TYPE_TOPIC_KEY, 15L);
+        Topic mainDependenciesTopic = Topic.of(context, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC,
+                DEFAULT_NUCLEUS_COMPONENT_NAME);
+        Topics root = mock(Topics.class);
+        when(root.findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
+                SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)).thenReturn(new ArrayList<String>());
+        when(configuration.getRoot()).thenReturn(root);
+        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC)).thenReturn(servicesTopics);
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY))
+                .thenReturn(componentTypeTopic);
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY))
+                .thenReturn(componentVersionTopic);
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                COMPONENT_STORE_MAX_SIZE_BYTES)).thenReturn(componentStoreSizeLimitTopic);
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                DEPLOYMENT_POLLING_FREQUENCY_SECONDS)).thenReturn(deploymentPollingFrequency);
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))
+                .thenReturn(mainDependenciesTopic);
+    }
+
+    @AfterEach
+    void cleanup() throws Exception {
+        if (context != null) {
+            context.close();
+        }
     }
 
     @AfterAll
@@ -85,18 +144,21 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
             return null;
         });
         when(roleTopic.getOnce()).thenReturn(MOCK_ROLE_ALIAS);
+        when(roleTopic.withValue(anyString())).thenReturn(roleTopic);
+        when(roleTopic.dflt(anyString())).thenReturn(roleTopic);
 
         Topic mockUriTopic = mock(Topic.class);
         Topics mockConfig = mock(Topics.class);
         when(config.getRoot()).thenReturn(mockConfig);
-        when(config.lookup(PARAMETERS_CONFIG_KEY, TokenExchangeService.IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
         when(config.lookup(PARAMETERS_CONFIG_KEY, TokenExchangeService.PORT_TOPIC)).thenReturn(portTopic);
         when(mockConfig.lookup(GreengrassService.SETENV_CONFIG_NAMESPACE, TokenExchangeService.TES_URI_ENV_VARIABLE_NAME)).thenReturn(mockUriTopic);
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
 
         TokenExchangeService tes = new TokenExchangeService(config,
                 mockCredentialHandler,
                 mockAuthZHandler,
-                executorService);
+                executorService, deviceConfigurationWithRoleAlias(MOCK_ROLE_ALIAS));
         tes.postInject();
         tes.startup();
         Thread.sleep(5000L);
@@ -136,6 +198,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
             return null;
         });
         when(roleTopic.getOnce()).thenReturn(roleAlias);
+        lenient().when(roleTopic.withValue(anyString())).thenReturn(roleTopic);
+        when(roleTopic.dflt(anyString())).thenReturn(roleTopic);
 
         // set mock for port topic
         Topic portTopic = mock(Topic.class);
@@ -146,13 +210,15 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         });
         when(portTopic.getOnce()).thenReturn(8080);
 
-        when(config.lookup(PARAMETERS_CONFIG_KEY, TokenExchangeService.IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
+
         when(config.lookup(PARAMETERS_CONFIG_KEY, TokenExchangeService.PORT_TOPIC)).thenReturn(portTopic);
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
                 mockAuthZHandler,
-                executorService));
+                executorService, deviceConfigurationWithRoleAlias(roleAlias)));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
         tes.startup();
@@ -171,6 +237,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
             return null;
         });
         when(roleTopic.getOnce()).thenReturn("TEST");
+        when(roleTopic.withValue(anyString())).thenReturn(roleTopic);
+        when(roleTopic.dflt(anyString())).thenReturn(roleTopic);
 
         // set mock for port topic
         Topic portTopic = mock(Topic.class);
@@ -180,13 +248,14 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
             return null;
         });
         when(portTopic.getOnce()).thenReturn(8080);
-        when(config.lookup(PARAMETERS_CONFIG_KEY, TokenExchangeService.IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
         when(config.lookup(PARAMETERS_CONFIG_KEY, TokenExchangeService.PORT_TOPIC)).thenReturn(portTopic);
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
                 mockAuthZHandler,
-                executorService));
+                executorService, deviceConfigurationWithRoleAlias("TEST")));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
         tes.postInject();
@@ -198,5 +267,11 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         //doThrow(AuthorizationException.class).when(mockAuthZHandler).loadAuthorizationPolicies(any(), any(), false);
         tes.postInject();
         assertEquals(State.ERRORED, stateArgumentCaptor.getValue());
+    }
+
+    private DeviceConfiguration deviceConfigurationWithRoleAlias(String roleAliasName) {
+        DeviceConfiguration deviceConfiguration =  new DeviceConfiguration(kernel);
+        deviceConfiguration.getIotRoleAlias().withValue(roleAliasName);
+        return deviceConfiguration;
     }
 }

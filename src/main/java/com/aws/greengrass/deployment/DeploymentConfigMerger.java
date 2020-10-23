@@ -11,6 +11,7 @@ import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.activator.DeploymentActivator;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -94,7 +95,7 @@ public class DeploymentConfigMerger {
         DeploymentActivator activator;
         try {
             activator = kernel.getContext().get(DeploymentActivatorFactory.class).getDeploymentActivator(newConfig);
-        } catch (ServiceUpdateException e) {
+        } catch (ServiceUpdateException | ComponentConfigurationValidationException e) {
             // Failed to pre-process new config, no rollback needed
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
                     .log("Failed to process new configuration for activation");
@@ -162,22 +163,23 @@ public class DeploymentConfigMerger {
          * @param newServiceConfig new config to be merged for deployment
          */
         public AggregateServicesChangeManager(Kernel kernel, Map<String, Object> newServiceConfig) {
-            Set<String> runningUserServices = kernel.orderedDependencies().stream()
-                    .map(GreengrassService::getName).collect(Collectors.toSet());
+            // No builtin services should be modified in any way by deployments outside of
+            //  Nucleus component update
+            Set<String> runningDeployableServices =
+                    kernel.orderedDependencies().stream().filter(s -> !s.isBuiltin()).map(GreengrassService::getName)
+                            .collect(Collectors.toSet());
 
             this.kernel = kernel;
 
-            this.servicesToAdd =
-                    newServiceConfig.keySet().stream().filter(serviceName -> !runningUserServices.contains(serviceName))
-                            .collect(Collectors.toSet());
+            this.servicesToAdd = newServiceConfig.keySet().stream()
+                    .filter(serviceName -> !runningDeployableServices.contains(serviceName))
+                    .collect(Collectors.toSet());
 
-            this.servicesToUpdate =
-                    newServiceConfig.keySet().stream().filter(runningUserServices::contains)
-                            .collect(Collectors.toSet());
+            this.servicesToUpdate = newServiceConfig.keySet().stream().filter(runningDeployableServices::contains)
+                    .collect(Collectors.toSet());
 
-            // TODO: handle removing services that are running within the JVM but defined via config
             this.servicesToRemove =
-                    runningUserServices.stream().filter(serviceName -> !newServiceConfig.containsKey(serviceName))
+                    runningDeployableServices.stream().filter(serviceName -> !newServiceConfig.containsKey(serviceName))
                             .collect(Collectors.toSet());
         }
 
