@@ -559,4 +559,5 @@ public class Kernel {
     public String deTilde(String filename) {
         return kernelCommandLine.deTilde(filename);
     }
+
 }
