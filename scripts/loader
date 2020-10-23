@@ -20,7 +20,8 @@ launch_kernel() {
     JVM_OPTIONS=$(cat "$LAUNCH_DIR/launch.params")
   fi
 
-  OPTIONS="--root $GG_ROOT --setup-system-service false"
+  JVM_OPTIONS="$JVM_OPTIONS -Droot=\"$GG_ROOT\""
+  OPTIONS="--setup-system-service false"
   if [ ! -z ${CONFIG_FILE} ]; then
     OPTIONS="$OPTIONS --config $CONFIG_FILE"
   fi
