@@ -44,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.ipc.IPCEventStreamService.IPC_SERVER_DOMAIN_SOCKET_FILENAME;
+import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_COMPONENT_CWD_RELATIVE_FILEPATH;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -74,6 +75,9 @@ public class IPCEventStreamServiceTest {
     private Topic mockTopic;
 
     @Mock
+    private Topic mockRelativePath;
+
+    @Mock
     private GreengrassCoreIPCService greengrassCoreIPCService;
     @Mock
     private software.amazon.awssdk.eventstreamrpc.AuthenticationHandler mockAuthenticationHandler;
@@ -93,6 +97,8 @@ public class IPCEventStreamServiceTest {
         when(config.getRoot()).thenReturn(mockRootTopics);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
                 eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
+        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
+                eq(NUCLEUS_DOMAIN_SOCKET_COMPONENT_CWD_RELATIVE_FILEPATH))).thenReturn(mockRelativePath);
         ipcEventStreamService.startup();
     }
 

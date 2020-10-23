@@ -14,6 +14,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel;
@@ -29,6 +30,7 @@ import software.amazon.awssdk.eventstreamrpc.IpcServer;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Paths;
 import java.util.List;
 import javax.inject.Inject;
@@ -43,7 +45,13 @@ public class IPCEventStreamService implements Startable, Closeable {
                 new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipcEventStreamServer";
+    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./ipcEventStreamServer";
+    // This is relative to component's CWD
+    public static final String IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME = "../../ipcEventStreamServer";
+
     public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH = "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH";
+    public static final String NUCLEUS_DOMAIN_SOCKET_COMPONENT_CWD_RELATIVE_FILEPATH =
+            "AWS_GG_NUCLEUS_DOMAIN_SOCKET_COMPONENT_CWD_RELATIVE_FILEPATH";
 
     private static Logger logger = LogManager.getLogger(IPCEventStreamService.class);
 
@@ -63,6 +71,7 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     private SocketOptions socketOptions;
     private EventLoopGroup eventLoopGroup;
+    @Getter
     private String ipcServerSocketPath;
 
     IPCEventStreamService(Kernel kernel,
@@ -100,14 +109,33 @@ public class IPCEventStreamService implements Startable, Closeable {
                 logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file");
             }
         }
+        if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
+            try {
+                logger.atDebug().log("Deleting the ipc server socket descriptor file symlink");
+                Files.delete(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK));
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file symlink");
+            }
+        }
         Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
         kernelUri.withValue(ipcServerSocketPath);
-
+        Topic kernelRelativeUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE,
+                NUCLEUS_DOMAIN_SOCKET_COMPONENT_CWD_RELATIVE_FILEPATH);
+        kernelRelativeUri.withValue(IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME);
+        boolean symLinkCreated = false;
+        try {
+            Files.createSymbolicLink(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK),
+                    Paths.get(ipcServerSocketPath));
+            symLinkCreated = true;
+        } catch (IOException e) {
+            logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path");
+        }
         // For domain sockets:
         // 1. Port number is ignored. IpcServer does not accept a null value so we are using a default value.
         // 2. The hostname parameter expects the socket filepath
-        ipcServer = new IpcServer(eventLoopGroup, socketOptions, null, ipcServerSocketPath,
-                DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
+        ipcServer = new IpcServer(eventLoopGroup, socketOptions, null,
+                symLinkCreated ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK : ipcServerSocketPath, DEFAULT_PORT_NUMBER,
+                greengrassCoreIPCService);
         ipcServer.runServer();
     }
 
