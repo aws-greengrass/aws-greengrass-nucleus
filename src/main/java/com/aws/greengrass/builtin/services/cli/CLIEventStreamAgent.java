@@ -569,14 +569,16 @@ public class CLIEventStreamAgent {
         public ListLocalDeploymentsResponse handleRequest(ListLocalDeploymentsRequest request) {
             List<LocalDeployment> persistedDeployments = new ArrayList<>();
             Topics localDeployments = cliServiceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
-            localDeployments.forEach(topic -> {
-                Topics topics = (Topics) topic;
-                LocalDeployment localDeployment = new LocalDeployment();
-                localDeployment.setDeploymentId(topics.getName());
-                localDeployment.setStatus(deploymentStatusFromString(Coerce.toString(
-                        topics.find(DEPLOYMENT_STATUS_KEY_NAME))));
-                persistedDeployments.add(localDeployment);
-            });
+            if (localDeployments != null) {
+                localDeployments.forEach(topic -> {
+                    Topics topics = (Topics) topic;
+                    LocalDeployment localDeployment = new LocalDeployment();
+                    localDeployment.setDeploymentId(topics.getName());
+                    localDeployment.setStatus(deploymentStatusFromString(
+                            Coerce.toString(topics.find(DEPLOYMENT_STATUS_KEY_NAME))));
+                    persistedDeployments.add(localDeployment);
+                });
+            }
             ListLocalDeploymentsResponse response = new ListLocalDeploymentsResponse();
             response.setLocalDeployments(persistedDeployments);
             return response;

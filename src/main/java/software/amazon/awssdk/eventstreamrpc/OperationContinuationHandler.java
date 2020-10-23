@@ -273,7 +273,6 @@ public abstract class OperationContinuationHandler
         } catch (EventStreamOperationError e) {
             //We do not check if the specific exception thrown is a part of the core service?
             sendModeledError(e);
-            LOGGER.warning("Modeled error response: " + e.getApplicationModelType());
             invokeAfterHandleRequest();
         } catch (Exception e) {
             final List<Header> responseHeaders = new ArrayList<>(1);

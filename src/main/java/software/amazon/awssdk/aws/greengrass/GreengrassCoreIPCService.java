@@ -25,8 +25,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String SUBSCRIBE_TO_CONFIGURATION_UPDATE = SERVICE_NAMESPACE + "#SubscribeToConfigurationUpdate";
 
-  public static final String UNSUBSCRIBE_FROM_IOT_CORE = SERVICE_NAMESPACE + "#UnsubscribeFromIoTCore";
-
   public static final String LIST_COMPONENTS = SERVICE_NAMESPACE + "#ListComponents";
 
   public static final String DEFER_COMPONENT_UPDATE = SERVICE_NAMESPACE + "#DeferComponentUpdate";
@@ -69,7 +67,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(PUBLISH_TO_TOPIC);
     SERVICE_OPERATION_SET.add(PUBLISH_TO_IOT_CORE);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CONFIGURATION_UPDATE);
-    SERVICE_OPERATION_SET.add(UNSUBSCRIBE_FROM_IOT_CORE);
     SERVICE_OPERATION_SET.add(LIST_COMPONENTS);
     SERVICE_OPERATION_SET.add(DEFER_COMPONENT_UPDATE);
     SERVICE_OPERATION_SET.add(SEND_CONFIGURATION_VALIDITY_REPORT);
@@ -119,11 +116,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setSubscribeToConfigurationUpdateHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractSubscribeToConfigurationUpdateOperationHandler> handler) {
     operationSupplierMap.put(SUBSCRIBE_TO_CONFIGURATION_UPDATE, handler);
-  }
-
-  public void setUnsubscribeFromIoTCoreHandler(
-      Function<OperationContinuationHandlerContext, GeneratedAbstractUnsubscribeFromIoTCoreOperationHandler> handler) {
-    operationSupplierMap.put(UNSUBSCRIBE_FROM_IOT_CORE, handler);
   }
 
   public void setListComponentsHandler(
