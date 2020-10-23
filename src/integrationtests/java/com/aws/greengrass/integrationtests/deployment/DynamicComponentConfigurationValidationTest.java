@@ -4,7 +4,7 @@ import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
-import com.aws.greengrass.deployment.exceptions.DynamicConfigurationValidationException;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -302,7 +302,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
             DeploymentResult result =
                     deploymentConfigMerger.mergeInNewConfig(createTestDeployment(), newConfig).get(60, TimeUnit.SECONDS);
             assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
-            assertTrue(result.getFailureCause() instanceof DynamicConfigurationValidationException);
+            assertTrue(result.getFailureCause() instanceof ComponentConfigurationValidationException);
             assertTrue(result.getFailureCause().getMessage() != null && result.getFailureCause().getMessage().contains(
                     "Components reported that their to-be-deployed configuration is invalid { name = "
                             + "OldService, message = I don't like this configuration }"));
