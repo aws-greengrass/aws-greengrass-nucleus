@@ -24,6 +24,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -326,8 +328,10 @@ class KernelTest extends BaseITCase {
         }
     }
 
+    @SuppressWarnings("PMD.CloseResource")
     @Test
-    void GIVEN_kernel_running_WHEN_truncate_tlog_THEN_current_config_saved_and_using_new_tlog() throws Throwable {
+    void GIVEN_kernel_running_WHEN_truncate_tlog_THEN_current_config_saved_and_using_new_tlog()
+            throws InterruptedException, IOException {
         kernel = new Kernel().parseArgs().launch();
         Context context = kernel.getContext();
         Configuration config = context.get(Configuration.class);
@@ -342,13 +346,14 @@ class KernelTest extends BaseITCase {
 
         // create some test topics
         Topic testTopic1 = config.lookup("testTopic1").withValue("initial");
-        Topic testTopic2 = config.lookup("deep", "testTopic2").withValue("initial");
 
-        kernelLifecycle.truncateTlog();
-
-        // update test topics
-        testTopic1.withNewerValue( System.currentTimeMillis(),"updated");
-        testTopic2.withNewerValue( System.currentTimeMillis(),"updated");
+        // make it auto truncate in the next write
+        long currSize = Files.size(configPath.resolve("config.tlog"));
+        kernelLifecycle.getTlog().withMaxFileSize(currSize);
+        testTopic1.withNewerValue(System.currentTimeMillis(),"triggering truncate");
+        Thread.sleep(1000);
+        kernelLifecycle.getTlog().withMaxFileSize(10_000);
+        testTopic1.withNewerValue(System.currentTimeMillis(),"should be in new log");
 
         // block update to check equivalence
         context.runOnPublishQueueAndWait(() -> {
@@ -356,13 +361,13 @@ class KernelTest extends BaseITCase {
             Configuration oldConfig = ConfigurationReader.createFromTLog(new Context(), configPath.resolve("config.tlog.old"));
             Configuration newConfig = ConfigurationReader.createFromTLog(new Context(), configPath.resolve("config.tlog"));
             // old tlog should have old value
-            assertEquals("initial", oldConfig.lookup("testTopic1").getOnce());
-            assertEquals("initial", oldConfig.lookup("deep", "testTopic2").getOnce());
+            assertEquals("triggering truncate", oldConfig.lookup("testTopic1").getOnce());
             // new tlog should contain current config
             Map<String, Object> fullConfigMap = fullConfig.toPOJO();
             Map<String, Object> newConfigMap = newConfig.toPOJO();
             assertThat(newConfigMap, is(fullConfigMap));
         });
+        kernel.shutdown();
     }
 
     private static class ExpectedStdoutPattern {

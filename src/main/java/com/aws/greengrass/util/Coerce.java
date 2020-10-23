@@ -248,14 +248,17 @@ public final class Coerce {
      *
      * @param o object to convert.
      * @param out appendable to write to.
+     * @return number of characters written
      * @throws IOException if the append fails.
      */
-    public static void appendParseableString(Object o, Appendable out) throws IOException {
+    public static int appendParseableString(Object o, Appendable out) throws IOException {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
         }
         try {
-            out.append(MAPPER.writeValueAsString(o) + '\n');
+            String jsonStr = MAPPER.writeValueAsString(o);
+            out.append(jsonStr + '\n');
+            return jsonStr.length() + 1;
         } catch (JsonProcessingException e) {
             throw new IOException(e);
         }
