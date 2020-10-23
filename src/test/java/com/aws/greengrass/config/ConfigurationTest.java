@@ -377,8 +377,8 @@ class ConfigurationTest {
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
             updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
         }
-        config.updateMap(System.currentTimeMillis(), updateConfigMap,
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE));
+        config.updateMap(updateConfigMap,
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
 
         // THEN
         assertEquals(updateConfigMap, config.toPOJO());
@@ -437,10 +437,10 @@ class ConfigurationTest {
         UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
             createNewMap("foo", new UpdateBehaviorTree(
                     UpdateBehaviorTree.UpdateBehavior.REPLACE,
-                    createNewMap("nodeToBeMerged", new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE))
-            ))
-        );
-        config.updateMap(System.currentTimeMillis(), updateConfigMap, updateBehavior);
+                    createNewMap("nodeToBeMerged", new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                            System.currentTimeMillis())), System.currentTimeMillis())
+            ), System.currentTimeMillis());
+        config.updateMap(updateConfigMap, updateBehavior);
 
         Map<String, Object> expectedConfig = new HashMap<>(updateConfigMap);
         ((Map) ((Map)expectedConfig.get("foo")).get("nodeToBeMerged")).put("key1", "val1");
@@ -517,11 +517,13 @@ class ConfigurationTest {
             createNewMap("*", new UpdateBehaviorTree(
                     UpdateBehaviorTree.UpdateBehavior.MERGE,
                     createNewMap("nodeToBeReplaced",
-                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE))
-            ))
+                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
+                                    System.currentTimeMillis())),
+                    System.currentTimeMillis()
+            )), System.currentTimeMillis()
         );
 
-        config.updateMap(System.currentTimeMillis(), updateConfigMap, updateBehavior);
+        config.updateMap(updateConfigMap, updateBehavior);
 
         // THEN
         Map<String, Object> expectedConfig;
@@ -586,12 +588,14 @@ class ConfigurationTest {
                     createNewMap("nodeToBeReplaced", new UpdateBehaviorTree(
                             UpdateBehaviorTree.UpdateBehavior.REPLACE,
                             createNewMap("subNodeToBeMerged",
-                                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE))
-                    ))
-            ))
+                                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                                            System.currentTimeMillis())),
+                            System.currentTimeMillis()
+                    )), System.currentTimeMillis()
+            )), System.currentTimeMillis()
         );
 
-        config.updateMap(System.currentTimeMillis(), updateConfigMap, updateBehavior);
+        config.updateMap(updateConfigMap, updateBehavior);
 
         // THEN
         Map<String, Object> expectedConfig;
