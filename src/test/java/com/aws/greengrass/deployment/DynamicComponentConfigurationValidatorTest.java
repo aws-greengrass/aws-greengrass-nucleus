@@ -10,7 +10,7 @@ import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventR
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
-import com.aws.greengrass.deployment.exceptions.DynamicConfigurationValidationException;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -127,7 +127,7 @@ class DynamicComponentConfigurationValidatorTest {
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
-        assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
+        assertTrue(deploymentResult.getFailureCause() instanceof ComponentConfigurationValidationException);
         assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
                 .getMessage().contains(
                         "Components reported that their to-be-deployed configuration is invalid { name = OldService, message = Proposed configuration is invalid }"));
@@ -185,7 +185,7 @@ class DynamicComponentConfigurationValidatorTest {
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
-        assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
+        assertTrue(deploymentResult.getFailureCause() instanceof ComponentConfigurationValidationException);
         assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
                 .getMessage().contains("Error while waiting for validation report for one or more components"));
     }
@@ -212,7 +212,7 @@ class DynamicComponentConfigurationValidatorTest {
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
-        assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
+        assertTrue(deploymentResult.getFailureCause() instanceof ComponentConfigurationValidationException);
         assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
                 .getMessage().contains("Error while waiting for validation report for one or more components"));
     }
@@ -235,7 +235,7 @@ class DynamicComponentConfigurationValidatorTest {
         verify(configStoreIPCAgent, times(1)).validateConfiguration(any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
-        assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
+        assertTrue(deploymentResult.getFailureCause() instanceof ComponentConfigurationValidationException);
         assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
                 .getMessage().contains("Error requesting validation from component OldService"));
     }
@@ -303,7 +303,7 @@ class DynamicComponentConfigurationValidatorTest {
         verify(configStoreIPCAgent, never()).validateConfiguration(any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
-        assertTrue(deploymentResult.getFailureCause() instanceof DynamicConfigurationValidationException);
+        assertTrue(deploymentResult.getFailureCause() instanceof ComponentConfigurationValidationException);
         assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
                 .getMessage().contains("Services config must be a map"));
     }
