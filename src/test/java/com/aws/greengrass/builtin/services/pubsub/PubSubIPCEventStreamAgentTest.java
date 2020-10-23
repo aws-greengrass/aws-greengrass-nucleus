@@ -7,6 +7,7 @@ import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
+import software.amazon.awssdk.aws.greengrass.model.JsonMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.PublishToTopicResponse;
@@ -27,7 +29,11 @@ import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 import software.amazon.awssdk.eventstreamrpc.StreamEventPublisher;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -46,6 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -100,7 +107,8 @@ class PubSubIPCEventStreamAgentTest {
     }
 
     @Test
-    void GIVEN_subscribed_to_topic_from_all_sources_WHEN_publish_THEN_publishes_message() throws InterruptedException, AuthorizationException {
+    void GIVEN_subscribed_to_topic_from_all_sources_WHEN_publish_binary_message_THEN_publishes_message()
+            throws InterruptedException, AuthorizationException {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
         Set<Object> set = new HashSet<>();
         set.add(publisher);
@@ -138,9 +146,149 @@ class PubSubIPCEventStreamAgentTest {
     }
 
     @Test
-    void GIVEN_subscribed_consumer_WHEN_publish_THEN_publishes_And_THEN_unsubscribes() throws InterruptedException {
+    void GIVEN_subscribed_to_topic_from_all_sources_WHEN_publish_json_message_THEN_publishes_message()
+            throws InterruptedException, AuthorizationException {
+        StreamEventPublisher publisher = mock(StreamEventPublisher.class);
+        Set<Object> set = new HashSet<>();
+        set.add(publisher);
+        pubSubIPCEventStreamAgent.getListeners().put(TEST_TOPIC, set);
+        when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture())).thenReturn(new CompletableFuture());
+
+        PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
+        publishToTopicRequest.setTopic(TEST_TOPIC);
+        PublishMessage publishMessage = new PublishMessage();
+        JsonMessage jsonMessage = new JsonMessage();
+        Map<String, Object> message = new HashMap<>();
+        message.putIfAbsent("SomeKey", "SomValue");
+        jsonMessage.setMessage(message);
+        publishMessage.setJsonMessage(jsonMessage);
+        publishToTopicRequest.setPublishMessage(publishMessage);
+
+        try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler =
+                     pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
+            PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
+            assertNotNull(publishToTopicResponse);
+
+            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture());
+            Permission capturedPermission = permissionArgumentCaptor.getValue();
+            assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
+            assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
+            assertThat(capturedPermission.getResource(), is(TEST_TOPIC));
+
+            TimeUnit.SECONDS.sleep(2);
+
+            assertNotNull(subscriptionResponseMessageCaptor.getValue());
+
+            SubscriptionResponseMessage responseMessage = subscriptionResponseMessageCaptor.getValue();
+            assertNotNull(responseMessage.getJsonMessage());
+            assertNull(responseMessage.getBinaryMessage());
+            assertThat(responseMessage.getJsonMessage().getMessage(), IsMapContaining.hasEntry("SomeKey", "SomValue"));
+        }
+    }
+
+    @Test
+    void GIVEN_subscribed_to_topic_from_all_sources_WHEN_publish_many_json_message_THEN_publishes_message_inorder()
+            throws InterruptedException, AuthorizationException {
+        StreamEventPublisher publisher = mock(StreamEventPublisher.class);
+        Set<Object> set = new HashSet<>();
+        set.add(publisher);
+        pubSubIPCEventStreamAgent.getListeners().put(TEST_TOPIC, set);
+        when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture())).thenReturn(new CompletableFuture());
+
+        List<PublishToTopicRequest> publishToTopicRequests = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
+            publishToTopicRequest.setTopic(TEST_TOPIC);
+            PublishMessage publishMessage = new PublishMessage();
+            JsonMessage jsonMessage = new JsonMessage();
+            Map<String, Object> message = new HashMap<>();
+            message.putIfAbsent("SomeKey", i);
+            jsonMessage.setMessage(message);
+            publishMessage.setJsonMessage(jsonMessage);
+            publishToTopicRequest.setPublishMessage(publishMessage);
+            publishToTopicRequests.add(publishToTopicRequest);
+        }
+
+        try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler =
+                     pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
+            for (PublishToTopicRequest publishToTopicRequest: publishToTopicRequests) {
+                PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
+                assertNotNull(publishToTopicResponse);
+            }
+
+            verify(authorizationHandler, times(10)).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture());
+            Permission capturedPermission = permissionArgumentCaptor.getValue();
+            assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
+            assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
+            assertThat(capturedPermission.getResource(), is(TEST_TOPIC));
+
+            TimeUnit.SECONDS.sleep(2);
+
+            assertNotNull(subscriptionResponseMessageCaptor.getAllValues());
+            assertEquals(10, subscriptionResponseMessageCaptor.getAllValues().size());
+            int i = 0;
+            for (SubscriptionResponseMessage responseMessage : subscriptionResponseMessageCaptor.getAllValues()) {
+                assertNotNull(responseMessage.getJsonMessage());
+                assertNull(responseMessage.getBinaryMessage());
+                assertThat(responseMessage.getJsonMessage().getMessage(), IsMapContaining.hasEntry("SomeKey", i));
+                i++;
+            }
+        }
+    }
+
+    @Test
+    void GIVEN_subscribed_to_topic_from_all_sources_WHEN_publish_many_binary_message_THEN_publishes_message_inorder()
+            throws InterruptedException, AuthorizationException {
+        StreamEventPublisher publisher = mock(StreamEventPublisher.class);
+        Set<Object> set = new HashSet<>();
+        set.add(publisher);
+        pubSubIPCEventStreamAgent.getListeners().put(TEST_TOPIC, set);
+        when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture())).thenReturn(new CompletableFuture());
+
+        List<PublishToTopicRequest> publishToTopicRequests = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
+            publishToTopicRequest.setTopic(TEST_TOPIC);
+            PublishMessage publishMessage = new PublishMessage();
+            BinaryMessage binaryMessage = new BinaryMessage();
+            binaryMessage.setMessage(String.valueOf(i).getBytes());
+            publishMessage.setBinaryMessage(binaryMessage);
+            publishToTopicRequest.setPublishMessage(publishMessage);
+            publishToTopicRequests.add(publishToTopicRequest);
+        }
+
+        try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler =
+                     pubSubIPCEventStreamAgent.getPublishToTopicHandler(mockContext)) {
+            for (PublishToTopicRequest publishToTopicRequest: publishToTopicRequests) {
+                PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
+                assertNotNull(publishToTopicResponse);
+            }
+
+            verify(authorizationHandler, times(10)).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture());
+            Permission capturedPermission = permissionArgumentCaptor.getValue();
+            assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
+            assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
+            assertThat(capturedPermission.getResource(), is(TEST_TOPIC));
+
+            TimeUnit.SECONDS.sleep(2);
+
+            assertNotNull(subscriptionResponseMessageCaptor.getAllValues());
+            assertEquals(10, subscriptionResponseMessageCaptor.getAllValues().size());
+            int i = 0;
+            for (SubscriptionResponseMessage responseMessage : subscriptionResponseMessageCaptor.getAllValues()) {
+                assertNull(responseMessage.getJsonMessage());
+                assertNotNull(responseMessage.getBinaryMessage());
+                assertEquals(String.valueOf(i), new String(responseMessage.getBinaryMessage().getMessage()));
+                i++;
+            }
+        }
+    }
+
+    @Test
+    void GIVEN_subscribed_consumer_WHEN_publish_binary_message_THEN_publishes_And_THEN_unsubscribes()
+            throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        Consumer<MessagePublishedEvent> consumer = getConsumer(countDownLatch);
+        Consumer<PublishEvent> consumer = getConsumer(countDownLatch);
         pubSubIPCEventStreamAgent.subscribe(TEST_TOPIC, consumer, TEST_SERVICE);
 
         assertEquals(1, pubSubIPCEventStreamAgent.getListeners().size());
@@ -154,7 +302,7 @@ class PubSubIPCEventStreamAgentTest {
         assertEquals(0, pubSubIPCEventStreamAgent.getListeners().size());
     }
 
-    private static Consumer<MessagePublishedEvent> getConsumer(CountDownLatch cdl) {
+    private static Consumer<PublishEvent> getConsumer(CountDownLatch cdl) {
         return subscriptionResponseMessage -> cdl.countDown();
     }
 }

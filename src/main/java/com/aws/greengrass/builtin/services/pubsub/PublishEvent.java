@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class MessagePublishedEvent {
+public class PublishEvent {
     private String topic;
     private byte[] payload;
 }

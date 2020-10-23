@@ -9,6 +9,8 @@ import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Utils;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -26,12 +28,16 @@ import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext
 import software.amazon.awssdk.eventstreamrpc.StreamEventPublisher;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -40,6 +46,7 @@ import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NA
 public class PubSubIPCEventStreamAgent {
     private static final Logger log = LogManager.getLogger(PubSubIPCEventStreamAgent.class);
     private static final String SERVICE_NAME = "service-name";
+    private static final ObjectMapper SERIALIZER = new ObjectMapper();
     @Getter(AccessLevel.PACKAGE)
     private final Map<String, Set<Object>> listeners = new ConcurrentHashMap<>();
 
@@ -67,7 +74,7 @@ public class PubSubIPCEventStreamAgent {
      * @param cb          callback to be called for each published message
      * @param serviceName name of the service subscribing.
      */
-    public void subscribe(String topic, Consumer<MessagePublishedEvent> cb, String serviceName) {
+    public void subscribe(String topic, Consumer<PublishEvent> cb, String serviceName) {
         handleSubscribeToTopicRequest(topic, serviceName, cb);
     }
 
@@ -78,22 +85,18 @@ public class PubSubIPCEventStreamAgent {
      * @param cb          callback to remove from subscription
      * @param serviceName name of the service unsubscribing.
      */
-    public void unsubscribe(String topic, Consumer<MessagePublishedEvent> cb, String serviceName) {
+    public void unsubscribe(String topic, Consumer<PublishEvent> cb, String serviceName) {
         log.atDebug().kv(SERVICE_NAME, serviceName).log("Unsubscribing from topic {}", topic);
-        if (listeners.containsKey(topic)) {
-            listeners.get(topic).remove(cb);
-        }
-        if (listeners.get(topic).isEmpty()) {
-            listeners.remove(topic);
-        }
+        listeners.computeIfPresent(topic, (s, objects) ->
+                objects.remove(cb) && objects.isEmpty() ? null : objects);
     }
 
     /**
      * Publish a message to all subscribers.
      *
      * @param topic         publish topic.
-     * @param serviceName   name of the service publishing the message.
      * @param binaryMessage Binary message to publish.
+     * @param serviceName   name of the service publishing the message.
      * @return response
      */
     public PublishToTopicResponse publish(String topic, byte[] binaryMessage, String serviceName) {
@@ -104,49 +107,63 @@ public class PubSubIPCEventStreamAgent {
                                                                String serviceName,
                                                                Optional<Map<String, Object>> jsonMessage,
                                                                Optional<byte[]> binaryMessage) {
-        if (!listeners.containsKey(topic)) {
+        Set<Object> contexts = new HashSet<>();
+        listeners.computeIfPresent(topic, (s, objects) -> {
+            contexts.addAll(listeners.get(topic));
+            return objects;
+        });
+        if (contexts.isEmpty()) {
             log.atDebug().kv(SERVICE_NAME, serviceName)
                     .log("No one subscribed to topic {}. Returning.", topic);
             // Still technically successful, just no one was subscribed
             return new PublishToTopicResponse();
         }
+        synchronized (listeners.get(topic)) {
 
-        Set<Object> contexts = new HashSet<>();
-        if (listeners.containsKey(topic)) {
-            contexts.addAll(listeners.get(topic));
-        }
-
-        SubscriptionResponseMessage message = new SubscriptionResponseMessage();
-        MessagePublishedEvent publishedEvent = MessagePublishedEvent.builder().topic(topic).build();
-        if (jsonMessage.isPresent()) {
-            JsonMessage message1 = new JsonMessage();
-            message1.setMessage(jsonMessage.get());
-            message.setJsonMessage(message1);
-        }
-        if (binaryMessage.isPresent()) {
-            BinaryMessage binaryMessage1 = new BinaryMessage();
-            binaryMessage1.setMessage(binaryMessage.get());
-            message.setBinaryMessage(binaryMessage1);
-            publishedEvent.setPayload(binaryMessage.get());
-        }
-
-        contexts.forEach(context -> {
-            log.atDebug().kv(SERVICE_NAME, serviceName)
-                    .log("Sending publish event for topic {}", topic);
-            if (context instanceof StreamEventPublisher) {
-                executor.execute(() -> {
-                    synchronized (context) {
-                        ((StreamEventPublisher<SubscriptionResponseMessage>) context).sendStreamEvent(message);
-                    }
-                });
-            } else if (context instanceof Consumer) {
-                executor.execute(() -> {
-                    synchronized (context) {
-                        ((Consumer<MessagePublishedEvent>) context).accept(publishedEvent);
-                    }
-                });
+            SubscriptionResponseMessage message = new SubscriptionResponseMessage();
+            PublishEvent publishedEvent = PublishEvent.builder().topic(topic).build();
+            if (jsonMessage.isPresent()) {
+                JsonMessage message1 = new JsonMessage();
+                message1.setMessage(jsonMessage.get());
+                message.setJsonMessage(message1);
+                try {
+                    publishedEvent.setPayload(SERIALIZER.writeValueAsBytes(jsonMessage.get()));
+                } catch (JsonProcessingException e) {
+                    log.atError().cause(e).kv(SERVICE_NAME, serviceName)
+                            .log("Unable to serialize JSON message.");
+                }
             }
-        });
+            if (binaryMessage.isPresent()) {
+                BinaryMessage binaryMessage1 = new BinaryMessage();
+                binaryMessage1.setMessage(binaryMessage.get());
+                message.setBinaryMessage(binaryMessage1);
+                publishedEvent.setPayload(binaryMessage.get());
+            }
+
+            List<Future<?>> futures = new ArrayList<>();
+            contexts.forEach(context -> {
+                log.atDebug().kv(SERVICE_NAME, serviceName)
+                        .log("Sending publish event for topic {}", topic);
+                if (context instanceof StreamEventPublisher) {
+                    Future<?> submit = executor.submit(() -> {
+                        ((StreamEventPublisher<SubscriptionResponseMessage>) context).sendStreamEvent(message);
+                    });
+                    futures.add(submit);
+                } else if (context instanceof Consumer) {
+                    Future<?> submit = executor.submit(() -> {
+                        ((Consumer<PublishEvent>) context).accept(publishedEvent);
+                    });
+                    futures.add(submit);
+                }
+            });
+            futures.forEach(future -> {
+                try {
+                    future.get();
+                } catch (InterruptedException | ExecutionException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
         return new PublishToTopicResponse();
     }
 
@@ -154,7 +171,7 @@ public class PubSubIPCEventStreamAgent {
                                                Object handler) {
         // TODO: Input validation. P32540011
         log.atInfo().kv(SERVICE_NAME, serviceName).log("Subscribing to topic {}", topic);
-        listeners.computeIfAbsent(topic, k -> new HashSet<>()).add(handler);
+        listeners.computeIfAbsent(topic, k -> ConcurrentHashMap.newKeySet()).add(handler);
     }
 
 
@@ -212,13 +229,8 @@ public class PubSubIPCEventStreamAgent {
         @Override
         protected void onStreamClosed() {
             if (Utils.isNotEmpty(subscribeTopic) && listeners.containsKey(subscribeTopic)) {
-                if (listeners.get(subscribeTopic).remove(this)) {
-                    log.atDebug().kv(SERVICE_NAME, serviceName)
-                            .log("Client disconnected, removing subscription {}", subscribeTopic);
-                }
-                if (listeners.get(subscribeTopic).isEmpty()) {
-                    listeners.remove(subscribeTopic);
-                }
+                listeners.computeIfPresent(subscribeTopic, (s, objects) ->
+                        objects.remove(this) && objects.isEmpty() ? null : objects);
             }
         }
 
