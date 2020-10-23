@@ -87,7 +87,7 @@ public class MqttProxyIPCAgent {
                 doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
             } catch (AuthorizationException e) {
                 LOGGER.atError().cause(e).log();
-                throw new UnauthorizedError(String.format("Authorization failed with error %s:%s", e, e.getMessage()));
+                throw new UnauthorizedError(String.format("Authorization failed with error %s", e.getMessage()));
             }
 
             PublishRequest publishRequest = PublishRequest.builder().payload(request.getPayload()).topic(topic)
@@ -100,7 +100,7 @@ public class MqttProxyIPCAgent {
             } catch (InterruptedException | ExecutionException | TimeoutException e) {
                 LOGGER.atError().cause(e).kv(TOPIC_KEY, topic).kv(SERVICE_KEY, serviceName)
                         .log("Unable to publish to topic");
-                throw new ServiceError(String.format("Publish to topic %s failed with error %s:%s", topic, e,
+                throw new ServiceError(String.format("Publish to topic %s failed with error %s", topic,
                         e.getMessage()));
             }
 
@@ -149,7 +149,7 @@ public class MqttProxyIPCAgent {
                 doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
             } catch (AuthorizationException e) {
                 LOGGER.atError().cause(e).log();
-                throw new UnauthorizedError(String.format("Authorization failed with error %s:%s", e, e.getMessage()));
+                throw new UnauthorizedError(String.format("Authorization failed with error %s", e.getMessage()));
             }
 
             Consumer<MqttMessage> callback = this::forwardToSubscriber;
@@ -161,7 +161,7 @@ public class MqttProxyIPCAgent {
             } catch (ExecutionException | InterruptedException | TimeoutException e) {
                 LOGGER.atError().cause(e).kv(TOPIC_KEY, topic).kv(SERVICE_KEY, serviceName)
                         .log("Unable to subscribe to topic");
-                throw new ServiceError(String.format("Subscribe to topic %s failed with error %s:%s", topic, e,
+                throw new ServiceError(String.format("Subscribe to topic %s failed with error %s", topic,
                         e.getMessage()));
             }
 
