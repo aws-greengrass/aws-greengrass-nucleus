@@ -60,7 +60,6 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -261,73 +260,6 @@ class IPCPubSubTest {
             publishToTopicRequest.setPublishMessage(publishMessage);
             greengrassCoreIPCClient.publishToTopic(publishToTopicRequest, Optional.empty()).getResponse().get(10, TimeUnit.SECONDS);
             assertTrue(cdl.await(20, TimeUnit.SECONDS));
-        }
-    }
-
-    @Test
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException"})
-    void GIVEN_PubSubEventStreamClient_WHEN_subscribe_to_another_source_THEN_does_not_publish()
-            throws Exception {
-        String topicName = "topicName";
-        String sourceName = "sourceName";
-        SubscribeToTopicRequest subscribeToTopicRequest = new SubscribeToTopicRequest();
-        subscribeToTopicRequest.setTopic(topicName);
-        subscribeToTopicRequest.setSource(sourceName);
-        CountDownLatch cdl = new CountDownLatch(1);
-        AtomicInteger atomicInteger = new AtomicInteger();
-
-        CountDownLatch subscriptionLatch = new CountDownLatch(1);
-        Slf4jLogAdapter.addGlobalListener(m -> {
-            if (m.getMessage().contains("Subscribing to topic")) {
-                subscriptionLatch.countDown();
-            }
-        });
-        String authToken = IPCTestUtils.getAuthTokeForService(kernel, "SubscribeAndPublish");
-        SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
-        try (EventStreamRPCConnection clientConnection =
-                     IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel)) {
-            GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
-            CompletableFuture<SubscribeToTopicResponse> fut =
-                    greengrassCoreIPCClient.subscribeToTopic(subscribeToTopicRequest,
-                            Optional.of(new StreamResponseHandler<SubscriptionResponseMessage>() {
-                                @Override
-                                public void onStreamEvent(SubscriptionResponseMessage message) {
-                                    assertNotNull(message.getBinaryMessage());
-                                    assertNull(message.getJsonMessage());
-                                    assertEquals("ABCDEFG", new String(message.getBinaryMessage().getMessage()));
-                                    atomicInteger.incrementAndGet();
-                                    cdl.countDown();
-                                }
-
-                                @Override
-                                public boolean onStreamError(Throwable error) {
-                                    logger.atError().log("Received a stream error", error);
-                                    return false;
-                                }
-
-                                @Override
-                                public void onStreamClosed() {
-
-                                }
-                            })).getResponse();
-            try {
-                fut.get(3, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                logger.atError().setCause(e).log("Error when subscribing to component updates");
-                fail("Caught exception when subscribing to component updates");
-            }
-            assertTrue(subscriptionLatch.await(10, TimeUnit.SECONDS));
-
-            PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
-            publishToTopicRequest.setTopic(topicName);
-            PublishMessage publishMessage = new PublishMessage();
-            BinaryMessage binaryMessage = new BinaryMessage();
-            binaryMessage.setMessage("ABCDEFG".getBytes());
-            publishMessage.setBinaryMessage(binaryMessage);
-            publishToTopicRequest.setPublishMessage(publishMessage);
-            greengrassCoreIPCClient.publishToTopic(publishToTopicRequest, Optional.empty()).getResponse().get(10, TimeUnit.SECONDS);
-            assertFalse(cdl.await(10, TimeUnit.SECONDS));
-            assertEquals(0, atomicInteger.get());
         }
     }
 
