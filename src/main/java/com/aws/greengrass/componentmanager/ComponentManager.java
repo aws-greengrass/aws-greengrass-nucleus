@@ -67,7 +67,6 @@ public class ComponentManager implements InjectionActions {
     private static final String PACKAGE_NAME_KEY = "packageName";
     private static final String PACKAGE_IDENTIFIER = "packageIdentifier";
 
-    private static final long DEFAULT_MAX_STORE_SIZE_BYTES = 10_000_000_000L;  // TODO for dev only. make configurable
     private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 1_000_000L;
 
     private final S3Downloader s3ArtifactsDownloader;
@@ -353,11 +352,11 @@ public class ComponentManager implements InjectionActions {
             if (downloader.downloadRequired(componentIdentifier, artifact, packageArtifactDirectory)) {
                 long downloadSize = downloader.getDownloadSize(componentIdentifier, artifact, packageArtifactDirectory);
                 long storeContentSize = componentStore.getContentSize();
-                if (storeContentSize + downloadSize > DEFAULT_MAX_STORE_SIZE_BYTES) {
+                if (storeContentSize + downloadSize > getConfiguredMaxSize()) {
                     throw new SizeLimitException(String.format(
                             "Component store size limit reached: %d bytes existing, %d bytes needed"
                                     + ", %d bytes maximum allowed total", storeContentSize, downloadSize,
-                            DEFAULT_MAX_STORE_SIZE_BYTES));
+                            getConfiguredMaxSize()));
                 }
                 try {
                     downloader.downloadToPath(componentIdentifier, artifact, packageArtifactDirectory);
@@ -386,6 +385,10 @@ public class ComponentManager implements InjectionActions {
                 }
             }
         }
+    }
+
+    private long getConfiguredMaxSize() {
+        return Coerce.toLong(deviceConfiguration.getComponentStoreMaxSizeBytes());
     }
 
     /**

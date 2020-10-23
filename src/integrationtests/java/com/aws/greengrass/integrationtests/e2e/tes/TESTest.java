@@ -2,6 +2,7 @@ package com.aws.greengrass.integrationtests.e2e.tes;
 
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.easysetup.DeviceProvisioningHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
@@ -40,11 +41,11 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.ThingInfo;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
-import static com.aws.greengrass.tes.TokenExchangeService.IOT_ROLE_ALIAS_TOPIC;
+import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.TES_URI_ENV_VARIABLE_NAME;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
@@ -170,8 +171,8 @@ class TESTest extends BaseITCase {
 
         // Should fetch new credentials after updating roleAlias
         deviceProvisioningHelper.setupIoTRoleForTes(roleName, newRoleAliasName, thingInfo.getCertificateArn());
-        kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS)
-                .lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).withValue(newRoleAliasName);
+        kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME)
+                .lookup(CONFIGURATION_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC).withValue(newRoleAliasName);
         token = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY)
                 .iterator().next().getName();
         assertNotNull(token);
@@ -223,9 +224,8 @@ class TESTest extends BaseITCase {
 
     private static void provision(Kernel kernel) throws IOException, DeviceConfigurationException {
         thingInfo = deviceProvisioningHelper.createThingForE2ETests();
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, AWS_REGION);
         deviceProvisioningHelper.setupIoTRoleForTes(roleName, roleAliasName, thingInfo.getCertificateArn());
-        deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, roleAliasName);
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, AWS_REGION, roleAliasName);
     }
 
     private String getResponseString(URL url, String token) throws Exception {

@@ -21,6 +21,7 @@ import com.aws.greengrass.componentmanager.plugins.GreengrassRepositoryDownloade
 import com.aws.greengrass.componentmanager.plugins.S3Downloader;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -67,6 +68,8 @@ import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
+import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -124,6 +127,8 @@ class ComponentManagerTest {
     @Mock
     private Kernel kernel;
     @Mock
+    private Context context;
+    @Mock
     private ComponentStore componentStore;
     @Mock
     private GreengrassService mockService;
@@ -140,14 +145,19 @@ class ComponentManagerTest {
         lenient().when(artifactDownloader.downloadRequired(any(),any(), any())).thenReturn(true);
         lenient().when(s3Downloader.downloadRequired(any(),any(), any())).thenReturn(true);
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
+        Topic maxSizeTopic = Topic.of(context, COMPONENT_STORE_MAX_SIZE_BYTES, COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
+        lenient().when(deviceConfiguration.getComponentStoreMaxSizeBytes()).thenReturn(maxSizeTopic);
         lenient().when(componentStore.getUsableSpace()).thenReturn(100_000_000L);
         componentManager = new ComponentManager(s3Downloader, artifactDownloader, packageServiceHelper,
                 executor, componentStore, kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
     }
 
     @AfterEach
-    void after() {
+    void after() throws Exception {
         executor.shutdownNow();
+        if (context != null) {
+            context.close();
+        }
     }
 
     @Test

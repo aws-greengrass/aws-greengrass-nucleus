@@ -5,9 +5,12 @@
 
 package com.aws.greengrass.deployment;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.regions.DefaultAwsRegionProviderChain;
+import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.ChildChanged;
+import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.Validator;
@@ -21,9 +24,16 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
+import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE_NAME;
 
 /**
  * Class for providing device configuration information.
@@ -31,6 +41,10 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFI
 @SuppressWarnings("PMD.DataClass")
 @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
 public class DeviceConfiguration {
+
+    public static final String DEFAULT_NUCLEUS_COMPONENT_NAME = "aws.greengrass.Nucleus";
+    // TODO : Version should come from the installer based on which nucleus version it installed
+    public static final String NUCLEUS_COMPONENT_VERSION = "0.0.0";
 
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
     public static final String DEVICE_PARAM_IOT_DATA_ENDPOINT = "iotDataEndpoint";
@@ -46,12 +60,18 @@ public class DeviceConfiguration {
     public static final String RUN_WITH_DEFAULT_POSIX_GROUP = "posixGroup";
     public static final String RUN_WITH_DEFAULT_WINDOWS_USER = "windowsUser";
     public static final String RUN_WITH_DEFAULT_POSIX_SHELL = "posixShell";
+    public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
+    public static final String COMPONENT_STORE_MAX_SIZE_BYTES = "componentStoreMaxSizeBytes";
+    public static final String DEPLOYMENT_POLLING_FREQUENCY_SECONDS = "deploymentPollingFrequencySeconds";
+
     public static final String DEVICE_NETWORK_PROXY_NAMESPACE = "networkProxy";
     public static final String DEVICE_PROXY_NAMESPACE = "proxy";
     public static final String DEVICE_PARAM_NO_PROXY_ADDRESSES = "noProxyAddresses";
     public static final String DEVICE_PARAM_PROXY_URL = "url";
     public static final String DEVICE_PARAM_PROXY_USERNAME = "username";
     public static final String DEVICE_PARAM_PROXY_PASSWORD = "password";
+    public static final long COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES = 10_000_000_000L;
+    public static final long DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS = 15L;
 
     private static final String DEVICE_PARAM_ENV_STAGE = "envStage";
     private static final String DEFAULT_ENV_STAGE = "prod";
@@ -64,6 +84,8 @@ public class DeviceConfiguration {
     private final Validator deTildeValidator;
     private final Validator regionValidator;
 
+    private final String nucleusComponentName;
+
     /**
      * Constructor used to read device configuration from the config store.
      *
@@ -72,8 +94,12 @@ public class DeviceConfiguration {
     @Inject
     public DeviceConfiguration(Kernel kernel) {
         this.kernel = kernel;
+        this.nucleusComponentName = getNucleusComponentName();
         deTildeValidator = getDeTildeValidator();
         regionValidator = getRegionValidator();
+
+        getComponentStoreMaxSizeBytes().withValue(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
+        getDeploymentPollingFrequencySeconds().withValue(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
     }
 
     /**
@@ -87,14 +113,13 @@ public class DeviceConfiguration {
      * @param certificateFilePath certificate location on device
      * @param rootCaFilePath      downloaded RootCA location on device
      * @param awsRegion           aws region for the device
+     * @param tesRoleAliasName    aws region for the device
      * @throws DeviceConfigurationException when the configuration parameters are not valid
      */
     public DeviceConfiguration(Kernel kernel, String thingName, String iotDataEndpoint, String iotCredEndpoint,
                                String privateKeyPath, String certificateFilePath, String rootCaFilePath,
-                               String awsRegion) throws DeviceConfigurationException {
-        this.kernel = kernel;
-        deTildeValidator = getDeTildeValidator();
-        regionValidator = getRegionValidator();
+                               String awsRegion, String tesRoleAliasName) throws DeviceConfigurationException {
+        this(kernel);
         getThingName().withValue(thingName);
         getIotDataEndpoint().withValue(iotDataEndpoint);
         getIotCredentialEndpoint().withValue(iotCredEndpoint);
@@ -102,8 +127,43 @@ public class DeviceConfiguration {
         getCertificateFilePath().withValue(certificateFilePath);
         getRootCAFilePath().withValue(rootCaFilePath);
         getAWSRegion().withValue(awsRegion);
+        getIotRoleAlias().withValue(tesRoleAliasName);
 
         validate();
+    }
+
+    /**
+     * Get the Nucleus component name to lookup the configuration in the right place. If no component of type Nucleus
+     * exists, create service config for the default Nucleus component.
+     */
+    private String getNucleusComponentName() {
+        Optional<CaseInsensitiveString> nucleusComponent =
+                kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet().stream()
+                        .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(s.toString()))).findAny();
+        if (nucleusComponent.isPresent()) {
+            return nucleusComponent.get().toString();
+        } else {
+            initializeNucleusComponentConfig();
+            return DEFAULT_NUCLEUS_COMPONENT_NAME;
+        }
+    }
+
+    private void initializeNucleusComponentConfig() {
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY)
+                .withValue(ComponentType.NUCLEUS.name());
+        // TODO : Take version as an input from the installer script
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY)
+                .withValue(NUCLEUS_COMPONENT_VERSION);
+        ArrayList<String> mainDependencies = (ArrayList) kernel.getConfig().getRoot()
+                .findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
+                        SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
+        mainDependencies.add(DEFAULT_NUCLEUS_COMPONENT_NAME);
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
+                .dflt(mainDependencies);
+    }
+
+    private String getComponentType(String serviceName) {
+        return Coerce.toString(kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC, serviceName, SERVICE_TYPE_TOPIC_KEY));
     }
 
     private Validator getDeTildeValidator() {
@@ -160,31 +220,31 @@ public class DeviceConfiguration {
     }
 
     public Topic getThingName() {
-        return getTopic(DEVICE_PARAM_THING_NAME);
+        return getTopic(DEVICE_PARAM_THING_NAME).dflt("");
     }
 
     public Topic getCertificateFilePath() {
-        return getTopic(DEVICE_PARAM_CERTIFICATE_FILE_PATH).addValidator(deTildeValidator);
+        return getTopic(DEVICE_PARAM_CERTIFICATE_FILE_PATH).dflt("").addValidator(deTildeValidator);
     }
 
     public Topic getPrivateKeyFilePath() {
-        return getTopic(DEVICE_PARAM_PRIVATE_KEY_PATH).addValidator(deTildeValidator);
+        return getTopic(DEVICE_PARAM_PRIVATE_KEY_PATH).dflt("").addValidator(deTildeValidator);
     }
 
     public Topic getRootCAFilePath() {
-        return getTopic(DEVICE_PARAM_ROOT_CA_PATH).addValidator(deTildeValidator);
+        return getTopic(DEVICE_PARAM_ROOT_CA_PATH).dflt("").addValidator(deTildeValidator);
     }
 
     public Topic getIotDataEndpoint() {
-        return getTopic(DEVICE_PARAM_IOT_DATA_ENDPOINT);
+        return getTopic(DEVICE_PARAM_IOT_DATA_ENDPOINT).dflt("");
     }
 
     public Topic getIotCredentialEndpoint() {
-        return getTopic(DEVICE_PARAM_IOT_CRED_ENDPOINT);
+        return getTopic(DEVICE_PARAM_IOT_CRED_ENDPOINT).dflt("");
     }
 
     public Topic getAWSRegion() {
-        return getTopic(DEVICE_PARAM_AWS_REGION).addValidator(regionValidator);
+        return getTopic(DEVICE_PARAM_AWS_REGION).dflt("").addValidator(regionValidator);
     }
 
     // Why have this method as well as the one above? The reason is that the validator
@@ -226,12 +286,40 @@ public class DeviceConfiguration {
         return Coerce.toString(getProxyNamespace().findOrDefault("", DEVICE_PARAM_PROXY_PASSWORD));
     }
 
+    public Topic getIotRoleAlias() {
+        return getTopic(IOT_ROLE_ALIAS_TOPIC).dflt("");
+    }
+
+    public Topic getComponentStoreMaxSizeBytes() {
+        return getTopic(COMPONENT_STORE_MAX_SIZE_BYTES);
+    }
+
+    public Topic getDeploymentPollingFrequencySeconds() {
+        return getTopic(DEPLOYMENT_POLLING_FREQUENCY_SECONDS);
+    }
+
     public void onAnyChange(ChildChanged cc) {
-        kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY).subscribe(cc);
+        kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, CONFIGURATION_CONFIG_KEY)
+                .subscribe(cc);
+    }
+
+    public void onTopicChange(String topicName, Subscriber s) {
+        getTopic(topicName).subscribe(s);
+    }
+
+    /**
+     * Add a subscriber to device config that's a topics instance.
+     *
+     * @param topicsName topics name to subscribe to
+     * @param cc         handler
+     */
+    public void onTopicsChange(String topicsName, ChildChanged cc) {
+        getTopics(topicsName).subscribe(cc);
     }
 
     /**
      * Validates the device configuration parameters.
+     *
      * @throws DeviceConfigurationException when configuration parameters are not valid
      */
     public void validate() throws DeviceConfigurationException {
@@ -248,6 +336,7 @@ public class DeviceConfiguration {
 
     /**
      * Check if device is configured to talk to cloud.
+     *
      * @return true is device configuration is valid
      */
     public boolean isDeviceConfiguredToTalkToCloud() {
@@ -261,11 +350,13 @@ public class DeviceConfiguration {
     }
 
     private Topic getTopic(String parameterName) {
-        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, parameterName).dflt("");
+        return kernel.getConfig()
+                .lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, CONFIGURATION_CONFIG_KEY, parameterName);
     }
 
     private Topics getTopics(String parameterName) {
-        return kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY, parameterName);
+        return kernel.getConfig()
+                .lookupTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, CONFIGURATION_CONFIG_KEY, parameterName);
     }
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,

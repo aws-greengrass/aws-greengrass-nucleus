@@ -3,7 +3,7 @@ package com.aws.greengrass.integrationtests.deployment;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
-import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.integrationtests.BaseITCase;
@@ -30,7 +30,6 @@ import java.io.File;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -50,7 +49,6 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
     private Kernel kernel;
-    private DeploymentService deploymentService;
     private DeploymentQueue deploymentQueue;
 
     @BeforeEach
@@ -67,10 +65,9 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
 
             }
         });
+        setDeviceConfig(kernel, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 1L);
         kernel.launch();
         assertTrue(deploymentServiceLatch.await(10, TimeUnit.SECONDS));
-        deploymentService = (DeploymentService) kernel.locate(DEPLOYMENT_SERVICE_TOPICS);
-        deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
         deploymentQueue =  kernel.getContext().get(DeploymentQueue.class);
 
         FleetStatusService fleetStatusService = (FleetStatusService) kernel.locate(FLEET_STATUS_SERVICE_TOPICS);

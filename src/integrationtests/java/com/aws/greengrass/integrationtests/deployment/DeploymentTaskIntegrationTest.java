@@ -91,6 +91,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.integrationtests.util.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
@@ -690,9 +691,11 @@ class DeploymentTaskIntegrationTest {
                 .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
-        //should contain main, YellowSignal, CustomerApp, Mosquitto and GreenSignal
-        assertEquals(5, services.size());
-        assertThat(services, containsInAnyOrder("main", "YellowSignal", "CustomerApp", "Mosquitto", "GreenSignal"));
+        //should contain main, Nucleus, YellowSignal, CustomerApp, Mosquitto and GreenSignal
+        assertEquals(6, services.size());
+        assertThat(services,
+                containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "YellowSignal", "CustomerApp", "Mosquitto",
+                        "GreenSignal"));
         groupToRootComponentsTopics.lookupTopics("CustomerApp")
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         groupToRootComponentsTopics.lookupTopics("YellowSignal")
@@ -707,9 +710,9 @@ class DeploymentTaskIntegrationTest {
                 .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
-        //"should contain main, YellowSignal, RedSignal"
-        assertEquals(3, services.size());
-        assertThat(services, containsInAnyOrder("main", "YellowSignal", "RedSignal"));
+        //"should contain main, Nucleus, YellowSignal, RedSignal"
+        assertEquals(4, services.size());
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "YellowSignal", "RedSignal"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("CustomerApp"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("Mosquitto"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("GreenSignal"));
@@ -798,9 +801,9 @@ class DeploymentTaskIntegrationTest {
                 .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
-        // should contain main, YellowSignal and RedSignal
-        assertEquals(3, services.size());
-        assertThat(services, containsInAnyOrder("main", "YellowSignal", "RedSignal"));
+        // should contain main, Nucleus, YellowSignal and RedSignal
+        assertEquals(4, services.size());
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "YellowSignal", "RedSignal"));
         groupToRootComponentsTopics.lookupTopics("RedSignal")
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         groupToRootComponentsTopics.lookupTopics("YellowSignal")
@@ -818,9 +821,11 @@ class DeploymentTaskIntegrationTest {
                 .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
-        // should contain main, RedSignal, BreakingService, Mosquitto and GreenSignal
-        assertEquals(5, services.size());
-        assertThat(services, containsInAnyOrder("main", "RedSignal", "BreakingService", "Mosquitto", "GreenSignal"));
+        // should contain main, Nucleus, RedSignal, BreakingService, Mosquitto and GreenSignal
+        assertEquals(6, services.size());
+        assertThat(services,
+                containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "RedSignal", "BreakingService", "Mosquitto",
+                        "GreenSignal"));
         assertEquals(State.BROKEN, kernel.locate("BreakingService").getState());
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, result.getDeploymentStatus());
     }
@@ -850,9 +855,9 @@ class DeploymentTaskIntegrationTest {
                 .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
-        // should contain main, YellowSignal and RedSignal
-        assertEquals(3, services.size());
-        assertThat(services, containsInAnyOrder("main", "YellowSignal", "RedSignal"));
+        // should contain main, Nucleus, YellowSignal and RedSignal
+        assertEquals(4, services.size());
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "YellowSignal", "RedSignal"));
 
         ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
         groupToRootComponentsTopics.lookupTopics("YellowSignal").remove();
@@ -870,9 +875,9 @@ class DeploymentTaskIntegrationTest {
                 .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
-        // should contain main, YellowSignal, RedSignal
-        assertEquals(3, services.size());
-        assertThat(services, containsInAnyOrder("main", "YellowSignal", "RedSignal"));
+        // should contain main, Nucleus, YellowSignal, RedSignal
+        assertEquals(4, services.size());
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "YellowSignal", "RedSignal"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("BreakingService"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("Mosquitto"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("GreenSignal"));
@@ -928,9 +933,9 @@ class DeploymentTaskIntegrationTest {
                 .map(greengrassService -> greengrassService.getName())
                 .collect(Collectors.toList());
 
-        // should contain main, NonDisruptableService 1.0.0
-        assertEquals(2, services.size(), "Actual services: " + services);
-        assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
+        // should contain main, Nucleus, NonDisruptableService 1.0.0
+        assertEquals(3, services.size(), "Actual services: " + services);
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "NonDisruptableService"));
 
         CountDownLatch cdlUpdateStarted = new CountDownLatch(1);
         CountDownLatch cdlMergeCancelled = new CountDownLatch(1);
@@ -956,10 +961,9 @@ class DeploymentTaskIntegrationTest {
             services = kernel.orderedDependencies().stream().filter(greengrassService -> greengrassService instanceof GenericExternalService)
                     .map(greengrassService -> greengrassService.getName()).collect(Collectors.toList());
 
-            // should contain main, NonDisruptableService 1.0.0
-            assertEquals(2, services.size());
-            assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
-            assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
+            // should contain main, Nucleus, NonDisruptableService 1.0.0
+            assertEquals(3, services.size());
+            assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "NonDisruptableService"));
             assertEquals("1.0.0", kernel.findServiceTopic("NonDisruptableService").find("version").getOnce());
         } finally {
             Slf4jLogAdapter.removeGlobalListener(listener);
@@ -984,9 +988,9 @@ class DeploymentTaskIntegrationTest {
                 .map(greengrassService -> greengrassService.getName())
                 .collect(Collectors.toList());
 
-        // should contain main, NonDisruptableService 1.0.1
-        assertEquals(2, services.size(), "Existing services: " + services);
-        assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
+        // should contain main, Nucleus, NonDisruptableService 1.0.1
+        assertEquals(3, services.size(), "Existing services: " + services);
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "NonDisruptableService"));
         assertEquals("1.0.1", kernel.findServiceTopic("NonDisruptableService").find("version").getOnce());
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
     }

@@ -13,23 +13,23 @@ Service lifecycle is managed by kernel and as part of kernel shutdown it stops t
 
 # Sample Configuration
 ```
-system:
-  awsRegion: "us-east-1"
-  certificateFilePath: "root/thingCert.crt"
-  iotCredEndpoint: "c13im2gfya04ip.credentials.iot.us-east-1.amazonaws.com"
-  iotDataEndpoint: "aun2g37imm74n-ats.iot.us-east-1.amazonaws.com"
-  privateKeyPath: "root/privKey.key"
-  rootCaPath: "root/rootCA.pem"
-  rootpath: "root"
-  thingName: "tes_thing"
 services:
   main:
     lifecycle:
     dependencies:
       - TokenExchangeService
+  aws.greengrass.Nucleus:
+    parameters:
+      awsRegion: "us-east-1"
+      certificateFilePath: "root/thingCert.crt"
+      iotCredEndpoint: "c13im2gfya04ip.credentials.iot.us-east-1.amazonaws.com"
+      iotDataEndpoint: "aun2g37imm74n-ats.iot.us-east-1.amazonaws.com"
+      privateKeyPath: "root/privKey.key"
+      rootCaPath: "root/rootCA.pem"
+      thingName: "tes_thing"
+      iotRoleAlias: "tes_alias"
   TokenExchangeService:
     parameters:
       port: 2020
-      iotRoleAlias: "tes_alias"
     lifecycle:
 ```

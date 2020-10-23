@@ -51,7 +51,8 @@ class MqttTest extends BaseE2ETestCase {
             throws IOException, ExecutionException, InterruptedException, TimeoutException, DeviceConfigurationException {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
 
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString());
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString(),
+                TES_ROLE_ALIAS_NAME);
 
         MqttClient client = kernel.getContext().get(MqttClient.class);
         CountDownLatch cdl = new CountDownLatch(NUM_MESSAGES);

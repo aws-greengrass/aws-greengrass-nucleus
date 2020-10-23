@@ -40,6 +40,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
@@ -69,16 +70,16 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class KernelTest {
     private static final String EXPECTED_CONFIG_OUTPUT =
-            "services:\n"
-            + "  main:\n"
-            + "    dependencies:\n"
-            + "    - \"service1\"\n"
-            + "    lifecycle: {}\n"
-            + "  service1:\n"
-            + "    dependencies: []\n"
-            + "    lifecycle:\n"
-            + "      run:\n"
-            + "        script: \"test script\"\n";
+            "  main:\n"
+                    + "    dependencies:\n"
+                    + "    - \"" + DEFAULT_NUCLEUS_COMPONENT_NAME + "\"\n"
+                    + "    - \"service1\"\n"
+                    + "    lifecycle: {}\n"
+                    + "  service1:\n"
+                    + "    dependencies: []\n"
+                    + "    lifecycle:\n"
+                    + "      run:\n"
+                    + "        script: \"test script\"";
 
     @TempDir
     protected Path tempRootDir;
@@ -99,7 +100,7 @@ class KernelTest {
 
     @Test
     void GIVEN_kernel_and_services_WHEN_orderedDependencies_THEN_dependencies_are_returned_in_order()
-            throws InputValidationException {
+            throws Exception {
         KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, new KernelCommandLine(kernel), mock(
                 NucleusPaths.class)));
         kernel.setKernelLifecycle(kernelLifecycle);
@@ -115,42 +116,52 @@ class KernelTest {
         GreengrassService service2 = new GreengrassService(
                 kernel.getConfig().lookupTopics(GreengrassService.SERVICES_NAMESPACE_TOPIC, "service2"));
         service2.postInject();
+        GreengrassService nucleus = kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME);
 
         List<GreengrassService> od = new ArrayList<>(kernel.orderedDependencies());
         assertNotNull(od);
-        assertThat(od, hasSize(1));
-        assertEquals(mockMain, od.get(0));
+        // Nucleus component is always present as an additional dependency of main
+        assertThat(od, hasSize(2));
+        assertEquals(mockMain, od.get(1));
 
         mockMain.addOrUpdateDependency(service1, DependencyType.HARD, false);
 
         od = new ArrayList<>(kernel.orderedDependencies());
         assertNotNull(od);
-        assertThat(od, hasSize(2));
+        // Nucleus component is always present as an additional dependency of main
+        assertThat(od, hasSize(3));
 
-        assertEquals(service1, od.get(0));
-        assertEquals(mockMain, od.get(1));
+        assertThat(od.get(0), anyOf(is(service1), is(nucleus)));
+        assertThat(od.get(1), anyOf(is(service1), is(nucleus)));
+        assertEquals(mockMain, od.get(2));
 
         mockMain.addOrUpdateDependency(service2, DependencyType.HARD, false);
 
         od = new ArrayList<>(kernel.orderedDependencies());
         assertNotNull(od);
-        assertThat(od, hasSize(3));
+        // Nucleus component is always present as an additional dependency of main
+        assertThat(od, hasSize(4));
 
-        // Since service 1 and 2 are equal in the tree, they may come back as either position 1 or 2
-        assertThat(od.get(0), anyOf(is(service1), is(service2)));
-        assertThat(od.get(1), anyOf(is(service1), is(service2)));
-        assertEquals(mockMain, od.get(2));
+        // Since service 1, 2 and Nucleus are equal in the tree, they may come back as either position 1, 2 or 3
+        assertThat(od.get(0), anyOf(is(service1), is(service2), is(nucleus)));
+        assertThat(od.get(1), anyOf(is(service1), is(service2), is(nucleus)));
+        assertThat(od.get(2), anyOf(is(service1), is(service2), is(nucleus)));
+        assertEquals(mockMain, od.get(3));
 
         service1.addOrUpdateDependency(service2, DependencyType.HARD, false);
 
         od = new ArrayList<>(kernel.orderedDependencies());
         assertNotNull(od);
-        assertThat(od, hasSize(3));
+        // Nucleus component is always present as an additional dependency of main
+        assertThat(od, hasSize(4));
 
-        // Now that 2 is a dependency of 1, there is a strict order required
-        assertEquals(service2, od.get(0));
-        assertEquals(service1, od.get(1));
-        assertEquals(mockMain, od.get(2));
+        // Now that 2 is a dependency of 1, 2 has to be ordered before 1
+        // Possible orders are -> [service2, service1, nucleus, main]; [nucleus, service2, service1, main]
+        // and [service2, nucleus, service1, main]
+        assertThat(od.get(0), anyOf(is(service2), is(nucleus)));
+        assertThat(od.get(1), anyOf(is(service1), is(service2), is(nucleus)));
+        assertThat(od.get(2), anyOf(is(service1), is(nucleus)));
+        assertEquals(mockMain, od.get(3));
     }
 
     @Test
@@ -175,9 +186,10 @@ class KernelTest {
         service1.addOrUpdateDependency(mockMain, DependencyType.HARD, false);
         mockMain.addOrUpdateDependency(service1, DependencyType.HARD, false);
 
+        // Nucleus component is always present as an additional dependency of main
         List<GreengrassService> od = new ArrayList<>(kernel.orderedDependencies());
         assertNotNull(od);
-        assertThat(od, hasSize(0));
+        assertThat(od, hasSize(1));
     }
 
     @Test

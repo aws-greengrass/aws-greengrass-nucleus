@@ -373,21 +373,19 @@ public class GreengrassSetup {
             outStream.printf("Successfully added Thing into Thing Group: [%s]%n", thingGroupName);
         }
 
-        outStream.println("Configuring kernel with provisioned resource details...");
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion);
-        outStream.println("Successfully configured kernel with provisioned resource details!");
-
-
+        // TODO : setupTes should not be an arg anymore since role alias is required, need to remove this arg
+        //  and always pass either user specified or a default role alias
         if (setupTes) {
             outStream.println("Setting up resources for TokenExchangeService...");
             deviceProvisioningHelper.setupIoTRoleForTes(tesRoleName, tesRoleAliasName, thingInfo.getCertificateArn());
             if (tesRolePolicyName != null && tesRolePolicyDoc != null) {
                 deviceProvisioningHelper.createAndAttachRolePolicy(tesRoleName, tesRolePolicyName, tesRolePolicyDoc);
             }
-            outStream.println("Configuring kernel with TokenExchangeService role details...");
-            deviceProvisioningHelper.updateKernelConfigWithTesRoleInfo(kernel, tesRoleAliasName);
-            outStream.println("Successfully configured TokenExchangeService!");
         }
+        outStream.println("Configuring kernel with provisioned resource details...");
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion, tesRoleAliasName);
+        outStream.println("Successfully configured kernel with provisioned resource details!");
+
     }
 
     Kernel getKernel() {

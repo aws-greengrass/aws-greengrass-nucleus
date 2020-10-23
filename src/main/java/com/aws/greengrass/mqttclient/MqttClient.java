@@ -8,7 +8,6 @@ package com.aws.greengrass.mqttclient;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
@@ -50,7 +49,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
@@ -58,8 +56,6 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRI
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.mqttclient.AwsIotMqttClient.TOPIC_KEY;
-import static com.aws.greengrass.tes.TokenExchangeService.IOT_ROLE_ALIAS_TOPIC;
-import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 
 public class MqttClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(MqttClient.class);
@@ -104,12 +100,11 @@ public class MqttClient implements Closeable {
     /**
      * Constructor for injection.
      *
-     * @param kernel              kernel for tes role alias
      * @param deviceConfiguration device configuration
      * @param executorService     executor service
      */
     @Inject
-    public MqttClient(Kernel kernel, DeviceConfiguration deviceConfiguration, ExecutorService executorService) {
+    public MqttClient(DeviceConfiguration deviceConfiguration, ExecutorService executorService) {
         this(deviceConfiguration, null, executorService);
 
         HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
@@ -129,8 +124,7 @@ public class MqttClient implements Closeable {
                             Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT,
                                     MQTT_SOCKET_TIMEOUT_KEY)));
         } else {
-            String tesRoleAlias = Coerce.toString(kernel.findServiceTopic(TOKEN_EXCHANGE_SERVICE_TOPICS)
-                    .lookup(PARAMETERS_CONFIG_KEY, IOT_ROLE_ALIAS_TOPIC));
+            String tesRoleAlias = Coerce.toString(deviceConfiguration.getIotRoleAlias());
 
             try (TlsContextOptions x509TlsOptions = TlsContextOptions.createWithMtlsFromPath(
                     Coerce.toString(deviceConfiguration.getCertificateFilePath()),
