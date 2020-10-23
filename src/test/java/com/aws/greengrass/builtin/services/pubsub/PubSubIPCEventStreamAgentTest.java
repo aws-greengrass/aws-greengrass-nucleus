@@ -28,7 +28,6 @@ import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext
 import software.amazon.awssdk.eventstreamrpc.StreamEventPublisher;
 
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -95,8 +94,8 @@ class PubSubIPCEventStreamAgentTest {
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
             assertThat(capturedPermission.getResource(), is(TEST_TOPIC));
 
-            assertTrue(pubSubIPCEventStreamAgent.getAllSourcesListeners().containsKey(TEST_TOPIC));
-            assertEquals(1, pubSubIPCEventStreamAgent.getAllSourcesListeners().get(TEST_TOPIC).size());
+            assertTrue(pubSubIPCEventStreamAgent.getListeners().containsKey(TEST_TOPIC));
+            assertEquals(1, pubSubIPCEventStreamAgent.getListeners().get(TEST_TOPIC).size());
         }
     }
 
@@ -105,7 +104,7 @@ class PubSubIPCEventStreamAgentTest {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
         Set<Object> set = new HashSet<>();
         set.add(publisher);
-        pubSubIPCEventStreamAgent.getAllSourcesListeners().put(TEST_TOPIC, set);
+        pubSubIPCEventStreamAgent.getListeners().put(TEST_TOPIC, set);
         when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture())).thenReturn(new CompletableFuture());
 
         PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
@@ -141,21 +140,21 @@ class PubSubIPCEventStreamAgentTest {
     @Test
     void GIVEN_subscribed_consumer_WHEN_publish_THEN_publishes_And_THEN_unsubscribes() throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        Consumer<SubscriptionResponseMessage> consumer = getConsumer(countDownLatch);
-        pubSubIPCEventStreamAgent.subscribe(TEST_TOPIC, consumer);
+        Consumer<MessagePublishedEvent> consumer = getConsumer(countDownLatch);
+        pubSubIPCEventStreamAgent.subscribe(TEST_TOPIC, consumer, TEST_SERVICE);
 
-        assertEquals(1, pubSubIPCEventStreamAgent.getAllSourcesListeners().size());
-        assertTrue(pubSubIPCEventStreamAgent.getAllSourcesListeners().containsKey(TEST_TOPIC));
-        assertEquals(1, pubSubIPCEventStreamAgent.getAllSourcesListeners().get(TEST_TOPIC).size());
+        assertEquals(1, pubSubIPCEventStreamAgent.getListeners().size());
+        assertTrue(pubSubIPCEventStreamAgent.getListeners().containsKey(TEST_TOPIC));
+        assertEquals(1, pubSubIPCEventStreamAgent.getListeners().get(TEST_TOPIC).size());
 
-        pubSubIPCEventStreamAgent.publish(TEST_TOPIC, Optional.empty(), Optional.of("ABCDEF".getBytes()));
+        pubSubIPCEventStreamAgent.publish(TEST_TOPIC, "ABCDEF".getBytes(), TEST_SERVICE);
         countDownLatch.await(10, TimeUnit.SECONDS);
 
-        pubSubIPCEventStreamAgent.unsubscribe(TEST_TOPIC, consumer);
-        assertEquals(0, pubSubIPCEventStreamAgent.getAllSourcesListeners().size());
+        pubSubIPCEventStreamAgent.unsubscribe(TEST_TOPIC, consumer, TEST_SERVICE);
+        assertEquals(0, pubSubIPCEventStreamAgent.getListeners().size());
     }
 
-    private static Consumer<SubscriptionResponseMessage> getConsumer(CountDownLatch cdl) {
+    private static Consumer<MessagePublishedEvent> getConsumer(CountDownLatch cdl) {
         return subscriptionResponseMessage -> cdl.countDown();
     }
 }

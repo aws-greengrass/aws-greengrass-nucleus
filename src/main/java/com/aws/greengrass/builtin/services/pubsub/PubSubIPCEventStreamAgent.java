@@ -41,7 +41,7 @@ public class PubSubIPCEventStreamAgent {
     private static final Logger log = LogManager.getLogger(PubSubIPCEventStreamAgent.class);
     private static final String SERVICE_NAME = "service-name";
     @Getter(AccessLevel.PACKAGE)
-    private final Map<String, Set<Object>> allSourcesListeners = new ConcurrentHashMap<>();
+    private final Map<String, Set<Object>> listeners = new ConcurrentHashMap<>();
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
@@ -63,26 +63,28 @@ public class PubSubIPCEventStreamAgent {
     /**
      * Handle the subscription request from the user.
      *
-     * @param topic topic name.
-     * @param cb    callback to be called for each published message
+     * @param topic       topic name.
+     * @param cb          callback to be called for each published message
+     * @param serviceName name of the service subscribing.
      */
-    public void subscribe(String topic, Consumer<SubscriptionResponseMessage> cb) {
-        handleSubscribeToTopicRequest(topic, "", cb);
+    public void subscribe(String topic, Consumer<MessagePublishedEvent> cb, String serviceName) {
+        handleSubscribeToTopicRequest(topic, serviceName, cb);
     }
 
     /**
      * Unsubscribe from a topic.
      *
-     * @param topic topic name.
-     * @param cb    callback to remove from subscription
+     * @param topic       topic name.
+     * @param cb          callback to remove from subscription
+     * @param serviceName name of the service unsubscribing.
      */
-    public void unsubscribe(String topic, Consumer<SubscriptionResponseMessage> cb) {
-        log.debug("Unsubscribing from topic {}", topic);
-        if (allSourcesListeners.containsKey(topic)) {
-            allSourcesListeners.get(topic).remove(cb);
+    public void unsubscribe(String topic, Consumer<MessagePublishedEvent> cb, String serviceName) {
+        log.atDebug().kv(SERVICE_NAME, serviceName).log("Unsubscribing from topic {}", topic);
+        if (listeners.containsKey(topic)) {
+            listeners.get(topic).remove(cb);
         }
-        if (allSourcesListeners.get(topic).isEmpty()) {
-            allSourcesListeners.remove(topic);
+        if (listeners.get(topic).isEmpty()) {
+            listeners.remove(topic);
         }
     }
 
@@ -90,53 +92,60 @@ public class PubSubIPCEventStreamAgent {
      * Publish a message to all subscribers.
      *
      * @param topic         publish topic.
-     * @param jsonMessage   JSON message to publish.
+     * @param serviceName   name of the service publishing the message.
      * @param binaryMessage Binary message to publish.
      * @return response
      */
-    public PublishToTopicResponse publish(String topic,
-                                          Optional<Map<String, Object>> jsonMessage,
-                                          Optional<byte[]> binaryMessage) {
-        return handlePublishToTopicRequest(topic, "", jsonMessage, binaryMessage);
+    public PublishToTopicResponse publish(String topic, byte[] binaryMessage, String serviceName) {
+        return handlePublishToTopicRequest(topic, serviceName, Optional.empty(), Optional.of(binaryMessage));
     }
 
     private PublishToTopicResponse handlePublishToTopicRequest(String topic,
                                                                String serviceName,
                                                                Optional<Map<String, Object>> jsonMessage,
                                                                Optional<byte[]> binaryMessage) {
-        if (!allSourcesListeners.containsKey(topic)) {
-            log.atDebug().log("No one subscribed to topic {}. Returning.", topic);
+        if (!listeners.containsKey(topic)) {
+            log.atDebug().kv(SERVICE_NAME, serviceName)
+                    .log("No one subscribed to topic {}. Returning.", topic);
             // Still technically successful, just no one was subscribed
             return new PublishToTopicResponse();
         }
 
-        executor.execute(() -> {
-            Set<Object> contexts = new HashSet<>();
-            if (allSourcesListeners.containsKey(topic)) {
-                contexts.addAll(allSourcesListeners.get(topic));
-            }
+        Set<Object> contexts = new HashSet<>();
+        if (listeners.containsKey(topic)) {
+            contexts.addAll(listeners.get(topic));
+        }
 
-            SubscriptionResponseMessage message = new SubscriptionResponseMessage();
-            if (jsonMessage.isPresent()) {
-                JsonMessage message1 = new JsonMessage();
-                message1.setMessage(jsonMessage.get());
-                message.setJsonMessage(message1);
-            }
-            if (binaryMessage.isPresent()) {
-                BinaryMessage binaryMessage1 = new BinaryMessage();
-                binaryMessage1.setMessage(binaryMessage.get());
-                message.setBinaryMessage(binaryMessage1);
-            }
+        SubscriptionResponseMessage message = new SubscriptionResponseMessage();
+        MessagePublishedEvent publishedEvent = MessagePublishedEvent.builder().topic(topic).build();
+        if (jsonMessage.isPresent()) {
+            JsonMessage message1 = new JsonMessage();
+            message1.setMessage(jsonMessage.get());
+            message.setJsonMessage(message1);
+        }
+        if (binaryMessage.isPresent()) {
+            BinaryMessage binaryMessage1 = new BinaryMessage();
+            binaryMessage1.setMessage(binaryMessage.get());
+            message.setBinaryMessage(binaryMessage1);
+            publishedEvent.setPayload(binaryMessage.get());
+        }
 
-            contexts.forEach(context -> {
-                log.atDebug().kv(SERVICE_NAME, serviceName)
-                        .log("Sending publish event for topic {}", topic);
-                if (context instanceof StreamEventPublisher) {
-                    ((StreamEventPublisher<SubscriptionResponseMessage>) context).sendStreamEvent(message);
-                } else if (context instanceof Consumer) {
-                    ((Consumer<SubscriptionResponseMessage>) context).accept(message);
-                }
-            });
+        contexts.forEach(context -> {
+            log.atDebug().kv(SERVICE_NAME, serviceName)
+                    .log("Sending publish event for topic {}", topic);
+            if (context instanceof StreamEventPublisher) {
+                executor.execute(() -> {
+                    synchronized (context) {
+                        ((StreamEventPublisher<SubscriptionResponseMessage>) context).sendStreamEvent(message);
+                    }
+                });
+            } else if (context instanceof Consumer) {
+                executor.execute(() -> {
+                    synchronized (context) {
+                        ((Consumer<MessagePublishedEvent>) context).accept(publishedEvent);
+                    }
+                });
+            }
         });
         return new PublishToTopicResponse();
     }
@@ -144,9 +153,8 @@ public class PubSubIPCEventStreamAgent {
     private void handleSubscribeToTopicRequest(String topic, String serviceName,
                                                Object handler) {
         // TODO: Input validation. P32540011
-        log.atInfo().kv(SERVICE_NAME, serviceName)
-                .log("Subscribing to topic {}, {}", topic, serviceName);
-        allSourcesListeners.computeIfAbsent(topic, k -> new HashSet<>()).add(handler);
+        log.atInfo().kv(SERVICE_NAME, serviceName).log("Subscribing to topic {}", topic);
+        listeners.computeIfAbsent(topic, k -> new HashSet<>()).add(handler);
     }
 
 
@@ -203,13 +211,13 @@ public class PubSubIPCEventStreamAgent {
 
         @Override
         protected void onStreamClosed() {
-            if (Utils.isNotEmpty(subscribeTopic) && allSourcesListeners.containsKey(subscribeTopic)) {
-                if (allSourcesListeners.get(subscribeTopic).remove(this)) {
+            if (Utils.isNotEmpty(subscribeTopic) && listeners.containsKey(subscribeTopic)) {
+                if (listeners.get(subscribeTopic).remove(this)) {
                     log.atDebug().kv(SERVICE_NAME, serviceName)
                             .log("Client disconnected, removing subscription {}", subscribeTopic);
                 }
-                if (allSourcesListeners.get(subscribeTopic).isEmpty()) {
-                    allSourcesListeners.remove(subscribeTopic);
+                if (listeners.get(subscribeTopic).isEmpty()) {
+                    listeners.remove(subscribeTopic);
                 }
             }
         }
