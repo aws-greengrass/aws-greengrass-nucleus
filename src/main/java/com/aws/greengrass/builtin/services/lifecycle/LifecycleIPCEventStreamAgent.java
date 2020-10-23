@@ -15,7 +15,7 @@ import software.amazon.awssdk.aws.greengrass.GeneratedAbstractUpdateStateOperati
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateResponse;
-import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentError;
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.ResourceNotFoundError;
@@ -188,7 +188,7 @@ public class LifecycleIPCEventStreamAgent {
             // TODO: Input validation. https://sim.amazon.com/issues/P32540011
 
             if (!componentUpdateListeners.containsKey(serviceName)) {
-                throw new InvalidArgumentError("Component is not subscribed to component update events");
+                throw new InvalidArgumentsError("Component is not subscribed to component update events");
             }
 
             CompletableFuture<DeferUpdateRequest> deferComponentUpdateRequestFuture =
