@@ -49,10 +49,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.DEFAULT_GROUP_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
@@ -68,8 +70,6 @@ public class DeploymentService extends GreengrassService {
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN = "groupConfigArn";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_NAME = "groupConfigName";
 
-    // TODO: These should probably become configurable parameters eventually
-    private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(15).toMillis();
     private static final int DEPLOYMENT_MAX_ATTEMPTS = 3;
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
 
@@ -92,13 +92,14 @@ public class DeploymentService extends GreengrassService {
     @Inject
     private Kernel kernel;
 
+    @Inject DeviceConfiguration deviceConfiguration;
+
     private DeploymentTaskMetadata currentDeploymentTaskMetadata = null;
 
     @Getter
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
 
-    @Setter
-    private long pollingFrequency = DEPLOYMENT_POLLING_FREQUENCY;
+    private final AtomicLong pollingFrequency = new AtomicLong();
 
     @Inject
     private DeploymentQueue deploymentQueue;
@@ -122,12 +123,14 @@ public class DeploymentService extends GreengrassService {
      * @param kernelConfigResolver   {@link KernelConfigResolver}
      * @param deploymentConfigMerger {@link DeploymentConfigMerger}
      * @param kernel                 {@link Kernel}
+     * @param deviceConfiguration    {@link DeviceConfiguration}
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     DeploymentService(Topics topics, ExecutorService executorService, DependencyResolver dependencyResolver,
                       ComponentManager componentManager, KernelConfigResolver kernelConfigResolver,
                       DeploymentConfigMerger deploymentConfigMerger, DeploymentStatusKeeper deploymentStatusKeeper,
-                      DeploymentDirectoryManager deploymentDirectoryManager, Context context, Kernel kernel) {
+                      DeploymentDirectoryManager deploymentDirectoryManager, Context context, Kernel kernel,
+                      DeviceConfiguration deviceConfiguration) {
         super(topics);
         this.executorService = executorService;
         this.dependencyResolver = dependencyResolver;
@@ -138,6 +141,8 @@ public class DeploymentService extends GreengrassService {
         this.deploymentDirectoryManager = deploymentDirectoryManager;
         this.context = context;
         this.kernel = kernel;
+        this.deviceConfiguration = deviceConfiguration;
+        this.pollingFrequency.set(getPollingFrequency(deviceConfiguration.getDeploymentPollingFrequencySeconds()));
     }
 
     @Override
@@ -149,6 +154,7 @@ public class DeploymentService extends GreengrassService {
         context.get(IotJobsHelper.class);
         context.get(ShadowDeploymentListener.class);
         deploymentStatusKeeper.setDeploymentService(this);
+        subscribeToPollingFrequencyAndGet();
     }
 
     @Override
@@ -213,8 +219,18 @@ public class DeploymentService extends GreengrassService {
                     createNewDeployment(deployment);
                 }
             }
-            Thread.sleep(pollingFrequency);
+            Thread.sleep(pollingFrequency.get());
         }
+    }
+
+    private void subscribeToPollingFrequencyAndGet() {
+        deviceConfiguration.onTopicChange(DEPLOYMENT_POLLING_FREQUENCY_SECONDS, (whatHappened, frequency) -> {
+            pollingFrequency.set(getPollingFrequency(frequency));
+        });
+    }
+
+    private Long getPollingFrequency(Topic pollingFrequencyTopic) {
+        return Duration.ofSeconds(Coerce.toLong(pollingFrequencyTopic)).toMillis();
     }
 
     @Override
