@@ -10,7 +10,7 @@ import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStream
 import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.deployment.exceptions.DynamicConfigurationValidationException;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.InvalidConfigFormatException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -83,7 +83,7 @@ public class DynamicComponentConfigurationValidator {
         } catch (InvalidConfigFormatException e) {
             deploymentResultFuture.complete(
                     new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
-                            new DynamicConfigurationValidationException(e)));
+                            new ComponentConfigurationValidationException(e)));
             return false;
         }
 
@@ -262,7 +262,7 @@ public class DynamicComponentConfigurationValidator {
             if (!valid) {
                 deploymentResultFuture.complete(
                         new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
-                                new DynamicConfigurationValidationException(failureMsg)));
+                                new ComponentConfigurationValidationException(failureMsg)));
             }
             return valid;
         } finally {
