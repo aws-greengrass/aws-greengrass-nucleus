@@ -17,6 +17,7 @@ import com.aws.greengrass.ipc.services.configstore.ConfigStore;
 import com.aws.greengrass.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
@@ -39,11 +40,14 @@ import software.amazon.awssdk.aws.greengrass.model.ConfigurationUpdateEvents;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityReport;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityStatus;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
+import software.amazon.awssdk.aws.greengrass.model.GetComponentDetailsRequest;
 import software.amazon.awssdk.aws.greengrass.model.GetConfigurationRequest;
 import software.amazon.awssdk.aws.greengrass.model.GetConfigurationResponse;
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 import software.amazon.awssdk.aws.greengrass.model.LifecycleState;
 import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
+import software.amazon.awssdk.aws.greengrass.model.ResourceNotFoundError;
 import software.amazon.awssdk.aws.greengrass.model.SendConfigurationValidityReportRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesResponse;
@@ -477,6 +481,36 @@ class IPCServicesTest {
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty()).getResponse().get();
         assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
+    @Test
+    void GIVEN_LifeCycleEventStreamClient_WHEN_defer_component_THEN_InvalidArgumentError() throws Exception {
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+        DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+        deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(1).toMillis());
+        deferComponentUpdateRequest.setMessage("Test");
+        try {
+            greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest,
+                Optional.empty()).getResponse()
+                .get(5, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            assertTrue(e.getCause() instanceof InvalidArgumentsError);
+        }
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
+    @Test
+    void GIVEN_CLIStreamClient_WHEN_get_component_for_invalid_component_THEN_ResourceNotFound(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, ServiceLoadException.class);
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+        GetComponentDetailsRequest request = new GetComponentDetailsRequest();
+        request.setComponentName("random");
+        try {
+            greengrassCoreIPCClient.getComponentDetails(request, Optional.empty()).getResponse().get(5, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            assertTrue(e.getCause() instanceof ResourceNotFoundError);
+        }
     }
 
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
