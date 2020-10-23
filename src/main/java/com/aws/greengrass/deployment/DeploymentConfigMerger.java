@@ -11,6 +11,7 @@ import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.activator.DeploymentActivator;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -94,7 +95,7 @@ public class DeploymentConfigMerger {
         DeploymentActivator activator;
         try {
             activator = kernel.getContext().get(DeploymentActivatorFactory.class).getDeploymentActivator(newConfig);
-        } catch (ServiceUpdateException e) {
+        } catch (ServiceUpdateException | ComponentConfigurationValidationException e) {
             // Failed to pre-process new config, no rollback needed
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
                     .log("Failed to process new configuration for activation");

@@ -5,6 +5,9 @@
 
 package com.aws.greengrass.deployment.bootstrap;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentType;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -12,6 +15,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.DependencyOrder;
 import com.aws.greengrass.util.SerializerFactory;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -25,6 +29,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -44,6 +49,7 @@ import static com.aws.greengrass.deployment.bootstrap.BootstrapTaskStatus.Execut
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
 
 /**
@@ -71,15 +77,17 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     /**
-     * Check if any bootstrap tasks are pending based on new configuration.
-     * Meanwhile resolve a list of bootstrap tasks.
+     * Check if any bootstrap tasks are pending based on new configuration. Meanwhile resolve a list of bootstrap
+     * tasks.
      *
      * @param newConfig new configuration from deployment
      * @return true if there are bootstrap tasks, false otherwise
-     * @throws ServiceUpdateException if parsing bootstrap tasks from new configuration fails
+     * @throws ServiceUpdateException                    if parsing bootstrap tasks from new configuration fails
+     * @throws ComponentConfigurationValidationException If changed nucleus component configuration is invalid
      */
     @SuppressWarnings("PMD.PrematureDeclaration")
-    public boolean isBootstrapRequired(Map<String, Object> newConfig) throws ServiceUpdateException {
+    public boolean isBootstrapRequired(Map<String, Object> newConfig)
+            throws ServiceUpdateException, ComponentConfigurationValidationException {
         bootstrapTaskStatusList.clear();
         cursor = 0;
 
@@ -88,6 +96,10 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                     "No bootstrap tasks found: Deployment configuration is missing or has no service changes");
             return false;
         }
+
+        // Validate nucleus config early, then proceed with evaluating bootstrap tasks
+        final boolean nucleusConfigValidAndNeedsRestart = nucleusConfigValidAndNeedsRestart(newConfig);
+
         // Compare newConfig with kernel and find out all that changed
         Set<String> componentsRequiresBootstrapTask = new HashSet<>();
         Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
@@ -112,7 +124,34 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         logger.atInfo().kv("list", dependencyFound).log("Found a list of bootstrap tasks in dependency order");
         dependencyFound.forEach(name -> bootstrapTaskStatusList.add(new BootstrapTaskStatus(name)));
 
-        return !bootstrapTaskStatusList.isEmpty();
+        return nucleusConfigValidAndNeedsRestart || !bootstrapTaskStatusList.isEmpty();
+    }
+
+    private boolean nucleusConfigValidAndNeedsRestart(Map<String, Object> deploymentConfig)
+            throws ComponentConfigurationValidationException {
+        boolean needsRestart = false;
+        Map<String, Object> proposedNucleusConfig = getProposedNucleusConfig(deploymentConfig);
+        for (GreengrassService s : kernel.orderedDependencies()) {
+            // For now, only let builtin Greengrass services decide
+            if (s.isBuiltin()) {
+                needsRestart = needsRestart || s.restartNucleusOnNucleusConfigChange(proposedNucleusConfig);
+            }
+        }
+        return needsRestart;
+    }
+
+    private Map<String, Object> getProposedNucleusConfig(Map<String, Object> deploymentConfig) {
+        for (Map.Entry<String, Object> serviceConfig : deploymentConfig.entrySet()) {
+            if (serviceConfig instanceof Map) {
+                Map<String, Object> serviceConfigMap = (Map<String, Object>) serviceConfig;
+                String componentType = Coerce.toString(serviceConfigMap.get(SERVICE_TYPE_TOPIC_KEY));
+                Object componentConfiguration = serviceConfigMap.get(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
+                if (ComponentType.NUCLEUS.name().equals(componentType) && componentConfiguration instanceof Map) {
+                    return (Map<String, Object>) componentConfiguration;
+                }
+            }
+        }
+        return Collections.emptyMap();
     }
 
     /**
