@@ -1,7 +1,7 @@
 ---
 RecipeFormatVersion: '2020-01-25'
 ComponentName: aws.greengrass.Nucleus
-ComponentType: aws.greengrass.nucleus
+# TODO : Add component type when the change to add it gets deployed to cloud gamma
 ComponentDescription: Core functionality for device side orchestration of deployments and lifecycle management for execution of Greengrass components and applications.
 ComponentPublisher: AWS
 ComponentVersion: '0.0.0'
