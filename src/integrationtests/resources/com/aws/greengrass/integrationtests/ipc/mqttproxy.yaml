@@ -1,0 +1,24 @@
+---
+services:
+  main:
+    dependencies:
+      - ServiceName
+  ServiceName:
+    parameters:
+      accessControl:
+        '{
+          "aws.greengrass.ipc.mqttproxy":[
+          {
+            "policyId1":{
+              "policyDescription":"access to IoT topics for mqtt",
+              "operations":[
+                "aws.greengrass#PublishToIoTCore",
+                "aws.greengrass#SubscribeToIoTCore"
+              ],
+              "resources":[
+                "A/B/C"
+              ]
+            }
+          }
+          ]
+        }'
