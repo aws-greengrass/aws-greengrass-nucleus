@@ -45,7 +45,8 @@ public class IPCEventStreamService implements Startable, Closeable {
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipcEventStreamServer.socket";
-    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./ipcEventStreamServer.socket";
+    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./nucleusRoot/ipcEventStreamServer.socket";
+    public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
     // This is relative to component's CWD
     // components CWD is <kernel-root-path>/work/component
     public static final String IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME = "../../ipcEventStreamServer.socket";
@@ -105,7 +106,7 @@ public class IPCEventStreamService implements Startable, Closeable {
 
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
             try {
-                logger.atInfo().log("Deleting the ipc server socket descriptor file");
+                logger.atDebug().log("Deleting the ipc server socket descriptor file");
                 Files.delete(Paths.get(ipcServerSocketAbsolutePath));
             } catch (IOException e) {
                 logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file");
@@ -113,7 +114,7 @@ public class IPCEventStreamService implements Startable, Closeable {
         }
         if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
             try {
-                logger.atInfo().log("Deleting the ipc server socket descriptor file symlink");
+                logger.atDebug().log("Deleting the ipc server socket descriptor file symlink");
                 Files.delete(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK));
             } catch (IOException e) {
                 logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file symlink");
@@ -128,8 +129,8 @@ public class IPCEventStreamService implements Startable, Closeable {
         boolean symLinkCreated = false;
 
         try {
-            Files.createSymbolicLink(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK),
-                    Paths.get(ipcServerSocketAbsolutePath));
+            Files.createSymbolicLink(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK),
+                    kernel.getNucleusPaths().rootPath());
             symLinkCreated = true;
         } catch (IOException e) {
             logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path");
