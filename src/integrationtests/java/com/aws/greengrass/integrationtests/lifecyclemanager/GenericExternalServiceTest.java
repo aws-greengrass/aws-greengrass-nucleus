@@ -13,8 +13,6 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
-import com.aws.greengrass.logging.impl.GreengrassLogMessage;
-import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +31,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
@@ -41,6 +38,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
+import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -324,7 +322,7 @@ class GenericExternalServiceTest extends BaseITCase {
         CountDownLatch countDownLatch = new CountDownLatch(2);
         // Set up stdout listener to capture stdout for verifying users
         List<String> stdouts = new CopyOnWriteArrayList<>();
-        Consumer<GreengrassLogMessage> listener = m -> {
+        try (AutoCloseable l = createCloseableLogListener((m) -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
             if (messageOnStdout != null
@@ -333,26 +331,26 @@ class GenericExternalServiceTest extends BaseITCase {
                 stdouts.add(messageOnStdout);
                 countDownLatch.countDown();
             }
-        };
-        Slf4jLogAdapter.addGlobalListener(listener);
+        })) {
 
-        kernel.parseArgs("-i", getClass().getResource(file).toString());
+            kernel.parseArgs("-i", getClass().getResource(file).toString());
 
-        // skip when running as a user that cannot sudo to shell
-        assumeCanSudoShell(kernel);
+            // skip when running as a user that cannot sudo to shell
+            assumeCanSudoShell(kernel);
 
-        CountDownLatch main = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((s, oldState, newState) -> {
-            if (s.getName().equals("main") && newState.equals(State.FINISHED)) {
-                main.countDown();
-            }
-        });
-        kernel.launch();
+            CountDownLatch main = new CountDownLatch(1);
+            kernel.getContext().addGlobalStateChangeListener((s, oldState, newState) -> {
+                if (s.getName().equals("main") && newState.equals(State.FINISHED)) {
+                    main.countDown();
+                }
+            });
+            kernel.launch();
 
-        assertTrue(main.await(10, TimeUnit.SECONDS), "main finished");
-
-        assertThat(stdouts, hasItem(containsString(String.format("install as %s", expectedInstallUid))));
-        assertThat(stdouts, hasItem(containsString(String.format("run as %s", expectedRunUid))));
+            assertTrue(main.await(10, TimeUnit.SECONDS), "main finished");
+            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS), "expect log finished");
+            assertThat(stdouts, hasItem(containsString(String.format("install as %s", expectedInstallUid))));
+            assertThat(stdouts, hasItem(containsString(String.format("run as %s", expectedRunUid))));
+        }
     }
 
     static Stream<Arguments> posixTestUserConfig() {

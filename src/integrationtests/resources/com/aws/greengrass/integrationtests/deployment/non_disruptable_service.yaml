@@ -1,8 +1,8 @@
-system:
-    runWithDefault:
-        posixUser: nobody
-
 services:
+  aws.greengrass.Nucleus:
+    parameters:
+      runWithDefault:
+        posixUser: nobody
   main:
     dependencies:
       - nondisruptable

@@ -168,35 +168,33 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 safeUpdateRegistered.set(true);
             }
         };
-        Slf4jLogAdapter.addGlobalListener(listener);
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            kernel.launch();
+            assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
 
-        kernel.launch();
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+            // WHEN
+            CountDownLatch mainRestarted = new CountDownLatch(1);
+            kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+                if (service.getName().equals("main") && newState.equals(State.FINISHED) && oldState.equals(State.STARTING)) {
+                    mainRestarted.countDown();
+                }
+            });
 
-        // WHEN
-        CountDownLatch mainRestarted = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.FINISHED) && oldState.equals(State.STARTING)) {
-                mainRestarted.countDown();
-            }
-        });
-
-        deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<String, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put("main", new HashMap<String, Object>() {{
-                    put(SETENV_CONFIG_NAMESPACE, new HashMap<String, Object>() {{
-                        put("HELLO", "redefined");
+            deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<String, Object>() {{
+                put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                    put("main", new HashMap<String, Object>() {{
+                        put(SETENV_CONFIG_NAMESPACE, new HashMap<String, Object>() {{
+                            put("HELLO", "redefined");
+                        }});
                     }});
                 }});
-            }});
-        }}).get(60, TimeUnit.SECONDS);
+            }}).get(60, TimeUnit.SECONDS);
 
-        // THEN
-        assertTrue(mainRestarted.await(10, TimeUnit.SECONDS));
-        assertEquals("redefined", kernel.findServiceTopic("main").find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
-        assertTrue(safeUpdateRegistered.get());
-
-        Slf4jLogAdapter.removeGlobalListener(listener);
+            // THEN
+            assertTrue(mainRestarted.await(10, TimeUnit.SECONDS));
+            assertEquals("redefined", kernel.findServiceTopic("main").find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
+            assertTrue(safeUpdateRegistered.get());
+        }
     }
 
     @Test

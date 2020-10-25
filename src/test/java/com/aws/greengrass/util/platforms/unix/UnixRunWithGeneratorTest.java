@@ -91,7 +91,7 @@ public class UnixRunWithGeneratorTest {
                 .when(config).find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY);
 
         doReturn(userAttr).when(platform).lookupUserByIdentifier("foo");
-        doReturn(Optional.of(123)).when(userAttr).getPrimaryGID();
+        doReturn(Optional.of(123L)).when(userAttr).getPrimaryGID();
 
         Optional<RunWith> result = generator.generate(deviceConfig, config);
         assertThat("RunWith must be generated", result.isPresent(), is(true));
@@ -119,7 +119,7 @@ public class UnixRunWithGeneratorTest {
                 .when(deviceConfig).getRunWithDefaultPosixUser();
 
         doReturn(userAttr).when(platform).lookupUserByIdentifier("foo");
-        doReturn(Optional.of(123)).when(userAttr).getPrimaryGID();
+        doReturn(Optional.of(123L)).when(userAttr).getPrimaryGID();
 
         Optional<RunWith> result = generator.generate(deviceConfig, config);
         assertThat("RunWith must be generated", result.isPresent(), is(true));
@@ -161,7 +161,7 @@ public class UnixRunWithGeneratorTest {
         doReturn(false).when(userAttr).isSuperUser();
 
         doReturn("foo").when(userAttr).getPrincipalName();
-        doReturn(Optional.of(123)).when(userAttr).getPrimaryGID();
+        doReturn(Optional.of(123L)).when(userAttr).getPrimaryGID();
 
         Optional<RunWith> result = generator.generate(deviceConfig, config);
         assertThat("RunWith must be generated", result.isPresent(), is(true));

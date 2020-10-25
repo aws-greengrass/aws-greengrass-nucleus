@@ -6,7 +6,7 @@ package com.aws.greengrass.integrationtests.ipc;
 import com.aws.greengrass.authorization.AuthorizationModule;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.config.Topic;
-import com.aws.greengrass.testcommons.testutilities.UniqueRootPathBeforeAll;
+import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith({GGExtension.class, UniqueRootPathBeforeAll.class})
+@ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 class IPCPubSubTest {
 
     private static int TIMEOUT_FOR_PUBSUB_SECONDS = 2;

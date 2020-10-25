@@ -65,7 +65,7 @@ public class UnixRunWithGenerator implements RunWithGenerator {
                         // this should never happen - a user that is running has a group
                         return Optional.empty();
                     }
-                    group = Integer.toString(attrs.getPrimaryGID().get());
+                    group = Long.toString(attrs.getPrimaryGID().get());
                     isDefault = false;
                 }
             }
@@ -77,7 +77,7 @@ public class UnixRunWithGenerator implements RunWithGenerator {
                 if (!attrs.getPrimaryGID().isPresent()) {
                     return Optional.empty();
                 }
-                group = Integer.toString(attrs.getPrimaryGID().get());
+                group = Long.toString(attrs.getPrimaryGID().get());
             }
             return Optional.of(RunWith.builder().user(user).group(group).isDefault(isDefault)
                     // shell cannot be changed from kernel default

@@ -2,7 +2,7 @@ package com.aws.greengrass.integrationtests.ipc;
 
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.testcommons.testutilities.UniqueRootPathBeforeAll;
+import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.authorization.AuthorizationClient;
@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith({GGExtension.class, UniqueRootPathBeforeAll.class})
+@ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 class IPCAuthorizationTest {
 
     private static Kernel kernel;

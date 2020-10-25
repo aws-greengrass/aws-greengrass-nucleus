@@ -110,7 +110,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         });
 
         // Wait for some time for the publish request to have all the components update.
-        assertTrue(allComponentsInFssUpdate.await(20, TimeUnit.SECONDS));
+        assertTrue(allComponentsInFssUpdate.await(30, TimeUnit.SECONDS), "component publish requests");
 
         List<PublishRequest> prs = captor.getAllValues();
         // Get the last FSS publish request which should have all the components information.

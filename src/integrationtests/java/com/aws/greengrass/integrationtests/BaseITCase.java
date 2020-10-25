@@ -4,7 +4,7 @@ package com.aws.greengrass.integrationtests;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.aws.greengrass.testcommons.testutilities.UniqueRootPathBeforeEach;
+import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -21,7 +21,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
  *
  * However, individual integration test could override the setup or just set up without extending this.
  */
-@ExtendWith({GGExtension.class, UniqueRootPathBeforeEach.class})
+@ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 public class BaseITCase {
 
     protected Path tempRootDir;

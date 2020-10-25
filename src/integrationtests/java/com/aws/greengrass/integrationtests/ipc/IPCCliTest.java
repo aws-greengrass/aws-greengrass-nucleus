@@ -38,7 +38,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.aws.greengrass.testcommons.testutilities.UniqueRootPathBeforeAll;
+import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.unix.UnixPlatform;
@@ -100,7 +100,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@ExtendWith({GGExtension.class, UniqueRootPathBeforeAll.class})
+@ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DisabledOnOs(OS.WINDOWS)
 class IPCCliTest {

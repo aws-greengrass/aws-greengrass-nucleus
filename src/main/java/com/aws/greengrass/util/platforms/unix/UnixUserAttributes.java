@@ -18,7 +18,7 @@ import java.util.Optional;
 @Value
 @Builder
 public class UnixUserAttributes implements UserPlatform.UserAttributes {
-    Integer primaryGid;
+    Long primaryGid;
     String principalName;
     String principalIdentifier;
 
@@ -26,8 +26,9 @@ public class UnixUserAttributes implements UserPlatform.UserAttributes {
      * Get the UID.
      * @return the numeric user id.
      */
-    public int getUID() {
-        return Integer.parseInt(getPrincipalIdentifier());
+    public long getUID() {
+        // use long since it is generally an unsigned integer (although some OSs may use -2 for users like "nobody")
+        return Long.parseLong(getPrincipalIdentifier());
     }
 
     /**
@@ -36,7 +37,7 @@ public class UnixUserAttributes implements UserPlatform.UserAttributes {
      *
      * @return the group id of the users primary group or empty if the user is not a known user on the device.
      */
-    public Optional<Integer> getPrimaryGID() {
+    public Optional<Long> getPrimaryGID() {
         return Optional.ofNullable(primaryGid);
     }
 

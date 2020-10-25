@@ -10,7 +10,7 @@ import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgen
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
-import com.aws.greengrass.testcommons.testutilities.UniqueRootPathBeforeAll;
+import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
@@ -90,7 +90,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@ExtendWith({GGExtension.class, UniqueRootPathBeforeAll.class})
+@ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 class IPCServicesTest {
     private final static Logger log = LogManager.getLogger(IPCServicesTest.class);
     private final static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;

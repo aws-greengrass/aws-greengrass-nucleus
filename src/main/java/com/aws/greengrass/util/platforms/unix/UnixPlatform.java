@@ -156,7 +156,7 @@ public class UnixPlatform extends Platform {
             Optional<String> group = id(null, IdOption.Group, false);
             group.orElseThrow(() -> new IOException("Could not lookup primary group for current user: " + id.get()));
 
-            CURRENT_USER = builder.primaryGid(Integer.parseInt(group.get())).build();
+            CURRENT_USER = builder.primaryGid(Long.parseLong(group.get())).build();
             CURRENT_USER_PRIMARY_GROUP = lookupGroup(group.get());
         }
         return CURRENT_USER;
@@ -186,7 +186,7 @@ public class UnixPlatform extends Platform {
             }
         }
 
-        id(user, IdOption.Group, false).ifPresent(s -> builder.primaryGid(Integer.parseInt(s)));
+        id(user, IdOption.Group, false).ifPresent(s -> builder.primaryGid(Long.parseLong(s)));
         return builder.build();
     }
 
