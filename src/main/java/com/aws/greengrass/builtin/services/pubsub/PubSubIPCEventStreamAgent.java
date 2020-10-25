@@ -28,16 +28,12 @@ import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext
 import software.amazon.awssdk.eventstreamrpc.StreamEventPublisher;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -47,6 +43,7 @@ public class PubSubIPCEventStreamAgent {
     private static final Logger log = LogManager.getLogger(PubSubIPCEventStreamAgent.class);
     private static final String SERVICE_NAME = "service-name";
     private static final ObjectMapper SERIALIZER = new ObjectMapper();
+    private static final ExecutorService singleThreadedExecutor = Executors.newSingleThreadExecutor();
     @Getter(AccessLevel.PACKAGE)
     private final Map<String, Set<Object>> listeners = new ConcurrentHashMap<>();
 
@@ -68,7 +65,7 @@ public class PubSubIPCEventStreamAgent {
     }
 
     /**
-     * Handle the subscription request from the user.
+     * Handle the subscription request from internal plugin services.
      *
      * @param topic       topic name.
      * @param cb          callback to be called for each published message
@@ -107,63 +104,44 @@ public class PubSubIPCEventStreamAgent {
                                                                String serviceName,
                                                                Optional<Map<String, Object>> jsonMessage,
                                                                Optional<byte[]> binaryMessage) {
-        Set<Object> contexts = new HashSet<>();
-        listeners.computeIfPresent(topic, (s, objects) -> {
-            contexts.addAll(listeners.get(topic));
-            return objects;
-        });
-        if (contexts.isEmpty()) {
+        Set<Object> contexts = listeners.get(topic);
+        if (contexts == null || contexts.isEmpty()) {
             log.atDebug().kv(SERVICE_NAME, serviceName)
                     .log("No one subscribed to topic {}. Returning.", topic);
             // Still technically successful, just no one was subscribed
             return new PublishToTopicResponse();
         }
-        synchronized (listeners.get(topic)) {
-
-            SubscriptionResponseMessage message = new SubscriptionResponseMessage();
-            PublishEvent publishedEvent = PublishEvent.builder().topic(topic).build();
-            if (jsonMessage.isPresent()) {
-                JsonMessage message1 = new JsonMessage();
-                message1.setMessage(jsonMessage.get());
-                message.setJsonMessage(message1);
-                try {
-                    publishedEvent.setPayload(SERIALIZER.writeValueAsBytes(jsonMessage.get()));
-                } catch (JsonProcessingException e) {
-                    log.atError().cause(e).kv(SERVICE_NAME, serviceName)
-                            .log("Unable to serialize JSON message.");
-                }
+        SubscriptionResponseMessage message = new SubscriptionResponseMessage();
+        PublishEvent publishedEvent = PublishEvent.builder().topic(topic).build();
+        if (jsonMessage.isPresent()) {
+            JsonMessage message1 = new JsonMessage();
+            message1.setMessage(jsonMessage.get());
+            message.setJsonMessage(message1);
+            try {
+                publishedEvent.setPayload(SERIALIZER.writeValueAsBytes(jsonMessage.get()));
+            } catch (JsonProcessingException e) {
+                log.atError().cause(e).kv(SERVICE_NAME, serviceName)
+                        .log("Unable to serialize JSON message.");
             }
-            if (binaryMessage.isPresent()) {
-                BinaryMessage binaryMessage1 = new BinaryMessage();
-                binaryMessage1.setMessage(binaryMessage.get());
-                message.setBinaryMessage(binaryMessage1);
-                publishedEvent.setPayload(binaryMessage.get());
-            }
-
-            List<Future<?>> futures = new ArrayList<>();
-            contexts.forEach(context -> {
-                log.atDebug().kv(SERVICE_NAME, serviceName)
-                        .log("Sending publish event for topic {}", topic);
-                if (context instanceof StreamEventPublisher) {
-                    Future<?> submit = executor.submit(() -> {
-                        ((StreamEventPublisher<SubscriptionResponseMessage>) context).sendStreamEvent(message);
-                    });
-                    futures.add(submit);
-                } else if (context instanceof Consumer) {
-                    Future<?> submit = executor.submit(() -> {
-                        ((Consumer<PublishEvent>) context).accept(publishedEvent);
-                    });
-                    futures.add(submit);
-                }
-            });
-            futures.forEach(future -> {
-                try {
-                    future.get();
-                } catch (InterruptedException | ExecutionException e) {
-                    Thread.currentThread().interrupt();
-                }
-            });
         }
+        if (binaryMessage.isPresent()) {
+            BinaryMessage binaryMessage1 = new BinaryMessage();
+            binaryMessage1.setMessage(binaryMessage.get());
+            message.setBinaryMessage(binaryMessage1);
+            publishedEvent.setPayload(binaryMessage.get());
+        }
+
+        contexts.forEach(context -> {
+            log.atDebug().kv(SERVICE_NAME, serviceName)
+                    .log("Sending publish event for topic {}", topic);
+            if (context instanceof StreamEventPublisher) {
+                singleThreadedExecutor.execute(() ->
+                        ((StreamEventPublisher<SubscriptionResponseMessage>) context).sendStreamEvent(message));
+            } else if (context instanceof Consumer) {
+                singleThreadedExecutor.execute(() ->
+                        ((Consumer<PublishEvent>) context).accept(publishedEvent));
+            }
+        });
         return new PublishToTopicResponse();
     }
 
