@@ -9,6 +9,8 @@ import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.NucleusPaths;
@@ -35,7 +37,10 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
 import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -52,6 +57,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class IPCEventStreamServiceTest {
+    private static Logger logger = LogManager.getLogger(IPCEventStreamService.class);
     private IPCEventStreamService ipcEventStreamService;
     protected static ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
@@ -84,6 +90,9 @@ public class IPCEventStreamServiceTest {
 
     @BeforeEach
     public void setup() throws IOException {
+        Set<PosixFilePermission> filePermissions = Files.getPosixFilePermissions(mockRootPath);
+        filePermissions.stream().forEach(perm -> logger.atInfo().log(perm));
+
         AuthenticationData authenticationData = new AuthenticationData() {
             @Override
             public String getIdentityLabel() {
@@ -123,7 +132,6 @@ public class IPCEventStreamServiceTest {
              SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC()) {
 
             String ipcServerSocketPath = mockRootPath.resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
-
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elg,
                     socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER,
                     GreengrassConnectMessageSupplier.connectMessageSupplier("authToken"));
