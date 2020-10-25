@@ -112,10 +112,10 @@ public class IPCEventStreamService implements Startable, Closeable {
                 logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file");
             }
         }
-        if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
+        if (Files.exists(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
             try {
-                logger.atDebug().log("Deleting the ipc server socket descriptor file symlink");
-                Files.delete(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK));
+                logger.atDebug().log("Deleting the nucleus root path symlink");
+                Files.delete(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK));
             } catch (IOException e) {
                 logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file symlink");
             }
