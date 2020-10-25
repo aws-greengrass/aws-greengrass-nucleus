@@ -42,8 +42,8 @@ public class IPCEventStreamService implements Startable, Closeable {
     public static final long DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS = 5;
     public static final int DEFAULT_PORT_NUMBER = 8033;
     private static final ObjectMapper OBJECT_MAPPER =
-                new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipcEventStreamServer";
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./ipcEventStreamServer";
     // This is relative to component's CWD
@@ -73,7 +73,7 @@ public class IPCEventStreamService implements Startable, Closeable {
     private SocketOptions socketOptions;
     private EventLoopGroup eventLoopGroup;
     @Getter
-    private String ipcServerSocketPath;
+    private String ipcServerSocketAbsolutePath;
 
     IPCEventStreamService(Kernel kernel,
                                  GreengrassCoreIPCService greengrassCoreIPCService,
@@ -100,45 +100,50 @@ public class IPCEventStreamService implements Startable, Closeable {
         socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
         socketOptions.type = SocketOptions.SocketType.STREAM;
         eventLoopGroup = new EventLoopGroup(1);
-        ipcServerSocketPath = kernel.getNucleusPaths().rootPath()
+        ipcServerSocketAbsolutePath = kernel.getNucleusPaths().rootPath()
                 .resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
-        if (Files.exists(Paths.get(ipcServerSocketPath))) {
+
+        if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
             try {
-                logger.atDebug().log("Deleting the ipc server socket descriptor file");
-                Files.delete(Paths.get(ipcServerSocketPath));
+                logger.atInfo().log("Deleting the ipc server socket descriptor file");
+                Files.delete(Paths.get(ipcServerSocketAbsolutePath));
             } catch (IOException e) {
                 logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file");
             }
         }
         if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
             try {
-                logger.atDebug().log("Deleting the ipc server socket descriptor file symlink");
+                logger.atInfo().log("Deleting the ipc server socket descriptor file symlink");
                 Files.delete(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK));
             } catch (IOException e) {
                 logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file symlink");
             }
         }
         Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
-        kernelUri.withValue(ipcServerSocketPath);
+        kernelUri.withValue(ipcServerSocketAbsolutePath);
         Topic kernelRelativeUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE,
                 NUCLEUS_DOMAIN_SOCKET_COMPONENT_CWD_RELATIVE_FILEPATH);
         kernelRelativeUri.withValue(IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME);
+
         boolean symLinkCreated = false;
+
         try {
             Files.createSymbolicLink(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK),
-                    Paths.get(ipcServerSocketPath));
+                    Paths.get(ipcServerSocketAbsolutePath));
             symLinkCreated = true;
         } catch (IOException e) {
             logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path");
         }
+
         // For domain sockets:
         // 1. Port number is ignored. IpcServer does not accept a null value so we are using a default value.
         // 2. The hostname parameter expects the socket filepath
         ipcServer = new IpcServer(eventLoopGroup, socketOptions, null,
-                symLinkCreated ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK : ipcServerSocketPath, DEFAULT_PORT_NUMBER,
-                greengrassCoreIPCService);
+                symLinkCreated ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK : ipcServerSocketAbsolutePath,
+                DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
         ipcServer.runServer();
     }
+
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private Authorization ipcAuthorizationHandler(AuthenticationData authenticationData) {
@@ -185,8 +190,6 @@ public class IPCEventStreamService implements Startable, Closeable {
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public void close() {
 
-
-        // The symlink does not seem to get removed when removed during start up in the IPCEventStreamServiceTest
         if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
             try {
                 logger.atDebug().log("Deleting the ipc server socket descriptor file symlink");
