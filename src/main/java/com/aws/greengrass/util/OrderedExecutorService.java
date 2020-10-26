@@ -5,13 +5,17 @@ package com.aws.greengrass.util;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import lombok.AccessLevel;
+import lombok.Getter;
 
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.inject.Inject;
 
 /**
  * This Executor warrants task ordering for tasks with same key (key have to implement hashCode and equal methods
@@ -20,8 +24,10 @@ import java.util.concurrent.atomic.AtomicReference;
 public class OrderedExecutorService implements Executor {
     private static final Logger log = LogManager.getLogger(OrderedExecutorService.class);
     private final Executor executor;
+    @Getter(AccessLevel.PACKAGE)
     private final Map<Object, BlockingQueue<Runnable>> keyedOrderedTasks = new ConcurrentHashMap<>();
 
+    @Inject
     public OrderedExecutorService(Executor executor) {
         this.executor = executor;
     }
@@ -47,40 +53,34 @@ public class OrderedExecutorService implements Executor {
             return;
         }
 
-        boolean isFirst = false;
+        AtomicBoolean isFirst = new AtomicBoolean(false);
         Runnable orderedTask;
         synchronized (keyedOrderedTasks) {
+            keyedOrderedTasks.computeIfAbsent(key, o -> {
+                isFirst.set(true);
+                return new LinkedBlockingDeque<>();
+            });
             BlockingQueue<Runnable> dependencyQueue = keyedOrderedTasks.get(key);
-            if (dependencyQueue == null) {
-                dependencyQueue = new LinkedBlockingDeque<>();
-                keyedOrderedTasks.put(key, dependencyQueue);
-                isFirst = true;
-            }
-
-            orderedTask = wrap(task, dependencyQueue, key);
-            if (!isFirst) {
+            orderedTask = new OrderedTask(task, dependencyQueue, key);
+            if (!isFirst.get()) {
                 dependencyQueue.add(orderedTask);
             }
         }
 
         // execute method can block, call it outside synchronize block
-        if (isFirst) {
+        if (isFirst.get()) {
             executor.execute(orderedTask);
         }
     }
 
-    private Runnable wrap(Runnable task, BlockingQueue<Runnable> dependencyQueue, Object key) {
-        return new OrderedTask(task, dependencyQueue, key);
-    }
-
     class OrderedTask implements Runnable {
-        private final BlockingQueue<Runnable> nextOrderedTasksQueue;
+        private final BlockingQueue<Runnable> runnables;
         private final Runnable task;
         private final Object key;
 
-        public OrderedTask(Runnable task, BlockingQueue<Runnable> nextOrderedTasksQueue, Object key) {
+        public OrderedTask(Runnable task, BlockingQueue<Runnable> runnables, Object key) {
             this.task = task;
-            this.nextOrderedTasksQueue = nextOrderedTasksQueue;
+            this.runnables = runnables;
             this.key = key;
         }
 
@@ -98,7 +98,7 @@ public class OrderedExecutorService implements Executor {
                         if (runnables.isEmpty()) {
                             return null;
                         }
-                        nextTask.set(nextOrderedTasksQueue.poll());
+                        nextTask.set(this.runnables.poll());
                         return runnables;
                     });
                 }

@@ -7,6 +7,7 @@ import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.OrderedExecutorService;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -72,7 +72,8 @@ class PubSubIPCEventStreamAgentTest {
     @Captor
     ArgumentCaptor<Permission> permissionArgumentCaptor;
 
-    private final ExecutorService executorService = Executors.newCachedThreadPool();
+    private final OrderedExecutorService orderedExecutorService =
+            new OrderedExecutorService(Executors.newCachedThreadPool());
     private PubSubIPCEventStreamAgent pubSubIPCEventStreamAgent;
 
     @BeforeEach
@@ -80,7 +81,7 @@ class PubSubIPCEventStreamAgentTest {
         lenient().when(mockContext.getContinuation()).thenReturn(mock(ServerConnectionContinuation.class));
         lenient().when(mockContext.getAuthenticationData()).thenReturn(mockAuthenticationData);
         lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_SERVICE);
-        pubSubIPCEventStreamAgent = new PubSubIPCEventStreamAgent(authorizationHandler, executorService);
+        pubSubIPCEventStreamAgent = new PubSubIPCEventStreamAgent(authorizationHandler, orderedExecutorService);
     }
 
     @Test

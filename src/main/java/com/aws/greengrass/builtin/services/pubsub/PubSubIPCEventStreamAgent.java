@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -49,9 +48,10 @@ public class PubSubIPCEventStreamAgent {
     private final AuthorizationHandler authorizationHandler;
 
     @Inject
-    PubSubIPCEventStreamAgent(AuthorizationHandler authorizationHandler, ExecutorService executor) {
+    PubSubIPCEventStreamAgent(AuthorizationHandler authorizationHandler,
+                              OrderedExecutorService orderedExecutorService) {
         this.authorizationHandler = authorizationHandler;
-        orderedExecutorService = new OrderedExecutorService(executor);
+        this.orderedExecutorService = orderedExecutorService;
     }
 
     public SubscribeToTopicOperationHandler getSubscribeToTopicHandler(
@@ -134,12 +134,12 @@ public class PubSubIPCEventStreamAgent {
             log.atDebug().kv(SERVICE_NAME, serviceName)
                     .log("Sending publish event for topic {}", topic);
             if (context instanceof StreamEventPublisher) {
-                orderedExecutorService.execute(() ->
-                        ((StreamEventPublisher<SubscriptionResponseMessage>) context).sendStreamEvent(message),
-                        topic);
+                StreamEventPublisher<SubscriptionResponseMessage> publisher =
+                        (StreamEventPublisher<SubscriptionResponseMessage>) context;
+                orderedExecutorService.execute(() -> publisher.sendStreamEvent(message), publisher);
             } else if (context instanceof Consumer) {
-                orderedExecutorService.execute(() ->
-                        ((Consumer<PublishEvent>) context).accept(publishedEvent), topic);
+                Consumer<PublishEvent> consumer = (Consumer<PublishEvent>) context;
+                orderedExecutorService.execute(() -> consumer.accept(publishedEvent), consumer);
             }
         });
         return new PublishToTopicResponse();
