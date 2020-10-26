@@ -46,20 +46,21 @@ public final class TestFeatureParameters {
      */
     @SuppressWarnings("PMD.CompareObjectsWithEquals") // intentional reference equals
     public static <T> T get(String featureParameterName, T productionValue) {
-        T value = handler.get().get(featureParameterName, productionValue);
-        if (productionValue == value && LOGGER.isDebugEnabled()) {
+        TestFeatureParameterInterface actualHandler = handler.get();
+        T value = actualHandler.get(featureParameterName, productionValue);
+        if (productionValue == value) {
             // Pass through production value logged at debug level
             LOGGER.atDebug().addKeyValue("FeatureParameterName", featureParameterName)
                     .addKeyValue("ProductionValue", productionValue)
                     .log("Production Feature Parameter \"{}\"=\"{}\" via {}", featureParameterName, value,
-                            handler.get().getClass().getSimpleName());
-        } else if (productionValue != value && LOGGER.isTraceEnabled()) {
+                            actualHandler.getClass().getSimpleName());
+        } else {
             // Override occurred, this is intentionally noisy
             LOGGER.atWarn().addKeyValue("FeatureParameterName", featureParameterName)
                     .addKeyValue("ProductionValue", productionValue)
                     .addKeyValue("OverrideValue", value)
                     .log("Override Feature Parameter \"{}\"=\"{}\" via {}", featureParameterName, value,
-                            handler.get().getClass().getSimpleName());
+                            actualHandler.getClass().getSimpleName());
         }
         return value;
     }
