@@ -287,7 +287,7 @@ public class Topics extends Node implements Iterable<Node> {
         if (value instanceof Map) {
             createInteriorChild(key).updateFromMap((Map) value, mergeBehavior);
         } else {
-            createLeafChild(key).withNewerValue(mergeBehavior.getTimestampToUse(), value);
+            createLeafChild(key).withNewerValue(mergeBehavior.getTimestampToUse(), value, false, true);
         }
     }
 
@@ -308,7 +308,7 @@ public class Topics extends Node implements Iterable<Node> {
             if (existingChild != null && !(existingChild instanceof Topic)) {
                 remove(existingChild);
             }
-            createLeafChild(key).withNewerValue(childMergeBehavior.getTimestampToUse(), value);
+            createLeafChild(key).withNewerValue(childMergeBehavior.getTimestampToUse(), value, false, true);
         }
     }
 

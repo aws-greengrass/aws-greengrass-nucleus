@@ -9,8 +9,8 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Pair;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.jr.ob.JSON;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.hamcrest.core.StringContains;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,10 +34,10 @@ import java.util.function.BiConsumer;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.util.Coerce.toInt;
-import static com.fasterxml.jackson.jr.ob.JSON.Feature.PRETTY_PRINT_OUTPUT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -46,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
 @ExtendWith(GGExtension.class)
 class ConfigurationTest {
+
+    private static final ObjectMapper MAPPER = new YAMLMapper();
 
     private Configuration config;
 
@@ -79,7 +81,7 @@ class ConfigurationTest {
     void GIVEN_empty_config_WHEN_nested_topic_created_and_updated_THEN_update_if_timestamp_is_valid() {
         config.lookup("x", "y").addValidator((n, o) -> {
             if (o != null) {
-                assertEquals(toInt(n), toInt(o) + 1);
+                assertEquals(toInt(o) + 1, toInt(n));
             }
             return n;
         });
@@ -129,9 +131,7 @@ class ConfigurationTest {
     void GIVEN_yaml_file_to_merge_WHEN_merge_map_THEN_merge() throws Throwable {
         try (InputStream inputStream = getClass().getResourceAsStream("test.yaml")) {
             assertNotNull(inputStream);
-            config.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
-
-            Topics platforms = config.findTopics("platforms");
+            config.mergeMap(0, MAPPER.readValue(inputStream, Map.class));
 
             Topic testValue = config.lookup("number");
             testValue.addValidator((nv, ov) -> {
@@ -149,7 +149,7 @@ class ConfigurationTest {
             testValue.withValue(-10);
             assertEquals(0, testValue.getOnce());
             StringWriter sw = new StringWriter();
-            JSON.std.with(PRETTY_PRINT_OUTPUT).with(new YAMLFactory()).write(config.toPOJO(), sw);
+            MAPPER.writeValue(sw, config.toPOJO());
             String tc = sw.toString();
             assertThat(tc, StringContains.containsString("\"{platform.invoke} {name}\""));
             assertThat(tc, StringContains.containsString("dependencies:\n    - \"greenlake\""));
@@ -339,7 +339,7 @@ class ConfigurationTest {
 
         Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
-            initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+            initConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
         config.mergeMap(System.currentTimeMillis(), initConfigMap);
         config.context.runOnPublishQueueAndWait(() -> {});
@@ -375,7 +375,7 @@ class ConfigurationTest {
         // WHEN
         Map<String, Object> updateConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
-            updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+            updateConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
         config.updateMap(updateConfigMap,
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
@@ -416,7 +416,7 @@ class ConfigurationTest {
 
         Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
-            initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+            initConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
         config.mergeMap(System.currentTimeMillis(), initConfigMap);
         config.context.runOnPublishQueueAndWait(() -> {});
@@ -431,7 +431,7 @@ class ConfigurationTest {
         // WHEN
         Map<String, Object> updateConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
-            updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+            updateConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
 
         UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
@@ -487,7 +487,7 @@ class ConfigurationTest {
 
         Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
-            initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+            initConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
         config.mergeMap(System.currentTimeMillis(), initConfigMap);
         config.context.runOnPublishQueueAndWait(() -> {});
@@ -510,7 +510,7 @@ class ConfigurationTest {
         // WHEN
         Map<String, Object> updateConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
-            updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+            updateConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
 
         UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
@@ -528,7 +528,7 @@ class ConfigurationTest {
         // THEN
         Map<String, Object> expectedConfig;
         try (InputStream inputStream = new ByteArrayInputStream(expectedResult.getBytes())) {
-            expectedConfig = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+            expectedConfig = MAPPER.readValue(inputStream, Map.class);
         }
         assertEquals(expectedConfig, config.toPOJO());
 
@@ -545,6 +545,7 @@ class ConfigurationTest {
         String initConfig = "---\n"
                 + "nodeToBeMerged:\n"
                 + "  key1: val1\n"
+                + "  key3: val2\n"
                 + "  nodeToBeReplaced:\n"
                 + "    subNodeToBeRemoved: val\n"
                 + "    subNodeToBeMerged:\n"
@@ -554,6 +555,7 @@ class ConfigurationTest {
         String updateConfig = "---\n"
                 + "nodeToBeMerged:\n"
                 + "  key2: val2\n"
+                + "  key3: val2\n"
                 + "  nodeToBeReplaced:\n"
                 + "    subNodeToBeMerged:\n"
                 + "      subKey2: subVal2\n"
@@ -563,6 +565,7 @@ class ConfigurationTest {
                 + "nodeToBeMerged:\n"
                 + "  key1: val1\n"
                 + "  key2: val2\n"
+                + "  key3: val2\n"
                 + "  nodeToBeReplaced:\n"
                 + "    subNodeToBeMerged:\n"
                 + "      subKey1: subVal1\n"
@@ -571,7 +574,7 @@ class ConfigurationTest {
 
         Map<String, Object> initConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
-            initConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+            initConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
         config.mergeMap(System.currentTimeMillis(), initConfigMap);
         config.context.runOnPublishQueueAndWait(() -> {});
@@ -579,9 +582,10 @@ class ConfigurationTest {
         // WHEN
         Map<String, Object> updateConfigMap;
         try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
-            updateConfigMap = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+            updateConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
 
+        long now = System.currentTimeMillis();
         UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
             createNewMap("nodeToBeMerged", new UpdateBehaviorTree(
                     UpdateBehaviorTree.UpdateBehavior.MERGE,
@@ -589,10 +593,10 @@ class ConfigurationTest {
                             UpdateBehaviorTree.UpdateBehavior.REPLACE,
                             createNewMap("subNodeToBeMerged",
                                     new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
-                                            System.currentTimeMillis())),
-                            System.currentTimeMillis()
-                    )), System.currentTimeMillis()
-            )), System.currentTimeMillis()
+                                            now)),
+                            now
+                    )), now
+            )), now
         );
 
         config.updateMap(updateConfigMap, updateBehavior);
@@ -600,9 +604,16 @@ class ConfigurationTest {
         // THEN
         Map<String, Object> expectedConfig;
         try (InputStream inputStream = new ByteArrayInputStream(expectedResult.getBytes())) {
-            expectedConfig = (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream);
+            expectedConfig = MAPPER.readValue(inputStream, Map.class);
         }
         assertEquals(expectedConfig, config.toPOJO());
+        assertEquals(now, config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey2").modtime);
+        assertNotEquals(now,
+                config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey1").modtime);
+        assertEquals(now, config.findNode("nodeToBeAdded").modtime);
+        assertNotEquals(now, config.findNode("nodeToBeMerged", "key1").modtime);
+        assertEquals(now, config.findNode("nodeToBeMerged", "key2").modtime);
+        assertEquals(now, config.findNode("nodeToBeMerged", "key3").modtime);
     }
 
     private <T> Map<String, T> createNewMap(String key, T value) {

@@ -152,21 +152,44 @@ public class Topic extends Node {
     /**
      * Set the value of this topic to a new value.
      *
+     * @param proposedModtime          the last modified time of the value. If this is in the past, we do not update the
+     *                                 value unless this is forced
+     * @param proposed                 new value.
+     * @param allowTimestampToDecrease allow the timestamp to go back in time
+     * @return this
+     */
+    Topic withNewerValue(long proposedModtime, final Object proposed, boolean allowTimestampToDecrease) {
+        return withNewerValue(proposedModtime, proposed, allowTimestampToDecrease, false);
+    }
+
+    /**
+     * Set the value of this topic to a new value.
+     *
      * @param proposedModtime the last modified time of the value. If this is in the past, we do not update the value
      *                       unless this is forced
      * @param proposed        new value.
-     * @param forceTimestamp indicate if the proposed time should be forced.
+     * @param allowTimestampToDecrease allow the timestamp to go back in time
+     * @param allowTimestampToIncrease allow the timestamp to go forward in time without changing the value
      * @return this.
      */
-    synchronized Topic withNewerValue(long proposedModtime, final Object proposed, boolean forceTimestamp) {
+    synchronized Topic withNewerValue(long proposedModtime, final Object proposed, boolean allowTimestampToDecrease,
+                                      boolean allowTimestampToIncrease) {
         final Object currentValue = value;
-        final long currentModtime = modtime;
-        if (Objects.equals(proposed, currentValue) || !forceTimestamp && (proposedModtime < currentModtime)) {
-            return this;
+        final long currentModTime = modtime;
+        final boolean timestampWouldIncrease = allowTimestampToIncrease && proposedModtime > currentModTime;
+
+        if (Objects.equals(proposed, currentValue) || !allowTimestampToDecrease && (proposedModtime < currentModTime)) {
+            if (!timestampWouldIncrease) {
+                return this;
+            }
         }
         final Object validated = validate(proposed, currentValue);
+        boolean changed = true;
         if (Objects.equals(validated, currentValue)) {
-            return this;
+            changed = false;
+            if (!timestampWouldIncrease) {
+                return this;
+            }
         }
 
         if (validated != null && !(validated instanceof String) && !(validated instanceof Number)
@@ -179,7 +202,9 @@ public class Topic extends Node {
 
         value = validated;
         modtime = proposedModtime;
-        context.runOnPublishQueue(() -> this.fire(WhatHappened.changed));
+        if (changed) {
+            context.runOnPublishQueue(() -> this.fire(WhatHappened.changed));
+        }
         return this;
     }
 
