@@ -8,9 +8,9 @@ import com.aws.greengrass.logging.impl.LogManager;
 import lombok.AccessLevel;
 import lombok.Getter;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -25,7 +25,7 @@ public class OrderedExecutorService implements Executor {
     private static final Logger log = LogManager.getLogger(OrderedExecutorService.class);
     private final Executor executor;
     @Getter(AccessLevel.PACKAGE)
-    private final Map<Object, BlockingQueue<Runnable>> keyedOrderedTasks = new ConcurrentHashMap<>();
+    private final Map<Object, BlockingQueue<Runnable>> keyedOrderedTasks = new HashMap<>();
 
     @Inject
     public OrderedExecutorService(Executor executor) {
