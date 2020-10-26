@@ -93,8 +93,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 class IPCServicesTest {
-
-    private final static Logger log = LogManager.getLogger(IPCServicesTest.class);
     private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
     private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
     private static Logger logger = LogManager.getLogger(IPCServicesTest.class);
@@ -277,7 +275,7 @@ class IPCServicesTest {
 
                         @Override
                         public boolean onStreamError(Throwable error) {
-                            log.atError().log("Received stream error.", error);
+                            logger.atError().log("Received stream error.", error);
                             return false;
                         }
 
@@ -333,7 +331,7 @@ class IPCServicesTest {
 
                     @Override
                     public boolean onStreamError(Throwable error) {
-                        log.atError().log("Received stream error.", error);
+                        logger.atError().log("Received stream error.", error);
                         return false;
                     }
 

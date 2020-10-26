@@ -4,6 +4,7 @@ import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCAgent;
+import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.ipc.ConnectionContext;
 import com.aws.greengrass.ipc.IPCRouter;
@@ -22,6 +23,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -48,6 +50,12 @@ public class PubSubIPCService implements Startable, InjectionActions {
     @Inject
     private AuthorizationHandler authorizationHandler;
 
+    @Inject
+    private PubSubIPCEventStreamAgent eventStreamAgent;
+
+    @Inject
+    private GreengrassCoreIPCService greengrassCoreIPCService;
+
     @Override
     public void postInject() {
         BuiltInServiceDestinationCode destination = BuiltInServiceDestinationCode.PUBSUB;
@@ -57,6 +65,8 @@ public class PubSubIPCService implements Startable, InjectionActions {
                 .map(PubSubClientOpCodes::name)
                 .map(String::toLowerCase)
                 .collect(Collectors.toList());
+        opCodes.add(GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC);
+        opCodes.add(GreengrassCoreIPCService.PUBLISH_TO_TOPIC);
         try {
             authorizationHandler.registerComponent(PUB_SUB_SERVICE_NAME, new HashSet<>(opCodes));
         } catch (AuthorizationException e) {
@@ -165,5 +175,9 @@ public class PubSubIPCService implements Startable, InjectionActions {
 
     @Override
     public void startup() {
+        greengrassCoreIPCService.setSubscribeToTopicHandler(
+                context -> eventStreamAgent.getSubscribeToTopicHandler(context));
+        greengrassCoreIPCService.setPublishToTopicHandler(
+                context -> eventStreamAgent.getPublishToTopicHandler(context));
     }
 }
