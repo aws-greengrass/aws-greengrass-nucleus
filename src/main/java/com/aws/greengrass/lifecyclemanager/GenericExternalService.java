@@ -91,6 +91,10 @@ public class GenericExternalService extends GreengrassService {
         this(c, c.lookupTopics(PRIVATE_STORE_NAMESPACE_TOPIC), platform);
     }
 
+    protected GenericExternalService(Topics c, Topics privateSpace) {
+        this(c, privateSpace, Platform.getInstance());
+    }
+
     protected GenericExternalService(Topics c, Topics privateSpace, Platform platform) {
         super(c, privateSpace);
         this.platform = platform;
