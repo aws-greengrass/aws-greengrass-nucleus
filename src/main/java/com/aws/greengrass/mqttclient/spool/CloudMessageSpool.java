@@ -7,4 +7,6 @@ public interface CloudMessageSpool {
     void removeMessageById(Long messageId);
 
     void add(Long id, SpoolMessage message);
+
+    SpoolerStorageType getSpoolerStorageType();
 }
