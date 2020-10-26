@@ -52,8 +52,11 @@ public class IPCEventStreamService implements Startable, Closeable {
     public static final String IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME = "../../ipcEventStreamServer.socket";
 
     public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH = "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH";
-    public static final String NUCLEUS_DOMAIN_SOCKET_COMPONENT_CWD_RELATIVE_FILEPATH =
-            "AWS_GG_NUCLEUS_DOMAIN_SOCKET_COMPONENT_CWD_RELATIVE_FILEPATH";
+    public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT =
+            "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT";
+
+    // https://www.gnu.org/software/libc/manual/html_node/Local-Namespace-Details.html
+    private static final int UDS_SOCKET_PATH_MAX_LEN = 108;
 
     private static Logger logger = LogManager.getLogger(IPCEventStreamService.class);
 
@@ -112,26 +115,26 @@ public class IPCEventStreamService implements Startable, Closeable {
                 logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file");
             }
         }
-        if (Files.exists(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
-            try {
-                logger.atDebug().log("Deleting the nucleus root path symlink");
-                Files.delete(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK));
-            } catch (IOException e) {
-                logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file symlink");
-            }
-        }
+
         Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
         kernelUri.withValue(ipcServerSocketAbsolutePath);
         Topic kernelRelativeUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE,
-                NUCLEUS_DOMAIN_SOCKET_COMPONENT_CWD_RELATIVE_FILEPATH);
-        kernelRelativeUri.withValue(IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME);
+                NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
+        kernelRelativeUri.withValue(ipcServerSocketAbsolutePath);
 
         boolean symLinkCreated = false;
 
         try {
-            Files.createSymbolicLink(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK),
-                    kernel.getNucleusPaths().rootPath());
-            symLinkCreated = true;
+            // Usually we do not want to write outside of kernel root. Because of socket path length limitations we
+            // will create a symlink only if needed
+            if (ipcServerSocketAbsolutePath.length() > UDS_SOCKET_PATH_MAX_LEN) {
+                Files.createSymbolicLink(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), kernel.getNucleusPaths().rootPath());
+                kernelRelativeUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE,
+                        NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
+                kernelRelativeUri.withValue(IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME);
+                symLinkCreated = true;
+            }
+
         } catch (IOException e) {
             logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path");
         }
@@ -210,6 +213,15 @@ public class IPCEventStreamService implements Startable, Closeable {
         }
         if (socketOptions != null) {
             socketOptions.close();
+        }
+        // Removing it during close as CWD might change on next run
+        if (Files.exists(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
+            try {
+                logger.atDebug().log("Deleting the nucleus root path symlink");
+                Files.delete(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK));
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file symlink");
+            }
         }
     }
 }

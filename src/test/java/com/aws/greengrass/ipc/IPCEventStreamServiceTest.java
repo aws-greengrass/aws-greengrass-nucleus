@@ -9,8 +9,6 @@ import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.NucleusPaths;
@@ -36,17 +34,13 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
 import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermission;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.ipc.IPCEventStreamService.IPC_SERVER_DOMAIN_SOCKET_FILENAME;
-import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_COMPONENT_CWD_RELATIVE_FILEPATH;
+import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -57,7 +51,6 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class IPCEventStreamServiceTest {
-    private static Logger logger = LogManager.getLogger(IPCEventStreamService.class);
     private IPCEventStreamService ipcEventStreamService;
     protected static ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
@@ -89,10 +82,7 @@ public class IPCEventStreamServiceTest {
     private AuthorizationHandler mockAuthorizationHandler;
 
     @BeforeEach
-    public void setup() throws IOException {
-        Set<PosixFilePermission> filePermissions = Files.getPosixFilePermissions(mockRootPath);
-        filePermissions.stream().forEach(perm -> logger.atInfo().log(perm));
-
+    public void setup() {
         AuthenticationData authenticationData = new AuthenticationData() {
             @Override
             public String getIdentityLabel() {
@@ -113,7 +103,7 @@ public class IPCEventStreamServiceTest {
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
                 eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
-                eq(NUCLEUS_DOMAIN_SOCKET_COMPONENT_CWD_RELATIVE_FILEPATH))).thenReturn(mockRelativePath);
+                eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
         ipcEventStreamService.startup();
     }
 
@@ -126,16 +116,15 @@ public class IPCEventStreamServiceTest {
     @SuppressWarnings("PMD.CloseResource")
     public void testClientConnection() throws Exception {
         CountDownLatch connectionLatch = new CountDownLatch(1);
-
+        EventStreamRPCConnection connection = null;
         try (EventLoopGroup elg = new EventLoopGroup(1);
              ClientBootstrap clientBootstrap = new ClientBootstrap(elg, new HostResolver(elg));
              SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC()) {
 
             String ipcServerSocketPath = mockRootPath.resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
-            final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elg,
-                    socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER,
-                    GreengrassConnectMessageSupplier.connectMessageSupplier("authToken"));
-            final EventStreamRPCConnection connection = new EventStreamRPCConnection(config);
+            final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elg, socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER, GreengrassConnectMessageSupplier
+                    .connectMessageSupplier("authToken"));
+            connection = new EventStreamRPCConnection(config);
             final boolean disconnected[] = {false};
             final int disconnectedCode[] = {-1};
             //this is a bit cumbersome but does not prevent a convenience wrapper from exposing a sync
@@ -160,7 +149,10 @@ public class IPCEventStreamServiceTest {
                 }
             });
             assertTrue(connectionLatch.await(2, TimeUnit.SECONDS));
-            connection.close();
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
         }
     }
 }
