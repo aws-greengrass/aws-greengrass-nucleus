@@ -41,10 +41,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -63,7 +61,6 @@ public class ComponentManager implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(ComponentManager.class);
     private static final String GREENGRASS_SCHEME = "GREENGRASS";
     private static final String S3_SCHEME = "S3";
-    private static final String VERSION_KEY = "version";
     private static final String PACKAGE_NAME_KEY = "packageName";
     private static final String PACKAGE_IDENTIFIER = "packageIdentifier";
 
@@ -111,64 +108,6 @@ public class ComponentManager implements InjectionActions {
         this.unarchiver = unarchiver;
         this.deviceConfiguration = deviceConfiguration;
         this.nucleusPaths = nucleusPaths;
-    }
-
-    /**
-     * List the package metadata for available package versions that satisfy the requirement. It is ordered by the
-     * active version first if found, followed by available versions locally.
-     *
-     * @param packageName        the package name
-     * @param versionRequirement the version requirement for this package
-     * @return an iterator of PackageMetadata, with the active version first if found, followed by available versions
-     *         locally.
-     * @throws PackagingException if fails when trying to list available package metadata
-     */
-    Iterator<ComponentMetadata> listAvailablePackageMetadata(String packageName, Requirement versionRequirement)
-            throws PackagingException {
-        // TODO Switch to customized Iterator to enable lazy iteration
-
-        // 1. Find the version if this package is currently active with some version and it is satisfied by requirement
-        Optional<ComponentMetadata> optionalActivePackageMetadata =
-                findActiveAndSatisfiedPackageMetadata(packageName, versionRequirement);
-
-        // 2. list available packages locally
-        List<ComponentMetadata> componentMetadataList =
-                new ArrayList<>(componentStore.listAvailablePackageMetadata(packageName, versionRequirement));
-
-        // 3. If the active satisfied version presents, set it as the head of list.
-        if (optionalActivePackageMetadata.isPresent()) {
-            ComponentMetadata activeComponentMetadata = optionalActivePackageMetadata.get();
-
-            logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
-                    .addKeyValue(VERSION_KEY, activeComponentMetadata.getComponentIdentifier().getVersion())
-                    .log("Found active version for dependency package and it is satisfied by the version requirement."
-                            + " Setting it as the head of the available package list.");
-
-            componentMetadataList.remove(activeComponentMetadata);
-            componentMetadataList.add(0, activeComponentMetadata);
-        }
-
-        // keep logs clean when operating in offline mode
-        if (deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            try {
-                componentMetadataList.addAll(
-                        componentServiceHelper.listAvailableComponentMetadata(packageName, versionRequirement));
-
-            } catch (PackageDownloadException e) {
-                logger.atInfo("list-package-versions")
-                        .addKeyValue(PACKAGE_NAME_KEY, packageName)
-                        .log("Failed when calling Component Management Service to list available versions", e);
-            }
-        } else {
-            logger.atInfo("list-package-versions").log("Device in offline mode, "
-                    + "cannot call Component Management Service to list available versions");
-        }
-
-
-        logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
-                .addKeyValue("packageMetadataList", componentMetadataList)
-                .log("Found possible versions for dependency package");
-        return componentMetadataList.iterator();
     }
 
     ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements,
