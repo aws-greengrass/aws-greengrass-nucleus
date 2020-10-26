@@ -31,6 +31,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAM
  */
 public class UnixRunWithGenerator implements RunWithGenerator {
     public static final Logger logger = LogManager.getLogger(UnixRunWithGenerator.class);
+    public static final String EVENT_TYPE = "generate-service-run-with-user-configuration";
 
     private final UnixPlatform platform;
 
@@ -52,6 +53,10 @@ public class UnixRunWithGenerator implements RunWithGenerator {
         boolean isDefault = false;
 
         if (Utils.isEmpty(user)) {
+            logger.atDebug()
+                    .setEventType(EVENT_TYPE)
+                    .log("No component user, check default");
+
             user = Coerce.toString(deviceConfig.getRunWithDefaultPosixUser());
             group = Coerce.toString(deviceConfig.getRunWithDefaultPosixGroup());
             isDefault = true;
@@ -59,9 +64,16 @@ public class UnixRunWithGenerator implements RunWithGenerator {
 
             // fallback to nucleus user if we aren't root
             if (Utils.isEmpty(user)) {
+                logger.atDebug()
+                        .setEventType(EVENT_TYPE)
+                        .log("No default user, check current user");
                 try {
                     UnixUserAttributes attrs = platform.lookupCurrentUser();
-                    if (!attrs.isSuperUser()) {
+                    if (attrs.isSuperUser()) {
+                        logger.atDebug()
+                                .setEventType(EVENT_TYPE)
+                                .log("Cannot fallback to super user");
+                    } else {
                         user = attrs.getPrincipalName();
 
                         if (!attrs.getPrimaryGID().isPresent()) {
@@ -73,7 +85,7 @@ public class UnixRunWithGenerator implements RunWithGenerator {
                     }
                 } catch (IOException e) {
                     logger.atError()
-                            .setEventType("generate-service-run-with-user-configuration")
+                            .setEventType(EVENT_TYPE)
                             .setCause(e)
                             .log("Could not lookup current user and no default or override is present.");
                     return Optional.empty();
@@ -81,13 +93,16 @@ public class UnixRunWithGenerator implements RunWithGenerator {
             }
 
             if (Utils.isEmpty(user)) {
+                logger.atDebug()
+                        .setEventType(EVENT_TYPE)
+                        .log("No user found");
                 return Optional.empty();
             } else if (Utils.isEmpty(group)) {
                 try {
                     UnixUserAttributes attrs = platform.lookupUserByIdentifier(user);
                     if (!attrs.getPrimaryGID().isPresent()) {
                         logger.atWarn()
-                                .setEventType("generate-service-run-with-user-configuration")
+                                .setEventType(EVENT_TYPE)
                                 .kv("user", user)
                                 .log("No primary group set for user.");
                         return Optional.empty();
@@ -95,7 +110,7 @@ public class UnixRunWithGenerator implements RunWithGenerator {
                     group = Long.toString(attrs.getPrimaryGID().get());
                 } catch (IOException e) {
                     logger.atError()
-                            .setEventType("generate-service-run-with-user-configuration")
+                            .setEventType(EVENT_TYPE)
                             .setCause(e)
                             .kv("user", user)
                             .log("Could not lookup user.");

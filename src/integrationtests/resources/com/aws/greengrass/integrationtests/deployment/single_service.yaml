@@ -5,6 +5,8 @@ services:
         posixUser: nobody
 
   main:
+    dependencies:
+      - aws.greengrass.Nucleus
     lifecycle:
       posix:
         run:

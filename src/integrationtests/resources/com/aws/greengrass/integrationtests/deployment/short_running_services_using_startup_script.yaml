@@ -29,6 +29,7 @@ services:
     dependencies:
       - sleeperA
       - sleeperB
+      - aws.greengrass.Nucleus
     lifecycle:
       posix:
         run: |-

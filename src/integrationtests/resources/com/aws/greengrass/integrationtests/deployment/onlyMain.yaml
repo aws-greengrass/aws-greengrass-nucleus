@@ -10,5 +10,4 @@ services:
       install:
         all: echo All installed
     dependencies:
-      posix:
-      windows:
+      - aws.greengrass.Nucleus

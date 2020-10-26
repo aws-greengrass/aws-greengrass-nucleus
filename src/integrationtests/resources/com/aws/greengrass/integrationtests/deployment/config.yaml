@@ -13,3 +13,4 @@ services:
         all: echo All installed
     dependencies:
       - bar
+      - aws.greengrass.Nucleus

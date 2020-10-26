@@ -3,9 +3,11 @@ services:
     parameters:
       runWithDefault:
         posixUser: nobody
+
   main:
     dependencies:
       - nondisruptable
+      - aws.greengrass.Nucleus
   nondisruptable:
     lifecycle:
       install:
