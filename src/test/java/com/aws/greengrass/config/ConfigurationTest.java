@@ -37,7 +37,6 @@ import static com.aws.greengrass.util.Coerce.toInt;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -576,7 +575,8 @@ class ConfigurationTest {
         try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
             initConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
-        config.mergeMap(System.currentTimeMillis(), initConfigMap);
+        long then = 10_000;
+        config.mergeMap(then, initConfigMap);
         config.context.runOnPublishQueueAndWait(() -> {});
 
         // WHEN
@@ -608,10 +608,10 @@ class ConfigurationTest {
         }
         assertEquals(expectedConfig, config.toPOJO());
         assertEquals(now, config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey2").modtime);
-        assertNotEquals(now,
+        assertEquals(then,
                 config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey1").modtime);
         assertEquals(now, config.findNode("nodeToBeAdded").modtime);
-        assertNotEquals(now, config.findNode("nodeToBeMerged", "key1").modtime);
+        assertEquals(then, config.findNode("nodeToBeMerged", "key1").modtime);
         assertEquals(now, config.findNode("nodeToBeMerged", "key2").modtime);
         assertEquals(now, config.findNode("nodeToBeMerged", "key3").modtime);
     }

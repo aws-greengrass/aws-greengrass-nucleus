@@ -169,25 +169,27 @@ public class Topic extends Node {
      *                       unless this is forced
      * @param proposed        new value.
      * @param allowTimestampToDecrease allow the timestamp to go back in time
-     * @param allowTimestampToIncrease allow the timestamp to go forward in time without changing the value
+     * @param allowTimestampToIncreaseWhenValueHasntChanged allow the timestamp to go forward in time even if the
+     *                                                      proposed value is the same as the current value
      * @return this.
      */
     synchronized Topic withNewerValue(long proposedModtime, final Object proposed, boolean allowTimestampToDecrease,
-                                      boolean allowTimestampToIncrease) {
+                                      boolean allowTimestampToIncreaseWhenValueHasntChanged) {
         final Object currentValue = value;
         final long currentModTime = modtime;
-        final boolean timestampWouldIncrease = allowTimestampToIncrease && proposedModtime > currentModTime;
+        boolean timestampWouldIncrease =
+                allowTimestampToIncreaseWhenValueHasntChanged && proposedModtime > currentModTime;
 
-        if (Objects.equals(proposed, currentValue) || !allowTimestampToDecrease && (proposedModtime < currentModTime)) {
-            if (!timestampWouldIncrease) {
-                return this;
-            }
+        if ((Objects.equals(proposed, currentValue)
+                || !allowTimestampToDecrease && (proposedModtime < currentModTime))
+                && !timestampWouldIncrease || proposed == null && value == null) {
+            return this;
         }
         final Object validated = validate(proposed, currentValue);
         boolean changed = true;
         if (Objects.equals(validated, currentValue)) {
             changed = false;
-            if (!timestampWouldIncrease) {
+            if (!timestampWouldIncrease || validated == null) {
                 return this;
             }
         }
