@@ -42,7 +42,6 @@ import static com.aws.greengrass.testcommons.testutilities.TestUtils.createClose
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -351,7 +350,6 @@ class GenericExternalServiceTest extends BaseITCase {
             assertTrue(countDownLatch.await(20, TimeUnit.SECONDS), "expect log finished");
             assertThat(stdouts, hasItem(containsString(String.format("install as %s", expectedInstallUser))));
             assertThat(stdouts, hasItem(containsString(String.format("run as %s", expectedRunUser))));
-            assertThat(stdouts, instanceOf(String.class));
         }
     }
 
