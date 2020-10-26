@@ -52,11 +52,27 @@ public class SpawnedProcessProtector implements AfterAllCallback, AfterEachCallb
                     br.lines().forEach(System.err::println);
                 }
 
-                // Kill the stray process
-                proc = new ProcessBuilder().command("sudo", "kill", "-9", pid).start();
-                proc.waitFor(10, TimeUnit.SECONDS);
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
-                    br.lines().forEach(System.err::println);
+                boolean first = true;
+                while (true) {
+                    // Kill the stray process
+                    List<String> command = new ArrayList<>();
+                    if (first) {
+                        command.add("sudo");
+                        command.add("-n"); // non-interactive
+                        command.add("--"); // end sudo args
+                    }
+                    command.add("kill");
+                    command.add("-9");
+                    command.add(pid);
+                    proc = new ProcessBuilder().command(command).start();
+                    boolean exited = proc.waitFor(10, TimeUnit.SECONDS);
+                    try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                        br.lines().forEach(System.err::println);
+                    }
+                    if (exited || !first) {
+                        break;
+                    }
+                    first = false;
                 }
             }
 
