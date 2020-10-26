@@ -80,9 +80,7 @@ class PubSubIPCEventStreamAgentTest {
         lenient().when(mockContext.getContinuation()).thenReturn(mock(ServerConnectionContinuation.class));
         lenient().when(mockContext.getAuthenticationData()).thenReturn(mockAuthenticationData);
         lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_SERVICE);
-        pubSubIPCEventStreamAgent = new PubSubIPCEventStreamAgent();
-        pubSubIPCEventStreamAgent.setExecutor(executorService);
-        pubSubIPCEventStreamAgent.setAuthorizationHandler(authorizationHandler);
+        pubSubIPCEventStreamAgent = new PubSubIPCEventStreamAgent(authorizationHandler, executorService);
     }
 
     @Test

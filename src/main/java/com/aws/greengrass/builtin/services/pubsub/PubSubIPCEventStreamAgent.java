@@ -8,12 +8,12 @@ import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.OrderedExecutorService;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.Setter;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractPublishToTopicOperationHandler;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractSubscribeToTopicOperationHandler;
 import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
@@ -33,7 +33,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -43,17 +42,17 @@ public class PubSubIPCEventStreamAgent {
     private static final Logger log = LogManager.getLogger(PubSubIPCEventStreamAgent.class);
     private static final String SERVICE_NAME = "service-name";
     private static final ObjectMapper SERIALIZER = new ObjectMapper();
-    private static final ExecutorService singleThreadedExecutor = Executors.newSingleThreadExecutor();
     @Getter(AccessLevel.PACKAGE)
     private final Map<String, Set<Object>> listeners = new ConcurrentHashMap<>();
 
-    @Inject
-    @Setter(AccessLevel.PACKAGE)
-    private ExecutorService executor;
+    private final OrderedExecutorService orderedExecutorService;
+    private final AuthorizationHandler authorizationHandler;
 
     @Inject
-    @Setter(AccessLevel.PACKAGE)
-    private AuthorizationHandler authorizationHandler;
+    PubSubIPCEventStreamAgent(AuthorizationHandler authorizationHandler, ExecutorService executor) {
+        this.authorizationHandler = authorizationHandler;
+        orderedExecutorService = new OrderedExecutorService(executor);
+    }
 
     public SubscribeToTopicOperationHandler getSubscribeToTopicHandler(
             OperationContinuationHandlerContext context) {
@@ -76,7 +75,7 @@ public class PubSubIPCEventStreamAgent {
     }
 
     /**
-     * Unsubscribe from a topic.
+     * Unsubscribe from a topic for internal plugin services.
      *
      * @param topic       topic name.
      * @param cb          callback to remove from subscription
@@ -135,11 +134,12 @@ public class PubSubIPCEventStreamAgent {
             log.atDebug().kv(SERVICE_NAME, serviceName)
                     .log("Sending publish event for topic {}", topic);
             if (context instanceof StreamEventPublisher) {
-                singleThreadedExecutor.execute(() ->
-                        ((StreamEventPublisher<SubscriptionResponseMessage>) context).sendStreamEvent(message));
+                orderedExecutorService.execute(() ->
+                        ((StreamEventPublisher<SubscriptionResponseMessage>) context).sendStreamEvent(message),
+                        topic);
             } else if (context instanceof Consumer) {
-                singleThreadedExecutor.execute(() ->
-                        ((Consumer<PublishEvent>) context).accept(publishedEvent));
+                orderedExecutorService.execute(() ->
+                        ((Consumer<PublishEvent>) context).accept(publishedEvent), topic);
             }
         });
         return new PublishToTopicResponse();
