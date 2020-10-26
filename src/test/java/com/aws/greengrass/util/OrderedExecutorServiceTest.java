@@ -17,10 +17,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class OrderedExecutorServiceTest {
     private static OrderedExecutorService orderedExecutorService;
+    private volatile static Throwable lastThrownException = null;
 
     @BeforeAll
     static void startUp() {
@@ -55,12 +57,20 @@ class OrderedExecutorServiceTest {
         while (!orderedExecutorService.getKeyedOrderedTasks().isEmpty()) {
             TimeUnit.SECONDS.sleep(1);
         }
+
+        if(lastThrownException != null) {
+            fail(lastThrownException.getMessage(), lastThrownException);
+        }
     }
 
     private Runnable createRunnable(final String randomStringToCheck, final Queue<String> queue){
         return () -> {
             String firstRandomVarFromQueue = queue.poll();
-            assertEquals(randomStringToCheck, firstRandomVarFromQueue);
+            try {
+                assertEquals(randomStringToCheck, firstRandomVarFromQueue);
+            } catch (AssertionError e) {
+                lastThrownException = e;
+            }
         };
     }
 }
