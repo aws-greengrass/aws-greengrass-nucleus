@@ -38,7 +38,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.slf4j.event.Level;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
@@ -97,9 +96,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
     @BeforeAll
     static void initialize() {
-
-        LogManager.getRootLogConfiguration().setLevel(Level.DEBUG);
-
         socketOptions = TestUtils.getSocketOptionsForIPC();
     }
 
