@@ -9,26 +9,21 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.model.ComponentCandidate;
 import com.amazonaws.services.evergreen.model.ComponentContent;
-import com.amazonaws.services.evergreen.model.ComponentNameVersion;
 import com.amazonaws.services.evergreen.model.ComponentPlatform;
 import com.amazonaws.services.evergreen.model.CreateComponentRequest;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
 import com.amazonaws.services.evergreen.model.DeleteComponentRequest;
 import com.amazonaws.services.evergreen.model.DeleteComponentResult;
-import com.amazonaws.services.evergreen.model.FindComponentVersionsByPlatformRequest;
-import com.amazonaws.services.evergreen.model.FindComponentVersionsByPlatformResult;
 import com.amazonaws.services.evergreen.model.GetComponentRequest;
 import com.amazonaws.services.evergreen.model.GetComponentResult;
 import com.amazonaws.services.evergreen.model.RecipeFormatType;
 import com.amazonaws.services.evergreen.model.ResolveComponentVersionsRequest;
 import com.amazonaws.services.evergreen.model.ResolveComponentVersionsResult;
-import com.amazonaws.services.evergreen.model.ResolvedComponent;
 import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
 import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -41,9 +36,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -60,43 +53,6 @@ public class ComponentServiceHelper {
     @Inject
     public ComponentServiceHelper(GreengrassComponentServiceClientFactory clientFactory) {
         this.evgCmsClient = clientFactory.getCmsClient();
-    }
-
-    List<ComponentMetadata> listAvailableComponentMetadata(String componentName, Requirement versionRequirement)
-            throws PackageDownloadException {
-        List<ComponentMetadata> ret = new ArrayList<>();
-
-        FindComponentVersionsByPlatformRequest findComponentRequest =
-                new FindComponentVersionsByPlatformRequest().withComponentName(componentName)
-                        .withVersionConstraint(versionRequirement.toString())
-                        .withOs(PlatformResolver.CURRENT_PLATFORM.getOs().getName())
-                        .withArchitecture(PlatformResolver.CURRENT_PLATFORM.getArchitecture().getName());
-        try {
-            // TODO: If cloud properly sorts the response, then we can optimize this and possibly
-            //  not go through all the pagination
-            String pagination = null;
-            do {
-                FindComponentVersionsByPlatformResult findComponentResult = evgCmsClient
-                        .findComponentVersionsByPlatform(findComponentRequest.withLastPaginationToken(pagination));
-                pagination = findComponentResult.getLastPaginationToken();
-                List<ResolvedComponent> componentSelectedMetadataList = findComponentResult.getComponents();
-
-                ret.addAll(componentSelectedMetadataList.stream().map(componentMetadata -> {
-                    ComponentIdentifier componentIdentifier =
-                            new ComponentIdentifier(componentMetadata.getComponentName(),
-                                    new Semver(componentMetadata.getComponentVersion()));
-                    return new ComponentMetadata(componentIdentifier, componentMetadata.getDependencies().stream()
-                            .collect(Collectors.toMap(ComponentNameVersion::getComponentName,
-                                    ComponentNameVersion::getComponentVersionConstraint)));
-                }).collect(Collectors.toList()));
-            } while (pagination != null);
-        } catch (AmazonClientException e) {
-            // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
-            throw new PackageDownloadException(
-                    "No valid versions were found for this package based on provided requirement", e);
-        }
-        ret.sort(null);
-        return ret;
     }
 
     /**
