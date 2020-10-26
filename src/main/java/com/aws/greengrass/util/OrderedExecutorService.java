@@ -14,7 +14,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
 /**
@@ -56,11 +55,10 @@ public class OrderedExecutorService implements Executor {
         AtomicBoolean isFirst = new AtomicBoolean(false);
         Runnable orderedTask;
         synchronized (keyedOrderedTasks) {
-            keyedOrderedTasks.computeIfAbsent(key, o -> {
+            BlockingQueue<Runnable> dependencyQueue = keyedOrderedTasks.computeIfAbsent(key, o -> {
                 isFirst.set(true);
                 return new LinkedBlockingDeque<>();
             });
-            BlockingQueue<Runnable> dependencyQueue = keyedOrderedTasks.get(key);
             orderedTask = new OrderedTask(task, dependencyQueue, key);
             if (!isFirst.get()) {
                 dependencyQueue.add(orderedTask);
@@ -92,18 +90,17 @@ public class OrderedExecutorService implements Executor {
             } catch (Throwable e) {
                 log.atError().cause(e).log("Error executing ordered task for key: {}", this.key);
             } finally {
-                AtomicReference<Runnable> nextTask = new AtomicReference<>();
                 synchronized (keyedOrderedTasks) {
                     keyedOrderedTasks.computeIfPresent(key, (o, runnables) -> {
                         if (runnables.isEmpty()) {
                             return null;
                         }
-                        nextTask.set(this.runnables.poll());
+                        Runnable runnable = this.runnables.poll();
+                        if (runnable != null) {
+                            executor.execute(runnable);
+                        }
                         return runnables;
                     });
-                }
-                if (nextTask.get() != null) {
-                    executor.execute(nextTask.get());
                 }
             }
         }
