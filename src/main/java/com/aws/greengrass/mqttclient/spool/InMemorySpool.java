@@ -14,14 +14,17 @@ public class InMemorySpool implements CloudMessageSpool {
 
     @Override
     public void removeMessageById(Long messageId) {
-        if (messages.get(messageId) != null) {
-            messages.remove(messageId);
-        }
+        messages.remove(messageId);
     }
 
     @Override
     public void add(Long id, SpoolMessage message) {
         messages.put(id, message);
+    }
+
+    @Override
+    public SpoolerStorageType getSpoolerStorageType() {
+        return SpoolerStorageType.Memory;
     }
 
 }

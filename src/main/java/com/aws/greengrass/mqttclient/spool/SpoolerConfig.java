@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Getter;
 
 @Builder
-@AllArgsConstructor
 @Getter
 public class SpoolerConfig {
     private SpoolerStorageType spoolStorageType;
