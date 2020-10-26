@@ -315,8 +315,8 @@ class GenericExternalServiceTest extends BaseITCase {
     @EnabledOnOs({OS.LINUX, OS.MAC})
     @ParameterizedTest
     @MethodSource("posixTestUserConfig")
-    void GIVEN_posix_default_user_WHEN_runs_THEN_runs_with_default_user(String file, String expectedInstallUid,
-                                                                        String expectedRunUid)
+    void GIVEN_posix_default_user_WHEN_runs_THEN_runs_with_default_user(String file, String expectedInstallUser,
+                                                                        String expectedRunUser)
             throws Exception {
 
         CountDownLatch countDownLatch = new CountDownLatch(2);
@@ -346,18 +346,18 @@ class GenericExternalServiceTest extends BaseITCase {
             });
             kernel.launch();
 
-            assertTrue(main.await(10, TimeUnit.SECONDS), "main finished");
-            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS), "expect log finished");
-            assertThat(stdouts, hasItem(containsString(String.format("install as %s", expectedInstallUid))));
-            assertThat(stdouts, hasItem(containsString(String.format("run as %s", expectedRunUid))));
+            assertTrue(main.await(20, TimeUnit.SECONDS), "main finished");
+            assertTrue(countDownLatch.await(20, TimeUnit.SECONDS), "expect log finished");
+            assertThat(stdouts, hasItem(containsString(String.format("install as %s", expectedInstallUser))));
+            assertThat(stdouts, hasItem(containsString(String.format("run as %s", expectedRunUser))));
         }
     }
 
     static Stream<Arguments> posixTestUserConfig() {
         return Stream.of(
-                arguments("config_run_with_user.yaml", "1", "1"),
-                arguments("config_run_with_user_shell.yaml", "1", "1"),
-                arguments("config_run_with_privilege.yaml", "1", "0")
+                arguments("config_run_with_user.yaml", "nobody", "nobody"),
+                arguments("config_run_with_user_shell.yaml", "nobody", "nobody"),
+                arguments("config_run_with_privilege.yaml", "nobody", "root")
         );
     }
 }

@@ -9,6 +9,8 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.RunWith;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.RunWithGenerator;
@@ -28,6 +30,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAM
  * and  group must be provided.
  */
 public class UnixRunWithGenerator implements RunWithGenerator {
+    public static final Logger logger = LogManager.getLogger(UnixRunWithGenerator.class);
 
     private final UnixPlatform platform;
 
@@ -54,38 +57,54 @@ public class UnixRunWithGenerator implements RunWithGenerator {
             isDefault = true;
         }
 
-        try {
             // fallback to nucleus user if we aren't root
             if (Utils.isEmpty(user)) {
-                UnixUserAttributes attrs = platform.lookupCurrentUser();
-                if (!attrs.isSuperUser()) {
-                    user = attrs.getPrincipalName();
+                try {
+                    UnixUserAttributes attrs = platform.lookupCurrentUser();
+                    if (!attrs.isSuperUser()) {
+                        user = attrs.getPrincipalName();
 
-                    if (!attrs.getPrimaryGID().isPresent()) {
-                        // this should never happen - a user that is running has a group
-                        return Optional.empty();
+                        if (!attrs.getPrimaryGID().isPresent()) {
+                            // this should never happen - a user that is running has a group
+                            return Optional.empty();
+                        }
+                        group = Long.toString(attrs.getPrimaryGID().get());
+                        isDefault = false;
                     }
-                    group = Long.toString(attrs.getPrimaryGID().get());
-                    isDefault = false;
+                } catch (IOException e) {
+                    logger.atError()
+                            .setEventType("generate-service-run-with-user-configuration")
+                            .setCause(e)
+                            .log("Could not lookup current user and no default or override is present.");
+                    return Optional.empty();
                 }
             }
 
             if (Utils.isEmpty(user)) {
                 return Optional.empty();
             } else if (Utils.isEmpty(group)) {
-                UnixUserAttributes attrs = platform.lookupUserByIdentifier(user);
-                if (!attrs.getPrimaryGID().isPresent()) {
+                try {
+                    UnixUserAttributes attrs = platform.lookupUserByIdentifier(user);
+                    if (!attrs.getPrimaryGID().isPresent()) {
+                        logger.atWarn()
+                                .setEventType("generate-service-run-with-user-configuration")
+                                .kv("user", user)
+                                .log("No primary group set for user.");
+                        return Optional.empty();
+                    }
+                    group = Long.toString(attrs.getPrimaryGID().get());
+                } catch (IOException e) {
+                    logger.atError()
+                            .setEventType("generate-service-run-with-user-configuration")
+                            .setCause(e)
+                            .kv("user", user)
+                            .log("Could not lookup user.");
                     return Optional.empty();
                 }
-                group = Long.toString(attrs.getPrimaryGID().get());
             }
             return Optional.of(RunWith.builder().user(user).group(group).isDefault(isDefault)
                     // shell cannot be changed from kernel default
                     .shell(Coerce.toString(deviceConfig.getRunWithDefaultPosixShell())).build());
-        } catch (IOException e) {
-
-            return Optional.empty();
-        }
     }
 
     @Override

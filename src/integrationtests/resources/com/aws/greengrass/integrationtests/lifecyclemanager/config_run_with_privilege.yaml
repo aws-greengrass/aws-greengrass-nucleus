@@ -1,10 +1,10 @@
 ---
-system:
-  runWithDefault:
-    posixUser: bin
-    posixGroup: bin
-
 services:
+  aws.greengrass.Nucleus:
+    parameters:
+      runWithDefault:
+        posixUser: nobody
+
   main:
     dependencies:
       - echo_service
@@ -15,9 +15,9 @@ services:
   echo_service:
     lifecycle:
       install:
-        posix: echo "install as `id -u`"
+        posix: echo "install as `id -u -n`"
       run:
         posix:
           requiresPrivilege: true
-          script: echo "run as `id -u`"
+          script: echo "run as `id -u -n`"
     version: 1.0.0
