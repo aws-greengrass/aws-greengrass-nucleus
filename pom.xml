@@ -318,6 +318,39 @@
                 </executions>
             </plugin>
             <plugin>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>4.0.rc2</version>
+                <configuration>
+                    <licenseSets>
+                        <licenseSet>
+                            <header>.license/header.txt</header>
+                            <headerDefinitions>
+                                <headerDefinition>.license/style.xml</headerDefinition>
+                            </headerDefinitions>
+                            <useDefaultExcludes>true</useDefaultExcludes>
+                            <excludes>
+                                <exclude>*</exclude>
+                                <exclude>codestyle/**</exclude>
+                                <exclude>src/test/greengrass-nucleus-benchmark/**</exclude>
+                                <exclude>src/*/resources/**</exclude>
+                            </excludes>
+                        </licenseSet>
+                    </licenseSets>
+                    <mapping>
+                        <java>JAVA_STYLE</java>
+                    </mapping>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>com.github.spotbugs</groupId>
                 <artifactId>spotbugs-maven-plugin</artifactId>
                 <version>4.0.0</version>
