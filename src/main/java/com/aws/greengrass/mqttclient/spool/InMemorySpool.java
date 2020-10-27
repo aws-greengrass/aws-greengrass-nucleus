@@ -1,6 +1,7 @@
 package com.aws.greengrass.mqttclient.spool;
 
 import com.aws.greengrass.mqttclient.PublishRequest;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 

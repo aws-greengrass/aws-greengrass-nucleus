@@ -65,7 +65,7 @@ public class Spool {
                 // re-set the spoolerConfig
                 setSpoolerConfig(this.deviceConfiguration.getSpoolerNamespace());
                 // TODO: does this needed? remove the oldest message if the spooler queue should be truncated
-                if (curMessageQueueSizeInBytes.get() > maxSpoolerSizeInBytes() ) {
+                if (curMessageQueueSizeInBytes.get() > maxSpoolerSizeInBytes()) {
                     removeOldestMessage();
                     logger.atDebug().log("spooler queue is full and will remove the oldest unsent message");
                 }
@@ -78,7 +78,11 @@ public class Spool {
         });
     }
 
-    // For unit test
+    /**
+     * Here is the constructor for the test.
+     * @param deviceConfiguration      device configuration
+     * @param config                   spooler configuration
+     */
     public Spool(DeviceConfiguration deviceConfiguration, SpoolerConfig config) {
         this.deviceConfiguration = deviceConfiguration;
         this.config = config;
@@ -110,8 +114,8 @@ public class Spool {
      *
      * @param id MessageId
      */
-    public void addId(Long id) throws InterruptedException {
-        queueOfMessageId.putFirst(id);
+    public void addId(Long id) {
+        queueOfMessageId.offerFirst(id);
     }
 
     /**
@@ -120,14 +124,14 @@ public class Spool {
      *
      * @param request publish request
      * @throws InterruptedException result from the queue implementation
+     * @throws SpoolerLoadException  leads to the failure to insert the message to the spooler
      */
     public synchronized Long addMessage(PublishRequest request) throws InterruptedException, SpoolerLoadException {
-        Long id = nextId.getAndIncrement();
         int messageSizeInBytes = request.getPayload().length;
         if (messageSizeInBytes > maxSpoolerSizeInBytes()) {
             throw new SpoolerLoadException("the size of message has exceeds the maximum size of spooler.");
         }
-
+        System.out.println("*** addMessage 3 ***");
         curMessageQueueSizeInBytes.getAndAdd(messageSizeInBytes);
         if (curMessageQueueSizeInBytes.get() > maxSpoolerSizeInBytes()) {
             removeOldestMessage();
@@ -139,6 +143,7 @@ public class Spool {
             throw new SpoolerLoadException("spooler queue is full and new message would not be added into spooler");
         }
 
+        Long id = nextId.getAndIncrement();
         addMessageToSpooler(id, request);
         queueOfMessageId.putLast(id);
 
@@ -150,13 +155,14 @@ public class Spool {
     }
 
     public Long maxSpoolerSizeInBytes() {
-        return config.getSpoolMaxMessageQueueSizeInBytes();
+        return getSpoolConfig().getSpoolMaxMessageQueueSizeInBytes();
     }
-    
+
     /**
      * Pop out the id of the oldest message.
      *
      * @return message id
+     * @throws InterruptedException the thread is interrupted while popping the first id from the queue
      */
     public Long popId() throws InterruptedException {
         return queueOfMessageId.takeFirst();
@@ -190,7 +196,7 @@ public class Spool {
 
     private void removeMessagesWithQosZero(boolean needToCheckCurSpoolerSize) {
         Iterator<Long> messageIdIterator = queueOfMessageId.iterator();
-        while(messageIdIterator.hasNext() && addJudgementWithCurrentSpoolerSize(needToCheckCurSpoolerSize)) {
+        while (messageIdIterator.hasNext() && addJudgementWithCurrentSpoolerSize(needToCheckCurSpoolerSize)) {
             Long idToBeRemoved = messageIdIterator.next();
             if (getMessageById(idToBeRemoved).getQos().getValue() == 0) {
                 removeMessageById(idToBeRemoved);

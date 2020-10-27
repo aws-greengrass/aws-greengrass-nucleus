@@ -113,7 +113,7 @@ public class Topics extends Node implements Iterable<Node> {
      * @return the node
      */
     public Topics createInteriorChild(String name) {
-       return createInteriorChild(new CaseInsensitiveString(name));
+        return createInteriorChild(new CaseInsensitiveString(name));
     }
 
     private Topics createInteriorChild(CaseInsensitiveString name) {
@@ -375,33 +375,27 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     protected void childChanged(WhatHappened what, Node child) {
-        try {
-            for (Watcher s : watchers) {
-                if (s instanceof ChildChanged) {
-                    ((ChildChanged) s).childChanged(what, child);
-                }
-                // TODO: detect if a subscriber fails. Possibly unsubscribe it if the fault is persistent
+        for (Watcher s : watchers) {
+            if (s instanceof ChildChanged) {
+                ((ChildChanged) s).childChanged(what, child);
             }
-
-            if (what.equals(WhatHappened.removed)) {
-                children.forEach((k, v) -> v.fire(WhatHappened.removed));
-                return;
-            }
-
-            if (child.modtime > this.modtime || children.isEmpty()) {
-                this.modtime = child.modtime;
-            } else {
-                Optional<Node> n = children.values().stream().max(Comparator.comparingLong(node -> node.modtime));
-                this.modtime = n.orElse(child).modtime;
-            }
-            if (parentNeedsToKnow()) {
-                parent.childChanged(what, child);
-            }
-        } catch (Throwable t) {
-            //"ztong-placeholder"
-            logger.atError().log(t);
+            // TODO: detect if a subscriber fails. Possibly unsubscribe it if the fault is persistent
         }
 
+        if (what.equals(WhatHappened.removed)) {
+            children.forEach((k, v) -> v.fire(WhatHappened.removed));
+            return;
+        }
+
+        if (child.modtime > this.modtime || children.isEmpty()) {
+            this.modtime = child.modtime;
+        } else {
+            Optional<Node> n = children.values().stream().max(Comparator.comparingLong(node -> node.modtime));
+            this.modtime = n.orElse(child).modtime;
+        }
+        if (parentNeedsToKnow()) {
+            parent.childChanged(what, child);
+        }
     }
 
     @Override
@@ -417,13 +411,7 @@ public class Topics extends Node implements Iterable<Node> {
      */
     public Topics subscribe(ChildChanged cc) {
         if (addWatcher(cc)) {
-            try {
-                cc.childChanged(WhatHappened.initialized, null);
-            } catch (InterruptedException e) {
-                // "ztong"
-                logger.atError().log(e);
-            }
-
+            cc.childChanged(WhatHappened.initialized, null);
         }
         return this;
     }

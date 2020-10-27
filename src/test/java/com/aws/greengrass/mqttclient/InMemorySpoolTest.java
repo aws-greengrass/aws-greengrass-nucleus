@@ -108,7 +108,6 @@ public class InMemorySpoolTest {
         PublishRequest request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(30).array())
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
 
-
         spool = spy(new Spool(deviceConfiguration, config));
         assertThrows(SpoolerLoadException.class, () -> { spool.addMessage(request); });
 
