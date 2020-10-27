@@ -121,7 +121,7 @@ public class ComponentManager implements InjectionActions {
         if (versionRequirements.containsKey(Deployment.DeploymentType.LOCAL.toString())) {
             // keep using local version if the component is meant to be local override
             resolvedComponentId = localCandidateOptional.orElseThrow(() -> new NoAvailableComponentVersionException(
-                    String.format("Component %s is meant to be local override, but no version can satisfy %s",
+                    String.format("Component %s is meant to be a local override, but no version can satisfy %s",
                             componentName, versionRequirements)));
         } else {
             // otherwise try to negotiate with cloud

@@ -5,10 +5,10 @@
 
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
-import com.aws.greengrass.componentmanager.ComponentStore;
-import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -42,8 +42,6 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -205,24 +203,18 @@ class PluginComponentTest extends BaseITCase {
 
     private void setupPackageStore() throws IOException, PackagingException, URISyntaxException {
         Path localStoreContentPath = Paths.get(getClass().getResource("local_store_content").toURI());
-        Path e2eTestPkgStoreDir = tempRootDir.resolve("eteTestPkgStore");
-        FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
         NucleusPaths nucleusPaths = kernel.getNucleusPaths();
-        nucleusPaths.setComponentStorePath(e2eTestPkgStoreDir);
-        ComponentStore e2ETestComponentStore = new ComponentStore(nucleusPaths);
+        Path e2eTestPkgStoreDir = nucleusPaths.componentStorePath();
+        FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
+        ComponentStore e2ETestComponentStore = kernel.getContext().get(ComponentStore.class);
         Path jarFilePath = e2ETestComponentStore.resolveArtifactDirectoryPath(componentId).resolve("plugin-tests.jar");
         // Copy over the same jar file as the plugin-1.1.0 artifact
         FileUtils.copyFile(jarFilePath.toFile(), e2ETestComponentStore
                 .resolveArtifactDirectoryPath(new ComponentIdentifier(componentName, new Semver("1.1.0")))
                 .resolve(componentName + JAR_FILE_EXTENSION).toFile());
         // Rename artifact for plugin-1.0.0
-        try {
-            Files.move(jarFilePath, e2ETestComponentStore.resolveArtifactDirectoryPath(componentId)
-                    .resolve(componentName + JAR_FILE_EXTENSION));
-        } catch (FileAlreadyExistsException e) {
-            // ignore
-        }
-        kernel.getContext().put(ComponentStore.class, e2ETestComponentStore);
+        FileUtils.copyFile(jarFilePath.toFile(), e2ETestComponentStore.resolveArtifactDirectoryPath(componentId)
+                .resolve(componentName + JAR_FILE_EXTENSION).toFile());
     }
 
     private DeploymentDocument getPluginDeploymentDocument(Long timestamp, String version, String deploymentId) {

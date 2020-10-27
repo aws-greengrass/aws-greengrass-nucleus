@@ -152,21 +152,52 @@ public class Topic extends Node {
     /**
      * Set the value of this topic to a new value.
      *
+     * @param proposedModtime          the last modified time of the value. If this is in the past, we do not update the
+     *                                 value unless this is forced
+     * @param proposed                 new value.
+     * @param allowTimestampToDecrease allow the timestamp to go back in time
+     * @return this
+     */
+    Topic withNewerValue(long proposedModtime, final Object proposed, boolean allowTimestampToDecrease) {
+        return withNewerValue(proposedModtime, proposed, allowTimestampToDecrease, false);
+    }
+
+    /**
+     * Set the value of this topic to a new value.
+     *
      * @param proposedModtime the last modified time of the value. If this is in the past, we do not update the value
      *                       unless this is forced
      * @param proposed        new value.
-     * @param forceTimestamp indicate if the proposed time should be forced.
+     * @param allowTimestampToDecrease allow the timestamp to go back in time
+     * @param allowTimestampToIncreaseWhenValueHasntChanged allow the timestamp to go forward in time even if the
+     *                                                      proposed value is the same as the current value
      * @return this.
      */
-    synchronized Topic withNewerValue(long proposedModtime, final Object proposed, boolean forceTimestamp) {
+    synchronized Topic withNewerValue(long proposedModtime, final Object proposed, boolean allowTimestampToDecrease,
+                                      boolean allowTimestampToIncreaseWhenValueHasntChanged) {
         final Object currentValue = value;
-        final long currentModtime = modtime;
-        if (Objects.equals(proposed, currentValue) || !forceTimestamp && (proposedModtime < currentModtime)) {
+        final long currentModTime = modtime;
+        boolean timestampWouldIncrease =
+                allowTimestampToIncreaseWhenValueHasntChanged && proposedModtime > currentModTime;
+
+        // If the value hasn't changed, or if the proposed timestamp is in the past AND we don't want to
+        // decrease the timestamp
+        // AND the timestamp would not increase OR the proposed and current value is null,
+        // THEN, return immediately and do nothing.
+        // Handling the null values is for our default entries so that a call to dflt() will work
+        // as expected.
+        if ((Objects.equals(proposed, currentValue)
+                || !allowTimestampToDecrease && (proposedModtime < currentModTime))
+                && !timestampWouldIncrease || proposed == null && value == null) {
             return this;
         }
         final Object validated = validate(proposed, currentValue);
+        boolean changed = true;
         if (Objects.equals(validated, currentValue)) {
-            return this;
+            changed = false;
+            if (!timestampWouldIncrease || validated == null) {
+                return this;
+            }
         }
 
         if (validated != null && !(validated instanceof String) && !(validated instanceof Number)
@@ -179,7 +210,11 @@ public class Topic extends Node {
 
         value = validated;
         modtime = proposedModtime;
-        context.runOnPublishQueue(() -> this.fire(WhatHappened.changed));
+        if (changed) {
+            context.runOnPublishQueue(() -> this.fire(WhatHappened.changed));
+        } else {
+            context.runOnPublishQueue(() -> this.fire(WhatHappened.timestampUpdated));
+        }
         return this;
     }
 
@@ -198,7 +233,11 @@ public class Topic extends Node {
 
         // in the case of 'changed' event
         if (parentNeedsToKnow()) {
-            parent.childChanged(WhatHappened.childChanged, this);
+            if (WhatHappened.timestampUpdated.equals(what)) {
+                parent.childChanged(WhatHappened.timestampUpdated, this);
+            } else {
+                parent.childChanged(WhatHappened.childChanged, this);
+            }
         }
     }
 

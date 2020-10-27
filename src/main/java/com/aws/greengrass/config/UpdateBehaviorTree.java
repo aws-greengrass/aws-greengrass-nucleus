@@ -83,12 +83,36 @@ public class UpdateBehaviorTree {
         MERGE, REPLACE;
     }
 
-    private UpdateBehavior defaultBehavior;
-    private Map<String, UpdateBehaviorTree> childOverride;
+    private final UpdateBehavior defaultBehavior;
+    private final Map<String, UpdateBehaviorTree> childOverride;
+    private final long timestampToUse;
 
-    public UpdateBehaviorTree(UpdateBehavior defaultBehavior) {
+    /**
+     * Create a behavior tree with some behavior and a timestamp.
+     *
+     * @param defaultBehavior behavior to use when merging this and child nodes
+     * @param timestamp       timestamp to use for this and child nodes
+     */
+    public UpdateBehaviorTree(UpdateBehavior defaultBehavior, long timestamp) {
         this.defaultBehavior = defaultBehavior;
         this.childOverride = new HashMap<>();
+        this.timestampToUse = timestamp;
+    }
+
+    /**
+     * Get the behavior for some subtree with a given key.
+     *
+     * @param key Name of the subtree
+     * @return the behavior(s) to use for this subtree
+     */
+    public UpdateBehaviorTree getBehavior(String key) {
+        if (childOverride.get(key) != null) {
+            return childOverride.get(key);
+        }
+        if (childOverride.get(WILDCARD) != null) {
+            return childOverride.get(WILDCARD);
+        }
+        return new UpdateBehaviorTree(defaultBehavior, timestampToUse);
     }
 
     // TODO: add utility to parse from json/yaml

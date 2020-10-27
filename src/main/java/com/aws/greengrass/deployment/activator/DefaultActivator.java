@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.deployment.activator;
 
+import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DynamicComponentConfigurationValidator;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
@@ -22,11 +23,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
-import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_MERGE_BEHAVIOR;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_CONFIG_EVENT_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_ERROR_LOG_EVENT_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.waitForServicesToStart;
+import static com.aws.greengrass.ipc.AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 
 /**
@@ -72,8 +74,8 @@ public class DefaultActivator extends DeploymentActivator {
         // when deployment adds a new dependency (component B) to component A
         // the config for component B has to be merged in before externalDependenciesTopic of component A trigger
         // executing mergeMap using publish thread ensures this
-        kernel.getContext().runOnPublishQueueAndWait(() ->
-                kernel.getConfig().updateMap(deploymentDocument.getTimestamp(), newConfig, DEPLOYMENT_MERGE_BEHAVIOR));
+        kernel.getContext().runOnPublishQueueAndWait(() -> kernel.getConfig().updateMap(newConfig,
+                        createDeploymentMergeBehavior(deploymentDocument.getTimestamp())));
 
         // wait until topic listeners finished processing mergeMap changes.
         Throwable setDesiredStateFailureCause = kernel.getContext().runOnPublishQueueAndWait(() -> {
@@ -169,4 +171,38 @@ public class DefaultActivator extends DeploymentActivator {
                 deploymentFailureCause));
     }
 
+    private UpdateBehaviorTree createDeploymentMergeBehavior(long deploymentTimestamp) {
+        // root: MERGE
+        //   services: MERGE
+        //     *: REPLACE
+        //       runtime: MERGE
+        //       _private: MERGE
+        //       configuration: REPLACE with deployment timestamp
+        //     AUTH_TOKEN: MERGE
+
+        long now = System.currentTimeMillis();
+        UpdateBehaviorTree rootMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
+        UpdateBehaviorTree servicesMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
+        UpdateBehaviorTree insideServiceMergeBehavior =
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, now);
+        UpdateBehaviorTree serviceRuntimeMergeBehavior =
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
+        UpdateBehaviorTree servicePrivateMergeBehavior =
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
+
+        rootMergeBehavior.getChildOverride().put(SERVICES_NAMESPACE_TOPIC, servicesMergeBehavior);
+        servicesMergeBehavior.getChildOverride().put(UpdateBehaviorTree.WILDCARD, insideServiceMergeBehavior);
+        servicesMergeBehavior.getChildOverride().put(AUTHENTICATION_TOKEN_LOOKUP_KEY,
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now));
+        insideServiceMergeBehavior.getChildOverride().put(
+                GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
+        insideServiceMergeBehavior.getChildOverride().put(
+                GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC, servicePrivateMergeBehavior);
+        UpdateBehaviorTree serviceConfigurationMergeBehavior =
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, deploymentTimestamp);
+        insideServiceMergeBehavior.getChildOverride().put(
+                CONFIGURATION_CONFIG_KEY, serviceConfigurationMergeBehavior);
+
+        return rootMergeBehavior;
+    }
 }

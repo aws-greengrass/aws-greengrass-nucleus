@@ -102,8 +102,8 @@ class LifecycleTest {
         config = rootConfig.createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC)
                 .createInteriorChild("MockService");
         try (InputStream inputStream = new ByteArrayInputStream(BLANK_CONFIG_YAML_WITH_TIMEOUT.getBytes())) {
-            config.updateFromMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream),
-                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE));
+            config.updateFromMap((Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream),
+                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, 0));
         }
 
         lenient().when(greengrassService.getConfig()).thenReturn(config);
