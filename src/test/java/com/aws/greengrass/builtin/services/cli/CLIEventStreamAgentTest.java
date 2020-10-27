@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.builtin.services.cli;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;

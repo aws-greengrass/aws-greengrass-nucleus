@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+
+    Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+    SPDX-License-Identifier: Apache-2.0
+
+-->
+<additionalHeaders>
+    <java_style>
+        <firstLine>/*</firstLine>
+        <beforeEachLine> * </beforeEachLine>
+        <endLine> */EOL</endLine>
+        <firstLineDetectionPattern>(\\s|\\t)*/\\*.*$</firstLineDetectionPattern>
+        <lastLineDetectionPattern>.*\\*/(\\s|\\t)*$</lastLineDetectionPattern>
+        <allowBlankLines>false</allowBlankLines>
+        <isMultiline>true</isMultiline>
+        <padLines>false</padLines>
+    </java_style>
+</additionalHeaders>
