@@ -80,7 +80,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -487,7 +487,10 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
                 .map(GreengrassService::getName).collect(Collectors.toList());
 
-        assertThat(orderedDependencies, contains("sleeperB", DEFAULT_NUCLEUS_COMPONENT_NAME, "main"));
+        assertThat(orderedDependencies, containsInAnyOrder("sleeperB", DEFAULT_NUCLEUS_COMPONENT_NAME, "main"));
+        // sleeperB and nucleus can be in any order, but must be before main
+        assertThat(orderedDependencies, containsInRelativeOrder("sleeperB", "main"));
+        assertThat(orderedDependencies, containsInRelativeOrder(DEFAULT_NUCLEUS_COMPONENT_NAME, "main"));
     }
 
     @Test

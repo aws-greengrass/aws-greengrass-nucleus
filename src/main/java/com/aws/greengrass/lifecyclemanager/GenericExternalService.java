@@ -399,10 +399,7 @@ public class GenericExternalService extends GreengrassService {
             logEvent.log("saving user information for service execution");
             return true;
         } else {
-            logger.atError().kv("runwith", platform.getRunWithGenerator().getClass().getName()).log("Could not " 
-                    + "determine user/group to " 
-                    + "run with " 
-                    + "for service");
+            logger.atError().log("Could not determine user/group to run with for service");
             return false;
         }
     }
