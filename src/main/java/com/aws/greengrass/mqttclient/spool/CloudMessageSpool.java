@@ -1,12 +1,14 @@
 package com.aws.greengrass.mqttclient.spool;
 
+import com.aws.greengrass.mqttclient.PublishRequest;
+
 public interface CloudMessageSpool {
 
-    SpoolMessage getMessageById(Long smallestMessageId);
+    PublishRequest getMessageById(Long id);
 
-    void removeMessageById(Long messageId);
+    void removeMessageById(Long id);
 
-    void add(Long id, SpoolMessage message);
+    void add(Long id, PublishRequest request);
 
     SpoolerStorageType getSpoolerStorageType();
 }

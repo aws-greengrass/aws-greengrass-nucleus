@@ -12,7 +12,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.spool.Spool;
-import com.aws.greengrass.mqttclient.spool.SpoolMessage;
+import com.aws.greengrass.mqttclient.spool.SpoolerLoadException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.ProxyUtils;
@@ -354,21 +354,22 @@ public class MqttClient implements Closeable {
      * @param request publish request
      */
     public CompletableFuture<Integer> publish(PublishRequest request) {
-        System.out.println("**** publish ****");
-        System.out.println("mqttOnline: " + mqttOnline.get());
         boolean willDropTheRequest = !mqttOnline.get() && request.getQos().getValue() == 0
                 && !spool.getSpoolConfig().isKeepQos0WhenOffline();
 
+        CompletableFuture<Integer> future = new CompletableFuture<>();
         if (willDropTheRequest) {
-            logger.atDebug().log("drop the publish request with Qos 0 when MqttClient is offline");
-            return CompletableFuture.completedFuture(0);
+            SpoolerLoadException e = new SpoolerLoadException("will not store the publish request"
+                    + " with Qos 0 when MqttClient is offline");
+            logger.atError().log(e);
+            future.completeExceptionally(e);
+            return future;
         }
 
-        CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
             spool.addMessage(request);
-        } catch (InterruptedException e) {
-            logger.atError().log("fail to add publish request to spooler queue");
+        } catch (InterruptedException | SpoolerLoadException e) {
+            logger.atError().log("fail to add publish request to spooler queue", e);
             future.completeExceptionally(e);
             return future;
         }
@@ -379,25 +380,23 @@ public class MqttClient implements Closeable {
      * The scheduled executor service may try to drain the spooler queue every 5 seconds.
      */
     public void spoolMessage() {
+
+        // TODO : to determine whether to use ScheduledExecutor
         ScheduledFuture<?> handler =
                 ses.scheduleWithFixedDelay(() -> {
                     try {
+                        if (!mqttOnline.get() && spool.getSpoolConfig().isKeepQos0WhenOffline()) {
+                            spool.popOutMessagesWithQosZero();
+                        }
+
                         while (!Thread.currentThread().isInterrupted() && mqttOnline.get()
                                 && spool.messageCount() > 0) {
                             Long id = spool.popId();
-                            SpoolMessage messageToBePublished = spool.getMessageById(id);
-                            if (messageToBePublished == null) {
+                            PublishRequest request = spool.getMessageById(id);
+                            if (request == null) {
                                 continue;
                             }
 
-                            boolean exceedMaxRetried = messageToBePublished.getRetried().getAndIncrement()
-                                    > spool.getSpoolConfig().maxRetried;
-                            if (exceedMaxRetried) {
-                                spool.removeMessageById(id);
-                                continue;
-                            }
-
-                            PublishRequest request = messageToBePublished.getPublishRequest();
                             AwsIotMqttClient awsIotMqttClient = getConnection(false);
                             CompletableFuture future = awsIotMqttClient
                                     .publish(new MqttMessage(request.getTopic(),
@@ -407,7 +406,13 @@ public class MqttClient implements Closeable {
                                         if (throwable != null) {
                                             logger.atError().log("failed to publish the message "
                                                     + "via Mqtt Client", throwable);
-                                            spool.addId(id);
+                                            try {
+                                                spool.addId(id);
+                                            } catch (InterruptedException e) {
+                                                // TODO: if failed, do we need to drop the message from the spooler too?
+                                                logger.atError().log("failed to add the " +
+                                                        "unpublished message back to spooler");
+                                            }
                                         } else {
                                             spool.removeMessageById(id);
                                         }
@@ -489,11 +494,9 @@ public class MqttClient implements Closeable {
     }
 
     protected AwsIotMqttClient getNewMqttClient() {
-        System.out.println("**** hahah 7 ****");
         // Name client by thingName-<number> except for the first connection which will just be thingName
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
                 : "-" + connections.size() + 1);
-        System.out.println("**** hahah 8 **** clientId: " + clientId);
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
                 clientId, mqttTopics, callbackEventManager, mqttOnline);
     }
