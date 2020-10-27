@@ -7,7 +7,6 @@ package com.aws.greengrass.deployment;
 
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.activator.DeploymentActivator;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
@@ -37,8 +36,6 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.ipc.AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_NAME_KEY;
 
 @AllArgsConstructor
@@ -47,7 +44,6 @@ public class DeploymentConfigMerger {
     public static final String MERGE_ERROR_LOG_EVENT_KEY = "config-update-error";
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     protected static final int WAIT_SVC_START_POLL_INTERVAL_MILLISEC = 1000;
-    public static final UpdateBehaviorTree DEPLOYMENT_MERGE_BEHAVIOR = createDeploymentMergeBehavior();
 
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
 
@@ -284,34 +280,5 @@ public class DeploymentConfigMerger {
             return servicesToTrack;
         }
 
-    }
-
-    private static UpdateBehaviorTree createDeploymentMergeBehavior() {
-        // root: MERGE
-        //   services: MERGE
-        //     *: REPLACE
-        //       runtime: MERGE
-        //       _private: MERGE
-        //     AUTH_TOKEN: MERGE
-
-        UpdateBehaviorTree rootMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
-        UpdateBehaviorTree servicesMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
-        UpdateBehaviorTree insideServiceMergeBehavior =
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE);
-        UpdateBehaviorTree serviceRuntimeMergeBehavior =
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
-        UpdateBehaviorTree servicePrivateMergeBehavior =
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
-
-        rootMergeBehavior.getChildOverride().put(SERVICES_NAMESPACE_TOPIC, servicesMergeBehavior);
-        servicesMergeBehavior.getChildOverride().put(UpdateBehaviorTree.WILDCARD, insideServiceMergeBehavior);
-        servicesMergeBehavior.getChildOverride().put(AUTHENTICATION_TOKEN_LOOKUP_KEY,
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE));
-        insideServiceMergeBehavior.getChildOverride().put(
-                GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
-        insideServiceMergeBehavior.getChildOverride().put(
-                GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC, servicePrivateMergeBehavior);
-
-        return rootMergeBehavior;
     }
 }

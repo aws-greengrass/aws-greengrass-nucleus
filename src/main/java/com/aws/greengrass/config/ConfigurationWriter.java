@@ -117,6 +117,8 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
             tlogline = new Tlogline(t.getModtime(), t.path(), WhatHappened.changed, t.getOnce());
         } else if (what == WhatHappened.childRemoved) {
             tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.removed, null);
+        } else if (what == WhatHappened.timestampUpdated) {
+            tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.timestampUpdated, null);
         } else {
             return;
         }
