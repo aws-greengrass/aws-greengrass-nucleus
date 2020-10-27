@@ -24,23 +24,23 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.aws.greengrass.util.Utils.flush;
 
 public class ConfigurationWriter implements Closeable, ChildChanged {
-    public static final String TRUNCATE_TLOG_EVENT = "truncate-tlog";
+    private static final String TRUNCATE_TLOG_EVENT = "truncate-tlog";
     private static final long DEFAULT_MAX_TLOG_SIZE_BYTES = 10_000_000L;
 
     private Writer out;
-    private final Path outPath;
+    private final Path tlogOutputPath;
     private final Configuration conf;
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicLong count = new AtomicLong(0);  // bytes written so far
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for flush immediately to be sync")
     private boolean flushImmediately;
     @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")  // same situation as flushImmediately
     private boolean autoTruncate = false;
-    @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
-    private long count = 0;  // bytes written so far
     @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
     private long maxCount = DEFAULT_MAX_TLOG_SIZE_BYTES;  // max before truncation
     @Setter
@@ -49,9 +49,9 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     private static final Logger logger = LogManager.getLogger(ConfigurationWriter.class);
 
     @SuppressWarnings("LeakingThisInConstructor")
-    ConfigurationWriter(Configuration c, Writer o, Path op) {
+    ConfigurationWriter(Configuration c, Writer o, Path p) {
         out = o;
-        outPath = op;
+        tlogOutputPath = p;
         conf = c;
         conf.getRoot().addWatcher(this);
     }
@@ -106,10 +106,10 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     public ConfigurationWriter withAutoTruncate(Context context) throws IOException {
         autoTruncate = true;
         setContext(context);
-        if (Files.exists(outPath)) {
-            count = Files.size(outPath);
+        if (Files.exists(tlogOutputPath)) {
+            count.set(Files.size(tlogOutputPath));
         } else {
-            count = 0;
+            count.set(0);
         }
         return this;
     }
@@ -167,7 +167,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         }
 
         try {
-            count += Coerce.appendParseableString(tlogline, out);
+            count.addAndGet(Coerce.appendParseableString(tlogline, out));
         } catch (IOException ex) {
             logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName()).setCause(ex)
                     .log();
@@ -175,7 +175,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         if (flushImmediately) {
             flush(out);
         }
-        if (autoTruncate && count > maxCount) {
+        if (autoTruncate && count.get() > maxCount) {
             truncateTlog();
         }
     }
@@ -198,13 +198,11 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
 
     /**
      * Discard current tlog. Start a new tlog with the current kernel configs.
-     * Old tlog will be renamed to tlog.old
-     * No need to synchronize because only calling from synchronized childChanged
      */
-    private void truncateTlog() {
+    private synchronized void truncateTlog() {
         logger.atInfo(TRUNCATE_TLOG_EVENT).log("started");
-        // TODO: handle errors
-        Path oldTlogPath = outPath.resolveSibling(outPath.getFileName() + ".old");
+        // TODO: handle errors and recover
+        Path oldTlogPath = tlogOutputPath.resolveSibling(tlogOutputPath.getFileName() + ".old");
         Throwable error = context.runOnPublishQueueAndWait(() -> {
             // close existing writer
             flush(out);
@@ -214,14 +212,14 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
             Utils.close(out);
             logger.atDebug(TRUNCATE_TLOG_EVENT).log("existing tlog writer closed");
             // move old tlog
-            Files.move(outPath, oldTlogPath, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(tlogOutputPath, oldTlogPath, StandardCopyOption.REPLACE_EXISTING);
             logger.atDebug(TRUNCATE_TLOG_EVENT).log("existing tlog renamed to " + oldTlogPath);
             // write current state to new tlog
-            context.get(Kernel.class).writeEffectiveConfigAsTransactionLog(outPath);
-            logger.atDebug(TRUNCATE_TLOG_EVENT).log("current effective config written to " + outPath);
+            context.get(Kernel.class).writeEffectiveConfigAsTransactionLog(tlogOutputPath);
+            logger.atDebug(TRUNCATE_TLOG_EVENT).log("current effective config written to " + tlogOutputPath);
             // open writer to new tlog
-            out = newTlogWriter(outPath);
-            count = Files.size(outPath);
+            out = newTlogWriter(tlogOutputPath);
+            count.set(Files.size(tlogOutputPath));
             logger.atInfo(TRUNCATE_TLOG_EVENT).log("complete");
         });
         if (error == null) {

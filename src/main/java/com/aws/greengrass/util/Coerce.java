@@ -251,7 +251,7 @@ public final class Coerce {
      * @return number of characters written
      * @throws IOException if the append fails.
      */
-    public static int appendParseableString(Object o, Appendable out) throws IOException {
+    public static long appendParseableString(Object o, Appendable out) throws IOException {
         if (o instanceof Topic) {
             o = ((Topic) o).getOnce();
         }

@@ -24,7 +24,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -329,7 +328,7 @@ class KernelTest extends BaseITCase {
     @SuppressWarnings("PMD.CloseResource")
     @Test
     void GIVEN_kernel_running_WHEN_truncate_tlog_THEN_current_config_saved_and_using_new_tlog()
-            throws InterruptedException, IOException {
+            throws InterruptedException {
         kernel = new Kernel().parseArgs().launch();
         Context context = kernel.getContext();
         Configuration config = context.get(Configuration.class);
@@ -357,13 +356,12 @@ class KernelTest extends BaseITCase {
 
         // block and check equivalence
         context.runOnPublishQueueAndWait(() -> {
-            Configuration fullConfig = ConfigurationReader.createFromTLog(new Context(), configPath.resolve("full.tlog"));
-            Configuration newConfig = ConfigurationReader.createFromTLog(new Context(), configPath.resolve("config.tlog"));
+            Configuration fullConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("full.tlog"));
+            Configuration newConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog"));
             Map<String, Object> fullConfigMap = fullConfig.toPOJO();
             Map<String, Object> newConfigMap = newConfig.toPOJO();
             assertThat(newConfigMap, is(fullConfigMap));
         });
-        kernel.shutdown();
     }
 
     private static class ExpectedStdoutPattern {
