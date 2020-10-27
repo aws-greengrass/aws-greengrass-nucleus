@@ -180,6 +180,12 @@ public class Topic extends Node {
         boolean timestampWouldIncrease =
                 allowTimestampToIncreaseWhenValueHasntChanged && proposedModtime > currentModTime;
 
+        // If the value hasn't changed, or if the proposed timestamp is in the past AND we don't want to
+        // decrease the timestamp
+        // AND the timestamp would not increase OR the proposed and current value is null,
+        // THEN, return immediately and do nothing.
+        // Handling the null values is for our default entries so that a call to dflt() will work
+        // as expected.
         if ((Objects.equals(proposed, currentValue)
                 || !allowTimestampToDecrease && (proposedModtime < currentModTime))
                 && !timestampWouldIncrease || proposed == null && value == null) {
@@ -206,6 +212,8 @@ public class Topic extends Node {
         modtime = proposedModtime;
         if (changed) {
             context.runOnPublishQueue(() -> this.fire(WhatHappened.changed));
+        } else {
+            context.runOnPublishQueue(() -> this.fire(WhatHappened.timestampUpdated));
         }
         return this;
     }
@@ -225,7 +233,11 @@ public class Topic extends Node {
 
         // in the case of 'changed' event
         if (parentNeedsToKnow()) {
-            parent.childChanged(WhatHappened.childChanged, this);
+            if (WhatHappened.timestampUpdated.equals(what)) {
+                parent.childChanged(WhatHappened.timestampUpdated, this);
+            } else {
+                parent.childChanged(WhatHappened.childChanged, this);
+            }
         }
     }
 

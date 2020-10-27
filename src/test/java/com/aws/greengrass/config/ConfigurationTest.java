@@ -16,6 +16,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -49,6 +50,8 @@ class ConfigurationTest {
     private static final ObjectMapper MAPPER = new YAMLMapper();
 
     private Configuration config;
+    @TempDir
+    protected Path tempDir;
 
     @BeforeEach()
     void beforeEach() {
@@ -359,7 +362,7 @@ class ConfigurationTest {
 
         AtomicBoolean nodeUnchangedNotified = new AtomicBoolean(false);
         config.find("foo", "nodeUnchanged").subscribe((what, c) -> {
-            if (WhatHappened.initialized != what) {
+            if (WhatHappened.initialized != what && WhatHappened.timestampUpdated != what) {
                 nodeUnchangedNotified.set(true);
             }
         });
@@ -501,7 +504,7 @@ class ConfigurationTest {
 
         AtomicInteger nodeUnchangedCount = new AtomicInteger(0);
         config.findTopics("foo", "nodeUnchanged").subscribe((what, c) -> {
-            if (WhatHappened.initialized != what) {
+            if (WhatHappened.initialized != what && WhatHappened.timestampUpdated != what) {
                 nodeUnchangedCount.incrementAndGet();
             }
         });
@@ -576,6 +579,8 @@ class ConfigurationTest {
             initConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
         long then = 10_000;
+        Path tlogPath = tempDir.resolve("t.tlog");
+        ConfigurationWriter.logTransactionsTo(config, tlogPath).flushImmediately(true);
         config.mergeMap(then, initConfigMap);
         config.context.runOnPublishQueueAndWait(() -> {});
 
@@ -600,12 +605,26 @@ class ConfigurationTest {
         );
 
         config.updateMap(updateConfigMap, updateBehavior);
+        config.context.runOnPublishQueueAndWait(() -> {});
 
         // THEN
         Map<String, Object> expectedConfig;
         try (InputStream inputStream = new ByteArrayInputStream(expectedResult.getBytes())) {
             expectedConfig = MAPPER.readValue(inputStream, Map.class);
         }
+        assertEquals(expectedConfig, config.toPOJO());
+        assertEquals(now, config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey2").modtime);
+        assertEquals(then,
+                config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey1").modtime);
+        assertEquals(now, config.findNode("nodeToBeAdded").modtime);
+        assertEquals(then, config.findNode("nodeToBeMerged", "key1").modtime);
+        assertEquals(now, config.findNode("nodeToBeMerged", "key2").modtime);
+        assertEquals(now, config.findNode("nodeToBeMerged", "key3").modtime);
+
+        config = new Configuration(config.context);
+        ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
+        config.context.runOnPublishQueueAndWait(() -> {});
+
         assertEquals(expectedConfig, config.toPOJO());
         assertEquals(now, config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey2").modtime);
         assertEquals(then,

@@ -83,7 +83,7 @@ public class GenericExternalService extends GreengrassService {
         c.subscribe((what, child) -> {
             // When the service is removed via a deployment this topic itself will be removed
             // When first initialized, the child will be null
-            if (WhatHappened.removed.equals(what) || child == null) {
+            if (WhatHappened.removed.equals(what) || child == null || WhatHappened.timestampUpdated.equals(what)) {
                 return;
             }
 
