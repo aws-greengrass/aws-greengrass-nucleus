@@ -35,6 +35,8 @@ public class FleetStatusDetails implements Chunkable<ComponentStatusDetails> {
     @JsonProperty("components")
     private List<ComponentStatusDetails> componentStatusDetails;
 
+    private DeploymentInformation deploymentInformation;
+
     @Override
     public void setVariablePayload(List<ComponentStatusDetails> variablePayload) {
         this.setComponentStatusDetails(variablePayload);

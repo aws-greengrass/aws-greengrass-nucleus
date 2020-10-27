@@ -7,7 +7,6 @@ package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.model.Deployment;
-import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
@@ -43,6 +42,7 @@ import java.util.concurrent.TimeoutException;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 
@@ -182,51 +182,46 @@ public class ShadowDeploymentListener implements InjectionActions {
 
     @SuppressFBWarnings
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
-        DeploymentStatus status = DeploymentStatus.valueOf((String)
-                deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME));
-
         String configurationArn = (String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME);
-        // only update reported state when the deployment succeeds.
-        if (DeploymentStatus.SUCCEEDED.equals(status)) {
-
-            Pair<String, Map<String, Object>> desired = desiredStateQueue.peek();
-            // discard configurations that might have got added to the queue but the deployment
-            // got discarded before being processed due to a new shadow deployment
-            while (desired != null && !desired.getLeft().equals(configurationArn)) {
-                desiredStateQueue.poll();
-                desired = desiredStateQueue.peek();
-            }
-
-            if (desired == null) {
-                logger.atError().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
-                        .log("Unable to update shadow for deployment");
-                return true;
-            }
-
-            try {
-                ShadowState shadowState = new ShadowState();
-                shadowState.reported = new HashMap<>(desired.getRight());
-                UpdateNamedShadowRequest updateNamedShadowRequest = new UpdateNamedShadowRequest();
-                updateNamedShadowRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
-                updateNamedShadowRequest.thingName = thingName;
-                updateNamedShadowRequest.state = shadowState;
-                iotShadowClient.PublishUpdateNamedShadow(updateNamedShadowRequest, QualityOfService.AT_LEAST_ONCE)
-                        .get(TIMEOUT_FOR_PUBLISHING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
-                desiredStateQueue.remove();
-                logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
-                        .log("Updated reported state for deployment");
-                return true;
-            } catch (InterruptedException e) {
-                //Since this method can run as runnable cannot throw exception so handling exceptions here
-                logger.atWarn().log("Interrupted while publishing reported state");
-            } catch (ExecutionException e) {
-                logger.atError().setCause(e).log("Caught exception while publishing reported state");
-            } catch (TimeoutException e) {
-                logger.atWarn().setCause(e).log("Publish reported state timed out, will retry shortly");
-            }
-            return false;
+        Pair<String, Map<String, Object>> desired = desiredStateQueue.peek();
+        // discard configurations that might have got added to the queue but the deployment
+        // got discarded before being processed due to a new shadow deployment
+        while (desired != null && !desired.getLeft().equals(configurationArn)) {
+            desiredStateQueue.poll();
+            desired = desiredStateQueue.peek();
         }
-        return true;
+
+        if (desired == null) {
+            logger.atError().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
+                    .log("Unable to update shadow for deployment");
+            return true;
+        }
+
+        try {
+            ShadowState shadowState = new ShadowState();
+            HashMap<String, Object> reported = new HashMap<>(desired.getRight());
+            reported.put("status", deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME));
+            reported.put("statusDetails", deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME));
+            shadowState.reported = reported;
+            UpdateNamedShadowRequest updateNamedShadowRequest = new UpdateNamedShadowRequest();
+            updateNamedShadowRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
+            updateNamedShadowRequest.thingName = thingName;
+            updateNamedShadowRequest.state = shadowState;
+            iotShadowClient.PublishUpdateNamedShadow(updateNamedShadowRequest, QualityOfService.AT_LEAST_ONCE)
+                    .get(TIMEOUT_FOR_PUBLISHING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
+            desiredStateQueue.remove();
+            logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
+                    .log("Updated reported state for deployment");
+            return true;
+        } catch (InterruptedException e) {
+            //Since this method can run as runnable cannot throw exception so handling exceptions here
+            logger.atWarn().log("Interrupted while publishing reported state");
+        } catch (ExecutionException e) {
+            logger.atError().setCause(e).log("Caught exception while publishing reported state");
+        } catch (TimeoutException e) {
+            logger.atWarn().setCause(e).log("Publish reported state timed out, will retry shortly");
+        }
+        return false;
     }
 
     protected void shadowUpdated(Map<String, Object> configuration, Integer version) {

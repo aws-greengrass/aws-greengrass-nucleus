@@ -79,6 +79,7 @@ public class FleetStatusService extends GreengrassService {
     // GG_NEEDS_REVIEW: TODO: Remove this variable after implementing callbacks for service removal notifications.
     private final ConcurrentHashMap<GreengrassService, Instant> allServiceNamesMap = new ConcurrentHashMap<>();
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
+    private final AtomicBoolean thingDeployment = new AtomicBoolean(false);
     private final Object periodicUpdateInProgressLock = new Object();
     private int periodicUpdateIntervalSec;
     private String fleetStatusServicePublishTopic = DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC;
@@ -242,6 +243,9 @@ public class FleetStatusService extends GreengrassService {
             isDeploymentInProgress.set(false);
             updateEventTriggeredFleetStatusData();
         }
+        if (type == SHADOW) {
+            thingDeployment.set(true);
+        }
         // GG_NEEDS_REVIEW: TODO: Handle local deployment update for FSS
         return true;
     }
@@ -351,6 +355,7 @@ public class FleetStatusService extends GreengrassService {
             sequenceNumberTopic.withValue(sequenceNumber + 1);
         }
 
+        // TODO set deployment information here
         FleetStatusDetails fleetStatusDetails = FleetStatusDetails.builder()
                 .overallStatus(overAllStatus)
                 .architecture(this.architecture)
