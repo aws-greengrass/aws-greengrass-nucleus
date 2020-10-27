@@ -8,6 +8,8 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.util.Coerce;
 
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicLong;
@@ -27,23 +29,18 @@ public class Spool {
     private CloudMessageSpool spooler;
     private static final String GG_SPOOL_STORAGE_TYPE_KEY = "spoolStorageType";
     private static final String GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES_KEY = "spoolMaxMessageQueueSizeInBytes";
-    private static final String GG_SPOOL_KEPP_QOS_0_WHEN_OFFLINE_KEY = "keepQos0WhenOffline";
-    private static final String GG_SPOOL_MAX_RETRIED_LEY = "maxRetried";
+    private static final String GG_SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY = "keepQos0WhenOffline";
 
     private static final boolean DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE = false;
     private static final SpoolerStorageType DEFAULT_GG_SPOOL_STORAGE_TYPE
             = SpoolerStorageType.Memory;
     private static final int DEFAULT_GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES = (int)(2.5 * 1024 * 1024); // 2.5MB
-    private static final int DEFAULT_GG_SPOOL_MAX_RETRIED = 3;
 
     private final AtomicLong nextId = new AtomicLong(0);
     private final SpoolerConfig config;
-    private final AtomicLong curMessageCount = new AtomicLong(0);
-
-    private final BlockingDeque<Long> messageQueueOfQos0;
-    private final BlockingDeque<Long> messageQueueOfQos1And2;
-
+    private final BlockingDeque<Long> queueOfMessageId = new LinkedBlockingDeque<>();
     private final AtomicLong curMessageQueueSizeInBytes = new AtomicLong(0);
+
 
     /**
      * The constructor of Spool.
@@ -52,8 +49,6 @@ public class Spool {
      *
      */
     public Spool(DeviceConfiguration deviceConfiguration) {
-        messageQueueOfQos0 = new LinkedBlockingDeque<>();
-        messageQueueOfQos1And2 = new LinkedBlockingDeque<>();
         this.deviceConfiguration = deviceConfiguration;
         Topics spoolerTopics = this.deviceConfiguration.getSpoolerNamespace();
         config = setSpoolerConfig(spoolerTopics);
@@ -62,22 +57,16 @@ public class Spool {
         // subscribe the changes on the configuration of Spooler
         this.deviceConfiguration.onAnyChange((what, node) -> {
             if (WhatHappened.childChanged.equals(what) && node != null) {
-                // List of configuration nodes that we need to reconfigure for if they change
-
-                if (!(node.childOf(DEVICE_SPOOLER_NAMESPACE) || node.childOf(DEVICE_PARAM_THING_NAME) || node
-                        .childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT) || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH) || node
-                        .childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH))) {
+                if (!(node.childOf(DEVICE_SPOOLER_NAMESPACE))) {
                     return;
                 }
 
                 logger.atDebug().log("the spooler has been re-configured");
-
                 // re-set the spoolerConfig
                 setSpoolerConfig(this.deviceConfiguration.getSpoolerNamespace());
-                // remove the oldest message if the spooler queue should be truncated
-                while (curMessageQueueSizeInBytes.get() > maxSpoolerSizeInBytes()) {
-                    Long toBeRemovedID = popId();
-                    removeMessageById(toBeRemovedID);
+                // TODO: does this needed? remove the oldest message if the spooler queue should be truncated
+                if (curMessageQueueSizeInBytes.get() > maxSpoolerSizeInBytes() ) {
+                    removeOldestMessage();
                     logger.atDebug().log("spooler queue is full and will remove the oldest unsent message");
                 }
 
@@ -90,12 +79,9 @@ public class Spool {
     }
 
     // For unit test
-    public Spool(DeviceConfiguration deviceConfiguration, SpoolerConfig config,
-                 BlockingDeque<Long> messageQueueOfQos0, BlockingDeque<Long> messageQueueOfQos1And2) {
+    public Spool(DeviceConfiguration deviceConfiguration, SpoolerConfig config) {
         this.deviceConfiguration = deviceConfiguration;
         this.config = config;
-        this.messageQueueOfQos0 = messageQueueOfQos0;
-        this.messageQueueOfQos1And2 = messageQueueOfQos1And2;
         spooler = setupSpooler(this.config);
     }
 
@@ -105,13 +91,10 @@ public class Spool {
         Long ggSpoolMaxMessageQueueSizeInBytes = Coerce.toLong(spoolerTopics
                 .findOrDefault(DEFAULT_GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES,
                         GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES_KEY));
-        boolean ggSpoolKeepQos0WhenOffine = Coerce.toBoolean(spoolerTopics
-                .findOrDefault(DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE, GG_SPOOL_KEPP_QOS_0_WHEN_OFFLINE_KEY));
-        int ggSpoolMaxRetried = Coerce.toInt(spoolerTopics
-                .findOrDefault(DEFAULT_GG_SPOOL_MAX_RETRIED, GG_SPOOL_MAX_RETRIED_LEY));
+        boolean ggSpoolKeepQos0WhenOffline = Coerce.toBoolean(spoolerTopics
+                .findOrDefault(DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE, GG_SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY));
 
-        return new SpoolerConfig(ggSpoolStorageType, ggSpoolMaxMessageQueueSizeInBytes,
-                ggSpoolKeepQos0WhenOffine, ggSpoolMaxRetried);
+        return new SpoolerConfig(ggSpoolStorageType, ggSpoolMaxMessageQueueSizeInBytes, ggSpoolKeepQos0WhenOffline);
     }
 
     private CloudMessageSpool setupSpooler(SpoolerConfig config) {
@@ -127,13 +110,8 @@ public class Spool {
      *
      * @param id MessageId
      */
-    public void addId(Long id) {
-        int qos = getMessageById(id).getPublishRequest().getQos().getValue();
-        if (qos == 0) {
-            messageQueueOfQos0.addFirst(id);
-        } else {
-            messageQueueOfQos1And2.addFirst(id);
-        }
+    public void addId(Long id) throws InterruptedException {
+        queueOfMessageId.putFirst(id);
     }
 
     /**
@@ -143,107 +121,48 @@ public class Spool {
      * @param request publish request
      * @throws InterruptedException result from the queue implementation
      */
-    public synchronized Long addMessage(PublishRequest request) throws InterruptedException {
+    public synchronized Long addMessage(PublishRequest request) throws InterruptedException, SpoolerLoadException {
         Long id = nextId.getAndIncrement();
         int messageSizeInBytes = request.getPayload().length;
+        if (messageSizeInBytes > maxSpoolerSizeInBytes()) {
+            throw new SpoolerLoadException("the size of message has exceeds the maximum size of spooler.");
+        }
+
         curMessageQueueSizeInBytes.getAndAdd(messageSizeInBytes);
-        curMessageCount.getAndIncrement();
-
-        System.out.println("messageSizeInBytes: " + messageSizeInBytes);
-        System.out.println("curMessageQueueSizeInBytes: " + curMessageQueueSizeInBytes.get());
-        System.out.println("curMessageCount: " + curMessageCount.get());
-
-        while (curMessageQueueSizeInBytes.get() > maxSpoolerSizeInBytes()) {
-            System.out.println("to removed oldest message");
-            // TODO: conner case: if curMessageQueueSizeInBytes > maxSpoolerSizeInBytes();
-            // Do we need to drop the message? Add the test if has been determined
+        if (curMessageQueueSizeInBytes.get() > maxSpoolerSizeInBytes()) {
             removeOldestMessage();
-            logger.atInfo().log("spooler queue is full and will remove the oldest unsent message");
         }
 
-        int qos = request.getQos().getValue();
-        if (qos == 0) {
-            messageQueueOfQos0.putLast(id);
-        } else {
-            messageQueueOfQos1And2.putLast(id);
+        // TODO: do we need to add the removed message back if exception is thrown??
+        if (curMessageQueueSizeInBytes.get() > maxSpoolerSizeInBytes()) {
+            curMessageQueueSizeInBytes.getAndAdd(-1 * messageSizeInBytes);
+            throw new SpoolerLoadException("spooler queue is full and new message would not be added into spooler");
         }
 
-        SpoolMessage message = SpoolMessage.builder().publishRequest(request).build();
-        addMessageToSpooler(id, message);
+        addMessageToSpooler(id, request);
+        queueOfMessageId.putLast(id);
 
         return id;
     }
 
-    public void addMessageToSpooler(Long id, SpoolMessage message) {
-        spooler.add(id, message);
+    public void addMessageToSpooler(Long id, PublishRequest request) {
+        spooler.add(id, request);
     }
 
     public Long maxSpoolerSizeInBytes() {
         return config.getSpoolMaxMessageQueueSizeInBytes();
     }
-
-    public BlockingDeque<Long> getQueueWithSmallestMessageId() {
-        Long messageIdFromQueueOfQos0 = null;
-        Long messageIdFromQueueOfQos1And2 = null;
-
-        if (!messageQueueOfQos0.isEmpty()) {
-            messageIdFromQueueOfQos0 = messageQueueOfQos0.getFirst();
-        }
-        if (!messageQueueOfQos1And2.isEmpty()) {
-            messageIdFromQueueOfQos1And2 = messageQueueOfQos1And2.getFirst();
-        }
-
-        if (messageIdFromQueueOfQos0 != null && messageIdFromQueueOfQos1And2 != null) {
-            if (messageIdFromQueueOfQos0 < messageIdFromQueueOfQos1And2) {
-                return messageQueueOfQos0;
-            } else {
-                return messageQueueOfQos1And2;
-            }
-        } else if (messageIdFromQueueOfQos0 != null) {
-            return messageQueueOfQos0;
-        } else if (messageIdFromQueueOfQos1And2 != null) {
-            return messageQueueOfQos1And2;
-        }
-        return null;
-    }
-
-    public Long peekId() {
-        if (messageCount() == 0) {
-            return null;
-        }
-        BlockingDeque<Long> messageQueueWithSmallestMessageId = getQueueWithSmallestMessageId();
-        Long smallestMessageId = null;
-        if (messageQueueWithSmallestMessageId != null) {
-            smallestMessageId = messageQueueWithSmallestMessageId.getFirst();
-        }
-        return smallestMessageId;
-    }
-
+    
     /**
      * Pop out the id of the oldest message.
      *
      * @return message id
      */
-    public Long popId() {
-        // if both of the queues are empty, do nothing
-        if (curMessageCount.get() == 0) {
-            return null;
-        }
-
-        BlockingDeque<Long> messageQueueWithSmallestMessageId = getQueueWithSmallestMessageId();
-        Long removedMessageId = null;
-        if (messageQueueWithSmallestMessageId != null) {
-            try {
-                removedMessageId = messageQueueWithSmallestMessageId.takeFirst();
-            } catch (InterruptedException e) {
-                logger.atError().log("failed to pop out the message Id from the spooler queue");
-            }
-        }
-        curMessageCount.getAndDecrement();
-        return removedMessageId;
+    public Long popId() throws InterruptedException {
+        return queueOfMessageId.takeFirst();
     }
 
-    public SpoolMessage getMessageById(Long messageId) {
+    public PublishRequest getMessageById(Long messageId) {
         return spooler.getMessageById(messageId);
     }
 
@@ -253,46 +172,54 @@ public class Spool {
      * @param messageId  message id
      */
     public void removeMessageById(Long messageId) {
-        System.out.println("**** removeMessageById ****");
-        SpoolMessage toBeRemovedMessage = getMessageById(messageId);
-        if (toBeRemovedMessage != null) {
+        PublishRequest toBeRemovedRequest = getMessageById(messageId);
+        if (toBeRemovedRequest != null) {
             spooler.removeMessageById(messageId);
-            int messageSize = toBeRemovedMessage.getPublishRequest().getPayload().length;
+            int messageSize = toBeRemovedRequest.getPayload().length;
             curMessageQueueSizeInBytes.getAndAdd(-1 * messageSize);
         }
     }
 
-    public Long removeOldestMessage() throws InterruptedException {
-        Long id = null;
-        if (!messageQueueOfQos0.isEmpty()) {
-            id = messageQueueOfQos0.takeFirst();
-            removeMessageById(id);
-        } else if (!messageQueueOfQos1And2.isEmpty()) {
-            id = messageQueueOfQos1And2.takeFirst();
-            removeMessageById(id);
-        }
-        return id;
+    public void removeOldestMessage() {
+        removeMessagesWithQosZero(true);
     }
 
-    public Long messageCount() {
-        return curMessageCount.get();
+    public void popOutMessagesWithQosZero() {
+        removeMessagesWithQosZero(false);
+    }
+
+    private void removeMessagesWithQosZero(boolean needToCheckCurSpoolerSize) {
+        Iterator<Long> messageIdIterator = queueOfMessageId.iterator();
+        while(messageIdIterator.hasNext() && addJudgementWithCurrentSpoolerSize(needToCheckCurSpoolerSize)) {
+            Long idToBeRemoved = messageIdIterator.next();
+            if (getMessageById(idToBeRemoved).getQos().getValue() == 0) {
+                removeMessageById(idToBeRemoved);
+            }
+        }
+    }
+
+    private boolean addJudgementWithCurrentSpoolerSize(boolean needToCheckCurSpoolerSize) {
+        if (!needToCheckCurSpoolerSize) {
+            return true;
+        }
+        return curMessageQueueSizeInBytes.get() > maxSpoolerSizeInBytes();
+    }
+
+    public int messageCount() {
+        return queueOfMessageId.size();
+    }
+
+    public Long getCurrentSpoolerSize() {
+        return curMessageQueueSizeInBytes.get();
     }
 
     public SpoolerConfig getSpoolConfig() {
         return config;
     }
 
-    public void spoolerStorageTypeConverter() {
+    private void spoolerStorageTypeConverter() {
         return;
     }
-
-    public int getMessageCountWithQos0() {
-        return messageQueueOfQos0.size();
-    }
-
-    public int getMessageCountWithQos1And2() {
-        return messageQueueOfQos1And2.size();
-    }
-
 }
+
 

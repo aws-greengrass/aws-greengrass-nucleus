@@ -1,14 +1,15 @@
 package com.aws.greengrass.mqttclient.spool;
 
+import com.aws.greengrass.mqttclient.PublishRequest;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class InMemorySpool implements CloudMessageSpool {
 
-    private final Map<Long, SpoolMessage> messages = new ConcurrentHashMap<>();
+    private final Map<Long, PublishRequest> messages = new ConcurrentHashMap<>();
 
     @Override
-    public SpoolMessage getMessageById(Long messageId) {
+    public PublishRequest getMessageById(Long messageId) {
         return messages.get(messageId);
     }
 
@@ -18,8 +19,8 @@ public class InMemorySpool implements CloudMessageSpool {
     }
 
     @Override
-    public void add(Long id, SpoolMessage message) {
-        messages.put(id, message);
+    public void add(Long id, PublishRequest request) {
+        messages.put(id, request);
     }
 
     @Override
