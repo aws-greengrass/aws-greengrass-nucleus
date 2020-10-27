@@ -14,6 +14,7 @@ import com.aws.greengrass.util.platforms.Platform;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Iterator;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.util.FileSystemPermission.Option.IgnorePermission;
@@ -67,9 +68,13 @@ public class RunWithArtifactHandler {
                 .ownerGroup(runWith.getGroup())
                 .build();
 
+        // change ownership of files within the artifact dirs, but don't change the artifact dir itself as that would
+        // make it writable to the user
         CrashableFunction<Path, Void, IOException> f = (p) -> {
             if (Files.exists(p)) {
-                platform.setPermissions(permission, p, Recurse, IgnorePermission);
+                for (Iterator<Path> it = Files.list(p).iterator(); it.hasNext(); ) {
+                    platform.setPermissions(permission, it.next(), Recurse, IgnorePermission);
+                }
             }
             return null;
         };

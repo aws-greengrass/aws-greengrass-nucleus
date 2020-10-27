@@ -484,22 +484,23 @@ public class UnixPlatform extends Platform {
                 return command;
             }
 
-            int size = (group == null) ? 6 : 8;
+            int size = (group == null) ? 7 : 9;
             String[] ret = new String[command.length + size];
             ret[0] = "sudo";
             ret[1] = "-n";  // don't prompt for password
             ret[2] = "-E";  // pass env vars through
-            ret[3] = "-u";  // set user
+            ret[3] = "-H";  // set $HOME
+            ret[4] = "-u";  // set user
             if (user.chars().allMatch(Character::isDigit)) {
                 user = "#" + user;
             }
-            ret[4] = user;
+            ret[5] = user;
             if (group != null) {
-                ret[5] = "-g"; // set group
+                ret[6] = "-g"; // set group
                 if (group.chars().allMatch(Character::isDigit)) {
                     group = "#" + group;
                 }
-                ret[6] = group;
+                ret[7] = group;
             }
             ret[size - 1] = "--";
             System.arraycopy(command, 0, ret, size, command.length);

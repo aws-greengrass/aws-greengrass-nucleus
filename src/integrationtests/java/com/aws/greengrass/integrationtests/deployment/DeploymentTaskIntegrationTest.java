@@ -747,8 +747,7 @@ class DeploymentTaskIntegrationTest {
                 countDownLatch.countDown();
             }
         };
-        Slf4jLogAdapter.addGlobalListener(listener);
-        try {
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
             /*
              * 1st deployment. Default Config.
              */
@@ -761,35 +760,36 @@ class DeploymentTaskIntegrationTest {
             String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
                     .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
             assertEquals("nobody", user);
-            countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
+            countDownLatch.await(10, TimeUnit.SECONDS);
             assertThat(stdouts, hasItem(containsString("installing app with user root")));
             assertThat(stdouts, hasItem(containsString("starting app with user nobody")));
             stdouts.clear();
-            /*
-             * 2nd deployment. Change user
-             */
-            countDownLatch = new CountDownLatch(2);
+        }
 
-            // update component to runas the user running the test
-            String doc = Utils.inputStreamToString(DeploymentTaskIntegrationTest.class.getResource(
-                    "SampleJobDocumentWithUser_2.json").openStream());
-            String currentUser = System.getProperty("user.name");
-            doc = String.format(doc, currentUser);
-            File f = File.createTempFile("user-deployment", ".json");
-            f.deleteOnExit();
-            Files.write(f.toPath(), doc.getBytes(StandardCharsets.UTF_8));
 
-            resultFuture = submitSampleJobDocument(f.toURI(), System.currentTimeMillis());
+        /*
+         * 2nd deployment. Change user
+         */
+        countDownLatch = new CountDownLatch(2);
+
+        // update component to runas the user running the test
+        String doc = Utils.inputStreamToString(DeploymentTaskIntegrationTest.class.getResource(
+                "SampleJobDocumentWithUser_2.json").openStream());
+        String currentUser = System.getProperty("user.name");
+        doc = String.format(doc, currentUser);
+        File f = File.createTempFile("user-deployment", ".json");
+        f.deleteOnExit();
+        Files.write(f.toPath(), doc.getBytes(StandardCharsets.UTF_8));
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            Future<DeploymentResult> resultFuture = submitSampleJobDocument(f.toURI(), System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
-            user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
+            String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
                     .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
             assertEquals(currentUser, user);
 
-            countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
+            countDownLatch.await(10, TimeUnit.SECONDS);
             assertThat(stdouts, hasItem(containsString("stopping app with user nobody")));
             assertThat(stdouts, hasItem(containsString(String.format("starting app with user %s", currentUser))));
-        } finally {
-            Slf4jLogAdapter.removeGlobalListener(listener);
         }
     }
 

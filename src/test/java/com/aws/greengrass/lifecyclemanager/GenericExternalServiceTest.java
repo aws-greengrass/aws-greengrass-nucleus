@@ -96,8 +96,8 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
         ges.storeInitialRunWithConfiguration();
 
         try (Exec exec = ges.addUserGroup(new Exec().withExec("echo", "hello"))) {
-            assertThat(exec.getCommand(), arrayContaining("sudo", "-n", "-E", "-u", "foo", "-g", "bar", "--", "echo",
-                    "hello"));
+            assertThat(exec.getCommand(), arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "-g", "bar",
+                    "--", "echo", "hello"));
         }
     }
 }

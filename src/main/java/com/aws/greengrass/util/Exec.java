@@ -55,13 +55,13 @@ public final class Exec implements Closeable {
     private static final Logger staticLogger = LogManager.getLogger(Exec.class);
     private static final Consumer<CharSequence> NOP = s -> {
     };
+
+    // default directory relative paths are resolved against (i.e. current working directory)
     private static final File userdir = new File(System.getProperty("user.dir"));
-    private static final File homedir = new File(System.getProperty("user.home"));
 
     private static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
-    private static String[] defaultEnvironment = {"PATH=" + System.getenv("PATH"), "SHELL=" + System.getenv("SHELL"),
-            "JAVA_HOME=" + System.getProperty("java.home"), "USER=" + System.getProperty("user.name"),
-            "HOME=" + homedir, "USERHOME=" + homedir, "PWD=" + userdir,};
+    private static String[] defaultEnvironment = {"PATH=" + System.getenv("PATH"), "JAVA_HOME=" + System.getProperty(
+            "java.home")};
 
     static {
         addPathEntries(System.getenv("PATH"));
@@ -273,10 +273,6 @@ public final class Exec implements Closeable {
 
     public Exec cd(String d) {
         return cd(dir.toPath().toAbsolutePath().resolve(Paths.get(d)).toAbsolutePath().toFile());
-    }
-
-    public Exec cd() {
-        return cd(homedir);
     }
 
     /**

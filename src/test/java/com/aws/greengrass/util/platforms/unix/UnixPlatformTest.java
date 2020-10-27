@@ -31,7 +31,8 @@ public class UnixPlatformTest   {
                         .withUser("foo")
                         .withGroup("bar")
                         .decorate(command),
-                is(arrayContaining("sudo", "-n",  "-E", "-u", "foo", "-g", "bar", "--", "echo", "hello", "world")));
+                is(arrayContaining("sudo", "-n",  "-E", "-H", "-u", "foo", "-g", "bar", "--", "echo", "hello",
+                        "world")));
     }
 
     @Test
@@ -41,7 +42,8 @@ public class UnixPlatformTest   {
                         .withGroup("200")
                         .decorate(command),
 
-                is(arrayContaining("sudo", "-n", "-E", "-u", "#100", "-g", "#200", "--", "echo", "hello", "world")));
+                is(arrayContaining("sudo", "-n", "-E", "-H", "-u", "#100", "-g", "#200", "--", "echo", "hello",
+                        "world")));
     }
 
     @Test
@@ -49,6 +51,6 @@ public class UnixPlatformTest   {
         assertThat(new UnixPlatform.SudoDecorator()
                         .withUser("foo")
                         .decorate(command),
-                is(arrayContaining("sudo", "-n", "-E", "-u", "foo", "--", "echo", "hello", "world")));
+                is(arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "--", "echo", "hello", "world")));
     }
 }

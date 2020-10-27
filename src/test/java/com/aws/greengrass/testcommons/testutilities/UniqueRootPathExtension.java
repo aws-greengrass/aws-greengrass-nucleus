@@ -5,7 +5,9 @@
 
 package com.aws.greengrass.testcommons.testutilities;
 
+import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionConfigurationException;
@@ -45,6 +47,8 @@ public class UniqueRootPathExtension implements BeforeEachCallback, BeforeAllCal
                 @Override
                 public void close() throws Throwable {
                     System.clearProperty("root");
+                    Platform.getInstance().setPermissions(FileSystemPermission.builder()
+                            .otherRead(true).ownerWrite(true).ownerExecute(true).build(), p);
                     Utils.deleteFileRecursively(p.toFile());
                 }
             };

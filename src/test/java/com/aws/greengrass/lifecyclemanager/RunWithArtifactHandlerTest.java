@@ -18,9 +18,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
 import java.nio.file.Path;
 import java.nio.file.spi.FileSystemProvider;
+import java.util.Arrays;
+import java.util.Iterator;
 
 import static com.aws.greengrass.util.FileSystemPermission.Option.IgnorePermission;
 import static com.aws.greengrass.util.FileSystemPermission.Option.Recurse;
@@ -57,6 +60,9 @@ public class RunWithArtifactHandlerTest {
     @Mock
     Path nonExisting;
 
+    @Mock
+    Path artifactFile;
+
     @SuppressWarnings("PMD.CloseResource")
     @BeforeEach
     void beforeEach() throws IOException {
@@ -64,6 +70,13 @@ public class RunWithArtifactHandlerTest {
         FileSystemProvider fsProvider = mock(FileSystemProvider.class);
 
         lenient().doReturn(fsProvider).when(fs).provider();
+
+        DirectoryStream<Path> ds = mock(DirectoryStream.class);
+        lenient().doReturn(ds).when(fsProvider).newDirectoryStream(eq(existing), any());
+
+        Iterator<Path> existingFiles1 = Arrays.stream(new Path[]{artifactFile}).iterator();
+        Iterator<Path> existingFiles2 = Arrays.stream(new Path[]{artifactFile}).iterator();
+        lenient().doReturn(existingFiles1, existingFiles2).when(ds).iterator();
 
         lenient().doThrow(IOException.class).when(fsProvider).checkAccess(eq(nonExisting));
 
@@ -83,7 +96,7 @@ public class RunWithArtifactHandlerTest {
 
         ArgumentCaptor<FileSystemPermission> permissions = ArgumentCaptor.forClass(FileSystemPermission.class);
         verify(platform, times(2))
-                .setPermissions(permissions.capture(), eq(existing), eq(Recurse), eq(IgnorePermission));
+                .setPermissions(permissions.capture(), eq(artifactFile), eq(Recurse), eq(IgnorePermission));
 
         permissions.getAllValues().forEach(p -> {
             assertThat(p.getOwnerUser(), is("foo"));
@@ -97,7 +110,7 @@ public class RunWithArtifactHandlerTest {
         doReturn(nonExisting).when(paths).unarchiveArtifactPath(id);
         handler.updateOwner(id, runWith);
 
-        verify(platform).setPermissions(any(), eq(existing), eq(Recurse), eq(IgnorePermission));
+        verify(platform).setPermissions(any(), eq(artifactFile), eq(Recurse), eq(IgnorePermission));
 
     }
 
@@ -107,7 +120,7 @@ public class RunWithArtifactHandlerTest {
         doReturn(existing).when(paths).unarchiveArtifactPath(id);
         handler.updateOwner(id, runWith);
 
-        verify(platform).setPermissions(any(), eq(existing), eq(Recurse), eq(IgnorePermission));
+        verify(platform).setPermissions(any(), eq(artifactFile), eq(Recurse), eq(IgnorePermission));
     }
 
     @Test
