@@ -34,6 +34,7 @@ import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.hamcrest.collection.IsMapContaining;
@@ -167,7 +168,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
     @Test
     void GIVEN_target_service_has_dependencies_WHEN_deploys_target_service_THEN_service_and_dependencies_should_be_deployed()
             throws Exception {
-
         // Set up stdout listener to capture stdout for verify interpolation
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
@@ -179,150 +179,137 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 stdoutCountdown.countDown(); // countdown when received output to verify
             }
         };
-        Slf4jLogAdapter.addGlobalListener(listener);
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
 
-        stdoutCountdown = new CountDownLatch(1);
-        // 1st Deployment to have some services running in Kernel with default configuration
-        SetConfigurationRequest setRequest1 =
-                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
-                        .addPackagesEntry("CustomerApp",
-                                new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
-        PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
+            stdoutCountdown = new CountDownLatch(1);
+            // 1st Deployment to have some services running in Kernel with default configuration
+            SetConfigurationRequest setRequest1 = new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                    .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
+            PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
-                Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+            IotJobsUtils
+                    .waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
+                            Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
+            assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+            assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+            assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
+            assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
 
-        // verify config in kernel
-        Map<String, Object> resultConfig = getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(
-                KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+            // verify config in kernel
+            Map<String, Object> resultConfig = getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
 
-        assertThat(resultConfig, IsMapWithSize.aMapWithSize(3));
+            assertThat(resultConfig, IsMapWithSize.aMapWithSize(3));
 
-        assertThat(resultConfig, IsMapContaining.hasEntry("sampleText", "This is a test"));
-        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
-        assertThat(resultConfig, IsMapContaining.hasKey("path"));
-        assertThat((Map<String, String>) resultConfig.get("path"),
-                   IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("sampleText", "This is a test"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
+            assertThat(resultConfig, IsMapContaining.hasKey("path"));
+            assertThat((Map<String, String>) resultConfig.get("path"), IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
-        // verify stdout
-        assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
+            // verify stdout
+            assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
 
-        String customerAppStdout = stdouts.get(0);
-        assertThat(customerAppStdout, containsString("This is a test"));
-        assertThat(customerAppStdout, containsString("Value for /path/leafKey: default value of /path/leafKey."));
-        assertThat(customerAppStdout, containsString("Value for /listKey/0: item1."));
-        assertThat(customerAppStdout, containsString("Value for /newKey: {configuration:/newKey}"));
+            String customerAppStdout = stdouts.get(0);
+            assertThat(customerAppStdout, containsString("This is a test"));
+            assertThat(customerAppStdout, containsString("Value for /path/leafKey: default value of /path/leafKey."));
+            assertThat(customerAppStdout, containsString("Value for /listKey/0: item1."));
+            assertThat(customerAppStdout, containsString("Value for /newKey: {configuration:/newKey}"));
 
-        // reset countdown and stdouts
-        stdoutCountdown = new CountDownLatch(1);
-        stdouts.clear();
+            // reset countdown and stdouts
+            stdoutCountdown = new CountDownLatch(1);
+            stdouts.clear();
 
-        // 2nd deployment to merge
-        /*
-         * {
-         *   "MERGE": {
-         *     "sampleText": "updated value for sampleText",
-         *     "listKey": [
-         *       "item3"
-         *     ],
-         *     "path": {
-         *       "leafKey": "updated value of /path/leafKey"
-         *     }
-         *   }
-         * }
-         */
-        ObjectMapper mapper = new ObjectMapper();
-        ObjectNode configUpdateInNode = mapper.createObjectNode();
-        ObjectNode mergeNode = configUpdateInNode.with("MERGE");
-        mergeNode.put("sampleText", "updated");
-        mergeNode.put("newKey", "updated");
+            // 2nd deployment to merge
+            /*
+             * {
+             *   "MERGE": {
+             *     "sampleText": "updated value for sampleText",
+             *     "listKey": [
+             *       "item3"
+             *     ],
+             *     "path": {
+             *       "leafKey": "updated value of /path/leafKey"
+             *     }
+             *   }
+             * }
+             */
+            ObjectMapper mapper = new ObjectMapper();
+            ObjectNode configUpdateInNode = mapper.createObjectNode();
+            ObjectNode mergeNode = configUpdateInNode.with("MERGE");
+            mergeNode.put("sampleText", "updated");
+            mergeNode.put("newKey", "updated");
 
-        mergeNode.withArray("listKey").add("item3");
-        mergeNode.with("path").put("leafKey", "updated");
+            mergeNode.withArray("listKey").add("item3");
+            mergeNode.with("path").put("leafKey", "updated");
 
-        String configUpdateJson = mapper.writeValueAsString(configUpdateInNode);
+            String configUpdateJson = mapper.writeValueAsString(configUpdateInNode);
 
-        SetConfigurationRequest setRequest2 =
-                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
-                        .addPackagesEntry("CustomerApp",
-                                          new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
-                                                  .withConfiguration(configUpdateJson));
+            SetConfigurationRequest setRequest2 = new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                    .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0").withConfiguration(configUpdateJson));
 
-        PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
-                                                        Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
+            PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
+            IotJobsUtils
+                    .waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
+                            Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+            assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+            assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+            assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
+            assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
 
-        // verify config in kernel
-        resultConfig = getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(
-                KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
-        assertThat(resultConfig, IsMapWithSize.aMapWithSize(4));
+            // verify config in kernel
+            resultConfig = getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+            assertThat(resultConfig, IsMapWithSize.aMapWithSize(4));
 
-        assertThat(resultConfig, IsMapContaining.hasEntry("sampleText", "updated"));
-        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
-        assertThat(resultConfig, IsMapContaining.hasKey("path"));
-        assertThat((Map<String, String>) resultConfig.get("path"),
-                   IsMapContaining.hasEntry("leafKey", "updated"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("sampleText", "updated"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
+            assertThat(resultConfig, IsMapContaining.hasKey("path"));
+            assertThat((Map<String, String>) resultConfig.get("path"), IsMapContaining.hasEntry("leafKey", "updated"));
 
-        // verify stdout
-        assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
+            // verify stdout
+            assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
 
-        customerAppStdout = stdouts.get(0);
-        assertThat(customerAppStdout, containsString("Value for /sampleText: updated"));
-        assertThat(customerAppStdout, containsString("Value for /path/leafKey: updated"));
-        assertThat(customerAppStdout, containsString("Value for /listKey/0: item3."));
-        assertThat(customerAppStdout, containsString("Value for /newKey: updated"));
+            customerAppStdout = stdouts.get(0);
+            assertThat(customerAppStdout, containsString("Value for /sampleText: updated"));
+            assertThat(customerAppStdout, containsString("Value for /path/leafKey: updated"));
+            assertThat(customerAppStdout, containsString("Value for /listKey/0: item3."));
+            assertThat(customerAppStdout, containsString("Value for /newKey: updated"));
 
 
-        // reset countdown and stdouts
-        stdoutCountdown = new CountDownLatch(1);
-        stdouts.clear();
+            // reset countdown and stdouts
+            stdoutCountdown = new CountDownLatch(1);
+            stdouts.clear();
 
-        // 3rd deployment to reset
-        SetConfigurationRequest setRequest3 =
-                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
-                        .addPackagesEntry("CustomerApp",
-                                          new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
-                                                  .withConfiguration("{\"RESET\": [\"/sampleText\", \"/path\"]}"));
+            // 3rd deployment to reset
+            SetConfigurationRequest setRequest3 = new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                    .addPackagesEntry("CustomerApp", new PackageMetaData().withRootComponent(true).withVersion("1.0.0").withConfiguration("{\"RESET\": [\"/sampleText\", \"/path\"]}"));
 
-        PublishConfigurationResult publishResult3 = setAndPublishFleetConfiguration(setRequest3);
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult3.getJobId(), thingInfo.getThingName(),
-                                                        Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
+            PublishConfigurationResult publishResult3 = setAndPublishFleetConfiguration(setRequest3);
+            IotJobsUtils
+                    .waitForJobExecutionStatusToSatisfy(iotClient, publishResult3.getJobId(), thingInfo.getThingName(),
+                            Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+            assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+            assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+            assertThat(getCloudDeployedComponent("Mosquitto")::getState, eventuallyEval(is(State.RUNNING)));
+            assertThat(getCloudDeployedComponent("GreenSignal")::getState, eventuallyEval(is(State.FINISHED)));
 
-        // verify config in kernel
-        resultConfig = getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(
-                KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
-        assertThat(resultConfig, IsMapWithSize.aMapWithSize(4));
+            // verify config in kernel
+            resultConfig = getCloudDeployedComponent("CustomerApp").getServiceConfig().findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+            assertThat(resultConfig, IsMapWithSize.aMapWithSize(4));
 
-        assertThat(resultConfig, IsMapContaining.hasEntry("sampleText", "This is a test"));
-        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
-        assertThat(resultConfig, IsMapContaining.hasKey("path"));
-        assertThat((Map<String, String>) resultConfig.get("path"),
-                   IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("sampleText", "This is a test"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
+            assertThat(resultConfig, IsMapContaining.hasKey("path"));
+            assertThat((Map<String, String>) resultConfig.get("path"), IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
-        // verify stdout
-        assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
+            // verify stdout
+            assertThat("The stdout should be captured within seconds.", stdoutCountdown.await(5, TimeUnit.SECONDS));
 
-        customerAppStdout = stdouts.get(0);
-        assertThat(customerAppStdout, containsString("Value for /sampleText: This is a test"));
-        assertThat(customerAppStdout, containsString("Value for /path/leafKey: default value of /path/leafKey"));
-        assertThat(customerAppStdout, containsString("Value for /listKey/0: item3."));
-        assertThat(customerAppStdout, containsString("Value for /newKey: updated"));
-
-        // cleanup
-        Slf4jLogAdapter.removeGlobalListener(listener);
+            customerAppStdout = stdouts.get(0);
+            assertThat(customerAppStdout, containsString("Value for /sampleText: This is a test"));
+            assertThat(customerAppStdout, containsString("Value for /path/leafKey: default value of /path/leafKey"));
+            assertThat(customerAppStdout, containsString("Value for /listKey/0: item3."));
+            assertThat(customerAppStdout, containsString("Value for /newKey: updated"));
+        }
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
