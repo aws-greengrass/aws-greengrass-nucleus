@@ -19,6 +19,7 @@ services:
         date; sleep 5; echo Now we\'re in phase 3
         done
     dependencies:
+      - aws.greengrass.Nucleus
       - ticktock
       - frodo
     setenv:
