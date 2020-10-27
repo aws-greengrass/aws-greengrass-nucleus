@@ -45,6 +45,7 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
+import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
 
 public class ShadowDeploymentListener implements InjectionActions {
 
@@ -198,10 +199,12 @@ public class ShadowDeploymentListener implements InjectionActions {
         }
 
         try {
-            ShadowState shadowState = new ShadowState();
-            HashMap<String, Object> reported = new HashMap<>(desired.getRight());
+            HashMap<String, Object> reported = new HashMap<>();
             reported.put("status", deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME));
             reported.put("statusDetails", deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME));
+            reported.put("ggcVersion", KERNEL_VERSION);
+            reported.put("fleetConfigurationArnForStatus", configurationArn);
+            ShadowState shadowState = new ShadowState();
             shadowState.reported = reported;
             UpdateNamedShadowRequest updateNamedShadowRequest = new UpdateNamedShadowRequest();
             updateNamedShadowRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
