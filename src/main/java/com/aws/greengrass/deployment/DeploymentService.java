@@ -386,6 +386,10 @@ public class DeploymentService extends GreengrassService {
         } else {
             deploymentTask = createKernelUpdateDeployment(deployment);
             cancellable = false;
+            if (deployment.getDeploymentType().equals(DeploymentType.IOT_JOBS)) {
+                // Keep track of IoT jobs for de-duplication
+                IotJobsHelper.getLatestQueuedJobs().addProcessedJob(deployment.getId());
+            }
         }
         if (deploymentTask == null) {
             return;
