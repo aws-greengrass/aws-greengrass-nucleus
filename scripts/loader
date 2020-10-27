@@ -10,8 +10,12 @@ echo "Greengrass root: "${GG_ROOT}
 LAUNCH_DIR="$GG_ROOT/alts/current"
 CONFIG_FILE=""
 
+is_directory_link() {
+  [ -L "$1" ] && [ -d "$1" ]
+}
+
 launch_kernel() {
-  if [ ! -d ${LAUNCH_DIR} ] ; then
+  if ! is_directory_link "${LAUNCH_DIR}"; then
     echo FATAL: No Kernel found!
     exit 1
   fi
@@ -35,18 +39,18 @@ launch_kernel() {
 flip_link() {
   rm -r $(readlink $2) || true
   rm $2 || true
-  ln -s $2 $(readlink $1)
+  ln -s $(readlink $1) $2
   rm $1 || true
 }
 
 # Determine Kernel stage and proper config files based on launch directory
-if [ -L "${GG_ROOT}/alts/old" ] && [ -d "${GG_ROOT}/alts/old" ]; then
+if is_directory_link "${GG_ROOT}/alts/old"; then
   # During deployment. New kernel will be launched.
   CONFIG_FILE="$GG_ROOT/deployments/ongoing/target_config.tlog"
 
-elif [ -L "${GG_ROOT}/alts/broken" ] && [ -d "${GG_ROOT}/alts/broken" ]; then
+elif is_directory_link "${GG_ROOT}/alts/broken"; then
   # During deployment rollback. Previous kernel will be launched
-  if [ ! -d "${LAUNCH_DIR}" ] && [ -d "${GG_ROOT}/alts/old" ]; then
+  if ! is_directory_link "${LAUNCH_DIR}" && is_directory_link "${GG_ROOT}/alts/old"; then
     flip_link ${GG_ROOT}/alts/old ${LAUNCH_DIR}
   fi
 
@@ -76,7 +80,7 @@ done
 
 # when reaching here, kernel has restarted 3 times and fails. Keep the current status and flip symlink.
 # 1. If old+current: Kernel update failed. flip current to broken, old to current
-if [ -d ${GG_ROOT}/alts/old ] || [ -d ${GG_ROOT}/alts/current ]; then
+if is_directory_link "${GG_ROOT}/alts/old" && is_directory_link "${GG_ROOT}/alts/current"; then
   flip_link ${GG_ROOT}/alts/current ${GG_ROOT}/alts/broken
   flip_link ${GG_ROOT}/alts/old ${GG_ROOT}/alts/current
 fi
