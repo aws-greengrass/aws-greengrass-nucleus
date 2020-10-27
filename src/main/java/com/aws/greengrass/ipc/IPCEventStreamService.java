@@ -45,11 +45,11 @@ public class IPCEventStreamService implements Startable, Closeable {
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipcEventStreamServer.socket";
-    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./nucleusRoot/ipcEventStreamServer.socket";
+    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./nucleusRoot/ipc.socket";
     public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
     // This is relative to component's CWD
     // components CWD is <kernel-root-path>/work/component
-    public static final String IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME = "../../ipcEventStreamServer.socket";
+    public static final String IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME = "../../ipc.socket";
 
     public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH = "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH";
     public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT =
