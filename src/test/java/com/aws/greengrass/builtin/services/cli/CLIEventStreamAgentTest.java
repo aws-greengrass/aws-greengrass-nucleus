@@ -331,9 +331,11 @@ public class CLIEventStreamAgentTest {
         request.setGroupName(MOCK_GROUP);
         request.setRootComponentVersionsToAdd(ImmutableMap.of(TEST_SERVICE, "1.0.0"));
         request.setRootComponentsToRemove(Arrays.asList("SomeService"));
-        Map<String, Map<String, Object>> componentToConfig = new HashMap<>();
-        componentToConfig.put(TEST_SERVICE, ImmutableMap.of("param1", "value1"));
-        request.setComponentToConfiguration(componentToConfig);
+        Map<String, String> componentConfigToMerge = new HashMap<>();
+        componentConfigToMerge.put("param1", "value1");
+        Map<String, Map<String, Object>> action = new HashMap<>();
+        action.put(TEST_SERVICE, ImmutableMap.of("MERGE", componentConfigToMerge));
+        request.setComponentToConfiguration(action);
         cliEventStreamAgent.getCreateLocalDeploymentHandler(mockContext, mockCliConfig).handleRequest(request);
         ArgumentCaptor<Deployment> deploymentCaptor = ArgumentCaptor.forClass(Deployment.class);
         verify(deploymentQueue).offer(deploymentCaptor.capture());
@@ -343,9 +345,9 @@ public class CLIEventStreamAgentTest {
         assertTrue(localOverrideRequest.getComponentsToMerge().containsKey(TEST_SERVICE));
         assertTrue(localOverrideRequest.getComponentsToMerge().containsValue("1.0.0"));
         assertTrue(localOverrideRequest.getComponentsToRemove().contains("SomeService"));
-        assertNotNull(localOverrideRequest.getComponentNameToConfig().get(TEST_SERVICE));
-        assertEquals("value1", localOverrideRequest.getComponentNameToConfig()
-                .get(TEST_SERVICE).get("param1"));
+        assertNotNull(localOverrideRequest.getConfigurationUpdate().get(TEST_SERVICE));
+        assertEquals("value1", localOverrideRequest.getConfigurationUpdate()
+                .get(TEST_SERVICE).getValueToMerge().get("param1"));
 
 
         verify(localDeployments).lookupTopics(localOverrideRequest.getRequestId());
