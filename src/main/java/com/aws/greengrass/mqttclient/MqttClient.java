@@ -94,7 +94,7 @@ public class MqttClient implements Closeable {
     private final CallbackEventManager callbackEventManager = new CallbackEventManager();
 
     //
-    // TODO: Handle timeouts and retries
+    // GG_NEEDS_REVIEW: TODO: Handle timeouts and retries
     //
 
     /**
@@ -229,7 +229,7 @@ public class MqttClient implements Closeable {
             AwsIotMqttClient connection = null;
             // Use the write scope when identifying the subscriptionTopics that exist
             try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
-                // TODO: Handle subscriptions with differing QoS (Upgrade 0->1->2)
+                // GG_NEEDS_REVIEW: TODO: Handle subscriptions with differing QoS (Upgrade 0->1->2)
 
                 // If none of our existing subscriptions include (through wildcards) the new topic, then
                 // go ahead and subscribe to it

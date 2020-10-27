@@ -48,7 +48,7 @@ class MergeTest {
         }
     }
 
-    // TODO : following tests need to go into the unit tests for DeploymentConfigMerger class when we add it
+    // GG_NEEDS_REVIEW: TODO : following tests need to go into the unit tests for DeploymentConfigMerger class when we add it
     //  and should be tested through the available method mergeNewConfig instead
     @Test
     void GIVEN_deployment_WHEN_all_service_are_running_THEN_waitForServicesToStart_completes_without_exception()

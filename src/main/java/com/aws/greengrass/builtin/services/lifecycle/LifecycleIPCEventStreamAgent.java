@@ -58,6 +58,7 @@ public class LifecycleIPCEventStreamAgent {
     // sendPreComponentUpdateEvent will have reference to the set of futures.
     // deferUpdateFuturesMap maps the context of a component to the future created for the component.
     // This map is from service name to the Futures. Only one (latest) Future per service is maintained.
+    // GG_NEEDS_REVIEW: TODO
     //TODO: Remove the DeferUpdateRequest when we remove the LifecycleIPCAgent. Keeping it right now so both old and new
     // IPC can work.
     @Getter (AccessLevel.PACKAGE)
@@ -190,7 +191,7 @@ public class LifecycleIPCEventStreamAgent {
 
         @Override
         public DeferComponentUpdateResponse handleRequest(DeferComponentUpdateRequest request) {
-            // TODO: Input validation. https://sim.amazon.com/issues/P32540011
+            // GG_NEEDS_REVIEW: TODO: Input validation. https://sim.amazon.com/issues/P32540011
 
             if (!componentUpdateListeners.containsKey(serviceName)) {
                 throw new InvalidArgumentError("Component is not subscribed to component update events");

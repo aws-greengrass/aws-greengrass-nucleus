@@ -165,7 +165,7 @@ public class DefaultActivator extends DeploymentActivator {
         // Rollback execution failed
         logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(rollbackFailureCause)
                 .log("Failed to rollback deployment");
-        // TODO : Run user provided script to reach user defined safe state and
+        // GG_NEEDS_REVIEW: TODO : Run user provided script to reach user defined safe state and
         //  set deployment status based on the success of the script run
         totallyCompleteFuture.complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
                 deploymentFailureCause));

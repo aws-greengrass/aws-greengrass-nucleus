@@ -102,7 +102,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         initKernel();
         kernel.launch();
 
-        // TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
+        // GG_NEEDS_REVIEW: TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
         // causing these tests to fail. There may be a race condition between DeploymentService startup logic and
         // creating new IoT job here.
         Thread.sleep(10_000);
@@ -546,7 +546,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         assertTrue(kernel.getContext().get(UpdateSystemSafelyService.class)
                 .hasPendingUpdateAction(publishResult2.getConfigurationArn()));
 
-        // TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
+        // GG_NEEDS_REVIEW: TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
         IotJobsUtils.cancelJob(iotClient, publishResult2.getJobId());
 
         // Wait for indication that cancellation has gone through
@@ -689,7 +689,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         assertTrue(kernel.getContext().get(UpdateSystemSafelyService.class)
                 .hasPendingUpdateAction(publishResult2.getConfigurationArn()));
 
-        // TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
+        // GG_NEEDS_REVIEW: TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
         IotJobsUtils.cancelJob(iotClient, publishResult2.getJobId());
 
         // Wait for indication that cancellation has gone through

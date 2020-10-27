@@ -190,7 +190,7 @@ class AuthorizationHandlerTest {
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
     }
 
-    //TODO: Add component registration logic back in along with this test:
+    // GG_NEEDS_REVIEW: TODO: Add component registration logic back in along with this test:
     // https://issues-iad.amazon.com/issues/V234938383
 //    @Test
 //    void GIVEN_AuthZ_handler_WHEN_component_registered_twice_THEN_errors() throws AuthorizationException {
@@ -425,7 +425,7 @@ class AuthorizationHandlerTest {
                 Collections.singletonList(getAuthZPolicy()), false);
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
-        //TODO:Add component registration logic back in along with this assertion:
+        // GG_NEEDS_REVIEW: TODO:Add component registration logic back in along with this assertion:
         // https://issues-iad.amazon.com/issues/V234938383
 //        setupLogListener("load-authorization-config-invalid-component");
 //        authorizationHandler.loadAuthorizationPolicies(
@@ -455,7 +455,7 @@ class AuthorizationHandlerTest {
         // Now let the mock return mock topics
         //when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
         // Ops which are not registered should fail to load
-        //TODO:Add component registration logic back in along with this assertion :
+        // GG_NEEDS_REVIEW: TODO:Add component registration logic back in along with this assertion :
         // https://issues-iad.amazon.com/issues/V234938383
         //exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicies("ServiceA",
         //Collections.singletonList(getAuthZPolicy())));

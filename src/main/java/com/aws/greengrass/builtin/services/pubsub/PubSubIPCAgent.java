@@ -80,7 +80,7 @@ public class PubSubIPCAgent {
      * @return response code Success if all went well
      */
     public PubSubGenericResponse subscribe(PubSubSubscribeRequest subscribeRequest, ConnectionContext context) {
-        // TODO: Input validation. https://sim.amazon.com/issues/P32540011
+        // GG_NEEDS_REVIEW: TODO: Input validation. https://sim.amazon.com/issues/P32540011
         log.debug("Subscribing to topic {}, {}", subscribeRequest.getTopic(), context);
         listeners.get(subscribeRequest.getTopic()).add(context);
         context.onDisconnect(() -> {
@@ -100,7 +100,7 @@ public class PubSubIPCAgent {
      * @param cb               callback to be called for each published message
      */
     public void subscribe(PubSubSubscribeRequest subscribeRequest, Consumer<MessagePublishedEvent> cb) {
-        // TODO: Input validation. https://sim.amazon.com/issues/P32540011
+        // GG_NEEDS_REVIEW: TODO: Input validation. https://sim.amazon.com/issues/P32540011
         log.debug("Subscribing to topic {}", subscribeRequest.getTopic());
         listeners.get(subscribeRequest.getTopic()).add(cb);
     }
@@ -143,13 +143,13 @@ public class PubSubIPCAgent {
             try {
                 ApplicationMessage applicationMessage = ApplicationMessage.builder().version(PubSubImpl.API_VERSION)
                         .opCode(PubSubServiceOpCodes.PUBLISHED.ordinal()).payload(IPCUtil.encode(event)).build();
-                // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
+                // GG_NEEDS_REVIEW: TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
                 Future<FrameReader.Message> fut = context.serverPush(BuiltInServiceDestinationCode.PUBSUB.getValue(),
                         new FrameReader.Message(applicationMessage.toByteArray()));
 
                 try {
                     fut.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                    // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
+                    // GG_NEEDS_REVIEW: TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     // Log
                     log.atError("error-sending-pubsub-update").kv("context", context)

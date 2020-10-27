@@ -149,7 +149,7 @@ public class PubSubIPCEventStreamAgent {
 
     private void handleSubscribeToTopicRequest(String topic, String serviceName,
                                                Object handler) {
-        // TODO: Input validation. P32540011
+        // GG_NEEDS_REVIEW: TODO: Input validation. P32540011
         log.atInfo().kv(SERVICE_NAME, serviceName).log("Subscribing to topic {}", topic);
         listeners.computeIfAbsent(topic, k -> ConcurrentHashMap.newKeySet()).add(handler);
     }

@@ -395,7 +395,7 @@ class IPCPubSubTest {
         });
     }
 
-    //TODO: review if we want to add future support for the `unsubscribe` operation:
+    // GG_NEEDS_REVIEW: TODO: review if we want to add future support for the `unsubscribe` operation:
     // https://issues-iad.amazon.com/issues/V234932355
 //    @Test
 //    void GIVEN_pubsubclient_WHEN_unsubscribe_is_not_authorized_THEN_Fail(ExtensionContext context) throws Exception {

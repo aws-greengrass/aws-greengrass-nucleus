@@ -533,7 +533,7 @@ class IPCServicesTest {
         }
 
         assertTrue(subscriptionLatch.await(5, TimeUnit.SECONDS));
-        // TODO: When Cli support safe update setting in local deployment, then create a local deployment here to
+        // GG_NEEDS_REVIEW: TODO: When Cli support safe update setting in local deployment, then create a local deployment here to
         //  trigger update
         LifecycleIPCEventStreamAgent lifecycleIPCEventStreamAgent =
                 kernel.getContext().get(LifecycleIPCEventStreamAgent.class);

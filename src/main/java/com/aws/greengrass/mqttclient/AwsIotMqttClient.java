@@ -60,7 +60,7 @@ class AwsIotMqttClient implements Closeable {
             if (errorCode != 0) {
                 logger.atWarn().kv("error", CRT.awsErrorString(errorCode)).log("Connection interrupted");
                 // Copy-paste from Amit's original work, ask him about this if needed
-                //TODO: Detect this using secondary mechanisms like checking if internet is available
+                // GG_NEEDS_REVIEW: TODO: Detect this using secondary mechanisms like checking if internet is available
                 // instead of using ping to Mqtt server. Mqtt ping is expensive and should be used as the last resort.
             }
             // To run the callbacks shared by the different AwsIotMqttClient.

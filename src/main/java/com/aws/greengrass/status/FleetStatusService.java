@@ -76,7 +76,7 @@ public class FleetStatusService extends GreengrassService {
     private final AtomicBoolean isEventTriggeredUpdateInProgress = new AtomicBoolean(false);
     private final Set<GreengrassService> updatedGreengrassServiceSet =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
-    // TODO: Remove this variable after implementing callbacks for getting services being removed notifications.
+    // GG_NEEDS_REVIEW: TODO: Remove this variable after implementing callbacks for service removal notifications.
     private final ConcurrentHashMap<GreengrassService, Instant> allServiceNamesMap = new ConcurrentHashMap<>();
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
     private final Object periodicUpdateInProgressLock = new Object();
@@ -120,7 +120,7 @@ public class FleetStatusService extends GreengrassService {
 
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
 
-        // TODO: Make this more robust to handle all platforms.
+        // GG_NEEDS_REVIEW: TODO: Make this more robust to handle all platforms.
         this.platform = System.getProperty("os.name");
 
         updateThingNameAndPublishTopic(Coerce.toString(deviceConfiguration.getThingName()));
@@ -242,7 +242,7 @@ public class FleetStatusService extends GreengrassService {
             isDeploymentInProgress.set(false);
             updateEventTriggeredFleetStatusData();
         }
-        // TODO: Handle local deployment update for FSS
+        // GG_NEEDS_REVIEW: TODO: Handle local deployment update for FSS
         return true;
     }
 

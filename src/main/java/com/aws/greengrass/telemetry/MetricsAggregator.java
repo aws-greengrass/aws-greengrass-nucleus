@@ -70,7 +70,7 @@ public class MetricsAggregator {
             AggregatedNamespaceData aggMetrics = new AggregatedNamespaceData();
             HashMap<String, List<Metric>> metrics = new HashMap<>();
             // Read from the Telemetry/namespace*.log file.
-            // TODO : Read only those files that are modified after the last aggregation.
+            // GG_NEEDS_REVIEW: TODO : Read only those files that are modified after the last aggregation.
             // file.lastModified() behavior is platform dependent.
             try (Stream<Path> paths = Files
                     .walk(TelemetryConfig.getTelemetryDirectory())
@@ -170,7 +170,7 @@ public class MetricsAggregator {
     protected Map<Long, List<AggregatedNamespaceData>> getMetricsToPublish(long lastPublish, long currTimestamp) {
         Map<Long, List<AggregatedNamespaceData>> aggUploadMetrics = new HashMap<>();
         // Read from the Telemetry/AggregatedMetrics.log file.
-        // TODO : Read only those files that are modified after the last publish.
+        // GG_NEEDS_REVIEW: TODO : Read only those files that are modified after the last publish.
         try (Stream<Path> paths = Files
                 .walk(TelemetryConfig.getTelemetryDirectory())
                 .filter(Files::isRegularFile)
@@ -211,14 +211,14 @@ public class MetricsAggregator {
         aggUploadMetrics.putIfAbsent(currTimestamp, new ArrayList<>());
         //Along with the aggregated data points, we need to collect an additional data point for each metric which is
         // like the aggregation of aggregated data points.
-        // TODO : Get accumulated data points during aggregation and cache it to the disk.
+        // GG_NEEDS_REVIEW: TODO : Get accumulated data points during aggregation and cache it to the disk.
         aggUploadMetrics.compute(currTimestamp, (k, v) -> {
             v.addAll(getAggForThePublishInterval(aggUploadMetrics.get(currTimestamp), currTimestamp));
             return v;
         });
 
-        // TODO : Check with PM regarding the aggregation type of v2 metrics. As of now, all the v1 metrics have "Sum"
-        //  aggregation type and so is the cloud validation.
+        // GG_NEEDS_REVIEW: TODO : Check with PM regarding the aggregation type of v2 metrics. As of now, all the v1
+        //  metrics have "Sum" aggregation type and so is the cloud validation.
         // The following code changes any aggregation type of the metrics to "Sum" only in the final result to keep it
         // compatible with v1 and UATs for now. However, metrics are still defined and aggregated with on their own
         // aggregation type.

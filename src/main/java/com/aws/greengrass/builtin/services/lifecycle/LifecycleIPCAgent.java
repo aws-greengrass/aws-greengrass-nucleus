@@ -107,7 +107,7 @@ public class LifecycleIPCAgent {
                                             List<Future<DeferUpdateRequest>> deferUpdateFutures) {
         discardDeferComponentUpdateFutures();
         componentUpdateListeners.forEach((context) -> {
-            //TODO: error handling if sendServiceEvent fails
+            // GG_NEEDS_REVIEW: TODO: error handling if sendServiceEvent fails
             log.info("Sending preComponentUpdate event to {}", context.getServiceName());
             serviceEventHelper.sendServiceEvent(context, preComponentUpdateEvent, LIFECYCLE,
                     LifecycleServiceOpCodes.PRE_COMPONENT_UPDATE_EVENT.ordinal(), LifecycleImpl.API_VERSION);
@@ -149,7 +149,7 @@ public class LifecycleIPCAgent {
      */
     public DeferComponentUpdateResponse handleDeferComponentUpdateRequest(DeferComponentUpdateRequest request,
                                                                           ConnectionContext context) {
-        // TODO: Input validation. https://sim.amazon.com/issues/P32540011
+        // GG_NEEDS_REVIEW: TODO: Input validation. https://sim.amazon.com/issues/P32540011
         DeferComponentUpdateResponseBuilder responseBuilder = DeferComponentUpdateResponse.builder();
         if (!componentUpdateListeners.contains(context)) {
             return responseBuilder.responseStatus(LifecycleResponseStatus.InvalidRequest)

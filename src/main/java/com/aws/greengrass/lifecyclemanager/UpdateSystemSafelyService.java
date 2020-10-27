@@ -148,13 +148,13 @@ public class UpdateSystemSafelyService extends GreengrassService {
             logger.atDebug().setEventType("service-update-pending").addKeyValue("numOfUpdates", pendingActions.size())
                     .log();
 
-            //TODO: set isGgcRestarting to true if the updates involves kernel restart
+            // GG_NEEDS_REVIEW: TODO: set isGgcRestarting to true if the updates involves kernel restart
             PreComponentUpdateEvent preComponentUpdateEvent = new PreComponentUpdateEvent();
             preComponentUpdateEvent.setIsGgcRestarting(false);
             List<Future<DeferUpdateRequest>> deferRequestFutures =
                     lifecycleIPCAgent.sendPreComponentUpdateEvent(preComponentUpdateEvent);
 
-            // TODO: Remove when move all UATs and integ tests to lifecycle APIs on new IPC
+            // GG_NEEDS_REVIEW: TODO: Remove when move all UATs and integ tests to lifecycle APIs on new IPC
             com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent preComponentUpdateEventOld =
                     new com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent();
             preComponentUpdateEventOld.setGgcRestarting(false);

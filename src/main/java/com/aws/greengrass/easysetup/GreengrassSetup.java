@@ -79,7 +79,7 @@ public class GreengrassSetup {
     private static final String POLICY_NAME_ARG_SHORT = "-pn";
     private static final String POLICY_NAME_DEFAULT = "MyIotThingPolicy";
 
-    // TODO : Customers don't understand TES, when we decide the name for TES to expose
+    // GG_NEEDS_REVIEW: TODO : Customers don't understand TES, when we decide the name for TES to expose
     //  to customers in the context of Greengrass, rename TES related things here and change description
     private static final String TES_ROLE_NAME_ARG = "--tes-role-name";
     private static final String TES_ROLE_NAME_ARG_SHORT = "-trn";
@@ -125,7 +125,7 @@ public class GreengrassSetup {
 
     private static final String VERSION_ARG = "--version";
 
-    // TODO : Add optional input for credentials, currently creds are assumed to be set into env vars
+    // GG_NEEDS_REVIEW: TODO : Add optional input for credentials, currently creds are assumed to be set into env vars
 
     private static final Logger logger = LogManager.getLogger(GreengrassSetup.class);
     private final String[] setupArgs;
@@ -226,7 +226,7 @@ public class GreengrassSetup {
 
         // Install Greengrass cli
         if (installCli) {
-            // TODO : Download CLI binary from CDN and install
+            // GG_NEEDS_REVIEW: TODO : Download CLI binary from CDN and install
             outStream.println("Installed Greengrass CLI");
         }
 
@@ -378,8 +378,8 @@ public class GreengrassSetup {
             outStream.printf("Successfully added Thing into Thing Group: [%s]%n", thingGroupName);
         }
 
-        // TODO : setupTes should not be an arg anymore since role alias is required, need to remove this arg
-        //  and always pass either user specified or a default role alias
+        // GG_NEEDS_REVIEW: TODO : setupTes should not be an arg anymore since role alias is required, need to remove
+        //  this arg and always pass either user specified or a default role alias
         if (setupTes) {
             outStream.println("Setting up resources for TokenExchangeService...");
             deviceProvisioningHelper.setupIoTRoleForTes(tesRoleName, tesRoleAliasName, thingInfo.getCertificateArn());

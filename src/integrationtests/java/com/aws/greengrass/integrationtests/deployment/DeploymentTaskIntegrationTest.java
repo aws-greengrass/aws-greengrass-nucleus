@@ -310,7 +310,7 @@ class DeploymentTaskIntegrationTest {
             // Windows has quotes in the echo, so strip them
             messageOnStdout = messageOnStdout.replaceAll("\"", "");
             if (listOfExpectedMessages.contains(messageOnStdout)) {
-                //TODO: Deduping is needed, as currently kernel is running the GreenSignal and Mosquitto dependencies
+                // GG_NEEDS_REVIEW: TODO: Deduping is needed, as currently kernel is running the GreenSignal and Mosquitto dependencies
                 // multiple times before the CustomerApp runs. This should not be the expected behavior. Sim to
                 // capture this https://sim.amazon.com/issues/P34042537
                 if (!outputMessagesToTimestamp.containsKey(messageOnStdout)) {

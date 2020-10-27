@@ -608,7 +608,7 @@ public class KernelConfigResolver {
             }
             result = resolvedChildConfig;
         }
-        // TODO : Do we want to support other config types than map of
+        // GG_NEEDS_REVIEW: TODO : Do we want to support other config types than map of
         // string k,v pairs? e.g. how should lists be handled?
         return result;
     }
@@ -783,7 +783,7 @@ public class KernelConfigResolver {
             String packageName, String packageVersion) {
         return document.getDeploymentPackageConfigurationList().stream()
                 .filter(packageConfig -> packageName.equals(packageConfig.getPackageName())
-                        // TODO packageConfig.getResolvedVersion() should be strongly typed when created
+                        //GG_NEEDS_REVIEW: TODO packageConfig.getResolvedVersion() should be strongly typed when created
                         && Requirement.buildNPM(packageConfig.getResolvedVersion())
                         .isSatisfiedBy(new Semver(packageVersion, Semver.SemverType.NPM))).findAny();
     }

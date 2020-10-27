@@ -72,7 +72,7 @@ public class ConfigStoreIPCService implements Startable {
 
         ApplicationMessage applicationMessage = ApplicationMessage.fromBytes(message.getPayload());
         try {
-            //TODO: add version compatibility check
+            // GG_NEEDS_REVIEW: TODO: add version compatibility check
             ConfigStoreClientOpCodes opCode = ConfigStoreClientOpCodes.values()[applicationMessage.getOpCode()];
             ConfigStoreGenericResponse configStoreGenericResponse = new ConfigStoreGenericResponse();
             switch (opCode) {

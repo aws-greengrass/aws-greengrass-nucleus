@@ -284,7 +284,7 @@ public class CredentialRequestHandler implements HttpHandler {
 
     private byte[] translateToAwsSdkFormat(final String credentials) throws AWSIotException {
         try {
-            // TODO: Validate if lowercase lookup can make this simpler
+            // GG_NEEDS_REVIEW: TODO: Validate if lowercase lookup can make this simpler
             JsonNode jsonNode = OBJECT_MAPPER.readTree(credentials).get(CREDENTIALS_UPSTREAM_STR);
             Map<String, String> response = new HashMap<>();
             response.put(ACCESS_KEY_DOWNSTREAM_STR, jsonNode.get(ACCESS_KEY_UPSTREAM_STR).asText());

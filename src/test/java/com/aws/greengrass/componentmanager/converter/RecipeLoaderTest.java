@@ -48,7 +48,7 @@ class RecipeLoaderTest {
         assertThat(recipe.getVersion().getValue(), is("1.0.0"));
         assertThat(recipe.getComponentType().name().toLowerCase(), is("plugin"));
 
-        // TODO enrich testing fields after making lifecycle section strongly typed
+        // GG_NEEDS_REVIEW: TODO enrich testing fields after making lifecycle section strongly typed
         assertThat(recipe.getLifecycle(), aMapWithSize(2));
         assertThat(recipe.getLifecycle(), hasEntry("install", "echo install"));
         assertThat(recipe.getLifecycle(), hasEntry("run", "echo run"));
@@ -88,7 +88,7 @@ class RecipeLoaderTest {
         assertThat(recipe.getVersion().getValue(), is("1.0.0"));
         assertThat(recipe.getComponentType().name().toLowerCase(), is("plugin"));
 
-        // TODO enrich testing fields after making lifecycle section strongly typed
+        // GG_NEEDS_REVIEW: TODO enrich testing fields after making lifecycle section strongly typed
         assertThat(recipe.getLifecycle(), aMapWithSize(2));
         assertThat(recipe.getLifecycle(), hasEntry("install", "echo install"));
         assertThat(recipe.getLifecycle(), hasEntry("run", "echo run"));

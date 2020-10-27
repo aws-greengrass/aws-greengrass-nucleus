@@ -35,7 +35,7 @@ import javax.annotation.Nonnull;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE) // so that it can't be 'new'
 public final class RecipeLoader {
-    // TODO add logging
+    // GG_NEEDS_REVIEW: TODO add logging
     //    private static final Logger logger = LogManager.getLogger(RecipeLoader.class);
 
     /**
@@ -54,7 +54,7 @@ public final class RecipeLoader {
                             .readValue(recipeFileContent,
                                     com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
         } catch (JsonProcessingException e) {
-            //TODO move this to common model
+            // GG_NEEDS_REVIEW: TODO move this to common model
             throw new PackageLoadingException(
                     String.format("Failed to parse recipe file content to contract model. Recipe file content: '%s'.",
                             recipeFileContent), e);
@@ -75,7 +75,7 @@ public final class RecipeLoader {
 
         PlatformSpecificManifest platformSpecificManifest = optionalPlatformSpecificManifest.get();
 
-        // TODO delete after migration of global dependencies
+        // GG_NEEDS_REVIEW: TODO delete after migration of global dependencies
         Map<String, DependencyProperties> dependencyPropertiesMap = new HashMap<>();
         if (componentRecipe.getComponentDependencies() == null || componentRecipe.getComponentDependencies()
                 .isEmpty()) {

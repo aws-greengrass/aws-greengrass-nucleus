@@ -105,7 +105,7 @@ public class PubSubIPCService implements Startable, InjectionActions {
 
         ApplicationMessage applicationMessage = ApplicationMessage.fromBytes(message.getPayload());
         try {
-            //TODO: add version compatibility check
+            // GG_NEEDS_REVIEW: TODO: add version compatibility check
             PubSubClientOpCodes opCode = PubSubClientOpCodes.values()[applicationMessage.getOpCode()];
             PubSubGenericResponse pubSubGenericResponse = new PubSubGenericResponse();
             switch (opCode) {

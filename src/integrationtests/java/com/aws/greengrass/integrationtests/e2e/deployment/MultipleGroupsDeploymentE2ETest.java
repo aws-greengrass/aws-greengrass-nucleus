@@ -62,7 +62,7 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
         secondThingGroupResponse = IotJobsUtils.createThingGroupAndAddThing(iotClient, thingInfo);
         createdThingGroups.add(secondThingGroupResponse.thingGroupName());
 
-        // TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
+        // GG_NEEDS_REVIEW: TODO: Without this sleep, DeploymentService sometimes is not able to pick up new IoT job created here,
         // causing these tests to fail. There may be a race condition between DeploymentService startup logic and
         // creating new IoT job here.
         Thread.sleep(10_000);

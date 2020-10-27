@@ -39,7 +39,7 @@ public class IotCloudHelper {
     private static final Logger LOGGER = LogManager.getLogger(IotCloudHelper.class);
     private static final String HTTP_HEADER_REQUEST_ID = "x-amzn-RequestId";
     private static final String HTTP_HEADER_ERROR_TYPE = "x-amzn-ErrorType";
-    // TODO: revisit all timeout values
+    // GG_NEEDS_REVIEW: TODO: revisit all timeout values
     // Max wait time for device to receive HTTP response from IOT CLOUD
     private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = Duration.ofSeconds(30).getSeconds();
     private static final int RETRY_COUNT = 3;

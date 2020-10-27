@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.componentmanager.exceptions;
 
-// TODO Think about refactoring this to PackageIOException
+// GG_NEEDS_REVIEW: TODO Think about refactoring this to PackageIOException
 public class PackageLoadingException extends PackagingException {
     static final long serialVersionUID = -3387516993124229948L;
 

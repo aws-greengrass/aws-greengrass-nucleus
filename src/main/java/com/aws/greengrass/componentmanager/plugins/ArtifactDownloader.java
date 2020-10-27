@@ -55,7 +55,7 @@ public abstract class ArtifactDownloader {
             }
             logger.atDebug().setEventType("download-artifact").addKeyValue("packageIdentifier", componentIdentifier)
                     .addKeyValue("artifactUri", artifact.getArtifactUri()).log("Passed integrity check");
-            // TODO: Change permissions
+            // GG_NEEDS_REVIEW: TODO: Change permissions
         } catch (NoSuchAlgorithmException e) {
             throw new ArtifactChecksumMismatchException(
                     String.format(ARTIFACT_DOWNLOAD_EXCEPTION_FMT, artifact.getArtifactUri(),

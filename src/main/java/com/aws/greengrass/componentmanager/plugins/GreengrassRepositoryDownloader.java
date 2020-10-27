@@ -46,7 +46,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     @Override
     public boolean downloadRequired(ComponentIdentifier componentIdentifier, ComponentArtifact artifact,
                                     Path saveToPath) throws PackageDownloadException {
-        // TODO can we simplify getting filename without network request
+        // GG_NEEDS_REVIEW: TODO can we simplify getting filename without network request
         try {
             String preSignedUrl =
                     getArtifactDownloadURL(componentIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
@@ -111,7 +111,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     }
                     return saveToPath.resolve(filename).toFile();
                 }
-                //TODO handle the other status code
+                // GG_NEEDS_REVIEW: TODO handle the other status code
             } finally {
                 if (httpConn != null) {
                     httpConn.disconnect();
@@ -125,8 +125,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     .addKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, componentIdentifier)
                     .addKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
                     .log("Failed to download artifact, but found it locally, using that version", e);
-            // TODO : In the download from cloud step we rely on the content-disposition header to get the
-            //  file name and that's the accurate name, but here we're only using the scheme specific part
+            // GG_NEEDS_REVIEW: TODO : In the download from cloud step we rely on the content-disposition header
+            // to get the file name and that's the accurate name, but here we're only using the scheme specific part
             //  of the URI when we don't find the file in cloud, we need to follow up on what is the
             //  right way to get file name
             return saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
@@ -158,7 +158,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     @Override
     public File getArtifactFile(Path artifactDir, ComponentArtifact artifact, ComponentIdentifier componentIdentifier) {
-        // TODO : In the download from cloud step we rely on the content-disposition header to get the
+        // GG_NEEDS_REVIEW: TODO : In the download from cloud step we rely on the content-disposition header to get the
         //  file name and that's the accurate name, but here we're only using the scheme specific part
         //  of the URI when we don't find the file in cloud, we need to follow up on what is the
         //  right way to get file name
@@ -176,16 +176,16 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                         .withComponentName(componentIdentifier.getName())
                         .withComponentVersion(componentIdentifier.getVersion().toString());
 
-        // TODO: This is horribly bad code, but unfortunately, the service is configured to return 302 redirect and
-        // the auto-generated SDK does NOT like that. The only way to handle this at the moment is to catch the
-        // exception for the redirect. This response code needs a revisit from the service side either to change the
-        // response code or to gracefully respond instead of throwing exception
+        // GG_NEEDS_REVIEW: TODO: This is horribly bad code, but unfortunately, the service is configured to return
+        // 302 redirect and the auto-generated SDK does NOT like that. The only way to handle this at the moment is to
+        // catch the exception for the redirect. This response code needs a revisit from the service side either to
+        // change the response code or to gracefully respond instead of throwing exception
         try {
             GetComponentArtifactResult getComponentArtifactResult =
                     evgCmsClient.getComponentArtifact(getComponentArtifactRequest);
             return getComponentArtifactResult.getRedirectUrl();
         } catch (AmazonServiceException ase) {
-            // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
+            // GG_NEEDS_REVIEW: TODO: This should be expanded to handle various retryable/non-retryable exceptions
             // Ideally service side response is fixed and this can be merged with the Client Exception handling
             // section below
             int responseStatus = ase.getStatusCode();
@@ -197,7 +197,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             }
             return headers.get(HTTP_HEADER_LOCATION);
         } catch (AmazonClientException ace) {
-            // TODO: This should be expanded to handle various types of retryable/non-retryable exceptions
+            // GG_NEEDS_REVIEW: TODO: This should be expanded to handle various retryable/non-retryable exceptions
             throw new PackageDownloadException(
                     String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, componentIdentifier.getName(),
                             componentIdentifier.getVersion().toString()), ace);
