@@ -31,7 +31,8 @@ public class TestFeatureParametersTest {
         String featureFlag = "SomeFeatureFlagThatDoesNotGetValidated";
 
         // by default, value is pass-through
-        assertThat(TestFeatureParameters.get(featureFlag, providedValue), is(sameInstance(providedValue)));
+        assertThat(TestFeatureParameters.retrieveWithDefault(String.class, featureFlag, providedValue),
+                is(sameInstance(providedValue)));
     }
 
     @Test
@@ -41,16 +42,12 @@ public class TestFeatureParametersTest {
         Integer specificReturnValue = 5678; // checked by reference
 
         TestFeatureParameterInterface handler = mock(TestFeatureParameterInterface.class);
-        when(handler.get(featureFlag, someInputValue)).thenReturn(specificReturnValue);
+        when(handler.retrieveWithDefault(Integer.class, featureFlag, someInputValue)).thenReturn(specificReturnValue);
+
+        // when enabled, expect to retrieve the override value
         TestFeatureParameters.internalEnableTestingFeatureParameters(handler);
-
-        // by default, input value is accepted
-        assertThat(TestFeatureParameters.get(featureFlag, someInputValue), is(sameInstance(specificReturnValue)));
-
-        // make sure
-        TestFeatureParameters.internalDisableTestingFeatureParameters();
-        assertThat(TestFeatureParameters.get(featureFlag, someInputValue), is(sameInstance(someInputValue)));
-
+        assertThat(TestFeatureParameters.retrieveWithDefault(Integer.class, featureFlag, someInputValue),
+                is(sameInstance(specificReturnValue)));
     }
 
     @Test
@@ -60,14 +57,16 @@ public class TestFeatureParametersTest {
         Integer specificReturnValue = 5678; // checked by reference
 
         TestFeatureParameterInterface handler = mock(TestFeatureParameterInterface.class);
-        when(handler.get(featureFlag, someInputValue)).thenReturn(specificReturnValue);
-        // Enable (and verify)
+        when(handler.retrieveWithDefault(Integer.class, featureFlag, someInputValue)).thenReturn(specificReturnValue);
+        // Enable (and verify), echoes above test, but sets initial state
                 TestFeatureParameters.internalEnableTestingFeatureParameters(handler);
-        assertThat(TestFeatureParameters.get(featureFlag, someInputValue), is(sameInstance(specificReturnValue)));
+        assertThat(TestFeatureParameters.retrieveWithDefault(Integer.class, featureFlag, someInputValue),
+                is(sameInstance(specificReturnValue)));
         // Now verify disable, which is primary test
         TestFeatureParameterInterface priorHandler =
                 TestFeatureParameters.internalDisableTestingFeatureParameters();
-        assertThat(TestFeatureParameters.get(featureFlag, someInputValue), is(sameInstance(someInputValue)));
+        assertThat(TestFeatureParameters.retrieveWithDefault(Integer.class, featureFlag, someInputValue),
+                is(sameInstance(someInputValue)));
         assertThat(priorHandler, is(sameInstance(handler)));
     }
 }

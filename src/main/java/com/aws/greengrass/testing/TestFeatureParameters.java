@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.testing;
 
@@ -19,12 +21,14 @@ public final class TestFeatureParameters {
      * Default implementation when not overridden.
      */
     /*PackagePrivate*/ static TestFeatureParameterInterface DEFAULT_HANDLER = new TestFeatureParameterInterface() {
+
         /**
          * {@inheritDoc}
          */
         @Override
-        public <T> T get(String featureParameterName, T productionValue) {
-            return productionValue;
+        public <T> T retrieveWithDefault(Class<? extends T> cls, String featureParameterName, T defaultValue) {
+            // Runtime validation of cls not required for default value
+            return defaultValue;
         }
     };
 
@@ -36,31 +40,32 @@ public final class TestFeatureParameters {
     }
 
     /**
-     * Retrieve either the provided production value of a parameter, or, under test conditions, an alternative value
-     * specific for the test being undertaken.
+     * Retrieve either the provided default (production) value of a parameter, or, under test conditions, an
+     * alternative value specific for the test being undertaken.
      *
+     * @param cls Expected type to handle runtime validation of override type
      * @param featureParameterName Name of parameter to query.
-     * @param productionValue Value to use when not overridden under test conditions.
+     * @param defaultValue Value to use when not overridden under test conditions.
      * @param <T> Simple parameter type (String, Integer, etc).
-     * @return Production value, or override value.
+     * @return Default (production) value, or override (testing) value.
      */
     @SuppressWarnings("PMD.CompareObjectsWithEquals") // intentional reference equals
-    public static <T> T get(String featureParameterName, T productionValue) {
+    public static <T> T retrieveWithDefault(Class<? extends T> cls, String featureParameterName, T defaultValue) {
         TestFeatureParameterInterface actualHandler = handler.get();
-        T value = actualHandler.get(featureParameterName, productionValue);
-        if (productionValue == value) {
-            // Pass through production value logged at debug level
+        T value = actualHandler.retrieveWithDefault(cls, featureParameterName, defaultValue);
+        if (defaultValue == value) {
+            // Pass through default value logged at debug level
             LOGGER.atDebug().addKeyValue("FeatureParameterName", featureParameterName)
-                    .addKeyValue("ProductionValue", productionValue)
-                    .log("Production Feature Parameter \"{}\"=\"{}\" via {}", featureParameterName, value,
-                            actualHandler.getClass().getSimpleName());
+                    .addKeyValue("DefaultValue", defaultValue)
+                    .log("Default Feature Parameter \"{}\"=\"{}\" via {}", featureParameterName, value,
+                            actualHandler.getClass().getName());
         } else {
             // Override occurred, this is intentionally noisy
             LOGGER.atWarn().addKeyValue("FeatureParameterName", featureParameterName)
-                    .addKeyValue("ProductionValue", productionValue)
+                    .addKeyValue("ProductionValue", defaultValue)
                     .addKeyValue("OverrideValue", value)
                     .log("Override Feature Parameter \"{}\"=\"{}\" via {}", featureParameterName, value,
-                            actualHandler.getClass().getSimpleName());
+                            actualHandler.getClass().getName());
         }
         return value;
     }
