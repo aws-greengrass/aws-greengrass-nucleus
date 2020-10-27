@@ -15,7 +15,7 @@ class PlatformResolverTest {
 
     @Test
     void testCurrentPlatform() throws Exception {
-        // TODO: move to UAT
+        // GG_NEEDS_REVIEW: TODO: move to UAT
         System.out.println(PlatformResolver.CURRENT_PLATFORM);
     }
 

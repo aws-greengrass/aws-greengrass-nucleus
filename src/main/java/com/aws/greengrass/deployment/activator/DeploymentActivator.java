@@ -63,7 +63,7 @@ public abstract class DeploymentActivator {
         } catch (IOException e) {
             // Could not merge old snapshot transaction log, rollback failed
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).log("Failed to rollback deployment");
-            // TODO : Run user provided script to reach user defined safe state
+            // GG_NEEDS_REVIEW: TODO : Run user provided script to reach user defined safe state
             //  set deployment status based on the success of the script run
             totallyCompleteFuture.complete(new DeploymentResult(
                     DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, failureCause));

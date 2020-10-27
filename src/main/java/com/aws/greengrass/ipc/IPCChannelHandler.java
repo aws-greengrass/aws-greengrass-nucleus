@@ -48,7 +48,7 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
         ctx.channel().attr(CONNECTION_CONTEXT_KEY).set(null);
         super.channelRegistered(ctx);
-        // TODO: Possibly have timeout to drop connection if it stays unauthenticated.
+        // GG_NEEDS_REVIEW: TODO: Possibly have timeout to drop connection if it stays unauthenticated.
         // https://issues.amazon.com/issues/P32808886
     }
 
@@ -101,7 +101,7 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
         }
 
         try {
-            // TODO: Be smart about timeouts? https://issues.amazon.com/issues/86453f7c-c94e-4a3c-b8ff-679767e7443c
+            // GG_NEEDS_REVIEW: TODO: Be smart about timeouts? https://issues.amazon.com/issues/86453f7c-c94e-4a3c-b8ff-679767e7443c
             FrameReader.Message responseMessage =
                     cb.onMessage(message.message, ctx.channel().attr(CONNECTION_CONTEXT_KEY).get())
                             // This .get() blocks forever waiting for the response to the request
@@ -119,7 +119,7 @@ public class IPCChannelHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        // TODO: Proper exception handling https://issues.amazon.com/issues/P32787597
+        // GG_NEEDS_REVIEW: TODO: Proper exception handling https://issues.amazon.com/issues/P32787597
         logger.atError("ipc-server-error", cause).log();
         // Close out the connection since we don't know what went wrong.
         ctx.close();

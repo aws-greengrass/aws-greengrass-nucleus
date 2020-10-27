@@ -129,8 +129,9 @@ public class ConfigStoreIPCEventStreamAgent {
          */
         @Override
         public SendConfigurationValidityReportResponse handleRequest(SendConfigurationValidityReportRequest request) {
-            // TODO: Input validation. P32540011
+            // GG_NEEDS_REVIEW: TODO: Input validation. P32540011
             logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC report config validation request");
+            // GG_NEEDS_REVIEW: TODO
             // TODO : Edge case - With the current API model, there is no way to associate a validation report from
             //  client with the event sent from server, meaning if event 1 from server was abandoned due to timeout,
             //  then event 2 was triggered, then report in response to event 1 arrives, server won't detect this.
@@ -268,6 +269,7 @@ public class ConfigStoreIPCEventStreamAgent {
                 }
                 return new UpdateConfigurationResponse();
             }
+            // GG_NEEDS_REVIEW: TODO
             // TODO : Does not support updating internal nodes, at least yet, will need to decide if that
             //  should be a merge/replace or a choice for customers to make. We'll gain clarity once
             //  nested config support at the component recipe and deployment level is hashed out.
@@ -449,7 +451,7 @@ public class ConfigStoreIPCEventStreamAgent {
         @Override
         public SubscribeToValidateConfigurationUpdatesResponse handleRequest(
                 SubscribeToValidateConfigurationUpdatesRequest request) {
-            // TODO: Input validation. P32540011
+            // GG_NEEDS_REVIEW: TODO: Input validation. P32540011
             configValidationListeners.computeIfAbsent(serviceName, key -> sendConfigValidationEvent());
             logger.atInfo().kv(SERVICE_NAME, serviceName).log("Config IPC subscribe to config validation request");
             return new SubscribeToValidateConfigurationUpdatesResponse();
@@ -494,6 +496,7 @@ public class ConfigStoreIPCEventStreamAgent {
                     configValidationReportFutures.put(componentName, reportFuture);
                     return true;
                 } catch (Exception ex) {
+                    // GG_NEEDS_REVIEW: TODO
                     // TODO : Catch specific exceptions in sending service event when an equivalent utility of
                     //  ServiceEventHelper.sendServiceEvent() is available as part of the event stream based server
                     throw new ValidateEventRegistrationException(ex);

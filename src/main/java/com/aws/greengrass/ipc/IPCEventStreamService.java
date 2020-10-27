@@ -129,7 +129,7 @@ public class IPCEventStreamService implements Startable, Closeable {
         } catch (IOException e) {
             String errorMessage = "Invalid auth token in connect message";
             logger.atError().setCause(e).log(errorMessage);
-            // TODO: Add BadRequestException to smithy model
+            // GG_NEEDS_REVIEW: TODO: Add BadRequestException to smithy model
             throw new RuntimeException(errorMessage);
         }
         if (Utils.isEmpty(authToken)) {
@@ -155,13 +155,13 @@ public class IPCEventStreamService implements Startable, Closeable {
     @Override
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public void close() {
-        // TODO: Future does not complete, wait on them when fixed.
+        // GG_NEEDS_REVIEW: TODO: Future does not complete, wait on them when fixed.
         if (ipcServer != null) {
             ipcServer.stopServer();
         }
         if (eventLoopGroup != null) {
             eventLoopGroup.close();
-            //TODO: Wait for ELG to close. Right now the future does not complete, thus timing out.
+            // GG_NEEDS_REVIEW: TODO: Wait for ELG to close. Right now the future does not complete, thus timing out.
         }
         if (socketOptions != null) {
             socketOptions.close();
