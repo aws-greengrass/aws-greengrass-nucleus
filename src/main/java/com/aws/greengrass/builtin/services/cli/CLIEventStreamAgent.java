@@ -10,6 +10,7 @@ import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeploymentQueue;
+import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -460,13 +461,23 @@ public class CLIEventStreamAgent {
             // new recipes set using the updateRecipesAndArtifacts API.
             String deploymentId = UUID.randomUUID().toString();
 
+            Map<String, ConfigurationUpdateOperation> configUpdate = null;
+            if (request.getComponentToConfiguration() != null) {
+                configUpdate = request.getComponentToConfiguration().entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, e -> {
+                            ConfigurationUpdateOperation configUpdateOption = new ConfigurationUpdateOperation();
+                            configUpdateOption.setValueToMerge((Map) e.getValue().get("MERGE"));
+                            configUpdateOption.setPathsToReset((List) e.getValue().get("RESET"));
+                            return configUpdateOption;
+                        }));
+            }
             LocalOverrideRequest localOverrideRequest = LocalOverrideRequest.builder().requestId(deploymentId)
                     .componentsToMerge(request.getRootComponentVersionsToAdd())
                     .componentsToRemove(request.getRootComponentsToRemove())
                     .requestTimestamp(System.currentTimeMillis())
                     .groupName(request.getGroupName() == null || request.getGroupName().isEmpty() ? DEFAULT_GROUP_NAME
                             : request.getGroupName())
-                    .componentNameToConfig(request.getComponentToConfiguration()).build();
+                    .configurationUpdate(configUpdate).build();
             String deploymentDocument;
             try {
                 deploymentDocument = OBJECT_MAPPER.writeValueAsString(localOverrideRequest);
