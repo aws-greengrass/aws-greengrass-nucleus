@@ -250,6 +250,7 @@ public class KernelAlternatives {
      * @throws IOException on I/O error
      */
     public void setupLinkToDirectory(Path link, Path directory) throws IOException {
+        logger.atDebug().kv("link", link).kv("directory", directory).log("Set up link to directory");
         Files.deleteIfExists(link);
         Files.createSymbolicLink(link, directory);
     }
