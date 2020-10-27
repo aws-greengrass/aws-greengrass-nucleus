@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.integrationtests.ipc;
 
@@ -92,7 +94,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 class IPCServicesTest {
-    private final static Logger log = LogManager.getLogger(IPCServicesTest.class);
     private final static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
     private final static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
     private final static Logger logger = LogManager.getLogger(IPCServicesTest.class);
@@ -125,7 +126,6 @@ class IPCServicesTest {
 
     @BeforeEach
     void beforeEach(ExtensionContext context) {
-
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
@@ -273,7 +273,7 @@ class IPCServicesTest {
 
                         @Override
                         public boolean onStreamError(Throwable error) {
-                            log.atError().log("Received stream error.", error);
+                            logger.atError().log("Received stream error.", error);
                             return false;
                         }
 
@@ -329,7 +329,7 @@ class IPCServicesTest {
 
                     @Override
                     public boolean onStreamError(Throwable error) {
-                        log.atError().log("Received stream error.", error);
+                        logger.atError().log("Received stream error.", error);
                         return false;
                     }
 
