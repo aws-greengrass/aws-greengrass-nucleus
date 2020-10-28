@@ -7,7 +7,6 @@ package com.aws.greengrass.builtin.services.configstore;
 
 import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.greengrass.config.ChildChanged;
-import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
@@ -191,22 +190,13 @@ public class ConfigStoreIPCAgent {
                     .errorMessage(KEY_NOT_FOUND_ERROR_MESSAGE).build();
         }
 
-        Configuration kernelConfig = kernel.getConfig();
-        if (kernelConfig.configUnderUpdate.get()) {
-            log.atInfo().log("Configuration currently updating, will wait for the update to complete.");
-            synchronized (kernelConfig.configUpdateNotifier) {
-                while (kernelConfig.configUnderUpdate.get()) {
-                    try {
-                        kernelConfig.configUpdateNotifier.wait(5000);
-                    } catch (InterruptedException e) {
-                        log.atError().setCause(e).log("Interrupted when waiting for config update complete");
-                        return GetConfigurationResponse.builder()
-                                .responseStatus(ConfigStoreResponseStatus.InternalError)
-                                .errorMessage(e.getMessage()).build();
-                    }
-                }
-            }
-            log.atInfo().log("Config update finished.");
+        try {
+            kernel.getConfig().waitConfigUpdateComplete();
+        } catch (InterruptedException e) {
+            log.atError().setCause(e).log("Interrupted when waiting for config update complete");
+            return GetConfigurationResponse.builder()
+                    .responseStatus(ConfigStoreResponseStatus.InternalError)
+                    .errorMessage(e.getMessage()).build();
         }
 
         Topics configTopics = serviceTopics.findInteriorChild(PARAMETERS_CONFIG_KEY);

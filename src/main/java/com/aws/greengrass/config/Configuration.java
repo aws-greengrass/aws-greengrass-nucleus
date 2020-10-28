@@ -31,13 +31,13 @@ import javax.inject.Inject;
 import static com.aws.greengrass.util.Utils.extension;
 
 public class Configuration {
-    public final AtomicBoolean configUnderUpdate = new AtomicBoolean(false);
-    public final Object configUpdateNotifier = new Object();
-
     private static final java.util.regex.Pattern SEPARATOR = java.util.regex.Pattern.compile("[./] *");
     public final Context context;
     final Topics root;
     private static final Logger logger = LogManager.getLogger(Configuration.class);
+
+    private final AtomicBoolean configUnderUpdate = new AtomicBoolean(false);
+    private final Object configUpdateNotifier = new Object();
 
     @Inject
     @SuppressWarnings("LeakingThisInConstructor")
@@ -154,6 +154,23 @@ public class Configuration {
                 configUpdateNotifier.notifyAll();
             }
         });
+    }
+
+    /**
+     * If configuration is under update when this function is invoked, block until the update is complete.
+     * @throws InterruptedException InterruptedException
+     */
+    public void waitConfigUpdateComplete() throws InterruptedException {
+        if (!configUnderUpdate.get()) {
+            return;
+        }
+        logger.atInfo().log("Configuration currently updating, will wait for the update to complete.");
+        synchronized (configUpdateNotifier) {
+            while (configUnderUpdate.get()) {
+                configUpdateNotifier.wait(5000);
+            }
+        }
+        logger.atInfo().log("Config update finished.");
     }
 
     public Map<String, Object> toPOJO() {

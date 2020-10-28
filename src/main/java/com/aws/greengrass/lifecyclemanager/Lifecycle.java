@@ -284,14 +284,8 @@ public class Lifecycle {
 
             Configuration kernelConfig = greengrassService.getContext().get(Configuration.class);
             // postpone start/install when configuration is under update.
-            if ((current == State.NEW || current == State.INSTALLED) && kernelConfig.configUnderUpdate.get()) {
-                logger.atInfo().log("Configuration currently updating, will wait for the update to complete.");
-                synchronized (kernelConfig.configUpdateNotifier) {
-                    while (kernelConfig.configUnderUpdate.get()) {
-                        kernelConfig.configUpdateNotifier.wait(5000);
-                    }
-                }
-                logger.atInfo().log("Config update finished.");
+            if (current == State.NEW || current == State.INSTALLED) {
+                kernelConfig.waitConfigUpdateComplete();
             }
 
             // if already in desired state, remove the head of desired state list.
