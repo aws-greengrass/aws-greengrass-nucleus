@@ -6,6 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.ConfigurationWriter;
@@ -89,6 +90,7 @@ public class Kernel {
     private static final String PLUGIN_SERVICE_TYPE_NAME = "plugin";
     static final String DEFAULT_CONFIG_YAML_FILE = "config.yaml";
     static final String DEFAULT_CONFIG_TLOG_FILE = "config.tlog";
+    public static final String SERVICE_DIGEST_TOPIC_KEY = "service-digest";
 
     @Getter
     private final Context context;
@@ -102,6 +104,9 @@ public class Kernel {
     private KernelLifecycle kernelLifecycle;
     @Getter
     private final NucleusPaths nucleusPaths;
+
+    @Getter
+    private final ComponentStore componentStore;
 
     private Collection<GreengrassService> cachedOD = null;
 
@@ -128,6 +133,8 @@ public class Kernel {
         context.put(NucleusPaths.class, nucleusPaths);
         kernelCommandLine = new KernelCommandLine(this);
         kernelLifecycle = new KernelLifecycle(this, kernelCommandLine, nucleusPaths);
+        componentStore = new ComponentStore(nucleusPaths);
+        context.put(ComponentStore.class, componentStore);
         context.put(KernelCommandLine.class, kernelCommandLine);
         context.put(KernelLifecycle.class, kernelLifecycle);
         context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
@@ -458,6 +465,22 @@ public class Kernel {
             throw new ServiceLoadException(
                     String.format("Unable to find %s because %s does not exist", name, pluginJar));
         }
+
+        logger.atError("plugin-load-external").kv(GreengrassService.SERVICE_NAME_KEY, name)
+                .log("Trying to load a custom plugin");
+
+        Topic storedDigest = getMain().getRuntimeConfig().lookup(SERVICE_DIGEST_TOPIC_KEY, componentId.toString());
+        if (storedDigest.getOnce() == null) {
+            logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
+                    .log("Local external plugin is not supported by this greengrass version");
+            throw new ServiceLoadException("Custom plugins is not supported");
+        }
+        if (!componentStore.validateComponentRecipeDigest(componentId, Coerce.toString(storedDigest))) {
+            logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
+                    .log("Local plugin is not supported by this greengrass version");
+            throw new ServiceLoadException("Plugin has been modified after it was downloaded");
+        }
+        
         Class<?> clazz;
         try {
             AtomicReference<Class<?>> classReference = new AtomicReference<>();
