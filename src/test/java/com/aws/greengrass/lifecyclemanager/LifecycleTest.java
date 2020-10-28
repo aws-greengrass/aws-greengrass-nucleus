@@ -16,6 +16,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Coerce;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
 import lombok.Setter;
@@ -44,6 +45,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
@@ -80,6 +82,7 @@ class LifecycleTest {
 
     private static final Integer DEFAULT_TEST_TIMEOUT = 1;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final Logger logger = LogManager.getLogger("test");
     private Context context;
     private Topics config;
@@ -570,6 +573,62 @@ class LifecycleTest {
         assertThat(serviceInterruptedCount::get, eventuallyEval(is(serviceStartedCount.get())));
         // assert that service remains in BROKEN state
         assertEquals(State.BROKEN, testService.getState());
+    }
+
+
+    @Test
+    void GIVEN_config_updated_THEN_service_is_restarted_with_new_config() throws Exception {
+        Configuration config = new Configuration(context);
+        Topics testServiceTopics = config.getRoot()
+                .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC)
+                .createInteriorChild("testService");
+        TestService testService = new TestService(testServiceTopics);
+
+        testServiceTopics.subscribe((child, newVal) -> {
+            testService.requestRestart();
+        });
+
+        String newConfigString = "{\n" +
+                "    \"services\":{\n" +
+                "      \"testService\": {\n" +
+                "          \"lifecycle\": {\n" +
+                "              \"startup\": {\n" +
+                "                  \"timeout\": 7\n" +
+                "              },\n" +
+                "              \"shutdown\": {\n" +
+                "                  \"timeout\": 8\n" +
+                "              }\n" +
+                "          },\n" +
+                "          \"dependencies\": []" +
+                "      }\n" +
+                "    }\n" +
+                "}";
+        Map<String, Object> newConfig = objectMapper.readValue(newConfigString, Map.class);
+
+        AtomicBoolean configUnderUpdate = new AtomicBoolean(false);
+
+        CountDownLatch configUpdateFinished = new CountDownLatch(1);
+        testService.setStartupRunnable(() -> {
+                if (configUnderUpdate.get()) {
+                    assertEquals(newConfig, config.toPOJO());
+                    configUnderUpdate.set(false);
+                    configUpdateFinished.countDown();
+                }
+                testService.reportState(State.RUNNING);
+            });
+
+        // init lifecycle
+        testService.postInject();
+        testService.requestStart();
+
+        assertThat(testService::getState, eventuallyEval(is(State.RUNNING)));
+
+        // merge in new config
+        configUnderUpdate.set(true);
+
+        config.updateMap(newConfig,
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, Integer.MAX_VALUE));
+        assertTrue(configUpdateFinished.await(2 , TimeUnit.SECONDS), "updated config:" + config.toPOJO().toString());
     }
 
     private class TestService extends GreengrassService {
