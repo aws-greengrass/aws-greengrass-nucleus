@@ -34,7 +34,7 @@ public interface EventStreamJsonMessage {
     default EventStreamJsonMessage fromJson(final Gson gson, byte[] payload) {
         final String payloadString = new String(payload, StandardCharsets.UTF_8);
         if (payloadString.equals("null")) {
-            gson.fromJson("{}", this.getClass());
+            return gson.fromJson("{}", this.getClass());
         }
         return gson.fromJson(payloadString, this.getClass());
     }
