@@ -74,8 +74,9 @@ public class DefaultActivator extends DeploymentActivator {
         // when deployment adds a new dependency (component B) to component A
         // the config for component B has to be merged in before externalDependenciesTopic of component A trigger
         // executing mergeMap using publish thread ensures this
-        kernel.getContext().runOnPublishQueueAndWait(() -> kernel.getConfig().updateMap(newConfig,
-                        createDeploymentMergeBehavior(deploymentDocument.getTimestamp())));
+        kernel.getContext().runOnPublishQueueAndWait(() -> {
+            kernel.getConfig().updateMap(newConfig, createDeploymentMergeBehavior(deploymentDocument.getTimestamp()));
+        });
 
         // wait until topic listeners finished processing mergeMap changes.
         Throwable setDesiredStateFailureCause = kernel.getContext().runOnPublishQueueAndWait(() -> {
