@@ -23,30 +23,28 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel;
-import software.amazon.awssdk.crt.eventstream.ClientConnection;
-import software.amazon.awssdk.crt.eventstream.ClientConnectionHandler;
-import software.amazon.awssdk.crt.eventstream.Header;
-import software.amazon.awssdk.crt.eventstream.MessageType;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
+import software.amazon.awssdk.eventstreamrpc.Authorization;
 import software.amazon.awssdk.eventstreamrpc.AuthorizationHandler;
-import software.amazon.awssdk.eventstreamrpc.GreengrassEventStreamConnectMessage;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
+import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.ipc.IPCEventStreamService.IPC_SERVER_DOMAIN_SOCKET_FILENAME;
+import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -74,6 +72,9 @@ public class IPCEventStreamServiceTest {
     private Topic mockTopic;
 
     @Mock
+    private Topic mockRelativePath;
+
+    @Mock
     private GreengrassCoreIPCService greengrassCoreIPCService;
     @Mock
     private software.amazon.awssdk.eventstreamrpc.AuthenticationHandler mockAuthenticationHandler;
@@ -82,6 +83,14 @@ public class IPCEventStreamServiceTest {
 
     @BeforeEach
     public void setup() {
+        AuthenticationData authenticationData = new AuthenticationData() {
+            @Override
+            public String getIdentityLabel() {
+                return "EventStreamConnectionTest";
+            }
+        };
+        when(mockAuthenticationHandler.apply(any(), any())).thenReturn(authenticationData);
+        when(mockAuthorizationHandler.apply(eq(authenticationData))).thenReturn(Authorization.ACCEPT);
         when(greengrassCoreIPCService.getAuthenticationHandler()).thenReturn(mockAuthenticationHandler);
         when(greengrassCoreIPCService.getAuthorizationHandler()).thenReturn(mockAuthorizationHandler);
         when(greengrassCoreIPCService.getServiceModel()).thenReturn(GreengrassCoreIPCServiceModel.getInstance());
@@ -93,6 +102,8 @@ public class IPCEventStreamServiceTest {
         when(config.getRoot()).thenReturn(mockRootTopics);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
                 eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
+        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
+                eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
         ipcEventStreamService.startup();
     }
 
@@ -102,41 +113,46 @@ public class IPCEventStreamServiceTest {
     }
 
     @Test
-    public void testClientConnection() throws InterruptedException, IOException, ExecutionException {
-        final ClientConnection[] clientConnectionArray = {null};
+    @SuppressWarnings("PMD.CloseResource")
+    public void testClientConnection() throws Exception {
         CountDownLatch connectionLatch = new CountDownLatch(1);
-
+        EventStreamRPCConnection connection = null;
         try (EventLoopGroup elg = new EventLoopGroup(1);
              ClientBootstrap clientBootstrap = new ClientBootstrap(elg, new HostResolver(elg));
              SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC()) {
 
             String ipcServerSocketPath = mockRootPath.resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
-            ClientConnection
-                    .connect(ipcServerSocketPath, (short) DEFAULT_PORT_NUMBER, socketOptions, null, clientBootstrap, new ClientConnectionHandler() {
-                        @Override
-                        protected void onConnectionSetup(ClientConnection connection, int errorCode) {
-                            connectionLatch.countDown();
-                            clientConnectionArray[0] = connection;
-                        }
+            final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elg, socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER, GreengrassConnectMessageSupplier
+                    .connectMessageSupplier("authToken"));
+            connection = new EventStreamRPCConnection(config);
+            final boolean disconnected[] = {false};
+            final int disconnectedCode[] = {-1};
+            //this is a bit cumbersome but does not prevent a convenience wrapper from exposing a sync
+            //connect() or a connect() that returns a CompletableFuture that errors
+            //this could be wrapped by utility methods to provide a more
+            connection.connect(new EventStreamRPCConnection.LifecycleHandler() {
+                @Override
+                public void onConnect() {
+                    connectionLatch.countDown();
+                }
 
-                        @Override
-                        protected void onProtocolMessage(List<Header> headers, byte[] payload, MessageType messageType, int messageFlags) {
+                @Override
+                public void onDisconnect(int errorCode) {
+                    disconnected[0] = true;
+                    disconnectedCode[0] = errorCode;
+                }
 
-                        }
-
-                        @Override
-                        protected void onConnectionClosed(int closeReason) {
-
-                        }
-                    }).get();
+                //This on error is for any errors that is connection level, including problems during connect()
+                @Override
+                public boolean onError(Throwable t) {
+                    return true;    //hints at handler to disconnect due to this error
+                }
+            });
             assertTrue(connectionLatch.await(2, TimeUnit.SECONDS));
-            GreengrassEventStreamConnectMessage connectMessagePayloadStructure =
-                    new GreengrassEventStreamConnectMessage();
-            connectMessagePayloadStructure.setAuthToken("authToken");
-            String payload = OBJECT_MAPPER.writeValueAsString(connectMessagePayloadStructure);
-            clientConnectionArray[0].sendProtocolMessage(null, payload.getBytes(StandardCharsets.UTF_8),
-                    MessageType.Connect, 0).get();
-            clientConnectionArray[0].closeConnection(0);
+        } finally {
+            if (connection != null) {
+                connection.close();
+            }
         }
     }
 }
