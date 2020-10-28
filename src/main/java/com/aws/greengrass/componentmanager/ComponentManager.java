@@ -253,7 +253,7 @@ public class ComponentManager implements InjectionActions {
             packageOptional = componentStore.findPackageRecipe(componentIdentifier);
             logger.atDebug().kv("component", componentIdentifier).log("Loaded from local component store");
         } catch (PackageLoadingException e) {
-            logger.atWarn().log("Failed to load package recipe for {}", componentIdentifier, e);
+            logger.atWarn().log("Failed to load component recipe for {}", componentIdentifier, e);
         }
 
         if (packageOptional.isPresent()) {
@@ -302,7 +302,7 @@ public class ComponentManager implements InjectionActions {
                     downloader.downloadToPath(componentIdentifier, artifact, packageArtifactDirectory);
                 } catch (IOException e) {
                     throw new PackageDownloadException(
-                            String.format("Failed to download package %s artifact %s", componentIdentifier, artifact),
+                            String.format("Failed to download component %s artifact %s", componentIdentifier, artifact),
                             e);
                 }
             }
@@ -313,8 +313,8 @@ public class ComponentManager implements InjectionActions {
                     Permissions.setArtifactPermission(artifactFile.toPath());
                 } catch (IOException e) {
                     throw new PackageDownloadException(
-                            String.format("Failed to change permissions of package %s artifact %s", componentIdentifier,
-                                    artifact), e);
+                            String.format("Failed to change permissions of component %s artifact %s",
+                                    componentIdentifier, artifact), e);
                 }
             }
             Unarchive unarchive = artifact.getUnarchive();
@@ -331,13 +331,13 @@ public class ComponentManager implements InjectionActions {
                         Permissions.setArtifactPermission(unarchivePath);
                     } catch (IOException e) {
                         throw new PackageDownloadException(
-                                String.format("Failed to change permissions of package %s artifact %s",
+                                String.format("Failed to change permissions of component %s artifact %s",
                                         componentIdentifier, artifact), e);
                     }
                 } catch (IOException e) {
                     throw new PackageDownloadException(
-                            String.format("Failed to unarchive package %s artifact %s", componentIdentifier, artifact),
-                            e);
+                            String.format("Failed to unarchive component %s artifact %s", componentIdentifier,
+                                    artifact), e);
                 }
             }
         }

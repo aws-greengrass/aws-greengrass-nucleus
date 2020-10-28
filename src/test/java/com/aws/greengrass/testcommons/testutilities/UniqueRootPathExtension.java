@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.testcommons.testutilities;
 
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -16,10 +18,14 @@ import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
 import org.junit.jupiter.api.extension.ExtensionContext.Store.CloseableResource;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 
 public class UniqueRootPathExtension implements BeforeEachCallback, BeforeAllCallback {
+    private static final Logger logger = LogManager.getLogger(UniqueRootPathExtension.class);
     private static final Namespace NAMESPACE = Namespace.create(UniqueRootPathExtension.class);
 
     @Override
@@ -47,8 +53,32 @@ public class UniqueRootPathExtension implements BeforeEachCallback, BeforeAllCal
                 @Override
                 public void close() throws Throwable {
                     System.clearProperty("root");
-                    Platform.getInstance().setPermissions(FileSystemPermission.builder()
-                            .ownerRead(true).ownerWrite(true).ownerExecute(true).build(), p);
+                    FileSystemPermission permission =
+                            FileSystemPermission.builder().ownerRead(true).ownerWrite(true).ownerExecute(true)
+                                    .build();
+
+                    Files.walkFileTree(p, new SimpleFileVisitor<Path>() {
+                        @Override
+                        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
+                                throws IOException {
+                            try {
+                                Platform.getInstance().setPermissions(permission, dir);
+                            } catch (IOException e) {
+                                logger.atWarn().setCause(e).log("Could not set permissions on {}", dir);
+                            }
+                            return super.preVisitDirectory(dir, attrs);
+                        }
+
+                        @Override
+                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                            try {
+                                Platform.getInstance().setPermissions(permission, file);
+                            } catch (IOException e) {
+                                logger.atWarn().setCause(e).log("Could not set permissions on {}", file);
+                            }
+                            return super.visitFile(file, attrs);
+                        }
+                    });
                     Utils.deleteFileRecursively(p.toFile());
                 }
             };
