@@ -27,6 +27,7 @@ import java.util.*;
 public abstract class EventStreamRPCServiceModel {
     private static final Gson GSON;
 
+    public static final String VERSION_HEADER = ":version";
     public static final String CONTENT_TYPE_HEADER = ":content-type";
     public static final String CONTENT_TYPE_APPLICATION_TEXT = "text/plain";
     public static final String CONTENT_TYPE_APPLICATION_JSON = "application/json";
@@ -213,6 +214,16 @@ public abstract class EventStreamRPCServiceModel {
      * @return
      */
     protected Gson getGson() {
+        return GSON;
+    }
+
+    /**
+     * In situations where the framework needs to do some JSON processing
+     * without a specific service/operation in context
+     *
+     * @return the static Gson instance capable of processing the basics of EventStreamableJsonMessage
+     */
+    public static Gson getStaticGson() {
         return GSON;
     }
 
