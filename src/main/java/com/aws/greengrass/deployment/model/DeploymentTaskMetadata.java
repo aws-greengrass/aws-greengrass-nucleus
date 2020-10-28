@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @AllArgsConstructor
 public class DeploymentTaskMetadata {
-    // GG_NEEDS_REVIEW: TODO: clean up duplicate information
+    // TODO: [P41179644] clean up duplicate information
     @NonNull @Getter
     private DeploymentTask deploymentTask;
     @NonNull
