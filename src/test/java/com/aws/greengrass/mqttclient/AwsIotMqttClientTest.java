@@ -7,6 +7,7 @@ package com.aws.greengrass.mqttclient;
 
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,6 +54,7 @@ class AwsIotMqttClientTest {
 
     CallbackEventManager callbackEventManager;
     Topics mockTopic;
+    private final AtomicBoolean mqttOnline = new AtomicBoolean(false);
 
     @BeforeEach
     void beforeEach() {
@@ -72,7 +74,7 @@ class AwsIotMqttClientTest {
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
 
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager);
+                callbackEventManager, mqttOnline);
         assertFalse(client.connected());
 
         when(builder.build()).thenReturn(connection);
@@ -102,9 +104,9 @@ class AwsIotMqttClientTest {
     void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_resumed_THEN_oneTimeCallbacks_would_be_executed_once() {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager);
+                callbackEventManager, mqttOnline);
         AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
-                callbackEventManager);
+                callbackEventManager, mqttOnline);
         boolean sessionPresent = false;
         // callbackEventManager.hasCallBacked is originally set as False
         assertFalse(callbackEventManager.hasCallbacked());
@@ -130,9 +132,9 @@ class AwsIotMqttClientTest {
     void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_interrupted_THEN_oneTimeCallbacks_would_be_executed_once() {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager);
+                callbackEventManager, mqttOnline);
         AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
-                callbackEventManager);
+                callbackEventManager, mqttOnline);
         callbackEventManager.runOnConnectionResumed(false);
         assertTrue(callbackEventManager.hasCallbacked());
         int errorCode = 0;

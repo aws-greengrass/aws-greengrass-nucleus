@@ -50,12 +50,14 @@ class AwsIotMqttClient implements Closeable {
     private MqttClientConnection connection;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
     private final CallbackEventManager callbackEventManager;
+    private final AtomicBoolean mqttOnline;
 
     @Getter(AccessLevel.PACKAGE)
     private final MqttClientConnectionEvents connectionEventCallback = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             currentlyConnected.set(false);
+            mqttOnline.set(false);
             // Error code 0 means that the disconnection was intentional, so we don't need to log it
             if (errorCode != 0) {
                 logger.atWarn().kv("error", CRT.awsErrorString(errorCode)).log("Connection interrupted");
@@ -70,6 +72,7 @@ class AwsIotMqttClient implements Closeable {
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
             currentlyConnected.set(true);
+            mqttOnline.set(true);
             logger.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
             // If we didn't reconnect using the same session, then resubscribe to all the topics
             if (!sessionPresent) {
@@ -88,12 +91,14 @@ class AwsIotMqttClient implements Closeable {
     AwsIotMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
                      Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler,
                      String clientId, Topics mqttTopics,
-                     CallbackEventManager callbackEventManager) {
+                     CallbackEventManager callbackEventManager,
+                     AtomicBoolean mqttOnline) {
         this.builderProvider = builderProvider;
         this.clientId = clientId;
         this.mqttTopics = mqttTopics;
         this.messageHandler = messageHandler.apply(this);
         this.callbackEventManager = callbackEventManager;
+        this.mqttOnline = mqttOnline;
     }
 
     // Notes about the CRT MQTT client:
@@ -156,6 +161,7 @@ class AwsIotMqttClient implements Closeable {
             logger.atInfo().log("Connecting to AWS IoT Core");
             return connection.connect().thenApply((sessionPresent) -> {
                 currentlyConnected.set(true);
+                mqttOnline.set(true);
                 logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
 
                 if (!sessionPresent) {

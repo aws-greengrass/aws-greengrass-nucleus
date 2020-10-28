@@ -10,6 +10,8 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttclient.spool.Spool;
+import com.aws.greengrass.mqttclient.spool.SpoolerLoadException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.ProxyUtils;
@@ -38,8 +40,10 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -87,11 +91,14 @@ public class MqttClient implements Closeable {
     private final Map<SubscribeRequest, AwsIotMqttClient> subscriptions = new ConcurrentHashMap<>();
     private final Map<MqttTopic, AwsIotMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
+    private final AtomicBoolean mqttOnline = new AtomicBoolean(false);
 
     private final EventLoopGroup eventLoopGroup;
     private final HostResolver hostResolver;
     private final ClientBootstrap clientBootstrap;
     private final CallbackEventManager callbackEventManager = new CallbackEventManager();
+    private final Spool spool;
+    private final ScheduledExecutorService ses;
 
     //
     // GG_NEEDS_REVIEW: TODO: Handle timeouts and retries
@@ -99,13 +106,14 @@ public class MqttClient implements Closeable {
 
     /**
      * Constructor for injection.
-     *
      * @param deviceConfiguration device configuration
      * @param executorService     executor service
+     * @param ses                 scheduled executor service
      */
     @Inject
-    public MqttClient(DeviceConfiguration deviceConfiguration, ExecutorService executorService) {
-        this(deviceConfiguration, null, executorService);
+    public MqttClient(DeviceConfiguration deviceConfiguration, ExecutorService executorService,
+                      ScheduledExecutorService ses) {
+        this(deviceConfiguration, null, executorService, ses);
 
         HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
 
@@ -165,8 +173,10 @@ public class MqttClient implements Closeable {
 
     protected MqttClient(DeviceConfiguration deviceConfiguration,
                          Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
-                         ExecutorService executorService) {
+                         ExecutorService executorService,
+                         ScheduledExecutorService ses) {
         this.deviceConfiguration = deviceConfiguration;
+        this.ses = ses;
 
         // If anything in the device configuration changes, then we wil need to reconnect to the cloud
         // using the new settings. We do this by calling reconnect() on all of our connections
@@ -212,6 +222,25 @@ public class MqttClient implements Closeable {
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
+        spool = initSpooler(deviceConfiguration);
+        spoolMessage();
+    }
+
+    private Spool initSpooler(DeviceConfiguration deviceConfiguration) {
+        return new Spool(deviceConfiguration);
+    }
+
+    // constructor specific for unit test with spooler
+    protected MqttClient(DeviceConfiguration deviceConfiguration, Spool spool, ScheduledExecutorService ses,
+                         boolean mqttOnline) {
+        this.deviceConfiguration = deviceConfiguration;
+        mqttTopics = this.deviceConfiguration.getMQTTNamespace();
+        eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
+        hostResolver = new HostResolver(eventLoopGroup);
+        clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
+        this.spool = spool;
+        this.ses = ses;
+        this.mqttOnline.set(mqttOnline);
     }
 
     /**
@@ -328,8 +357,78 @@ public class MqttClient implements Closeable {
      * @param request publish request
      */
     public CompletableFuture<Integer> publish(PublishRequest request) {
-        return getConnection(false).publish(new MqttMessage(request.getTopic(), request.getPayload()), request.getQos(),
-                request.isRetain());
+        boolean willDropTheRequest = !mqttOnline.get() && request.getQos().getValue() == 0
+                && !spool.getSpoolConfig().isKeepQos0WhenOffline();
+
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        if (willDropTheRequest) {
+            SpoolerLoadException e = new SpoolerLoadException("will not store the publish request"
+                    + " with Qos 0 when MqttClient is offline");
+            logger.atError().log(e);
+            future.completeExceptionally(e);
+            return future;
+        }
+
+        try {
+            spool.addMessage(request);
+        } catch (InterruptedException | SpoolerLoadException e) {
+            logger.atError().log("fail to add publish request to spooler queue", e.toString());
+            future.completeExceptionally(e);
+            return future;
+        }
+        return CompletableFuture.completedFuture(0);
+    }
+
+    /**
+     * The scheduled executor service try to drain the spooler queue every 5 seconds.
+     *
+     */
+    private synchronized void spoolMessage() {
+        ses.scheduleWithFixedDelay(() -> {
+            spoolTask();
+        }, 0, 5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Iterate the spooler queue to publish all the spooled message.
+     */
+    protected void spoolTask() {
+        Long id = null;
+        try {
+            // This should be moved to the callback event.
+            if (!mqttOnline.get()) {
+                boolean keepQosZeroWhenOffline = spool.getSpoolConfig().isKeepQos0WhenOffline();
+                if (!keepQosZeroWhenOffline) {
+                    spool.popOutMessagesWithQosZero();
+                    return;
+                }
+            }
+
+            while (!Thread.currentThread().isInterrupted() && mqttOnline.get() && spool.getCurrentMessageCount() > 0) {
+                id = spool.popId();
+                PublishRequest request = spool.getMessageById(id);
+                if (request == null) {
+                    continue;
+                }
+
+                Long finalId = id;
+
+                getConnection(false).publish(new MqttMessage(request.getTopic(),request.getPayload()),
+                        request.getQos(), request.isRetain()).whenComplete((packetId, throwable) -> {
+                    if (throwable == null) {
+                        spool.removeMessageById(finalId);
+                    } else {
+                        logger.atError().log("failed to publish the message via Mqtt Client", throwable.toString());
+                        spool.addId(finalId);
+                    }
+                }).get();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.atError().log("spooler message is interrupted");
+        } catch (ExecutionException e) {
+            logger.atError().log("failed to spool method", e.toString());
+        }
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -402,7 +501,7 @@ public class MqttClient implements Closeable {
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
                 : "-" + connections.size() + 1);
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
-                clientId, mqttTopics, callbackEventManager);
+                clientId, mqttTopics, callbackEventManager, mqttOnline);
     }
 
     public boolean connected() {
@@ -435,5 +534,9 @@ public class MqttClient implements Closeable {
 
     public int getTimeout() {
         return Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_OPERATION_TIMEOUT, MQTT_OPERATION_TIMEOUT_KEY));
+    }
+
+    protected void setMqttOnline(boolean networkStatus) {
+        mqttOnline.set(networkStatus);
     }
 }
