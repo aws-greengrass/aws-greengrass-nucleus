@@ -311,8 +311,8 @@ public class AuthorizationHandler  {
         if (Utils.isEmpty(componentName)) {
             throw new AuthorizationException("Component name is not specified: " + componentName);
         }
-        // GG_NEEDS_REVIEW: TODO: solve the issue where the authhandler starts up and loads policies before services
-        // are registered: https://issues-iad.amazon.com/issues/V234938383
+        // TODO: [V234938383] solve the issue where the authhandler starts up and loads policies before services
+        //  are registered
         //if (!componentToOperationsMap.containsKey(componentName)) {
         //throw new AuthorizationException("Component not registered: " + componentName);
         //}
@@ -329,7 +329,7 @@ public class AuthorizationHandler  {
     }
 
     private void validatePolicyId(List<AuthorizationPolicy> policies) throws AuthorizationException {
-        if (!policies.stream().filter(p -> Utils.isEmpty(p.getPolicyId())).collect(Collectors.toList()).isEmpty()) {
+        if (policies.stream().anyMatch(p -> Utils.isEmpty(p.getPolicyId()))) {
             throw new AuthorizationException("Malformed policy with empty/null policy Id's");
         }
         // check for duplicates
@@ -346,8 +346,8 @@ public class AuthorizationHandler  {
             throw new AuthorizationException("Malformed policy with invalid/empty operations: "
                     + policy.getPolicyId());
         }
-        // GG_NEEDS_REVIEW: TODO: solve the issue where the authhandler starts up and loads policies before services
-        // are registered: https://issues-iad.amazon.com/issues/V234938383
+        // TODO: [V234938383] solve the issue where the authhandler starts up and loads policies before services
+        //  are registered
         //Set<String> supportedOps = componentToOperationsMap.get(componentName);
         // check if operations are valid and registered.
         //if (operations.stream().anyMatch(o -> !supportedOps.contains(o))) {

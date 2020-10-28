@@ -150,7 +150,7 @@ public class PubSubIPCAgent {
 
                 try {
                     fut.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                    // GG_NEEDS_REVIEW: TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
+                    // TODO: [P32541289] Check the response message and make sure it was successful
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     // Log
                     log.atError("error-sending-pubsub-update").kv("context", context)
