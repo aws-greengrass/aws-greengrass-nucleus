@@ -8,7 +8,6 @@ package com.aws.greengrass.testcommons.testutilities;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.FileSystemPermission;
-import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -58,7 +57,7 @@ public class UniqueRootPathExtension implements BeforeEachCallback, BeforeAllCal
                                     .build();
 
                     // this visitor is necessary so that we can set permissions for everything to ensure it is
-                    // writable so we can delete
+                    // writable before deleting
                     Files.walkFileTree(p, new SimpleFileVisitor<Path>() {
                         @Override
                         public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
@@ -78,10 +77,27 @@ public class UniqueRootPathExtension implements BeforeEachCallback, BeforeAllCal
                             } catch (IOException e) {
                                 logger.atWarn().setCause(e).log("Could not set permissions on {}", file);
                             }
+                            try {
+                                Files.deleteIfExists(file);
+                            } catch (IOException e) {
+                                logger.atWarn().setCause(e).log("Could not delete {}", file);
+                                throw e;
+                            }
+
+                            return FileVisitResult.CONTINUE;
+                        }
+
+                        @Override
+                        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                            try {
+                                Files.deleteIfExists(dir);
+                            } catch (IOException e) {
+                                logger.atWarn().setCause(e).log("Could not delete {}", dir);
+                                throw e;
+                            }
                             return FileVisitResult.CONTINUE;
                         }
                     });
-                    Utils.deleteFileRecursively(p.toFile());
                 }
             };
         } catch (IOException e) {
