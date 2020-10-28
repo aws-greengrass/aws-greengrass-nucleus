@@ -10,6 +10,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.ipc.IPCEventStreamService;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
 import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
@@ -34,7 +35,6 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
-import static com.aws.greengrass.ipc.IPCEventStreamService.IPC_SERVER_DOMAIN_SOCKET_FILENAME;
 import static com.aws.greengrass.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -130,7 +130,7 @@ public final class IPCTestUtils {
 
         try (EventLoopGroup elGroup = new EventLoopGroup(1); ClientBootstrap clientBootstrap = new ClientBootstrap(elGroup, null)) {
 
-            String ipcServerSocketPath = kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+            String ipcServerSocketPath = kernel.getContext().get(IPCEventStreamService.class).getIpcServerSocketAbsolutePath();
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elGroup,
                     socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER,
                     GreengrassConnectMessageSupplier.connectMessageSupplier(authToken));
