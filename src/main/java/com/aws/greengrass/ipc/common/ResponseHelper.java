@@ -24,7 +24,7 @@ public final class ResponseHelper {
      */
     public static void sendResponse(FrameReader.Message msg, int requestId, int destination, ChannelHandlerContext ctx,
                                     boolean closeWhenDone) {
-        // TODO: Validate frame data length
+        // GG_NEEDS_REVIEW: TODO: Validate frame data length
 
         FrameReader.MessageFrame response =
                 new FrameReader.MessageFrame(requestId, destination, msg, FrameReader.FrameType.RESPONSE);

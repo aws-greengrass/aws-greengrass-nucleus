@@ -87,7 +87,7 @@ public class WindowsPlatform extends Platform {
     @Override
     protected void setPermissions(FileSystemPermission permission, Path path,
                                   EnumSet<FileSystemPermission.Option> options) throws IOException {
-        // TODO: Implement using ACL for Windows
+        // GG_NEEDS_REVIEW: TODO: Implement using ACL for Windows
     }
 
     @Override
@@ -127,6 +127,4 @@ public class WindowsPlatform extends Platform {
             throw new UnsupportedOperationException("changing shell is not supported");
         }
     }
-
-
 }

@@ -265,9 +265,9 @@ public class DeploymentService extends GreengrassService {
                                 .withValue(currentDeploymentTaskMetadata.getDeploymentId());
                     }
                     Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
-                    // TODO: Removal of group from the mappings. Currently there is no action taken when a device is
-                    //  removed from a thing group. Empty configuration is treated as a valid config for a group but
-                    //  not treated as removal.
+                    // GG_NEEDS_REVIEW: TODO: Removal of group from the mappings. Currently there is no action taken
+                    // when a device is removed from a thing group. Empty configuration is treated as a valid config
+                    // for a group but not treated as removal.
                     deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
                         if (pkgConfig.isRootComponent()) {
                             Map<String, Object> pkgDetails = new HashMap<>();
@@ -290,9 +290,9 @@ public class DeploymentService extends GreengrassService {
                     if (result.getFailureCause() != null) {
                         statusDetails.put("deployment-failure-cause", result.getFailureCause().getMessage());
                     }
-                    //TODO: Update the groupToRootPackages mapping in config for the case where there is no rollback
-                    // and now the packages deployed for the current group are not the same as before starting
-                    // deployment
+                    // GG_NEEDS_REVIEW: TODO: Update the groupToRootPackages mapping in config for the case where there
+                    // is no rollback and now the packages deployed for the current group are not the same as before
+                    // starting deployment
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                     currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED.toString(),
@@ -451,7 +451,7 @@ public class DeploymentService extends GreengrassService {
                             localOverrideRequest.getGroupName() == null ? DEFAULT_GROUP_NAME
                                     : localOverrideRequest.getGroupName())
                             .forEach(t -> rootComponentsInRequestedGroup.add(t.getName()));
-                    //TODO: pulling the versions from kernel. Can pull it from the config itself.
+                    // GG_NEEDS_REVIEW: TODO: pulling the versions from kernel. Can pull it from the config itself.
                     // Confirm if pulling from config should not break any use case for local
                     if (!Utils.isEmpty(rootComponentsInRequestedGroup)) {
                         rootComponentsInRequestedGroup.forEach(c -> {

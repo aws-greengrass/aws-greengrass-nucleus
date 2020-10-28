@@ -79,7 +79,7 @@ public class LifecycleIPCService implements Startable, InjectionActions {
 
         ApplicationMessage applicationMessage = ApplicationMessage.fromBytes(message.getPayload());
         try {
-            //TODO: add version compatibility check
+            // GG_NEEDS_REVIEW: TODO: add version compatibility check
             LifecycleGenericResponse lifecycleGenericResponse = new LifecycleGenericResponse(
                     LifecycleResponseStatus.InvalidRequest, "Unknown request type");
             if (LifecycleClientOpCodes.values().length > applicationMessage.getOpCode()) {

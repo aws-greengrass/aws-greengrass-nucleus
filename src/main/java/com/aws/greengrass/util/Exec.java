@@ -85,7 +85,7 @@ public final class Exec implements Closeable {
                     }
                 });
                 bg.start();
-                // TODO: configurable timeout?
+                // GG_NEEDS_REVIEW: TODO: configurable timeout?
                 bg.join(2000);
                 addPathEntries(path.toString().trim());
                 // Ensure some level of sanity
@@ -183,7 +183,7 @@ public final class Exec implements Closeable {
     public static Path which(String fn) {  // mirrors shell command
         fn = deTilde(fn);
         if (fn.startsWith("/")) {
-            // TODO sort out windows filename issues, if we ever care
+            // GG_NEEDS_REVIEW: TODO sort out windows filename issues, if we ever care
             Path f = Paths.get(fn);
             return Files.isExecutable(f) ? f : null;
         }
@@ -494,7 +494,7 @@ public final class Exec implements Closeable {
 
         try {
             platformInstance.killProcessAndChildren(p, false, userDecorator);
-            // TODO: configurable timeout?
+            // GG_NEEDS_REVIEW: TODO: configurable timeout?
             if (!p.waitFor(2, TimeUnit.SECONDS)) {
                 platformInstance.killProcessAndChildren(p, true, userDecorator);
                 if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
