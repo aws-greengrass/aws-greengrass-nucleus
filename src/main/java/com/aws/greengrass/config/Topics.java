@@ -113,7 +113,7 @@ public class Topics extends Node implements Iterable<Node> {
      * @return the node
      */
     public Topics createInteriorChild(String name) {
-        return createInteriorChild(new CaseInsensitiveString(name));
+       return createInteriorChild(new CaseInsensitiveString(name));
     }
 
     private Topics createInteriorChild(CaseInsensitiveString name) {
@@ -302,7 +302,7 @@ public class Topics extends Node implements Iterable<Node> {
                 remove(existingChild);
             }
             createInteriorChild(key).updateFromMap((Map) value, childMergeBehavior);
-            // if new node is a leaf node
+        // if new node is a leaf node
         } else {
             // if existing child is a container node
             if (existingChild != null && !(existingChild instanceof Topic)) {
