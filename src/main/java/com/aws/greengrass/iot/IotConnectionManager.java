@@ -49,11 +49,21 @@ public class IotConnectionManager implements Closeable {
      * @param deviceConfiguration Device configuration helper getting cert and keys for mTLS
      */
     @Inject
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public IotConnectionManager(final DeviceConfiguration deviceConfiguration) {
         eventLoopGroup = new EventLoopGroup(1);
         resolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
-        this.connManager = initConnectionManager(deviceConfiguration);
+        try {
+            this.connManager = initConnectionManager(deviceConfiguration);
+        } catch (RuntimeException e) {
+            // If we couldn't initialize the connection manager, then make sure to shutdown
+            // everything which was started up
+            clientBootstrap.close();
+            resolver.close();
+            eventLoopGroup.close();
+            throw e;
+        }
     }
 
     private HttpClientConnectionManager initConnectionManager(DeviceConfiguration deviceConfiguration) {

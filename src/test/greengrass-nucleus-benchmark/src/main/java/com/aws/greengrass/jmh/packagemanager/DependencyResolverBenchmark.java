@@ -50,16 +50,15 @@ public class DependencyResolverBenchmark {
     @State(Scope.Benchmark)
     public abstract static class DRIntegration {
         private DeploymentDocument jobDoc = new DeploymentDocument("mockJob1",
-                Arrays.asList(
-                        new DeploymentPackageConfiguration("boto3", true, "1.9.128", new HashMap<>()),
-                        new DeploymentPackageConfiguration("awscli", true, "1.16.144", new HashMap<>())),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
+                Arrays.asList(new DeploymentPackageConfiguration("boto3", true, "1.9.128", new HashMap<>()),
+                        new DeploymentPackageConfiguration("awscli", true, "1.16.144", new HashMap<>())), "mockGroup1",
+                1L, FailureHandlingPolicy.DO_NOTHING, new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
 
         private DependencyResolver resolver;
         private List<ComponentIdentifier> result;
         private Kernel kernel;
 
-        @Setup
+        @Setup(Level.Trial)
         public void setup() throws IOException {
             kernel = new Kernel();
             kernel.parseArgs("-i", DependencyResolverBenchmark.class.getResource(getConfigFile()).toString());
@@ -88,8 +87,8 @@ public class DependencyResolverBenchmark {
 
         @Benchmark
         public List<ComponentIdentifier> measure() throws Exception {
-            result = resolver.resolveDependencies(jobDoc, Topics.of(kernel.getContext(),
-                    DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null));
+            result = resolver.resolveDependencies(jobDoc,
+                    Topics.of(kernel.getContext(), DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null));
             return result;
         }
 

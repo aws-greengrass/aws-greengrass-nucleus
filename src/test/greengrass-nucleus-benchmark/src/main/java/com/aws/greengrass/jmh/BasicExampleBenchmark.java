@@ -23,11 +23,14 @@ public class BasicExampleBenchmark {
     @Benchmark
     public void testMethod() throws Exception {
         Kernel kernel = new Kernel();
-        kernel.parseArgs("-i", BasicExampleBenchmark.class.getResource("config.yaml").toString());
-        kernel.launch();
-        Thread.sleep(20000);
-        ForcedGcMemoryProfiler.recordUsedMemory();
-        kernel.shutdown();
+        try {
+            kernel.parseArgs("-i", BasicExampleBenchmark.class.getResource("config.yaml").toString());
+            kernel.launch();
+            Thread.sleep(20000);
+            ForcedGcMemoryProfiler.recordUsedMemory();
+        } finally {
+            kernel.shutdown();
+        }
     }
 
 }
