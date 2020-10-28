@@ -268,7 +268,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
 
         // this time make loadAuthorizationPolicy throw
         doNothing().when(mockAuthZHandler).registerComponent(any(), any());
-        //TODO: this no longer throws an exception; we need to parse the log to check the behavior
+        // GG_NEEDS_REVIEW: TODO: this no longer throws an exception; we need to parse the log to check the behavior
         //doThrow(AuthorizationException.class).when(mockAuthZHandler).loadAuthorizationPolicies(any(), any(), false);
         tes.postInject();
         assertEquals(State.ERRORED, stateArgumentCaptor.getValue());

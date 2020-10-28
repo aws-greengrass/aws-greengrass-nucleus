@@ -44,7 +44,7 @@ public class EventStreamRPCClient {
             final ReqType request, Optional<StreamResponseHandler<StrRespType>> streamResponseHandler) {
         final AtomicBoolean isContinuationClosed = new AtomicBoolean(true);
 
-        //TODO: verify inputs here for easier debugging further in
+        // GG_NEEDS_REVIEW: TODO: verify inputs here for easier debugging further in
         if (operationModelContext.isStreamingOperation() && !streamResponseHandler.isPresent()) {
             //Even if an operation does not have a streaming response (has streaming input), a
             //stream is physically bidirectional, and even if a streaming response isn't allowed
@@ -97,7 +97,7 @@ public class EventStreamRPCClient {
                         }
                     }
 
-                    //TODO: application errors always have TerminateStream flag set?
+                    // GG_NEEDS_REVIEW: TODO: application errors always have TerminateStream flag set?
                     //first close the stream immediately if the other side hasn't already done so
                     if (messageFlags == MessageFlags.TerminateStream.getByteValue()) {
                         try {

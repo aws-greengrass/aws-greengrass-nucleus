@@ -320,7 +320,7 @@ public class Context implements Closeable {
     @SuppressFBWarnings("DP_DO_INSIDE_DO_PRIVILEGED")
     @SuppressWarnings({"PMD.AvoidCatchingThrowable"})
     public void injectFields(Object object) {
-        // TODO Revisit this method.
+        // GG_NEEDS_REVIEW: TODO Revisit this method.
         if (object == null) {
             return;
         }
@@ -412,7 +412,7 @@ public class Context implements Closeable {
     public class Value<T> implements Provider<T> {
         private final Class<T> targetClass;
         private volatile T object;
-        // TODO Review with James if we still need injectionCompleted
+        // GG_NEEDS_REVIEW: TODO Review with James if we still need injectionCompleted
         @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to be sync")
         private boolean injectionCompleted;
 
@@ -492,7 +492,7 @@ public class Context implements Closeable {
                 Class argClazz = argTypes[i];
 
                 if (argClazz == Topics.class) {
-                    // TODO Revisit GreengrassService injection and see if we can remove this branch
+                    // GG_NEEDS_REVIEW: TODO Revisit GreengrassService injection and see if we can remove this branch
                     ImplementsService service = clazz.getAnnotation(ImplementsService.class);
                     if (service != null) {
                         String serviceName = service.name();

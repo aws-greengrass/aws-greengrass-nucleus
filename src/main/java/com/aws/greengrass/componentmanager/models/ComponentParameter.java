@@ -23,9 +23,9 @@ import java.util.Set;
 @AllArgsConstructor
 @ToString
 public class ComponentParameter {
-
+    // GG_NEEDS_REVIEW: TODO Hacky way for KernelConfigResolver. Should be removed when removing `type`.
     @NonNull
-    @EqualsAndHashCode.Include // TODO Hacky way for KernelConfigResolver. Should be removed when removing `type`.
+    @EqualsAndHashCode.Include
     String name;
 
     String value;

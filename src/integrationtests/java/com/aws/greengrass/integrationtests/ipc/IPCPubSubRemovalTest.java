@@ -167,7 +167,7 @@ class IPCPubSubRemovalTest {
 
 
         assertFalse(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId1));
-        //TODO: convert all these integ tests to use only recipe merging instead of loading a kernel config file
+        // GG_NEEDS_REVIEW: TODO: convert all these integ tests to use only recipe merging instead of loading a kernel config file
         // Otherwise the removal of "SubscribeAndPublish" also inadvertently results in the "PublishNotSubscribe"
         // component (and all other components) and its policies being removed, since it is not part of the deployment.
         // Hence the next line is commented out
@@ -288,7 +288,7 @@ class IPCPubSubRemovalTest {
         waitForDeploymentToBeSuccessful(deploymentId1, kernel).await(30, TimeUnit.SECONDS);
 
         assertFalse(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId1));
-        //TODO: convert all these integ tests to use only recipe merging instead of loading a kernel config file
+        // GG_NEEDS_REVIEW: TODO: convert all these integ tests to use only recipe merging instead of loading a kernel config file
         // Otherwise the removal of "SubscribeAndPublish" also inadvertently results in the "PublishNotSubscribe"
         // component (and all other components) and its policies being removed, since it is not part of the deployment.
         // Hence the next line is commented out

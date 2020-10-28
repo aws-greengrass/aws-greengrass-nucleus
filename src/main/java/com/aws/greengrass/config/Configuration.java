@@ -230,8 +230,8 @@ public class Configuration {
      * @return any throwable that occurs from the merge or read
      */
     public Throwable readMerge(URL u, boolean sourceTimestamp) {
-        // TODO: Does not handle dependencies properly yet
-        // TODO: Nor are environment variables accounted for properly
+        // GG_NEEDS_REVIEW: TODO: Does not handle dependencies properly yet
+        // GG_NEEDS_REVIEW: TODO: Nor are environment variables accounted for properly
         /* We run the operation on the publish queue to ensure that no listeners are
          * fired while the large config change is happening.  They get reconciled
          * all together */
