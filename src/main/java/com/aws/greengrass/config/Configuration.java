@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -34,6 +35,9 @@ public class Configuration {
     public final Context context;
     final Topics root;
     private static final Logger logger = LogManager.getLogger(Configuration.class);
+
+    private final AtomicBoolean configUnderUpdate = new AtomicBoolean(false);
+    private final Object configUpdateNotifier = new Object();
 
     @Inject
     @SuppressWarnings("LeakingThisInConstructor")
@@ -141,7 +145,32 @@ public class Configuration {
         if (!(resolvedPlatformMap instanceof Map)) {
             throw new IllegalArgumentException("Invalid config after resolving platform: " + resolvedPlatformMap);
         }
+        // TODO: avoid sending multiple changed/childChanged event when the entire config is being updated.
+        configUnderUpdate.set(true);
         root.updateFromMap((Map<String, Object>) resolvedPlatformMap, updateBehavior);
+        context.runOnPublishQueue(() -> {
+            synchronized (configUpdateNotifier) {
+                configUnderUpdate.set(false);
+                configUpdateNotifier.notifyAll();
+            }
+        });
+    }
+
+    /**
+     * If configuration is under update when this function is invoked, block until the update is complete.
+     * @throws InterruptedException InterruptedException
+     */
+    public void waitConfigUpdateComplete() throws InterruptedException {
+        if (!configUnderUpdate.get()) {
+            return;
+        }
+        logger.atInfo().log("Configuration currently updating, will wait for the update to complete.");
+        synchronized (configUpdateNotifier) {
+            while (configUnderUpdate.get()) {
+                configUpdateNotifier.wait(5000);
+            }
+        }
+        logger.atInfo().log("Config update finished.");
     }
 
     public Map<String, Object> toPOJO() {

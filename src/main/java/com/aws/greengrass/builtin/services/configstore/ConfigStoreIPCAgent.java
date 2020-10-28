@@ -185,10 +185,18 @@ public class ConfigStoreIPCAgent {
         String serviceName = request.getComponentName() == null ? context.getServiceName() : request.getComponentName();
         Topics serviceTopics = kernel.findServiceTopic(serviceName);
         GetConfigurationResponse.GetConfigurationResponseBuilder response = GetConfigurationResponse.builder();
-
         if (serviceTopics == null) {
             return response.responseStatus(ConfigStoreResponseStatus.ResourceNotFoundError)
                     .errorMessage(KEY_NOT_FOUND_ERROR_MESSAGE).build();
+        }
+
+        try {
+            kernel.getConfig().waitConfigUpdateComplete();
+        } catch (InterruptedException e) {
+            log.atError().setCause(e).log("Interrupted when waiting for config update complete");
+            return GetConfigurationResponse.builder()
+                    .responseStatus(ConfigStoreResponseStatus.InternalError)
+                    .errorMessage(e.getMessage()).build();
         }
 
         Topics configTopics = serviceTopics.findInteriorChild(PARAMETERS_CONFIG_KEY);
