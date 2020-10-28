@@ -106,9 +106,9 @@ public class KernelCommandLine {
                 case "--component-default-user":
                 case "-u":
                     if (Exec.isWindows) {
-                        deviceConfiguration.getRunWithDefaultPosixUser().withValue(getArg());
-                    } else {
                         deviceConfiguration.getRunWithDefaultWindowsUser().withValue(getArg());
+                    } else {
+                        deviceConfiguration.getRunWithDefaultPosixUser().withValue(getArg());
                     }
                     break;
                 case "--component-default-group":

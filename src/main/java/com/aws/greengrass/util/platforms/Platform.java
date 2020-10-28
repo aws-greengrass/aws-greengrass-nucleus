@@ -76,6 +76,17 @@ public abstract class Platform implements UserPlatform {
     }
 
     /**
+     * Set permissions on a path.
+     *
+     * @param permission permissions to set
+     * @param path path to apply to
+     * @throws IOException if any exception occurs while changing permissions
+     */
+    public void setPermissions(FileSystemPermission permission, Path path) throws IOException {
+        setPermissions(permission, path, EnumSet.noneOf(Option.class));
+    }
+
+    /**
      * Set permission on a path.
      *
      * @param permission permissions to set
