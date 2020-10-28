@@ -91,7 +91,7 @@ public class MqttClient implements Closeable {
     private final Map<SubscribeRequest, AwsIotMqttClient> subscriptions = new ConcurrentHashMap<>();
     private final Map<MqttTopic, AwsIotMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
-    private AtomicBoolean mqttOnline = new AtomicBoolean(false);
+    private final AtomicBoolean mqttOnline = new AtomicBoolean(false);
 
     private final EventLoopGroup eventLoopGroup;
     private final HostResolver hostResolver;
@@ -371,12 +371,11 @@ public class MqttClient implements Closeable {
 
         try {
             spool.addMessage(request);
-
         } catch (InterruptedException | SpoolerLoadException e) {
+            logger.atError().log("fail to add publish request to spooler queue", e.toString());
             future.completeExceptionally(e);
             return future;
         }
-        // TODO: if needs to know when the message is published successfully, may need to change here
         return CompletableFuture.completedFuture(0);
     }
 
@@ -535,5 +534,9 @@ public class MqttClient implements Closeable {
 
     public int getTimeout() {
         return Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_OPERATION_TIMEOUT, MQTT_OPERATION_TIMEOUT_KEY));
+    }
+
+    protected void setMqttOnline(boolean networkStatus) {
+        mqttOnline.set(networkStatus);
     }
 }

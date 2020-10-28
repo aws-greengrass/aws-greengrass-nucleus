@@ -38,6 +38,7 @@ public class InMemorySpoolTest {
     private Spool spool;
     private SpoolerConfig config;
 
+
     @BeforeEach
     void beforeEach() {
         config = SpoolerConfig.builder().keepQos0WhenOffline(true)
@@ -51,11 +52,9 @@ public class InMemorySpoolTest {
                 .qos(QualityOfService.AT_MOST_ONCE).build();
 
         spool = spy(new Spool(deviceConfiguration, config));
-        //doNothing().when(spool).addMessageToSpooler(any(), any());
         Long id = spool.addMessage(request);
 
         verify(spool, never()).removeMessageById(any());
-        //verify(spool, times(1)).addMessageToSpooler(any(), any());
         assertEquals(1, spool.getCurrentMessageCount());
         assertEquals(0L, id);
     }
@@ -68,6 +67,7 @@ public class InMemorySpoolTest {
                 .qos(QualityOfService.AT_MOST_ONCE).build();
 
         spool = spy(new Spool(deviceConfiguration, config));
+
         spool.addMessage(request1);
         Long id2 = spool.addMessage(request2);
         spool.addMessage(request2);
@@ -93,7 +93,6 @@ public class InMemorySpoolTest {
         assertThrows(SpoolerLoadException.class, () -> { spool.addMessage(request3); });
 
         verify(spool, times(1)).removeOldestMessage();
-        //verify(spool, times(2)).addMessageToSpooler(any(), any());
         assertEquals(10, spool.getCurrentSpoolerSize());
         verify(spool, times(1)).removeMessageById(id2);
     }
@@ -106,7 +105,10 @@ public class InMemorySpoolTest {
         spool = spy(new Spool(deviceConfiguration, config));
         assertThrows(SpoolerLoadException.class, () -> { spool.addMessage(request); });
 
-        //verify(spool, times(0)).addMessageToSpooler(any(), any());
+
+        spool = spy(new Spool(deviceConfiguration, config));
+        assertThrows(SpoolerLoadException.class, () -> { spool.addMessage(request); });
+
         assertEquals(0, spool.getCurrentSpoolerSize());
     }
 

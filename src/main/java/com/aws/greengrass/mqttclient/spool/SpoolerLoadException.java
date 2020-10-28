@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+
 package com.aws.greengrass.mqttclient.spool;
 
 public class SpoolerLoadException extends Exception {
@@ -13,12 +14,10 @@ public class SpoolerLoadException extends Exception {
     }
 
     public SpoolerLoadException(String message, Throwable cause) {
-
         super(message, cause);
     }
 
     public SpoolerLoadException(Throwable cause) {
-
         super(cause);
     }
 }

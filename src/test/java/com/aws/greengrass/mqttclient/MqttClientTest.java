@@ -83,7 +83,6 @@ class MqttClientTest {
     ScheduledExecutorService ses = new ScheduledThreadPoolExecutor(1);
     ExecutorService executorService = Executors.newSingleThreadExecutor();
 
-
     Configuration config = new Configuration(new Context());
     private final Consumer<MqttMessage> cb = (m) -> {
     };
