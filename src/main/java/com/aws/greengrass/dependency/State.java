@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.dependency;
 
@@ -7,7 +9,7 @@ package com.aws.greengrass.dependency;
  * The states in the lifecycle of a service.
  */
 public enum State {
-    // TODO Not sure I trust this list yet
+    // GG_NEEDS_REVIEW: TODO Not sure I trust this list yet
 
     /**
      * TODO Remove this?
@@ -64,7 +66,7 @@ public enum State {
 
 
     State(boolean happy, boolean running, boolean functioningProperly, String name) {
-        // TODO Review with James and Team about do we need this anymore?
+        // GG_NEEDS_REVIEW: TODO Review with James and Team about do we need this anymore?
         this.happy = happy;
         this.running = running;
         this.functioningProperly = functioningProperly;

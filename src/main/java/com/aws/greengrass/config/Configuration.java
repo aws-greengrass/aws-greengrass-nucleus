@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.config;
 
@@ -125,22 +127,21 @@ public class Configuration {
      * @param map       map to merge
      */
     public void mergeMap(long timestamp, Map<String, Object> map) {
-        this.updateMap(timestamp, map, new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE));
+        this.updateMap(map, new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, timestamp));
     }
 
     /**
      * Merges a Map into this configuration. The merge will resolve platform.
      *
-     * @param timestamp     last modified time for the configuration values
      * @param map           map to merge
      * @param updateBehavior the updateBehavior of each node to be merged in
      */
-    public void updateMap(long timestamp, Map<String, Object> map, UpdateBehaviorTree updateBehavior) {
+    public void updateMap(Map<String, Object> map, UpdateBehaviorTree updateBehavior) {
         Object resolvedPlatformMap = PlatformResolver.resolvePlatform(map);
         if (!(resolvedPlatformMap instanceof Map)) {
             throw new IllegalArgumentException("Invalid config after resolving platform: " + resolvedPlatformMap);
         }
-        root.updateFromMap(timestamp, (Map<String, Object>) resolvedPlatformMap, updateBehavior);
+        root.updateFromMap((Map<String, Object>) resolvedPlatformMap, updateBehavior);
     }
 
     public Map<String, Object> toPOJO() {
@@ -229,8 +230,8 @@ public class Configuration {
      * @return any throwable that occurs from the merge or read
      */
     public Throwable readMerge(URL u, boolean sourceTimestamp) {
-        // TODO: Does not handle dependencies properly yet
-        // TODO: Nor are environment variables accounted for properly
+        // GG_NEEDS_REVIEW: TODO: Does not handle dependencies properly yet
+        // GG_NEEDS_REVIEW: TODO: Nor are environment variables accounted for properly
         /* We run the operation on the publish queue to ensure that no listeners are
          * fired while the large config change is happening.  They get reconciled
          * all together */

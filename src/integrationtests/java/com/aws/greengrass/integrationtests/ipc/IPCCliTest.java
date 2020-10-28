@@ -1,12 +1,15 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.integrationtests.ipc;
 
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
-import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
@@ -60,7 +63,6 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Duration;
 import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.Collections;
@@ -73,7 +75,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
-import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getListenerForServiceRunning;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
@@ -112,8 +113,7 @@ class IPCCliTest {
     @BeforeAll
     static void beforeAll() throws InterruptedException, ServiceLoadException {
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCCliTest.class, CLI_SERVICE, TEST_SERVICE_NAME);
-        DeploymentService deploymentService = (DeploymentService) kernel.locate(DEPLOYMENT_SERVICE_TOPICS);
-        deploymentService.setPollingFrequency(Duration.ofSeconds(1).toMillis());
+        BaseITCase.setDeviceConfig(kernel, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 1L);
     }
 
     @AfterAll
@@ -367,7 +367,7 @@ class IPCCliTest {
 
         String validGid;
         if (Exec.isWindows) {
-            // TODO support windows
+            // GG_NEEDS_REVIEW: TODO support windows
             validGid = "0";
         } else {
             validGid = selectAValidGid();

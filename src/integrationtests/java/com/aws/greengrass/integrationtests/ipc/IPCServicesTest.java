@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.integrationtests.ipc;
 
@@ -93,8 +95,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 class IPCServicesTest {
-
-    private final static Logger log = LogManager.getLogger(IPCServicesTest.class);
     private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
     private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
     private static Logger logger = LogManager.getLogger(IPCServicesTest.class);
@@ -277,7 +277,7 @@ class IPCServicesTest {
 
                         @Override
                         public boolean onStreamError(Throwable error) {
-                            log.atError().log("Received stream error.", error);
+                            logger.atError().log("Received stream error.", error);
                             return false;
                         }
 
@@ -333,7 +333,7 @@ class IPCServicesTest {
 
                     @Override
                     public boolean onStreamError(Throwable error) {
-                        log.atError().log("Received stream error.", error);
+                        logger.atError().log("Received stream error.", error);
                         return false;
                     }
 
@@ -533,7 +533,7 @@ class IPCServicesTest {
         }
 
         assertTrue(subscriptionLatch.await(5, TimeUnit.SECONDS));
-        // TODO: When Cli support safe update setting in local deployment, then create a local deployment here to
+        // GG_NEEDS_REVIEW: TODO: When Cli support safe update setting in local deployment, then create a local deployment here to
         //  trigger update
         LifecycleIPCEventStreamAgent lifecycleIPCEventStreamAgent =
                 kernel.getContext().get(LifecycleIPCEventStreamAgent.class);

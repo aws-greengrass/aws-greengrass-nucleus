@@ -85,7 +85,7 @@ class MqttReconnectTest extends BaseE2ETestCase {
     }
 
 
-    // TODO: Fix flaky test https://sim.amazon.com/issues/P40525318
+    // GG_NEEDS_REVIEW: TODO: Fix flaky test https://sim.amazon.com/issues/P40525318
     @Disabled
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test

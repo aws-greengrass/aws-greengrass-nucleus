@@ -83,7 +83,7 @@ public class GenericExternalService extends GreengrassService {
         c.subscribe((what, child) -> {
             // When the service is removed via a deployment this topic itself will be removed
             // When first initialized, the child will be null
-            if (WhatHappened.removed.equals(what) || child == null) {
+            if (WhatHappened.removed.equals(what) || child == null || WhatHappened.timestampUpdated.equals(what)) {
                 return;
             }
 
@@ -367,7 +367,7 @@ public class GenericExternalService extends GreengrassService {
      * </p>
      */
     protected void storeInitialRunWithConfiguration() {
-        // TODO: Add support for Windows
+        // GG_NEEDS_REVIEW: TODO: Add support for Windows
         if (!Exec.isWindows) {
             runWithUser = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixUser());
             runWithGroup = Coerce.toString(deviceConfiguration.getRunWithDefaultPosixGroup());
@@ -422,7 +422,7 @@ public class GenericExternalService extends GreengrassService {
         exec = addUser(exec, requiresPrivilege);
         exec = addShell(exec);
 
-        // TODO: Change artifact owner
+        // GG_NEEDS_REVIEW: TODO: Change artifact owner
         addEnv(exec, t.parent);
         logger.atDebug().setEventType("generic-service-run").log();
 

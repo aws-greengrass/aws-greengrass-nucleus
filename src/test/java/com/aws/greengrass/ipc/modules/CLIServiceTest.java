@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.ipc.modules;
 
 import com.aws.greengrass.builtin.services.cli.CLIEventStreamAgent;
@@ -191,7 +196,7 @@ class CLIServiceTest extends GGServiceTestUtil {
     @Test
     void testStartup_group_auth(ExtensionContext context) throws Exception {
         if (Exec.isWindows) {
-            // TODO support group auth on Windows
+            // GG_NEEDS_REVIEW: TODO support group auth on Windows
             return;
         }
         ignoreExceptionOfType(context, UserPrincipalNotFoundException.class);

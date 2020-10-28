@@ -7,10 +7,10 @@ package com.aws.greengrass.deployment;
 
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.activator.DeploymentActivator;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -36,8 +36,6 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.ipc.AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_NAME_KEY;
 
 @AllArgsConstructor
@@ -46,7 +44,6 @@ public class DeploymentConfigMerger {
     public static final String MERGE_ERROR_LOG_EVENT_KEY = "config-update-error";
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     protected static final int WAIT_SVC_START_POLL_INTERVAL_MILLISEC = 1000;
-    public static final UpdateBehaviorTree DEPLOYMENT_MERGE_BEHAVIOR = createDeploymentMergeBehavior();
 
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
 
@@ -94,7 +91,7 @@ public class DeploymentConfigMerger {
         DeploymentActivator activator;
         try {
             activator = kernel.getContext().get(DeploymentActivatorFactory.class).getDeploymentActivator(newConfig);
-        } catch (ServiceUpdateException e) {
+        } catch (ServiceUpdateException | ComponentConfigurationValidationException e) {
             // Failed to pre-process new config, no rollback needed
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
                     .log("Failed to process new configuration for activation");
@@ -162,22 +159,23 @@ public class DeploymentConfigMerger {
          * @param newServiceConfig new config to be merged for deployment
          */
         public AggregateServicesChangeManager(Kernel kernel, Map<String, Object> newServiceConfig) {
-            Set<String> runningUserServices = kernel.orderedDependencies().stream()
-                    .map(GreengrassService::getName).collect(Collectors.toSet());
+            // No builtin services should be modified in any way by deployments outside of
+            //  Nucleus component update
+            Set<String> runningDeployableServices =
+                    kernel.orderedDependencies().stream().filter(s -> !s.isBuiltin()).map(GreengrassService::getName)
+                            .collect(Collectors.toSet());
 
             this.kernel = kernel;
 
-            this.servicesToAdd =
-                    newServiceConfig.keySet().stream().filter(serviceName -> !runningUserServices.contains(serviceName))
-                            .collect(Collectors.toSet());
+            this.servicesToAdd = newServiceConfig.keySet().stream()
+                    .filter(serviceName -> !runningDeployableServices.contains(serviceName))
+                    .collect(Collectors.toSet());
 
-            this.servicesToUpdate =
-                    newServiceConfig.keySet().stream().filter(runningUserServices::contains)
-                            .collect(Collectors.toSet());
+            this.servicesToUpdate = newServiceConfig.keySet().stream().filter(runningDeployableServices::contains)
+                    .collect(Collectors.toSet());
 
-            // TODO: handle removing services that are running within the JVM but defined via config
             this.servicesToRemove =
-                    runningUserServices.stream().filter(serviceName -> !newServiceConfig.containsKey(serviceName))
+                    runningDeployableServices.stream().filter(serviceName -> !newServiceConfig.containsKey(serviceName))
                             .collect(Collectors.toSet());
         }
 
@@ -282,34 +280,5 @@ public class DeploymentConfigMerger {
             return servicesToTrack;
         }
 
-    }
-
-    private static UpdateBehaviorTree createDeploymentMergeBehavior() {
-        // root: MERGE
-        //   services: MERGE
-        //     *: REPLACE
-        //       runtime: MERGE
-        //       _private: MERGE
-        //     AUTH_TOKEN: MERGE
-
-        UpdateBehaviorTree rootMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
-        UpdateBehaviorTree servicesMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
-        UpdateBehaviorTree insideServiceMergeBehavior =
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE);
-        UpdateBehaviorTree serviceRuntimeMergeBehavior =
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
-        UpdateBehaviorTree servicePrivateMergeBehavior =
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE);
-
-        rootMergeBehavior.getChildOverride().put(SERVICES_NAMESPACE_TOPIC, servicesMergeBehavior);
-        servicesMergeBehavior.getChildOverride().put(UpdateBehaviorTree.WILDCARD, insideServiceMergeBehavior);
-        servicesMergeBehavior.getChildOverride().put(AUTHENTICATION_TOKEN_LOOKUP_KEY,
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE));
-        insideServiceMergeBehavior.getChildOverride().put(
-                GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
-        insideServiceMergeBehavior.getChildOverride().put(
-                GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC, servicePrivateMergeBehavior);
-
-        return rootMergeBehavior;
     }
 }

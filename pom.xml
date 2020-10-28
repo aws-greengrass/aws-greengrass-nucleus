@@ -107,7 +107,7 @@
             <groupId>com.aws.iot</groupId>
             <artifactId>component-common</artifactId>
             <!-- change back to 0.0.0-SNAPSHOT after common model is updated in repo -->
-            <version>0.0.0-config_platform-SNAPSHOT</version>
+            <version>0.0.0-SNAPSHOT</version>
         </dependency>
         <!-- TODO: This is temporary, adding because there is some confusion about which version
         of core should be used for the AWS SDK (2.x or 1.x). Will be removed once the pom file for
@@ -311,6 +311,39 @@
                 <executions>
                     <execution>
                         <phase>test</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>4.0.rc2</version>
+                <configuration>
+                    <licenseSets>
+                        <licenseSet>
+                            <header>.license/header.txt</header>
+                            <headerDefinitions>
+                                <headerDefinition>.license/style.xml</headerDefinition>
+                            </headerDefinitions>
+                            <useDefaultExcludes>true</useDefaultExcludes>
+                            <excludes>
+                                <exclude>*</exclude>
+                                <exclude>codestyle/**</exclude>
+                                <exclude>src/test/greengrass-nucleus-benchmark/**</exclude>
+                                <exclude>src/*/resources/**</exclude>
+                            </excludes>
+                        </licenseSet>
+                    </licenseSets>
+                    <mapping>
+                        <java>JAVA_STYLE</java>
+                    </mapping>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
                         <goals>
                             <goal>check</goal>
                         </goals>

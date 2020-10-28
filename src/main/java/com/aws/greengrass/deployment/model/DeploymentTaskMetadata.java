@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.deployment.model;
 
 import lombok.AllArgsConstructor;
@@ -10,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @AllArgsConstructor
 public class DeploymentTaskMetadata {
-    // TODO: clean up duplicate information
+    // GG_NEEDS_REVIEW: TODO: clean up duplicate information
     @NonNull @Getter
     private DeploymentTask deploymentTask;
     @NonNull

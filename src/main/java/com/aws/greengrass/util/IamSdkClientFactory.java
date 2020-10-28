@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.util;
 
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
@@ -39,7 +44,7 @@ public final class IamSdkClientFactory {
      * @return IamClient instance
      */
     public static IamClient getIamClient() {
-        // TODO : Add partition support
+        // GG_NEEDS_REVIEW: TODO : Add partition support
         return IamClient.builder().region(Region.AWS_GLOBAL).httpClient(ProxyUtils.getSdkHttpClient())
                 .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build()).build();
     }

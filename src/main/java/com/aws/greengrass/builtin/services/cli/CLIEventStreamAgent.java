@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.builtin.services.cli;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;
@@ -5,6 +10,7 @@ import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeploymentQueue;
+import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -152,7 +158,7 @@ public class CLIEventStreamAgent {
         String deploymentId = (String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME);
         Topics localDeploymentDetails = localDeployments.lookupTopics(deploymentId);
         localDeploymentDetails.replaceAndWait(deploymentDetails);
-        // TODO: Remove the succeeded deployments if the number of deployments have exceeded max limit
+        // GG_NEEDS_REVIEW: TODO: Remove the succeeded deployments if the number of deployments have exceeded max limit
     }
 
     @SuppressFBWarnings("SIC_INNER_SHOULD_BE_STATIC")
@@ -269,6 +275,7 @@ public class CLIEventStreamAgent {
             String componentName = request.getComponentName();
             try {
                 GreengrassService service = kernel.locate(componentName);
+                // GG_NEEDS_REVIEW: TODO
                 // TODO: Add any checks that can prevent triggering a restart. Right now they do not exist.
                 // Success of this request means restart was triggered successfully
                 service.requestRestart();
@@ -311,6 +318,7 @@ public class CLIEventStreamAgent {
             String componentName = request.getComponentName();
             try {
                 GreengrassService service = kernel.locate(componentName);
+                // GG_NEEDS_REVIEW: TODO
                 // TODO: Add any checks that can prevent triggering a stop. Right now they do not exist.
                 // Success of this request means stop was triggered successfully
                 service.requestStop();
@@ -455,13 +463,23 @@ public class CLIEventStreamAgent {
             // new recipes set using the updateRecipesAndArtifacts API.
             String deploymentId = UUID.randomUUID().toString();
 
+            Map<String, ConfigurationUpdateOperation> configUpdate = null;
+            if (request.getComponentToConfiguration() != null) {
+                configUpdate = request.getComponentToConfiguration().entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, e -> {
+                            ConfigurationUpdateOperation configUpdateOption = new ConfigurationUpdateOperation();
+                            configUpdateOption.setValueToMerge((Map) e.getValue().get("MERGE"));
+                            configUpdateOption.setPathsToReset((List) e.getValue().get("RESET"));
+                            return configUpdateOption;
+                        }));
+            }
             LocalOverrideRequest localOverrideRequest = LocalOverrideRequest.builder().requestId(deploymentId)
                     .componentsToMerge(request.getRootComponentVersionsToAdd())
                     .componentsToRemove(request.getRootComponentsToRemove())
                     .requestTimestamp(System.currentTimeMillis())
                     .groupName(request.getGroupName() == null || request.getGroupName().isEmpty() ? DEFAULT_GROUP_NAME
                             : request.getGroupName())
-                    .componentNameToConfig(request.getComponentToConfiguration()).build();
+                    .configurationUpdate(configUpdate).build();
             String deploymentDocument;
             try {
                 deploymentDocument = OBJECT_MAPPER.writeValueAsString(localOverrideRequest);
@@ -569,14 +587,16 @@ public class CLIEventStreamAgent {
         public ListLocalDeploymentsResponse handleRequest(ListLocalDeploymentsRequest request) {
             List<LocalDeployment> persistedDeployments = new ArrayList<>();
             Topics localDeployments = cliServiceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
-            localDeployments.forEach(topic -> {
-                Topics topics = (Topics) topic;
-                LocalDeployment localDeployment = new LocalDeployment();
-                localDeployment.setDeploymentId(topics.getName());
-                localDeployment.setStatus(deploymentStatusFromString(Coerce.toString(
-                        topics.find(DEPLOYMENT_STATUS_KEY_NAME))));
-                persistedDeployments.add(localDeployment);
-            });
+            if (localDeployments != null) {
+                localDeployments.forEach(topic -> {
+                    Topics topics = (Topics) topic;
+                    LocalDeployment localDeployment = new LocalDeployment();
+                    localDeployment.setDeploymentId(topics.getName());
+                    localDeployment.setStatus(deploymentStatusFromString(
+                            Coerce.toString(topics.find(DEPLOYMENT_STATUS_KEY_NAME))));
+                    persistedDeployments.add(localDeployment);
+                });
+            }
             ListLocalDeploymentsResponse response = new ListLocalDeploymentsResponse();
             response.setLocalDeployments(persistedDeployments);
             return response;

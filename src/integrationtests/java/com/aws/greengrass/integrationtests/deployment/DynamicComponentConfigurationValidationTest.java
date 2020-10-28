@@ -1,10 +1,15 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.integrationtests.deployment;
 
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
-import com.aws.greengrass.deployment.exceptions.DynamicConfigurationValidationException;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -53,6 +58,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
@@ -121,6 +127,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                             kernel.getMain().getServiceConfig().lookupTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC)
                                     .toPOJO());
                 }});
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, kernel.findServiceTopic(DEFAULT_NUCLEUS_COMPONENT_NAME).toPOJO());
                 put("OldService", new HashMap<String, Object>() {{
                     put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
                         put("ConfigKey1", "ConfigValue1");
@@ -302,7 +309,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
             DeploymentResult result =
                     deploymentConfigMerger.mergeInNewConfig(createTestDeployment(), newConfig).get(60, TimeUnit.SECONDS);
             assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
-            assertTrue(result.getFailureCause() instanceof DynamicConfigurationValidationException);
+            assertTrue(result.getFailureCause() instanceof ComponentConfigurationValidationException);
             assertTrue(result.getFailureCause().getMessage() != null && result.getFailureCause().getMessage().contains(
                     "Components reported that their to-be-deployed configuration is invalid { name = "
                             + "OldService, message = I don't like this configuration }"));

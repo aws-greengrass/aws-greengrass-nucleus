@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package software.amazon.awssdk.eventstreamrpc;
 
 import java.nio.charset.StandardCharsets;
@@ -243,7 +248,7 @@ public abstract class OperationContinuationHandler
 
         try {
             if (initialRequest != null) {
-                //TODO: FIX empty close messages arrive here and throw exception
+                // GG_NEEDS_REVIEW: TODO: FIX empty close messages arrive here and throw exception
                 final StreamingRequestType streamEvent = serviceModel.fromJson(getStreamingRequestClass(), bytes);
                 //exceptions occurring during this processing will result in closure of stream
                 handleStreamEvent(streamEvent);
@@ -273,15 +278,14 @@ public abstract class OperationContinuationHandler
         } catch (EventStreamOperationError e) {
             //We do not check if the specific exception thrown is a part of the core service?
             sendModeledError(e);
-            LOGGER.warning("Modeled error response: " + e.getApplicationModelType());
             invokeAfterHandleRequest();
         } catch (Exception e) {
             final List<Header> responseHeaders = new ArrayList<>(1);
             byte[] outputPayload = "InternalServerError".getBytes(StandardCharsets.UTF_8);
             responseHeaders.add(Header.createHeader(EventStreamRPCServiceModel.CONTENT_TYPE_HEADER,
                     EventStreamRPCServiceModel.CONTENT_TYPE_APPLICATION_TEXT));
-            // TODO: are there any exceptions we wouldn't want to return a generic server fault?
-            // TODO: this is the kind of exception that should be logged with a request ID especially in a server-client context
+            // GG_NEEDS_REVIEW: TODO: are there any exceptions we wouldn't want to return a generic server fault?
+            // GG_NEEDS_REVIEW: TODO: this is the kind of exception that should be logged with a request ID especially in a server-client context
             LOGGER.severe(String.format("[%s] operation threw unexpected %s: %s", getOperationName(),
                     e.getClass().getCanonicalName(), e.getMessage()));
             e.printStackTrace();

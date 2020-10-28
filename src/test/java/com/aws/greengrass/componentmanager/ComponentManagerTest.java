@@ -21,10 +21,10 @@ import com.aws.greengrass.componentmanager.plugins.GreengrassRepositoryDownloade
 import com.aws.greengrass.componentmanager.plugins.S3Downloader;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Requirement;
@@ -48,12 +48,10 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -67,6 +65,8 @@ import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
+import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -124,6 +124,8 @@ class ComponentManagerTest {
     @Mock
     private Kernel kernel;
     @Mock
+    private Context context;
+    @Mock
     private ComponentStore componentStore;
     @Mock
     private GreengrassService mockService;
@@ -140,14 +142,19 @@ class ComponentManagerTest {
         lenient().when(artifactDownloader.downloadRequired(any(),any(), any())).thenReturn(true);
         lenient().when(s3Downloader.downloadRequired(any(),any(), any())).thenReturn(true);
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
+        Topic maxSizeTopic = Topic.of(context, COMPONENT_STORE_MAX_SIZE_BYTES, COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
+        lenient().when(deviceConfiguration.getComponentStoreMaxSizeBytes()).thenReturn(maxSizeTopic);
         lenient().when(componentStore.getUsableSpace()).thenReturn(100_000_000L);
         componentManager = new ComponentManager(s3Downloader, artifactDownloader, packageServiceHelper,
                 executor, componentStore, kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
     }
 
     @AfterEach
-    void after() {
+    void after() throws Exception {
         executor.shutdownNow();
+        if (context != null) {
+            context.close();
+        }
     }
 
     @Test
@@ -294,157 +301,6 @@ class ComponentManagerTest {
 
         verify(packageServiceHelper).downloadPackageRecipeAsString(pkgId1);
         verify(packageServiceHelper, times(0)).downloadPackageRecipeAsString(pkgId2);
-    }
-
-    @Test
-    void GIVEN_package_has_active_version_WHEN_listAvailablePackageMetadata_THEN_return_active_version_first()
-            throws Exception {
-
-        // GIVEN
-        Topics serviceConfigTopics = mock(Topics.class);
-        Topic versionTopic = mock(Topic.class);
-
-        when(kernel.findServiceTopic(MONITORING_SERVICE_PKG_NAME)).thenReturn(mock(Topics.class));
-        when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenReturn(mockService);
-        when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
-        when(versionTopic.getOnce()).thenReturn(ACTIVE_VERSION_STR);
-
-
-        Requirement requirement = Requirement.buildNPM(">=1.0.0 <3.0.0");
-
-        // local versions available: 1.0.0, 1.1.0, 2.0.0 (active).
-        ComponentMetadata componentMetadata_1_0_0 =
-                new ComponentMetadata(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.0.0")),
-                        getExpectedDependencies(new Semver("1.0.0")));
-
-        ComponentMetadata componentMetadata_1_1_0 =
-                new ComponentMetadata(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.1.0")),
-                        getExpectedDependencies(new Semver("1.1.0")));
-
-        ComponentMetadata componentMetadata_2_0_0 =
-                new ComponentMetadata(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("2.0.0")),
-                        getExpectedDependencies(new Semver("2.0.0")));
-
-        // new ArrayList here because the return list needs to be mutable
-        when(componentStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement)).thenReturn(
-                new ArrayList<>(
-                        Arrays.asList(componentMetadata_1_0_0, componentMetadata_1_1_0, componentMetadata_2_0_0)));
-
-
-        when(componentStore.getPackageMetadata(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, ACTIVE_VERSION)))
-                .thenReturn(componentMetadata_2_0_0);
-
-        // WHEN
-        Iterator<ComponentMetadata> iterator =
-                componentManager.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement);
-
-        // THEN
-        // expected return: 2.0.0 (active), 1.0.0, 1.1.0.
-        assertThat(iterator.hasNext(), is(true));
-
-        // 2.0.0 (active version)
-        ComponentMetadata componentMetadata = iterator.next();
-        assertThat(componentMetadata, is(componentMetadata_2_0_0));
-
-        // 1.0.0
-        componentMetadata = iterator.next();
-        assertThat(componentMetadata, is(componentMetadata_1_0_0));
-
-        // 1.1.0
-        componentMetadata = iterator.next();
-        assertThat(componentMetadata, is(componentMetadata_1_1_0));
-
-        assertThat(iterator.hasNext(), is(false));
-    }
-
-    @Test
-    void GIVEN_package_has_no_active_version_WHEN_listAvailablePackageMetadata_THEN_return_local_versions()
-            throws Exception {
-
-        // GIVEN
-        when(kernel.findServiceTopic(MONITORING_SERVICE_PKG_NAME)).thenReturn(mock(Topics.class));
-        when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenThrow(new ServiceLoadException("no service"));
-
-        // local versions available: 1.0.0, 1.1.0.
-        Requirement requirement = Requirement.buildNPM(">=1.0.0 <3.0.0");
-
-        ComponentMetadata componentMetadata_1_0_0 =
-                new ComponentMetadata(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.0.0")),
-                        getExpectedDependencies(new Semver("1.0.0")));
-
-        ComponentMetadata componentMetadata_1_1_0 =
-                new ComponentMetadata(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.1.0")),
-                        getExpectedDependencies(new Semver("1.1.0")));
-
-        when(componentStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement))
-                .thenReturn(Arrays.asList(componentMetadata_1_0_0, componentMetadata_1_1_0));
-
-        // WHEN
-        Iterator<ComponentMetadata> iterator =
-                componentManager.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement);
-
-        // THEN
-        // expected return: 1.0.0, 1.1.0
-        assertThat(iterator.hasNext(), is(true));
-
-        // 1.0.0
-        ComponentMetadata componentMetadata = iterator.next();
-        assertThat(componentMetadata, is(componentMetadata_1_0_0));
-
-        // 1.1.0
-        componentMetadata = iterator.next();
-        assertThat(componentMetadata, is(componentMetadata_1_1_0));
-
-        assertThat(iterator.hasNext(), is(false));
-    }
-
-    @Test
-    void GIVEN_active_version_not_satisfied_WHEN_listAvailablePackageMetadata_THEN_return_local_versions()
-            throws Exception {
-
-        // GIVEN
-        Topics serviceConfigTopics = mock(Topics.class);
-        Topic versionTopic = mock(Topic.class);
-
-
-        when(kernel.findServiceTopic(MONITORING_SERVICE_PKG_NAME)).thenReturn(mock(Topics.class));
-        when(kernel.locate(MONITORING_SERVICE_PKG_NAME)).thenReturn(mockService);
-        when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
-        when(versionTopic.getOnce()).thenReturn(ACTIVE_VERSION);
-
-        // local versions available: 1.0.0, 1.1.0.
-        Requirement requirement = Requirement.buildNPM(">=1.0.0 <2.0.0");
-
-        ComponentMetadata componentMetadata_1_0_0 =
-                new ComponentMetadata(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.0.0")),
-                        getExpectedDependencies(new Semver("1.0.0")));
-
-        ComponentMetadata componentMetadata_1_1_0 =
-                new ComponentMetadata(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.1.0")),
-                        getExpectedDependencies(new Semver("1.1.0")));
-
-        when(componentStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement))
-                .thenReturn(Arrays.asList(componentMetadata_1_0_0, componentMetadata_1_1_0));
-
-
-        // WHEN
-        Iterator<ComponentMetadata> iterator =
-                componentManager.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement);
-
-        // THEN
-        // expected return: 1.0.0, 1.1.0
-
-        // 1.0.0
-        ComponentMetadata componentMetadata = iterator.next();
-        assertThat(componentMetadata, is(componentMetadata_1_0_0));
-
-        // 1.1.0
-        componentMetadata = iterator.next();
-        assertThat(componentMetadata, is(componentMetadata_1_1_0));
-
-        assertThat(iterator.hasNext(), is(false));
     }
 
     @Test
@@ -623,13 +479,6 @@ class ComponentManagerTest {
                 new ComponentIdentifier(anotherCompName, new Semver("1.0.0")));
         verify(componentStore, times(1)).deleteComponent(
                 new ComponentIdentifier(anotherCompName, new Semver("2.0.0")));
-    }
-
-    private static Map<String, String> getExpectedDependencies(Semver version) {
-        return new HashMap<String, String>() {{
-            put("Log", version.toString());
-            put("Cool-Database", version.toString());
-        }};
     }
 
     private GreengrassService getMockGreengrassService(String serviceName) {

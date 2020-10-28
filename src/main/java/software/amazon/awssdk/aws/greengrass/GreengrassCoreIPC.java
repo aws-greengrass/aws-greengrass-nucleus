@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package software.amazon.awssdk.aws.greengrass;
 
 import java.util.Optional;
@@ -23,7 +28,6 @@ import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToValidateConfigurationUpdatesRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscriptionResponseMessage;
-import software.amazon.awssdk.aws.greengrass.model.UnsubscribeFromIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateConfigurationRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateRecipesAndArtifactsRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
@@ -45,10 +49,6 @@ public interface GreengrassCoreIPC {
   SubscribeToConfigurationUpdateResponseHandler subscribeToConfigurationUpdate(
       final SubscribeToConfigurationUpdateRequest request,
       final Optional<StreamResponseHandler<ConfigurationUpdateEvents>> streamResponseHandler);
-
-  UnsubscribeFromIoTCoreResponseHandler unsubscribeFromIoTCore(
-      final UnsubscribeFromIoTCoreRequest request,
-      final Optional<StreamResponseHandler<EventStreamJsonMessage>> streamResponseHandler);
 
   ListComponentsResponseHandler listComponents(final ListComponentsRequest request,
       final Optional<StreamResponseHandler<EventStreamJsonMessage>> streamResponseHandler);

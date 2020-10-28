@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.easysetup;
 
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -44,10 +49,9 @@ class GreengrassSetupTest {
         greengrassSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithTesRoleInfo(any(), any());
     }
 
     @Test
@@ -63,10 +67,9 @@ class GreengrassSetupTest {
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(0)).createAndAttachRolePolicy(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithTesRoleInfo(any(), any());
     }
 
     @Test
@@ -83,10 +86,9 @@ class GreengrassSetupTest {
         greengrassSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithTesRoleInfo(any(), any());
     }
 
     @Test
@@ -120,9 +122,8 @@ class GreengrassSetupTest {
         greengrassSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(0)).setupIoTRoleForTes(any(), any(), any());
-        verify(deviceProvisioningHelper, times(0)).updateKernelConfigWithTesRoleInfo(any(), any());
     }
 
     @Test

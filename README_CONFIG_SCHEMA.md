@@ -41,9 +41,6 @@ services:
   _AUTH_TOKENS: # auth token read by AuthHandler
     <authToken>: <serviceName>
 
-system:
-  <kernel system config> 
-
 registered-resource: # resources registered by service
   <path>: <SDAResource>
 
@@ -145,17 +142,32 @@ myCustomService:
     config2: val2
 ```
 
-## System Config Components
-
+## System Config
+System config that does not change after kernel setup is hidden from deployments
+and modeled under the system config key
 ```
 system: 
-  thingName:
-  certificateFilePath:
-  privateKeyPath:
   rootCaPath:
-  iotDataEndpoint:
-  iotCredEndpoint:
-  awsRegion: "us-west-2"
+```
+
+System configuration that deployments are allowed to update is
+modeled as component configuration for the Nucleus
+```
+services:
+  main:
+    lifecycle:
+    dependencies:
+      - TokenExchangeService
+  aws.greengrass.Nucleus:
+    parameters:
+      awsRegion: "us-east-1"
+      certificateFilePath: "root/thingCert.crt"
+      iotCredEndpoint: "c13im2gfya04ip.credentials.iot.us-east-1.amazonaws.com"
+      iotDataEndpoint: "aun2g37imm74n-ats.iot.us-east-1.amazonaws.com"
+      privateKeyPath: "root/privKey.key"
+      rootCaPath: "root/rootCA.pem"
+      thingName: "tes_thing"
+      iotRoleAlias: "tes_alias"
 ```
 
 

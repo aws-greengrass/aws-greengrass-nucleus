@@ -15,10 +15,12 @@ import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -62,7 +64,7 @@ public class GreengrassService implements InjectionActions {
     protected final Topics config;
     private final Topics privateConfig;
 
-    //TODO: make the field private
+    // GG_NEEDS_REVIEW: TODO: make the field private
     @Getter
     public Context context;
 
@@ -100,7 +102,7 @@ public class GreengrassService implements InjectionActions {
         this.privateConfig = privateConfig;
         this.context = topics.getContext();
 
-        // TODO: Validate syntax for lifecycle keywords and fail early
+        // GG_NEEDS_REVIEW: TODO: Validate syntax for lifecycle keywords and fail early
         // skipif will require validation for onpath/exists etc. keywords
 
         this.logger = LogManager.getLogger(this.getClass()).createChild();
@@ -265,6 +267,20 @@ public class GreengrassService implements InjectionActions {
      */
     public int bootstrap() throws InterruptedException, TimeoutException {
         return NO_OP;
+    }
+
+    /**
+     * Check if the proposed Nucleus config needs Nucleus to be restarted. Deployment workflow will call this to decide
+     * if nucleus restart is needed. Default is false, Greengrass services should override this method to check if
+     * specific nucleus config keys have changed, validate them and return if the change needs a nucleus restart.
+     *
+     * @param newNucleusConfig new nucleus component config for the update
+     * @return true if the proposed nucleus config should cause nucleus restart
+     * @throws ComponentConfigurationValidationException if the changed value for the nucleus configuration is invalid
+     */
+    public boolean restartNucleusOnNucleusConfigChange(Map<String, Object> newNucleusConfig)
+            throws ComponentConfigurationValidationException {
+        return false;
     }
 
     /**
@@ -490,6 +506,10 @@ public class GreengrassService implements InjectionActions {
         return config;
     }
 
+    public String getServiceType() {
+        return Coerce.toString(config.findLeafChild(Kernel.SERVICE_TYPE_TOPIC_KEY));
+    }
+
     /**
      * Get the config topics for service local data-store during runtime. content under runtimeConfig will not be
      * affected by DeploymentService or DeploymentService roll-back.
@@ -626,7 +646,7 @@ public class GreengrassService implements InjectionActions {
         });
     }
 
-    //TODO: return the entire dependency info
+    // GG_NEEDS_REVIEW: TODO: return the entire dependency info
     public Map<GreengrassService, DependencyType> getDependencies() {
         return dependencies.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().dependencyType));

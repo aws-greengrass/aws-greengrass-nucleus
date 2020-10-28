@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.deployment;
 
@@ -50,10 +52,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.DEFAULT_GROUP_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
@@ -69,8 +73,6 @@ public class DeploymentService extends GreengrassService {
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN = "groupConfigArn";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_NAME = "groupConfigName";
 
-    // TODO: These should probably become configurable parameters eventually
-    private static final long DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(15).toMillis();
     private static final int DEPLOYMENT_MAX_ATTEMPTS = 3;
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
 
@@ -93,13 +95,14 @@ public class DeploymentService extends GreengrassService {
     @Inject
     private Kernel kernel;
 
+    @Inject DeviceConfiguration deviceConfiguration;
+
     private DeploymentTaskMetadata currentDeploymentTaskMetadata = null;
 
     @Getter
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
 
-    @Setter
-    private long pollingFrequency = DEPLOYMENT_POLLING_FREQUENCY;
+    private final AtomicLong pollingFrequency = new AtomicLong();
 
     @Inject
     private DeploymentQueue deploymentQueue;
@@ -123,12 +126,14 @@ public class DeploymentService extends GreengrassService {
      * @param kernelConfigResolver   {@link KernelConfigResolver}
      * @param deploymentConfigMerger {@link DeploymentConfigMerger}
      * @param kernel                 {@link Kernel}
+     * @param deviceConfiguration    {@link DeviceConfiguration}
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     DeploymentService(Topics topics, ExecutorService executorService, DependencyResolver dependencyResolver,
                       ComponentManager componentManager, KernelConfigResolver kernelConfigResolver,
                       DeploymentConfigMerger deploymentConfigMerger, DeploymentStatusKeeper deploymentStatusKeeper,
-                      DeploymentDirectoryManager deploymentDirectoryManager, Context context, Kernel kernel) {
+                      DeploymentDirectoryManager deploymentDirectoryManager, Context context, Kernel kernel,
+                      DeviceConfiguration deviceConfiguration) {
         super(topics);
         this.executorService = executorService;
         this.dependencyResolver = dependencyResolver;
@@ -139,6 +144,8 @@ public class DeploymentService extends GreengrassService {
         this.deploymentDirectoryManager = deploymentDirectoryManager;
         this.context = context;
         this.kernel = kernel;
+        this.deviceConfiguration = deviceConfiguration;
+        this.pollingFrequency.set(getPollingFrequency(deviceConfiguration.getDeploymentPollingFrequencySeconds()));
     }
 
     @Override
@@ -150,6 +157,7 @@ public class DeploymentService extends GreengrassService {
         context.get(IotJobsHelper.class);
         context.get(ShadowDeploymentListener.class);
         deploymentStatusKeeper.setDeploymentService(this);
+        subscribeToPollingFrequencyAndGet();
     }
 
     @Override
@@ -214,8 +222,18 @@ public class DeploymentService extends GreengrassService {
                     createNewDeployment(deployment);
                 }
             }
-            Thread.sleep(pollingFrequency);
+            Thread.sleep(pollingFrequency.get());
         }
+    }
+
+    private void subscribeToPollingFrequencyAndGet() {
+        deviceConfiguration.onTopicChange(DEPLOYMENT_POLLING_FREQUENCY_SECONDS, (whatHappened, frequency) -> {
+            pollingFrequency.set(getPollingFrequency(frequency));
+        });
+    }
+
+    private Long getPollingFrequency(Topic pollingFrequencyTopic) {
+        return Duration.ofSeconds(Coerce.toLong(pollingFrequencyTopic)).toMillis();
     }
 
     @Override
@@ -248,9 +266,9 @@ public class DeploymentService extends GreengrassService {
                                 .withValue(currentDeploymentTaskMetadata.getDeploymentId());
                     }
                     Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
-                    // TODO: Removal of group from the mappings. Currently there is no action taken when a device is
-                    //  removed from a thing group. Empty configuration is treated as a valid config for a group but
-                    //  not treated as removal.
+                    // GG_NEEDS_REVIEW: TODO: Removal of group from the mappings. Currently there is no action taken
+                    // when a device is removed from a thing group. Empty configuration is treated as a valid config
+                    // for a group but not treated as removal.
                     deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
                         if (pkgConfig.isRootComponent()) {
                             Map<String, Object> pkgDetails = new HashMap<>();
@@ -273,9 +291,9 @@ public class DeploymentService extends GreengrassService {
                     if (result.getFailureCause() != null) {
                         statusDetails.put("deployment-failure-cause", result.getFailureCause().getMessage());
                     }
-                    //TODO: Update the groupToRootPackages mapping in config for the case where there is no rollback
-                    // and now the packages deployed for the current group are not the same as before starting
-                    // deployment
+                    // GG_NEEDS_REVIEW: TODO: Update the groupToRootPackages mapping in config for the case where there
+                    // is no rollback and now the packages deployed for the current group are not the same as before
+                    // starting deployment
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                     currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED.toString(),
@@ -369,6 +387,10 @@ public class DeploymentService extends GreengrassService {
         } else {
             deploymentTask = createKernelUpdateDeployment(deployment);
             cancellable = false;
+            if (deployment.getDeploymentType().equals(DeploymentType.IOT_JOBS)) {
+                // Keep track of IoT jobs for de-duplication
+                IotJobsHelper.getLatestQueuedJobs().addProcessedJob(deployment.getId());
+            }
         }
         if (deploymentTask == null) {
             return;
@@ -430,7 +452,7 @@ public class DeploymentService extends GreengrassService {
                             localOverrideRequest.getGroupName() == null ? DEFAULT_GROUP_NAME
                                     : localOverrideRequest.getGroupName())
                             .forEach(t -> rootComponentsInRequestedGroup.add(t.getName()));
-                    //TODO: pulling the versions from kernel. Can pull it from the config itself.
+                    // GG_NEEDS_REVIEW: TODO: pulling the versions from kernel. Can pull it from the config itself.
                     // Confirm if pulling from config should not break any use case for local
                     if (!Utils.isEmpty(rootComponentsInRequestedGroup)) {
                         rootComponentsInRequestedGroup.forEach(c -> {

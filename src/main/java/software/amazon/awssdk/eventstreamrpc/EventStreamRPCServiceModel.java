@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package software.amazon.awssdk.eventstreamrpc;
 
 import com.google.gson.*;
@@ -144,7 +149,7 @@ public abstract class EventStreamRPCServiceModel {
     private static final Map<String, Class<? extends EventStreamJsonMessage>> FRAMEWORK_APPLICATION_MODEL_TYPES
             = new HashMap<>();
     static {
-        //TODO: find a reliable way to verify all of these are set? reflection cannot scan a package
+        // GG_NEEDS_REVIEW: TODO: find a reliable way to verify all of these are set? reflection cannot scan a package
         FRAMEWORK_APPLICATION_MODEL_TYPES.put(AccessDeniedException.ERROR_CODE, AccessDeniedException.class);
         FRAMEWORK_APPLICATION_MODEL_TYPES.put(InternalServerException.ERROR_CODE, InternalServerException.class);
         FRAMEWORK_APPLICATION_MODEL_TYPES.put(UnsupportedOperationException.ERROR_CODE, UnsupportedOperationException.class);

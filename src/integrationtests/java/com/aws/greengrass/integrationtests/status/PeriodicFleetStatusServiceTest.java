@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.integrationtests.status;
 
@@ -81,8 +83,9 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
             componentNamesToCheck.add(service.getName());
         });
         // set required instances from context
-        deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "dataEndpoint", "credEndpoint",
-                "privKeyFilePath", "certFilePath", "caFilePath", "awsRegion");
+        deviceConfiguration =
+                new DeviceConfiguration(kernel, "ThingName", "dataEndpoint", "credEndpoint", "privKeyFilePath",
+                        "certFilePath", "caFilePath", "awsRegion", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
         kernel.launch();
         assertTrue(deploymentServiceRunning.await(10, TimeUnit.SECONDS));

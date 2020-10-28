@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.config;
 
@@ -115,6 +117,8 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
             tlogline = new Tlogline(t.getModtime(), t.path(), WhatHappened.changed, t.getOnce());
         } else if (what == WhatHappened.childRemoved) {
             tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.removed, null);
+        } else if (what == WhatHappened.timestampUpdated) {
+            tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.timestampUpdated, null);
         } else {
             return;
         }
@@ -130,7 +134,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         }
     }
 
-    public void writeAll() { //TODO double check this
+    public void writeAll() { // GG_NEEDS_REVIEW: TODO double check this
         conf.deepForEachTopic(n -> childChanged(WhatHappened.childChanged, n));
     }
 }

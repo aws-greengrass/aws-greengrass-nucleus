@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package software.amazon.awssdk.eventstreamrpc;
 
 import java.nio.charset.StandardCharsets;
@@ -98,19 +103,19 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
         finally {
             LOGGER.info("Sending connect response for " + authenticationData.getIdentityLabel());
             connection.sendProtocolMessage(null, null, acceptResponseType, responseMessageFlag[0])
-                    .whenComplete((res, ex) -> {
-                        if (ex != null) {
-                            LOGGER.severe(String.format("Sending connection response for %s threw exception (%s): %s",
-                                    authenticationData.getIdentityLabel(), ex.getClass().getCanonicalName(), ex.getMessage()));
-                        }
-                        else {
-                            LOGGER.info("Successfully sent connection response for: " + authenticationData.getIdentityLabel());
-                        }
-                        if (responseMessageFlag[0] != MessageFlags.ConnectionAccepted.getByteValue()) {
-                            LOGGER.info("Closing connection due to connection not being accepted...");
-                            connection.closeConnection(0);
-                        }
-                    });
+                .whenComplete((res, ex) -> {
+                    if (ex != null) {
+                        LOGGER.severe(String.format("Sending connection response for %s threw exception (%s): %s",
+                            authenticationData.getIdentityLabel(), ex.getClass().getCanonicalName(), ex.getMessage()));
+                    }
+                    else {
+                        LOGGER.info("Successfully sent connection response for: " + authenticationData.getIdentityLabel());
+                    }
+                    if (responseMessageFlag[0] != MessageFlags.ConnectionAccepted.getByteValue()) {
+                        LOGGER.info("Closing connection due to connection not being accepted...");
+                        connection.closeConnection(0);
+                    }
+                });
         }
     }
 

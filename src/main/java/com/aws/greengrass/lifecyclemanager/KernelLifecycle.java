@@ -15,6 +15,7 @@ import com.aws.greengrass.ipc.Startable;
 import com.aws.greengrass.ipc.modules.AuthorizationService;
 import com.aws.greengrass.ipc.modules.ConfigStoreIPCService;
 import com.aws.greengrass.ipc.modules.LifecycleIPCService;
+import com.aws.greengrass.ipc.modules.MqttProxyIPCService;
 import com.aws.greengrass.ipc.modules.PubSubIPCService;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
@@ -64,7 +65,7 @@ public class KernelLifecycle {
     @Setter(AccessLevel.PACKAGE)
     private List<Class<? extends Startable>> startables = Arrays.asList(IPCService.class, IPCEventStreamService.class,
             AuthorizationService.class, ConfigStoreIPCService.class, LifecycleIPCService.class,
-            PubSubIPCService.class);
+            PubSubIPCService.class, MqttProxyIPCService.class);
     private ConfigurationWriter tlog;
     private GreengrassService mainService;
     private final AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
