@@ -467,6 +467,10 @@ public class DeploymentService extends GreengrassService {
                     break;
                 case IOT_JOBS:
                 case SHADOW:
+                    // TODO entry point is here
+//                    if ()
+
+
                     FleetConfiguration config = SerializerFactory.getJsonObjectMapper()
                             .readValue(jobDocumentString, FleetConfiguration.class);
                     document = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
