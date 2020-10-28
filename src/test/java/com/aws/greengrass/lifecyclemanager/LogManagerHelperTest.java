@@ -1,6 +1,10 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.lifecyclemanager;
 
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -39,11 +43,7 @@ class LogManagerHelperTest {
     @TempDir
     protected Path tempRootDir;
     @Mock
-    private Kernel mockKernel;
-    @Mock
     private GreengrassService mockGreengrassService;
-
-    private LogManagerHelper logManagerHelper;
 
     @BeforeEach
     void setup() {
@@ -76,10 +76,9 @@ class LogManagerHelperTest {
         //when(mockKernel.getConfig()).thenReturn(kernelConfig);
         //when(kernelConfig.lookup(SERVICES_NAMESPACE_TOPIC, "", KERNEL_CONFIG_LOGGING_TOPICS))
         //        .thenReturn(mock(Topic.class));
-        when(componentTopics.lookup(SERVICE_CONFIG_LOGGING_TOPICS)).thenReturn(mock(Topic.class));
-        logManagerHelper = new LogManagerHelper(mockKernel);
+        when(componentTopics.lookupTopics(SERVICE_CONFIG_LOGGING_TOPICS)).thenReturn(mock(Topics.class));
 
-        Logger componentLogger = logManagerHelper.getComponentLogger(mockGreengrassService);
+        Logger componentLogger = LogManagerHelper.getComponentLogger(mockGreengrassService);
 
         componentLogger.atInfo().log("Something");
 
@@ -93,7 +92,6 @@ class LogManagerHelperTest {
 
         File ggLogFile = new File(LogManager.getRootLogConfiguration().getStoreName());
         assertThat(ggLogFile, aFileNamed(equalToIgnoringCase("greengrass.log")));
-        System.out.println(Files.readAllLines(ggLogFile.toPath()));
         assertEquals(0, ggLogFile.length());
     }
 }

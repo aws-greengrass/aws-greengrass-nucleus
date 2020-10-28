@@ -108,8 +108,8 @@ public class AuthorizationHandler  {
                     }
 
                     //Reload all policies
-                    //TODO: Add more sophisticated logic to specifically update policies scoped to this component,
-                    // instead of reloading everything on every update.
+                    // GG_NEEDS_REVIEW: TODO: Add more sophisticated logic to specifically update policies scoped to
+                    // this component, instead of reloading everything on every update.
                     // https://issues-iad.amazon.com/issues/V243584397
                     Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
                             .parseAllAuthorizationPolicies(kernel);
@@ -119,9 +119,9 @@ public class AuthorizationHandler  {
 
                     try (LockScope scope = LockScope.lock(rwLock.writeLock())) {
 
-                        for (Map.Entry<String, List<AuthorizationPolicy>> masterPolicyList :
+                        for (Map.Entry<String, List<AuthorizationPolicy>> primaryPolicyList :
                                 componentToAuthZConfig.entrySet()) {
-                            String policyType = masterPolicyList.getKey();
+                            String policyType = primaryPolicyList.getKey();
                             if (!reloadedPolicies.containsKey(policyType)) {
                                 //If the policyType already exists and was not reparsed correctly and/or removed from
                                 //the newly parsed list, delete it from our store since it is now an unwanted relic
@@ -290,8 +290,8 @@ public class AuthorizationHandler  {
         if (Utils.isEmpty(componentName)) {
             throw new AuthorizationException("Component name is not specified: " + componentName);
         }
-        //TODO: solve the issue where the authhandler starts up and loads policies before services are registered:
-        // https://issues-iad.amazon.com/issues/V234938383
+        // GG_NEEDS_REVIEW: TODO: solve the issue where the authhandler starts up and loads policies before services
+        // are registered: https://issues-iad.amazon.com/issues/V234938383
         //if (!componentToOperationsMap.containsKey(componentName)) {
         //throw new AuthorizationException("Component not registered: " + componentName);
         //}
@@ -325,8 +325,8 @@ public class AuthorizationHandler  {
             throw new AuthorizationException("Malformed policy with invalid/empty operations: "
                     + policy.getPolicyId());
         }
-        //TODO: solve the issue where the authhandler starts up and loads policies before services are registered:
-        // https://issues-iad.amazon.com/issues/V234938383
+        // GG_NEEDS_REVIEW: TODO: solve the issue where the authhandler starts up and loads policies before services
+        // are registered: https://issues-iad.amazon.com/issues/V234938383
         //Set<String> supportedOps = componentToOperationsMap.get(componentName);
         // check if operations are valid and registered.
         //if (operations.stream().anyMatch(o -> !supportedOps.contains(o))) {

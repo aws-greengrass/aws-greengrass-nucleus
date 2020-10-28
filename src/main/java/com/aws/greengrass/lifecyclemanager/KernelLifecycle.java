@@ -9,11 +9,13 @@ import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
+import com.aws.greengrass.ipc.IPCEventStreamService;
 import com.aws.greengrass.ipc.IPCService;
 import com.aws.greengrass.ipc.Startable;
 import com.aws.greengrass.ipc.modules.AuthorizationService;
 import com.aws.greengrass.ipc.modules.ConfigStoreIPCService;
 import com.aws.greengrass.ipc.modules.LifecycleIPCService;
+import com.aws.greengrass.ipc.modules.MqttProxyIPCService;
 import com.aws.greengrass.ipc.modules.PubSubIPCService;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
@@ -61,8 +63,9 @@ public class KernelLifecycle {
     private final NucleusPaths nucleusPaths;
     // setter for unit testing
     @Setter(AccessLevel.PACKAGE)
-    private List<Class<? extends Startable>> startables = Arrays.asList(IPCService.class, AuthorizationService.class,
-            ConfigStoreIPCService.class, LifecycleIPCService.class, PubSubIPCService.class);
+    private List<Class<? extends Startable>> startables = Arrays.asList(IPCService.class, IPCEventStreamService.class,
+            AuthorizationService.class, ConfigStoreIPCService.class, LifecycleIPCService.class,
+            PubSubIPCService.class, MqttProxyIPCService.class);
     private ConfigurationWriter tlog;
     private GreengrassService mainService;
     private final AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);

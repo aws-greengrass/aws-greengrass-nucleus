@@ -132,7 +132,6 @@ public class Kernel {
         context.put(KernelLifecycle.class, kernelLifecycle);
         context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
         context.put(DeploymentActivatorFactory.class, new DeploymentActivatorFactory(this));
-        context.put(LogManagerHelper.class, new LogManagerHelper(this));
         context.put(Clock.class, Clock.systemUTC());
         Map<String, String> typeToClassMap = new ConcurrentHashMap<>();
         typeToClassMap.put("lambda", "com.aws.greengrass.lambdamanager.UserLambdaService");
@@ -181,7 +180,7 @@ public class Kernel {
 
                     shutdown(30, exitCode == REQUEST_REBOOT ? REQUEST_REBOOT : REQUEST_RESTART);
                 } catch (ServiceUpdateException | IOException e) {
-                    logger.atInfo().log("Deployment bootstrap failed", e);
+                    logger.atError().log("Deployment bootstrap failed", e);
                     try {
                         kernelAlts.prepareRollback();
                         Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();

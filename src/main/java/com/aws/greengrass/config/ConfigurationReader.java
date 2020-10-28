@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.config;
 
@@ -60,8 +62,12 @@ public final class ConfigurationReader {
                         } else {
                             n.remove(tlogline.timestamp);
                         }
+                    } else if (WhatHappened.timestampUpdated.equals(tlogline.action)) {
+                        Topic targetTopic = config.lookup(tlogline.topicPath);
+                        if (tlogline.timestamp > targetTopic.modtime) {
+                            targetTopic.modtime = tlogline.timestamp;
+                        }
                     }
-
                 } catch (JsonProcessingException e) {
                     logger.atError().setCause(e).log("Fail to parse log line");
                 }

@@ -1,15 +1,19 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCAgent;
+import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgent;
 import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.deployment.exceptions.DynamicConfigurationValidationException;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.InvalidConfigFormatException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentResult;
-import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport;
-import com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -21,6 +25,8 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityReport;
+import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityStatus;
 
 import java.time.Duration;
 import java.util.HashSet;
@@ -46,12 +52,15 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 @NoArgsConstructor
 public class DynamicComponentConfigurationValidator {
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
-    // TODO : Add configurable timeout and change this to a more appropriate(probably longer) default value
-    private static final long DEFAULT_TIMEOUT = Duration.ofSeconds(10).toMillis();
+    // GG_NEEDS_REVIEW: TODO : Add configurable timeout and change this to a better(probably longer) default value
+    private static final long DEFAULT_TIMEOUT = Duration.ofSeconds(20).toMillis();
     private static final Logger logger = LogManager.getLogger(DynamicComponentConfigurationValidator.class);
 
     @Inject
     private Kernel kernel;
+
+    @Inject
+    private ConfigStoreIPCEventStreamAgent configStoreIPCEventStreamAgent;
 
     @Inject
     private ConfigStoreIPCAgent configStoreIPCAgent;
@@ -74,7 +83,7 @@ public class DynamicComponentConfigurationValidator {
         } catch (InvalidConfigFormatException e) {
             deploymentResultFuture.complete(
                     new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
-                            new DynamicConfigurationValidationException(e)));
+                            new ComponentConfigurationValidationException(e)));
             return false;
         }
 
@@ -114,8 +123,8 @@ public class DynamicComponentConfigurationValidator {
             }
             Map<String, Object> proposedServiceConfig = (Map) serviceConfig;
 
-            // TODO: Check recipe flag for if service can handle dynamic configuration if not, it'll be restarted
-            //  since it's likely if services can't handle dynamic config they are not IPC aware at all
+            // GG_NEEDS_REVIEW: TODO: Check recipe flag for if service can handle dynamic configuration if not, it'll be
+            //  restarted since it's likely if services can't handle dynamic config they are not IPC aware at all
             if (!willChildTopicChange(proposedServiceConfig, currentServiceConfig, VERSION_CONFIG_KEY,
                     proposedTimestamp) && willChildTopicsChange(proposedServiceConfig, currentServiceConfig,
                     PARAMETERS_CONFIG_KEY, proposedTimestamp)) {
@@ -159,13 +168,19 @@ public class DynamicComponentConfigurationValidator {
         try {
             String failureMsg = null;
             boolean validationRequested = false;
+            boolean validationRequestedFromOldIpc = false;
             boolean valid = true;
             for (ComponentToValidate componentToValidate : componentsToValidate) {
                 try {
-                    if (configStoreIPCAgent
+                    if (configStoreIPCEventStreamAgent
                             .validateConfiguration(componentToValidate.componentName, componentToValidate.configuration,
                                     componentToValidate.response)) {
                         validationRequested = true;
+                    }
+                    if (configStoreIPCAgent
+                            .validateConfiguration(componentToValidate.componentName, componentToValidate.configuration,
+                                    componentToValidate.oldResponse)) {
+                        validationRequestedFromOldIpc = true;
                     }
                     // Do nothing if service has not subscribed for validation
                 } catch (ValidateEventRegistrationException e) {
@@ -177,7 +192,7 @@ public class DynamicComponentConfigurationValidator {
             }
             if (validationRequested) {
                 try {
-                    // TODO : Use configurable timeout from deployment document
+                    // GG_NEEDS_REVIEW: TODO : Use configurable timeout from deployment document
                     CompletableFuture.allOf(componentsToValidate.stream().map(ComponentToValidate::getResponse)
                             .collect(Collectors.toSet()).toArray(new CompletableFuture[0]))
                             .get(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
@@ -190,7 +205,7 @@ public class DynamicComponentConfigurationValidator {
                         // so we will no longer be blocked on any of the response futures
                         ConfigurationValidityReport report = componentToValidate.response.join();
 
-                        if (ConfigurationValidityStatus.INVALID.equals(report.getStatus())) {
+                        if (ConfigurationValidityStatus.REJECTED.equals(report.getStatus())) {
                             failureMsg = String.format("%s { name = %s, message = %s }", failureMsg,
                                     componentToValidate.componentName, report.getMessage());
                             logger.atError().kv("component", componentToValidate.componentName)
@@ -207,16 +222,58 @@ public class DynamicComponentConfigurationValidator {
                     valid = false;
                 }
             }
+            // GG_NEEDS_REVIEW: TODO: Remove when all UATs move to new IPC
+            if (validationRequestedFromOldIpc) {
+                try {
+                    // GG_NEEDS_REVIEW: TODO : Use configurable timeout from deployment document
+                    CompletableFuture.allOf(componentsToValidate.stream().map(ComponentToValidate::getOldResponse)
+                            .collect(Collectors.toSet()).toArray(new CompletableFuture[0]))
+                            .get(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
+
+                    failureMsg = "Components reported that their to-be-deployed configuration is invalid";
+                    for (ComponentToValidate componentToValidate : componentsToValidate) {
+
+                        // The aggregate future above has a timeout so at this point we will always have a report
+                        // already received from all components otherwise the aggregate future would have failed,
+                        // so we will no longer be blocked on any of the response futures
+                        com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport oldReport =
+                                componentToValidate.oldResponse.join();
+
+                        if (com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus.INVALID
+                                .equals(oldReport.getStatus())) {
+                            failureMsg = String.format("%s { name = %s, message = %s }", failureMsg,
+                                    componentToValidate.componentName, oldReport.getMessage());
+                            logger.atError().kv("component", componentToValidate.componentName)
+                                    .kv("message", oldReport.getMessage())
+                                    .log("Component reported that its to-be-deployed configuration is invalid");
+                            valid = false;
+                        }
+
+                    }
+                } catch (InterruptedException | ExecutionException | TimeoutException | CancellationException
+                        | CompletionException e) {
+                    failureMsg =
+                            "Error while waiting for validation report for one or more components:" + e.getMessage();
+                    logger.atError().setCause(e).log(failureMsg);
+                    valid = false;
+                }
+            }
+            //------------------Remove when all tests moved to new IPC-------------------
             if (!valid) {
                 deploymentResultFuture.complete(
                         new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
-                                new DynamicConfigurationValidationException(failureMsg)));
+                                new ComponentConfigurationValidationException(failureMsg)));
             }
             return valid;
         } finally {
             componentsToValidate.forEach(c -> {
-                configStoreIPCAgent.discardValidationReportTracker(c.componentName, c.response);
+                configStoreIPCEventStreamAgent.discardValidationReportTracker(c.componentName, c.response);
                 c.response.cancel(true);
+
+                // GG_NEEDS_REVIEW: TODO: Remove when all tests moved to new IPC
+                configStoreIPCAgent.discardValidationReportTracker(c.componentName, c.oldResponse);
+                c.oldResponse.cancel(true);
+                //------------------Remove when all tests moved to new IPC-------------------
             });
         }
     }
@@ -229,5 +286,7 @@ public class DynamicComponentConfigurationValidator {
         private final String componentName;
         private final Map<String, Object> configuration;
         private final CompletableFuture<ConfigurationValidityReport> response = new CompletableFuture<>();
+        private final CompletableFuture<com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport>
+                oldResponse = new CompletableFuture<>();
     }
 }

@@ -1,4 +1,9 @@
 /*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
   Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
   * SPDX-License-Identifier: Apache-2.0
  */
@@ -88,7 +93,8 @@ public final class DeploymentDocumentConverter {
                         .fromValue(config.getComponentUpdatePolicy().getAction()));
         DeploymentDocument deploymentDocument = DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
                 .timestamp(config.getCreationTimestamp()).failureHandlingPolicy(config.getFailureHandlingPolicy())
-                // TODO: Use full featured component update policy and configuration validation policy with timeouts
+                // GG_NEEDS_REVIEW: TODO: Use full featured component update policy and configuration
+                // validation policy with timeouts
                 .componentUpdatePolicy(componentUpdatePolicy).deploymentPackageConfigurationList(new ArrayList<>())
                 .build();
 
@@ -112,7 +118,8 @@ public final class DeploymentDocumentConverter {
             PackageInfo pkgInfo = entry.getValue();
 
             // Create component config update from the config field for backward compatibility
-            // TODO This will be removed along with the function when migrating to new createDeployment API
+            // GG_NEEDS_REVIEW: TODO This will be removed along with the function when migrating to
+            // new createDeployment API
             ConfigurationUpdateOperation configurationUpdateOperation = new ConfigurationUpdateOperation();
             boolean isConfigUpdate = false;
 

@@ -106,7 +106,7 @@ public class KernelAlternatives {
     }
 
     public boolean isLaunchDirSetup() {
-        // TODO: check for file and directory corruptions
+        // GG_NEEDS_REVIEW: TODO: check for file and directory corruptions
         return currentDir.toFile().exists();
     }
 
@@ -166,7 +166,7 @@ public class KernelAlternatives {
      */
     public Deployment.DeploymentStage determineDeploymentStage(BootstrapManager bootstrapManager,
                                                                DeploymentDirectoryManager deploymentDirectoryManager) {
-        // TODO: validate if any directory is corrupted
+        // GG_NEEDS_REVIEW: TODO: validate if any directory is corrupted
         if (oldDir.toFile().exists()) {
             try {
                 Path persistedBootstrapTasks = deploymentDirectoryManager.getBootstrapTaskFilePath();
@@ -250,6 +250,7 @@ public class KernelAlternatives {
      * @throws IOException on I/O error
      */
     public void setupLinkToDirectory(Path link, Path directory) throws IOException {
+        logger.atDebug().kv("link", link).kv("directory", directory).log("Set up link to directory");
         Files.deleteIfExists(link);
         Files.createSymbolicLink(link, directory);
     }

@@ -21,12 +21,7 @@ import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
-import com.aws.greengrass.ipc.IPCClientImpl;
-import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
-import com.aws.greengrass.ipc.services.lifecycle.Lifecycle;
-import com.aws.greengrass.ipc.services.lifecycle.LifecycleImpl;
-import com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent;
-import com.aws.greengrass.ipc.services.lifecycle.exceptions.LifecycleIPCException;
+import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -36,6 +31,7 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -56,6 +52,14 @@ import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
+import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesResponse;
+import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
+import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.File;
@@ -66,12 +70,15 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -84,8 +91,8 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.integrationtests.util.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
@@ -104,6 +111,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -142,10 +150,12 @@ class DeploymentTaskIntegrationTest {
 
     @TempDir
     static Path rootDir;
+    private static SocketOptions socketOptions;
 
     @BeforeAll
-    static void setupLogger() {
+    static void initialize() {
         outputMessagesToTimestamp = new HashMap<>();
+        socketOptions = TestUtils.getSocketOptionsForIPC();
         logger = LogManager.getLogger(DeploymentTaskIntegrationTest.class);
     }
 
@@ -184,6 +194,9 @@ class DeploymentTaskIntegrationTest {
 
     @AfterAll
     static void tearDown() {
+        if (socketOptions != null) {
+            socketOptions.close();
+        }
         kernel.shutdown();
     }
 
@@ -297,7 +310,7 @@ class DeploymentTaskIntegrationTest {
             // Windows has quotes in the echo, so strip them
             messageOnStdout = messageOnStdout.replaceAll("\"", "");
             if (listOfExpectedMessages.contains(messageOnStdout)) {
-                //TODO: Deduping is needed, as currently kernel is running the GreenSignal and Mosquitto dependencies
+                // GG_NEEDS_REVIEW: TODO: Deduping is needed, as currently kernel is running the GreenSignal and Mosquitto dependencies
                 // multiple times before the CustomerApp runs. This should not be the expected behavior. Sim to
                 // capture this https://sim.amazon.com/issues/P34042537
                 if (!outputMessagesToTimestamp.containsKey(messageOnStdout)) {
@@ -678,9 +691,11 @@ class DeploymentTaskIntegrationTest {
                 .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
-        //should contain main, YellowSignal, CustomerApp, Mosquitto and GreenSignal
-        assertEquals(5, services.size());
-        assertThat(services, containsInAnyOrder("main", "YellowSignal", "CustomerApp", "Mosquitto", "GreenSignal"));
+        //should contain main, Nucleus, YellowSignal, CustomerApp, Mosquitto and GreenSignal
+        assertEquals(6, services.size());
+        assertThat(services,
+                containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "YellowSignal", "CustomerApp", "Mosquitto",
+                        "GreenSignal"));
         groupToRootComponentsTopics.lookupTopics("CustomerApp")
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         groupToRootComponentsTopics.lookupTopics("YellowSignal")
@@ -695,9 +710,9 @@ class DeploymentTaskIntegrationTest {
                 .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
-        //"should contain main, YellowSignal, RedSignal"
-        assertEquals(3, services.size());
-        assertThat(services, containsInAnyOrder("main", "YellowSignal", "RedSignal"));
+        //"should contain main, Nucleus, YellowSignal, RedSignal"
+        assertEquals(4, services.size());
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "YellowSignal", "RedSignal"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("CustomerApp"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("Mosquitto"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("GreenSignal"));
@@ -786,9 +801,9 @@ class DeploymentTaskIntegrationTest {
                 .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
-        // should contain main, YellowSignal and RedSignal
-        assertEquals(3, services.size());
-        assertThat(services, containsInAnyOrder("main", "YellowSignal", "RedSignal"));
+        // should contain main, Nucleus, YellowSignal and RedSignal
+        assertEquals(4, services.size());
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "YellowSignal", "RedSignal"));
         groupToRootComponentsTopics.lookupTopics("RedSignal")
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         groupToRootComponentsTopics.lookupTopics("YellowSignal")
@@ -806,9 +821,11 @@ class DeploymentTaskIntegrationTest {
                 .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
-        // should contain main, RedSignal, BreakingService, Mosquitto and GreenSignal
-        assertEquals(5, services.size());
-        assertThat(services, containsInAnyOrder("main", "RedSignal", "BreakingService", "Mosquitto", "GreenSignal"));
+        // should contain main, Nucleus, RedSignal, BreakingService, Mosquitto and GreenSignal
+        assertEquals(6, services.size());
+        assertThat(services,
+                containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "RedSignal", "BreakingService", "Mosquitto",
+                        "GreenSignal"));
         assertEquals(State.BROKEN, kernel.locate("BreakingService").getState());
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, result.getDeploymentStatus());
     }
@@ -838,9 +855,9 @@ class DeploymentTaskIntegrationTest {
                 .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
-        // should contain main, YellowSignal and RedSignal
-        assertEquals(3, services.size());
-        assertThat(services, containsInAnyOrder("main", "YellowSignal", "RedSignal"));
+        // should contain main, Nucleus, YellowSignal and RedSignal
+        assertEquals(4, services.size());
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "YellowSignal", "RedSignal"));
 
         ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
         groupToRootComponentsTopics.lookupTopics("YellowSignal").remove();
@@ -858,9 +875,9 @@ class DeploymentTaskIntegrationTest {
                 .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
-        // should contain main, YellowSignal, RedSignal
-        assertEquals(3, services.size());
-        assertThat(services, containsInAnyOrder("main", "YellowSignal", "RedSignal"));
+        // should contain main, Nucleus, YellowSignal, RedSignal
+        assertEquals(4, services.size());
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "YellowSignal", "RedSignal"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("BreakingService"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("Mosquitto"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("GreenSignal"));
@@ -869,40 +886,61 @@ class DeploymentTaskIntegrationTest {
 
     @Test
     @Order(8)
+    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     void GIVEN_deployment_in_progress_WHEN_deployment_task_is_cancelled_THEN_stop_processing() throws Exception {
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("AddNewServiceWithSafetyCheck.json").toURI(),
                 System.currentTimeMillis());
         resultFuture.get(30, TimeUnit.SECONDS);
 
-        KernelIPCClientConfig nonDisruptable = getIPCConfigForService("NonDisruptableService", kernel);
-        IPCClientImpl ipcClient = new IPCClientImpl(nonDisruptable);
-        Lifecycle lifecycle = new LifecycleImpl(ipcClient);
-
-        lifecycle.subscribeToComponentUpdate((event) -> {
-            if (event instanceof PreComponentUpdateEvent) {
-                try {
-                    lifecycle.deferComponentUpdate("NonDisruptableService", TimeUnit.SECONDS.toMillis(60));
-                    ipcClient.disconnect();
-                } catch (LifecycleIPCException e) {
+        String authToken = IPCTestUtils.getAuthTokeForService(kernel, "NonDisruptableService");
+        final EventStreamRPCConnection clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions,
+                authToken, kernel);
+        SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest = new SubscribeToComponentUpdatesRequest();
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+        CompletableFuture<SubscribeToComponentUpdatesResponse> fut =
+        greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest, Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+            @Override
+            public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                if (streamEvent.getPreUpdateEvent() != null ) {
+                    DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+                    deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(60).toMillis());
+                    deferComponentUpdateRequest.setMessage("Test");
+                    greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
                 }
             }
-        });
 
+            @Override
+            public boolean onStreamError(Throwable error) {
+                logger.atError().setCause(error).log("Stream closed due to error");
+                return false;
+            }
+
+            @Override
+            public void onStreamClosed() {
+
+            }
+        })).getResponse();
+        try {
+            fut.get(3, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            logger.atError().setCause(e).log("Error when subscribing to component updates");
+            fail("Caught exception when subscribing to component updates");
+        }
         List<String> services = kernel.orderedDependencies()
                 .stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
                 .map(greengrassService -> greengrassService.getName())
                 .collect(Collectors.toList());
 
-        // should contain main, NonDisruptableService 1.0.0
-        assertEquals(2, services.size(), "Actual services: " + services);
-        assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
+        // should contain main, Nucleus, NonDisruptableService 1.0.0
+        assertEquals(3, services.size(), "Actual services: " + services);
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "NonDisruptableService"));
 
         CountDownLatch cdlUpdateStarted = new CountDownLatch(1);
         CountDownLatch cdlMergeCancelled = new CountDownLatch(1);
         Consumer<GreengrassLogMessage> listener = m -> {
-            if (m.getMessage() != null && m.getMessage().contains("deferred by NonDisruptableService")) {
+            if (m.getMessage() != null && m.getMessage().contains("deferred for 60000 millis with message Test")) {
                 cdlUpdateStarted.countDown();
             }
             if (m.getMessage() != null && m.getMessage()
@@ -923,13 +961,13 @@ class DeploymentTaskIntegrationTest {
             services = kernel.orderedDependencies().stream().filter(greengrassService -> greengrassService instanceof GenericExternalService)
                     .map(greengrassService -> greengrassService.getName()).collect(Collectors.toList());
 
-            // should contain main, NonDisruptableService 1.0.0
-            assertEquals(2, services.size());
-            assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
-            assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
+            // should contain main, Nucleus, NonDisruptableService 1.0.0
+            assertEquals(3, services.size());
+            assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "NonDisruptableService"));
             assertEquals("1.0.0", kernel.findServiceTopic("NonDisruptableService").find("version").getOnce());
         } finally {
             Slf4jLogAdapter.removeGlobalListener(listener);
+            clientConnection.close();
         }
     }
 
@@ -950,9 +988,9 @@ class DeploymentTaskIntegrationTest {
                 .map(greengrassService -> greengrassService.getName())
                 .collect(Collectors.toList());
 
-        // should contain main, NonDisruptableService 1.0.1
-        assertEquals(2, services.size(), "Existing services: " + services);
-        assertThat(services, containsInAnyOrder("main", "NonDisruptableService"));
+        // should contain main, Nucleus, NonDisruptableService 1.0.1
+        assertEquals(3, services.size(), "Existing services: " + services);
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "NonDisruptableService"));
         assertEquals("1.0.1", kernel.findServiceTopic("NonDisruptableService").find("version").getOnce());
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
     }

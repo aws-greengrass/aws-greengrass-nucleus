@@ -41,10 +41,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -63,11 +61,9 @@ public class ComponentManager implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(ComponentManager.class);
     private static final String GREENGRASS_SCHEME = "GREENGRASS";
     private static final String S3_SCHEME = "S3";
-    private static final String VERSION_KEY = "version";
     private static final String PACKAGE_NAME_KEY = "packageName";
     private static final String PACKAGE_IDENTIFIER = "packageIdentifier";
 
-    private static final long DEFAULT_MAX_STORE_SIZE_BYTES = 10_000_000_000L;  // TODO for dev only. make configurable
     private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 1_000_000L;
 
     private final S3Downloader s3ArtifactsDownloader;
@@ -114,64 +110,6 @@ public class ComponentManager implements InjectionActions {
         this.nucleusPaths = nucleusPaths;
     }
 
-    /**
-     * List the package metadata for available package versions that satisfy the requirement. It is ordered by the
-     * active version first if found, followed by available versions locally.
-     *
-     * @param packageName        the package name
-     * @param versionRequirement the version requirement for this package
-     * @return an iterator of PackageMetadata, with the active version first if found, followed by available versions
-     *         locally.
-     * @throws PackagingException if fails when trying to list available package metadata
-     */
-    Iterator<ComponentMetadata> listAvailablePackageMetadata(String packageName, Requirement versionRequirement)
-            throws PackagingException {
-        // TODO Switch to customized Iterator to enable lazy iteration
-
-        // 1. Find the version if this package is currently active with some version and it is satisfied by requirement
-        Optional<ComponentMetadata> optionalActivePackageMetadata =
-                findActiveAndSatisfiedPackageMetadata(packageName, versionRequirement);
-
-        // 2. list available packages locally
-        List<ComponentMetadata> componentMetadataList =
-                new ArrayList<>(componentStore.listAvailablePackageMetadata(packageName, versionRequirement));
-
-        // 3. If the active satisfied version presents, set it as the head of list.
-        if (optionalActivePackageMetadata.isPresent()) {
-            ComponentMetadata activeComponentMetadata = optionalActivePackageMetadata.get();
-
-            logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
-                    .addKeyValue(VERSION_KEY, activeComponentMetadata.getComponentIdentifier().getVersion())
-                    .log("Found active version for dependency package and it is satisfied by the version requirement."
-                            + " Setting it as the head of the available package list.");
-
-            componentMetadataList.remove(activeComponentMetadata);
-            componentMetadataList.add(0, activeComponentMetadata);
-        }
-
-        // keep logs clean when operating in offline mode
-        if (deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            try {
-                componentMetadataList.addAll(
-                        componentServiceHelper.listAvailableComponentMetadata(packageName, versionRequirement));
-
-            } catch (PackageDownloadException e) {
-                logger.atInfo("list-package-versions")
-                        .addKeyValue(PACKAGE_NAME_KEY, packageName)
-                        .log("Failed when calling Component Management Service to list available versions", e);
-            }
-        } else {
-            logger.atInfo("list-package-versions").log("Device in offline mode, "
-                    + "cannot call Component Management Service to list available versions");
-        }
-
-
-        logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
-                .addKeyValue("packageMetadataList", componentMetadataList)
-                .log("Found possible versions for dependency package");
-        return componentMetadataList.iterator();
-    }
-
     ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements,
                                               String deploymentConfigurationId) throws PackagingException {
         // acquire ever possible local best candidate
@@ -183,7 +121,7 @@ public class ComponentManager implements InjectionActions {
         if (versionRequirements.containsKey(Deployment.DeploymentType.LOCAL.toString())) {
             // keep using local version if the component is meant to be local override
             resolvedComponentId = localCandidateOptional.orElseThrow(() -> new NoAvailableComponentVersionException(
-                    String.format("Component %s is meant to be local override, but no version can satisfy %s",
+                    String.format("Component %s is meant to be a local override, but no version can satisfy %s",
                             componentName, versionRequirements)));
         } else {
             // otherwise try to negotiate with cloud
@@ -305,7 +243,7 @@ public class ComponentManager implements InjectionActions {
     }
 
     // With simplified dependency resolving logic, recipe should be available when resolveComponentVersion,
-    // and should be availble on device at this step.
+    // and should be available on device at this step.
     @Deprecated
     private ComponentRecipe findRecipeDownloadIfNotExisted(ComponentIdentifier componentIdentifier)
             throws PackageDownloadException, PackageLoadingException {
@@ -340,8 +278,8 @@ public class ComponentManager implements InjectionActions {
 
         for (ComponentArtifact artifact : artifacts) {
             // check disk space before download
-            //TODO refactor to check total size of artifacts from all components at once instead of one by one
-            // because all artifacts must fit otherwise the deployment still fails.
+            // GG_NEEDS_REVIEW: TODO refactor to check total size of artifacts from all components at once instead of
+            //  one by one because all artifacts must fit otherwise the deployment still fails.
             long usableSpaceBytes = componentStore.getUsableSpace();
             if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
                 throw new SizeLimitException(
@@ -353,11 +291,11 @@ public class ComponentManager implements InjectionActions {
             if (downloader.downloadRequired(componentIdentifier, artifact, packageArtifactDirectory)) {
                 long downloadSize = downloader.getDownloadSize(componentIdentifier, artifact, packageArtifactDirectory);
                 long storeContentSize = componentStore.getContentSize();
-                if (storeContentSize + downloadSize > DEFAULT_MAX_STORE_SIZE_BYTES) {
+                if (storeContentSize + downloadSize > getConfiguredMaxSize()) {
                     throw new SizeLimitException(String.format(
                             "Component store size limit reached: %d bytes existing, %d bytes needed"
                                     + ", %d bytes maximum allowed total", storeContentSize, downloadSize,
-                            DEFAULT_MAX_STORE_SIZE_BYTES));
+                            getConfiguredMaxSize()));
                 }
                 try {
                     downloader.downloadToPath(componentIdentifier, artifact, packageArtifactDirectory);
@@ -386,6 +324,10 @@ public class ComponentManager implements InjectionActions {
                 }
             }
         }
+    }
+
+    private long getConfiguredMaxSize() {
+        return Coerce.toLong(deviceConfiguration.getComponentStoreMaxSizeBytes());
     }
 
     /**

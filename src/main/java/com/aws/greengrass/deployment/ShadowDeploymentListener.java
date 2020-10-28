@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.dependency.InjectionActions;
@@ -135,7 +140,7 @@ public class ShadowDeploymentListener implements InjectionActions {
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();
                 if (cause instanceof MqttException || cause instanceof TimeoutException) {
-                    //TODO: If network is not available then it will throw MqttException
+                    // GG_NEEDS_REVIEW: TODO: If network is not available then it will throw MqttException
                     // If there is any other problem like thingName is not specified in the request then also
                     // it throws Mqtt exception. This can be identified based on error code. Currently error code is not
                     // exposed. Will make required change in CRT package to expose the error code and then update this

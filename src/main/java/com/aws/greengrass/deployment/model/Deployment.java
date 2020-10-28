@@ -1,6 +1,6 @@
 /*
- *  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *   SPDX-License-Identifier: Apache-2.0
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 package com.aws.greengrass.deployment.model;
@@ -33,7 +33,7 @@ public class Deployment {
     private DeploymentStage deploymentStage;
     @Setter
     private String stageDetails;
-    //TODO: Add interface to pass a method for status update
+    // GG_NEEDS_REVIEW: TODO: Add interface to pass a method for status update
 
     /**
      * Constructor for regular deployments.

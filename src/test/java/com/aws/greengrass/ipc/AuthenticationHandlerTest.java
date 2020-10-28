@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.ipc;
 
@@ -45,6 +47,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -121,7 +124,7 @@ class AuthenticationHandlerTest {
     }
 
     @Test
-    void GIVEN_cli_service_WHEN_register_auth_token_for_external_client_THEN_client_can_be_authenticated_with_token() throws Exception {
+    void GIVEN_cli_service_WHEN_register_auth_token_for_external_client_THEN_client_can_be_authenticated_with_token_WHEN_revoke_token_THEN_client_rejected() throws Exception {
         context = new Context();
         Configuration config = new Configuration(context);
         config.context.put(ExecutorService.class, mock(ExecutorService.class));
@@ -148,10 +151,19 @@ class AuthenticationHandlerTest {
 
         assertNotNull(authContext);
         assertEquals("externalClient", authContext.getServiceName());
+
+        // WHEN CLI service revokes an auth token
+        assertTrue(authenticationHandler.revokeAuthenticationTokenForExternalClient(authToken.toString(),
+                externalAuthToken));
+        // THEN rejected
+        ApplicationMessage secondAuthRequest =
+                ApplicationMessage.builder().payload(IPCUtil.encode(authRequest)).version(AUTHENTICATION_API_VERSION).build();
+        assertThrows(UnauthenticatedException.class, () -> authenticationHandler
+                .doAuthentication(new FrameReader.Message(secondAuthRequest.toByteArray()), mock(SocketAddress.class)));
     }
 
     @Test
-    void GIVEN_non_cli_service_WHEN_register_auth_token_for_external_client_THEN_UnauthenticatedException() throws Exception {
+    void GIVEN_non_cli_service_WHEN_register_or_revoke_auth_token_for_external_client_THEN_UnauthenticatedException() throws Exception {
         context = new Context();
         Configuration config = new Configuration(context);
         config.context.put(ExecutorService.class, mock(ExecutorService.class));
@@ -170,6 +182,10 @@ class AuthenticationHandlerTest {
         assertThrows(UnauthenticatedException.class,
                 ()->{authenticationHandler.registerAuthenticationTokenForExternalClient(authToken.toString(),
                         "externalClient");});
+
+        assertThrows(UnauthenticatedException.class,
+                ()->{authenticationHandler.revokeAuthenticationTokenForExternalClient(authToken.toString(),
+                        "anyTokenToRevoke");});
     }
 
     @Test

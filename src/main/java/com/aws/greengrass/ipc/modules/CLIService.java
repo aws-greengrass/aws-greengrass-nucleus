@@ -1,6 +1,13 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.ipc.modules;
 
+import com.aws.greengrass.builtin.services.cli.CLIEventStreamAgent;
 import com.aws.greengrass.builtin.services.cli.CLIServiceAgent;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
@@ -33,12 +40,17 @@ import com.aws.greengrass.ipc.services.common.ApplicationMessage;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.platforms.Group;
+import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Data;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 
 import java.io.File;
 import java.io.IOException;
@@ -52,22 +64,32 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 
 @ImplementsService(name = CLIService.CLI_SERVICE, autostart = true)
 public class CLIService extends GreengrassService {
 
-    public static final String GREENGRASS_CLI = "greengrass-cli";
+    public static final String GREENGRASS_CLI_CLIENT_ID_FMT = "greengrass-cli-%s";
     public static final String CLI_SERVICE = "aws.greengrass.ipc.cli";
-    public static final String CLI_IPC_INFO_FILENAME = "cli_ipc_info";
     public static final String CLI_AUTH_TOKEN = "cli_auth_token";
     public static final String SOCKET_URL = "socket_url";
+    public static final String posixGroups = "AuthorizedPosixGroups";
+
+    static final String USER_CLIENT_ID_PREFIX = "user-";
+    static final String GROUP_CLIENT_ID_PREFIX = "group-";
+    static final FileSystemPermission DEFAULT_FILE_PERMISSION = new FileSystemPermission(null, null,
+            true, true, false, false, false, false, false, false, false);
+    public static final String DOMAIN_SOCKET_PATH = "domain_socket_path";
 
     private static final ObjectMapper CBOR_MAPPER = new CBORMapper();
     protected static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+    private final Map<String, String> clientIdToAuthToken = new HashMap<>();
 
     @Inject
     CLIServiceAgent agent;
@@ -84,6 +106,12 @@ public class CLIService extends GreengrassService {
     @Inject
     private Kernel kernel;
 
+    @Inject
+    private CLIEventStreamAgent cliEventStreamAgent;
+
+    @Inject
+    private GreengrassCoreIPCService greengrassCoreIPCService;
+
     public CLIService(Topics topics) {
         super(topics);
     }
@@ -94,19 +122,24 @@ public class CLIService extends GreengrassService {
      * @param privateConfig Private config for the service
      * @param router {@link IPCRouter}
      * @param agent {@link CLIServiceAgent}
+     * @param cliEventStreamAgent {@link CLIEventStreamAgent}
      * @param deploymentStatusKeeper {@link DeploymentStatusKeeper}
      * @param authenticationHandler {@link AuthenticationHandler}
      * @param kernel {@link Kernel}
+     * @param greengrassCoreIPCService {@link GreengrassCoreIPCService}
      */
     public CLIService(Topics topics, Topics privateConfig, IPCRouter router, CLIServiceAgent agent,
+                      CLIEventStreamAgent cliEventStreamAgent,
                       DeploymentStatusKeeper deploymentStatusKeeper, AuthenticationHandler authenticationHandler,
-                      Kernel kernel) {
+                      Kernel kernel, GreengrassCoreIPCService greengrassCoreIPCService) {
         super(topics, privateConfig);
         this.router = router;
         this.agent = agent;
+        this.cliEventStreamAgent = cliEventStreamAgent;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.authenticationHandler = authenticationHandler;
         this.kernel = kernel;
+        this.greengrassCoreIPCService = greengrassCoreIPCService;
     }
 
     @Override
@@ -127,10 +160,34 @@ public class CLIService extends GreengrassService {
                     .addKeyValue("destination", destination.name())
                     .log("Failed to register service callback to destination");
         }
+
+        config.lookup(PARAMETERS_CONFIG_KEY, posixGroups).subscribe((why, newv) -> {
+            requestRestart();
+        });
+    }
+
+    private void registerIpcEventStreamHandlers() {
+        greengrassCoreIPCService.setGetComponentDetailsHandler((context)
+                -> cliEventStreamAgent.getGetComponentDetailsHandler(context));
+        greengrassCoreIPCService.setListComponentsHandler((context)
+                -> cliEventStreamAgent.getListComponentsHandler(context));
+        greengrassCoreIPCService.setRestartComponentHandler((context)
+                -> cliEventStreamAgent.getRestartComponentsHandler(context));
+        greengrassCoreIPCService.setStopComponentHandler((context)
+                -> cliEventStreamAgent.getStopComponentsHandler(context));
+        greengrassCoreIPCService.setUpdateRecipesAndArtifactsHandler((context)
+                -> cliEventStreamAgent.getUpdateRecipesAndArtifactsHandler(context));
+        greengrassCoreIPCService.setCreateLocalDeploymentHandler((context)
+                -> cliEventStreamAgent.getCreateLocalDeploymentHandler(context, config));
+        greengrassCoreIPCService.setGetLocalDeploymentStatusHandler((context)
+                -> cliEventStreamAgent.getGetLocalDeploymentStatusHandler(context, config));
+        greengrassCoreIPCService.setListLocalDeploymentsHandler((context)
+                -> cliEventStreamAgent.getListLocalDeploymentsHandler(context, config));
     }
 
     @Override
-    protected void startup() {
+    protected void startup() throws InterruptedException {
+        registerIpcEventStreamHandlers();
         try {
             generateCliIpcInfo();
             reportState(State.RUNNING);
@@ -138,39 +195,142 @@ public class CLIService extends GreengrassService {
             logger.atError().setEventType("cli-ipc-info-generation-error")
                     .setCause(e)
                     .log("Failed to create cli_ipc_info file");
+            reportState(State.ERRORED);
         }
     }
 
-    @SuppressFBWarnings(value = {"RV_RETURN_VALUE_IGNORED_BAD_PRACTICE", "RV_RETURN_VALUE_IGNORED"},
-            justification = "File is created in the same method")
-    @SuppressWarnings("PMD.PrematureDeclaration")
-    private void generateCliIpcInfo() throws UnauthenticatedException, IOException {
+    @Override
+    protected void shutdown() {
 
+    }
+
+    String getClientIdForGroup(int groupId) {
+        return GROUP_CLIENT_ID_PREFIX + groupId;
+    }
+
+    Group getGroup(String posixGroup) throws IOException {
+        return Platform.getInstance().getGroup(posixGroup);
+    }
+
+    private synchronized void generateCliIpcInfo() throws UnauthenticatedException, IOException, InterruptedException {
+        // GG_NEEDS_REVIEW: TODO: replace with the new IPC domain socket path
         if (config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME) == null) {
             logger.atWarn().log("Did not find IPC socket URL in the config. Not creating the cli ipc info file");
             return;
         }
 
+        Path authTokenDir = kernel.getNucleusPaths().cliIpcInfoPath();
+        revokeOutdatedAuthTokens(authTokenDir);
+
+        if (Exec.isWindows) {
+            // GG_NEEDS_REVIEW: TODO support windows group permissions
+            generateCliIpcInfoForEffectiveUser(authTokenDir);
+            return;
+        }
+
+        Topic authorizedPosixGroups = config.find(PARAMETERS_CONFIG_KEY, posixGroups);
+        if (authorizedPosixGroups == null) {
+            generateCliIpcInfoForEffectiveUser(authTokenDir);
+            return;
+        }
+        String posixGroups = Coerce.toString(authorizedPosixGroups);
+        if (posixGroups == null || posixGroups.length() == 0) {
+            generateCliIpcInfoForEffectiveUser(authTokenDir);
+            return;
+        }
+        for (String posixGroup : posixGroups.split(",")) {
+            Group group;
+            try {
+                group = getGroup(posixGroup);
+            } catch (NumberFormatException | IOException e) {
+                logger.atError().kv("posixGroup", posixGroup).log("Failed to get group ID", e);
+                continue;
+            }
+            generateCliIpcInfoForPosixGroup(group, authTokenDir);
+        }
+    }
+
+    @SuppressFBWarnings(value = {"RV_RETURN_VALUE_IGNORED_BAD_PRACTICE", "RV_RETURN_VALUE_IGNORED"},
+            justification = "File is created in the same method")
+    private synchronized void generateCliIpcInfoForEffectiveUser(Path directory)
+            throws UnauthenticatedException, IOException, InterruptedException {
+        String defaultClientId = USER_CLIENT_ID_PREFIX + Platform.getInstance().getEffectiveUID();
+        Path ipcInfoFile = generateCliIpcInfoForClient(defaultClientId, directory);
+        if (ipcInfoFile == null) {
+            return;
+        }
+        Platform.getInstance().setPermissions(DEFAULT_FILE_PERMISSION, ipcInfoFile);
+    }
+
+    private synchronized void generateCliIpcInfoForPosixGroup(Group group, Path directory)
+            throws UnauthenticatedException, IOException {
+        Path ipcInfoFile = generateCliIpcInfoForClient(getClientIdForGroup(group.getId()), directory);
+        if (ipcInfoFile == null) {
+            return;
+        }
+
+        FileSystemPermission filePermission = new FileSystemPermission(null, group.getName(), true, true, false,
+                true, false, false, false, false, false);
+        try {
+            Platform.getInstance().setPermissions(filePermission, ipcInfoFile);
+        } catch (IOException e) {
+            logger.atError().kv("file", ipcInfoFile).kv("permission", filePermission)
+                    .kv("groupOwner", group.getName()).log("Failed to set up posix file permissions and group owner. "
+                    + "Admin may have to manually update the file permission so that CLI authentication "
+                    + "works as intended", e);
+        }
+    }
+
+    private synchronized Path generateCliIpcInfoForClient(String clientId, Path directory)
+            throws UnauthenticatedException, IOException {
+        if (clientIdToAuthToken.containsKey(clientId)) {
+            // Duplicate user input. No need to override auth token.
+            return null;
+        }
+
         String cliAuthToken = authenticationHandler.registerAuthenticationTokenForExternalClient(
-                Coerce.toString(getPrivateConfig().find(SERVICE_UNIQUE_ID_KEY)),
-                GREENGRASS_CLI);
+                Coerce.toString(getPrivateConfig().find(SERVICE_UNIQUE_ID_KEY)), getAuthClientIdentifier(clientId));
+
+        clientIdToAuthToken.put(clientId, cliAuthToken);
+
         Map<String, String> ipcInfo = new HashMap<>();
         ipcInfo.put(CLI_AUTH_TOKEN, cliAuthToken);
-
-        //TODO: Change the URL as per the new IPC
+        // GG_NEEDS_REVIEW: TODO: Remove when UAT move to the new IPC
         ipcInfo.put(SOCKET_URL, Coerce.toString(
                 config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME)));
+        ipcInfo.put(DOMAIN_SOCKET_PATH, Coerce.toString(
+                config.getRoot().find(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH)));
 
-        Path filePath = kernel.getNucleusPaths().rootPath().resolve(CLI_IPC_INFO_FILENAME);
+        Path filePath = directory.resolve(clientId);
         Files.write(filePath, OBJECT_MAPPER.writeValueAsString(ipcInfo)
                 .getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        // TODO: Add the users in configuration to a group and add group permissions for file on linux, windows and
-        //  other platforms.
-        File ipcInfoFile = new File(filePath.toString());
         ipcInfo.clear();
-        ipcInfoFile.setReadable(false, false);
-        ipcInfoFile.setReadable(true, true);
-        ipcInfoFile.setWritable(true, true);
+        return filePath;
+    }
+
+    private String getAuthClientIdentifier(String clientId) {
+        return String.format(GREENGRASS_CLI_CLIENT_ID_FMT, clientId);
+    }
+
+    @SuppressFBWarnings(value = {"RV_RETURN_VALUE_IGNORED_BAD_PRACTICE"},
+            justification = "File to be deleted should exist")
+    private synchronized void revokeOutdatedAuthTokens(Path authTokenDir) throws UnauthenticatedException {
+        for (Map.Entry<String, String> entry : clientIdToAuthToken.entrySet()) {
+            authenticationHandler.revokeAuthenticationTokenForExternalClient(
+                    Coerce.toString(getPrivateConfig().find(SERVICE_UNIQUE_ID_KEY)), entry.getValue());
+        }
+        clientIdToAuthToken.clear();
+        File[] allContents = authTokenDir.toFile().listFiles();
+        if (allContents != null) {
+            for (File file : allContents) {
+                try {
+                    Files.delete(file.toPath());
+                } catch (IOException e) {
+                    logger.atWarn().log("Unable to delete auth file " + file, e);
+                }
+            }
+        }
+        logger.atInfo().log("Auth tokens have been revoked");
     }
 
     @Data
@@ -181,9 +341,10 @@ public class CLIService extends GreengrassService {
 
     @SuppressWarnings("PMD.EmptyIfStmt")
     protected Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
-        agent.persistLocalDeployment(config, deploymentDetails);
+        cliEventStreamAgent.persistLocalDeployment(config, deploymentDetails);
         return true;
     }
+
 
     /**
      * Handle all requests for CLI from the CLI client.
@@ -197,7 +358,7 @@ public class CLIService extends GreengrassService {
 
         ApplicationMessage applicationMessage = ApplicationMessage.fromBytes(message.getPayload());
         try {
-            //TODO: add version compatibility check
+            // GG_NEEDS_REVIEW: TODO: add version compatibility check
             CliClientOpCodes opCode = CliClientOpCodes.values()[applicationMessage.getOpCode()];
             ApplicationMessage responseMessage = null;
             switch (opCode) {

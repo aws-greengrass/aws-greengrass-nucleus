@@ -89,7 +89,7 @@ class ComponentServiceHelperTest {
         assertEquals(recipeContents, downloadPackageRecipeAsString);
     }
 
-    // TODO: Add test cases for failure status codes once the SDK model is updated to return proper http responses
+    // GG_NEEDS_REVIEW: TODO: Add test cases for failure status codes once the SDK model is updated to return proper http responses
 
     @Test
     void GIVEN_recipe_file_WHEN_create_component_THEN_upload_the_recipe(@TempDir Path recipeDir) throws Exception {

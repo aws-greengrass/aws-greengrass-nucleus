@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.deployment;
 
@@ -95,6 +97,7 @@ public class IotJobsHelper implements InjectionActions {
     // we get an empty response. This unprocessedJobs is to track the number of new queued jobs that we are notified
     // with, and keep retrying the request until we get a non-empty response.
     private static final AtomicInteger unprocessedJobs = new AtomicInteger(0);
+    @Getter(AccessLevel.PACKAGE)
     private static final LatestQueuedJobs latestQueuedJobs = new LatestQueuedJobs();
 
     private static final Logger logger = LogManager.getLogger(IotJobsHelper.class);
@@ -190,7 +193,7 @@ public class IotJobsHelper implements InjectionActions {
         try {
             documentString = SerializerFactory.getJsonObjectMapper().writeValueAsString(jobExecutionData.jobDocument);
         } catch (JsonProcessingException e) {
-            //TODO: Handle when job document is incorrect json.
+            // GG_NEEDS_REVIEW: TODO: Handle when job document is incorrect json.
             // This should not happen as we are converting a HashMap
             return;
         }
@@ -264,7 +267,7 @@ public class IotJobsHelper implements InjectionActions {
         try {
             deviceConfiguration.validate();
         } catch (DeviceConfigurationException e) {
-            // TODO: If the device configurations are updated later, while the kernel is running,
+            // GG_NEEDS_REVIEW: TODO: If the device configurations are updated later, while the kernel is running,
             //  then device should attempt to connect to AWS Iot cloud again
             logger.atWarn().log("Device not configured to talk to AWS Iot cloud. Device will run in offline mode");
             return;
@@ -345,7 +348,7 @@ public class IotJobsHelper implements InjectionActions {
                 (response) -> {
                     logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
                             .log("Job status updated rejected");
-                    //TODO: Can this be due to duplicate messages being sent for the job?
+                    // GG_NEEDS_REVIEW: TODO: Can this be due to duplicate messages being sent for the job?
                     gotResponse.completeExceptionally(new Exception(response.message));
                 });
 
@@ -369,7 +372,6 @@ public class IotJobsHelper implements InjectionActions {
         try {
             gotResponse.get(TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS, TimeUnit.SECONDS);
         } finally {
-            latestQueuedJobs.addCompletedJob(jobId);
             // Either got response, or timed out, so unsubscribe from the job topics now
             String rejectTopicForJobId =
                     UPDATE_SPECIFIC_JOB_REJECTED_TOPIC.replace("{thingName}", thingName).replace("{jobId}", jobId);
@@ -445,7 +447,7 @@ public class IotJobsHelper implements InjectionActions {
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();
                 if (cause instanceof MqttException || cause instanceof TimeoutException) {
-                    //TODO: If network is not available then it will throw MqttException
+                    // GG_NEEDS_REVIEW: TODO: If network is not available then it will throw MqttException
                     // If there is any other problem like thingName is not specified in the request then also
                     // it throws Mqtt exception. This can be identified based on error code. Currently error code is not
                     // exposed. Will make required change in CRT package to expose the error code and then update this
@@ -496,7 +498,7 @@ public class IotJobsHelper implements InjectionActions {
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();
                 if (cause instanceof MqttException || cause instanceof TimeoutException) {
-                    //TODO: If network is not available then it will throw MqttException
+                    // GG_NEEDS_REVIEW: TODO: If network is not available then it will throw MqttException
                     // If there is any other problem like thingName is not specified in the request then also
                     // it throws Mqtt exception. This can be identified based on error code. Currently error code is not
                     // exposed. Will make required change in CRT package to expose the error code and then update this
@@ -558,10 +560,10 @@ public class IotJobsHelper implements InjectionActions {
         }
     }
 
-    private static class LatestQueuedJobs {
+    static class LatestQueuedJobs {
         private final Set<String> jobIds = new HashSet<>();
         // Used to track deployment jobs which involve kernel restart, when QueueAt information is not available.
-        private final Set<String> lastCompletedJobIds = new HashSet<>();
+        private final Set<String> lastProcessedJobIds = new HashSet<>();
         private Instant lastQueueAt = Instant.EPOCH;
 
         /**
@@ -572,10 +574,10 @@ public class IotJobsHelper implements InjectionActions {
          * @return true if IoT job with the given ID is a new job yet to be processed, false otherwise
          */
         public synchronized boolean addNewJobIfAbsent(Instant queueAt, String jobId) {
-            if (lastCompletedJobIds.contains(jobId)) {
+            if (lastProcessedJobIds.contains(jobId)) {
                 // Duplicate job but now queueAt information is available so track the timestamp in this way.
                 trackLastKnownJobs(queueAt, jobId);
-                lastCompletedJobIds.remove(jobId);
+                lastProcessedJobIds.remove(jobId);
                 return false;
             }
             return trackLastKnownJobs(queueAt, jobId);
@@ -595,13 +597,13 @@ public class IotJobsHelper implements InjectionActions {
             return true;
         }
 
-        public synchronized void addCompletedJob(String jobId) {
+        public synchronized void addProcessedJob(String jobId) {
             if (jobIds.contains(jobId)) {
                 // One IoT jobs is processed at a time. If the job is already tracked, it's sufficient for de-dupe,
                 // so no need to save again.
                 return;
             }
-            lastCompletedJobIds.add(jobId);
+            lastProcessedJobIds.add(jobId);
         }
     }
 }

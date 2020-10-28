@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.config;
 
@@ -226,12 +228,11 @@ public class Topics extends Node implements Iterable<Node> {
     /**
      * Add the given map to this Topics tree.
      *
-     * @param lastModified  last modified time
      * @param map           map to merge in
      * @param mergeBehavior mergeBehavior
      */
     @SuppressFBWarnings("NP_NULL_ON_SOME_PATH")
-    public void updateFromMap(long lastModified, Map<String, Object> map, @NonNull UpdateBehaviorTree mergeBehavior) {
+    public void updateFromMap(Map<String, Object> map, @NonNull UpdateBehaviorTree mergeBehavior) {
         if (map == null) {
             logger.atInfo().kv("node", getFullName()).log("Null map received in updateFromMap(), ignoring.");
             return;
@@ -241,14 +242,11 @@ public class Topics extends Node implements Iterable<Node> {
         map.forEach((okey, value) -> {
             CaseInsensitiveString key = new CaseInsensitiveString(okey);
             childrenToRemove.remove(key);
-            updateChild(lastModified, key, value, mergeBehavior);
+            updateChild(key, value, mergeBehavior);
         });
 
         childrenToRemove.forEach(childName -> {
-            UpdateBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(childName.toString());
-            if (childMergeBehavior == null) {
-                childMergeBehavior = mergeBehavior.getChildOverride().get(UpdateBehaviorTree.WILDCARD);
-            }
+            UpdateBehaviorTree childMergeBehavior = mergeBehavior.getBehavior(childName.toString());
 
             // remove the existing child if its merge behavior is not present and root merge behavior is REPLACE
             if (childMergeBehavior == null
@@ -265,12 +263,9 @@ public class Topics extends Node implements Iterable<Node> {
         });
     }
 
-    private void updateChild(long lastModified, CaseInsensitiveString key, Object value,
+    private void updateChild(CaseInsensitiveString key, Object value,
                              @NonNull UpdateBehaviorTree mergeBehavior) {
-        UpdateBehaviorTree childMergeBehavior = mergeBehavior.getChildOverride().get(key.toString());
-        if (childMergeBehavior == null) {
-            childMergeBehavior = mergeBehavior.getChildOverride().get(UpdateBehaviorTree.WILDCARD);
-        }
+        UpdateBehaviorTree childMergeBehavior = mergeBehavior.getBehavior(key.toString());
 
         if (childMergeBehavior == null) {
             childMergeBehavior = mergeBehavior;
@@ -278,42 +273,42 @@ public class Topics extends Node implements Iterable<Node> {
 
         switch (childMergeBehavior.getDefaultBehavior()) {
             case MERGE:
-                mergeChild(lastModified, key, value, childMergeBehavior);
+                mergeChild(key, value, childMergeBehavior);
                 break;
             case REPLACE:
-                replaceChild(lastModified, key, value, childMergeBehavior);
+                replaceChild(key, value, childMergeBehavior);
                 break;
             default:
         }
     }
 
-    private void mergeChild(long lastModified, CaseInsensitiveString key, Object value,
+    private void mergeChild(CaseInsensitiveString key, Object value,
                             @NonNull UpdateBehaviorTree mergeBehavior) {
         if (value instanceof Map) {
-            createInteriorChild(key).updateFromMap(lastModified, (Map) value, mergeBehavior);
+            createInteriorChild(key).updateFromMap((Map) value, mergeBehavior);
         } else {
-            createLeafChild(key).withNewerValue(lastModified, value);
+            createLeafChild(key).withNewerValue(mergeBehavior.getTimestampToUse(), value, false, true);
         }
     }
 
-    private void replaceChild(long lastModified, CaseInsensitiveString key, Object value,
+    private void replaceChild(CaseInsensitiveString key, Object value,
                               @Nonnull UpdateBehaviorTree childMergeBehavior) {
         Node existingChild = children.get(key);
         // if new node is a container node
         if (value instanceof Map) {
             // if existing child is a leaf node
-            // TODO: handle node type change between container/leaf node
+            // GG_NEEDS_REVIEW: TODO: handle node type change between container/leaf node
             if (existingChild != null && !(existingChild instanceof Topics)) {
                 remove(existingChild);
             }
-            createInteriorChild(key).updateFromMap(lastModified, (Map) value, childMergeBehavior);
+            createInteriorChild(key).updateFromMap((Map) value, childMergeBehavior);
         // if new node is a leaf node
         } else {
             // if existing child is a container node
             if (existingChild != null && !(existingChild instanceof Topic)) {
                 remove(existingChild);
             }
-            createLeafChild(key).withNewerValue(lastModified, value);
+            createLeafChild(key).withNewerValue(childMergeBehavior.getTimestampToUse(), value, false, true);
         }
     }
 
@@ -373,21 +368,18 @@ public class Topics extends Node implements Iterable<Node> {
      */
     public void replaceAndWait(Map<String, Object> newValue) {
         context.runOnPublishQueueAndWait(() ->
-                updateFromMap(System.currentTimeMillis(), newValue,
-                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE))
+                updateFromMap(newValue,
+                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()))
         );
         context.runOnPublishQueueAndWait(() -> {});
     }
 
     protected void childChanged(WhatHappened what, Node child) {
-        logger.atDebug().setEventType("config-node-child-update").addKeyValue("configNode", getFullName())
-                .addKeyValue("reason", what.name()).log();
-
         for (Watcher s : watchers) {
             if (s instanceof ChildChanged) {
                 ((ChildChanged) s).childChanged(what, child);
             }
-            // TODO: detect if a subscriber fails. Possibly unsubscribe it if the fault is persistent
+            // GG_NEEDS_REVIEW: TODO: detect if a subscriber fails. Possibly unsubscribe it if the fault is persistent
         }
 
         if (what.equals(WhatHappened.removed)) {

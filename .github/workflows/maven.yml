@@ -15,7 +15,7 @@ jobs:
       - greengrass
     strategy:
       matrix:
-        os: [Linux, Windows]
+        os: [Linux]
     name: Build on ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -30,7 +30,7 @@ jobs:
         shell: cmd
         if: matrix.os == 'Windows'
       - name: Build with Maven
-        run: mvn -ntp -U verify
+        run: mvn -U clean verify
         if: matrix.os != 'Windows'
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0

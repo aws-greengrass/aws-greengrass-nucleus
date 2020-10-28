@@ -6,6 +6,7 @@
     <artifactId>nucleus</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
+
     <repositories>
         <repository>
             <id>greengrass-ipc-java-sdk</id>
@@ -106,7 +107,7 @@
             <groupId>com.aws.iot</groupId>
             <artifactId>component-common</artifactId>
             <!-- change back to 0.0.0-SNAPSHOT after common model is updated in repo -->
-            <version>0.0.0-config_platform-SNAPSHOT</version>
+            <version>0.0.0-SNAPSHOT</version>
         </dependency>
         <!-- TODO: This is temporary, adding because there is some confusion about which version
         of core should be used for the AWS SDK (2.x or 1.x). Will be removed once the pom file for
@@ -197,6 +198,12 @@
             <artifactId>hamcrest-eventually-matchers</artifactId>
             <version>0.0.3</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk.crt</groupId>
+            <artifactId>aws-crt</artifactId>
+            <!--change it to 1.0.0-SNAPSHOT once caches clear-->
+            <version>1.0.0-SNAPSHOT</version>
         </dependency>
     </dependencies>
     <pluginRepositories>
@@ -298,11 +305,45 @@
                         <ruleset>codestyle/pmd-eg-tests-ruleset.xml</ruleset>
                     </rulesets>
                     <includeTests>true</includeTests>
+                    <excludes>**/awssdk/**, **/eventstream/**</excludes>
                     <skip>${skipTests}</skip>
                 </configuration>
                 <executions>
                     <execution>
                         <phase>test</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>4.0.rc2</version>
+                <configuration>
+                    <licenseSets>
+                        <licenseSet>
+                            <header>.license/header.txt</header>
+                            <headerDefinitions>
+                                <headerDefinition>.license/style.xml</headerDefinition>
+                            </headerDefinitions>
+                            <useDefaultExcludes>true</useDefaultExcludes>
+                            <excludes>
+                                <exclude>*</exclude>
+                                <exclude>codestyle/**</exclude>
+                                <exclude>src/test/greengrass-nucleus-benchmark/**</exclude>
+                                <exclude>src/*/resources/**</exclude>
+                            </excludes>
+                        </licenseSet>
+                    </licenseSets>
+                    <mapping>
+                        <java>JAVA_STYLE</java>
+                    </mapping>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
                         <goals>
                             <goal>check</goal>
                         </goals>
@@ -346,6 +387,7 @@
                     <configLocation>codestyle/checkstyle.xml</configLocation>
                     <violationSeverity>warning</violationSeverity>
                     <maxAllowedViolations>0</maxAllowedViolations>
+                    <excludes>**/awssdk/**, **/eventstream/**</excludes>
                     <skip>${skipTests}</skip>
                 </configuration>
                 <executions>
@@ -414,6 +456,7 @@
                 <configuration>
                     <excludes>
                         <exclude>**/*Exception*</exclude>
+                        <exclude>**/awssdk/**</exclude>
                     </excludes>
                     <propertyName>surefire.argLine</propertyName>
                     <skip>${skipTests}</skip>
@@ -513,7 +556,7 @@
                                         <limit>
                                             <counter>BRANCH</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.53</minimum>
+                                            <minimum>0.52</minimum>
                                         </limit>
                                     </limits>
                                 </rule>

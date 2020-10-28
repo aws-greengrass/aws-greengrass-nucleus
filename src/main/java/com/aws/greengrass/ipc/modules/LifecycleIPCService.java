@@ -1,7 +1,13 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.ipc.modules;
 
 
 import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCAgent;
+import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.ipc.ConnectionContext;
 import com.aws.greengrass.ipc.IPCRouter;
@@ -19,6 +25,9 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
+import lombok.AccessLevel;
+import lombok.Setter;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
@@ -34,6 +43,14 @@ public class LifecycleIPCService implements Startable, InjectionActions {
 
     @Inject
     private LifecycleIPCAgent agent;
+
+    @Inject
+    @Setter (AccessLevel.PACKAGE)
+    private LifecycleIPCEventStreamAgent eventStreamAgent;
+
+    @Inject
+    @Setter (AccessLevel.PACKAGE)
+    private GreengrassCoreIPCService greengrassCoreIPCService;
 
     @Override
     public void postInject() {
@@ -62,7 +79,7 @@ public class LifecycleIPCService implements Startable, InjectionActions {
 
         ApplicationMessage applicationMessage = ApplicationMessage.fromBytes(message.getPayload());
         try {
-            //TODO: add version compatibility check
+            // GG_NEEDS_REVIEW: TODO: add version compatibility check
             LifecycleGenericResponse lifecycleGenericResponse = new LifecycleGenericResponse(
                     LifecycleResponseStatus.InvalidRequest, "Unknown request type");
             if (LifecycleClientOpCodes.values().length > applicationMessage.getOpCode()) {
@@ -112,5 +129,15 @@ public class LifecycleIPCService implements Startable, InjectionActions {
 
     @Override
     public void startup() {
+        greengrassCoreIPCService.setUpdateStateHandler(
+                (context) -> {
+                    logger.atInfo().log("Executing the lambda");
+                    return eventStreamAgent.getUpdateStateOperationHandler(context);
+                });
+        greengrassCoreIPCService.setSubscribeToComponentUpdatesHandler(
+                (context) -> eventStreamAgent.getSubscribeToComponentUpdateHandler(context));
+        greengrassCoreIPCService.setDeferComponentUpdateHandler(
+                (context) -> eventStreamAgent.getDeferComponentHandler(context));
+
     }
 }

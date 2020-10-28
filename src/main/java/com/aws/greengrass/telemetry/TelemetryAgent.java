@@ -212,7 +212,7 @@ public class TelemetryAgent extends GreengrassService {
         Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap =
                 metricsAggregator.getMetricsToPublish(lastPublish, timestamp);
         getPeriodicPublishTimeTopic().withValue(timestamp);
-        // TODO : Do not publish if the metrics are empty.
+        // GG_NEEDS_REVIEW: TODO : Do not publish if the metrics are empty.
         publisher.publish(MetricsPayload.builder().build(), metricsToPublishMap.get(timestamp));
     }
 

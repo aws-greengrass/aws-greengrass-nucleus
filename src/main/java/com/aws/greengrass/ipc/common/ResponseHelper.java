@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.ipc.common;
 
@@ -22,7 +24,7 @@ public final class ResponseHelper {
      */
     public static void sendResponse(FrameReader.Message msg, int requestId, int destination, ChannelHandlerContext ctx,
                                     boolean closeWhenDone) {
-        // TODO: Validate frame data length
+        // GG_NEEDS_REVIEW: TODO: Validate frame data length
 
         FrameReader.MessageFrame response =
                 new FrameReader.MessageFrame(requestId, destination, msg, FrameReader.FrameType.RESPONSE);

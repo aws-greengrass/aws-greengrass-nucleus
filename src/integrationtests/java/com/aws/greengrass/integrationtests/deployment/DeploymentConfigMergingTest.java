@@ -1,5 +1,7 @@
-/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 package com.aws.greengrass.integrationtests.deployment;
 
@@ -16,36 +18,47 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.BaseITCase;
-import com.aws.greengrass.ipc.IPCClientImpl;
-import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
-import com.aws.greengrass.ipc.services.lifecycle.Lifecycle;
-import com.aws.greengrass.ipc.services.lifecycle.LifecycleImpl;
-import com.aws.greengrass.ipc.services.lifecycle.PostComponentUpdateEvent;
-import com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent;
-import com.aws.greengrass.ipc.services.lifecycle.exceptions.LifecycleIPCException;
+import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
+import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesResponse;
+import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
+import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
+
+import java.time.Duration;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -57,7 +70,6 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -75,15 +87,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 class DeploymentConfigMergingTest extends BaseITCase {
     private Kernel kernel;
     private DeploymentConfigMerger deploymentConfigMerger;
+    private static SocketOptions socketOptions;
+    private static Logger logger = LogManager.getLogger(DeploymentConfigMergingTest.class);
+
+    @BeforeAll
+    static void initialize() {
+        socketOptions = TestUtils.getSocketOptionsForIPC();
+    }
 
     @BeforeEach
     void before(TestInfo testInfo) {
-        System.out.println("Running test: " + testInfo.getDisplayName());
         kernel = new Kernel();
         deploymentConfigMerger = new DeploymentConfigMerger(kernel);
     }
@@ -92,6 +111,13 @@ class DeploymentConfigMergingTest extends BaseITCase {
     void after() {
         if (kernel != null) {
             kernel.shutdown();
+        }
+    }
+
+    @AfterAll
+    static void tearDown() {
+        if (socketOptions != null) {
+            socketOptions.close();
         }
     }
 
@@ -447,6 +473,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     }
 
     @Test
+    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     void GIVEN_a_running_service_is_not_disruptable_WHEN_deployed_THEN_deployment_waits() throws Throwable {
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("non_disruptable_service.yaml").toString());
@@ -461,32 +488,55 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // wait for main to finish
         assertTrue(mainFinished.await(10, TimeUnit.SECONDS));
 
-        KernelIPCClientConfig nonDisruptable = getIPCConfigForService("nondisruptable", kernel);
-        IPCClientImpl ipcClient = new IPCClientImpl(nonDisruptable);
-        Lifecycle lifecycle = new LifecycleImpl(ipcClient);
-
         AtomicInteger deferCount = new AtomicInteger(0);
         AtomicInteger preComponentUpdateCount = new AtomicInteger(0);
         CountDownLatch postComponentUpdateRecieved = new CountDownLatch(1);
-        lifecycle.subscribeToComponentUpdate((event) -> {
+        String authToken = IPCTestUtils.getAuthTokeForService(kernel, "nondisruptable");
+        final EventStreamRPCConnection clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions,
+                authToken,
+                kernel);
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+        SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest = new SubscribeToComponentUpdatesRequest();
+        CompletableFuture<SubscribeToComponentUpdatesResponse> fut =
+        greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest,
+                Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+                    @Override
+                    public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                        if (streamEvent.getPreUpdateEvent() != null) {
+                            preComponentUpdateCount.getAndIncrement();
+                            if (deferCount.get() < 1) {
+                                DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+                                deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(7).toMillis());
+                                deferComponentUpdateRequest.setMessage("Test");
+                                greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest,
+                                        Optional.empty());
+                                deferCount.getAndIncrement();
+                            }
+                        }
+                        if (streamEvent.getPostUpdateEvent() != null) {
+                                postComponentUpdateRecieved.countDown();
+                                clientConnection.disconnect();
+                        }
+                    }
 
-            if (event instanceof PreComponentUpdateEvent) {
-                preComponentUpdateCount.getAndIncrement();
-                //defer update the first time
-                //no response the second time causes the kernel to move forward after default wait time
-                if (deferCount.get() < 1) {
-                    try {
-                        lifecycle.deferComponentUpdate("nondisruptable", TimeUnit.SECONDS.toMillis(5));
-                        deferCount.getAndIncrement();
-                    } catch (LifecycleIPCException e) {
+                    @Override
+                    public boolean onStreamError(Throwable error) {
+                        logger.atError().setCause(error).log("Caught an error on the stream");
+                        return false;
+                    }
+
+                    @Override
+                    public void onStreamClosed() {
+                        logger.atWarn().log("Stream closed by the server");
                     }
                 }
-            }
-            if (event instanceof PostComponentUpdateEvent) {
-                postComponentUpdateRecieved.countDown();
-                ipcClient.disconnect();
-            }
-        });
+        )).getResponse();
+        try {
+            fut.get(3, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            logger.atError().setCause(e).log("Error when subscribing to component updates");
+            fail("Caught exception when subscribing to component updates");
+        }
 
         Map<String, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
         Future<DeploymentResult> future =

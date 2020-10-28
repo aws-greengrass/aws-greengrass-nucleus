@@ -53,6 +53,7 @@ public class KernelCommandLine {
     private static final String packageStorePathName = "~root/packages";
     private static final String kernelAltsPathName = "~root/alts";
     private static final String deploymentsPathName = "~root/deployments";
+    private static final String cliIpcInfoPathName = "~root/cli_ipc_info";
 
     public static void main(String[] args) {
         new Kernel().parseArgs(args).launch();
@@ -131,7 +132,8 @@ public class KernelCommandLine {
                     Paths.get(deTilde(packageStorePathName)).toAbsolutePath(),
                     Paths.get(deTilde(configPathName)).toAbsolutePath(),
                     Paths.get(deTilde(kernelAltsPathName)).toAbsolutePath(),
-                    Paths.get(deTilde(deploymentsPathName)).toAbsolutePath());
+                    Paths.get(deTilde(deploymentsPathName)).toAbsolutePath(),
+                    Paths.get(deTilde(cliIpcInfoPathName)).toAbsolutePath());
 
             Exec.setDefaultEnv("HOME", nucleusPaths.workPath().toString());
 
@@ -144,7 +146,7 @@ public class KernelCommandLine {
             throw rte;
         }
 
-        // TODO: Add current kernel to local component store, if not exits.
+        // GG_NEEDS_REVIEW: TODO: Add current kernel to local component store, if not exits.
         // Add symlinks for current Kernel alt, if not exits
         // Register Kernel Loader as system service (platform-specific), if not exits
 

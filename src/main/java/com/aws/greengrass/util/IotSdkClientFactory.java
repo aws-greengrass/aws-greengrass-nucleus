@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.util;
 
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
@@ -153,7 +158,7 @@ public final class IotSdkClientFactory {
                     return validStage;
                 }
             }
-            // TODO: throw exception
+            // GG_NEEDS_REVIEW: TODO: throw exception
             String errorMessage = String.format("%s is not a valid environment stage. Valid stages are %s", stage,
                     Arrays.toString(values()));
             throw new InvalidEnvironmentStageException(errorMessage);
