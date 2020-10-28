@@ -32,6 +32,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.ArrayList;
@@ -109,12 +110,13 @@ public class UnixPlatform extends Platform {
             cmd[++i] = id;
         }
 
+        logger.atTrace().setEventType("id-lookup").kv("command", String.join(" ", cmd)).log();
         StringBuilder out = new StringBuilder();
         StringBuilder err = new StringBuilder();
 
         Throwable cause = null;
         try (Exec exec = new Exec()) {
-            Optional<Integer> exit = exec.withExec(cmd).withOut(out::append).withErr(err::append).exec();
+            Optional<Integer> exit = exec.withExec(cmd).withShell().withOut(out::append).withErr(err::append).exec();
             if (exit.isPresent() && exit.get() == 0) {
                 return Optional.of(out.toString().trim());
             }
@@ -126,7 +128,7 @@ public class UnixPlatform extends Platform {
         } catch (IOException e) {
             cause = e;
         }
-        LogEventBuilder logEvent = logger.atWarn().setEventType("id-lookup");
+        LogEventBuilder logEvent = logger.atError().setEventType("id-lookup");
         if (option == IdOption.Group) {
             logEvent.kv("group", id);
         } else if (option == IdOption.User && !loadSelf) {
@@ -134,6 +136,7 @@ public class UnixPlatform extends Platform {
         }
         logEvent.kv(STDOUT, out).kv(STDERR, err).setCause(cause).log("Error while looking up id"
                 + (loadSelf ? " for current user" : ""));
+
         return Optional.empty();
     }
 
@@ -319,8 +322,12 @@ public class UnixPlatform extends Platform {
                     : lookupService.lookupPrincipalByGroupName(permission.getOwnerGroup());
 
             setOwner = (view) -> {
+                logger.atTrace().setEventType("set-permissions").kv("path", path).kv("owner",
+                        permission.getOwnerUser()).log();
                 view.setOwner(userPrincipal);
                 if (groupPrincipal != null) {
+                    logger.atTrace().setEventType("set-permissions").kv("path", path).kv("group",
+                            permission.getOwnerGroup()).log();
                     view.setGroup(groupPrincipal);
                 }
                 return null;
@@ -336,6 +343,8 @@ public class UnixPlatform extends Platform {
                     Files.getFileAttributeView(p, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
             setOwnerFunc.apply(view);
             if (!options.contains(FileSystemPermission.Option.IgnorePermission)) {
+                logger.atTrace().setEventType("set-permissions").kv("path", p).kv("perm",
+                        PosixFilePermissions.toString(perms)).log();
                 view.setPermissions(perms);
             }
             return null;

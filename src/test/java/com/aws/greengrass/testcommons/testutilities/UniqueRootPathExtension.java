@@ -48,7 +48,7 @@ public class UniqueRootPathExtension implements BeforeEachCallback, BeforeAllCal
                 public void close() throws Throwable {
                     System.clearProperty("root");
                     Platform.getInstance().setPermissions(FileSystemPermission.builder()
-                            .otherRead(true).ownerWrite(true).ownerExecute(true).build(), p);
+                            .ownerRead(true).ownerWrite(true).ownerExecute(true).build(), p);
                     Utils.deleteFileRecursively(p.toFile());
                 }
             };

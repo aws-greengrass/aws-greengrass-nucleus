@@ -22,11 +22,6 @@ public final class Permissions {
             .otherRead(true).otherExecute(true)
             .build();
     private static final FileSystemPermission OWNER_R_ONLY = FileSystemPermission.builder().ownerRead(true).build();
-    private static final FileSystemPermission EVERYONE_RX = FileSystemPermission.builder()
-            .ownerRead(true).ownerExecute(true)
-            .groupRead(true).groupExecute(true)
-            .otherRead(true).otherExecute(true)
-            .build();
 
     private Permissions() {
     }
