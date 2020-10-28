@@ -124,7 +124,7 @@ class ConfigurationWriterTest {
         config.lookup("test2").withValue("new");
         context.runOnPublishQueueAndWait(() -> {});
 
-        Configuration newTlogConfig = ConfigurationReader.createFromTLog(new Context(), tlog);
+        Configuration newTlogConfig = ConfigurationReader.createFromTLog(context, tlog);
         assertNull(newTlogConfig.find("test1"));
         assertEquals("new", newTlogConfig.find("test2").getOnce());
     }
