@@ -57,7 +57,7 @@ class AwsIotMqttClient implements Closeable {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             currentlyConnected.set(false);
-            mqttOnline.compareAndSet(true, false);
+            mqttOnline.set(false);
             // Error code 0 means that the disconnection was intentional, so we don't need to log it
             if (errorCode != 0) {
                 logger.atWarn().kv("error", CRT.awsErrorString(errorCode)).log("Connection interrupted");
@@ -72,7 +72,7 @@ class AwsIotMqttClient implements Closeable {
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
             currentlyConnected.set(true);
-            mqttOnline.compareAndSet(false, true);
+            mqttOnline.set(true);
             logger.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
             // If we didn't reconnect using the same session, then resubscribe to all the topics
             if (!sessionPresent) {

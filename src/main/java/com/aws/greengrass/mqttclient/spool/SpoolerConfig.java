@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.mqttclient.spool;
 
 import lombok.Builder;
@@ -8,5 +13,5 @@ import lombok.Getter;
 public class SpoolerConfig {
     private SpoolerStorageType spoolStorageType;
     private Long spoolMaxMessageQueueSizeInBytes;
-    public boolean keepQos0WhenOffline;
+    private boolean keepQos0WhenOffline;
 }

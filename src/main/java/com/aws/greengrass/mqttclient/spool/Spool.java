@@ -1,32 +1,28 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.mqttclient.spool;
 
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.util.Coerce;
 
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE;
-
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
 
 public class Spool {
 
-    private static final Logger logger = LogManager.getLogger(Spool.class);
     private final DeviceConfiguration deviceConfiguration;
-    private CloudMessageSpool spooler;
+    private final CloudMessageSpool spooler;
+
     private static final String GG_SPOOL_STORAGE_TYPE_KEY = "spoolStorageType";
     private static final String GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES_KEY = "spoolMaxMessageQueueSizeInBytes";
     private static final String GG_SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY = "keepQos0WhenOffline";
@@ -50,30 +46,13 @@ public class Spool {
      */
     public Spool(DeviceConfiguration deviceConfiguration) {
         this.deviceConfiguration = deviceConfiguration;
-        Topics spoolerTopics = this.deviceConfiguration.getSpoolerNamespace();
-        config = setSpoolerConfig(spoolerTopics);
+        Topics topics = this.deviceConfiguration.getMQTTNamespace();
+        this.config = readSpoolerConfigFromDeviceConfig(topics);
         spooler = setupSpooler(config);
-
-        // subscribe the changes on the configuration of Spooler
-        this.deviceConfiguration.onAnyChange((what, node) -> {
-            if (WhatHappened.childChanged.equals(what) && node != null) {
-                if (!(node.childOf(DEVICE_SPOOLER_NAMESPACE))) {
-                    return;
-                }
-
-                logger.atDebug().log("the spooler has been re-configured");
-                // re-set the spoolerConfig
-                setSpoolerConfig(this.deviceConfiguration.getSpoolerNamespace());
-                // TODO: does this needed? remove the oldest message if the spooler queue should be truncated
-                if (curMessageQueueSizeInBytes.get() > maxSpoolerSizeInBytes()) {
-                    removeOldestMessage();
-                    logger.atDebug().log("spooler queue is full and will remove the oldest unsent message");
-                }
-
-                // TODO: implement the storage type converter after the file-system Spooler is done
-                if (spooler.getSpoolerStorageType() != getSpoolConfig().getSpoolStorageType()) {
-                    spoolerStorageTypeConverter();
-                }
+        // To subscribe to a topic
+        topics.subscribe((what, node) -> {
+            if (WhatHappened.childChanged.equals(what) && node != null && node.childOf(DEVICE_MQTT_NAMESPACE)) {
+                readSpoolerConfigFromDeviceConfig(topics);
             }
         });
     }
@@ -86,22 +65,28 @@ public class Spool {
     public Spool(DeviceConfiguration deviceConfiguration, SpoolerConfig config) {
         this.deviceConfiguration = deviceConfiguration;
         this.config = config;
-        spooler = setupSpooler(this.config);
+        spooler = setupSpooler(config);
     }
 
-    private SpoolerConfig setSpoolerConfig(Topics spoolerTopics) {
-        SpoolerStorageType ggSpoolStorageType = Coerce.toEnum(SpoolerStorageType.class, spoolerTopics
+    private SpoolerConfig readSpoolerConfigFromDeviceConfig(Topics topics) {
+        SpoolerStorageType ggSpoolStorageType = Coerce.toEnum(SpoolerStorageType.class, topics
                 .findOrDefault(DEFAULT_GG_SPOOL_STORAGE_TYPE, GG_SPOOL_STORAGE_TYPE_KEY));
-        Long ggSpoolMaxMessageQueueSizeInBytes = Coerce.toLong(spoolerTopics
+        Long ggSpoolMaxMessageQueueSizeInBytes = Coerce.toLong(topics
                 .findOrDefault(DEFAULT_GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES,
                         GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES_KEY));
-        boolean ggSpoolKeepQos0WhenOffline = Coerce.toBoolean(spoolerTopics
+        boolean ggSpoolKeepQos0WhenOffline = Coerce.toBoolean(topics
                 .findOrDefault(DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE, GG_SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY));
-
-        return new SpoolerConfig(ggSpoolStorageType, ggSpoolMaxMessageQueueSizeInBytes, ggSpoolKeepQos0WhenOffline);
+        return SpoolerConfig.builder().spoolStorageType(ggSpoolStorageType)
+                .spoolMaxMessageQueueSizeInBytes(ggSpoolMaxMessageQueueSizeInBytes)
+                .keepQos0WhenOffline(ggSpoolKeepQos0WhenOffline).build();
     }
 
-    private CloudMessageSpool setupSpooler(SpoolerConfig config) {
+    /**
+     * create a spooler instance.
+     * @param config                spooler configuration
+     * @return CloudMessageSpool    spooler instance
+     */
+    public CloudMessageSpool setupSpooler(SpoolerConfig config) {
         if (config.getSpoolStorageType() == SpoolerStorageType.Memory) {
             return new InMemorySpool();
         }
@@ -128,17 +113,16 @@ public class Spool {
      */
     public synchronized Long addMessage(PublishRequest request) throws InterruptedException, SpoolerLoadException {
         int messageSizeInBytes = request.getPayload().length;
-        if (messageSizeInBytes > maxSpoolerSizeInBytes()) {
+        if (messageSizeInBytes > getSpoolConfig().getSpoolMaxMessageQueueSizeInBytes()) {
             throw new SpoolerLoadException("the size of message has exceeds the maximum size of spooler.");
         }
-        System.out.println("*** addMessage 3 ***");
+
         curMessageQueueSizeInBytes.getAndAdd(messageSizeInBytes);
-        if (curMessageQueueSizeInBytes.get() > maxSpoolerSizeInBytes()) {
+        if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolMaxMessageQueueSizeInBytes()) {
             removeOldestMessage();
         }
 
-        // TODO: do we need to add the removed message back if exception is thrown??
-        if (curMessageQueueSizeInBytes.get() > maxSpoolerSizeInBytes()) {
+        if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolMaxMessageQueueSizeInBytes()) {
             curMessageQueueSizeInBytes.getAndAdd(-1 * messageSizeInBytes);
             throw new SpoolerLoadException("spooler queue is full and new message would not be added into spooler");
         }
@@ -150,12 +134,8 @@ public class Spool {
         return id;
     }
 
-    public void addMessageToSpooler(Long id, PublishRequest request) {
+    private void addMessageToSpooler(Long id, PublishRequest request) {
         spooler.add(id, request);
-    }
-
-    public Long maxSpoolerSizeInBytes() {
-        return getSpoolConfig().getSpoolMaxMessageQueueSizeInBytes();
     }
 
     /**
@@ -208,10 +188,10 @@ public class Spool {
         if (!needToCheckCurSpoolerSize) {
             return true;
         }
-        return curMessageQueueSizeInBytes.get() > maxSpoolerSizeInBytes();
+        return curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolMaxMessageQueueSizeInBytes();
     }
 
-    public int messageCount() {
+    public int getCurrentMessageCount() {
         return queueOfMessageId.size();
     }
 
@@ -221,10 +201,6 @@ public class Spool {
 
     public SpoolerConfig getSpoolConfig() {
         return config;
-    }
-
-    private void spoolerStorageTypeConverter() {
-        return;
     }
 }
 

@@ -91,7 +91,7 @@ public class MqttClient implements Closeable {
     private final Map<SubscribeRequest, AwsIotMqttClient> subscriptions = new ConcurrentHashMap<>();
     private final Map<MqttTopic, AwsIotMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
-    private final AtomicBoolean mqttOnline = new AtomicBoolean(false);
+    private AtomicBoolean mqttOnline = new AtomicBoolean(false);
 
     private final EventLoopGroup eventLoopGroup;
     private final HostResolver hostResolver;
@@ -223,16 +223,16 @@ public class MqttClient implements Closeable {
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
         spool = initSpooler(deviceConfiguration);
-        //spoolMessage();
+        spoolMessage();
     }
 
-    protected Spool initSpooler(DeviceConfiguration deviceConfiguration) {
+    private Spool initSpooler(DeviceConfiguration deviceConfiguration) {
         return new Spool(deviceConfiguration);
     }
 
-
     // constructor specific for unit test with spooler
-    protected MqttClient(DeviceConfiguration deviceConfiguration, Spool spool, ScheduledExecutorService ses) {
+    protected MqttClient(DeviceConfiguration deviceConfiguration, Spool spool, ScheduledExecutorService ses,
+                         boolean mqttOnline) {
         this.deviceConfiguration = deviceConfiguration;
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
@@ -240,6 +240,7 @@ public class MqttClient implements Closeable {
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
         this.spool = spool;
         this.ses = ses;
+        this.mqttOnline.set(mqttOnline);
     }
 
     /**
@@ -375,62 +376,60 @@ public class MqttClient implements Closeable {
             future.completeExceptionally(e);
             return future;
         }
+        // TODO: if needs to know when the message is published successfully, may need to change here
         return CompletableFuture.completedFuture(0);
     }
 
     /**
-     * The scheduled executor service may try to drain the spooler queue every 5 seconds.
+     * The scheduled executor service try to drain the spooler queue every 5 seconds.
      *
      */
-    public void spoolMessage() {
-        // TODO : to determine whether to use ScheduledExecutor
+    private synchronized void spoolMessage() {
         ses.scheduleWithFixedDelay(() -> {
-            try {
-                // This should be moved to the callback event.
-                if (!mqttOnline.get()) {
-                    if (!spool.getSpoolConfig().isKeepQos0WhenOffline()) {
-                        spool.popOutMessagesWithQosZero();
-                        return;
-                    }
-                }
-
-                while (!Thread.currentThread().isInterrupted() && mqttOnline.get() && spool.messageCount() > 0) {
-                    Long id = null;
-                    try {
-                        // TODO: does it really needs a block way?
-                        id = spool.popId();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    PublishRequest request = spool.getMessageById(id);
-                    if (request == null) {
-                        continue;
-                    }
-
-                    AwsIotMqttClient awsIotMqttClient = getConnection(false);
-                    CompletableFuture future = awsIotMqttClient
-                            .publish(new MqttMessage(request.getTopic(),
-                                    request.getPayload()), request.getQos(), request.isRetain());
-
-                    Long finalId = id;
-                    future.whenComplete((packetId, throwable) -> {
-                        if (throwable == null) {
-                            spool.removeMessageById(finalId);
-                        } else {
-                            logger.atError().log("failed to publish the message via Mqtt Client",
-                                    throwable.toString());
-                            spool.addId(finalId);
-                        }
-                    });
-                    // Right now, there is only one message sending out at the momentum.
-                    future.get();
-                }
-            } catch (InterruptedException e) {
-                ses.shutdownNow();
-            } catch (Throwable t) {
-                logger.atError().log("Caught exception while spooling the message", t);
-            }
+            spoolTask();
         }, 0, 5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Iterate the spooler queue to publish all the spooled message.
+     */
+    protected void spoolTask() {
+        Long id = null;
+        try {
+            // This should be moved to the callback event.
+            if (!mqttOnline.get()) {
+                boolean keepQosZeroWhenOffline = spool.getSpoolConfig().isKeepQos0WhenOffline();
+                if (!keepQosZeroWhenOffline) {
+                    spool.popOutMessagesWithQosZero();
+                    return;
+                }
+            }
+
+            while (!Thread.currentThread().isInterrupted() && mqttOnline.get() && spool.getCurrentMessageCount() > 0) {
+                id = spool.popId();
+                PublishRequest request = spool.getMessageById(id);
+                if (request == null) {
+                    continue;
+                }
+
+                Long finalId = id;
+
+                getConnection(false).publish(new MqttMessage(request.getTopic(),request.getPayload()),
+                        request.getQos(), request.isRetain()).whenComplete((packetId, throwable) -> {
+                    if (throwable == null) {
+                        spool.removeMessageById(finalId);
+                    } else {
+                        logger.atError().log("failed to publish the message via Mqtt Client", throwable.toString());
+                        spool.addId(finalId);
+                    }
+                }).get();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.atError().log("spooler message is interrupted");
+        } catch (ExecutionException e) {
+            logger.atError().log("failed to spool method", e.toString());
+        }
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -536,9 +535,5 @@ public class MqttClient implements Closeable {
 
     public int getTimeout() {
         return Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_OPERATION_TIMEOUT, MQTT_OPERATION_TIMEOUT_KEY));
-    }
-
-    protected void setMqttOnline(boolean networkStatus) {
-        mqttOnline.set(networkStatus);
     }
 }
