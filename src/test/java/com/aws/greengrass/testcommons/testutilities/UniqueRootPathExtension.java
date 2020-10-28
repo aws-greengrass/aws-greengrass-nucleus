@@ -57,6 +57,8 @@ public class UniqueRootPathExtension implements BeforeEachCallback, BeforeAllCal
                             FileSystemPermission.builder().ownerRead(true).ownerWrite(true).ownerExecute(true)
                                     .build();
 
+                    // this visitor is necessary so that we can set permissions for everything to ensure it is
+                    // writable so we can delete
                     Files.walkFileTree(p, new SimpleFileVisitor<Path>() {
                         @Override
                         public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
@@ -66,7 +68,7 @@ public class UniqueRootPathExtension implements BeforeEachCallback, BeforeAllCal
                             } catch (IOException e) {
                                 logger.atWarn().setCause(e).log("Could not set permissions on {}", dir);
                             }
-                            return super.preVisitDirectory(dir, attrs);
+                            return FileVisitResult.CONTINUE;
                         }
 
                         @Override
@@ -76,7 +78,7 @@ public class UniqueRootPathExtension implements BeforeEachCallback, BeforeAllCal
                             } catch (IOException e) {
                                 logger.atWarn().setCause(e).log("Could not set permissions on {}", file);
                             }
-                            return super.visitFile(file, attrs);
+                            return FileVisitResult.CONTINUE;
                         }
                     });
                     Utils.deleteFileRecursively(p.toFile());

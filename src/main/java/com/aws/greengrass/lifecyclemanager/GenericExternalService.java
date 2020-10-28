@@ -466,7 +466,7 @@ public class GenericExternalService extends GreengrassService {
                 return new Pair<>(RunStatus.Errored, null);
             }
             if (!updateArtifactOwner()) {
-                logger.atWarn().log("Service artifacts may not be accessible to user");
+                logger.atError().log("Service artifacts may not be accessible to user");
             }
         }
 
