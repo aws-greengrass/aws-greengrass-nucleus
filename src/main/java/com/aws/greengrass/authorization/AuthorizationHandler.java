@@ -108,10 +108,8 @@ public class AuthorizationHandler  {
                         return;
                     }
 
-                    //Reload all policies
-                    // GG_NEEDS_REVIEW: TODO: Add more sophisticated logic to specifically update policies scoped to
-                    // this component, instead of reloading everything on every update.
-                    // https://issues-iad.amazon.com/issues/V243584397
+                    // TODO: [V243584397]: Partial policy reload
+                    // For now, reload all policies
                     Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
                             .parseAllAuthorizationPolicies(kernel);
 
