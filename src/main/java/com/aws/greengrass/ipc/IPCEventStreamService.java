@@ -136,7 +136,9 @@ public class IPCEventStreamService implements Startable, Closeable {
             }
 
         } catch (IOException e) {
-            logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path");
+            logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path and the socket "
+                    + "filepath is longer than 108 chars so unable to start IPC server");
+            return;
         }
 
         // For domain sockets:

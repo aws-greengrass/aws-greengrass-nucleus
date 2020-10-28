@@ -334,6 +334,7 @@
                                 <exclude>codestyle/**</exclude>
                                 <exclude>src/test/greengrass-nucleus-benchmark/**</exclude>
                                 <exclude>src/*/resources/**</exclude>
+                                <exclude>**/awssdk/**</exclude>
                             </excludes>
                         </licenseSet>
                     </licenseSets>

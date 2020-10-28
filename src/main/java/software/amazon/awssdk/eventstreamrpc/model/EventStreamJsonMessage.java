@@ -1,8 +1,3 @@
-/*
- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0
- */
-
 package software.amazon.awssdk.eventstreamrpc.model;
 
 import com.google.gson.Gson;
@@ -34,7 +29,7 @@ public interface EventStreamJsonMessage {
     default EventStreamJsonMessage fromJson(final Gson gson, byte[] payload) {
         final String payloadString = new String(payload, StandardCharsets.UTF_8);
         if (payloadString.equals("null")) {
-            gson.fromJson("{}", this.getClass());
+            return gson.fromJson("{}", this.getClass());
         }
         return gson.fromJson(payloadString, this.getClass());
     }
