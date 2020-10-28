@@ -66,7 +66,7 @@ public class KernelConfigResolver {
     public static final String PREV_VERSION_CONFIG_KEY = "previousVersion";
     public static final String PARAMETERS_CONFIG_KEY = "parameters";
 
-    // for easier migration. TODO rename after removing param.
+    // TODO: [P41216177]: Deprecate parameters in favor of configuration
     public static final String CONFIGURATION_CONFIG_KEY = "parameters";
 
     static final String ARTIFACTS_NAMESPACE = "artifacts";
@@ -575,8 +575,7 @@ public class KernelConfigResolver {
             }
             result = resolvedChildConfig;
         }
-        // GG_NEEDS_REVIEW: TODO : Do we want to support other config types than map of
-        // string k,v pairs? e.g. how should lists be handled?
+        // TODO: [P41216312]: Support other types than map (like list) for interpolation
         return result;
     }
 
@@ -747,7 +746,7 @@ public class KernelConfigResolver {
             String packageName, String packageVersion) {
         return document.getDeploymentPackageConfigurationList().stream()
                 .filter(packageConfig -> packageName.equals(packageConfig.getPackageName())
-                        //GG_NEEDS_REVIEW: TODO packageConfig.getResolvedVersion() should be strongly typed when created
+                        //TODO: [P41216380]: packageConfig.getResolvedVersion() should be strongly typed when created
                         && Requirement.buildNPM(packageConfig.getResolvedVersion())
                         .isSatisfiedBy(new Semver(packageVersion, Semver.SemverType.NPM))).findAny();
     }

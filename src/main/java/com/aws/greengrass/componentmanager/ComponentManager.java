@@ -317,8 +317,7 @@ public class ComponentManager implements InjectionActions {
 
         for (ComponentArtifact artifact : artifacts) {
             // check disk space before download
-            // GG_NEEDS_REVIEW: TODO refactor to check total size of artifacts from all components at once instead of
-            //  one by one because all artifacts must fit otherwise the deployment still fails.
+            // TODO: [P41215447]: Check artifact size for all artifacts to download early to fail early
             long usableSpaceBytes = componentStore.getUsableSpace();
             if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
                 throw new SizeLimitException(
