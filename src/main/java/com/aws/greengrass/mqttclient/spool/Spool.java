@@ -77,7 +77,7 @@ public class Spool {
                 .kv(GG_SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY, ggSpoolKeepQos0WhenOffline)
                 .log("Spooler has been configured");
 
-        return  SpoolerConfig.builder().storageType(ggSpoolStorageType)
+        return SpoolerConfig.builder().storageType(ggSpoolStorageType)
                 .spoolSizeInBytes(ggSpoolMaxMessageQueueSizeInBytes)
                 .keepQos0WhenOffline(ggSpoolKeepQos0WhenOffline).build();
     }

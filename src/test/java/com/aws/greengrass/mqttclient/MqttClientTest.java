@@ -465,20 +465,4 @@ class MqttClientTest {
         verify(spool).addId(anyLong());
         verify(spool, never()).removeMessageById(anyLong());
     }
-
-    //@Test
-    //void GIVEN_keep_qos0_message_when_offline_is_false_and_mqtt_offline_WHEN_spool_message_THEN_drop_qos_0_message() throws InterruptedException {
-    //    MqttClient client = spy(new MqttClient(deviceConfiguration, spool, ses, false));
-    //    SpoolerConfig config = SpoolerConfig.builder().keepQos0WhenOffline(false)
-    //            .spoolSizeInBytes(25L).storageType(SpoolerStorageType.Memory)
-    //            .build();
-    //    when(spool.getSpoolConfig()).thenReturn(config);
-    //
-    //    client.spoolTask();
-    //
-    //    verify(spool).popOutMessagesWithQosZero();
-    //    verify(spool, never()).popId();
-    //    verify(spool, never()).addId(any());
-    //    verify(spool, never()).removeMessageById(any());
-    //}
 }
