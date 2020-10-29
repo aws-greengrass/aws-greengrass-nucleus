@@ -150,7 +150,7 @@ public abstract class EventStreamRPCServiceModel {
     private static final Map<String, Class<? extends EventStreamJsonMessage>> FRAMEWORK_APPLICATION_MODEL_TYPES
             = new HashMap<>();
     static {
-        // GG_NEEDS_REVIEW: TODO: find a reliable way to verify all of these are set? reflection cannot scan a package
+        //TODO: find a reliable way to verify all of these are set? reflection cannot scan a package
         FRAMEWORK_APPLICATION_MODEL_TYPES.put(AccessDeniedException.ERROR_CODE, AccessDeniedException.class);
         FRAMEWORK_APPLICATION_MODEL_TYPES.put(InternalServerException.ERROR_CODE, InternalServerException.class);
         FRAMEWORK_APPLICATION_MODEL_TYPES.put(UnsupportedOperationException.ERROR_CODE, UnsupportedOperationException.class);

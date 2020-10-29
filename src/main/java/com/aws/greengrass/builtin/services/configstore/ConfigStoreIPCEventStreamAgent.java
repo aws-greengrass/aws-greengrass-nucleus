@@ -33,7 +33,7 @@ import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityReport;
 import software.amazon.awssdk.aws.greengrass.model.FailedUpdateConditionCheckError;
 import software.amazon.awssdk.aws.greengrass.model.GetConfigurationRequest;
 import software.amazon.awssdk.aws.greengrass.model.GetConfigurationResponse;
-import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentError;
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 import software.amazon.awssdk.aws.greengrass.model.ResourceNotFoundError;
 import software.amazon.awssdk.aws.greengrass.model.SendConfigurationValidityReportRequest;
 import software.amazon.awssdk.aws.greengrass.model.SendConfigurationValidityReportResponse;
@@ -138,7 +138,7 @@ public class ConfigStoreIPCEventStreamAgent {
             CompletableFuture<ConfigurationValidityReport> reportFuture =
                     configValidationReportFutures.get(serviceName);
             if (reportFuture == null) {
-                throw new InvalidArgumentError("Validation request either timed out or was never made");
+                throw new InvalidArgumentsError("Validation request either timed out or was never made");
             }
 
             if (!reportFuture.isCancelled()) {
@@ -247,16 +247,16 @@ public class ConfigStoreIPCEventStreamAgent {
         public UpdateConfigurationResponse handleRequest(UpdateConfigurationRequest request) {
             logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC config update request");
             if (Utils.isEmpty(request.getKeyPath())) {
-                throw new InvalidArgumentError("Key is required");
+                throw new InvalidArgumentsError("Key is required");
             }
 
             if (request.getComponentName() != null && !serviceName.equals(request.getComponentName())) {
-                throw new InvalidArgumentError("Cross component updates are not allowed");
+                throw new InvalidArgumentsError("Cross component updates are not allowed");
             }
 
             Topics serviceTopics = kernel.findServiceTopic(serviceName);
             if (serviceTopics == null) {
-                throw new InvalidArgumentError("Service config not found");
+                throw new InvalidArgumentsError("Service config not found");
             }
             Topics configTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
             String[] keyPath = request.getKeyPath().toArray(new String[0]);
@@ -265,7 +265,7 @@ public class ConfigStoreIPCEventStreamAgent {
                 try {
                     configTopics.lookup(keyPath).withValueChecked(request.getNewValue().get(keyPath[0]));
                 } catch (UnsupportedInputTypeException e) {
-                    throw new InvalidArgumentError(e.getMessage());
+                    throw new InvalidArgumentsError(e.getMessage());
                 }
                 return new UpdateConfigurationResponse();
             }
@@ -274,12 +274,12 @@ public class ConfigStoreIPCEventStreamAgent {
             //  should be a merge/replace or a choice for customers to make. We'll gain clarity once
             //  nested config support at the component recipe and deployment level is hashed out.
             if (node instanceof Topics) {
-                throw new InvalidArgumentError("Cannot update a " + "non-leaf config node");
+                throw new InvalidArgumentsError("Cannot update a " + "non-leaf config node");
             }
             if (!(node instanceof Topic)) {
                 logger.atError().kv(SERVICE_NAME, serviceName)
                         .log("Somehow Node has an unknown type {}", node.getClass());
-                throw new InvalidArgumentError("Node has an unknown type");
+                throw new InvalidArgumentsError("Node has an unknown type");
             }
             Topic topic = (Topic) node;
 
@@ -299,7 +299,7 @@ public class ConfigStoreIPCEventStreamAgent {
                             "Proposed timestamp is older than the config's latest modified timestamp");
                 }
             } catch (UnsupportedInputTypeException e) {
-                throw new InvalidArgumentError(e.getMessage());
+                throw new InvalidArgumentsError(e.getMessage());
             }
 
             return new UpdateConfigurationResponse();

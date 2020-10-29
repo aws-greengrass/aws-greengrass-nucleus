@@ -17,7 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateResponse;
-import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentError;
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 import software.amazon.awssdk.aws.greengrass.model.LifecycleState;
 import software.amazon.awssdk.aws.greengrass.model.ResourceNotFoundError;
 import software.amazon.awssdk.aws.greengrass.model.ServiceError;
@@ -129,7 +129,7 @@ public class LifecycleIPCEventStreamAgentTest {
         DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
         deferComponentUpdateRequest.setMessage("Test defer");
         deferComponentUpdateRequest.setRecheckAfterMs(1000L);
-        assertThrows(InvalidArgumentError.class, () ->
+        assertThrows(InvalidArgumentsError.class, () ->
                 lifecycleIPCEventStreamAgent.getDeferComponentHandler(mockContext)
                         .handleRequest(deferComponentUpdateRequest));
     }
