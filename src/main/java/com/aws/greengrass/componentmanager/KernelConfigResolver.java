@@ -310,7 +310,13 @@ public class KernelConfigResolver {
         // perform RESET and then MERGE in order
         Map<String, Object> resolvedConfig;
 
-        resolvedConfig = reset(currentRunningConfig, defaultConfig, configurationUpdateOperation.getPathsToReset());
+        if (currentRunningConfig == null) {
+            // initial deployment. Use default as base
+            // no need to reset because reset on initial deployment doesn't make sense.
+            resolvedConfig = MAPPER.convertValue(defaultConfig, Map.class);
+        } else {
+            resolvedConfig = reset(currentRunningConfig, defaultConfig, configurationUpdateOperation.getPathsToReset());
+        }
 
         resolvedConfig = deepMerge(resolvedConfig, configurationUpdateOperation.getValueToMerge());
 
