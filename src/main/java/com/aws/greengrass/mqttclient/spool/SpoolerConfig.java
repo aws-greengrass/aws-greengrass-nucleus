@@ -11,7 +11,7 @@ import lombok.Getter;
 @Builder
 @Getter
 public class SpoolerConfig {
-    private SpoolerStorageType spoolStorageType;
-    private Long spoolMaxMessageQueueSizeInBytes;
+    private SpoolerStorageType storageType;
+    private Long spoolSizeInBytes;
     private boolean keepQos0WhenOffline;
 }

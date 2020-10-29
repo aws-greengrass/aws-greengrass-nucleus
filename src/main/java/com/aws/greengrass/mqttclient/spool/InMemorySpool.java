@@ -15,23 +15,18 @@ public class InMemorySpool implements CloudMessageSpool {
     private final Map<Long, PublishRequest> messages = new ConcurrentHashMap<>();
 
     @Override
-    public PublishRequest getMessageById(Long messageId) {
+    public PublishRequest getMessageById(long messageId) {
         return messages.get(messageId);
     }
 
     @Override
-    public void removeMessageById(Long messageId) {
+    public void removeMessageById(long messageId) {
         messages.remove(messageId);
     }
 
     @Override
-    public void add(Long id, PublishRequest request) {
+    public void add(long id, PublishRequest request) {
         messages.put(id, request);
-    }
-
-    @Override
-    public SpoolerStorageType getSpoolerStorageType() {
-        return SpoolerStorageType.Memory;
     }
 
 }

@@ -33,7 +33,7 @@ public class Spool {
     private static final int DEFAULT_GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES = (int)(2.5 * 1024 * 1024); // 2.5MB
 
     private final AtomicLong nextId = new AtomicLong(0);
-    private final SpoolerConfig config;
+    private SpoolerConfig config;
     private final BlockingDeque<Long> queueOfMessageId = new LinkedBlockingDeque<>();
     private final AtomicLong curMessageQueueSizeInBytes = new AtomicLong(0);
 
@@ -47,31 +47,26 @@ public class Spool {
     public Spool(DeviceConfiguration deviceConfiguration) {
         this.deviceConfiguration = deviceConfiguration;
         Topics topics = this.deviceConfiguration.getSpoolerNamespace();
-        this.config = readSpoolerConfigFromDeviceConfig(topics);
-        spooler = setupSpooler(config);
+        config = readSpoolerConfigFromDeviceConfig(topics);
+        setSpoolerConfig(config);
+        spooler = setupSpooler();
         // To subscribe to the topics of spooler configuration
         topics.subscribe((what, node) -> {
             if (WhatHappened.childChanged.equals(what) && node != null) {
-                readSpoolerConfigFromDeviceConfig(topics);
+                SpoolerConfig updatedConfig = readSpoolerConfigFromDeviceConfig(topics);
+                setSpoolerConfig(updatedConfig);
             }
         });
     }
 
-    /**
-     * Here is the constructor for the test.
-     * @param deviceConfiguration      device configuration
-     * @param config                   spooler configuration
-     */
-    public Spool(DeviceConfiguration deviceConfiguration, SpoolerConfig config) {
-        this.deviceConfiguration = deviceConfiguration;
+    private void setSpoolerConfig(SpoolerConfig config) {
         this.config = config;
-        spooler = setupSpooler(config);
     }
 
     private SpoolerConfig readSpoolerConfigFromDeviceConfig(Topics topics) {
         SpoolerStorageType ggSpoolStorageType = Coerce.toEnum(SpoolerStorageType.class, topics
                 .findOrDefault(DEFAULT_GG_SPOOL_STORAGE_TYPE, GG_SPOOL_STORAGE_TYPE_KEY));
-        Long ggSpoolMaxMessageQueueSizeInBytes = Coerce.toLong(topics
+        long ggSpoolMaxMessageQueueSizeInBytes = Coerce.toLong(topics
                 .findOrDefault(DEFAULT_GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES,
                         GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES_KEY));
         boolean ggSpoolKeepQos0WhenOffline = Coerce.toBoolean(topics
@@ -82,18 +77,17 @@ public class Spool {
                 .kv(GG_SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY, ggSpoolKeepQos0WhenOffline)
                 .log("Spooler has been configured");
 
-        return SpoolerConfig.builder().spoolStorageType(ggSpoolStorageType)
-                .spoolMaxMessageQueueSizeInBytes(ggSpoolMaxMessageQueueSizeInBytes)
+        return  SpoolerConfig.builder().storageType(ggSpoolStorageType)
+                .spoolSizeInBytes(ggSpoolMaxMessageQueueSizeInBytes)
                 .keepQos0WhenOffline(ggSpoolKeepQos0WhenOffline).build();
     }
 
     /**
      * create a spooler instance.
-     * @param config                spooler configuration
      * @return CloudMessageSpool    spooler instance
      */
-    public CloudMessageSpool setupSpooler(SpoolerConfig config) {
-        if (config.getSpoolStorageType() == SpoolerStorageType.Memory) {
+    private CloudMessageSpool setupSpooler() {
+        if (config.getStorageType() == SpoolerStorageType.Memory) {
             return new InMemorySpool();
         }
         return null;
@@ -105,7 +99,7 @@ public class Spool {
      *
      * @param id MessageId
      */
-    public void addId(Long id) {
+    public void addId(long id) {
         queueOfMessageId.offerFirst(id);
     }
 
@@ -117,30 +111,31 @@ public class Spool {
      * @throws InterruptedException result from the queue implementation
      * @throws SpoolerLoadException  leads to the failure to insert the message to the spooler
      */
-    public synchronized Long addMessage(PublishRequest request) throws InterruptedException, SpoolerLoadException {
+    public long addMessage(PublishRequest request) throws InterruptedException, SpoolerLoadException {
+        // TODO: revisit the thread safety later
         int messageSizeInBytes = request.getPayload().length;
-        if (messageSizeInBytes > getSpoolConfig().getSpoolMaxMessageQueueSizeInBytes()) {
+        if (messageSizeInBytes > getSpoolConfig().getSpoolSizeInBytes()) {
             throw new SpoolerLoadException("The size of message has exceeds the maximum size of spooler.");
         }
 
         curMessageQueueSizeInBytes.getAndAdd(messageSizeInBytes);
-        if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolMaxMessageQueueSizeInBytes()) {
+        if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolSizeInBytes()) {
             removeOldestMessage();
         }
 
-        if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolMaxMessageQueueSizeInBytes()) {
+        if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolSizeInBytes()) {
             curMessageQueueSizeInBytes.getAndAdd(-1 * messageSizeInBytes);
             throw new SpoolerLoadException("Spooler queue is full and new message would not be added into spooler");
         }
 
-        Long id = nextId.getAndIncrement();
+        long id = nextId.getAndIncrement();
         addMessageToSpooler(id, request);
         queueOfMessageId.putLast(id);
 
         return id;
     }
 
-    private void addMessageToSpooler(Long id, PublishRequest request) {
+    private void addMessageToSpooler(long id, PublishRequest request) {
         spooler.add(id, request);
     }
 
@@ -150,11 +145,11 @@ public class Spool {
      * @return message id
      * @throws InterruptedException the thread is interrupted while popping the first id from the queue
      */
-    public Long popId() throws InterruptedException {
+    public long popId() throws InterruptedException {
         return queueOfMessageId.takeFirst();
     }
 
-    public PublishRequest getMessageById(Long messageId) {
+    public PublishRequest getMessageById(long messageId) {
         return spooler.getMessageById(messageId);
     }
 
@@ -163,7 +158,7 @@ public class Spool {
      *
      * @param messageId  message id
      */
-    public void removeMessageById(Long messageId) {
+    public void removeMessageById(long messageId) {
         PublishRequest toBeRemovedRequest = getMessageById(messageId);
         if (toBeRemovedRequest != null) {
             spooler.removeMessageById(messageId);
@@ -183,7 +178,7 @@ public class Spool {
     private void removeMessagesWithQosZero(boolean needToCheckCurSpoolerSize) {
         Iterator<Long> messageIdIterator = queueOfMessageId.iterator();
         while (messageIdIterator.hasNext() && addJudgementWithCurrentSpoolerSize(needToCheckCurSpoolerSize)) {
-            Long idToBeRemoved = messageIdIterator.next();
+            long idToBeRemoved = messageIdIterator.next();
             if (getMessageById(idToBeRemoved).getQos().getValue() == 0) {
                 removeMessageById(idToBeRemoved);
             }
@@ -194,14 +189,14 @@ public class Spool {
         if (!needToCheckCurSpoolerSize) {
             return true;
         }
-        return curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolMaxMessageQueueSizeInBytes();
+        return curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolSizeInBytes();
     }
 
     public int getCurrentMessageCount() {
         return queueOfMessageId.size();
     }
 
-    public Long getCurrentSpoolerSize() {
+    public long getCurrentSpoolerSize() {
         return curMessageQueueSizeInBytes.get();
     }
 

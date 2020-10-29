@@ -15,8 +15,6 @@ import com.aws.greengrass.mqttclient.spool.SpoolerLoadException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.ProxyUtils;
-import lombok.AccessLevel;
-import lombok.Getter;
 import software.amazon.awssdk.crt.auth.credentials.X509CredentialsProvider;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
@@ -75,7 +73,6 @@ public class MqttClient implements Closeable {
     private static final String MQTT_SOCKET_TIMEOUT_KEY = "socketTimeoutMs";
     // Default taken from AWS SDK
     private static final int DEFAULT_MQTT_SOCKET_TIMEOUT = (int) Duration.ofSeconds(3).toMillis();
-    private static final String READY_TO_SPOOL = "ready to spool";
     static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
     static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     public static final int MAX_SUBSCRIPTIONS_PER_CONNECTION = 50;
@@ -102,14 +99,15 @@ public class MqttClient implements Closeable {
     private final CallbackEventManager callbackEventManager = new CallbackEventManager();
     private final Spool spool;
     private final ScheduledExecutorService ses;
-    private final CompletableFuture<String> spoolerMonitor = CompletableFuture.completedFuture(READY_TO_SPOOL);
+    private final AtomicReference<Future<?>> spoolingFuture = new AtomicReference<>();
 
-
-    @Getter(AccessLevel.PACKAGE)
     private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             setMqttOnline(false);
+            if (!spool.getSpoolConfig().isKeepQos0WhenOffline()) {
+                spool.popOutMessagesWithQosZero();
+            }
         }
 
         @Override
@@ -240,12 +238,8 @@ public class MqttClient implements Closeable {
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
-        spool = initSpooler(deviceConfiguration);
+        spool = new Spool(deviceConfiguration);
         addToCallbackEvents(callbacks);
-    }
-
-    private Spool initSpooler(DeviceConfiguration deviceConfiguration) {
-        return new Spool(deviceConfiguration);
     }
 
     // constructor specific for unit test with spooler
@@ -389,11 +383,10 @@ public class MqttClient implements Closeable {
 
         try {
             spool.addMessage(request);
-            if (spoolerMonitor.getNow("spooling").equals(READY_TO_SPOOL)) {
-                CompletableFuture.supplyAsync(() -> {
-                    spoolMessage();
-                    return READY_TO_SPOOL;
-                });
+            if (spoolingFuture.get() == null || spoolingFuture.get().isCancelled()) {
+                spoolingFuture.set(ses.scheduleWithFixedDelay(() -> {
+                    spoolTask();
+                }, 0, 5, TimeUnit.SECONDS));
             }
         } catch (InterruptedException | SpoolerLoadException e) {
             logger.atError().log("Fail to add publish request to spooler queue", e);
@@ -404,40 +397,22 @@ public class MqttClient implements Closeable {
     }
 
     /**
-     * The scheduled executor service try to drain the spooler queue every 5 seconds.
-     *
-     */
-    private synchronized void spoolMessage() {
-        ses.scheduleWithFixedDelay(() -> {
-            spoolTask();
-        }, 0, 5, TimeUnit.SECONDS);
-    }
-
-    /**
      * Iterate the spooler queue to publish all the spooled message.
      */
     protected void spoolTask() {
-        Long id = null;
         try {
-            // This should be moved to the callback event.
-            if (!mqttOnline.get()) {
-                boolean keepQosZeroWhenOffline = spool.getSpoolConfig().isKeepQos0WhenOffline();
-                if (!keepQosZeroWhenOffline) {
-                    spool.popOutMessagesWithQosZero();
-                    return;
-                }
-            }
-
+            // TODO: Revisit this loop later. It is currently expensive.
             while (!Thread.currentThread().isInterrupted() && mqttOnline.get() && spool.getCurrentMessageCount() > 0) {
-                id = spool.popId();
+                long id = spool.popId();
+
                 PublishRequest request = spool.getMessageById(id);
 
                 if (request == null) {
                     continue;
                 }
-
-                Long finalId = id;
-
+                long finalId = id;
+                // TODO: Revisit later: currently only 1 message got sent each time.
+                // Should make the sending in more efficient way.
                 getConnection(false).publish(new MqttMessage(request.getTopic(),request.getPayload()),
                         request.getQos(), request.isRetain()).whenComplete((packetId, throwable) -> {
                     if (throwable == null) {

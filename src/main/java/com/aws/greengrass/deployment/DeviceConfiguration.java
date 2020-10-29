@@ -264,7 +264,7 @@ public class DeviceConfiguration {
     }
 
     public Topics getSpoolerNamespace() {
-        return getTopics(DEVICE_SPOOLER_NAMESPACE);
+        return getMQTTNamespace().lookupTopics(DEVICE_SPOOLER_NAMESPACE);
     }
 
     public Topics getNetworkProxyNamespace() {

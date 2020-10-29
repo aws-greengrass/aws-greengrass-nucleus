@@ -5,11 +5,11 @@
 
 package com.aws.greengrass.mqttclient;
 
+import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.mqttclient.spool.Spool;
-import com.aws.greengrass.mqttclient.spool.SpoolerConfig;
 import com.aws.greengrass.mqttclient.spool.SpoolerLoadException;
-import com.aws.greengrass.mqttclient.spool.SpoolerStorageType;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -24,7 +24,8 @@ import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -37,14 +38,14 @@ public class InMemorySpoolTest {
     DeviceConfiguration deviceConfiguration;
 
     private Spool spool;
-    private SpoolerConfig config;
-
+    Configuration config = new Configuration(new Context());
+    private static final String GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES_KEY = "spoolMaxMessageQueueSizeInBytes";
 
     @BeforeEach
     void beforeEach() {
-        config = SpoolerConfig.builder().keepQos0WhenOffline(true)
-                .spoolMaxMessageQueueSizeInBytes(25L).spoolStorageType(SpoolerStorageType.Memory)
-                .build();
+        config.lookup("spooler", GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES_KEY).withValue(25L);
+        lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(config.lookupTopics("spooler"));
+        spool = spy(new Spool(deviceConfiguration));
     }
 
     @Test
@@ -52,10 +53,9 @@ public class InMemorySpoolTest {
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_MOST_ONCE).build();
 
-        spool = spy(new Spool(deviceConfiguration, config));
-        Long id = spool.addMessage(request);
+        long id = spool.addMessage(request);
 
-        verify(spool, never()).removeMessageById(any());
+        verify(spool, never()).removeMessageById(anyLong());
         assertEquals(1, spool.getCurrentMessageCount());
         assertEquals(0L, id);
     }
@@ -67,10 +67,8 @@ public class InMemorySpoolTest {
         PublishRequest request2 = PublishRequest.builder().topic("spool").payload(new byte[10])
                 .qos(QualityOfService.AT_MOST_ONCE).build();
 
-        spool = spy(new Spool(deviceConfiguration, config));
-
         spool.addMessage(request1);
-        Long id2 = spool.addMessage(request2);
+        long id2 = spool.addMessage(request2);
         spool.addMessage(request2);
 
         verify(spool, times(1)).removeMessageById(id2);
@@ -86,10 +84,8 @@ public class InMemorySpoolTest {
         PublishRequest request3 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(20).array())
                 .qos(QualityOfService.AT_MOST_ONCE).build();
 
-
-        spool = spy(new Spool(deviceConfiguration, config));
         spool.addMessage(request1);
-        Long id2 = spool.addMessage(request2);
+        long id2 = spool.addMessage(request2);
 
         assertThrows(SpoolerLoadException.class, () -> { spool.addMessage(request3); });
 
@@ -103,11 +99,6 @@ public class InMemorySpoolTest {
         PublishRequest request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(30).array())
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
 
-        spool = spy(new Spool(deviceConfiguration, config));
-        assertThrows(SpoolerLoadException.class, () -> { spool.addMessage(request); });
-
-
-        spool = spy(new Spool(deviceConfiguration, config));
         assertThrows(SpoolerLoadException.class, () -> { spool.addMessage(request); });
 
         assertEquals(0, spool.getCurrentSpoolerSize());
@@ -117,8 +108,7 @@ public class InMemorySpoolTest {
     void GIVEN_id_WHEN_remove_message_by_id_THEN_spooler_size_decreased() throws SpoolerLoadException, InterruptedException {
         PublishRequest request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(0).array())
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        spool = spy(new Spool(deviceConfiguration, config));
-        Long id = spool.addMessage(request);
+        long id = spool.addMessage(request);
 
         spool.removeMessageById(id);
 
@@ -134,14 +124,13 @@ public class InMemorySpoolTest {
                 .qos(QualityOfService.AT_MOST_ONCE).build();
         List<PublishRequest> requests = Arrays.asList(request1, request2, request2);
 
-        spool = spy(new Spool(deviceConfiguration, config));
         for (PublishRequest request : requests) {
             spool.addMessage(request);
         }
 
         spool.popOutMessagesWithQosZero();
 
-        verify(spool, times(2)).removeMessageById(any());
+        verify(spool, times(2)).removeMessageById(anyLong());
         assertEquals(3, spool.getCurrentSpoolerSize());
     }
 }
