@@ -115,6 +115,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@SuppressWarnings("PMD.ExcessiveClassLength") // This test is essential and verified many details. Could be breakdown.
 class DeploymentTaskIntegrationTest {
 
     private static final String TEST_CUSTOMER_APP_STRING = "Hello Greengrass. This is a test";
