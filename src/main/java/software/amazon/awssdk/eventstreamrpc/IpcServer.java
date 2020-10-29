@@ -107,7 +107,7 @@ public class IpcServer implements AutoCloseable {
      * Ensures a call to stop server is called when it is closed
      */
     @Override
-    public void close() throws Exception {
+    public void close() {
         stopServer();
     }
 
