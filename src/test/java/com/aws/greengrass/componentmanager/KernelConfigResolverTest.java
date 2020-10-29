@@ -15,8 +15,9 @@ import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
+import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.RunWith;
@@ -116,15 +117,15 @@ class KernelConfigResolverTest {
     private Topics alreadyRunningServiceConfig;
     @Mock
     private Topic alreadyRunningServiceParameterConfig;
-    @Mock
-    private Topics alreadyRunningServiceConfiguration;
     private Path path;
+    private Configuration config;
 
     @BeforeEach
     void setupMocks() throws IOException {
         path = Paths.get("Artifacts", TEST_INPUT_PACKAGE_A);
         lenient().when(nucleusPaths.artifactPath(any())).thenReturn(path.toAbsolutePath());
-        lenient().when(kernel.getConfig()).thenReturn(new Configuration(new Context()));
+        config = new Configuration(new Context());
+        lenient().when(kernel.getConfig()).thenReturn(config);
     }
 
     @AfterEach
@@ -170,6 +171,7 @@ class KernelConfigResolverTest {
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig,
                                                                         dependencyPackageDeploymentConfig))
+                                                        .timestamp(10_000L)
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
@@ -230,6 +232,7 @@ class KernelConfigResolverTest {
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig))
+                                                        .timestamp(10_000L)
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
@@ -276,6 +279,7 @@ class KernelConfigResolverTest {
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig))
+                                                        .timestamp(10_000L)
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
@@ -352,6 +356,7 @@ class KernelConfigResolverTest {
                                                                 Arrays.asList(rootPackageDeploymentConfig,
                                                                         package2DeploymentConfig,
                                                                         package3DeploymentConfig))
+                                                        .timestamp(10_000L)
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
@@ -402,6 +407,7 @@ class KernelConfigResolverTest {
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig))
+                                                        .timestamp(10_000L)
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
@@ -464,6 +470,7 @@ class KernelConfigResolverTest {
         DeploymentDocument document = DeploymentDocument.builder()
                                                         .deploymentPackageConfigurationList(
                                                                 Arrays.asList(rootPackageDeploymentConfig))
+                                                        .timestamp(10_000L)
                                                         .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
@@ -542,12 +549,13 @@ class KernelConfigResolverTest {
                 .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
                 .build();
-        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningServiceConfig);
-        when(alreadyRunningServiceConfig.findTopics(
-                CONFIGURATION_CONFIG_KEY)).thenReturn(alreadyRunningServiceConfiguration);
-        when(alreadyRunningServiceConfiguration.toPOJO()).thenReturn(Collections.singletonMap("startup", Collections.singletonMap("paramA",
-                "valueB")));
+        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(config.lookupTopics(SERVICES_NAMESPACE_TOPIC,
+                TEST_INPUT_PACKAGE_A));
+        config.lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_A, CONFIGURATION_CONFIG_KEY)
+                .updateFromMap(Collections.singletonMap("startup", Collections.singletonMap("paramA",
+                        "valueB")), new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, 9_000L));
 
 
         Map<String, Object> servicesConfig = serviceConfigurationProperlyResolved(document,
@@ -590,12 +598,14 @@ class KernelConfigResolverTest {
                 .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
                 .build();
-        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningServiceConfig);
-        when(alreadyRunningServiceConfig.findTopics(
-                CONFIGURATION_CONFIG_KEY)).thenReturn(alreadyRunningServiceConfiguration);
-        when(alreadyRunningServiceConfiguration.toPOJO()).thenReturn(Collections.singletonMap("startup", Collections.singletonMap("paramA",
-                "valueB")));
+
+        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(config.lookupTopics(SERVICES_NAMESPACE_TOPIC,
+                TEST_INPUT_PACKAGE_A));
+        config.lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_A, CONFIGURATION_CONFIG_KEY)
+                .updateFromMap(Collections.singletonMap("startup", Collections.singletonMap("paramA",
+                        "valueB")), new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, 9_000L));
 
         Map<String, Object> servicesConfig =
                 serviceConfigurationProperlyResolved(document, Collections.singletonMap(rootComponentIdentifier,
@@ -637,14 +647,15 @@ class KernelConfigResolverTest {
                 .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
                 .build();
-        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningServiceConfig);
-        when(alreadyRunningServiceConfig.findTopics(
-                CONFIGURATION_CONFIG_KEY)).thenReturn(alreadyRunningServiceConfiguration);
-        Map<String, String> paramMap = new HashMap<>();
+        Map<String, Object> paramMap = new HashMap<>();
         paramMap.put("paramA", "valueB");
         paramMap.put("paramB", "valueD");
-        when(alreadyRunningServiceConfiguration.toPOJO()).thenReturn(Collections.singletonMap("startup", paramMap));
+        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(config.lookupTopics(SERVICES_NAMESPACE_TOPIC,
+                TEST_INPUT_PACKAGE_A));
+        config.lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_A, CONFIGURATION_CONFIG_KEY)
+                .updateFromMap(paramMap, new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, 9_000L));
 
         Map<String, Object> servicesConfig =
                 serviceConfigurationProperlyResolved(document, Collections.singletonMap(rootComponentIdentifier,
@@ -716,20 +727,21 @@ class KernelConfigResolverTest {
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(Arrays.asList(componentDeploymentConfigA,
                         componentDeploymentConfigB, componentDeploymentConfigC))
+                .timestamp(10_000L)
                 .build();
 
         when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(null);
         when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_C)).thenReturn(null);
-        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_B)).thenReturn(alreadyRunningServiceConfig);
-        when(alreadyRunningServiceConfig.findTopics(
-                CONFIGURATION_CONFIG_KEY)).thenReturn(alreadyRunningServiceConfiguration);
         Map<String, String> runningConfig = new HashMap<>();
         runningConfig.put("paramB", "valueB");
         runningConfig.put("paramC", "valueC");
-        when(alreadyRunningServiceConfiguration.toPOJO()).thenReturn(Collections.singletonMap("startup", runningConfig));
+        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_B))
+                .thenReturn(config.lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_B));
+        config.lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_B, CONFIGURATION_CONFIG_KEY)
+                .updateFromMap(Collections.singletonMap("startup", runningConfig),
+                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, 9_000L));
 
-        when(nucleusPaths.artifactPath(any())).thenReturn(
-                DUMMY_ARTIFACT_PATH);
+        when(nucleusPaths.artifactPath(any())).thenReturn(DUMMY_ARTIFACT_PATH);
 
         Map<ComponentIdentifier, ComponentRecipe> componentsToResolve = new HashMap<>();
         componentsToResolve.put(componentIdentifierA, componentRecipeA);
