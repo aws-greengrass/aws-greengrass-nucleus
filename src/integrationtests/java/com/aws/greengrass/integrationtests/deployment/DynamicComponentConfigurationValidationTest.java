@@ -17,6 +17,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
+import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
@@ -24,7 +25,6 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
@@ -89,6 +89,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         socketOptions = TestUtils.getSocketOptionsForIPC();
         kernel = new Kernel();
+        NoOpArtifactHandler.register(kernel);
         deploymentConfigMerger = new DeploymentConfigMerger(kernel);
         kernel.parseArgs("-i",
                 DynamicComponentConfigurationValidationTest.class.getResource("onlyMain.yaml").toString());
@@ -167,15 +168,14 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
         Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "OldService",
                 PRIVATE_STORE_NAMESPACE_TOPIC);
         String authToken = Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
+        CountDownLatch subscriptionLatch = new CountDownLatch(1);
         try (EventStreamRPCConnection clientConnection =
-                     IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel)) {
-
-            CountDownLatch subscriptionLatch = new CountDownLatch(1);
-            Slf4jLogAdapter.addGlobalListener(m -> {
+                     IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
+            AutoCloseable l = TestUtils.createCloseableLogListener(m -> {
                 if (m.getMessage().contains("Config IPC subscribe to config validation request")) {
                     subscriptionLatch.countDown();
                 }
-            });
+            })) {
 
             GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
 

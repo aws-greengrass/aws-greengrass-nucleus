@@ -1,4 +1,9 @@
 services:
+  aws.greengrass.Nucleus:
+    parameters:
+      runWithDefault:
+        posixUser: nobody
+
   main:
     dependencies:
       - service_1 # will be removed in kernel_restart_new_config.yaml

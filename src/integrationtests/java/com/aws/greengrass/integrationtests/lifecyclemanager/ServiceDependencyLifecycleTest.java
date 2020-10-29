@@ -14,6 +14,7 @@ import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
+import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.lifecyclemanager.KernelTest.ExpectedStateTransition;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -55,7 +56,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-class ServiceDependencyLifecycleTest {
+class ServiceDependencyLifecycleTest extends BaseITCase {
     private static final String CustomerApp = "CustomerApp";
     private static final String HardDependency = "HardDependency";
     private static final String SoftDependency = "SoftDependency";

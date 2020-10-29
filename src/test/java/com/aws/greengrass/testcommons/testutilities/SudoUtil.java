@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.integrationtests.util;
+package com.aws.greengrass.testcommons.testutilities;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -63,7 +63,7 @@ public final class SudoUtil {
      */
     public static boolean canSudoShell(String shell) {
         try {
-            return Exec.successful(false, "sudo -u \\#123456 " + shell + " -c ls");
+            return Exec.successful(false, "sudo -u \\#123456 " + shell + " -c 'echo hello'");
         } catch (IOException | InterruptedException e) {
             return false;
         }

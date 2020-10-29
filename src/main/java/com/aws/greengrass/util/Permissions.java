@@ -8,19 +8,44 @@ package com.aws.greengrass.util;
 import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Iterator;
 
 public final class Permissions {
     private static final Platform platform = Platform.getInstance();
-    private static final FileSystemPermission OWNER_RWX_ONLY =
-            new FileSystemPermission(null, null, true, true, true, false, false, false, false, false, false);
-    private static final FileSystemPermission OWNER_RWX_EVERYONE_RX =
-            new FileSystemPermission(null, null, true, true, true, true, false, true, true, false, true);
+    private static final FileSystemPermission OWNER_RWX_ONLY =  FileSystemPermission.builder()
+            .ownerRead(true).ownerWrite(true).ownerExecute(true).build();
+    private static final FileSystemPermission OWNER_RWX_EVERYONE_RX = FileSystemPermission.builder()
+            .ownerRead(true).ownerWrite(true).ownerExecute(true)
+            .groupRead(true).groupExecute(true)
+            .otherRead(true).otherExecute(true)
+            .build();
+    private static final FileSystemPermission OWNER_R_ONLY =
+            FileSystemPermission.builder().ownerRead(true).build();
 
     private Permissions() {
     }
 
+    /**
+     * Set default permissions on an artifact.
+     *
+     * @param p the artifact path.
+     * @throws IOException if an error occurs.
+     */
     public static void setArtifactPermission(Path p) throws IOException {
+        if (p == null || !Files.exists(p)) {
+            return;
+        }
+        // default artifact permissions - readable by owner but everyone can access dirs
+        if (Files.isDirectory(p)) {
+            platform.setPermissions(OWNER_RWX_EVERYONE_RX, p);
+            for (Iterator<Path> it = Files.list(p).iterator(); it.hasNext(); ) {
+                setArtifactPermission(it.next());
+            }
+        } else {
+            platform.setPermissions(OWNER_R_ONLY, p);
+        }
     }
 
     public static void setComponentStorePermission(Path p) throws IOException {

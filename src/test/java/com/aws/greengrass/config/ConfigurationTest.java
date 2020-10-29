@@ -22,8 +22,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -120,7 +120,8 @@ class ConfigurationTest {
         config.lookup("x", "b").withNewerValue(20, true);
         config.lookup("x", "c").withNewerValue(20, Math.PI);
         config.lookup("x", "d").withNewerValue(20, System.currentTimeMillis());
-        Path p = Paths.get("/tmp/c.log");
+
+        Path p = Files.createTempFile("test-config",".log");
         ConfigurationWriter.dump(config, p);
         assertEquals(config.getRoot(), config.getRoot());
         Configuration c2 = ConfigurationReader.createFromTLog(config.context, p);
