@@ -232,7 +232,7 @@ public class KernelConfigResolver {
         // State information for deployments
         handleComponentVersionConfigs(componentIdentifier, componentRecipe.getVersion().getValue(),
                                       resolvedServiceConfig);
-        Map<String, String> resolvedParamMap = new HashMap<>();
+        Map<String, Object> resolvedParamMap = new HashMap<>();
         for (ComponentParameter resolvedParam : resolvedParams) {
             resolvedParamMap.put(resolvedParam.getName(), resolvedParam.getValue());
         }
@@ -264,7 +264,7 @@ public class KernelConfigResolver {
 
         // merge resolved param and resolved configuration for backward compatibility
         resolvedServiceConfig
-                .put(CONFIGURATION_CONFIG_KEY, deepMerge(resolvedConfiguration, resolvedParamMap));
+                .put(CONFIGURATION_CONFIG_KEY, deepMerge(resolvedParamMap, resolvedConfiguration));
 
         return resolvedServiceConfig;
     }
