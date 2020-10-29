@@ -8,9 +8,11 @@ package com.aws.greengrass.authorization;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.util.Utils;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 /**
  * Simple permission table which stores permissions. A permission is a
@@ -78,5 +80,32 @@ public class AuthorizationModule {
         }
 
         return false;
+    }
+
+    /**
+     * Get resources for combination of destination,principal and operation.
+     *
+     * @param destination destination
+     * @param principal   principal
+     * @param operation   operation
+     * @return list of allowed resources
+     * @throws AuthorizationException when arguments are invalid
+     */
+    public List<String> getResources(final String destination, String principal, String operation)
+            throws AuthorizationException {
+        if (Utils.isEmpty(destination) || Utils.isEmpty(principal) || Utils.isEmpty(operation)) {
+            throw new AuthorizationException("Invalid arguments");
+        }
+
+        List<String> resources = Collections.emptyList();
+        List<Permission> permissionsForDest = permissions.get(destination);
+        if (!Utils.isEmpty(permissionsForDest)) {
+            resources = permissionsForDest.stream()
+                    .filter(p -> p.getPrincipal().equals(principal) && p.getOperation().equals(operation))
+                    .map(Permission::getResource)
+                    .collect(Collectors.toList());
+        }
+
+        return resources;
     }
 }

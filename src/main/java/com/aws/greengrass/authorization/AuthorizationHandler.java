@@ -46,7 +46,7 @@ import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE
  */
 @Singleton
 public class AuthorizationHandler  {
-    private static final String ANY_REGEX = "*";
+    public static final String ANY_REGEX = "*";
     private static final Logger logger = LogManager.getLogger(AuthorizationHandler.class);
     private final ConcurrentHashMap<String, Set<String>> componentToOperationsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<AuthorizationPolicy>>
@@ -190,6 +190,27 @@ public class AuthorizationHandler  {
                         destination,
                         operation,
                         resource));
+    }
+
+    /**
+     * Get allowed resources for the combination of destination, principal and operation.
+     *
+     * @param destination destination
+     * @param principal   principal
+     * @param operation   operation
+     * @return list of allowed resources
+     * @throws AuthorizationException when flow is not authorized
+     */
+    public List<String> getAuthorizedResources(String destination, String principal, String operation)
+            throws AuthorizationException {
+        isOperationValid(destination, operation);
+
+        List<String> authorizedResources;
+        try (LockScope scope = LockScope.lock(rwLock.readLock())) {
+            authorizedResources = authModule.getResources(destination, principal, operation);
+        }
+
+        return authorizedResources;
     }
 
     /**
