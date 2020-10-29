@@ -14,7 +14,6 @@ import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -37,7 +36,6 @@ import com.vdurmont.semver4j.Semver;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -294,6 +292,7 @@ public class KernelConfigResolver {
         try (Context context = new Context()) {
             Configuration currentRunningConfig = new Configuration(context);
 
+            // Copy from running config (if any)
             Topics serviceTopics = kernel.findServiceTopic(componentRecipe.getComponentName());
             if (serviceTopics != null) {
                 Topics configuration = serviceTopics.findTopics(CONFIGURATION_CONFIG_KEY);
@@ -302,23 +301,21 @@ public class KernelConfigResolver {
                 }
             }
 
+            // Remove keys which want to be reset to their default value
+            if (configurationUpdateOperation != null) {
+                removeKeysFromConfigWhichAreReset(currentRunningConfig, configurationUpdateOperation.getPathsToReset());
+            }
+
+            // Merge in the defaults with timestamp 1 so that they don't overwrite any pre-existing values
             JsonNode defaultConfig = Optional.ofNullable(componentRecipe.getComponentConfiguration())
                     .map(ComponentConfiguration::getDefaultConfiguration)
                     .orElse(MAPPER.createObjectNode()); // init null to be empty default config
-
             // Merge in the defaults from the recipe using timestamp 1 to denote a default
             currentRunningConfig.mergeMap(1, MAPPER.convertValue(defaultConfig, Map.class));
             currentRunningConfig.context.runOnPublishQueueAndWait(() -> {});
 
-            // no update
-            if (configurationUpdateOperation == null) {
-                return currentRunningConfig.toPOJO();
-            }
-
-            // perform RESET and then MERGE in order
-            reset(currentRunningConfig, defaultConfig, configurationUpdateOperation.getPathsToReset(),
-                    document.getTimestamp());
-            if (configurationUpdateOperation.getValueToMerge() != null) {
+            // Merge in the requested config updates
+            if (configurationUpdateOperation != null && configurationUpdateOperation.getValueToMerge() != null) {
                 currentRunningConfig.mergeMap(document.getTimestamp(), configurationUpdateOperation.getValueToMerge());
             }
 
@@ -328,8 +325,7 @@ public class KernelConfigResolver {
         return new HashMap<>();
     }
 
-    // TODO: Get rid of reset and just remove all the paths to be reset prior to merging the defaults (L310)
-    private void reset(Configuration original, JsonNode defaultValue, List<String> pathsToReset, long deploymentTime) {
+    private void removeKeysFromConfigWhichAreReset(Configuration original, List<String> pathsToReset) {
         if (pathsToReset == null || pathsToReset.isEmpty()) {
             return;
         }
@@ -337,10 +333,8 @@ public class KernelConfigResolver {
         for (String pointer : pathsToReset) {
             // special case handling for reset whole document
             if (pointer.equals(JSON_POINTER_WHOLE_DOC)) {
-                // reset to entire default value node and return because there is no need to process further
-                original.updateMap(MAPPER.convertValue(defaultValue, Map.class), new UpdateBehaviorTree(
-                        UpdateBehaviorTree.UpdateBehavior.REPLACE, deploymentTime));
-                continue;
+                original.getRoot().replaceAndWait(new HashMap<>());
+                return;
             }
 
             // regular pointer handling
@@ -349,50 +343,18 @@ public class KernelConfigResolver {
 
             if (pointsToArrayElement(jsonPointer)) {
                 // no support for resetting an element of array
-                LOGGER.atError().kv("pointer provided", jsonPointer)
+                LOGGER.atError().kv("jsonPointer", jsonPointer)
                         .log("Failed to reset because provided pointer for reset points to an element of array.");
                 continue;
             }
 
-            JsonNode targetDefaultNode = defaultValue.at(jsonPointer);
-
             Topic topic = original.find(path);
             Topics topics = original.findTopics(path);
-            if (targetDefaultNode.isMissingNode()) {
-                // missing default value -> remove the entry completely
-                if (topics != null) {
-                    topics.remove();
-                }
-                if (topic != null) {
-                    topic.remove();
-                }
-            } else {
-                // target is container node, or a value node, including null node.
-                // replace the entry
-                Object newVal = MAPPER.convertValue(targetDefaultNode, Object.class);
-                if (topics == null) {
-                    if (topic == null) {
-                        // parent is not a container node. should not happen.
-                        LOGGER.atError().kv("pointer provided", jsonPointer)
-                                .log("Failed to reset because provided pointer points to a parent who is "
-                                        + "not a container node. Please reset the component configurations entirely");
-                    } else {
-                        if (newVal instanceof Map) {
-                            topic.remove();
-                            original.lookupTopics(path).updateFromMap((Map) newVal,
-                                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, deploymentTime));
-                        } else {
-                            topic.withNewerValue(deploymentTime, newVal);
-                        }
-                    }
-                } else {
-                    if (newVal instanceof Map) {
-                        topics.replaceAndWait((Map) newVal);
-                    } else {
-                        topics.remove();
-                        original.lookup(path).withNewerValue(deploymentTime, newVal);
-                    }
-                }
+            if (topics != null) {
+                topics.remove();
+            }
+            if (topic != null) {
+                topic.remove();
             }
         }
     }
@@ -411,7 +373,7 @@ public class KernelConfigResolver {
             return path;
         }
         if (Utils.isNotEmpty(pointer.getMatchingProperty())) {
-            return new ArrayList<>(Arrays.asList(pointer.getMatchingProperty()));
+            return new ArrayList<>(Collections.singletonList(pointer.getMatchingProperty()));
         }
         return new ArrayList<>();
     }

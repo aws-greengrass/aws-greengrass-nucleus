@@ -123,7 +123,7 @@ public class Topic extends Node {
         return withValue(nv);
     }
 
-    public Topic withNewerValue(long proposedModtime, final Object proposed) {
+    Topic withNewerValue(long proposedModtime, final Object proposed) {
         return withNewerValue(proposedModtime, proposed, false);
     }
 
