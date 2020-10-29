@@ -71,6 +71,8 @@ public class DeploymentService extends GreengrassService {
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN = "groupConfigArn";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_NAME = "groupConfigName";
+    public static final String DEPLOYMENT_DETAILED_STATUS_KEY = "detailed-deployment-status";
+    public static final String DEPLOYMENT_FAILURE_CAUSE_KEY = "deployment-failure-cause";
 
     private static final int DEPLOYMENT_MAX_ATTEMPTS = 3;
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
@@ -253,7 +255,7 @@ public class DeploymentService extends GreengrassService {
                 DeploymentResult.DeploymentStatus deploymentStatus = result.getDeploymentStatus();
 
                 Map<String, String> statusDetails = new HashMap<>();
-                statusDetails.put("detailed-deployment-status", deploymentStatus.name());
+                statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, deploymentStatus.name());
                 if (deploymentStatus.equals(DeploymentResult.DeploymentStatus.SUCCESSFUL)) {
                     //Add the root packages of successful deployment to the configuration
                     DeploymentDocument deploymentDocument = currentDeploymentTaskMetadata.getDeploymentDocument();
@@ -288,7 +290,7 @@ public class DeploymentService extends GreengrassService {
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
                     if (result.getFailureCause() != null) {
-                        statusDetails.put("deployment-failure-cause", result.getFailureCause().getMessage());
+                        statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, result.getFailureCause().getMessage());
                     }
                     // GG_NEEDS_REVIEW: TODO: Update the groupToRootPackages mapping in config for the case where there
                     // is no rollback and now the packages deployed for the current group are not the same as before

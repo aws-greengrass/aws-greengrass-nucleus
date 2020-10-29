@@ -64,6 +64,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
@@ -467,7 +468,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         // IoT Job should have failed with correct message.
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE.name(), iotClient.describeJobExecution(
                 DescribeJobExecutionRequest.builder().jobId(jobId2).thingName(thingInfo.getThingName()).build())
-                .execution().statusDetails().detailsMap().get("detailed-deployment-status"));
+                .execution().statusDetails().detailsMap().get(DEPLOYMENT_DETAILED_STATUS_KEY));
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)

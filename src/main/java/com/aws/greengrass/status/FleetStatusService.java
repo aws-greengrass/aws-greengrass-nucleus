@@ -28,6 +28,7 @@ import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +43,10 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
@@ -80,6 +84,7 @@ public class FleetStatusService extends GreengrassService {
     private final ConcurrentHashMap<GreengrassService, Instant> allServiceNamesMap = new ConcurrentHashMap<>();
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
     private final AtomicBoolean thingDeployment = new AtomicBoolean(false);
+    private final AtomicReference<Map<String, Object>> thingDeploymentDetails = new AtomicReference<>();
     private final Object periodicUpdateInProgressLock = new Object();
     private int periodicUpdateIntervalSec;
     private String fleetStatusServicePublishTopic = DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC;
@@ -241,10 +246,14 @@ public class FleetStatusService extends GreengrassService {
             logger.atDebug().log("Updating Fleet Status service for deployment with ID: {}",
                     deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME));
             isDeploymentInProgress.set(false);
+            if (type == SHADOW) {
+                thingDeployment.set(true);
+                thingDeploymentDetails.set(new HashMap<>(deploymentDetails));
+            } else {
+                thingDeployment.set(false);
+                thingDeploymentDetails.set(null);
+            }
             updateEventTriggeredFleetStatusData();
-        }
-        if (type == SHADOW) {
-            thingDeployment.set(true);
         }
         // GG_NEEDS_REVIEW: TODO: Handle local deployment update for FSS
         return true;
@@ -355,7 +364,6 @@ public class FleetStatusService extends GreengrassService {
             sequenceNumberTopic.withValue(sequenceNumber + 1);
         }
 
-        // TODO set deployment information here
         FleetStatusDetails fleetStatusDetails = FleetStatusDetails.builder()
                 .overallStatus(overAllStatus)
                 .architecture(this.architecture)
@@ -364,6 +372,23 @@ public class FleetStatusService extends GreengrassService {
                 .ggcVersion(KERNEL_VERSION)
                 .sequenceNumber(sequenceNumber)
                 .build();
+
+        if (thingDeployment.get()) {
+            Map<String, Object> deploymentDetails = thingDeploymentDetails.get();
+            Map<String, String> statusDetailsMap =
+                    (Map<String, String>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
+            StatusDetails statusDetails = StatusDetails.builder()
+                    .detailedStatus(statusDetailsMap.get(DEPLOYMENT_DETAILED_STATUS_KEY))
+                    .failureCause(statusDetailsMap.get(DEPLOYMENT_FAILURE_CAUSE_KEY))
+                    .build();
+            DeploymentInformation deploymentInformation = DeploymentInformation.builder()
+                    .status((String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME))
+                    .fleetConfigurationArnForStatus((String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME))
+                    .statusDetails(statusDetails)
+                    .build();
+            fleetStatusDetails.setDeploymentInformation(deploymentInformation);
+        }
+
         publisher.publish(fleetStatusDetails, components);
         logger.atInfo().event("fss-status-update-published").log("Status update published to FSS");
     }

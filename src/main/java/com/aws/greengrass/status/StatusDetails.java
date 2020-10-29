@@ -15,6 +15,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class StatusDetails {
+    public static final String DETAILED_STATUS_KEY = "detailedStatus";
+    public static final String FAILURE_CAUSE_KEY = "failureCause";
     private String detailedStatus;
     private String failureCause;
 }
