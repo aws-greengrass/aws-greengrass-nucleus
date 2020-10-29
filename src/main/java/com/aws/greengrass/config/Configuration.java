@@ -274,7 +274,11 @@ public class Configuration {
     }
 
     public Configuration copyFrom(Configuration other) {
-        getRoot().copyFrom(other.getRoot());
+        return copyFrom(other.getRoot());
+    }
+
+    public Configuration copyFrom(Topics other) {
+        getRoot().copyFrom(other);
         return this;
     }
 

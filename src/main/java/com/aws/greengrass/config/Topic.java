@@ -182,20 +182,18 @@ public class Topic extends Node {
 
         // If the value hasn't changed, or if the proposed timestamp is in the past AND we don't want to
         // decrease the timestamp
-        // AND the timestamp would not increase OR the proposed and current value is null,
+        // AND the timestamp would not increase
         // THEN, return immediately and do nothing.
-        // Handling the null values is for our default entries so that a call to dflt() will work
-        // as expected.
         if ((Objects.equals(proposed, currentValue)
                 || !allowTimestampToDecrease && (proposedModtime < currentModTime))
-                && !timestampWouldIncrease || proposed == null && value == null) {
+                && !timestampWouldIncrease) {
             return this;
         }
         final Object validated = validate(proposed, currentValue);
         boolean changed = true;
         if (Objects.equals(validated, currentValue)) {
             changed = false;
-            if (!timestampWouldIncrease || validated == null) {
+            if (!timestampWouldIncrease) {
                 return this;
             }
         }
@@ -244,7 +242,7 @@ public class Topic extends Node {
     @Override
     public void copyFrom(Node n) {
         if (n instanceof Topic) {
-            withNewerValue(n.modtime, ((Topic) n).value);
+            withNewerValue(n.modtime, ((Topic) n).value, true, true);
         } else {
             throw new IllegalArgumentException(
                     "copyFrom: " + (n == null ? "NULL" : n.getFullName()) + " is already a container, not a leaf");
@@ -259,7 +257,7 @@ public class Topic extends Node {
      */
     public synchronized Topic dflt(Object dflt) {
         if (value == null) {
-            withNewerValue(1, dflt); // defaults come from the dawn of time
+            withNewerValue(1, dflt, true); // defaults come from the dawn of time
         }
         return this;
     }
