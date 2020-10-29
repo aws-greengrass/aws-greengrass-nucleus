@@ -1,10 +1,10 @@
 ---
-system:
-  runWithDefault:
-    posixUser: 123456
-    posixShell: /usr/bin/zsh
-
 services:
+  aws.greengrass.Nucleus:
+    parameters:
+      runWithDefault:
+        posixUser: nobody
+
   main:
     dependencies:
       - echo_service
@@ -13,14 +13,9 @@ services:
         run:
           echo "Running main"
   echo_service:
-    setenv:
-      output_path: ./out
     lifecycle:
       install:
-        posix:
-          id
+        posix: echo "install as `id -u -n`"
       run:
-        posix: |-
-          echo $output_path
-          id -u > $output_path
+        posix: echo "run as `id -u -n`"
     version: 1.0.0
