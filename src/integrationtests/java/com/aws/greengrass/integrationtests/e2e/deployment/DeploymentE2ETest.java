@@ -254,7 +254,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         mergeNode.withArray("listKey").add("item3");
         mergeNode.with("path").put("leafKey", "updated");
 
-        String configUpdateJson = mapper.writeValueAsString(configUpdateInNode);
+//        String configUpdateJson = mapper.writeValueAsString(configUpdateInNode);
 
         CreateDeploymentRequest createDeployment2 =
                 new CreateDeploymentRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
