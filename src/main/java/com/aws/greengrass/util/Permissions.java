@@ -22,7 +22,7 @@ public final class Permissions {
             .otherRead(true).otherExecute(true)
             .build();
     private static final FileSystemPermission OWNER_R_ONLY =
-            FileSystemPermission.builder().ownerRead(true).ownerWrite(true).build();
+            FileSystemPermission.builder().ownerRead(true).build();
 
     private Permissions() {
     }
@@ -37,7 +37,7 @@ public final class Permissions {
         if (p == null || !Files.exists(p)) {
             return;
         }
-        // default artifact permissions - readby owner but everyone can access dirs
+        // default artifact permissions - readable by owner but everyone can access dirs
         if (Files.isDirectory(p)) {
             platform.setPermissions(OWNER_RWX_EVERYONE_RX, p);
             for (Iterator<Path> it = Files.list(p).iterator(); it.hasNext(); ) {

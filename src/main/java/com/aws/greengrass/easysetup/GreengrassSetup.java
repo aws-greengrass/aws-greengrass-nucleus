@@ -56,7 +56,10 @@ public class GreengrassSetup {
             + " AWS services using the device certificate\n"
             + "\t--install-cli, -ic\t\tY/N Indicate if you want to install Greengrass device CLI\n"
             + "\t--setup-system-service, -ss\t\tY/N Indicate if you want to setup Greengrass as a system service\n"
-            + "\t--component-default-user, -u\t\tName of the default user that will be used to run component services\n";
+            + "\t--component-default-user, -u\t\tName of the default user that will be used to run component "
+            + "services\n"
+            + "\t--component-default-group, -g\t\tName of the default group that will be used to run component "
+            + "services. If not specified the primary group of the default user will be used.\n";
 
     private static final String SHOW_VERSION_RESPONSE = "AWS Greengrass v%s";
 
@@ -68,8 +71,12 @@ public class GreengrassSetup {
     private static final String KERNEL_ROOT_ARG = "--root";
     private static final String KERNEL_ROOT_ARG_SHORT = "-r";
 
-    private static final String DEFAULT_USER_ARG = "--default-user";
+    private static final String DEFAULT_USER_ARG = "--component-default-user";
     private static final String DEFAULT_USER_ARG_SHORT = "-u";
+
+    private static final String DEFAULT_GROUP_ARG = "--component-default-group";
+    private static final String DEFAULT_GROUP_ARG_SHORT = "-g";
+
 
     private static final String THING_NAME_ARG = "--thing-name";
     private static final String THING_NAME_ARG_SHORT = "-tn";
@@ -152,6 +159,7 @@ public class GreengrassSetup {
     private String awsRegion = AWS_REGION_DEFAULT;
     private String environmentStage = ENV_STAGE_DEFAULT;
     private String defaultUser;
+    private String defaultGroup;
     private boolean needProvisioning = NEED_PROVISIONING_DEFAULT;
     private boolean setupTes = SETUP_TES_DEFAULT;
     private boolean installCli = INSTALL_CLI_ARG_DEFAULT;
@@ -345,6 +353,12 @@ public class GreengrassSetup {
                     kernelArgs.add(arg);
                     this.defaultUser = Coerce.toString(getArg());
                     kernelArgs.add(defaultUser);
+                    break;
+                case DEFAULT_GROUP_ARG:
+                case DEFAULT_GROUP_ARG_SHORT:
+                    kernelArgs.add(arg);
+                    this.defaultGroup = Coerce.toString(getArg());
+                    kernelArgs.add(defaultGroup);
                     break;
                 default:
                     RuntimeException rte =
