@@ -37,7 +37,7 @@ public class DeploymentPackageConfiguration {
     @JsonProperty("RootComponent")
     private boolean rootComponent;
 
-    // TODO: change to versionRequirements which can be a pinned version or a version range
+    // GG_NEEDS_REVIEW: TODO: change to versionRequirements which can be a pinned version or a version range
     @JsonProperty("ResolvedVersion")
     private String resolvedVersion;
 

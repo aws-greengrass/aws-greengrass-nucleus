@@ -100,7 +100,7 @@ public class EventStreamRPCConnection implements AutoCloseable {
                         } else if (MessageType.PingResponse.equals(messageType)) {
                             LOGGER.finer("Ping response received");
                         } else if (MessageType.Ping.equals(messageType)) {
-                            //TODO: be nice and reply with PingResponse and all of the same input data except message type,
+                            // GG_NEEDS_REVIEW: TODO: be nice and reply with PingResponse and all of the same input data except message type,
                             //      but we don't expect server to send these normally
                             //only respond to ping if it's an established connection
                             if (connection != null) {
@@ -109,12 +109,12 @@ public class EventStreamRPCConnection implements AutoCloseable {
                         } else if (MessageType.Connect.equals(messageType)) {
                             LOGGER.severe("Erroneous connect message type received by client. Closing");
                             if (connection != null) {
-                                //TODO: do we have a sensible error code to use here?
+                                // GG_NEEDS_REVIEW: TODO: do we have a sensible error code to use here?
                                 connection.closeConnection(0);
                             }
                         } else if (MessageType.ProtocolError.equals(messageType) || MessageType.ServerError.equals(messageType)) {
                             LOGGER.severe("Received " + messageType.name() + ": " + CRT.awsErrorName(CRT.awsLastError()));
-                            //TODO: if there is a payload, it's likely possible to pull out a message field
+                            // GG_NEEDS_REVIEW: TODO: if there is a payload, it's likely possible to pull out a message field
                             //      should be a ConnectionError() exception type that throws and contains this
                             //      message.
                             try {

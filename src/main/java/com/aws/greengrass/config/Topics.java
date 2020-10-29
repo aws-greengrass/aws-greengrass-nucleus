@@ -297,7 +297,7 @@ public class Topics extends Node implements Iterable<Node> {
         // if new node is a container node
         if (value instanceof Map) {
             // if existing child is a leaf node
-            // TODO: handle node type change between container/leaf node
+            // GG_NEEDS_REVIEW: TODO: handle node type change between container/leaf node
             if (existingChild != null && !(existingChild instanceof Topics)) {
                 remove(existingChild);
             }
@@ -379,7 +379,7 @@ public class Topics extends Node implements Iterable<Node> {
             if (s instanceof ChildChanged) {
                 ((ChildChanged) s).childChanged(what, child);
             }
-            // TODO: detect if a subscriber fails. Possibly unsubscribe it if the fault is persistent
+            // GG_NEEDS_REVIEW: TODO: detect if a subscriber fails. Possibly unsubscribe it if the fault is persistent
         }
 
         if (what.equals(WhatHappened.removed)) {

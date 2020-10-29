@@ -74,8 +74,9 @@ public class DefaultActivator extends DeploymentActivator {
         // when deployment adds a new dependency (component B) to component A
         // the config for component B has to be merged in before externalDependenciesTopic of component A trigger
         // executing mergeMap using publish thread ensures this
-        kernel.getContext().runOnPublishQueueAndWait(() -> kernel.getConfig().updateMap(newConfig,
-                        createDeploymentMergeBehavior(deploymentDocument.getTimestamp())));
+        kernel.getContext().runOnPublishQueueAndWait(() -> {
+            kernel.getConfig().updateMap(newConfig, createDeploymentMergeBehavior(deploymentDocument.getTimestamp()));
+        });
 
         // wait until topic listeners finished processing mergeMap changes.
         Throwable setDesiredStateFailureCause = kernel.getContext().runOnPublishQueueAndWait(() -> {
@@ -165,7 +166,7 @@ public class DefaultActivator extends DeploymentActivator {
         // Rollback execution failed
         logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(rollbackFailureCause)
                 .log("Failed to rollback deployment");
-        // TODO : Run user provided script to reach user defined safe state and
+        // GG_NEEDS_REVIEW: TODO : Run user provided script to reach user defined safe state and
         //  set deployment status based on the success of the script run
         totallyCompleteFuture.complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
                 deploymentFailureCause));

@@ -213,7 +213,7 @@ public class CLIService extends GreengrassService {
     }
 
     private synchronized void generateCliIpcInfo() throws UnauthenticatedException, IOException, InterruptedException {
-        // TODO: replace with the new IPC domain socket path
+        // GG_NEEDS_REVIEW: TODO: replace with the new IPC domain socket path
         if (config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME) == null) {
             logger.atWarn().log("Did not find IPC socket URL in the config. Not creating the cli ipc info file");
             return;
@@ -223,7 +223,7 @@ public class CLIService extends GreengrassService {
         revokeOutdatedAuthTokens(authTokenDir);
 
         if (Exec.isWindows) {
-            // TODO support windows group permissions
+            // GG_NEEDS_REVIEW: TODO support windows group permissions
             generateCliIpcInfoForEffectiveUser(authTokenDir);
             return;
         }
@@ -295,7 +295,7 @@ public class CLIService extends GreengrassService {
 
         Map<String, String> ipcInfo = new HashMap<>();
         ipcInfo.put(CLI_AUTH_TOKEN, cliAuthToken);
-        //TODO: Remove when UAT move to the new IPC
+        // GG_NEEDS_REVIEW: TODO: Remove when UAT move to the new IPC
         ipcInfo.put(SOCKET_URL, Coerce.toString(
                 config.getRoot().find(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME)));
         ipcInfo.put(DOMAIN_SOCKET_PATH, Coerce.toString(
@@ -358,7 +358,7 @@ public class CLIService extends GreengrassService {
 
         ApplicationMessage applicationMessage = ApplicationMessage.fromBytes(message.getPayload());
         try {
-            //TODO: add version compatibility check
+            // GG_NEEDS_REVIEW: TODO: add version compatibility check
             CliClientOpCodes opCode = CliClientOpCodes.values()[applicationMessage.getOpCode()];
             ApplicationMessage responseMessage = null;
             switch (opCode) {

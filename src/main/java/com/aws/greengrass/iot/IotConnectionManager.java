@@ -33,7 +33,7 @@ import javax.inject.Inject;
 import static com.aws.greengrass.mqttclient.MqttClient.EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS;
 
 public class IotConnectionManager implements Closeable {
-    // TODO: Move Iot related classes to a central location
+    // GG_NEEDS_REVIEW: TODO: Move Iot related classes to a central location
     private static final Logger LOGGER = LogManager.getLogger(IotConnectionManager.class);
     // Max wait time for device to establish mTLS connection with IOT core
     private static final long TIMEOUT_FOR_CONNECTION_SETUP_SECONDS = Duration.ofMinutes(1).getSeconds();
@@ -49,11 +49,21 @@ public class IotConnectionManager implements Closeable {
      * @param deviceConfiguration Device configuration helper getting cert and keys for mTLS
      */
     @Inject
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public IotConnectionManager(final DeviceConfiguration deviceConfiguration) {
         eventLoopGroup = new EventLoopGroup(1);
         resolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
-        this.connManager = initConnectionManager(deviceConfiguration);
+        try {
+            this.connManager = initConnectionManager(deviceConfiguration);
+        } catch (RuntimeException e) {
+            // If we couldn't initialize the connection manager, then make sure to shutdown
+            // everything which was started up
+            clientBootstrap.close();
+            resolver.close();
+            eventLoopGroup.close();
+            throw e;
+        }
     }
 
     private HttpClientConnectionManager initConnectionManager(DeviceConfiguration deviceConfiguration) {
@@ -61,7 +71,7 @@ public class IotConnectionManager implements Closeable {
         final String keyPath = Coerce.toString(deviceConfiguration.getPrivateKeyFilePath());
         final String caPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
         try (TlsContextOptions tlsCtxOptions = TlsContextOptions.createWithMtlsFromPath(certPath, keyPath)) {
-            // TODO: Proxy support, ALPN support. Reuse connections across kernel
+            // GG_NEEDS_REVIEW: TODO: Proxy support, ALPN support. Reuse connections across kernel
             tlsCtxOptions.overrideDefaultTrustStoreFromPath(null, caPath);
             return HttpClientConnectionManager
                     .create(new HttpClientConnectionManagerOptions().withClientBootstrap(clientBootstrap)

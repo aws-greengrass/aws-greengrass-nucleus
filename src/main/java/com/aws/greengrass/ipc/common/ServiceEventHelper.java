@@ -47,12 +47,12 @@ public class ServiceEventHelper {
                 ApplicationMessage applicationMessage = ApplicationMessage.builder().version(apiVersion).opCode(opCode)
                         .payload(IPCUtil.encode(serviceEvent)).build();
 
-                // TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
+                // GG_NEEDS_REVIEW: TODO: Add timeout and retry to make sure the client got the request. https://sim.amazon.com/issues/P32541289
                 Future<FrameReader.Message> fut = connectionContext.serverPush(destinationCode.getValue(),
                         new FrameReader.Message(applicationMessage.toByteArray()));
                 try {
                     fut.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                    // TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
+                    // GG_NEEDS_REVIEW: TODO: Check the response message and make sure it was successful. https://sim.amazon.com/issues/P32541289
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     // Log
                     log.atError("error-sending-configstore-update").kv("context", connectionContext)

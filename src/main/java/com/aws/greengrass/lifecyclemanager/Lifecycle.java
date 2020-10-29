@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
@@ -92,7 +93,7 @@ public class Lifecycle {
 
     private Future<?> lifecycleThread;
     // A state event can be a reported state event, or a desired state updated notification.
-    // TODO: make class of StateEvent instead of generic object.
+    // GG_NEEDS_REVIEW: TODO: make class of StateEvent instead of generic object.
     private final BlockingQueue<Object> stateEventQueue = new LinkedBlockingQueue<>();
     // DesiredStateList is used to set desired path of state transition.
     // Eg. Start a service will need DesiredStateList to be <RUNNING>
@@ -280,6 +281,12 @@ public class Lifecycle {
             Optional<State> desiredState;
             State current = getState();
             logger.atDebug("service-state-transition-start").log();
+
+            Configuration kernelConfig = greengrassService.getContext().get(Configuration.class);
+            // postpone start/install when configuration is under update.
+            if (current == State.NEW || current == State.INSTALLED) {
+                kernelConfig.waitConfigUpdateComplete();
+            }
 
             // if already in desired state, remove the head of desired state list.
             desiredState = peekOrRemoveFirstDesiredState(current);

@@ -64,7 +64,7 @@ public class GreengrassService implements InjectionActions {
     protected final Topics config;
     private final Topics privateConfig;
 
-    //TODO: make the field private
+    // GG_NEEDS_REVIEW: TODO: make the field private
     @Getter
     public Context context;
 
@@ -102,7 +102,7 @@ public class GreengrassService implements InjectionActions {
         this.privateConfig = privateConfig;
         this.context = topics.getContext();
 
-        // TODO: Validate syntax for lifecycle keywords and fail early
+        // GG_NEEDS_REVIEW: TODO: Validate syntax for lifecycle keywords and fail early
         // skipif will require validation for onpath/exists etc. keywords
 
         this.logger = LogManager.getLogger(this.getClass()).createChild();
@@ -646,7 +646,7 @@ public class GreengrassService implements InjectionActions {
         });
     }
 
-    //TODO: return the entire dependency info
+    // GG_NEEDS_REVIEW: TODO: return the entire dependency info
     public Map<GreengrassService, DependencyType> getDependencies() {
         return dependencies.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().dependencyType));
