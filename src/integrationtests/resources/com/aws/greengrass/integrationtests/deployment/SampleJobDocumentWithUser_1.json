@@ -6,7 +6,7 @@
       "ResolvedVersion": "1.0.0",
       "RootComponent": true,
       "RunWith":  {
-        "PosixUser": "123456"
+        "PosixUser": "nobody"
       }
     }
   ],

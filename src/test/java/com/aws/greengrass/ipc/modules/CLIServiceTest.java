@@ -48,7 +48,7 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
-import com.aws.greengrass.util.platforms.Group;
+import com.aws.greengrass.util.platforms.unix.UnixGroupAttributes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -229,13 +229,17 @@ class CLIServiceTest extends GGServiceTestUtil {
         when(cliConfigSpy.find(PARAMETERS_CONFIG_KEY, posixGroups)).thenReturn(mockPosixGroupsTopic);
 
         CLIService cliServiceSpy = spy(cliService);
-        Group groupUbuntu = new Group("ubuntu", 123);
+        UnixGroupAttributes groupUbuntu = UnixGroupAttributes.builder()
+                .principalName("ubuntu")
+                .principalIdentifier("123").build();
         doAnswer(i -> {
             Object argument = i.getArgument(0);
             if ("ubuntu".equals(argument) || "123".equals(argument)) {
                 return groupUbuntu;
             } else if ("someone".equals(argument)) {
-                return new Group("someone", 456);
+                return UnixGroupAttributes.builder()
+                        .principalName("someone")
+                        .principalIdentifier("456").build();
             }
             throw new InvalidUseOfMatchersException(
                     String.format("Argument %s does not match", argument)

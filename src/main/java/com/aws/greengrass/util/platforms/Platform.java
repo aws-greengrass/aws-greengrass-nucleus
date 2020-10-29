@@ -10,12 +10,18 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.FileSystemPermission.Option;
+import com.aws.greengrass.util.platforms.unix.QNXPlatform;
+import com.aws.greengrass.util.platforms.unix.UnixPlatform;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.EnumSet;
 
-public abstract class Platform {
-    protected static final Logger logger = LogManager.getLogger(Platform.class);
+public abstract class Platform implements UserPlatform {
+    public static final Logger logger = LogManager.getLogger(Platform.class);
+
     private static Platform INSTANCE;
 
     /**
@@ -27,7 +33,6 @@ public abstract class Platform {
         if (INSTANCE != null) {
             return INSTANCE;
         }
-
         if (Exec.isWindows) {
             INSTANCE = new WindowsPlatform();
         } else if (PlatformResolver.RANKS.get().containsKey("qnx")) {
@@ -39,7 +44,7 @@ public abstract class Platform {
         return INSTANCE;
     }
 
-    public abstract void killProcessAndChildren(Process process, boolean force)
+    public abstract void killProcessAndChildren(Process process, boolean force, UserDecorator userDecorator)
             throws IOException, InterruptedException;
 
     public abstract ShellDecorator getShellDecorator();
@@ -52,6 +57,24 @@ public abstract class Platform {
 
     public abstract String getPrivilegedUser();
 
+    public abstract RunWithGenerator getRunWithGenerator();
+
+    /**
+     * Set permissions on a path.
+     *
+     * @param permission permissions to set
+     * @param path path to apply to
+     * @param options options for how to apply the permission to the path
+     * @throws IOException if any exception occurs while changing permissions
+     */
+    public void setPermissions(FileSystemPermission permission, Path path,
+                                        Option... options) throws IOException {
+        // convert to set for easier checking of set options
+        EnumSet<Option> set = options.length == 0 ? EnumSet.noneOf(Option.class) :
+                EnumSet.copyOf(Arrays.asList(options));
+        setPermissions(permission, path, set);
+    }
+
     /**
      * Set permissions on a path.
      *
@@ -59,9 +82,18 @@ public abstract class Platform {
      * @param path path to apply to
      * @throws IOException if any exception occurs while changing permissions
      */
-    public abstract void setPermissions(FileSystemPermission permission, Path path) throws IOException;
+    public void setPermissions(FileSystemPermission permission, Path path) throws IOException {
+        setPermissions(permission, path, EnumSet.noneOf(Option.class));
+    }
 
-    public abstract Group getGroup(String group) throws IOException;
-
-    public abstract int getEffectiveUID() throws IOException, InterruptedException;
+    /**
+     * Set permission on a path.
+     *
+     * @param permission permissions to set
+     * @param path path to apply to
+     * @param options options for how to apply the permission to the path
+     * @throws IOException if any exception occurs while changing permissions
+     */
+    protected abstract void setPermissions(FileSystemPermission permission, Path path, EnumSet<Option> options)
+            throws IOException;
 }

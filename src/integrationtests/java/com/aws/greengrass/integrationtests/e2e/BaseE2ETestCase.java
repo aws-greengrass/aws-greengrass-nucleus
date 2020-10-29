@@ -219,16 +219,20 @@ public class BaseE2ETestCase implements AutoCloseable {
         createdThingGroups.add(thingGroupName);
     }
 
+    public static void setDefaultRunWithUser(Kernel kernel) {
+        new DeviceConfiguration(kernel).getRunWithDefaultPosixUser().dflt("nobody");
+    }
+
     protected void initKernel()
             throws IOException, DeviceConfigurationException, InterruptedException, ServiceLoadException {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString(), "-ar", GAMMA_REGION.toString()
                 , "-es", envStage.toString());
         setupTesRoleAndAlias();
+        setDefaultRunWithUser(kernel);
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString(),
                 TES_ROLE_ALIAS_NAME);
         // Force context to create TES now to that it subscribes to the role alias changes
         kernel.getContext().get(TokenExchangeService.class);
-
         while (kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {
             logger.atInfo().kv("roleAlias", TES_ROLE_ALIAS_NAME)
                     .log("Waiting 5 seconds for TES to get credentials that work");

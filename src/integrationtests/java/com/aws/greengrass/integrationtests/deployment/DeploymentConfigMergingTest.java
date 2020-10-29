@@ -27,7 +27,6 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
@@ -51,7 +50,6 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.time.Duration;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -68,6 +66,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
@@ -81,6 +80,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -170,35 +170,33 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 safeUpdateRegistered.set(true);
             }
         };
-        Slf4jLogAdapter.addGlobalListener(listener);
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            kernel.launch();
+            assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
 
-        kernel.launch();
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+            // WHEN
+            CountDownLatch mainRestarted = new CountDownLatch(1);
+            kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+                if (service.getName().equals("main") && newState.equals(State.FINISHED) && oldState.equals(State.STARTING)) {
+                    mainRestarted.countDown();
+                }
+            });
 
-        // WHEN
-        CountDownLatch mainRestarted = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.FINISHED) && oldState.equals(State.STARTING)) {
-                mainRestarted.countDown();
-            }
-        });
-
-        deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<String, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put("main", new HashMap<String, Object>() {{
-                    put(SETENV_CONFIG_NAMESPACE, new HashMap<String, Object>() {{
-                        put("HELLO", "redefined");
+            deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<String, Object>() {{
+                put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                    put("main", new HashMap<String, Object>() {{
+                        put(SETENV_CONFIG_NAMESPACE, new HashMap<String, Object>() {{
+                            put("HELLO", "redefined");
+                        }});
                     }});
                 }});
-            }});
-        }}).get(60, TimeUnit.SECONDS);
+            }}).get(60, TimeUnit.SECONDS);
 
-        // THEN
-        assertTrue(mainRestarted.await(10, TimeUnit.SECONDS));
-        assertEquals("redefined", kernel.findServiceTopic("main").find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
-        assertTrue(safeUpdateRegistered.get());
-
-        Slf4jLogAdapter.removeGlobalListener(listener);
+            // THEN
+            assertTrue(mainRestarted.await(10, TimeUnit.SECONDS));
+            assertEquals("redefined", kernel.findServiceTopic("main").find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
+            assertTrue(safeUpdateRegistered.get());
+        }
     }
 
     @Test
@@ -231,7 +229,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 mainRestarted.set(true);
             }
         });
-
         List<String> serviceList = kernel.getMain().getDependencies().keySet().stream().map(GreengrassService::getName)
                 .collect(Collectors.toList());
         serviceList.add("new_service");
@@ -248,11 +245,21 @@ class DeploymentConfigMergingTest extends BaseITCase {
                         }});
                     }});
                 }});
+
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig());
             }});
         }}).get(60, TimeUnit.SECONDS);
-
         // THEN
         assertTrue(newServiceStarted.get());
+    }
+
+    private Map<String, Object> getNucleusConfig() {
+        Optional<GreengrassService> nucleus =
+                kernel.getMain().getDependencies().keySet().stream().filter(s ->
+                        DEFAULT_NUCLEUS_COMPONENT_NAME.equalsIgnoreCase(s.getServiceName()))
+                        .findFirst();
+        assertTrue(nucleus.isPresent(), "no nucleus config available");
+        return nucleus.get().getConfig().toPOJO();
     }
 
     @Test
@@ -313,6 +320,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo done");
                     }});
                 }});
+
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig());
             }});
         }}).get(60, TimeUnit.SECONDS);
 
@@ -331,10 +340,23 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
 
+        // launch kernel
+        CountDownLatch mainRunning = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
+                mainRunning.countDown();
+            }
+        });
+        kernel.launch();
+
+        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+
+        Map<String, Object> nucleusConfig = getNucleusConfig();
         HashMap<String, Object> newConfig = new HashMap<String, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put("main", new HashMap<String, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList("new_service"));
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC,
+                            Arrays.asList("new_service", DEFAULT_NUCLEUS_COMPONENT_NAME));
                 }});
 
                 put("new_service", new HashMap<String, Object>() {{
@@ -349,19 +371,10 @@ class DeploymentConfigMergingTest extends BaseITCase {
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo done");
                     }});
                 }});
+
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, nucleusConfig);
             }});
         }};
-
-        // launch kernel
-        CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
-            }
-        });
-        kernel.launch();
-
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
 
         // do first merge
         CountDownLatch mainRestarted = new CountDownLatch(1);
@@ -433,13 +446,16 @@ class DeploymentConfigMergingTest extends BaseITCase {
         });
 
         //wait for main to run
-        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS));
+        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS), "main running");
 
         Map<String, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
+
         Map<String, Map> servicesConfig = (Map<String, Map>) currentConfig.get(SERVICES_NAMESPACE_TOPIC);
 
-        //removing all services in the current kernel config except sleeperB and main
-        servicesConfig.keySet().removeIf(serviceName -> !"sleeperB".equals(serviceName) && !"main".equals(serviceName));
+        //removing all services in the current kernel config except sleeperB, main, and nucleus
+        servicesConfig.keySet().removeIf(serviceName -> !"sleeperB".equals(serviceName)
+                && !"main".equals(serviceName)
+                && !DEFAULT_NUCLEUS_COMPONENT_NAME.equalsIgnoreCase(serviceName));
         List<String> dependencies =
                 new ArrayList<>((List<String>) servicesConfig.get("main").get(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC));
         //removing main's dependency on sleeperA, Now sleeperA is an unused dependency
@@ -453,6 +469,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Future<DeploymentResult> deploymentFuture = deploymentConfigMerger.mergeInNewConfig(testDeployment(), currentConfig);
 
         DeploymentResult deploymentResult = deploymentFuture.get(30, TimeUnit.SECONDS);
+
         assertEquals(SUCCESSFUL, deploymentResult.getDeploymentStatus());
         GreengrassService main = kernel.locate("main");
         assertThat(main::getState, eventuallyEval(is(State.RUNNING)));
@@ -461,7 +478,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // ensure context finish all tasks
         kernel.getContext().runOnPublishQueueAndWait(() -> {});
         // ensuring config value for sleeperA is removed
-        assertFalse(kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC).children.containsKey("sleeperA"));
+        assertFalse(kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC).children.containsKey("sleeperA"),
+                "sleeperA removed");
         // ensure kernel no longer holds a reference of sleeperA
         assertThrows(ServiceLoadException.class, () -> kernel.locate("sleeperA"));
 
@@ -469,7 +487,10 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
                 .map(GreengrassService::getName).collect(Collectors.toList());
 
-        assertEquals(Arrays.asList("sleeperB", "main"), orderedDependencies);
+        assertThat(orderedDependencies, containsInAnyOrder("sleeperB", DEFAULT_NUCLEUS_COMPONENT_NAME, "main"));
+        // sleeperB and nucleus can be in any order, but must be before main
+        assertThat(orderedDependencies, containsInRelativeOrder("sleeperB", "main"));
+        assertThat(orderedDependencies, containsInRelativeOrder(DEFAULT_NUCLEUS_COMPONENT_NAME, "main"));
     }
 
     @Test
@@ -575,6 +596,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
                         put(LIFECYCLE_STARTUP_NAMESPACE_TOPIC, "exit 1");
                     }});
                 }});
+
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig());
             }});
         }};
 
@@ -645,24 +668,23 @@ class DeploymentConfigMergingTest extends BaseITCase {
                     safeUpdateSkipped.set(true);
                 }
         };
-        Slf4jLogAdapter.addGlobalListener(listener);
-        deploymentConfigMerger
-                .mergeInNewConfig(testDeploymentWithSkipSafetyCheckConfig(), new HashMap<String, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put("main", new HashMap<String, Object>() {{
-                    put(SETENV_CONFIG_NAMESPACE, new HashMap<String, Object>() {{
-                        put("HELLO", "redefined");
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            deploymentConfigMerger.mergeInNewConfig(testDeploymentWithSkipSafetyCheckConfig(), new HashMap<String, Object>() {{
+                put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                    put("main", new HashMap<String, Object>() {{
+                        put(SETENV_CONFIG_NAMESPACE, new HashMap<String, Object>() {{
+                            put("HELLO", "redefined");
+                        }});
                     }});
                 }});
-            }});
-        }}).get(60, TimeUnit.SECONDS);
+            }}).get(60, TimeUnit.SECONDS);
 
-        // THEN
-        assertTrue(mainRestarted.await(10, TimeUnit.SECONDS));
-        assertEquals("redefined", kernel.findServiceTopic("main").find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
-        assertTrue(safeUpdateSkipped.get());
-
-        Slf4jLogAdapter.removeGlobalListener(listener);
+            // THEN
+            assertTrue(mainRestarted.await(10, TimeUnit.SECONDS));
+            assertEquals("redefined", kernel.findServiceTopic("main")
+                    .find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
+            assertTrue(safeUpdateSkipped.get());
+        }
     }
 
     private Deployment testDeployment() {

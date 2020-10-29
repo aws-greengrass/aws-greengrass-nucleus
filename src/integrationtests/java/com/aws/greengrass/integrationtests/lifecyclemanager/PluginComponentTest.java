@@ -14,6 +14,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.EZPlugins;
+import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DefaultDeploymentTask;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
@@ -32,7 +33,9 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.platforms.Platform;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -45,6 +48,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -82,11 +86,23 @@ class PluginComponentTest extends BaseITCase {
         kernel.shutdown();
     }
 
+    private void launchAndWait() throws InterruptedException {
+        CountDownLatch mainRunning = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
+                mainRunning.countDown();
+            }
+        });
+        kernel.launch();
+
+        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+    }
+
     @Test
     void GIVEN_kernel_WHEN_locate_plugin_THEN_plugin_is_loaded_into_JVM() throws Exception {
         kernel.parseArgs("-i", this.getClass().getResource("plugin.yaml").toString());
         setupPackageStore();
-        kernel.launch();
+        launchAndWait();
 
         GreengrassService eg = kernel.locate(componentName);
         assertEquals("com.aws.greengrass.integrationtests.lifecyclemanager.resource.APluginService",
@@ -117,12 +133,14 @@ class PluginComponentTest extends BaseITCase {
     void GIVEN_kernel_WHEN_locate_plugin_dependency_THEN_dependency_from_plugin_is_loaded_into_JVM() throws Exception {
         kernel.parseArgs("-i", this.getClass().getResource("plugin_dependency.yaml").toString());
         setupPackageStore();
-        kernel.launch();
+        launchAndWait();
 
         GreengrassService eg = kernel.locate("plugin-dependency");
         assertEquals("com.aws.greengrass.integrationtests.lifecyclemanager.resource.PluginDependencyService",
                 eg.getClass().getName());
     }
+
+
 
     @Test
     void GIVEN_kernel_WHEN_deploy_new_plugin_THEN_plugin_is_loaded_into_JVM(ExtensionContext context) throws Exception {
@@ -131,7 +149,7 @@ class PluginComponentTest extends BaseITCase {
         // launch kernel
         kernel.parseArgs();
         setupPackageStore();
-        kernel.launch();
+        launchAndWait();
 
         // Ensure that the dependency isn't somehow in our class loader already
         assertThrows(ClassNotFoundException.class,
@@ -209,12 +227,28 @@ class PluginComponentTest extends BaseITCase {
         ComponentStore e2ETestComponentStore = kernel.getContext().get(ComponentStore.class);
         Path jarFilePath = e2ETestComponentStore.resolveArtifactDirectoryPath(componentId).resolve("plugin-tests.jar");
         // Copy over the same jar file as the plugin-1.1.0 artifact
-        FileUtils.copyFile(jarFilePath.toFile(), e2ETestComponentStore
+
+        Path artifact1_1_0 = e2ETestComponentStore
                 .resolveArtifactDirectoryPath(new ComponentIdentifier(componentName, new Semver("1.1.0")))
-                .resolve(componentName + JAR_FILE_EXTENSION).toFile());
+                .resolve(componentName + JAR_FILE_EXTENSION);
+
+        Path artifactPath1_0_0 = e2ETestComponentStore.resolveArtifactDirectoryPath(componentId)
+                .resolve(componentName + JAR_FILE_EXTENSION);
+
+
+        // set the artifact dir as writable so we can copy
+        Platform.getInstance().setPermissions(FileSystemPermission.builder()
+                .ownerRead(true).ownerWrite(true).ownerExecute(true)
+                .otherRead(true).otherExecute(true)
+                .build(),
+                artifactPath1_0_0.getParent().getParent(),
+                FileSystemPermission.Option.Recurse);
+
+        FileUtils.copyFile(jarFilePath.toFile(), artifact1_1_0.toFile());
         // Rename artifact for plugin-1.0.0
-        FileUtils.copyFile(jarFilePath.toFile(), e2ETestComponentStore.resolveArtifactDirectoryPath(componentId)
-                .resolve(componentName + JAR_FILE_EXTENSION).toFile());
+
+
+        FileUtils.copyFile(jarFilePath.toFile(), artifactPath1_0_0.toFile());
     }
 
     private DeploymentDocument getPluginDeploymentDocument(Long timestamp, String version, String deploymentId) {

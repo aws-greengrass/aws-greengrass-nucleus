@@ -23,12 +23,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 /**
@@ -53,13 +55,13 @@ public final class Exec implements Closeable {
     private static final Logger staticLogger = LogManager.getLogger(Exec.class);
     private static final Consumer<CharSequence> NOP = s -> {
     };
+
+    // default directory relative paths are resolved against (i.e. current working directory)
     private static final File userdir = new File(System.getProperty("user.dir"));
-    private static final File homedir = new File(System.getProperty("user.home"));
 
     private static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
-    private static String[] defaultEnvironment = {"PATH=" + System.getenv("PATH"), "SHELL=" + System.getenv("SHELL"),
-            "JAVA_HOME=" + System.getProperty("java.home"), "USER=" + System.getProperty("user.name"),
-            "HOME=" + homedir, "USERHOME=" + homedir, "PWD=" + userdir,};
+    private static String[] defaultEnvironment = {"PATH=" + System.getenv("PATH"), "JAVA_HOME=" + System.getProperty(
+            "java.home")};
 
     static {
         addPathEntries(System.getenv("PATH"));
@@ -273,10 +275,6 @@ public final class Exec implements Closeable {
         return cd(dir.toPath().toAbsolutePath().resolve(Paths.get(d)).toAbsolutePath().toFile());
     }
 
-    public Exec cd() {
-        return cd(homedir);
-    }
-
     /**
      * Get the working directory which is configured for the Exec.
      *
@@ -400,14 +398,23 @@ public final class Exec implements Closeable {
         return decorated;
     }
 
+    /**
+     * Execute a command.
+     *
+     * @returns the process exit code if it is not a background process.
+     * @throws InterruptedException if the command is interrupted while running.
+     * @throws IOException if an error occurs while executing.
+     */
     @SuppressWarnings("PMD.AvoidRethrowingException")
-    private void exec() throws InterruptedException, IOException {
+    public Optional<Integer> exec() throws InterruptedException, IOException {
         // Don't run anything if the current thread is currently interrupted
         if (Thread.currentThread().isInterrupted()) {
             logger.atWarn().kv("command", this).log("Refusing to execute because the active thread is interrupted");
             throw new InterruptedException();
         }
-        process = Runtime.getRuntime().exec(getCommand(), environment, dir);
+        final String[] command = getCommand();
+        logger.atTrace().kv("command", (Supplier<String>) () -> String.join(" ", command)).log();
+        process = Runtime.getRuntime().exec(command, environment, dir);
         stderrc = new Copier(process.getErrorStream(), stderr);
         stdoutc = new Copier(process.getInputStream(), stdout);
         stderrc.start();
@@ -433,7 +440,9 @@ public final class Exec implements Closeable {
             }
             stderrc.join(5000);
             stdoutc.join(5000);
+            return Optional.of(process.exitValue());
         }
+        return Optional.empty();
     }
 
     /**
@@ -484,10 +493,10 @@ public final class Exec implements Closeable {
         Platform platformInstance = Platform.getInstance();
 
         try {
-            platformInstance.killProcessAndChildren(p, false);
+            platformInstance.killProcessAndChildren(p, false, userDecorator);
             // GG_NEEDS_REVIEW: TODO: configurable timeout?
             if (!p.waitFor(2, TimeUnit.SECONDS)) {
-                platformInstance.killProcessAndChildren(p, true);
+                platformInstance.killProcessAndChildren(p, true, userDecorator);
                 if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
                     throw new IOException("Could not stop " + this);
                 }
@@ -495,7 +504,7 @@ public final class Exec implements Closeable {
         } catch (InterruptedException e) {
             // If we're interrupted make sure to kill the process before returning
             try {
-                platformInstance.killProcessAndChildren(p, true);
+                platformInstance.killProcessAndChildren(p, true, userDecorator);
             } catch (InterruptedException ignore) {
             }
         }

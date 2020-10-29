@@ -9,9 +9,8 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import org.junit.jupiter.api.AfterAll;
@@ -27,7 +26,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -81,28 +79,23 @@ class KernelTest extends BaseITCase {
     @Test
     void GIVEN_expected_stdout_patterns_WHEN_kernel_launches_THEN_all_expected_patterns_are_seen() throws Exception {
 
-        // add log listener to verify stdout pattern
-        Consumer<GreengrassLogMessage> logListener = getLogListener();
-        Slf4jLogAdapter.addGlobalListener(logListener);
-
         // launch kernel
         kernel = new Kernel();
-        kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
-        kernel.launch();
 
-        testGroup(0);
-        System.out.println("Group 0 passed, now for the harder stuff");
+        try (AutoCloseable l = getLogListener()) {
+            kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
+            kernel.launch();
 
-        kernel.findServiceTopic("main").find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC)
-                .withValue("echo NEWMAIN");
-        testGroup(1);
+            testGroup(0);
+            System.out.println("Group 0 passed, now for the harder stuff");
 
-        System.out.println("Group 1 passed");
+            kernel.findServiceTopic("main").find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC).withValue("echo NEWMAIN");
+            testGroup(1);
 
-        // clean up
-        Slf4jLogAdapter.removeGlobalListener(logListener);
-
-        kernel.shutdown();
+            System.out.println("Group 1 passed");
+        } finally {
+            kernel.shutdown();
+        }
     }
 
     @Test
@@ -110,37 +103,34 @@ class KernelTest extends BaseITCase {
             throws Exception {
 
         // add log listener to verify stdout pattern
-        Consumer<GreengrassLogMessage> logListener = getLogListener();
-        Slf4jLogAdapter.addGlobalListener(logListener);
-
-        // launch kernel 1st time
         kernel = new Kernel();
-        kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
-        kernel.launch();
+        try (AutoCloseable l = getLogListener()) {
+            kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
+            // launch kernel 1st time
+            kernel.launch();
 
-        testGroup(0);
+            testGroup(0);
 
-        kernel.shutdown();
+            kernel.shutdown();
 
-        // reset pattern and countdown latches
-        for (ExpectedStdoutPattern pattern : EXPECTED_MESSAGES) {
-            pattern.reset();
-            CountDownLatch existingCdl = COUNT_DOWN_LATCHES.get(pattern.group);
-            COUNT_DOWN_LATCHES.put(pattern.group,
-                    new CountDownLatch(existingCdl == null ? 1 : (int) (existingCdl.getCount() + 1)));
+            // reset pattern and countdown latches
+            for (ExpectedStdoutPattern pattern : EXPECTED_MESSAGES) {
+                pattern.reset();
+                CountDownLatch existingCdl = COUNT_DOWN_LATCHES.get(pattern.group);
+                COUNT_DOWN_LATCHES.put(pattern.group, new CountDownLatch(existingCdl == null ? 1 : (int) (existingCdl.getCount() + 1)));
+            }
+
+            // launch kernel 2nd time with empty arg but same root dir, as specified in the base IT case
+            kernel = new Kernel().parseArgs().launch();
+            testGroup(0);
+        } finally {
+            kernel.shutdown();
         }
-
-        // launch kernel 2nd time with empty arg but same root dir, as specified in the base IT case
-        kernel = new Kernel().parseArgs().launch();
-        testGroup(0);
-        kernel.shutdown();
-
-        Slf4jLogAdapter.removeGlobalListener(logListener);
     }
 
     @SuppressWarnings("PMD.AssignmentInOperand")
-    private Consumer<GreengrassLogMessage> getLogListener() {
-        return structuredLogMessage -> {
+    private AutoCloseable getLogListener() {
+        return TestUtils.createCloseableLogListener(structuredLogMessage -> {
             String stdoutStr = structuredLogMessage.getContexts().get("stdout");
 
             if (stdoutStr == null || stdoutStr.length() == 0) {
@@ -158,7 +148,7 @@ class KernelTest extends BaseITCase {
                             .get(expectedStdoutPattern.group).getCount());
                 }
             }
-        };
+        });
     }
 
     private void testGroup(int group) throws Exception {

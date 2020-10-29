@@ -110,10 +110,14 @@ public class NucleusPaths {
     }
 
     public Path artifactPath(ComponentIdentifier componentIdentifier) throws IOException {
-        Path p = artifactPath().resolve(componentIdentifier.getName())
-                .resolve(componentIdentifier.getVersion().getValue());
+        Path p = artifactPath().resolve(componentIdentifier.getName());
         Utils.createPaths(p);
-        Permissions.setArtifactPermission(p);
+        Permissions.setArtifactStorePermission(p);
+
+        p = p.resolve(componentIdentifier.getVersion().getValue());
+        Utils.createPaths(p);
+        Permissions.setArtifactStorePermission(p);
+
         return p;
     }
 
@@ -128,15 +132,18 @@ public class NucleusPaths {
     public Path unarchiveArtifactPath(ComponentIdentifier componentIdentifier, String artifactName) throws IOException {
         Path p = unarchiveArtifactPath(componentIdentifier).resolve(artifactName);
         Utils.createPaths(p);
-        Permissions.setArtifactPermission(p);
+        Permissions.setArtifactStorePermission(p);
         return p;
     }
 
     public Path unarchiveArtifactPath(ComponentIdentifier componentIdentifier) throws IOException {
-        Path p = unarchivePath().resolve(componentIdentifier.getName())
-                .resolve(componentIdentifier.getVersion().getValue());
+        Path p = unarchivePath().resolve(componentIdentifier.getName());
         Utils.createPaths(p);
-        Permissions.setArtifactPermission(p);
+        Permissions.setArtifactStorePermission(p);
+
+        p = p.resolve(componentIdentifier.getVersion().getValue());
+        Utils.createPaths(p);
+        Permissions.setArtifactStorePermission(p);
         return p;
     }
 

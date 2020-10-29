@@ -1,4 +1,9 @@
 services:
+  aws.greengrass.Nucleus:
+    parameters:
+      runWithDefault:
+        posixUser: nobody
+
   main:
     dependencies:
       - service_3 # new comparing to kernel_restart_initial_config.yaml

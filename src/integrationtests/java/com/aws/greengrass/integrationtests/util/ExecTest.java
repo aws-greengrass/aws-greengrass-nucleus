@@ -146,11 +146,6 @@ class ExecTest {
         changedDir = Paths.get(exec.cd(expectedDir.toString()).withShell(getWorkingDirCmd).execAndGetStringOutput());
         assertThat(changedDir, is(expectedDir));
 
-        // by default cd change to home directory
-        expectedDir = Paths.get(readLink(System.getProperty("user.home")));
-        changedDir =
-                Paths.get(readLink(exec.cd(/* no argument */).withShell(getWorkingDirCmd).execAndGetStringOutput()));
-        assertThat(changedDir, is(expectedDir));
         exec.close();
     }
 

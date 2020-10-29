@@ -42,8 +42,8 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
-import com.aws.greengrass.util.platforms.Group;
 import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.UserPlatform;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -204,12 +204,12 @@ public class CLIService extends GreengrassService {
 
     }
 
-    String getClientIdForGroup(int groupId) {
+    String getClientIdForGroup(String groupId) {
         return GROUP_CLIENT_ID_PREFIX + groupId;
     }
 
-    Group getGroup(String posixGroup) throws IOException {
-        return Platform.getInstance().getGroup(posixGroup);
+    UserPlatform.BasicAttributes getGroup(String posixGroup) throws IOException {
+        return Platform.getInstance().lookupGroupByName(posixGroup);
     }
 
     private synchronized void generateCliIpcInfo() throws UnauthenticatedException, IOException, InterruptedException {
@@ -239,7 +239,7 @@ public class CLIService extends GreengrassService {
             return;
         }
         for (String posixGroup : posixGroups.split(",")) {
-            Group group;
+            UserPlatform.BasicAttributes group;
             try {
                 group = getGroup(posixGroup);
             } catch (NumberFormatException | IOException e) {
@@ -254,7 +254,8 @@ public class CLIService extends GreengrassService {
             justification = "File is created in the same method")
     private synchronized void generateCliIpcInfoForEffectiveUser(Path directory)
             throws UnauthenticatedException, IOException, InterruptedException {
-        String defaultClientId = USER_CLIENT_ID_PREFIX + Platform.getInstance().getEffectiveUID();
+        String defaultClientId =
+                USER_CLIENT_ID_PREFIX + Platform.getInstance().lookupCurrentUser().getPrincipalIdentifier();
         Path ipcInfoFile = generateCliIpcInfoForClient(defaultClientId, directory);
         if (ipcInfoFile == null) {
             return;
@@ -262,21 +263,22 @@ public class CLIService extends GreengrassService {
         Platform.getInstance().setPermissions(DEFAULT_FILE_PERMISSION, ipcInfoFile);
     }
 
-    private synchronized void generateCliIpcInfoForPosixGroup(Group group, Path directory)
+    private synchronized void generateCliIpcInfoForPosixGroup(UserPlatform.BasicAttributes group, Path directory)
             throws UnauthenticatedException, IOException {
-        Path ipcInfoFile = generateCliIpcInfoForClient(getClientIdForGroup(group.getId()), directory);
+        Path ipcInfoFile = generateCliIpcInfoForClient(getClientIdForGroup(group.getPrincipalIdentifier()), directory);
         if (ipcInfoFile == null) {
             return;
         }
 
-        FileSystemPermission filePermission = new FileSystemPermission(null, group.getName(), true, true, false,
-                true, false, false, false, false, false);
+
+        FileSystemPermission filePermission = FileSystemPermission.builder()
+                .ownerGroup(group.getPrincipalName()).ownerRead(true).ownerWrite(true).groupRead(true).build();
         try {
             Platform.getInstance().setPermissions(filePermission, ipcInfoFile);
         } catch (IOException e) {
             logger.atError().kv("file", ipcInfoFile).kv("permission", filePermission)
-                    .kv("groupOwner", group.getName()).log("Failed to set up posix file permissions and group owner. "
-                    + "Admin may have to manually update the file permission so that CLI authentication "
+                    .kv("groupOwner", group.getPrincipalName()).log("Failed to set up posix file permissions and"
+                    + " group owner.  Admin may have to manually update the file permission so that CLI authentication "
                     + "works as intended", e);
         }
     }

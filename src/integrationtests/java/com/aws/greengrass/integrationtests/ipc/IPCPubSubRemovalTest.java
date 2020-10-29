@@ -11,6 +11,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.ipc.IPCClient;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
@@ -23,15 +24,11 @@ import com.aws.greengrass.ipc.services.pubsub.PubSub;
 import com.aws.greengrass.ipc.services.pubsub.PubSubException;
 import com.aws.greengrass.ipc.services.pubsub.PubSubImpl;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Pair;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.net.URL;
@@ -63,14 +60,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith(GGExtension.class)
-class IPCPubSubRemovalTest {
+class IPCPubSubRemovalTest extends BaseITCase {
 
-    @TempDir
-    protected Path tempRootDir;
     private static final int TIMEOUT_FOR_PUBSUB_SECONDS = 2;
-    private static Kernel kernel;
-    private static IPCClient client;
+    private Kernel kernel;
+    private IPCClient client;
 
     @AfterEach
     void stopKernel() throws IOException {
@@ -85,7 +79,6 @@ class IPCPubSubRemovalTest {
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
 
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = prepareKernelFromConfigFile("pubsub.yaml", IPCPubSubTest.class, "SubscribeAndPublish");
     }
 

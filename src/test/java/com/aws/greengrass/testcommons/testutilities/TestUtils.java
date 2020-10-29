@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.testcommons.testutilities;
 
+import com.aws.greengrass.logging.impl.GreengrassLogMessage;
+import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.util.Pair;
 import software.amazon.awssdk.crt.io.SocketOptions;
 
@@ -20,6 +22,23 @@ import java.util.function.Consumer;
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public final class TestUtils {
     private TestUtils() {
+    }
+
+    /**
+     * Create an AutoCloseable object so that log listeners can be added and auto removed from the
+     * {@link com.aws.greengrass.logging.impl.Slf4jLogAdapter} via try-with-resources block.
+     *
+     * @param c the log consumer
+     * @return the wrapped instance.
+     */
+    public static AutoCloseable createCloseableLogListener(Consumer<GreengrassLogMessage> c) {
+        Slf4jLogAdapter.addGlobalListener(c);
+        return new AutoCloseable() {
+            @Override
+            public void close() throws Exception {
+                Slf4jLogAdapter.removeGlobalListener(c);
+            }
+        };
     }
 
     /**

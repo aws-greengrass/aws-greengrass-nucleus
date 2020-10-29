@@ -1,5 +1,12 @@
 services:
+  aws.greengrass.Nucleus:
+    parameters:
+      runWithDefault:
+        posixUser: nobody
+
   main:
+    dependencies:
+      - aws.greengrass.Nucleus
     lifecycle:
       posix:
         run:

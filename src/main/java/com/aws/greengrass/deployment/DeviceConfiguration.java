@@ -20,6 +20,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.util.ArrayList;
@@ -330,6 +331,7 @@ public class DeviceConfiguration {
         String iotDataEndpoint = Coerce.toString(getIotDataEndpoint());
         String iotCredEndpoint = Coerce.toString(getIotCredentialEndpoint());
         String awsRegion = Coerce.toString(getAWSRegion());
+
         validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, iotDataEndpoint,
                 iotCredEndpoint, awsRegion);
     }
@@ -361,7 +363,8 @@ public class DeviceConfiguration {
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,
                                              String rootCAPath, String iotDataEndpoint, String iotCredEndpoint,
-                                             String awsRegion) throws DeviceConfigurationException {
+                                             String awsRegion)
+            throws DeviceConfigurationException {
         List<String> errors = new ArrayList<>();
         if (Utils.isEmpty(thingName)) {
             errors.add(DEVICE_PARAM_THING_NAME + CANNOT_BE_EMPTY);
@@ -383,6 +386,12 @@ public class DeviceConfiguration {
         }
         if (Utils.isEmpty(awsRegion)) {
             errors.add(DEVICE_PARAM_AWS_REGION + CANNOT_BE_EMPTY);
+        }
+
+        try {
+            Platform.getInstance().getRunWithGenerator().validateDefaultConfiguration(this);
+        } catch (DeviceConfigurationException e) {
+            errors.add(e.getMessage());
         }
         if (!errors.isEmpty()) {
             throw new DeviceConfigurationException(errors.toString());

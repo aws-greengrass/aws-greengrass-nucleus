@@ -37,7 +37,9 @@ class ComponentManagerIntegTest extends BaseITCase {
 
     @AfterEach
     void afterEach() {
-        kernel.shutdown();
+        if (kernel != null) {
+            kernel.shutdown();
+        }
     }
 
     @Test

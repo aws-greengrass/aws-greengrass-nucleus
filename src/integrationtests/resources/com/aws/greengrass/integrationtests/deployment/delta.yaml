@@ -1,4 +1,9 @@
 services:
+  aws.greengrass.Nucleus:
+    parameters:
+      runWithDefault:
+        posixUser: nobody
+
   ticktock:
     lifecycle:
       run: echo tick-tock phase 3
@@ -14,6 +19,7 @@ services:
         date; sleep 5; echo Now we\'re in phase 3
         done
     dependencies:
+      - aws.greengrass.Nucleus
       - ticktock
       - frodo
     setenv:
