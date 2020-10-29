@@ -8,10 +8,13 @@ package com.aws.greengrass.integrationtests.e2e;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
+import com.amazonaws.services.evergreen.model.ComponentInfo;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
+import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
+import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
 import com.amazonaws.services.evergreen.model.DeleteComponentResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
@@ -393,6 +396,31 @@ public class BaseE2ETestCase implements AutoCloseable {
             createdIotJobIds.add(publishResult.getJobId());
         }
         return publishResult;
+    }
+
+    @SuppressWarnings("PMD.LinguisticNaming")
+    protected CreateDeploymentResult draftAndCreateDeployment(CreateDeploymentRequest createDeploymentRequest) {
+
+        // update package name with random suffix to avoid conflict in cloud
+        Map<String, ComponentInfo> updatedPkgMetadata = new HashMap<>();
+        createDeploymentRequest.getComponents().forEach((key, val) -> updatedPkgMetadata.put(getTestComponentNameInCloud(key), val));
+        createDeploymentRequest.setComponents(updatedPkgMetadata);
+
+        // set default value
+        if (createDeploymentRequest.getDeploymentPolicies() == null) {
+            createDeploymentRequest.withDeploymentPolicies(new DeploymentPolicies()
+                                                      .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
+                                                      .withComponentUpdatePolicy(
+                                                              new ComponentUpdatePolicy().withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
+                                                                      .withTimeout(120))
+                                                      .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING));
+        }
+
+        logger.atInfo().kv("CreateDeploymentRequest", createDeploymentRequest).log();
+        CreateDeploymentResult createDeploymentResult = greengrassClient.createDeployment(createDeploymentRequest);
+        logger.atInfo().kv("CreateDeploymentResult", createDeploymentResult).log();
+
+        return createDeploymentResult;
     }
 
     protected void cleanup() {

@@ -5,9 +5,13 @@
 
 package com.aws.greengrass.integrationtests.e2e.deployment;
 
+import com.amazonaws.services.evergreen.model.ComponentInfo;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
+import com.amazonaws.services.evergreen.model.ConfigurationUpdate;
 import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
+import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.PackageMetaData;
@@ -183,13 +187,18 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         stdoutCountdown = new CountDownLatch(1);
         // 1st Deployment to have some services running in Kernel with default configuration
-        SetConfigurationRequest setRequest1 =
-                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
-                        .addPackagesEntry("CustomerApp",
-                                new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
-        PublishConfigurationResult publishResult1 = setAndPublishFleetConfiguration(setRequest1);
+        CreateDeploymentRequest createDeployment1 =
+                new CreateDeploymentRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                        .addComponentsEntry("CustomerApp",
+                                          new ComponentInfo().withVersion("1.0.0"));
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
+//        SetConfigurationRequest setRequest1 =
+//                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+//                        .addPackagesEntry("CustomerApp",
+//                                new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
+        CreateDeploymentResult createDeploymentResult1 = draftAndCreateDeployment(createDeployment1);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult1.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
@@ -247,14 +256,20 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         String configUpdateJson = mapper.writeValueAsString(configUpdateInNode);
 
-        SetConfigurationRequest setRequest2 =
-                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
-                        .addPackagesEntry("CustomerApp",
-                                          new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
-                                                  .withConfiguration(configUpdateJson));
+        CreateDeploymentRequest createDeployment2 =
+                new CreateDeploymentRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                        .addComponentsEntry("CustomerApp",
+                                            new ComponentInfo().withVersion("1.0.0").withConfigurationUpdate(
+                                                    new ConfigurationUpdate().withMerge(mapper.writeValueAsString(mergeNode))));
 
-        PublishConfigurationResult publishResult2 = setAndPublishFleetConfiguration(setRequest2);
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult2.getJobId(), thingInfo.getThingName(),
+//        SetConfigurationRequest setRequest2 =
+//                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+//                        .addPackagesEntry("CustomerApp",
+//                                          new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
+//                                                  .withConfiguration(configUpdateJson));
+
+        CreateDeploymentResult createDeploymentResult2 = draftAndCreateDeployment(createDeployment2);
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult2.getJobId(), thingInfo.getThingName(),
                                                         Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
@@ -287,14 +302,22 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         stdouts.clear();
 
         // 3rd deployment to reset
-        SetConfigurationRequest setRequest3 =
-                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
-                        .addPackagesEntry("CustomerApp",
-                                          new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
-                                                  .withConfiguration("{\"RESET\": [\"/sampleText\", \"/path\"]}"));
+        CreateDeploymentRequest createDeployment3 =
+                new CreateDeploymentRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+                        .addComponentsEntry("CustomerApp",
+                                            new ComponentInfo().withVersion("1.0.0").withConfigurationUpdate(
+                                                    new ConfigurationUpdate().withReset("/sampleText", "/path")));
 
-        PublishConfigurationResult publishResult3 = setAndPublishFleetConfiguration(setRequest3);
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult3.getJobId(), thingInfo.getThingName(),
+
+//        SetConfigurationRequest setRequest3 =
+//                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
+//                        .addPackagesEntry("CustomerApp",
+//                                          new PackageMetaData().withRootComponent(true).withVersion("1.0.0")
+//                                                  .withConfiguration("{\"RESET\": [\"/sampleText\", \"/path\"]}"));
+
+//        PublishConfigurationResult publishResult3 = setAndPublishFleetConfiguration(setRequest3);
+        CreateDeploymentResult createDeploymentResult = draftAndCreateDeployment(createDeployment3);
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult.getJobId(), thingInfo.getThingName(),
                                                         Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));

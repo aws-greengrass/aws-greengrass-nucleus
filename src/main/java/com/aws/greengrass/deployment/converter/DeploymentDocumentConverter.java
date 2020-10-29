@@ -10,22 +10,30 @@
 
 package com.aws.greengrass.deployment.converter;
 
+import com.amazon.aws.iot.greengrass.configuration.common.ComponentUpdate;
+import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
+import com.amazon.aws.iot.greengrass.configuration.common.ConfigurationUpdate;
 import com.amazonaws.arn.Arn;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
+import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.deployment.model.PackageInfo;
+import com.aws.greengrass.util.SerializerFactory;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
@@ -184,5 +192,91 @@ public final class DeploymentDocumentConverter {
             pkg.setRootComponent(true);
         });
         return new ArrayList<>(packageConfigurations.values());
+    }
+
+    /**
+     * Converts fleet configuration that sends down from FCS via IoT Job and shadow to DeploymentDocument.
+     *
+     * @param config Fleet configuration that sends down from FCS via IoT Job and shadow
+     * @return  Nucleus's core DeploymentDocument
+     */
+    public static DeploymentDocument convertFromNewFleetConfiguration(Configuration config) {
+
+        return DeploymentDocument.builder()
+                .deploymentId(config.getConfigurationArn() + config.getCreationTimestamp()) // TODO ask Amit
+                .deploymentPackageConfigurationList(convertComponents(config.getComponents()))
+                .groupName(parseGroupNameFromConfigurationArn(config))
+                .timestamp(config.getCreationTimestamp())
+                .failureHandlingPolicy(convertFailureHandlingPolicy(config.getFailureHandlingPolicy()))
+                .componentUpdatePolicy(convertComponentUpdatePolicy(config.getComponentUpdatePolicy()))
+                .build();
+    }
+
+    private static String parseGroupNameFromConfigurationArn(Configuration config) {
+        String groupName;
+        try {
+            // ConfigurationArn formats:
+            // configuration:thing/<thing-name>
+            // configuration:thinggroup/<thing-group-name>
+            groupName = Arn.fromString(config.getConfigurationArn()).getResource().getResource();
+        } catch (IllegalArgumentException e) {
+            // so that it can proceed, rather than fail, when the format of configurationArn is wrong.
+            groupName = config.getConfigurationArn();
+        }
+        return groupName;
+    }
+
+    private static List<DeploymentPackageConfiguration> convertComponents(Map<String, ComponentUpdate> components) {
+
+        if (components == null || components.isEmpty()) {
+            // more resillience
+            return Collections.emptyList();
+        }
+
+        return components.entrySet().stream().map(e -> convertComponent(e.getKey(), e.getValue()))
+                .collect(Collectors.toList());
+    }
+
+    private static DeploymentPackageConfiguration convertComponent(String componentName,
+            ComponentUpdate componentUpdate) {
+        return DeploymentPackageConfiguration.builder().packageName(componentName)
+                .resolvedVersion(componentUpdate.getVersion().getValue())
+                .rootComponent(true) // Now FCS only gives root component
+                .configurationUpdateOperation(convertComponentUpdateOperation(componentUpdate.getConfigurationUpdate()))
+                .build();
+    }
+
+    private static ConfigurationUpdateOperation convertComponentUpdateOperation(
+            @Nullable ConfigurationUpdate configurationUpdate) {
+        if (configurationUpdate == null) {
+            return null;
+        }
+
+        Map mapToMerge = null;
+        if (configurationUpdate.getMerge() != null) {
+            mapToMerge =
+                    SerializerFactory.getJsonObjectMapper().convertValue(configurationUpdate.getMerge(), Map.class);
+        }
+
+        return new ConfigurationUpdateOperation(mapToMerge, configurationUpdate.getReset());
+
+    }
+
+    private static ComponentUpdatePolicy convertComponentUpdatePolicy(
+            @Nonnull com.amazon.aws.iot.greengrass.configuration.common.ComponentUpdatePolicy componentUpdatePolicy) {
+
+        // note: componentUpdatePolicy looks nonnull from existing code but we should probably enhance it.
+        return new ComponentUpdatePolicy(componentUpdatePolicy.getTimeout(), ComponentUpdatePolicyAction
+                .fromValue(componentUpdatePolicy.getAction().name()));
+    }
+
+    private static FailureHandlingPolicy convertFailureHandlingPolicy(
+            @Nullable com.amazon.aws.iot.greengrass.configuration.common.FailureHandlingPolicy failureHandlingPolicy) {
+
+        if (failureHandlingPolicy == null) {
+            return null;
+        }
+
+        return FailureHandlingPolicy.valueOf(failureHandlingPolicy.name());
     }
 }
