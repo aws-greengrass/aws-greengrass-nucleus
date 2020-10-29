@@ -16,7 +16,9 @@ import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.SocketOptions;
@@ -45,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public final class IPCTestUtils {
 
     public static String TEST_SERVICE_NAME = "ServiceName";
+    public static int DEFAULT_IPC_API_TIMEOUT_SECONDS = 3;
     private IPCTestUtils() {
 
     }
@@ -121,6 +124,14 @@ public final class IPCTestUtils {
         return awaitServiceLatch;
     }
 
+    public static EventStreamRPCConnection getEventStreamRpcConnection(Kernel kernel, String serviceName) throws ExecutionException,
+            InterruptedException {
+        EventStreamRPCConnection connection =
+                connectToGGCOverEventStreamIPC(TestUtils.getSocketOptionsForIPC(),
+                        IPCTestUtils.getAuthTokeForService(kernel, serviceName),
+                        kernel);
+        return connection;
+    }
 
     @SuppressWarnings("PMD.CloseResource")
     public static EventStreamRPCConnection connectToGGCOverEventStreamIPC(SocketOptions socketOptions,
