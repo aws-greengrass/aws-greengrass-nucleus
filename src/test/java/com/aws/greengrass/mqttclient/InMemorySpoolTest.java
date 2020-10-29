@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,7 +30,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith(GGExtension.class)
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 public class InMemorySpoolTest {
 
     @Mock

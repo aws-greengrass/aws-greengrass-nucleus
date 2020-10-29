@@ -8,6 +8,8 @@ package com.aws.greengrass.mqttclient.spool;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.util.Coerce;
 
@@ -16,10 +18,8 @@ import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
-
 public class Spool {
-
+    private static final Logger logger = LogManager.getLogger(Spool.class);
     private final DeviceConfiguration deviceConfiguration;
     private final CloudMessageSpool spooler;
 
@@ -46,12 +46,12 @@ public class Spool {
      */
     public Spool(DeviceConfiguration deviceConfiguration) {
         this.deviceConfiguration = deviceConfiguration;
-        Topics topics = this.deviceConfiguration.getMQTTNamespace();
+        Topics topics = this.deviceConfiguration.getSpoolerNamespace();
         this.config = readSpoolerConfigFromDeviceConfig(topics);
         spooler = setupSpooler(config);
-        // To subscribe to a topic
+        // To subscribe to the topics of spooler configuration
         topics.subscribe((what, node) -> {
-            if (WhatHappened.childChanged.equals(what) && node != null && node.childOf(DEVICE_MQTT_NAMESPACE)) {
+            if (WhatHappened.childChanged.equals(what) && node != null) {
                 readSpoolerConfigFromDeviceConfig(topics);
             }
         });
@@ -76,6 +76,12 @@ public class Spool {
                         GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES_KEY));
         boolean ggSpoolKeepQos0WhenOffline = Coerce.toBoolean(topics
                 .findOrDefault(DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE, GG_SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY));
+
+        logger.atInfo().kv(GG_SPOOL_STORAGE_TYPE_KEY, ggSpoolStorageType)
+                .kv(GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES_KEY, ggSpoolMaxMessageQueueSizeInBytes)
+                .kv(GG_SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY, ggSpoolKeepQos0WhenOffline)
+                .log("Spooler has been configured");
+
         return SpoolerConfig.builder().spoolStorageType(ggSpoolStorageType)
                 .spoolMaxMessageQueueSizeInBytes(ggSpoolMaxMessageQueueSizeInBytes)
                 .keepQos0WhenOffline(ggSpoolKeepQos0WhenOffline).build();
@@ -114,7 +120,7 @@ public class Spool {
     public synchronized Long addMessage(PublishRequest request) throws InterruptedException, SpoolerLoadException {
         int messageSizeInBytes = request.getPayload().length;
         if (messageSizeInBytes > getSpoolConfig().getSpoolMaxMessageQueueSizeInBytes()) {
-            throw new SpoolerLoadException("the size of message has exceeds the maximum size of spooler.");
+            throw new SpoolerLoadException("The size of message has exceeds the maximum size of spooler.");
         }
 
         curMessageQueueSizeInBytes.getAndAdd(messageSizeInBytes);
@@ -124,7 +130,7 @@ public class Spool {
 
         if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolMaxMessageQueueSizeInBytes()) {
             curMessageQueueSizeInBytes.getAndAdd(-1 * messageSizeInBytes);
-            throw new SpoolerLoadException("spooler queue is full and new message would not be added into spooler");
+            throw new SpoolerLoadException("Spooler queue is full and new message would not be added into spooler");
         }
 
         Long id = nextId.getAndIncrement();

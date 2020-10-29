@@ -15,6 +15,8 @@ import com.aws.greengrass.mqttclient.spool.SpoolerLoadException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.ProxyUtils;
+import lombok.AccessLevel;
+import lombok.Getter;
 import software.amazon.awssdk.crt.auth.credentials.X509CredentialsProvider;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
@@ -73,6 +75,7 @@ public class MqttClient implements Closeable {
     private static final String MQTT_SOCKET_TIMEOUT_KEY = "socketTimeoutMs";
     // Default taken from AWS SDK
     private static final int DEFAULT_MQTT_SOCKET_TIMEOUT = (int) Duration.ofSeconds(3).toMillis();
+    private static final String READY_TO_SPOOL = "ready to spool";
     static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
     static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     public static final int MAX_SUBSCRIPTIONS_PER_CONNECTION = 50;
@@ -99,6 +102,21 @@ public class MqttClient implements Closeable {
     private final CallbackEventManager callbackEventManager = new CallbackEventManager();
     private final Spool spool;
     private final ScheduledExecutorService ses;
+    private final CompletableFuture<String> spoolerMonitor = CompletableFuture.completedFuture(READY_TO_SPOOL);
+
+
+    @Getter(AccessLevel.PACKAGE)
+    private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
+        @Override
+        public void onConnectionInterrupted(int errorCode) {
+            setMqttOnline(false);
+        }
+
+        @Override
+        public void onConnectionResumed(boolean sessionPresent) {
+            setMqttOnline(true);
+        }
+    };
 
     //
     // GG_NEEDS_REVIEW: TODO: Handle timeouts and retries
@@ -223,7 +241,7 @@ public class MqttClient implements Closeable {
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
         spool = initSpooler(deviceConfiguration);
-        spoolMessage();
+        addToCallbackEvents(callbacks);
     }
 
     private Spool initSpooler(DeviceConfiguration deviceConfiguration) {
@@ -357,22 +375,28 @@ public class MqttClient implements Closeable {
      * @param request publish request
      */
     public CompletableFuture<Integer> publish(PublishRequest request) {
+
         boolean willDropTheRequest = !mqttOnline.get() && request.getQos().getValue() == 0
                 && !spool.getSpoolConfig().isKeepQos0WhenOffline();
 
         CompletableFuture<Integer> future = new CompletableFuture<>();
         if (willDropTheRequest) {
-            SpoolerLoadException e = new SpoolerLoadException("will not store the publish request"
+            SpoolerLoadException e = new SpoolerLoadException("Will not store the publish request"
                     + " with Qos 0 when MqttClient is offline");
-            logger.atError().log(e);
             future.completeExceptionally(e);
             return future;
         }
 
         try {
             spool.addMessage(request);
+            if (spoolerMonitor.getNow("spooling").equals(READY_TO_SPOOL)) {
+                CompletableFuture.supplyAsync(() -> {
+                    spoolMessage();
+                    return READY_TO_SPOOL;
+                });
+            }
         } catch (InterruptedException | SpoolerLoadException e) {
-            logger.atError().log("fail to add publish request to spooler queue", e.toString());
+            logger.atError().log("Fail to add publish request to spooler queue", e);
             future.completeExceptionally(e);
             return future;
         }
@@ -407,6 +431,7 @@ public class MqttClient implements Closeable {
             while (!Thread.currentThread().isInterrupted() && mqttOnline.get() && spool.getCurrentMessageCount() > 0) {
                 id = spool.popId();
                 PublishRequest request = spool.getMessageById(id);
+
                 if (request == null) {
                     continue;
                 }
@@ -418,16 +443,16 @@ public class MqttClient implements Closeable {
                     if (throwable == null) {
                         spool.removeMessageById(finalId);
                     } else {
-                        logger.atError().log("failed to publish the message via Mqtt Client", throwable.toString());
                         spool.addId(finalId);
+                        logger.atError().log("Failed to publish the message via Spooler", throwable);
                     }
                 }).get();
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            logger.atError().log("spooler message is interrupted");
+            logger.atError().log("Spooler message is interrupted", e);
         } catch (ExecutionException e) {
-            logger.atError().log("failed to spool method", e.toString());
+            logger.atError().log("Error when publishing from spooler", e);
         }
     }
 
@@ -458,7 +483,6 @@ public class MqttClient implements Closeable {
         if (forSubscription) {
             return connections.stream().filter(AwsIotMqttClient::canAddNewSubscription).findAny().get();
         }
-
         // Get a somewhat random, somewhat round robin connection
         return connections.get(connectionRoundRobin.getAndIncrement() % connections.size());
     }

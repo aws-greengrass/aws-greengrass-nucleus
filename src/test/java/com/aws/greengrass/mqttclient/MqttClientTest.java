@@ -42,6 +42,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -91,6 +92,7 @@ class MqttClientTest {
     void beforeEach() {
         config.lookup("data", MqttClient.MQTT_OPERATION_TIMEOUT_KEY).withValue(0);
         when(deviceConfiguration.getMQTTNamespace()).thenReturn(config.lookupTopics("data"));
+        lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(config.lookupTopics("data"));
         lenient().when(builder.build()).thenReturn(mockConnection);
         lenient().when(mockConnection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         lenient().when(mockConnection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
@@ -346,6 +348,7 @@ class MqttClientTest {
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_MOST_ONCE).build();
         when(spool.addMessage(request)).thenReturn(0L);
+        doNothing().when(client).spoolTask();
 
         CompletableFuture<Integer> future = client.publish(request);
 
@@ -359,6 +362,7 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, ses, false));
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
+        doNothing().when(client).spoolTask();
 
         CompletableFuture<Integer> future = client.publish(request);
 
@@ -368,12 +372,13 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_add_message_to_spooler_throw_spooler_load_exception_WHEN_publish_THEN_return_future_complete_exceptionally() throws SpoolerLoadException, InterruptedException {
+    void GIVEN_add_message_to_spooler_throw_spooler_load_exception_WHEN_publish_THEN_return_future_complete_exceptionally(ExtensionContext context) throws SpoolerLoadException, InterruptedException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, ses, false));
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[10])
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
         when(spool.addMessage(any())).thenThrow(new SpoolerLoadException("spooler is full"));
 
+        ignoreExceptionOfType(context, SpoolerLoadException.class);
         CompletableFuture<Integer> future = client.publish(request);
 
         assertTrue(future.isCompletedExceptionally());
@@ -382,12 +387,13 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_add_message_to_spooler_throw_interrupted_exception_WHEN_publish_THEN_return_future_complete_exceptionally() throws InterruptedException, SpoolerLoadException {
+    void GIVEN_add_message_to_spooler_throw_interrupted_exception_WHEN_publish_THEN_return_future_complete_exceptionally(ExtensionContext context) throws InterruptedException, SpoolerLoadException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, ses, false));
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
         when(spool.addMessage(any())).thenThrow(InterruptedException.class);
 
+        ignoreExceptionOfType(context, InterruptedException.class);
         CompletableFuture<Integer> future = spy(client.publish(request));
 
         verify(spool, times(1)).addMessage(request);
@@ -433,9 +439,11 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_publish_request_with_interrupted_exception_WHEN_spool_message_THEN_stop_spooling_message() throws InterruptedException, ExecutionException {
-        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, ses, true));
+    void GIVEN_publish_request_with_interrupted_exception_WHEN_spool_message_THEN_stop_spooling_message(ExtensionContext context) throws InterruptedException, ExecutionException {
+        ignoreExceptionWithMessage(context, "interrupted");
+        ignoreExceptionOfType(context, ExecutionException.class);
 
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, ses, true));
         Long id = 1L;
         when(spool.getCurrentMessageCount()).thenReturn(1);
         when(spool.popId()).thenReturn(id);
