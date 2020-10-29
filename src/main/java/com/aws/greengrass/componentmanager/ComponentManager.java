@@ -346,9 +346,9 @@ public class ComponentManager implements InjectionActions {
             }
             File artifactFile = downloader.getArtifactFile(packageArtifactDirectory, artifact, componentIdentifier);
             if (artifactFile != null) {
-                // TODO: Change permissions - set world readable until artifact permissions can be set via model
                 try {
-                    Permissions.setArtifactPermission(artifactFile.toPath());
+                    Permissions.setArtifactPermission(artifactFile.toPath(),
+                            artifact.getPermission().toFileSystemPermission());
                 } catch (IOException e) {
                     throw new PackageDownloadException(
                             String.format("Failed to change permissions of component %s artifact %s",
@@ -366,7 +366,8 @@ public class ComponentManager implements InjectionActions {
                             getFileName(artifactFile));
                     unarchiver.unarchive(unarchive, artifactFile, unarchivePath);
                     try {
-                        Permissions.setArtifactPermission(unarchivePath);
+                        Permissions.setArtifactPermission(unarchivePath,
+                                artifact.getPermission().toFileSystemPermission());
                     } catch (IOException e) {
                         throw new PackageDownloadException(
                                 String.format("Failed to change permissions of component %s artifact %s",
