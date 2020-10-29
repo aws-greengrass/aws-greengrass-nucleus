@@ -10,25 +10,24 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.RunWithGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledOnOs;
-import org.junit.jupiter.api.condition.OS;
+import org.mockito.Mock;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Optional;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_GROUP_KEY;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.SERVICE_CONFIG_LOGGING_TOPICS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
@@ -37,12 +36,15 @@ import static org.mockito.Mockito.mock;
 class GenericExternalServiceTest extends GGServiceTestUtil {
     private GenericExternalService ges;
 
+    @Mock
+    private Platform platform;
+
     @BeforeEach
     void beforeEach() {
         lenient().doReturn(Topics.of(context, SERVICE_CONFIG_LOGGING_TOPICS, null))
                 .when(config).lookupTopics(eq(SERVICE_CONFIG_LOGGING_TOPICS));
         lenient().doReturn(Topic.of(context, VERSION_CONFIG_KEY, "1.0.0")).when(config).find(eq(VERSION_CONFIG_KEY));
-        ges = new GenericExternalService(initializeMockedConfig());
+        ges = new GenericExternalService(initializeMockedConfig(), platform);
         ges.deviceConfiguration = mock(DeviceConfiguration.class);
     }
 
@@ -84,30 +86,18 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
         }}));
     }
 
-    @EnabledOnOs({ OS.LINUX, OS.MAC })
     @Test
-    void GIVEN_posix_runwith_info_WHEN_exec_add_group_THEN_use_runwith() throws Exception {
-        doReturn("foo").when(config).findOrDefault(nullable(String.class),
-                eq(RUN_WITH_NAMESPACE_TOPIC),
-                eq(POSIX_USER_KEY));
-        doReturn("bar").when(config).findOrDefault(nullable(String.class),
-                eq(RUN_WITH_NAMESPACE_TOPIC),
-                eq(POSIX_GROUP_KEY));
+    void GIVEN_runwith_info_WHEN_exec_add_group_THEN_use_runwith() throws Exception {
+        RunWithGenerator generator = mock(RunWithGenerator.class);
+        doReturn(generator).when(platform).getRunWithGenerator();
+        doReturn(Optional.of(RunWith.builder().user("foo").group("bar").build()))
+                .when(generator).generate(any(), any());
 
         ges.storeInitialRunWithConfiguration();
 
         try (Exec exec = ges.addUserGroup(new Exec().withExec("echo", "hello"))) {
-            assertThat(exec.getCommand(), arrayContaining("sudo", "-E", "-u", "foo", "-g", "bar", "--", "echo", "hello"));
+            assertThat(exec.getCommand(), arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "-g", "bar",
+                    "--", "echo", "hello"));
         }
     }
-
-    @Test
-    void GIVEN_no_runwith_info_WHEN_exec_add_group_THEN_do_not_decorate_command_with_user() throws Exception {
-        ges.storeInitialRunWithConfiguration();
-
-        try (Exec exec = ges.addUserGroup(new Exec().withExec("echo", "hello"))) {
-            assertThat(exec.getCommand(), arrayContaining("echo", "hello"));
-        }
-    }
-
 }
