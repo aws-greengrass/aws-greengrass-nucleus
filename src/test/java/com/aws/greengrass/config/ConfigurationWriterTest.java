@@ -114,16 +114,15 @@ class ConfigurationWriterTest {
         context.put(Kernel.class, mockKernel);
 
         ConfigurationWriter.logTransactionsTo(config, tlog)
-                .flushImmediately(true).withAutoTruncate(context).withMaxFileSize(120);
+                .flushImmediately(true).withAutoTruncate(context).withMaxLines(1);
 
         Topic test1 = config.lookup("test1").withValue("1");
-        test1.withNewerValue(System.currentTimeMillis(), "a longer string to exceed limit");
-        // wait for truncation to complete
-        Thread.sleep(500);
+        context.runOnPublishQueueAndWait(() -> {});
+        test1.withNewerValue(System.currentTimeMillis(), "exceed limit");
+        context.runOnPublishQueueAndWait(() -> {});
         // now update should be written to the new tlog
         config.lookup("test2").withValue("new");
         context.runOnPublishQueueAndWait(() -> {});
-
         Configuration newTlogConfig = ConfigurationReader.createFromTLog(context, tlog);
         assertNull(newTlogConfig.find("test1"));
         assertEquals("new", newTlogConfig.find("test2").getOnce());

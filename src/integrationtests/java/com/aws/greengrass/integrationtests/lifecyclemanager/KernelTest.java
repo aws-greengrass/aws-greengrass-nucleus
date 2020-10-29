@@ -345,10 +345,10 @@ class KernelTest extends BaseITCase {
         Topic testTopic1 = config.lookup("testTopic1").withValue("initial");
         context.runOnPublishQueueAndWait(() -> {
             // make truncate run by setting a small size
-            kernelLifecycle.getTlog().withMaxFileSize(1);
+            kernelLifecycle.getTlog().withMaxLines(1);
             testTopic1.withNewerValue(System.currentTimeMillis(), "triggering truncate");
             // immediately queue a task to increase max size to prevent repeated truncation
-            context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxFileSize(100_000));
+            context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxLines(100_000));
         });
         // wait for things to finish
         Thread.sleep(1000);

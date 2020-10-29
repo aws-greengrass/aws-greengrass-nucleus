@@ -30,19 +30,20 @@ import static com.aws.greengrass.util.Utils.flush;
 
 public class ConfigurationWriter implements Closeable, ChildChanged {
     private static final String TRUNCATE_TLOG_EVENT = "truncate-tlog";
-    private static final long DEFAULT_MAX_TLOG_SIZE_BYTES = 10_000_000L;
+    private static final int DEFAULT_MAX_TLOG_LINES = 15_000;
 
     private Writer out;
     private final Path tlogOutputPath;
     private final Configuration conf;
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final AtomicLong count = new AtomicLong(0);  // bytes written so far
+    private final AtomicLong count = new AtomicLong(0);  // lines written so far
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for flush immediately to be sync")
     private boolean flushImmediately;
     @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")  // same situation as flushImmediately
     private boolean autoTruncate = false;
     @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
-    private long maxCount = DEFAULT_MAX_TLOG_SIZE_BYTES;  // max before truncation
+    private long maxCount = DEFAULT_MAX_TLOG_LINES;  // max before truncation
+    private long retryCount = 0;  // retry truncate at this count after error occurred
     @Setter
     private Context context;
 
@@ -69,7 +70,6 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     public static void dump(Configuration c, Path p) {
         try (ConfigurationWriter cs = new ConfigurationWriter(c, p)) {
             cs.writeAll();
-            logger.atInfo().setEventType("config-dump").addKeyValue("path", p).log();
         } catch (IOException ex) {
             logger.atError().setEventType("config-dump-error").setCause(ex).addKeyValue("path", p).log();
         }
@@ -107,7 +107,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         autoTruncate = true;
         setContext(context);
         if (Files.exists(tlogOutputPath)) {
-            count.set(Files.size(tlogOutputPath));
+            count.set(Files.lines(tlogOutputPath).count());
         } else {
             count.set(0);
         }
@@ -115,12 +115,12 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     }
 
     /**
-     * Set the max size of log file before truncation.
+     * Set max lines of tlog before truncation.
      *
-     * @param bytes max size in bytes
+     * @param bytes max number of lines
      * @return this
      */
-    public ConfigurationWriter withMaxFileSize(long bytes) {
+    public ConfigurationWriter withMaxLines(long bytes) {
         maxCount = bytes;
         return this;
     }
@@ -167,7 +167,8 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         }
 
         try {
-            count.addAndGet(Coerce.appendParseableString(tlogline, out));
+            Coerce.appendParseableString(tlogline, out);
+            count.incrementAndGet();
         } catch (IOException ex) {
             logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName()).setCause(ex)
                     .log();
@@ -175,7 +176,8 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         if (flushImmediately) {
             flush(out);
         }
-        if (autoTruncate && count.get() > maxCount) {
+        long currCount = count.get();
+        if (autoTruncate && currCount > maxCount && currCount > retryCount) {
             truncateTlog();
         }
     }
@@ -200,8 +202,6 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
      * Discard current tlog. Start a new tlog with the current kernel configs.
      */
     private synchronized void truncateTlog() {
-        logger.atInfo(TRUNCATE_TLOG_EVENT).log("started");
-        // TODO: handle errors and recover
         Path oldTlogPath = tlogOutputPath.resolveSibling(tlogOutputPath.getFileName() + ".old");
         Throwable error = context.runOnPublishQueueAndWait(() -> {
             // close existing writer
@@ -209,27 +209,51 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
             if (out instanceof Commitable) {
                 ((Commitable) out).commit();
             }
-            Utils.close(out);
             logger.atDebug(TRUNCATE_TLOG_EVENT).log("existing tlog writer closed");
             // move old tlog
-            Files.move(tlogOutputPath, oldTlogPath, StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.move(tlogOutputPath, oldTlogPath, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                logger.atError(TRUNCATE_TLOG_EVENT, e).log("failed to rename existing tlog");
+                // recover: reopen writer to old tlog
+                out = newTlogWriter(tlogOutputPath);
+                setTruncateRetryCount();
+                logger.atWarn(TRUNCATE_TLOG_EVENT, e).log("recovered and will retry later");
+                return;
+            }
             logger.atDebug(TRUNCATE_TLOG_EVENT).log("existing tlog renamed to " + oldTlogPath);
             // write current state to new tlog
-            context.get(Kernel.class).writeEffectiveConfigAsTransactionLog(tlogOutputPath);
+            try {
+                context.get(Kernel.class).writeEffectiveConfigAsTransactionLog(tlogOutputPath);
+            } catch (IOException e) {
+                logger.atError(TRUNCATE_TLOG_EVENT, e).log("failed to persist kernel config");
+                // recover: undo renaming and keep using old tlog
+                Files.move(oldTlogPath, tlogOutputPath, StandardCopyOption.REPLACE_EXISTING);
+                out = newTlogWriter(tlogOutputPath);
+                setTruncateRetryCount();
+                logger.atWarn(TRUNCATE_TLOG_EVENT, e).log("recovered and will retry later");
+                return;
+            }
             logger.atDebug(TRUNCATE_TLOG_EVENT).log("current effective config written to " + tlogOutputPath);
             // open writer to new tlog
             out = newTlogWriter(tlogOutputPath);
-            count.set(Files.size(tlogOutputPath));
-            logger.atInfo(TRUNCATE_TLOG_EVENT).log("complete");
+            count.set(Files.lines(tlogOutputPath).count());
+            logger.atInfo(TRUNCATE_TLOG_EVENT).log("tlog rotate successful");
         });
-        if (error == null) {
-            try {
-                Files.deleteIfExists(oldTlogPath);
-            } catch (IOException e) {
-                logger.atError(TRUNCATE_TLOG_EVENT).setCause(e).log("failed to delete old tlog");
-            }
-        } else {
-            logger.atError(TRUNCATE_TLOG_EVENT, error).log();
+        if (error != null) {
+            logger.atError(TRUNCATE_TLOG_EVENT, error).log("non-recoverable error occurred. truncate tlog failed");
+            return;
         }
+        retryCount = 0;
+        try {
+            Files.deleteIfExists(oldTlogPath);
+        } catch (IOException e) {
+            logger.atError(TRUNCATE_TLOG_EVENT).setCause(e).log("failed to delete old tlog");
+        }
+        logger.atInfo(TRUNCATE_TLOG_EVENT).log("complete");
+    }
+
+    private synchronized void setTruncateRetryCount() {
+        retryCount = count.get() + maxCount / 2;
     }
 }
