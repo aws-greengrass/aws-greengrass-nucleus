@@ -485,7 +485,7 @@ public class DeploymentService extends GreengrassService {
                         // since it is only a internal model
                         Configuration configuration = SerializerFactory.getJsonObjectMapper()
                                 .readValue(jobDocumentString, Configuration.class);
-                        document = DeploymentDocumentConverter.convertFromNewFleetConfiguration(configuration);
+                        document = DeploymentDocumentConverter.convertFromDeploymentConfiguration(configuration);
                     }
                     break;
                 default:

@@ -5,12 +5,12 @@
 
 package com.aws.greengrass.integrationtests.deployment;
 
+import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.Deployment;
-import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.ipc.IPCClientImpl;
 import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
@@ -147,10 +147,10 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
     }
 
     private void submitSampleJobDocument(URI uri, String arn, DeploymentType type) throws Exception {
-        FleetConfiguration fleetConfiguration = OBJECT_MAPPER.readValue(new File(uri), FleetConfiguration.class);
-        fleetConfiguration.setCreationTimestamp(System.currentTimeMillis());
-        fleetConfiguration.setConfigurationArn(arn);
-        Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(fleetConfiguration), type, fleetConfiguration.getConfigurationArn());
+        Configuration DeploymentConfiguration = OBJECT_MAPPER.readValue(new File(uri), Configuration.class);
+        DeploymentConfiguration.setCreationTimestamp(System.currentTimeMillis());
+        DeploymentConfiguration.setConfigurationArn(arn);
+        Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(DeploymentConfiguration), type, DeploymentConfiguration.getConfigurationArn());
         deploymentQueue.offer(deployment);
     }
 }

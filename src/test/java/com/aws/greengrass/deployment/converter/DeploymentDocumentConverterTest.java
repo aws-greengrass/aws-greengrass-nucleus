@@ -277,7 +277,7 @@ class DeploymentDocumentConverterTest {
 
         // WHEN
         DeploymentDocument deploymentDocument =
-                DeploymentDocumentConverter.convertFromNewFleetConfiguration(resultConfig);
+                DeploymentDocumentConverter.convertFromDeploymentConfiguration(resultConfig);
 
         // THEN
         assertThat(deploymentDocument.getFailureHandlingPolicy(), is(FailureHandlingPolicy.DO_NOTHING));
@@ -315,7 +315,7 @@ class DeploymentDocumentConverterTest {
 
         // WHEN
         DeploymentDocument deploymentDocument =
-                DeploymentDocumentConverter.convertFromNewFleetConfiguration(resultConfig);
+                DeploymentDocumentConverter.convertFromDeploymentConfiguration(resultConfig);
 
         // THEN
 
@@ -356,7 +356,7 @@ class DeploymentDocumentConverterTest {
 
         // WHEN & THEN
         assertThrows(InvalidRequestException.class,
-                     () -> DeploymentDocumentConverter.convertFromNewFleetConfiguration(resultConfig));
+                     () -> DeploymentDocumentConverter.convertFromDeploymentConfiguration(resultConfig));
 
     }
 
