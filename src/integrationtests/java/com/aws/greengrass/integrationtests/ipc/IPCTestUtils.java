@@ -16,22 +16,25 @@ import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
-import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
 import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
+import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
@@ -126,11 +129,9 @@ public final class IPCTestUtils {
 
     public static EventStreamRPCConnection getEventStreamRpcConnection(Kernel kernel, String serviceName) throws ExecutionException,
             InterruptedException {
-        EventStreamRPCConnection connection =
-                connectToGGCOverEventStreamIPC(TestUtils.getSocketOptionsForIPC(),
+        return connectToGGCOverEventStreamIPC(TestUtils.getSocketOptionsForIPC(),
                         IPCTestUtils.getAuthTokeForService(kernel, serviceName),
                         kernel);
-        return connection;
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -182,4 +183,28 @@ public final class IPCTestUtils {
                 PRIVATE_STORE_NAMESPACE_TOPIC);
         return  Coerce.toString(servicePrivateConfig.find(SERVICE_UNIQUE_ID_KEY));
     }
+
+
+    public static <T> Optional<StreamResponseHandler<T>> getResponseHandler(Class<T> theClass, Consumer<T> eventConsumer, Logger logger){
+
+        return Optional.of(new StreamResponseHandler<T>() {
+
+            @Override
+            public void onStreamEvent(T streamEvent) {
+                eventConsumer.accept(streamEvent);
+            }
+
+            @Override
+            public boolean onStreamError(Throwable error) {
+                logger.atError().log("Received a stream error", error);
+                return false;
+            }
+
+            @Override
+            public void onStreamClosed() {
+
+            }
+        });
+    }
+
 }

@@ -3,13 +3,12 @@ ComponentName: Component1
 ComponentDescription: Test Component
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
+ComponentConfiguration:
+  DefaultConfiguration:
+    Message: 'World'
 Manifests:
   - Platform:
       os: all
-    Parameters:
-      - name: Message
-        value: 'World'
-        type: STRING
     Lifecycle:
       run:
         windows:

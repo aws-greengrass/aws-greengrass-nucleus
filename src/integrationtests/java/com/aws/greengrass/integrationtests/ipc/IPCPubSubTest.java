@@ -21,7 +21,6 @@ import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Pair;
-
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -40,7 +39,6 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -60,7 +58,6 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -75,6 +72,7 @@ class IPCPubSubTest {
     @TempDir
     static Path tempRootDir;
     private static int TIMEOUT_FOR_PUBSUB_SECONDS = 2;
+    private static final int DEFAULT_TIMEOUT_IN_SEC = 5;
     private static Kernel kernel;
     private static IPCClient client;
     public static Permission TES_DEFAULT_POLICY =
@@ -123,28 +121,42 @@ class IPCPubSubTest {
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
         kernel = prepareKernelFromConfigFile("pubsub.yaml", IPCPubSubTest.class, "SubscribeAndPublish");
+
     }
 
     @AfterAll
-    static void stopKernel() throws IOException {
-        if (client != null) {
-            client.disconnect();
-        }
+    static void stopKernel() {
         kernel.shutdown();
     }
 
     @Test
     void GIVEN_pubsubclient_WHEN_subscribe_and_publish_is_authorized_THEN_succeeds() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("SubscribeAndPublish", kernel);
-        client = new IPCClientImpl(config);
-        PubSub c = new PubSubImpl(client);
+        String authToken = IPCTestUtils.getAuthTokeForService(kernel, "SubscribeAndPublish");
+        SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
+        try (EventStreamRPCConnection eventStreamRpcConnection =
+                     IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel)) {
+            GreengrassCoreIPCClient clientConnection = new GreengrassCoreIPCClient(eventStreamRpcConnection);
 
-        Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
-            assertEquals("some message", new String(m, StandardCharsets.UTF_8));
-        });
-        c.subscribeToTopic("a", cb.getRight());
-        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
+            Pair<CompletableFuture<Void>, Consumer<SubscriptionResponseMessage>> cbNew = asyncAssertOnConsumer((m) -> {
+                assertEquals("some message", new String(m.getBinaryMessage().getMessage(), StandardCharsets.UTF_8));
+            });
+
+            SubscribeToTopicRequest request = new SubscribeToTopicRequest();
+            request.setTopic("a");
+            clientConnection.subscribeToTopic(request, IPCTestUtils.getResponseHandler(SubscriptionResponseMessage.class,
+                    cbNew.getRight(), logger)).getResponse().get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS);
+
+            PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
+            publishToTopicRequest.setTopic("a");
+            PublishMessage publishMessage = new PublishMessage();
+            BinaryMessage binaryMessage = new BinaryMessage();
+            binaryMessage.setMessage("some message".getBytes(StandardCharsets.UTF_8));
+            publishMessage.setBinaryMessage(binaryMessage);
+            publishToTopicRequest.setPublishMessage(publishMessage);
+            clientConnection.publishToTopic(publishToTopicRequest, Optional.empty()).getResponse()
+                    .get(10, TimeUnit.SECONDS);
+            cbNew.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
+        }
     }
 
     @Test

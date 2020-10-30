@@ -16,14 +16,12 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
-import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +34,6 @@ import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityStatus;
 import software.amazon.awssdk.aws.greengrass.model.SendConfigurationValidityReportRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToValidateConfigurationUpdatesRequest;
 import software.amazon.awssdk.aws.greengrass.model.ValidateConfigurationUpdateEvents;
-import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
@@ -55,7 +52,6 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETER
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
@@ -71,7 +67,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 class DynamicComponentConfigurationValidationTest extends BaseITCase {
     private final static Logger log = LogManager.getLogger(DynamicComponentConfigurationValidationTest.class);
     private static final String DEFAULT_EXISTING_SERVICE_VERSION = "1.0.0";
-    private static SocketOptions socketOptions;
 
     private Kernel kernel;
     private DeploymentConfigMerger deploymentConfigMerger;
@@ -81,7 +76,6 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
     @BeforeEach
     void before(ExtensionContext context) throws Exception {
         ignoreExceptionWithMessage(context, "Connection reset by peer");
-        socketOptions = TestUtils.getSocketOptionsForIPC();
         kernel = new Kernel();
         deploymentConfigMerger = new DeploymentConfigMerger(kernel);
         kernel.parseArgs("-i",
@@ -139,7 +133,6 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
         assertTrue(serviceStarted.get());
 
         // Establish an IPC connection on behalf of the running service
-        KernelIPCClientConfig config = getIPCConfigForService("OldService", kernel);
         connection = IPCTestUtils.getEventStreamRpcConnection(kernel, "OldService");
         ipcEventStreamClient = new GreengrassCoreIPCClient(connection);
     }
