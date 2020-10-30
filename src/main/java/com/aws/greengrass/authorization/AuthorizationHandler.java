@@ -13,6 +13,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
+import lombok.NonNull;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -194,14 +195,15 @@ public class AuthorizationHandler  {
 
     /**
      * Get allowed resources for the combination of destination, principal and operation.
+     * Also returns resources covered by permissions with * operation/principal.
      *
      * @param destination destination
-     * @param principal   principal
-     * @param operation   operation
+     * @param principal   principal (cannot be *)
+     * @param operation   operation (cannot be *)
      * @return list of allowed resources
      * @throws AuthorizationException when flow is not authorized
      */
-    public List<String> getAuthorizedResources(String destination, String principal, String operation)
+    public List<String> getAuthorizedResources(String destination, @NonNull String principal, @NonNull String operation)
             throws AuthorizationException {
         isOperationValid(destination, operation);
 

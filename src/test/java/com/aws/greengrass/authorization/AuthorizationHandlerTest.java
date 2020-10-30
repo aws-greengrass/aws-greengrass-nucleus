@@ -14,7 +14,6 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 
-import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +36,9 @@ import java.util.function.Consumer;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -494,35 +496,37 @@ class AuthorizationHandlerTest {
         AuthorizationPolicy authorizationPolicy1 = AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA")))
-                .operations(new HashSet(Arrays.asList("OpA", "*")))
+                .principals(new HashSet(Arrays.asList("compA", "*")))
+                .operations(new HashSet(Arrays.asList("OpA")))
                 .resources(new HashSet(Arrays.asList("res1", "res2", "res3")))
                 .build();
 
         AuthorizationPolicy authorizationPolicy2 = AuthorizationPolicy.builder()
                 .policyId("Id2")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "*")))
-                .operations(new HashSet(Arrays.asList("OpA", "OpB")))
-                .resources(new HashSet(Arrays.asList("res4", "res5")))
+                .principals(new HashSet(Arrays.asList("compA")))
+                .operations(new HashSet(Arrays.asList("*")))
+                .resources(new HashSet(Arrays.asList("res3", "res4", "res5")))
                 .build();
 
         authorizationHandler.loadAuthorizationPolicies("ServiceA",
                 Arrays.asList(authorizationPolicy1, authorizationPolicy2), false);
 
         List<String> allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compA", "OpA");
-        assertThat(allowedResources, Matchers.containsInAnyOrder("res1", "res2", "res3", "res4", "res5"));
-
-        allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compA", "*");
-        assertThat(allowedResources, Matchers.containsInAnyOrder("res1", "res2", "res3"));
+        assertThat(allowedResources, containsInAnyOrder("res1", "res2", "res3", "res4", "res5"));
 
         allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compA", "OpB");
-        assertThat(allowedResources, Matchers.containsInAnyOrder("res4", "res5"));
+        assertThat(allowedResources, containsInAnyOrder("res3", "res4", "res5"));
 
-        allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "*", "OpA");
-        assertThat(allowedResources, Matchers.containsInAnyOrder("res4", "res5"));
+        allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compB", "OpA");
+        assertThat(allowedResources, containsInAnyOrder("res1", "res2", "res3"));
 
-        allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "*", "OpB");
-        assertThat(allowedResources, Matchers.containsInAnyOrder("res4", "res5"));
+        allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compB", "OpB");
+        assertThat(allowedResources, is(empty()));
+
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.getAuthorizedResources(
+                "ServiceA", "*", "opA"));
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.getAuthorizedResources(
+                "ServiceA", "compA", "*"));
     }
 }

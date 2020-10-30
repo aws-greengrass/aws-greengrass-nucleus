@@ -46,7 +46,6 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -178,21 +177,6 @@ public class MqttProxyIPCAgentTest {
     @Test
     void GIVEN_wildcard_resources_WHEN_doAuthorization_THEN_authorized() throws Exception {
         when(authorizationHandler.getAuthorizedResources(any(), any(), any()))
-                .thenReturn(Arrays.asList(TEST_SINGLE_LEVEL_WILDCARD, TEST_MULTI_LEVEL_WILDCARD));
-
-        for (String topic : TEST_SINGLE_LEVEL_AUTHORIZED) {
-            mqttProxyIPCAgent.doAuthorization(GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE, TEST_SERVICE, topic);
-        }
-        for (String topic : TEST_MULTI_LEVEL_AUTHORIZED) {
-            mqttProxyIPCAgent.doAuthorization(GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE, TEST_SERVICE, topic);
-        }
-    }
-
-    @Test
-    void GIVEN_wildcard_resources_with_star_operation_WHEN_doAuthorization_THEN_authorized() throws Exception {
-        when(authorizationHandler.getAuthorizedResources(any(), any(),
-                eq(GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE))).thenReturn(Arrays.asList(TEST_TOPIC));
-        when(authorizationHandler.getAuthorizedResources(any(), any(), eq(ANY_REGEX)))
                 .thenReturn(Arrays.asList(TEST_SINGLE_LEVEL_WILDCARD, TEST_MULTI_LEVEL_WILDCARD));
 
         for (String topic : TEST_SINGLE_LEVEL_AUTHORIZED) {

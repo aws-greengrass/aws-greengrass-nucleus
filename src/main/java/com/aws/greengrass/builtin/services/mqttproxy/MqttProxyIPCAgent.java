@@ -201,12 +201,13 @@ public class MqttProxyIPCAgent {
     }
 
     void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
-        if (isTopicAuthorized(opName, serviceName, topic)) {
-            return;
-        }
+        List<String> authorizedResources = authorizationHandler.getAuthorizedResources(
+                MQTT_PROXY_SERVICE_NAME, serviceName, opName);
 
-        if (isTopicAuthorized(ANY_REGEX, serviceName, topic)) {
-            return;
+        for (String topicFilter : authorizedResources) {
+            if (topicFilter.equals(ANY_REGEX) || MqttTopic.topicIsSupersetOf(topicFilter, topic)) {
+                return;
+            }
         }
 
         throw new AuthorizationException(
@@ -215,18 +216,5 @@ public class MqttProxyIPCAgent {
                         MQTT_PROXY_SERVICE_NAME,
                         opName,
                         topic));
-    }
-
-    private boolean isTopicAuthorized(String opName, String serviceName, String topic) throws AuthorizationException {
-        List<String> authorizedResources = authorizationHandler.getAuthorizedResources(
-                MQTT_PROXY_SERVICE_NAME, serviceName, opName);
-
-        for (String topicFilter : authorizedResources) {
-            if (topicFilter.equals(ANY_REGEX) || MqttTopic.topicIsSupersetOf(topicFilter, topic)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

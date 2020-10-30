@@ -14,6 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
+import static com.aws.greengrass.authorization.AuthorizationHandler.ANY_REGEX;
+
 /**
  * Simple permission table which stores permissions. A permission is a
  * 4 value set of destination,principal,operation,resource.
@@ -83,17 +85,19 @@ public class AuthorizationModule {
     }
 
     /**
-     * Get resources for combination of destination,principal and operation.
+     * Get resources for combination of destination, principal and operation.
+     * Also returns resources covered by permissions with * operation/principal.
      *
      * @param destination destination
-     * @param principal   principal
-     * @param operation   operation
+     * @param principal   principal (cannot be *)
+     * @param operation   operation (cannot be *)
      * @return list of allowed resources
      * @throws AuthorizationException when arguments are invalid
      */
     public List<String> getResources(final String destination, String principal, String operation)
             throws AuthorizationException {
-        if (Utils.isEmpty(destination) || Utils.isEmpty(principal) || Utils.isEmpty(operation)) {
+        if (Utils.isEmpty(destination) || Utils.isEmpty(principal) || Utils.isEmpty(operation)
+                || principal.equals(ANY_REGEX) || operation.equals(ANY_REGEX)) {
             throw new AuthorizationException("Invalid arguments");
         }
 
@@ -101,11 +105,17 @@ public class AuthorizationModule {
         List<Permission> permissionsForDest = permissions.get(destination);
         if (!Utils.isEmpty(permissionsForDest)) {
             resources = permissionsForDest.stream()
-                    .filter(p -> p.getPrincipal().equals(principal) && p.getOperation().equals(operation))
+                    .filter(p -> filterPermissionByPrincipalAndOp(p, principal, operation))
                     .map(Permission::getResource)
+                    .distinct()
                     .collect(Collectors.toList());
         }
 
         return resources;
+    }
+
+    private boolean filterPermissionByPrincipalAndOp(Permission permission, String principal, String operation) {
+        return (permission.getPrincipal().equals(ANY_REGEX) || permission.getPrincipal().equals(principal))
+                && (permission.getOperation().equals(ANY_REGEX) || permission.getOperation().equals(operation));
     }
 }
