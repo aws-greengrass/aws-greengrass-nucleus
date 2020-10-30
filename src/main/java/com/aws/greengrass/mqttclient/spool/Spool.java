@@ -48,7 +48,6 @@ public class Spool {
         this.deviceConfiguration = deviceConfiguration;
         Topics topics = this.deviceConfiguration.getSpoolerNamespace();
         setSpoolerConfigFromDeviceConfig(topics);
-        setSpoolerConfig(config);
         spooler = setupSpooler();
         // To subscribe to the topics of spooler configuration
         topics.subscribe((what, node) -> {
@@ -56,10 +55,6 @@ public class Spool {
                 setSpoolerConfigFromDeviceConfig(topics);
             }
         });
-    }
-
-    private void setSpoolerConfig(SpoolerConfig config) {
-        this.config = config;
     }
 
     private void setSpoolerConfigFromDeviceConfig(Topics topics) {
