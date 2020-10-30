@@ -17,7 +17,7 @@ services:
               ],
               "resources":[
                 "A/+/C",
-                "A/B/#"
+                "X/Y/#"
               ]
             }
           }

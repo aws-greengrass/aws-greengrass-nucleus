@@ -61,7 +61,7 @@ public class IPCMqttProxyTest {
     private static final Logger logger = LogManager.getLogger(IPCMqttProxyTest.class);
     private static final int TIMEOUT_FOR_MQTTPROXY_SECONDS = 20;
     private static final String TEST_PUBLISH_TOPIC = "A/B/C";
-    private static final String TEST_SUBSCRIBE_TOPIC = "A/B/C/#";
+    private static final String TEST_SUBSCRIBE_TOPIC = "X/Y/Z/#";
     private static final byte[] TEST_PAYLOAD = "TestPayload".getBytes(StandardCharsets.UTF_8);
 
     @TempDir
