@@ -147,7 +147,8 @@ System config that does not change after kernel setup is hidden from deployments
 and modeled under the system config key
 ```
 system: 
-  rootCaPath:
+  rootPath:
+  thingName: "test_thing"
 ```
 
 System configuration that deployments are allowed to update is
@@ -166,7 +167,6 @@ services:
       iotDataEndpoint: "aun2g37imm74n-ats.iot.us-east-1.amazonaws.com"
       privateKeyPath: "root/privKey.key"
       rootCaPath: "root/rootCA.pem"
-      thingName: "tes_thing"
       iotRoleAlias: "tes_alias"
 ```
 
