@@ -15,6 +15,14 @@ public class CallbackEventManager {
     private final Set<MqttClientConnectionEvents> oneTimeCallbackEvents = new CopyOnWriteArraySet<>();
     private final AtomicBoolean hasCallBacked = new AtomicBoolean(false);
 
+    private final AtomicBoolean mqttOnline = new AtomicBoolean(false);
+    public void setMqttOnline(boolean status) {
+        mqttOnline.set(status);
+    }
+    public boolean getMqttOnline() {
+        return mqttOnline.get();
+    }
+
     /**
      *  A MqttClient may control multiple AwsIotMqttClients
      *  and each AwsIotMqttClients may have multiple callback events.

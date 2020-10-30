@@ -155,7 +155,8 @@ class AwsIotMqttClient implements Closeable {
             logger.atInfo().log("Connecting to AWS IoT Core");
             return connection.connect().thenApply((sessionPresent) -> {
                 currentlyConnected.set(true);
-                callbackEventManager.runOnConnectionResumed(sessionPresent);
+                //callbackEventManager.runOnConnectionResumed(sessionPresent);
+                callbackEventManager.setMqttOnline(true);
                 logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
                 if (!sessionPresent) {
                     resubscribe();

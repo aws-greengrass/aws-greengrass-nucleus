@@ -105,6 +105,7 @@ public class MqttClient implements Closeable {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             setMqttOnline(false);
+            callbackEventManager.setMqttOnline(false);
             if (!spool.getSpoolConfig().isKeepQos0WhenOffline()) {
                 spool.popOutMessagesWithQosZero();
             }
@@ -113,6 +114,7 @@ public class MqttClient implements Closeable {
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
             setMqttOnline(true);
+            callbackEventManager.setMqttOnline(true);
         }
     };
 
@@ -370,7 +372,7 @@ public class MqttClient implements Closeable {
      */
     public CompletableFuture<Integer> publish(PublishRequest request) {
 
-        boolean willDropTheRequest = !mqttOnline.get() && request.getQos().getValue() == 0
+        boolean willDropTheRequest = !callbackEventManager.getMqttOnline() && request.getQos().getValue() == 0
                 && !spool.getSpoolConfig().isKeepQos0WhenOffline();
 
         CompletableFuture<Integer> future = new CompletableFuture<>();
@@ -407,7 +409,7 @@ public class MqttClient implements Closeable {
         try {
             // TODO: Revisit this loop later. It is currently expensive.
             getConnection(false).connect().get();
-            while (!Thread.currentThread().isInterrupted() && mqttOnline.get() && spool.getCurrentMessageCount() > 0) {
+            while (!Thread.currentThread().isInterrupted() && callbackEventManager.getMqttOnline() && spool.getCurrentMessageCount() > 0) {
                 long id = spool.popId();
                 PublishRequest request = spool.getMessageById(id);
                 if (request == null) {
