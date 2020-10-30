@@ -44,7 +44,7 @@ public class IPCEventStreamService implements Startable, Closeable {
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipcEventStreamServer.socket";
+    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipc.socket";
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./nucleusRoot/ipc.socket";
     public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
     // This is relative to component's CWD
