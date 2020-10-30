@@ -6,11 +6,11 @@
 package com.aws.greengrass.builtin.services.mqttproxy;
 
 import com.aws.greengrass.authorization.AuthorizationHandler;
-import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.mqttclient.MqttTopic;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.mqttclient.SubscribeRequest;
 import com.aws.greengrass.mqttclient.UnsubscribeRequest;
@@ -33,6 +33,7 @@ import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +41,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.authorization.AuthorizationHandler.ANY_REGEX;
 import static com.aws.greengrass.ipc.modules.MqttProxyIPCService.MQTT_PROXY_SERVICE_NAME;
 
 public class MqttProxyIPCAgent {
@@ -198,13 +200,21 @@ public class MqttProxyIPCAgent {
         return QualityOfService.AT_LEAST_ONCE; //default value
     }
 
-    private void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
-        authorizationHandler.isAuthorized(
-                MQTT_PROXY_SERVICE_NAME,
-                Permission.builder()
-                        .principal(serviceName)
-                        .operation(opName)
-                        .resource(topic)
-                        .build());
+    void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
+        List<String> authorizedResources = authorizationHandler.getAuthorizedResources(
+                MQTT_PROXY_SERVICE_NAME, serviceName, opName);
+
+        for (String topicFilter : authorizedResources) {
+            if (topicFilter.equals(ANY_REGEX) || MqttTopic.topicIsSupersetOf(topicFilter, topic)) {
+                return;
+            }
+        }
+
+        throw new AuthorizationException(
+                String.format("Principal %s is not authorized to perform %s:%s on resource %s",
+                        serviceName,
+                        MQTT_PROXY_SERVICE_NAME,
+                        opName,
+                        topic));
     }
 }

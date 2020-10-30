@@ -14,9 +14,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -120,5 +124,52 @@ class AuthorizationModuleTest {
                 fail("Encountered exception ", e);
             }
         });
+    }
+
+    @Test
+    void Given_authZmodule_WHEN_added_entries_THEN_getResources_works() throws AuthorizationException {
+        AuthorizationModule module = new AuthorizationModule();
+        String[][] combinations = {
+                {"ServiceA", "compA", "opA", "res1"},
+                {"ServiceA", "compA", "opA", "res2"},
+                {"ServiceA", "*", "opA", "res1"},
+                {"ServiceA", "*", "opA", "res2"},
+                {"ServiceA", "compA", "*", "res2"},
+                {"ServiceA", "compA", "*", "res3"},
+                {"ServiceB", "compA", "opA", "res1"},
+                {"ServiceB", "compA", "opA", "res2"},
+        };
+
+        for (String[] combination : combinations) {
+            String destination = combination[0];
+            String principal = combination[1];
+            String op = combination[2];
+            String resource = combination[3];
+            try {
+                Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
+                module.addPermission(destination, permission);
+                assertTrue(module.isPresent(destination, permission));
+            } catch (AuthorizationException e) {
+                fail("Encountered exception ", e);
+            }
+        }
+
+        List<String> allowedResources = module.getResources("ServiceA", "compA", "opA");
+        assertThat(allowedResources, containsInAnyOrder("res1", "res2", "res3"));
+
+        allowedResources = module.getResources("ServiceA", "compA", "opB");
+        assertThat(allowedResources, containsInAnyOrder("res2", "res3"));
+
+        allowedResources = module.getResources("ServiceA", "compB", "opA");
+        assertThat(allowedResources, containsInAnyOrder("res1", "res2"));
+
+        allowedResources = module.getResources("ServiceA", "compB", "opB");
+        assertThat(allowedResources, is(empty()));
+
+        allowedResources = module.getResources("ServiceB", "compA", "opA");
+        assertThat(allowedResources, containsInAnyOrder("res1", "res2"));
+
+        assertThrows(AuthorizationException.class, () -> module.getResources("ServiceA", "compA", "*"));
+        assertThrows(AuthorizationException.class, () -> module.getResources("ServiceA", "*", "opA"));
     }
 }

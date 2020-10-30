@@ -60,7 +60,8 @@ import static org.mockito.Mockito.when;
 public class IPCMqttProxyTest {
     private static final Logger logger = LogManager.getLogger(IPCMqttProxyTest.class);
     private static final int TIMEOUT_FOR_MQTTPROXY_SECONDS = 20;
-    private static final String TEST_TOPIC = "A/B/C";
+    private static final String TEST_PUBLISH_TOPIC = "A/B/C";
+    private static final String TEST_SUBSCRIBE_TOPIC = "X/Y/Z/#";
     private static final byte[] TEST_PAYLOAD = "TestPayload".getBytes(StandardCharsets.UTF_8);
 
     @TempDir
@@ -117,7 +118,7 @@ public class IPCMqttProxyTest {
         PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
         publishToIoTCoreRequest.setPayload(TEST_PAYLOAD);
         publishToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
-        publishToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        publishToIoTCoreRequest.setTopicName(TEST_PUBLISH_TOPIC);
         publishToIoTCoreRequest.setRetain(false);
         greengrassCoreIPCClient.publishToIoTCore(publishToIoTCoreRequest, Optional.empty()).getResponse()
                 .get(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS);
@@ -126,7 +127,7 @@ public class IPCMqttProxyTest {
         verify(mqttClient).publish(publishRequestArgumentCaptor.capture());
         PublishRequest capturedPublishRequest = publishRequestArgumentCaptor.getValue();
         assertThat(capturedPublishRequest.getPayload(), is(TEST_PAYLOAD));
-        assertThat(capturedPublishRequest.getTopic(), is(TEST_TOPIC));
+        assertThat(capturedPublishRequest.getTopic(), is(TEST_PUBLISH_TOPIC));
         assertThat(capturedPublishRequest.isRetain(), is(false));
         assertThat(capturedPublishRequest.getQos(), is(QualityOfService.AT_LEAST_ONCE));
     }
@@ -138,13 +139,13 @@ public class IPCMqttProxyTest {
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
         subscribeToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
-        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        subscribeToIoTCoreRequest.setTopicName(TEST_SUBSCRIBE_TOPIC);
 
         StreamResponseHandler<IoTCoreMessage> streamResponseHandler = new StreamResponseHandler<IoTCoreMessage>() {
             @Override
             public void onStreamEvent(IoTCoreMessage streamEvent) {
                 if (Arrays.equals(streamEvent.getMessage().getPayload(), TEST_PAYLOAD)
-                        && streamEvent.getMessage().getTopicName().equals(TEST_TOPIC)) {
+                        && streamEvent.getMessage().getTopicName().equals(TEST_SUBSCRIBE_TOPIC)) {
                     messageLatch.countDown();
                 }
             }
@@ -169,11 +170,11 @@ public class IPCMqttProxyTest {
                 = ArgumentCaptor.forClass(SubscribeRequest.class);
         verify(mqttClient).subscribe(subscribeRequestArgumentCaptor.capture());
         SubscribeRequest capturedSubscribeRequest = subscribeRequestArgumentCaptor.getValue();
-        assertThat(capturedSubscribeRequest.getTopic(), is(TEST_TOPIC));
+        assertThat(capturedSubscribeRequest.getTopic(), is(TEST_SUBSCRIBE_TOPIC));
         assertThat(capturedSubscribeRequest.getQos(), is(QualityOfService.AT_LEAST_ONCE));
 
         Consumer<MqttMessage> callback = capturedSubscribeRequest.getCallback();
-        MqttMessage message = new MqttMessage(TEST_TOPIC, TEST_PAYLOAD);
+        MqttMessage message = new MqttMessage(TEST_SUBSCRIBE_TOPIC, TEST_PAYLOAD);
         callback.accept(message);
         assertTrue(messageLatch.await(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS));
 
@@ -185,7 +186,7 @@ public class IPCMqttProxyTest {
                 = ArgumentCaptor.forClass(UnsubscribeRequest.class);
         verify(mqttClient).unsubscribe(unsubscribeRequestArgumentCaptor.capture());
         UnsubscribeRequest capturedUnsubscribeRequest = unsubscribeRequestArgumentCaptor.getValue();
-        assertThat(capturedUnsubscribeRequest.getTopic(), is(TEST_TOPIC));
+        assertThat(capturedUnsubscribeRequest.getTopic(), is(TEST_SUBSCRIBE_TOPIC));
         assertThat(capturedUnsubscribeRequest.getCallback(), is(callback));
     }
 }

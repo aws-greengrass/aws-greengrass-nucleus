@@ -13,6 +13,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
+import lombok.NonNull;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,7 +47,7 @@ import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE
  */
 @Singleton
 public class AuthorizationHandler  {
-    private static final String ANY_REGEX = "*";
+    public static final String ANY_REGEX = "*";
     private static final Logger logger = LogManager.getLogger(AuthorizationHandler.class);
     private final ConcurrentHashMap<String, Set<String>> componentToOperationsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<AuthorizationPolicy>>
@@ -190,6 +191,28 @@ public class AuthorizationHandler  {
                         destination,
                         operation,
                         resource));
+    }
+
+    /**
+     * Get allowed resources for the combination of destination, principal and operation.
+     * Also returns resources covered by permissions with * operation/principal.
+     *
+     * @param destination destination
+     * @param principal   principal (cannot be *)
+     * @param operation   operation (cannot be *)
+     * @return list of allowed resources
+     * @throws AuthorizationException when arguments are invalid
+     */
+    public List<String> getAuthorizedResources(String destination, @NonNull String principal, @NonNull String operation)
+            throws AuthorizationException {
+        isOperationValid(destination, operation);
+
+        List<String> authorizedResources;
+        try (LockScope scope = LockScope.lock(rwLock.readLock())) {
+            authorizedResources = authModule.getResources(destination, principal, operation);
+        }
+
+        return authorizedResources;
     }
 
     /**
