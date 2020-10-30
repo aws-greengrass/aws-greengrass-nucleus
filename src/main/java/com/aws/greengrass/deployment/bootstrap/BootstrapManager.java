@@ -7,6 +7,8 @@ package com.aws.greengrass.deployment.bootstrap;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -18,6 +20,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.DependencyOrder;
 import com.aws.greengrass.util.SerializerFactory;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -42,6 +45,15 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_NETWORK_PROXY_NAMESPACE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_NO_PROXY_ADDRESSES;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_PASSWORD;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_URL;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_USERNAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PROXY_NAMESPACE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
@@ -58,6 +70,7 @@ import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_
 @NotThreadSafe
 public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     private static final String COMPONENT_NAME_LOG_KEY_NAME = "componentName";
+    private static final String RESTART_REQUIRED_MESSAGE = "Restart required due to parameter change";
     private static final Logger logger = LogManager.getLogger(BootstrapManager.class);
     @Setter(AccessLevel.PACKAGE)
     @Getter(AccessLevel.PACKAGE)
@@ -127,10 +140,105 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         return nucleusConfigValidAndNeedsRestart || !bootstrapTaskStatusList.isEmpty();
     }
 
+    private Map<String, Object> getNucleusParametersFromDeploymentConfig(Map<String, Object> newConfig) {
+        Map<String, Object> services = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
+        if (services == null) {
+            return null;
+        }
+        Map<String, Object> nucleus = (Map<String, Object>) services.get(DEFAULT_NUCLEUS_COMPONENT_NAME);
+        if (nucleus == null) {
+            return null;
+        }
+        return (Map<String, Object>) nucleus.get(PARAMETERS_CONFIG_KEY);
+    }
+
+    private Topics getNucleusParametersFromKernelConfig(Configuration kernelConfig) {
+        Topics services = kernelConfig.findTopics(SERVICES_NAMESPACE_TOPIC);
+        if (services == null) {
+            return null;
+        }
+
+        return services.findTopics(DEFAULT_NUCLEUS_COMPONENT_NAME)
+                .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
+    }
+
+    private boolean iotRoleAliasHasChanged(Map<String, Object> newNucleusParameters, Topics currentConfig) {
+        String newIotRoleAlias = Coerce.toString(newNucleusParameters.get(IOT_ROLE_ALIAS_TOPIC));
+        String currentIotRoleAlias = Coerce.toString(currentConfig.find(IOT_ROLE_ALIAS_TOPIC));
+
+        if (Utils.stringHasChanged(newIotRoleAlias, currentIotRoleAlias)) {
+            logger.atInfo().kv(IOT_ROLE_ALIAS_TOPIC, newIotRoleAlias).log(RESTART_REQUIRED_MESSAGE);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean networkProxyHasChanged(Map<String, Object> newNucleusParameters, Topics currentConfig) {
+        Map<String, Object> newNetworkProxy =
+                (Map<String, Object>) newNucleusParameters.get(DEVICE_NETWORK_PROXY_NAMESPACE);
+        if (newNetworkProxy == null) {
+            return false;
+        }
+
+        Topics currentNetworkProxy = currentConfig.lookupTopics(DEVICE_NETWORK_PROXY_NAMESPACE);
+        String newNoProxyAddresses = Coerce.toString(newNetworkProxy.get(DEVICE_PARAM_NO_PROXY_ADDRESSES));
+        String currentNoProxyAddresses = Coerce.toString(currentNetworkProxy.find(DEVICE_PARAM_NO_PROXY_ADDRESSES));
+        if (Utils.stringHasChanged(newNoProxyAddresses, currentNoProxyAddresses)) {
+            logger.atInfo().kv(DEVICE_NETWORK_PROXY_NAMESPACE.concat(".").concat(DEVICE_PARAM_NO_PROXY_ADDRESSES),
+                    newNoProxyAddresses).log(RESTART_REQUIRED_MESSAGE);
+            return true;
+        }
+
+        Map<String, Object> newProxy = (Map<String, Object>) newNetworkProxy.get(DEVICE_PROXY_NAMESPACE);
+        Topics currentProxy = currentNetworkProxy.lookupTopics(DEVICE_PROXY_NAMESPACE);
+        String newProxyUrl = Coerce.toString(newProxy.get(DEVICE_PARAM_PROXY_URL));
+        String currentProxyUrl = Coerce.toString(currentProxy.find(DEVICE_PARAM_PROXY_URL));
+        if (Utils.stringHasChanged(newProxyUrl, currentProxyUrl)) {
+            logger.atInfo().kv(DEVICE_NETWORK_PROXY_NAMESPACE.concat(".").concat(DEVICE_PROXY_NAMESPACE).concat(".")
+                    .concat(DEVICE_PARAM_PROXY_URL), newProxyUrl).log(RESTART_REQUIRED_MESSAGE);
+            return true;
+        }
+
+        String newProxyUsername = Coerce.toString(newProxy.get(DEVICE_PARAM_PROXY_USERNAME));
+        String currentProxyUsername = Coerce.toString(currentProxy.find(DEVICE_PARAM_PROXY_USERNAME));
+        if (Utils.stringHasChanged(newProxyUsername, currentProxyUsername)) {
+            logger.atInfo().kv(DEVICE_NETWORK_PROXY_NAMESPACE.concat(".").concat(DEVICE_PROXY_NAMESPACE).concat(".")
+                    .concat(DEVICE_PARAM_PROXY_USERNAME), newProxyUsername).log(RESTART_REQUIRED_MESSAGE);
+            return true;
+        }
+
+        String newProxyPassword = Coerce.toString(newProxy.get(DEVICE_PARAM_PROXY_PASSWORD));
+        String currentProxyPassword = Coerce.toString(currentProxy.find(DEVICE_PARAM_PROXY_PASSWORD));
+        if (Utils.stringHasChanged(newProxyPassword, currentProxyPassword)) {
+            logger.atInfo().kv(DEVICE_NETWORK_PROXY_NAMESPACE.concat(".").concat(DEVICE_PROXY_NAMESPACE).concat(".")
+                    .concat(DEVICE_PARAM_PROXY_PASSWORD), newProxyPassword).log(RESTART_REQUIRED_MESSAGE);
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean nucleusConfigChangeRequiresRestart(Map<String, Object> newConfig, Configuration kernelConfig) {
+        Map<String, Object> newNucleusParameters = getNucleusParametersFromDeploymentConfig(newConfig);
+        Topics currentConfig = getNucleusParametersFromKernelConfig(kernelConfig);
+        if (newNucleusParameters == null || currentConfig == null) {
+            return false;
+        }
+
+        if (iotRoleAliasHasChanged(newNucleusParameters, currentConfig)) {
+            return true;
+        }
+
+        return networkProxyHasChanged(newNucleusParameters, currentConfig);
+    }
+
     private boolean nucleusConfigValidAndNeedsRestart(Map<String, Object> deploymentConfig)
             throws ComponentConfigurationValidationException {
         boolean needsRestart = false;
         Map<String, Object> proposedNucleusConfig = getProposedNucleusConfig(deploymentConfig);
+
+        needsRestart = nucleusConfigChangeRequiresRestart(deploymentConfig, kernel.getConfig());
+
         for (GreengrassService s : kernel.orderedDependencies()) {
             // For now, only let builtin Greengrass services decide
             if (s.isBuiltin()) {
