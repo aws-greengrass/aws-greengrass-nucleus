@@ -105,9 +105,6 @@ public class Kernel {
     @Getter
     private final NucleusPaths nucleusPaths;
 
-    @Getter
-    private final ComponentStore componentStore;
-
     private Collection<GreengrassService> cachedOD = null;
 
     /**
@@ -133,8 +130,6 @@ public class Kernel {
         context.put(NucleusPaths.class, nucleusPaths);
         kernelCommandLine = new KernelCommandLine(this);
         kernelLifecycle = new KernelLifecycle(this, kernelCommandLine, nucleusPaths);
-        componentStore = new ComponentStore(nucleusPaths);
-        context.put(ComponentStore.class, componentStore);
         context.put(KernelCommandLine.class, kernelCommandLine);
         context.put(KernelLifecycle.class, kernelLifecycle);
         context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
@@ -469,12 +464,14 @@ public class Kernel {
         logger.atError("plugin-load-external").kv(GreengrassService.SERVICE_NAME_KEY, name)
                 .log("Trying to load a custom plugin");
 
-        Topic storedDigest = getMain().getRuntimeConfig().lookup(SERVICE_DIGEST_TOPIC_KEY, componentId.toString());
-        if (storedDigest.getOnce() == null) {
+        Topic storedDigest = config.lookupTopics(MAIN_SERVICE_NAME, GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC)
+                .find(SERVICE_DIGEST_TOPIC_KEY, componentId.toString());
+        if (storedDigest == null || storedDigest.getOnce() == null) {
             logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
                     .log("Local external plugin is not supported by this greengrass version");
             throw new ServiceLoadException("Custom plugins is not supported");
         }
+        ComponentStore componentStore = context.get(ComponentStore.class);
         if (!componentStore.validateComponentRecipeDigest(componentId, Coerce.toString(storedDigest))) {
             logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
                     .log("Local plugin is not supported by this greengrass version");

@@ -498,9 +498,8 @@ class ComponentManagerTest {
         when(kernel.getMain()).thenReturn(mockKernelService);
         when(mockKernelService.getRuntimeConfig()).thenReturn(runtimeTopics);
         ArgumentCaptor<String> identifierCaptor = ArgumentCaptor.forClass(String.class);
-        when(runtimeTopics.lookup(any(), identifierCaptor.capture()))
+        when(runtimeTopics.find(any(), identifierCaptor.capture()))
                 .thenReturn(digestTopic);
-        when(digestTopic.getOnce()).thenReturn(digestTopic);
 
         // mock local artifacts with version 1, 2, 3 and another component
         String anotherCompName = "SimpleApp";

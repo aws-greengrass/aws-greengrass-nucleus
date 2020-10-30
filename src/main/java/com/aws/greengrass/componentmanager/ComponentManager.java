@@ -6,9 +6,9 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
-import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.amazonaws.services.evergreen.model.ComponentContent;
+import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
@@ -35,8 +35,6 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import lombok.Setter;
@@ -142,18 +140,8 @@ public class ComponentManager implements InjectionActions {
 
     private void storeRecipeDigestSecurely(ComponentIdentifier componentIdentifier, String recipeContent)
             throws PackageLoadingException {
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe;
-        try {
-            componentRecipe =
-                    SerializerFactory.getRecipeSerializer().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                            .readValue(recipeContent,
-                                    com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
-        } catch (JsonProcessingException e) {
-            // GG_NEEDS_REVIEW: TODO move this to common model
-            throw new PackageLoadingException(
-                    String.format("Failed to parse recipe file content to contract model. Recipe file content: '%s'.",
-                            recipeContent), e);
-        }
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe =
+                RecipeLoader.parseRecipe(recipeContent);
         if (componentRecipe.getComponentType() != ComponentType.PLUGIN) {
             logger.atInfo().kv(COMPONENT_STR, componentIdentifier)
                     .log("Skip storing digest as component is not plugin");
@@ -172,9 +160,9 @@ public class ComponentManager implements InjectionActions {
 
     private void removeRecipeDigestIfExists(ComponentIdentifier componentIdentifier) {
         // clean up digest from store
-        Topic digestTopic = kernel.getMain().getRuntimeConfig().lookup(Kernel.SERVICE_DIGEST_TOPIC_KEY,
+        Topic digestTopic = kernel.getMain().getRuntimeConfig().find(Kernel.SERVICE_DIGEST_TOPIC_KEY,
                 componentIdentifier.toString());
-        if (digestTopic.getOnce() != null) {
+        if (digestTopic != null) {
             digestTopic.remove();
             logger.atInfo().kv(COMPONENT_STR, componentIdentifier).log("Remove digest from store");
         }
