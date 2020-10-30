@@ -44,6 +44,7 @@ import software.amazon.awssdk.aws.greengrass.model.ListComponentsRequest;
 import software.amazon.awssdk.aws.greengrass.model.ListComponentsResponse;
 import software.amazon.awssdk.aws.greengrass.model.ListLocalDeploymentsRequest;
 import software.amazon.awssdk.aws.greengrass.model.ListLocalDeploymentsResponse;
+import software.amazon.awssdk.aws.greengrass.model.ResourceNotFoundError;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateRecipesAndArtifactsRequest;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
@@ -63,7 +64,6 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
@@ -151,10 +151,11 @@ class IPCCliTest {
         GetComponentDetailsRequest request = new GetComponentDetailsRequest();
         request.setComponentName("unknown");
 
-        //TODO: fix the exception thrown when SDK starts throwing right exception
-        assertThrows(TimeoutException.class, () ->
+        ExecutionException executionException = assertThrows(ExecutionException.class, () ->
                 clientConnection.getComponentDetails(request, Optional.empty())
                         .getResponse().get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS).getComponentDetails());
+
+        assertEquals(ResourceNotFoundError.class, executionException.getCause().getClass());
     }
 
     @Test
@@ -276,10 +277,10 @@ class IPCCliTest {
         GetComponentDetailsRequest getRemovedComponent = new GetComponentDetailsRequest();
         getRemovedComponent.setComponentName(TEST_SERVICE_NAME);
 
-        //TODO: fix the exception thrown when SDK starts throwing right exception
-        assertThrows(TimeoutException.class, () ->
+        ExecutionException executionException = assertThrows(ExecutionException.class, () ->
                 clientConnection.getComponentDetails(getRemovedComponent, Optional.empty())
                         .getResponse().get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS).getComponentDetails());
+        assertEquals(ResourceNotFoundError.class, executionException.getCause().getClass());
 
         ListLocalDeploymentsRequest listLocalDeploymentsRequest = new ListLocalDeploymentsRequest();
         ListLocalDeploymentsResponse listLocalDeploymentsResponse = clientConnection
