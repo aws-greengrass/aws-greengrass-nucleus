@@ -11,6 +11,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.easysetup.DeviceProvisioningHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
+import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.greengrass.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.greengrass.integrationtests.e2e.util.NetworkUtils;
 import com.aws.greengrass.ipc.AuthenticationHandler;
@@ -89,6 +90,7 @@ class TESTest extends BaseITCase {
         kernel = new Kernel();
         kernel.parseArgs("-i", TESTest.class.getResource("tesExample.yaml").toString(), "-ar", AWS_REGION, "-es",
                 envStage.toString());
+        BaseE2ETestCase.setDefaultRunWithUser(kernel);
         deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION,
                 envStage.toString(), System.out);
         roleId = UUID.randomUUID().toString();

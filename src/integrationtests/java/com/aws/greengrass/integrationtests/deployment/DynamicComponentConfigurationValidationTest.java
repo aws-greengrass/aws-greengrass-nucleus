@@ -22,6 +22,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,6 +78,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
     void before(ExtensionContext context) throws Exception {
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         kernel = new Kernel();
+        NoOpArtifactHandler.register(kernel);
         deploymentConfigMerger = new DeploymentConfigMerger(kernel);
         kernel.parseArgs("-i",
                 DynamicComponentConfigurationValidationTest.class.getResource("onlyMain.yaml").toString());

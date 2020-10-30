@@ -18,6 +18,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
@@ -26,7 +27,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.aws.greengrass.GetConfigurationResponseHandler;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
@@ -53,7 +53,6 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -84,24 +83,20 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@ExtendWith(GGExtension.class)
+@ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 class IPCServicesTest {
     private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
     private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
     private static final int DEFAULT_TIMEOUT_IN_SEC = 5;
     private static Logger logger = LogManager.getLogger(IPCServicesTest.class);
-
-    @TempDir
-    static Path tempRootDir;
-
     private static Kernel kernel;
     private static EventStreamRPCConnection clientConnection;
     private static SocketOptions socketOptions;
     private static GreengrassCoreIPCClient greengrassCoreIPCClient;
 
     @BeforeAll
+
     static void beforeAll() throws InterruptedException, ExecutionException {
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCServicesTest.class, TEST_SERVICE_NAME);
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, TEST_SERVICE_NAME);
         socketOptions = TestUtils.getSocketOptionsForIPC();
@@ -117,12 +112,13 @@ class IPCServicesTest {
         if (socketOptions != null) {
             socketOptions.close();
         }
-        kernel.shutdown();
+        if (kernel != null) {
+            kernel.shutdown();
+        }
     }
 
     @BeforeEach
     void beforeEach(ExtensionContext context) {
-
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");

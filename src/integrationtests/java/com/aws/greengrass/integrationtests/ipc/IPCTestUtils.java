@@ -18,6 +18,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
 import com.aws.greengrass.util.Coerce;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
@@ -57,9 +58,7 @@ public final class IPCTestUtils {
 
     public static KernelIPCClientConfig getIPCConfigForService(String serviceName, Kernel kernel) throws ServiceLoadException, URISyntaxException {
         Topic kernelUri = kernel.getConfig().getRoot().lookup(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME);
-        URI serverUri = null;
-        serverUri = new URI((String) kernelUri.getOnce());
-
+        URI serverUri = new URI((String) kernelUri.getOnce());
         int port = serverUri.getPort();
         String address = serverUri.getHost();
 
@@ -70,8 +69,8 @@ public final class IPCTestUtils {
 
     public static Kernel prepareKernelFromConfigFile(String configFile, Class testClass, String... serviceNames) throws InterruptedException {
         Kernel kernel = new Kernel();
+        NoOpArtifactHandler.register(kernel);
         kernel.parseArgs("-i", testClass.getResource(configFile).toString());
-
         // ensure awaitIpcServiceLatch starts
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(serviceNames.length);
         GlobalStateChangeListener listener = getListenerForServiceRunning(awaitIpcServiceLatch, serviceNames);

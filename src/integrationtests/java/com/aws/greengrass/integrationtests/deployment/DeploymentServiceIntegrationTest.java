@@ -17,9 +17,10 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -66,6 +67,7 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
     void before(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         kernel = new Kernel();
+        NoOpArtifactHandler.register(kernel);
         kernel.parseArgs("-i",
                 DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
         // ensure deployment service starts
@@ -117,59 +119,61 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
             }
         };
 
-        Slf4jLogAdapter.addGlobalListener(listener);
-        submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithNonDisruptableService.json").toURI(),
-                "deployNonDisruptable", DeploymentType.SHADOW);
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            submitSampleJobDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithNonDisruptableService.json").toURI(),
+                    "deployNonDisruptable", DeploymentType.SHADOW);
 
-        CountDownLatch nonDisruptableServiceServiceLatch = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("NonDisruptableService") && newState.equals(State.RUNNING)) {
-                nonDisruptableServiceServiceLatch.countDown();
+            CountDownLatch nonDisruptableServiceServiceLatch = new CountDownLatch(1);
+            kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+                if (service.getName().equals("NonDisruptableService") && newState.equals(State.RUNNING)) {
+                    nonDisruptableServiceServiceLatch.countDown();
 
-            }
-        });
-        assertTrue(nonDisruptableServiceServiceLatch.await(30, TimeUnit.SECONDS));
-        try(EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,"NonDisruptableService")){
-            GreengrassCoreIPCClient ipcEventStreamClient = new GreengrassCoreIPCClient(connection);
-            ipcEventStreamClient.subscribeToComponentUpdates(new SubscribeToComponentUpdatesRequest(), Optional.of(
-                    new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+                }
+            });
+            assertTrue(nonDisruptableServiceServiceLatch.await(30, TimeUnit.SECONDS));
 
-                        @Override
-                        public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
-                            if (streamEvent.getPreUpdateEvent() != null) {
-                                try {
-                                    DeferComponentUpdateRequest deferComponentUpdateRequest =
-                                            new DeferComponentUpdateRequest();
-                                    deferComponentUpdateRequest.setRecheckAfterMs(TimeUnit.SECONDS.toMillis(60));
-                                    deferComponentUpdateRequest.setMessage("Test");
-                                    ipcEventStreamClient.deferComponentUpdate(deferComponentUpdateRequest,
-                                            Optional.empty()).getResponse().get(DEFAULT_IPC_API_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                                } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            try (EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
+                    "NonDisruptableService")) {
+                GreengrassCoreIPCClient ipcEventStreamClient = new GreengrassCoreIPCClient(connection);
+                ipcEventStreamClient.subscribeToComponentUpdates(new SubscribeToComponentUpdatesRequest(),
+                        Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+
+                            @Override
+                            public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                                if (streamEvent.getPreUpdateEvent() != null) {
+                                    try {
+                                        DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+                                        deferComponentUpdateRequest.setRecheckAfterMs(TimeUnit.SECONDS.toMillis(60));
+                                        deferComponentUpdateRequest.setMessage("Test");
+                                        ipcEventStreamClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty())
+                                                .getResponse().get(DEFAULT_IPC_API_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                                    }
                                 }
                             }
-                        }
 
-                        @Override
-                        public boolean onStreamError(Throwable error) {
-                            logger.atError().setCause(error).log("Caught error stream when subscribing for component "
-                                    + "updates");
-                            return false;
-                        }
+                            @Override
+                            public boolean onStreamError(Throwable error) {
+                                logger.atError().setCause(error).log("Caught error stream when subscribing for component " + "updates");
+                                return false;
+                            }
 
-                        @Override
-                        public void onStreamClosed() {
+                            @Override
+                            public void onStreamClosed() {
 
-                        }
-                    }));
-            assertTrue(cdlDeployNonDisruptable.await(30, TimeUnit.SECONDS));
-            submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json").toURI(),
-                    "deployRedSignal", DeploymentType.SHADOW);
-            submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithNonDisruptableService.json").toURI(),
-                    "redeployNonDisruptable", DeploymentType.SHADOW);
-            assertTrue(cdlRedeployNonDisruptable.await(15, TimeUnit.SECONDS));
-            assertTrue(cdlDeployRedSignal.await(1, TimeUnit.SECONDS));
+                            }
+                        }));
+
+                assertTrue(cdlDeployNonDisruptable.await(30, TimeUnit.SECONDS));
+                submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
+                        .toURI(), "deployRedSignal", DeploymentType.SHADOW);
+                submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithNonDisruptableService.json")
+                        .toURI(), "redeployNonDisruptable", DeploymentType.SHADOW);
+                assertTrue(cdlRedeployNonDisruptable.await(15, TimeUnit.SECONDS));
+                assertTrue(cdlDeployRedSignal.await(1, TimeUnit.SECONDS));
+            }
         }
-        Slf4jLogAdapter.removeGlobalListener(listener);
     }
 
     private void submitSampleJobDocument(URI uri, String arn, DeploymentType type) throws Exception {

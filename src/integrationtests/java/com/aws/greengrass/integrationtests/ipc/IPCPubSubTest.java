@@ -20,13 +20,13 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Pair;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishMessage;
@@ -40,7 +40,6 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -65,12 +64,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@ExtendWith(GGExtension.class)
+@ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 class IPCPubSubTest {
     private static final Logger logger = LogManager.getLogger(IPCPubSubTest.class);
 
-    @TempDir
-    static Path tempRootDir;
     private static int TIMEOUT_FOR_PUBSUB_SECONDS = 2;
     private static final int DEFAULT_TIMEOUT_IN_SEC = 5;
     private static Kernel kernel;
@@ -115,7 +112,6 @@ class IPCPubSubTest {
 
     @BeforeAll
     static void beforeEach(ExtensionContext context) throws InterruptedException, ExecutionException {
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         ignoreExceptionOfType(context, InterruptedException.class);
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
@@ -224,15 +220,16 @@ class IPCPubSubTest {
         AtomicInteger atomicInteger = new AtomicInteger();
 
         CountDownLatch subscriptionLatch = new CountDownLatch(1);
-        Slf4jLogAdapter.addGlobalListener(m -> {
-            if (m.getMessage().contains("Subscribing to topic")) {
-                subscriptionLatch.countDown();
-            }
-        });
+        
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, "SubscribeAndPublish");
         SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
         try (EventStreamRPCConnection clientConnection =
-                     IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel)){
+                     IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
+            AutoCloseable l = TestUtils.createCloseableLogListener(m -> {
+                if (m.getMessage().contains("Subscribing to topic")) {
+                    subscriptionLatch.countDown();
+                }
+            })){
             GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
             CompletableFuture<SubscribeToTopicResponse> fut =
                     greengrassCoreIPCClient.subscribeToTopic(subscribeToTopicRequest,

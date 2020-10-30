@@ -10,7 +10,6 @@ import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.zeroturnaround.process.PidUtil;
-import org.zeroturnaround.process.Processes;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -53,8 +52,28 @@ public class SpawnedProcessProtector implements AfterAllCallback, AfterEachCallb
                     br.lines().forEach(System.err::println);
                 }
 
-                // Kill the stray process
-                Processes.newPidProcess(Integer.parseInt(pid)).destroyForcefully();
+                boolean first = true;
+                while (true) {
+                    // Kill the stray process
+                    List<String> command = new ArrayList<>();
+                    if (first) {
+                        command.add("sudo");
+                        command.add("-n"); // non-interactive
+                        command.add("--"); // end sudo args
+                    }
+                    command.add("kill");
+                    command.add("-9");
+                    command.add(pid);
+                    proc = new ProcessBuilder().command(command).start();
+                    boolean exited = proc.waitFor(10, TimeUnit.SECONDS);
+                    try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                        br.lines().forEach(System.err::println);
+                    }
+                    if (exited || !first) {
+                        break;
+                    }
+                    first = false;
+                }
             }
 
             fail("Child PIDs not all cleaned up: " + childPids.toString()

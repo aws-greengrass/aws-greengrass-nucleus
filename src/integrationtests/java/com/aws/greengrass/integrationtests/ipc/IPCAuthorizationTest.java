@@ -7,6 +7,7 @@ package com.aws.greengrass.integrationtests.ipc;
 
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.ipc.authorization.AuthorizationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -17,14 +18,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
 import software.amazon.awssdk.aws.greengrass.model.ValidateAuthorizationTokenRequest;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 
-import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -39,11 +38,9 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@ExtendWith(GGExtension.class)
+@ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 class IPCAuthorizationTest {
 
-    @TempDir
-    static Path tempRootDir;
     private static Kernel kernel;
     private static EventStreamRPCConnection clientConnection;
     private static SocketOptions socketOptions;
@@ -64,11 +61,6 @@ class IPCAuthorizationTest {
             socketOptions.close();
         }
         kernel.shutdown();
-    }
-
-    @BeforeAll
-    static void startKernel() {
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
     }
 
     @BeforeEach
