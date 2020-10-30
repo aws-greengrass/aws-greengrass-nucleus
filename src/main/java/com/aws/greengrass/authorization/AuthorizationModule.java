@@ -8,9 +8,13 @@ package com.aws.greengrass.authorization;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.util.Utils;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
+
+import static com.aws.greengrass.authorization.AuthorizationHandler.ANY_REGEX;
 
 /**
  * Simple permission table which stores permissions. A permission is a
@@ -78,5 +82,40 @@ public class AuthorizationModule {
         }
 
         return false;
+    }
+
+    /**
+     * Get resources for combination of destination, principal and operation.
+     * Also returns resources covered by permissions with * operation/principal.
+     *
+     * @param destination destination
+     * @param principal   principal (cannot be *)
+     * @param operation   operation (cannot be *)
+     * @return list of allowed resources
+     * @throws AuthorizationException when arguments are invalid
+     */
+    public List<String> getResources(final String destination, String principal, String operation)
+            throws AuthorizationException {
+        if (Utils.isEmpty(destination) || Utils.isEmpty(principal) || Utils.isEmpty(operation)
+                || principal.equals(ANY_REGEX) || operation.equals(ANY_REGEX)) {
+            throw new AuthorizationException("Invalid arguments");
+        }
+
+        List<String> resources = Collections.emptyList();
+        List<Permission> permissionsForDest = permissions.get(destination);
+        if (!Utils.isEmpty(permissionsForDest)) {
+            resources = permissionsForDest.stream()
+                    .filter(p -> filterPermissionByPrincipalAndOp(p, principal, operation))
+                    .map(Permission::getResource)
+                    .distinct()
+                    .collect(Collectors.toList());
+        }
+
+        return resources;
+    }
+
+    private boolean filterPermissionByPrincipalAndOp(Permission permission, String principal, String operation) {
+        return (permission.getPrincipal().equals(ANY_REGEX) || permission.getPrincipal().equals(principal))
+                && (permission.getOperation().equals(ANY_REGEX) || permission.getOperation().equals(operation));
     }
 }
