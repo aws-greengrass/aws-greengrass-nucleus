@@ -14,6 +14,7 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -144,6 +146,16 @@ class AuthorizationHandlerTest {
                 .policyDescription("Test policy")
                 .principals(new HashSet(Arrays.asList("*")))
                 .operations(new HashSet())
+                .build();
+    }
+
+    private AuthorizationPolicy getAuthZPolicyWithResources() {
+        return AuthorizationPolicy.builder()
+                .policyId("Id1")
+                .policyDescription("Test policy")
+                .principals(new HashSet(Arrays.asList("compA")))
+                .operations(new HashSet(Arrays.asList("OpA")))
+                .resources(new HashSet(Arrays.asList("res1", "res2", "res3")))
                 .build();
     }
 
@@ -480,5 +492,19 @@ class AuthorizationHandlerTest {
                 Collections.singletonList(getAuthZPolicyWithEmptyPolicyId()), false);
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
+    }
+
+    @Test
+    void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_getAuthorizedResources_works() throws Exception {
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
+        when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
+        Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA"));
+        authorizationHandler.registerComponent("ServiceA", serviceOps);
+
+        authorizationHandler.loadAuthorizationPolicies("ServiceA",
+                Collections.singletonList(getAuthZPolicyWithResources()), false);
+
+        List<String> allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compA", "OpA");
+        assertThat(allowedResources, Matchers.containsInAnyOrder("res1", "res2", "res3"));
     }
 }

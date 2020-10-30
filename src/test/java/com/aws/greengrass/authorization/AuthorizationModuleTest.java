@@ -7,6 +7,7 @@ package com.aws.greengrass.authorization;
 
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import org.hamcrest.Matchers;
 import org.hamcrest.collection.IsEmptyCollection;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -120,5 +122,26 @@ class AuthorizationModuleTest {
                 fail("Encountered exception ", e);
             }
         });
+    }
+
+    @Test
+    void Given_authZmodule_WHEN_added_entries_THEN_getResources_works() throws AuthorizationException {
+        AuthorizationModule module = new AuthorizationModule();
+        permissionEntries().forEach(entry -> {
+            String destination = (String)entry.get()[0];
+            String principal = (String)entry.get()[1];
+            String op = (String)entry.get()[2];
+            String resource = (String)entry.get()[3];
+            try {
+                Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
+                module.addPermission(destination, permission);
+                assertTrue(module.isPresent(destination, permission));
+            } catch (AuthorizationException e) {
+                fail("Encountered exception ", e);
+            }
+        });
+
+        List<String> allowedResources = module.getResources("ComponentA", "ComponentB", "Op1");
+        assertThat(allowedResources, Matchers.containsInAnyOrder("res1", "res2"));
     }
 }

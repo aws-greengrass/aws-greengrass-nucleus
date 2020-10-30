@@ -200,7 +200,7 @@ public class MqttProxyIPCAgent {
         return QualityOfService.AT_LEAST_ONCE; //default value
     }
 
-    private void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
+    void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
         if (isTopicAuthorized(opName, serviceName, topic)) {
             return;
         }
