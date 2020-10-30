@@ -143,8 +143,8 @@ class IPCPubSubTest {
 
             SubscribeToTopicRequest request = new SubscribeToTopicRequest();
             request.setTopic("a");
-            clientConnection.subscribeToTopic(request, IPCTestUtils.getResponseHandler(SubscriptionResponseMessage.class,
-                    cbNew.getRight(), logger)).getResponse().get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS);
+            clientConnection.subscribeToTopic(request, IPCTestUtils.getResponseHandler(cbNew.getRight(), logger))
+                    .getResponse().get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS);
 
             PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
             publishToTopicRequest.setTopic("a");

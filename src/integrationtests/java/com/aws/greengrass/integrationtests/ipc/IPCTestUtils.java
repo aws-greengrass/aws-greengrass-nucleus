@@ -185,7 +185,7 @@ public final class IPCTestUtils {
     }
 
 
-    public static <T> Optional<StreamResponseHandler<T>> getResponseHandler(Class<T> theClass, Consumer<T> eventConsumer, Logger logger){
+    public static <T> Optional<StreamResponseHandler<T>> getResponseHandler(Consumer<T> eventConsumer, Logger logger){
 
         return Optional.of(new StreamResponseHandler<T>() {
 
