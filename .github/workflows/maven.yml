@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+    tags:
+      - '*'
   pull_request:
     branches: '*'
 
@@ -136,7 +138,7 @@ jobs:
           aws s3 cp target/aws.greengrass.nucleus.zip s3://gg-evergreen-releases/${{github.repository}}-zip/${{github.ref}}/evergreen-${{github.sha}}.zip
       - run: mkdir -p target/artifacts && cp target/aws.greengrass.nucleus.zip target/artifacts/aws.greengrass.nucleus.zip
       - uses: ./.github/actions/aws-greengrass-component-upload-action
-        name: Upload to GCS
+        name: Upload to GCS Gamma
         env:
           AWS_REGION: us-east-1
         with:
@@ -145,3 +147,16 @@ jobs:
           endpoint: https://evergreen-gamma.us-east-1.amazonaws.com
           autoBumpVersion: true
           publishAsPublic: true
+          additionalReplacements: '{"stage": "gamma"}'
+      - uses: ./.github/actions/aws-greengrass-component-upload-action
+        if: ${{ github.event_name == 'push' && contains(github.ref, 'tags') }}
+        name: Upload to GCS Prod
+        env:
+          AWS_REGION: us-east-1
+        with:
+          recipePath: aws.greengrass.Nucleus.yaml
+          artifactDirectoryPath: target/artifacts
+          endpoint: https://evergreen.us-east-1.amazonaws.com
+          autoBumpVersion: true
+          publishAsPublic: true
+          additionalReplacements: '{"stage": "prod"}'
