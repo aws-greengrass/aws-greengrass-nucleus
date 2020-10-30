@@ -28,7 +28,7 @@ Manifests:
   - Platform:
       os: darwin
     Artifacts:
-      - URI: s3://gg-dev-artifacts/$componentName/$version/aws.greengrass.nucleus.zip
+      - URI: s3://gg-dev-artifacts-$stage/$componentName/$version/aws.greengrass.nucleus.zip
         Unarchive: zip
     Lifecycle:
       bootstrap:
@@ -48,7 +48,7 @@ Manifests:
   - Platform:
       os: linux
     Artifacts:
-      - URI: s3://gg-dev-artifacts/$componentName/$version/aws.greengrass.nucleus.zip
+      - URI: s3://gg-dev-artifacts-$stage/$componentName/$version/aws.greengrass.nucleus.zip
         Unarchive: zip
     Lifecycle:
       bootstrap:
