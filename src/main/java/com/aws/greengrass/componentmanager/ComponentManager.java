@@ -152,7 +152,7 @@ public class ComponentManager implements InjectionActions {
             String digest = Digest.calculate(recipeContent);
             kernel.getMain().getRuntimeConfig().lookup(Kernel.SERVICE_DIGEST_TOPIC_KEY,
                             componentIdentifier.toString()).withValue(digest);
-            logger.atDebug().kv(COMPONENT_STR, recipeContent).log("Save calculated digest: " + digest);
+            logger.atDebug().kv(COMPONENT_STR, componentIdentifier).log("Save calculated digest: " + digest);
         } catch (NoSuchAlgorithmException e) {
             // This should never happen as SHA-256 is mandatory for every default JVM provider
             throw new PackageLoadingException("No security provider found for message digest", e);
