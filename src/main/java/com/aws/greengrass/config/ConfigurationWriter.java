@@ -30,19 +30,19 @@ import static com.aws.greengrass.util.Utils.flush;
 
 public class ConfigurationWriter implements Closeable, ChildChanged {
     private static final String TRUNCATE_TLOG_EVENT = "truncate-tlog";
-    private static final long DEFAULT_MAX_TLOG_LINES = 15_000;
+    private static final long DEFAULT_MAX_TLOG_ENTRIES = 15_000;
 
     private Writer out;
     private final Path tlogOutputPath;
     private final Configuration conf;
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final AtomicLong count = new AtomicLong(0);  // lines written so far
+    private final AtomicLong count = new AtomicLong(0);  // entries written so far
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for flush immediately to be sync")
     private boolean flushImmediately;
-    @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")  // same situation as flushImmediately
+    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to sync config variable")
     private boolean autoTruncate = false;
-    @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
-    private long maxCount = DEFAULT_MAX_TLOG_LINES;  // max before truncation
+    @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to sync config variable")
+    private long maxCount = DEFAULT_MAX_TLOG_ENTRIES;  // max before truncation
     private long retryCount = 0;  // retry truncate at this count after error occurred
     @Setter
     private Context context;
@@ -98,30 +98,25 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     }
 
     /**
-     * Set to enable auto truncate with default max tlog size.
+     * Set to enable auto truncate.
+     *
      * @param context a Context to provide access to kernel
      * @return this
-     * @throws IOException I/O error querying current log file size
      */
-    public ConfigurationWriter withAutoTruncate(Context context) throws IOException {
+    public ConfigurationWriter withAutoTruncate(Context context) {
+        this.context = context;
         autoTruncate = true;
-        setContext(context);
-        if (Files.exists(tlogOutputPath)) {
-            count.set(Files.lines(tlogOutputPath).count());
-        } else {
-            count.set(0);
-        }
         return this;
     }
 
     /**
-     * Set max new lines of tlog written before truncation.
+     * Set max new entries of tlog written before truncation.
      *
-     * @param lines max number of lines
+     * @param numEntries max number of entries
      * @return this
      */
-    public ConfigurationWriter withMaxLines(long lines) {
-        maxCount = lines;
+    public ConfigurationWriter withMaxEntries(long numEntries) {
+        maxCount = numEntries;
         return this;
     }
 
@@ -168,7 +163,6 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
 
         try {
             Coerce.appendParseableString(tlogline, out);
-            count.incrementAndGet();
         } catch (IOException ex) {
             logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName()).setCause(ex)
                     .log();
@@ -176,7 +170,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         if (flushImmediately) {
             flush(out);
         }
-        long currCount = count.get();
+        long currCount = count.incrementAndGet();
         if (autoTruncate && currCount > maxCount && currCount > retryCount) {
             truncateTlog();
         }
@@ -237,7 +231,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
             logger.atDebug(TRUNCATE_TLOG_EVENT).log("current effective config written to " + tlogOutputPath);
             // open writer to new tlog
             out = newTlogWriter(tlogOutputPath);
-            logger.atInfo(TRUNCATE_TLOG_EVENT).log("tlog rotate successful");
+            logger.atDebug(TRUNCATE_TLOG_EVENT).log("writer rotated");
         });
         if (error != null) {
             logger.atError(TRUNCATE_TLOG_EVENT, error).log("non-recoverable error occurred. truncate tlog failed");
