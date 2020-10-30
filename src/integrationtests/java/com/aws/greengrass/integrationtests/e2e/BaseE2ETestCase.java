@@ -18,12 +18,7 @@ import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
 import com.amazonaws.services.evergreen.model.DeleteComponentResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
-import com.amazonaws.services.evergreen.model.PackageMetaData;
-import com.amazonaws.services.evergreen.model.PublishConfigurationRequest;
-import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.ResourceAlreadyExistsException;
-import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
-import com.amazonaws.services.evergreen.model.SetConfigurationResult;
 import com.aws.greengrass.componentmanager.ComponentServiceHelper;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
@@ -364,41 +359,6 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     @SuppressWarnings("PMD.LinguisticNaming")
-    protected PublishConfigurationResult setAndPublishFleetConfiguration(SetConfigurationRequest setRequest) {
-
-        // update package name with random suffix to avoid conflict in cloud
-        Map<String, PackageMetaData> updatedPkgMetadata = new HashMap<>();
-        setRequest.getPackages().forEach((key, val) -> updatedPkgMetadata.put(getTestComponentNameInCloud(key), val));
-        setRequest.setPackages(updatedPkgMetadata);
-
-        // set default value
-        if (setRequest.getDeploymentPolicies() == null) {
-            setRequest.withDeploymentPolicies(new DeploymentPolicies()
-                    .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
-                    .withComponentUpdatePolicy(
-                            new ComponentUpdatePolicy().withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                                    .withTimeout(120))
-                    .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING));
-        }
-
-        logger.atInfo().kv("setRequest", setRequest).log();
-        SetConfigurationResult setResult = greengrassClient.setConfiguration(setRequest);
-        logger.atInfo().kv("setResult", setResult).log();
-
-        PublishConfigurationRequest publishRequest = new PublishConfigurationRequest()
-                .withTargetName(setRequest.getTargetName())
-                .withTargetType(setRequest.getTargetType())
-                .withRevisionId(setResult.getRevisionId());
-        logger.atInfo().kv("publishRequest", publishRequest).log();
-        PublishConfigurationResult publishResult = greengrassClient.publishConfiguration(publishRequest);
-        logger.atInfo().kv("publishResult", publishResult).log();
-        if (setRequest.getTargetType().equals(THING_GROUP_TARGET_TYPE)) {
-            createdIotJobIds.add(publishResult.getJobId());
-        }
-        return publishResult;
-    }
-
-    @SuppressWarnings("PMD.LinguisticNaming")
     protected CreateDeploymentResult draftAndCreateDeployment(CreateDeploymentRequest createDeploymentRequest) {
 
         // update package name with random suffix to avoid conflict in cloud
@@ -407,6 +367,12 @@ public class BaseE2ETestCase implements AutoCloseable {
         createDeploymentRequest.setComponents(updatedPkgMetadata);
 
         // set default value
+        if (createDeploymentRequest.getTargetName() == null) {
+            createDeploymentRequest.withTargetName(thingGroupName);
+        }
+        if (createDeploymentRequest.getTargetType() == null) {
+            createDeploymentRequest.withTargetType(THING_GROUP_TARGET_TYPE);
+        }
         if (createDeploymentRequest.getDeploymentPolicies() == null) {
             createDeploymentRequest.withDeploymentPolicies(new DeploymentPolicies()
                                                       .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
