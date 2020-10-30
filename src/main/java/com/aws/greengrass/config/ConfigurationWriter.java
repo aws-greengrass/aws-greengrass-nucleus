@@ -30,7 +30,7 @@ import static com.aws.greengrass.util.Utils.flush;
 
 public class ConfigurationWriter implements Closeable, ChildChanged {
     private static final String TRUNCATE_TLOG_EVENT = "truncate-tlog";
-    private static final int DEFAULT_MAX_TLOG_LINES = 15_000;
+    private static final long DEFAULT_MAX_TLOG_LINES = 15_000;
 
     private Writer out;
     private final Path tlogOutputPath;
