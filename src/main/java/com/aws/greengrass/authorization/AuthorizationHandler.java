@@ -201,7 +201,7 @@ public class AuthorizationHandler  {
      * @param principal   principal (cannot be *)
      * @param operation   operation (cannot be *)
      * @return list of allowed resources
-     * @throws AuthorizationException when flow is not authorized
+     * @throws AuthorizationException when arguments are invalid
      */
     public List<String> getAuthorizedResources(String destination, @NonNull String principal, @NonNull String operation)
             throws AuthorizationException {
