@@ -149,16 +149,6 @@ class AuthorizationHandlerTest {
                 .build();
     }
 
-    private AuthorizationPolicy getAuthZPolicyWithResources() {
-        return AuthorizationPolicy.builder()
-                .policyId("Id1")
-                .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA")))
-                .operations(new HashSet(Arrays.asList("OpA")))
-                .resources(new HashSet(Arrays.asList("res1", "res2", "res3")))
-                .build();
-    }
-
     @BeforeEach
     void beforeEach() {
         when(mockKernel.getConfig()).thenReturn(new Configuration(new Context()));
@@ -498,13 +488,41 @@ class AuthorizationHandlerTest {
     void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_getAuthorizedResources_works() throws Exception {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
-        Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA"));
+        Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB"));
         authorizationHandler.registerComponent("ServiceA", serviceOps);
 
+        AuthorizationPolicy authorizationPolicy1 = AuthorizationPolicy.builder()
+                .policyId("Id1")
+                .policyDescription("Test policy")
+                .principals(new HashSet(Arrays.asList("compA")))
+                .operations(new HashSet(Arrays.asList("OpA", "*")))
+                .resources(new HashSet(Arrays.asList("res1", "res2", "res3")))
+                .build();
+
+        AuthorizationPolicy authorizationPolicy2 = AuthorizationPolicy.builder()
+                .policyId("Id2")
+                .policyDescription("Test policy")
+                .principals(new HashSet(Arrays.asList("compA", "*")))
+                .operations(new HashSet(Arrays.asList("OpA", "OpB")))
+                .resources(new HashSet(Arrays.asList("res4", "res5")))
+                .build();
+
         authorizationHandler.loadAuthorizationPolicies("ServiceA",
-                Collections.singletonList(getAuthZPolicyWithResources()), false);
+                Arrays.asList(authorizationPolicy1, authorizationPolicy2), false);
 
         List<String> allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compA", "OpA");
+        assertThat(allowedResources, Matchers.containsInAnyOrder("res1", "res2", "res3", "res4", "res5"));
+
+        allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compA", "*");
         assertThat(allowedResources, Matchers.containsInAnyOrder("res1", "res2", "res3"));
+
+        allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compA", "OpB");
+        assertThat(allowedResources, Matchers.containsInAnyOrder("res4", "res5"));
+
+        allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "*", "OpA");
+        assertThat(allowedResources, Matchers.containsInAnyOrder("res4", "res5"));
+
+        allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "*", "OpB");
+        assertThat(allowedResources, Matchers.containsInAnyOrder("res4", "res5"));
     }
 }

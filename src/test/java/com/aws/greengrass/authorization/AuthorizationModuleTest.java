@@ -143,5 +143,8 @@ class AuthorizationModuleTest {
 
         List<String> allowedResources = module.getResources("ComponentA", "ComponentB", "Op1");
         assertThat(allowedResources, Matchers.containsInAnyOrder("res1", "res2"));
+
+        allowedResources = module.getResources("ComponentA", "ComponentB", "Op2");
+        assertThat(allowedResources, Matchers.containsInAnyOrder("res2"));
     }
 }
