@@ -92,7 +92,7 @@ public class IPCEventStreamService implements Startable, Closeable {
         this.config = config;
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.ExceptionAsFlowControl"})
     @Override
     public void startup() {
         try {
@@ -118,7 +118,8 @@ public class IPCEventStreamService implements Startable, Closeable {
                     logger.atDebug().log("Deleting the ipc server socket descriptor file");
                     Files.delete(Paths.get(ipcServerSocketAbsolutePath));
                 } catch (IOException e) {
-                    logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file");
+                    logger.atError().setCause(e).kv("path", ipcServerSocketAbsolutePath)
+                            .log("Failed to delete the ipc server socket descriptor file");
                 }
             }
 
@@ -146,7 +147,7 @@ public class IPCEventStreamService implements Startable, Closeable {
                         + "IPC server as the long nucleus root path is making socket filepath greater than 108 chars. "
                         + "Shorten root path and start nucleus again");
                 close();
-                return;
+                throw new RuntimeException(e);
             }
 
             // For domain sockets:
@@ -167,13 +168,13 @@ public class IPCEventStreamService implements Startable, Closeable {
         Path ipcPath = Paths.get(ipcServerSocketAbsolutePath);
         long maxTime = System.currentTimeMillis() + MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS * 1000;
         while (System.currentTimeMillis() < maxTime && Files.notExists(ipcPath)) {
-            logger.atDebug("Waiting for server socket file");
+            logger.atDebug().log("Waiting for server socket file");
             try {
                 Thread.sleep(SOCKET_CREATE_POLL_INTERVAL_MS);
             } catch (InterruptedException e) {
                 logger.atWarn().setCause(e).log("Service interrupted before server socket exists");
                 close();
-                return;
+                throw new RuntimeException(e);
             }
         }
         // set permissions on IPC socket so that everyone can read/write
@@ -182,7 +183,7 @@ public class IPCEventStreamService implements Startable, Closeable {
         } catch (IOException e) {
             logger.atError().setCause(e).log("Error while setting permissions for IPC server socket");
             close();
-            return;
+            throw new RuntimeException(e);
         }
     }
 
