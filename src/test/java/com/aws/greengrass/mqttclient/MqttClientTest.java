@@ -349,7 +349,6 @@ class MqttClientTest {
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_MOST_ONCE).build();
         when(spool.addMessage(request)).thenReturn(0L);
-        doNothing().when(client).spoolTask();
 
         CompletableFuture<Integer> future = client.publish(request);
 
@@ -363,7 +362,6 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, ses, false));
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        doNothing().when(client).spoolTask();
 
         CompletableFuture<Integer> future = client.publish(request);
 
