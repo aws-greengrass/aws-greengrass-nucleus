@@ -101,7 +101,7 @@
         <dependency>
             <groupId>com.amazonaws.services</groupId>
             <artifactId>evergreen</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>1.0.0-MR-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.aws.iot</groupId>
@@ -204,6 +204,12 @@
             <artifactId>aws-crt</artifactId>
             <!--change it to 1.0.0-SNAPSHOT once caches clear-->
             <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk15on</artifactId>
+            <version>1.66</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
     <pluginRepositories>

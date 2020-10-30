@@ -5,16 +5,15 @@
 
 package com.aws.greengrass.componentmanager.plugins;
 
-import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.model.GetComponentArtifactRequest;
+import com.amazonaws.services.evergreen.model.GetComponentArtifactResult;
 import com.aws.greengrass.componentmanager.ComponentTestResourceHelper;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.vdurmont.semver4j.Semver;
-import org.apache.http.HttpStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,8 +32,6 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -69,17 +66,15 @@ class GreengrassRepositoryDownloaderTest {
 
     @Test
     void GIVEN_artifact_url_WHEN_attempt_download_THEN_task_succeed() throws Exception {
-        AmazonServiceException ase = new AmazonServiceException("Redirect");
-        Map<String, String> headers = new HashMap<>();
-        headers.put("Location", "https://www.amazon.com/artifact.txt");
-        ase.setStatusCode(HttpStatus.SC_MOVED_TEMPORARILY);
-        ase.setHttpHeaders(headers);
-        when(client.getComponentArtifact(getComponentArtifactRequestArgumentCaptor.capture())).thenThrow(ase);
+        GetComponentArtifactResult result =
+                new GetComponentArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
+        when(client.getComponentArtifact(getComponentArtifactRequestArgumentCaptor.capture())).thenReturn(result);
 
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
-        Path mockArtifactPath = ComponentTestResourceHelper.getPathForTestPackage(ComponentTestResourceHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0")
-                                                           .resolve("monitor_artifact_100.txt");
+        Path mockArtifactPath = ComponentTestResourceHelper
+                .getPathForTestPackage(ComponentTestResourceHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0")
+                .resolve("monitor_artifact_100.txt");
         when(connection.getInputStream()).thenReturn(Files.newInputStream(mockArtifactPath));
 
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
@@ -89,9 +84,8 @@ class GreengrassRepositoryDownloaderTest {
         Files.createDirectories(saveToPath);
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
-        downloader.downloadToPath(
-                pkgId, new ComponentArtifact(new URI("greengrass:artifactName"),
-                        checksum, SHA256, null), saveToPath);
+        downloader.downloadToPath(pkgId,
+                new ComponentArtifact(new URI("greengrass:artifactName"), checksum, SHA256, null), saveToPath);
 
         GetComponentArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
         assertEquals("CoolService", generatedRequest.getComponentName());
@@ -107,12 +101,9 @@ class GreengrassRepositoryDownloaderTest {
 
     @Test
     void GIVEN_http_connection_error_WHEN_attempt_download_THEN_return_exception() throws Exception {
-        AmazonServiceException ase = new AmazonServiceException("Redirect");
-        Map<String, String> headers = new HashMap<>();
-        headers.put("Location", "https://www.amazon.com/artifact.txt");
-        ase.setStatusCode(HttpStatus.SC_MOVED_TEMPORARILY);
-        ase.setHttpHeaders(headers);
-        when(client.getComponentArtifact(any())).thenThrow(ase);
+        GetComponentArtifactResult result =
+                new GetComponentArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
+        when(client.getComponentArtifact(any())).thenReturn(result);
 
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenThrow(IOException.class);

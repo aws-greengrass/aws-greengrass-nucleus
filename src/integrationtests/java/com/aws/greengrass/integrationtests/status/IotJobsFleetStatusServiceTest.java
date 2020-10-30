@@ -30,6 +30,7 @@ import com.aws.greengrass.status.FleetStatusDetails;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.OverallStatus;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
@@ -99,8 +100,11 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     private ArgumentCaptor<Consumer<UpdateJobExecutionResponse>> jobsAcceptedHandlerCaptor;
 
     @BeforeEach
-    void setupKernel() throws IOException, URISyntaxException, DeviceConfigurationException,
+    void setupKernel(ExtensionContext context) throws IOException, URISyntaxException, DeviceConfigurationException,
             InterruptedException {
+        ignoreExceptionOfType(context, TLSAuthException.class);
+        ignoreExceptionOfType(context, PackageDownloadException.class);
+
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
         CompletableFuture cf = new CompletableFuture();
@@ -146,11 +150,6 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         kernel.launch();
         assertTrue(fssRunning.await(10, TimeUnit.SECONDS));
         assertTrue(deploymentServiceRunning.await(10, TimeUnit.SECONDS));
-    }
-
-    @BeforeEach
-    void beforeEach(ExtensionContext context) {
-        ignoreExceptionOfType(context, PackageDownloadException.class);
     }
 
     @AfterEach

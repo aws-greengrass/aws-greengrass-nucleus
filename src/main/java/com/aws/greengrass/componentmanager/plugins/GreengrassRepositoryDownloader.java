@@ -6,7 +6,6 @@
 package com.aws.greengrass.componentmanager.plugins;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.model.GetComponentArtifactRequest;
 import com.amazonaws.services.evergreen.model.GetComponentArtifactResult;
@@ -23,13 +22,11 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Path;
-import java.util.Map;
 import javax.inject.Inject;
 
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private static final Logger logger = LogManager.getLogger(GreengrassRepositoryDownloader.class);
     private static final String HTTP_HEADER_CONTENT_DISPOSITION = "Content-Disposition";
-    private static final String HTTP_HEADER_LOCATION = "Location";
     private static final String ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT =
             "Failed to download artifact %s for package %s-%s";
     public static final String ARTIFACT_URI_LOG_KEY = "artifactUri";
@@ -176,26 +173,10 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                         .withComponentName(componentIdentifier.getName())
                         .withComponentVersion(componentIdentifier.getVersion().toString());
 
-        // GG_NEEDS_REVIEW: TODO: This is horribly bad code, but unfortunately, the service is configured to return
-        // 302 redirect and the auto-generated SDK does NOT like that. The only way to handle this at the moment is to
-        // catch the exception for the redirect. This response code needs a revisit from the service side either to
-        // change the response code or to gracefully respond instead of throwing exception
         try {
             GetComponentArtifactResult getComponentArtifactResult =
                     evgCmsClient.getComponentArtifact(getComponentArtifactRequest);
-            return getComponentArtifactResult.getRedirectUrl();
-        } catch (AmazonServiceException ase) {
-            // GG_NEEDS_REVIEW: TODO: This should be expanded to handle various retryable/non-retryable exceptions
-            // Ideally service side response is fixed and this can be merged with the Client Exception handling
-            // section below
-            int responseStatus = ase.getStatusCode();
-            Map<String, String> headers = ase.getHttpHeaders();
-            if (responseStatus != HttpURLConnection.HTTP_MOVED_TEMP || !headers.containsKey(HTTP_HEADER_LOCATION)) {
-                throw new PackageDownloadException(
-                        String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, componentIdentifier.getName(),
-                                componentIdentifier.getVersion().toString()), ase);
-            }
-            return headers.get(HTTP_HEADER_LOCATION);
+            return getComponentArtifactResult.getPreSignedUrl();
         } catch (AmazonClientException ace) {
             // GG_NEEDS_REVIEW: TODO: This should be expanded to handle various retryable/non-retryable exceptions
             throw new PackageDownloadException(
