@@ -26,7 +26,6 @@ services:
       iotDataEndpoint: "aun2g37imm74n-ats.iot.us-east-1.amazonaws.com"
       privateKeyPath: "root/privKey.key"
       rootCaPath: "root/rootCA.pem"
-      thingName: "tes_thing"
       iotRoleAlias: "tes_alias"
   TokenExchangeService:
     parameters:
