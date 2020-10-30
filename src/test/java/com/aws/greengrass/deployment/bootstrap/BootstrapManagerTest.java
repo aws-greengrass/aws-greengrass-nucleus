@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment.bootstrap;
 
-import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
@@ -60,8 +59,6 @@ class BootstrapManagerTest {
     @Mock
     Context context;
     @Mock
-    Configuration configuration;
-    @Mock
     Path filePath;
 
     @Test
@@ -72,7 +69,7 @@ class BootstrapManagerTest {
 
     @Test
     void GIVEN_new_config_without_service_bootstraps_WHEN_check_isBootstrapRequired_THEN_return_false() throws Exception {
-        when(kernel.getConfig()).thenReturn(configuration);
+        when(kernel.getContext()).thenReturn(context);
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(false).when(bootstrapManager).serviceBootstrapRequired(any(), any());
         assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
@@ -85,7 +82,7 @@ class BootstrapManagerTest {
 
     @Test
     void GIVEN_new_config_with_service_bootstraps_WHEN_check_isBootstrapRequired_THEN_return_true() throws Exception {
-        when(kernel.getConfig()).thenReturn(configuration);
+        when(kernel.getContext()).thenReturn(context);
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(true).when(bootstrapManager).serviceBootstrapRequired(any(), any());
         assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
