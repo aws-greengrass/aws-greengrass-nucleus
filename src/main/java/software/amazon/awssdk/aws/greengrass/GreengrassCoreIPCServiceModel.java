@@ -37,7 +37,6 @@ import software.amazon.awssdk.aws.greengrass.model.GetLocalDeploymentStatusReque
 import software.amazon.awssdk.aws.greengrass.model.GetLocalDeploymentStatusResponse;
 import software.amazon.awssdk.aws.greengrass.model.GetSecretValueRequest;
 import software.amazon.awssdk.aws.greengrass.model.GetSecretValueResponse;
-import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentError;
 import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 import software.amazon.awssdk.aws.greengrass.model.InvalidArtifactsDirectoryPathError;
 import software.amazon.awssdk.aws.greengrass.model.InvalidRecipeDirectoryPathError;
@@ -265,7 +264,6 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OBJECT_MODEL_MAP.put(DeferComponentUpdateRequest.APPLICATION_MODEL_TYPE, DeferComponentUpdateRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(InvalidArgumentsError.APPLICATION_MODEL_TYPE, InvalidArgumentsError.class);
     SERVICE_OBJECT_MODEL_MAP.put(SendConfigurationValidityReportRequest.APPLICATION_MODEL_TYPE, SendConfigurationValidityReportRequest.class);
-    SERVICE_OBJECT_MODEL_MAP.put(InvalidArgumentError.APPLICATION_MODEL_TYPE, InvalidArgumentError.class);
     SERVICE_OBJECT_MODEL_MAP.put(UpdateConfigurationRequest.APPLICATION_MODEL_TYPE, UpdateConfigurationRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(ConflictError.APPLICATION_MODEL_TYPE, ConflictError.class);
     SERVICE_OBJECT_MODEL_MAP.put(FailedUpdateConditionCheckError.APPLICATION_MODEL_TYPE, FailedUpdateConditionCheckError.class);

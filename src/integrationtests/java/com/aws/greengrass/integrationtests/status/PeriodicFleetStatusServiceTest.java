@@ -27,13 +27,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -56,8 +54,6 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
     private static Kernel kernel;
     private final Set<String> componentNamesToCheck = new HashSet<>();
 
-    @TempDir
-    static Path rootDir;
     @Mock
     private MqttClient mqttClient;
     @Captor
@@ -66,7 +62,6 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
     @BeforeEach
     void setupKernel(ExtensionContext context) throws DeviceConfigurationException, InterruptedException {
         ignoreExceptionOfType(context, TLSAuthException.class);
-        System.setProperty("root", rootDir.toAbsolutePath().toString());
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
         CompletableFuture cf = new CompletableFuture();
@@ -121,7 +116,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         });
 
         // Wait for some time for the publish request to have all the components update.
-        assertTrue(allComponentsInFssUpdate.await(20, TimeUnit.SECONDS));
+        assertTrue(allComponentsInFssUpdate.await(30, TimeUnit.SECONDS), "component publish requests");
 
         List<PublishRequest> prs = captor.getAllValues();
         // Get the last FSS publish request which should have all the components information.

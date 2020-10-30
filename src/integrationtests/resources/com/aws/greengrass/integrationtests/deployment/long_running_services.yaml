@@ -1,5 +1,10 @@
 ---
 services:
+  aws.greengrass.Nucleus:
+    parameters:
+      runWithDefault:
+        posixUser: nobody
+
   sleeperB:
     lifecycle:
       posix:
@@ -28,6 +33,7 @@ services:
     dependencies:
       - sleeperA
       - sleeperB
+      - aws.greengrass.Nucleus
     lifecycle:
       posix:
         run: |-

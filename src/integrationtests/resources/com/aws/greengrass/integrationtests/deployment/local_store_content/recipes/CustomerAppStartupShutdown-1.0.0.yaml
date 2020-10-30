@@ -14,9 +14,8 @@ Manifests:
   - Platform:
       os: all
     Lifecycle:
-      startup: echo "starting app with user $USER"
-      shutdown: echo "stopping app with user $USER"
+      startup: echo "starting app with user `id -u -n`"
+      shutdown: echo "stopping app with user `id -u -n`"
       install:
         RequiresPrivilege: true
-        script: echo "installing app with user $USER"
-
+        script: echo "installing app with user `id -u -n`"

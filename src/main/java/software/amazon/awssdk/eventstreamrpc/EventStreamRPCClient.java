@@ -42,9 +42,6 @@ public class EventStreamRPCClient {
     OperationResponse<RespType, StrReqType> doOperationInvoke(
             OperationModelContext<ReqType, RespType, StrReqType, StrRespType> operationModelContext,
             final ReqType request, Optional<StreamResponseHandler<StrRespType>> streamResponseHandler) {
-        final AtomicBoolean isContinuationClosed = new AtomicBoolean(true);
-
-        // GG_NEEDS_REVIEW: TODO: verify inputs here for easier debugging further in
         if (operationModelContext.isStreamingOperation() && !streamResponseHandler.isPresent()) {
             //Even if an operation does not have a streaming response (has streaming input), a
             //stream is physically bidirectional, and even if a streaming response isn't allowed
@@ -52,9 +49,9 @@ public class EventStreamRPCClient {
             throw new IllegalArgumentException(operationModelContext.getOperationName() + " is a streaming operation. Must have a streaming response handler!");
         }
         final CompletableFuture<RespType> responseFuture = new CompletableFuture<>();
-
+        final AtomicBoolean isContinuationClosed = new AtomicBoolean(true);
         final ClientConnectionContinuation continuation = connection.getConnection().newStream(new ClientConnectionContinuationHandler() {
-            boolean initialResponseRecieved = false;
+            boolean initialResponseReceived = false;
 
             @Override
             protected void onContinuationMessage(List<Header> headers, byte[] payload, MessageType messageType, int messageFlags) {
@@ -64,23 +61,24 @@ public class EventStreamRPCClient {
                         .map(header -> header.getValueAsString())
                         .findFirst();
 
-                //first message back must parse into immediate response
+                //first message back must parse into immediate response unless it's an error
                 //follow on messages are stream response handler intended
                 if (messageType.equals(MessageType.ApplicationMessage)) {
-                    handleData(headers, payload, !initialResponseRecieved, responseFuture, streamResponseHandler,
-                            operationModelContext, continuation, isContinuationClosed);
+                    //important following not else if
+                    if (applicationModelType.isPresent()) {
+                        handleData(applicationModelType.get(), payload, !initialResponseReceived, responseFuture, streamResponseHandler,
+                                operationModelContext, continuation, isContinuationClosed);
+                    }
+                    //intentionally not else if here. We can have data, and the terminate flag set
                     if (MessageFlags.TerminateStream.getByteValue() == messageFlags) {
                         this.close();
-                        if (operationModelContext.isStreamingOperation()) {
-                            try {
-                                streamResponseHandler.get().onStreamClosed();
-                            } catch (Exception e) {
-                                LOGGER.warning(String.format("Client handler onStreamClosed() threw %s: %s",
-                                        e.getClass().getCanonicalName(), e.getMessage()));
-                            }
-                        }
+                        handleClose(initialResponseReceived, responseFuture, streamResponseHandler);
+                    } else if (!applicationModelType.isPresent()) {
+                        handleError(new UnmappedDataException(initialResponseReceived ? operationModelContext.getResponseApplicationModelType() :
+                                        operationModelContext.getStreamingResponseApplicationModelType().get()), initialResponseReceived,
+                                responseFuture, streamResponseHandler, continuation, isContinuationClosed);
                     }
-                    initialResponseRecieved = true;
+                    initialResponseReceived = true;
                 } else if (messageType.equals(MessageType.ApplicationError)) {
                     final Optional<Class<? extends EventStreamJsonMessage>> errorClass =
                             operationModelContext.getServiceModel().getApplicationModelClass(applicationModelType.orElse(""));
@@ -88,34 +86,21 @@ public class EventStreamRPCClient {
                         LOGGER.severe(String.format("Could not map error from service. Incoming error type: "
                                 + applicationModelType.orElse("null")));
                         handleError(new UnmappedDataException(applicationModelType.orElse("null")),
-                                !initialResponseRecieved, responseFuture, streamResponseHandler, continuation, isContinuationClosed);
+                                !initialResponseReceived, responseFuture, streamResponseHandler, continuation, isContinuationClosed);
                     } else {
                         try {
                             final EventStreamOperationError error = (EventStreamOperationError) operationModelContext.getServiceModel().fromJson(errorClass.get(), payload);
-                            handleError(error, !initialResponseRecieved, responseFuture, streamResponseHandler, continuation, isContinuationClosed);
+                            handleError(error, !initialResponseReceived, responseFuture, streamResponseHandler, continuation, isContinuationClosed);
                         } catch (Exception e) { //shouldn't be possible, but this is an error on top of an error
                         }
                     }
 
-                    // GG_NEEDS_REVIEW: TODO: application errors always have TerminateStream flag set?
+                    //TODO: application errors always have TerminateStream flag set?
                     //first close the stream immediately if the other side hasn't already done so
                     if (messageFlags == MessageFlags.TerminateStream.getByteValue()) {
                         try {
-                            sendClose(continuation, isContinuationClosed).whenComplete((res, ex) -> {
-                                this.close();   //ClientContinuationHandler.close()
-                                if (operationModelContext.isStreamingOperation()) {
-                                    try {
-                                        streamResponseHandler.get().onStreamClosed();
-                                    } catch (Exception e) {
-                                        LOGGER.warning(String.format("Client handler onStreamClosed() threw %s: %s",
-                                                e.getClass().getCanonicalName(), e.getMessage()));
-                                    }
-                                    if (ex != null) {
-                                        LOGGER.warning(String.format("Client message close send threw %s: %s",
-                                                ex.getClass().getCanonicalName(), ex.getMessage()));
-                                    }
-                                }
-                            });
+                            this.close();
+                            handleClose(initialResponseReceived, responseFuture, streamResponseHandler);
                         } catch (Exception e) {
                             LOGGER.warning(String.format("Exception thrown closing stream on application error received %s: %s",
                                     e.getClass().getName(), e.getMessage()));
@@ -126,14 +111,15 @@ public class EventStreamRPCClient {
                     continuation.sendMessage(headers, payload, MessageType.PingResponse, messageFlags);
                 } else if (messageType == MessageType.PingResponse) {    //do nothing on ping response
                 } else if (messageType == MessageType.ServerError) {
+                    //TODO: exception should route to response handler here, also is or will be "InternalError" soon
                     LOGGER.severe(operationModelContext.getOperationName() + " server error received");
                     this.close();   //underlying connection callbacks should handle things appropriately
                 } else if (messageType == MessageType.ProtocolError) {    //do nothing on ping response
                     LOGGER.severe(operationModelContext.getOperationName() + " protocol error received");
-                    this.close();   //underlying connection callbacks should handle things appropriately
+                    this.close();   //underlying connection callbacks should handle things appropriately but close continuation either way
                 } else {
                     //unexpected message type received on stream
-                    handleError(new InvalidDataException(messageType), !initialResponseRecieved, responseFuture,
+                    handleError(new InvalidDataException(messageType), !initialResponseReceived, responseFuture,
                             streamResponseHandler, continuation, isContinuationClosed);
                     try {
                         sendClose(continuation, isContinuationClosed).whenComplete((res, ex) -> {
@@ -149,6 +135,7 @@ public class EventStreamRPCClient {
                 }
             }
         });
+        isContinuationClosed.compareAndSet(false, true);
 
         final List<Header> headers = new LinkedList<>();
         headers.add(Header.createHeader(EventStreamRPCServiceModel.CONTENT_TYPE_HEADER,
@@ -179,30 +166,39 @@ public class EventStreamRPCClient {
         }
     }
 
-    private <RespType extends EventStreamJsonMessage, StrRespType extends EventStreamJsonMessage>
-    void handleData(List<Header> headers, byte[] payload, boolean isInitial, CompletableFuture<RespType> responseFuture,
-                    final Optional<StreamResponseHandler<StrRespType>> streamResponseHandler,
-                    final OperationModelContext<?, RespType, ?, StrRespType> operationModelContext,
-                    ClientConnectionContinuation continuation,
-                    final AtomicBoolean isClosed) {
-        if (!isInitial && !streamResponseHandler.isPresent()) {
-            throw new IllegalArgumentException("Cannot process data handling for stream without a stream response handler set!");
-        }
 
-        final Optional<String> applicationModelType = headers.stream()
-                .filter(header -> header.getName().equals(EventStreamRPCServiceModel.SERVICE_MODEL_TYPE_HEADER)
-                        && header.getHeaderType().equals(HeaderType.String))
-                .map(header -> header.getValueAsString())
-                .findFirst();
-        //check if there is a type at all specified in the header, relay what is
-        if (!applicationModelType.isPresent()) {
-            handleError(new UnmappedDataException(isInitial ? operationModelContext.getResponseApplicationModelType() :
-                            operationModelContext.getStreamingResponseApplicationModelType().get()), isInitial,
-                    responseFuture, streamResponseHandler, continuation, isClosed);
-        } else if (isInitial) {
+    private <RespType extends EventStreamJsonMessage, StrRespType extends EventStreamJsonMessage>
+            void handleClose(boolean isInitial, CompletableFuture<RespType> responseFuture,
+             final Optional<StreamResponseHandler<StrRespType>> streamResponseHandler) {
+        if (isInitial && !responseFuture.isDone()) {
+            //response future should have completed because either an error has already been thrown using it,
+            //or the data has already come back. This combination is a problem state that suggests we're closing
+            //before having any server response
+            responseFuture.completeExceptionally(new RuntimeException("Closed recieved before any service operation response!"));
+        }
+        else if (streamResponseHandler.isPresent()) {
+            //The only valid way to respond to a close after request-response is via stream handler.
+            //This is a strange detail where a request->response operation doesn't really care or see
+            //the stream closing unless it uses a stream response handler.
+            try {
+                streamResponseHandler.get().onStreamClosed();
+            } catch (Exception e) {
+                LOGGER.warning(String.format("Client handler onStreamClosed() threw %s: %s",
+                        e.getClass().getCanonicalName(), e.getMessage()));
+            }
+        }
+    }
+
+    private <RespType extends EventStreamJsonMessage, StrRespType extends EventStreamJsonMessage>
+            void handleData(String applicationModelType, byte[] payload, boolean isInitial, CompletableFuture<RespType> responseFuture,
+                        final Optional<StreamResponseHandler<StrRespType>> streamResponseHandler,
+                        final OperationModelContext<?, RespType, ?, StrRespType> operationModelContext,
+                            ClientConnectionContinuation continuation,
+                        final AtomicBoolean isClosed) {
+        if (isInitial) {
             //mismatch between type on the wire and type expected by the operation
-            if (!applicationModelType.get().equals(operationModelContext.getResponseApplicationModelType())) {
-                handleError(new UnmappedDataException(applicationModelType.get(), operationModelContext.getResponseTypeClass()),
+            if (!applicationModelType.equals(operationModelContext.getResponseApplicationModelType())) {
+                handleError(new UnmappedDataException(applicationModelType, operationModelContext.getResponseTypeClass()),
                         isInitial, responseFuture, streamResponseHandler, continuation, isClosed);
                 return;
             }
@@ -217,8 +213,8 @@ public class EventStreamRPCClient {
             responseFuture.complete(responseObj);
         } else {
             //mismatch between type on the wire and type expected by the operation
-            if (!applicationModelType.get().equals(operationModelContext.getStreamingResponseApplicationModelType().get())) {
-                handleError(new UnmappedDataException(applicationModelType.get(), operationModelContext.getStreamingResponseTypeClass().get()),
+            if (!applicationModelType.equals(operationModelContext.getStreamingResponseApplicationModelType().get())) {
+                handleError(new UnmappedDataException(applicationModelType, operationModelContext.getStreamingResponseTypeClass().get()),
                         isInitial, responseFuture, streamResponseHandler, continuation, isClosed);
                 return;
             }
@@ -242,8 +238,9 @@ public class EventStreamRPCClient {
     /**
      * Handle error and based on result may close stream
      */
-    private <RespType, StrRespType> void handleError(Throwable t, boolean isInitial, CompletableFuture<RespType> responseFuture,
-                                                     Optional<StreamResponseHandler<StrRespType>> streamResponseHandler,
+    private <RespType extends EventStreamJsonMessage, StrRespType extends EventStreamJsonMessage>
+                void handleError(Throwable t, boolean isInitial, final CompletableFuture<RespType> responseFuture,
+                                                     final Optional<StreamResponseHandler<StrRespType>> streamResponseHandler,
                                                      ClientConnectionContinuation continuation,
                                                      final AtomicBoolean isClosed) {
         if (!isInitial && !streamResponseHandler.isPresent()) {
@@ -257,14 +254,14 @@ public class EventStreamRPCClient {
             try {
                 if (streamResponseHandler.get().onStreamError(t)) {
                     sendClose(continuation, isClosed).whenComplete((res, ex) -> {
-                        streamResponseHandler.get().onStreamClosed();
+                        handleClose(isInitial, responseFuture, streamResponseHandler);
                     });
                 }
             } catch (Exception e) {
                 LOGGER.warning(String.format("Stream response handler threw exception %s: %s",
                         e.getClass().getCanonicalName(), e.getMessage()));
                 sendClose(continuation, isClosed).whenComplete((res, ex) -> {
-                    streamResponseHandler.get().onStreamClosed();
+                    handleClose(isInitial, responseFuture, streamResponseHandler);
                 });
             }
         }
