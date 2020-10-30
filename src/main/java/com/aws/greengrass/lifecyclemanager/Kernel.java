@@ -461,22 +461,17 @@ public class Kernel {
                     String.format("Unable to find %s because %s does not exist", name, pluginJar));
         }
 
-        logger.atInfo("plugin-load-external").kv(GreengrassService.SERVICE_NAME_KEY, name)
-                .log("Trying to load a custom plugin");
-
-
-        Topic storedDigest = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
-                GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC)
-                .find(SERVICE_DIGEST_TOPIC_KEY, componentId.toString());
+        Topic storedDigest = config.find(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
+                GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, SERVICE_DIGEST_TOPIC_KEY, componentId.toString());
         if (storedDigest == null || storedDigest.getOnce() == null) {
             logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
                     .log("Local external plugin is not supported by this greengrass version");
-            throw new ServiceLoadException("Custom plugins is not supported");
+            throw new ServiceLoadException("Custom plugins is not supported by this greengrass version");
         }
         ComponentStore componentStore = context.get(ComponentStore.class);
         if (!componentStore.validateComponentRecipeDigest(componentId, Coerce.toString(storedDigest))) {
             logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
-                    .log("Local plugin is not supported by this greengrass version");
+                    .log("Local plugin does not match the version in cloud!!");
             throw new ServiceLoadException("Plugin has been modified after it was downloaded");
         }
         
