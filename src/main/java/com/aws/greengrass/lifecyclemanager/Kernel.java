@@ -70,7 +70,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
-import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.STAGE_TO_ENDPOINT_FORMAT;
+import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -538,7 +538,7 @@ public class Kernel {
         }
 
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
-        String endpoint = String.format(STAGE_TO_ENDPOINT_FORMAT.get(stage), region);
+        String endpoint = String.format(GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT.get(stage), region);
         logger.atInfo().log("Configured to use Greengrass endpoint: {}", endpoint);
         context.put(CONTEXT_COMPONENT_SERVICE_ENDPOINT, endpoint);
     }
