@@ -469,19 +469,20 @@ public class DeploymentService extends GreengrassService {
                     break;
                 case IOT_JOBS:
                 case SHADOW:
-                    // TODO entry point is here
-
                     JsonNode jsonNode =
                             SerializerFactory.getJsonObjectMapper().readValue(jobDocumentString, JsonNode.class);
 
                     if (jsonNode.has("packages")) {
-                        // If "packages" exists, the document is the old format, which is
+                        // If "packages" exists, the document is in the old format, which is
                         // the result of Set/PublishConfiguration
                         // TODO remove after migrating off Set/PublishConfiguration
                         FleetConfiguration config = SerializerFactory.getJsonObjectMapper()
                                 .readValue(jobDocumentString, FleetConfiguration.class);
                         document = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
                     } else {
+                        // Note: This is the data contract that gets sending down from FCS::CreateDeployment
+                        // Configuration is really a bad name choice as it is too generic but we can change it later
+                        // since it is only a internal model
                         Configuration configuration = SerializerFactory.getJsonObjectMapper()
                                 .readValue(jobDocumentString, Configuration.class);
                         document = DeploymentDocumentConverter.convertFromNewFleetConfiguration(configuration);

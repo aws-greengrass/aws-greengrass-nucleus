@@ -15,6 +15,7 @@ import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.amazon.aws.iot.greengrass.configuration.common.ConfigurationUpdate;
 import com.amazonaws.arn.Arn;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
+import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -23,11 +24,12 @@ import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.deployment.model.PackageInfo;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.SerializerFactory;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,11 +40,13 @@ import javax.annotation.Nullable;
 import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 public final class DeploymentDocumentConverter {
+    private static final Logger logger = LogManager.getLogger(DeploymentDocumentConverter.class);
 
     public static final String DEFAULT_GROUP_NAME = "DEFAULT";
     public static final Integer NO_OP_TIMEOUT = 0;
 
     public static final String ANY_VERSION = "*";
+
 
     private DeploymentDocumentConverter() {
         // So that this can't be initialized
@@ -198,18 +202,41 @@ public final class DeploymentDocumentConverter {
      * Converts fleet configuration that sends down from FCS via IoT Job and shadow to DeploymentDocument.
      *
      * @param config Fleet configuration that sends down from FCS via IoT Job and shadow
-     * @return  Nucleus's core DeploymentDocument
+     * @return Nucleus's core DeploymentDocument
      */
-    public static DeploymentDocument convertFromNewFleetConfiguration(Configuration config) {
+    public static DeploymentDocument convertFromNewFleetConfiguration(Configuration config)
+            throws InvalidRequestException {
 
-        return DeploymentDocument.builder()
-                .deploymentId(config.getConfigurationArn() + config.getCreationTimestamp()) // TODO ask Amit
-                .deploymentPackageConfigurationList(convertComponents(config.getComponents()))
-                .groupName(parseGroupNameFromConfigurationArn(config))
-                .timestamp(config.getCreationTimestamp())
-                .failureHandlingPolicy(convertFailureHandlingPolicy(config.getFailureHandlingPolicy()))
-                .componentUpdatePolicy(convertComponentUpdatePolicy(config.getComponentUpdatePolicy()))
-                .build();
+        Map<String, ComponentUpdate> components = config.getComponents();
+        if (components == null || components.isEmpty()) {
+            throw new InvalidRequestException("The deployment configuration doesn't specified components to deploy.");
+        }
+
+        DeploymentDocument.DeploymentDocumentBuilder builder =
+                DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
+                        .deploymentPackageConfigurationList(convertComponents(config.getComponents()))
+                        .groupName(parseGroupNameFromConfigurationArn(config)).timestamp(config.getCreationTimestamp());
+
+
+        if (config.getFailureHandlingPolicy() == null) {
+            // FailureHandlingPolicy should be provided per contract with CreateDeployment API.
+            // However if it is not, device could proceed with default for resilience.
+            logger.atWarn().log("FailureHandlingPolicy should be provided but is not provided. "
+                                        + "Proceeding with default failure handling policy.");
+        } else {
+            builder.failureHandlingPolicy(convertFailureHandlingPolicy(config.getFailureHandlingPolicy()));
+        }
+
+        if (config.getComponentUpdatePolicy() == null) {
+            // ComponentUpdatePolicy should be provided per contract with CreateDeployment API.
+            // However if it is not, device could proceed with default for resilience.
+            logger.atWarn().log("ComponentUpdatePolicy should be provided but is not provided. "
+                                        + "Proceeding with default failure handling policy.");
+        } else {
+            builder.componentUpdatePolicy(convertComponentUpdatePolicy(config.getComponentUpdatePolicy()));
+        }
+
+        return builder.build();
     }
 
     private static String parseGroupNameFromConfigurationArn(Configuration config) {
@@ -226,22 +253,18 @@ public final class DeploymentDocumentConverter {
         return groupName;
     }
 
-    private static List<DeploymentPackageConfiguration> convertComponents(Map<String, ComponentUpdate> components) {
-
-        if (components == null || components.isEmpty()) {
-            // more resillience
-            return Collections.emptyList();
-        }
-
+    private static List<DeploymentPackageConfiguration> convertComponents(
+            @Nonnull Map<String, ComponentUpdate> components) {
         return components.entrySet().stream().map(e -> convertComponent(e.getKey(), e.getValue()))
                 .collect(Collectors.toList());
     }
 
     private static DeploymentPackageConfiguration convertComponent(String componentName,
             ComponentUpdate componentUpdate) {
+
         return DeploymentPackageConfiguration.builder().packageName(componentName)
                 .resolvedVersion(componentUpdate.getVersion().getValue())
-                .rootComponent(true) // Now FCS only gives root component
+                .rootComponent(true) // As of now, CreateDeployment API only gives root component
                 .configurationUpdateOperation(convertComponentUpdateOperation(componentUpdate.getConfigurationUpdate()))
                 .build();
     }
@@ -264,18 +287,22 @@ public final class DeploymentDocumentConverter {
 
     private static ComponentUpdatePolicy convertComponentUpdatePolicy(
             @Nonnull com.amazon.aws.iot.greengrass.configuration.common.ComponentUpdatePolicy componentUpdatePolicy) {
+        ComponentUpdatePolicy converted = new ComponentUpdatePolicy();
 
-        // note: componentUpdatePolicy looks nonnull from existing code but we should probably enhance it.
-        return new ComponentUpdatePolicy(componentUpdatePolicy.getTimeout(), ComponentUpdatePolicyAction
-                .fromValue(componentUpdatePolicy.getAction().name()));
+        if (componentUpdatePolicy.getTimeout() != null) {
+            converted.setTimeout(componentUpdatePolicy.getTimeout());
+        }
+
+        if (componentUpdatePolicy.getAction() != null) {
+            converted.setComponentUpdatePolicyAction(
+                    ComponentUpdatePolicyAction.fromValue(componentUpdatePolicy.getAction().name()));
+        }
+
+        return converted;
     }
 
     private static FailureHandlingPolicy convertFailureHandlingPolicy(
-            @Nullable com.amazon.aws.iot.greengrass.configuration.common.FailureHandlingPolicy failureHandlingPolicy) {
-
-        if (failureHandlingPolicy == null) {
-            return null;
-        }
+            @Nonnull com.amazon.aws.iot.greengrass.configuration.common.FailureHandlingPolicy failureHandlingPolicy) {
 
         return FailureHandlingPolicy.valueOf(failureHandlingPolicy.name());
     }
