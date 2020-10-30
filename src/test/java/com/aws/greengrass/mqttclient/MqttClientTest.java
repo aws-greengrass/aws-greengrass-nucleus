@@ -409,6 +409,9 @@ class MqttClientTest {
         when(spool.getCurrentMessageCount()).thenReturn(1).thenReturn(0);
         when(spool.popId()).thenReturn(id);
         when(spool.getMessageById(id)).thenReturn(null);
+        AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
+        when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
+        when(awsIotMqttClient.connect()).thenReturn(CompletableFuture.completedFuture(true));
 
         client.spoolTask();
 
@@ -427,9 +430,9 @@ class MqttClientTest {
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
         when(spool.getMessageById(id)).thenReturn(request);
-
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
+        when(awsIotMqttClient.connect()).thenReturn(CompletableFuture.completedFuture(true));
         when(awsIotMqttClient.publish(any(), any(), anyBoolean())).thenReturn(CompletableFuture.completedFuture(0));
 
         client.spoolTask();
@@ -455,6 +458,7 @@ class MqttClientTest {
 
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
+        when(awsIotMqttClient.connect()).thenReturn(CompletableFuture.completedFuture(true));
         CompletableFuture<Integer> future = new CompletableFuture<>();
         future.completeExceptionally(new InterruptedException("interrupted"));
         when(awsIotMqttClient.publish(any(), any(), anyBoolean())).thenReturn(future);

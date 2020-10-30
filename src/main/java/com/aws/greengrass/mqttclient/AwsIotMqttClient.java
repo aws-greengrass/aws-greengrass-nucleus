@@ -50,7 +50,6 @@ class AwsIotMqttClient implements Closeable {
     private MqttClientConnection connection;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
     private final CallbackEventManager callbackEventManager;
-    private final AtomicBoolean mqttOnline;
 
     @Getter(AccessLevel.PACKAGE)
     private final MqttClientConnectionEvents connectionEventCallback = new MqttClientConnectionEvents() {
@@ -89,14 +88,12 @@ class AwsIotMqttClient implements Closeable {
     AwsIotMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
                      Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler,
                      String clientId, Topics mqttTopics,
-                     CallbackEventManager callbackEventManager,
-                     AtomicBoolean mqttOnline) {
+                     CallbackEventManager callbackEventManager) {
         this.builderProvider = builderProvider;
         this.clientId = clientId;
         this.mqttTopics = mqttTopics;
         this.messageHandler = messageHandler.apply(this);
         this.callbackEventManager = callbackEventManager;
-        this.mqttOnline = mqttOnline;
     }
 
     // Notes about the CRT MQTT client:
@@ -121,7 +118,6 @@ class AwsIotMqttClient implements Closeable {
                 return i;
             });
         });
-
     }
 
     CompletableFuture<Integer> publish(MqttMessage message, QualityOfService qos, boolean retain) {
@@ -141,7 +137,7 @@ class AwsIotMqttClient implements Closeable {
         }
     }
 
-    private synchronized CompletableFuture<Boolean> connect() {
+    protected synchronized CompletableFuture<Boolean> connect() {
         if (connection != null) {
             return CompletableFuture.completedFuture(true);
         }
@@ -159,9 +155,8 @@ class AwsIotMqttClient implements Closeable {
             logger.atInfo().log("Connecting to AWS IoT Core");
             return connection.connect().thenApply((sessionPresent) -> {
                 currentlyConnected.set(true);
-                mqttOnline.set(true);
+                callbackEventManager.runOnConnectionResumed(false);
                 logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
-
                 if (!sessionPresent) {
                     resubscribe();
                 }

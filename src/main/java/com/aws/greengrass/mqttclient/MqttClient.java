@@ -383,11 +383,7 @@ public class MqttClient implements Closeable {
 
         try {
             spool.addMessage(request);
-            if (spoolingFuture.get() == null || spoolingFuture.get().isCancelled()) {
-                spoolingFuture.set(ses.scheduleWithFixedDelay(() -> {
-                    spoolTask();
-                }, 0, 5, TimeUnit.SECONDS));
-            }
+            spoolMessage();
         } catch (InterruptedException | SpoolerLoadException e) {
             logger.atError().log("Fail to add publish request to spooler queue", e);
             future.completeExceptionally(e);
@@ -396,21 +392,30 @@ public class MqttClient implements Closeable {
         return CompletableFuture.completedFuture(0);
     }
 
+    private synchronized void spoolMessage()  {
+        if (spoolingFuture.get() == null || spoolingFuture.get().isCancelled()) {
+            spoolingFuture.set(ses.scheduleWithFixedDelay(() -> {
+                spoolTask();
+            }, 0, 5, TimeUnit.SECONDS));
+        }
+    }
+
     /**
      * Iterate the spooler queue to publish all the spooled message.
      */
     protected void spoolTask() {
         try {
             // TODO: Revisit this loop later. It is currently expensive.
+            getConnection(false).connect().get();
             while (!Thread.currentThread().isInterrupted() && mqttOnline.get() && spool.getCurrentMessageCount() > 0) {
                 long id = spool.popId();
-
                 PublishRequest request = spool.getMessageById(id);
-
                 if (request == null) {
                     continue;
                 }
+
                 long finalId = id;
+
                 // TODO: Revisit later: currently only 1 message got sent each time.
                 // Should make the sending in more efficient way.
                 getConnection(false).publish(new MqttMessage(request.getTopic(),request.getPayload()),
@@ -500,7 +505,7 @@ public class MqttClient implements Closeable {
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
                 : "-" + connections.size() + 1);
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
-                clientId, mqttTopics, callbackEventManager, mqttOnline);
+                clientId, mqttTopics, callbackEventManager);
     }
 
     public boolean connected() {
@@ -524,6 +529,9 @@ public class MqttClient implements Closeable {
             logger.atError().log("Error shutting down event loop", e);
         } catch (TimeoutException e) {
             logger.atError().log("Timed out shutting down event loop", e);
+        }
+        if (spoolingFuture.get() != null) {
+            spoolingFuture.get().cancel(true);
         }
     }
 

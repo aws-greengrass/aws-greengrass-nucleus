@@ -47,14 +47,13 @@ public class Spool {
     public Spool(DeviceConfiguration deviceConfiguration) {
         this.deviceConfiguration = deviceConfiguration;
         Topics topics = this.deviceConfiguration.getSpoolerNamespace();
-        config = readSpoolerConfigFromDeviceConfig(topics);
+        setSpoolerConfigFromDeviceConfig(topics);
         setSpoolerConfig(config);
         spooler = setupSpooler();
         // To subscribe to the topics of spooler configuration
         topics.subscribe((what, node) -> {
             if (WhatHappened.childChanged.equals(what) && node != null) {
-                SpoolerConfig updatedConfig = readSpoolerConfigFromDeviceConfig(topics);
-                setSpoolerConfig(updatedConfig);
+                setSpoolerConfigFromDeviceConfig(topics);
             }
         });
     }
@@ -63,7 +62,7 @@ public class Spool {
         this.config = config;
     }
 
-    private SpoolerConfig readSpoolerConfigFromDeviceConfig(Topics topics) {
+    private void setSpoolerConfigFromDeviceConfig(Topics topics) {
         SpoolerStorageType ggSpoolStorageType = Coerce.toEnum(SpoolerStorageType.class, topics
                 .findOrDefault(DEFAULT_GG_SPOOL_STORAGE_TYPE, GG_SPOOL_STORAGE_TYPE_KEY));
         long ggSpoolMaxMessageQueueSizeInBytes = Coerce.toLong(topics
@@ -77,7 +76,7 @@ public class Spool {
                 .kv(GG_SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY, ggSpoolKeepQos0WhenOffline)
                 .log("Spooler has been configured");
 
-        return SpoolerConfig.builder().storageType(ggSpoolStorageType)
+        this.config = SpoolerConfig.builder().storageType(ggSpoolStorageType)
                 .spoolSizeInBytes(ggSpoolMaxMessageQueueSizeInBytes)
                 .keepQos0WhenOffline(ggSpoolKeepQos0WhenOffline).build();
     }
@@ -111,8 +110,8 @@ public class Spool {
      * @throws InterruptedException result from the queue implementation
      * @throws SpoolerLoadException  leads to the failure to insert the message to the spooler
      */
-    public long addMessage(PublishRequest request) throws InterruptedException, SpoolerLoadException {
-        // TODO: revisit the thread safety later
+    public synchronized long addMessage(PublishRequest request) throws InterruptedException, SpoolerLoadException {
+        // TODO: revisit the thread safety and whether the "synchronized" could be removed
         int messageSizeInBytes = request.getPayload().length;
         if (messageSizeInBytes > getSpoolConfig().getSpoolSizeInBytes()) {
             throw new SpoolerLoadException("The size of message has exceeds the maximum size of spooler.");
