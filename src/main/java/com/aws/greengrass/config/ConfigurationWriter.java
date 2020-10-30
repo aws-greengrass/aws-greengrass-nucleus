@@ -115,13 +115,13 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     }
 
     /**
-     * Set max lines of tlog before truncation.
+     * Set max new lines of tlog written before truncation.
      *
-     * @param bytes max number of lines
+     * @param lines max number of lines
      * @return this
      */
-    public ConfigurationWriter withMaxLines(long bytes) {
-        maxCount = bytes;
+    public ConfigurationWriter withMaxLines(long lines) {
+        maxCount = lines;
         return this;
     }
 
@@ -237,13 +237,13 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
             logger.atDebug(TRUNCATE_TLOG_EVENT).log("current effective config written to " + tlogOutputPath);
             // open writer to new tlog
             out = newTlogWriter(tlogOutputPath);
-            count.set(Files.lines(tlogOutputPath).count());
             logger.atInfo(TRUNCATE_TLOG_EVENT).log("tlog rotate successful");
         });
         if (error != null) {
             logger.atError(TRUNCATE_TLOG_EVENT, error).log("non-recoverable error occurred. truncate tlog failed");
             return;
         }
+        count.set(0);
         retryCount = 0;
         try {
             Files.deleteIfExists(oldTlogPath);
