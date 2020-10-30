@@ -514,6 +514,11 @@ public class MqttClient implements Closeable {
 
     @Override
     public synchronized void close() {
+        // Shut down spooler and then no more message will be published
+        if (spoolingFuture.get() != null) {
+            spoolingFuture.get().cancel(true);
+        }
+
         connections.forEach(AwsIotMqttClient::close);
         if (credentialsProvider != null) {
             credentialsProvider.close();
@@ -529,9 +534,6 @@ public class MqttClient implements Closeable {
             logger.atError().log("Error shutting down event loop", e);
         } catch (TimeoutException e) {
             logger.atError().log("Timed out shutting down event loop", e);
-        }
-        if (spoolingFuture.get() != null) {
-            spoolingFuture.get().cancel(true);
         }
     }
 

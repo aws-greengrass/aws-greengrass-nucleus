@@ -106,7 +106,7 @@ public class InMemorySpoolTest {
 
     @Test
     void GIVEN_id_WHEN_remove_message_by_id_THEN_spooler_size_decreased() throws SpoolerLoadException, InterruptedException {
-        PublishRequest request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(0).array())
+        PublishRequest request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
         long id = spool.addMessage(request);
 
@@ -118,11 +118,13 @@ public class InMemorySpoolTest {
     @Test
     void GIVEN_message_with_qos_zero_WHEN_pop_out_messages_with_qos_zero_THEN_only_remove_message_with_qos_zero() throws SpoolerLoadException, InterruptedException {
 
-        PublishRequest request1 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(3).array())
+        PublishRequest request1 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(1).array())
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        PublishRequest request2 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
+        PublishRequest request2 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(2).array())
                 .qos(QualityOfService.AT_MOST_ONCE).build();
-        List<PublishRequest> requests = Arrays.asList(request1, request2, request2);
+        PublishRequest request3 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(4).array())
+                .qos(QualityOfService.AT_MOST_ONCE).build();
+        List<PublishRequest> requests = Arrays.asList(request1, request2, request3);
 
         for (PublishRequest request : requests) {
             spool.addMessage(request);
@@ -131,6 +133,6 @@ public class InMemorySpoolTest {
         spool.popOutMessagesWithQosZero();
 
         verify(spool, times(2)).removeMessageById(anyLong());
-        assertEquals(3, spool.getCurrentSpoolerSize());
+        assertEquals(1, spool.getCurrentSpoolerSize());
     }
 }
