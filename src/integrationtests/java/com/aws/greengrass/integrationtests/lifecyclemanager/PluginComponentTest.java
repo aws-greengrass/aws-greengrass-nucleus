@@ -284,7 +284,9 @@ class PluginComponentTest extends BaseITCase {
                         String componentId =
                                 String.format("%s-v%s", filename.split("-")[0], filename.split("-")[1]);
                         kernel.getConfig()
-                                .lookupTopics(KernelCommandLine.MAIN_SERVICE_NAME, GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC)
+                                .lookupTopics(GreengrassService.SERVICES_NAMESPACE_TOPIC,
+                                        KernelCommandLine.MAIN_SERVICE_NAME,
+                                        GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC)
                                 .lookup(Kernel.SERVICE_DIGEST_TOPIC_KEY, componentId)
                                 .withValue(digest);
                     } catch (IOException | NoSuchAlgorithmException e) {

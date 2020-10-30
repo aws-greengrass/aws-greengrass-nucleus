@@ -461,10 +461,12 @@ public class Kernel {
                     String.format("Unable to find %s because %s does not exist", name, pluginJar));
         }
 
-        logger.atError("plugin-load-external").kv(GreengrassService.SERVICE_NAME_KEY, name)
+        logger.atInfo("plugin-load-external").kv(GreengrassService.SERVICE_NAME_KEY, name)
                 .log("Trying to load a custom plugin");
 
-        Topic storedDigest = config.lookupTopics(MAIN_SERVICE_NAME, GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC)
+
+        Topic storedDigest = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
+                GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC)
                 .find(SERVICE_DIGEST_TOPIC_KEY, componentId.toString());
         if (storedDigest == null || storedDigest.getOnce() == null) {
             logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
