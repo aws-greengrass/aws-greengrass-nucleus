@@ -30,6 +30,7 @@ import com.aws.greengrass.status.FleetStatusDetails;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.OverallStatus;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import org.junit.jupiter.api.AfterEach;
@@ -37,7 +38,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -88,8 +88,6 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     private Consumer<GreengrassLogMessage> logListener;
     private final Set<String> componentNamesToCheck = new HashSet<>();
 
-    @TempDir
-    static Path rootDir;
     @Mock
     private MqttClient mqttClient;
     @Mock
@@ -103,7 +101,6 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     @BeforeEach
     void setupKernel() throws IOException, URISyntaxException, DeviceConfigurationException,
             InterruptedException {
-        System.setProperty("root", rootDir.toAbsolutePath().toString());
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
         CompletableFuture cf = new CompletableFuture();
@@ -118,6 +115,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
                     return cf;
                 });
         kernel = new Kernel();
+        NoOpArtifactHandler.register(kernel);
         kernel.parseArgs("-i", IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml").toString());
         kernel.getContext().put(MqttClient.class, mqttClient);
         kernel.getContext().put(IotJobsClient.class, mockIotJobsClient);

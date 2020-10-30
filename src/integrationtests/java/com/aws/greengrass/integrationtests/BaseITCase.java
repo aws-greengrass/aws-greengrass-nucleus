@@ -9,11 +9,12 @@ package com.aws.greengrass.integrationtests;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -25,15 +26,14 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
  *
  * However, individual integration test could override the setup or just set up without extending this.
  */
-@ExtendWith(GGExtension.class)
+@ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 public class BaseITCase {
 
-    @TempDir
     protected Path tempRootDir;
 
     @BeforeEach
     void setRootDir() {
-        System.setProperty("root", tempRootDir.toAbsolutePath().toString());
+        tempRootDir = Paths.get(System.getProperty("root"));
     }
 
     public static void setDeviceConfig(Kernel kernel, String key, Number value) {
