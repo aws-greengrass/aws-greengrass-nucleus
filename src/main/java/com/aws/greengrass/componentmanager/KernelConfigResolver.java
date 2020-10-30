@@ -11,8 +11,10 @@ import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentParameter;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
+import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
@@ -23,12 +25,12 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CrashableFunction;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonPointer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 
@@ -153,7 +155,6 @@ public class KernelConfigResolver {
      * @throws PackageLoadingException if any service package was unable to be loaded
      * @throws IOException             for directory issues
      */
-
     public Map<String, Object> resolve(List<ComponentIdentifier> componentsToDeploy, DeploymentDocument document,
             List<String> rootPackages) throws PackageLoadingException, IOException {
         Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache =
@@ -212,7 +213,6 @@ public class KernelConfigResolver {
         parameterAndDependencyCache
                 .put(componentIdentifier, new Pair<>(resolvedParams, componentRecipe.getDependencies().keySet()));
 
-
         Map<String, Object> resolvedServiceConfig = new HashMap<>();
 
         // Interpolate parameters
@@ -232,7 +232,7 @@ public class KernelConfigResolver {
         // State information for deployments
         handleComponentVersionConfigs(componentIdentifier, componentRecipe.getVersion().getValue(),
                                       resolvedServiceConfig);
-        Map<String, Object> resolvedParamMap = new HashMap<>();
+        Map<String, String> resolvedParamMap = new HashMap<>();
         for (ComponentParameter resolvedParam : resolvedParams) {
             resolvedParamMap.put(resolvedParam.getName(), resolvedParam.getValue());
         }
@@ -251,6 +251,12 @@ public class KernelConfigResolver {
             DeploymentPackageConfiguration packageConfiguration = optionalDeploymentPackageConfig.get();
             optionalConfigUpdate = Optional.ofNullable(packageConfiguration.getConfigurationUpdateOperation());
 
+            if (!optionalConfigUpdate.isPresent() && packageConfiguration.getConfiguration() != null) {
+                ConfigurationUpdateOperation op = new ConfigurationUpdateOperation();
+                op.setValueToMerge(packageConfiguration.getConfiguration());
+                optionalConfigUpdate = Optional.of(op);
+            }
+
             if (packageConfiguration.getRunWith() != null) {
                 Map<String, String> runWith = new HashMap<>(2);
                 runWith.put(POSIX_USER_KEY, packageConfiguration.getRunWith().getPosixUser());
@@ -260,11 +266,11 @@ public class KernelConfigResolver {
         }
 
         Map<String, Object> resolvedConfiguration = resolveConfigurationToApply(optionalConfigUpdate.orElse(null),
-                componentRecipe);
+                componentRecipe, document);
 
         // merge resolved param and resolved configuration for backward compatibility
         resolvedServiceConfig
-                .put(CONFIGURATION_CONFIG_KEY, deepMerge(resolvedParamMap, resolvedConfiguration));
+                .put(CONFIGURATION_CONFIG_KEY, resolvedConfiguration);
 
         return resolvedServiceConfig;
     }
@@ -275,140 +281,101 @@ public class KernelConfigResolver {
      *
      * @param configurationUpdateOperation nullable component configuration update operation.
      * @param componentRecipe              component recipe containing default configuration.
+     * @param document                     deployment document
      * @return resolved configuration for this component. non null.
      */
     private Map<String, Object> resolveConfigurationToApply(
-            @Nullable ConfigurationUpdateOperation configurationUpdateOperation, ComponentRecipe componentRecipe) {
+            @Nullable ConfigurationUpdateOperation configurationUpdateOperation, ComponentRecipe componentRecipe,
+            DeploymentDocument document) {
 
         // try read the running service config
-        Map<String, Object> currentRunningConfig = null;
+        try (Context context = new Context()) {
+            Configuration currentRunningConfig = new Configuration(context);
 
-        Topics serviceTopics = kernel.findServiceTopic(componentRecipe.getComponentName());
-        if (serviceTopics != null) {
-            Topics configuration = serviceTopics.findTopics(CONFIGURATION_CONFIG_KEY);
-            if (configuration != null) {
-                currentRunningConfig = configuration.toPOJO();
+            // Copy from running config (if any)
+            Topics serviceTopics = kernel.findServiceTopic(componentRecipe.getComponentName());
+            if (serviceTopics != null) {
+                Topics configuration = serviceTopics.findTopics(CONFIGURATION_CONFIG_KEY);
+                if (configuration != null) {
+                    currentRunningConfig.copyFrom(configuration);
+                }
             }
-        }
 
-        // get default config
-        JsonNode defaultConfig = Optional.ofNullable(componentRecipe.getComponentConfiguration())
-                .map(ComponentConfiguration::getDefaultConfiguration)
-                .orElse(MAPPER.createObjectNode()); // init null to be empty default config
-
-        // no update
-        if (configurationUpdateOperation == null) {
-            if (currentRunningConfig == null) {
-                // no update nor running config, so it should return return the default config.
-                return MAPPER.convertValue(defaultConfig, Map.class);
-            } else {
-                // no update but there is running config, so it should return running config as is.
-                return currentRunningConfig;
+            // Remove keys which want to be reset to their default value
+            if (configurationUpdateOperation != null) {
+                removeKeysFromConfigWhichAreReset(currentRunningConfig, configurationUpdateOperation.getPathsToReset());
             }
+
+            // Merge in the defaults with timestamp 1 so that they don't overwrite any pre-existing values
+            JsonNode defaultConfig = Optional.ofNullable(componentRecipe.getComponentConfiguration())
+                    .map(ComponentConfiguration::getDefaultConfiguration)
+                    .orElse(MAPPER.createObjectNode()); // init null to be empty default config
+            // Merge in the defaults from the recipe using timestamp 1 to denote a default
+            currentRunningConfig.mergeMap(1, MAPPER.convertValue(defaultConfig, Map.class));
+            currentRunningConfig.context.runOnPublishQueueAndWait(() -> {});
+
+            // Merge in the requested config updates
+            if (configurationUpdateOperation != null && configurationUpdateOperation.getValueToMerge() != null) {
+                currentRunningConfig.mergeMap(document.getTimestamp(), configurationUpdateOperation.getValueToMerge());
+            }
+
+            return currentRunningConfig.toPOJO();
+        } catch (IOException ignored) {
         }
-
-        // perform RESET and then MERGE in order
-        Map<String, Object> resolvedConfig;
-
-        resolvedConfig = reset(currentRunningConfig, defaultConfig, configurationUpdateOperation.getPathsToReset());
-
-        resolvedConfig = deepMerge(resolvedConfig, configurationUpdateOperation.getValueToMerge());
-
-        return resolvedConfig;
+        return new HashMap<>();
     }
 
-    private Map<String, Object> reset(Map<String, Object> original, JsonNode defaultValue, List<String> pathsToReset) {
+    private void removeKeysFromConfigWhichAreReset(Configuration original, List<String> pathsToReset) {
         if (pathsToReset == null || pathsToReset.isEmpty()) {
-            return original;
+            return;
         }
-
-        // convert to JsonNode for path navigation
-        JsonNode node = MAPPER.convertValue(original, JsonNode.class);
 
         for (String pointer : pathsToReset) {
             // special case handling for reset whole document
             if (pointer.equals(JSON_POINTER_WHOLE_DOC)) {
-                // reset to entire default value node and return because there is no need to process further
-                return MAPPER.convertValue(defaultValue, Map.class);
+                original.getRoot().replaceAndWait(new HashMap<>());
+                return;
             }
 
             // regular pointer handling
             JsonPointer jsonPointer = JsonPointer.compile(pointer);
+            String[] path = pointerToPath(jsonPointer).toArray(new String[]{});
 
-            if (node.at(jsonPointer.head()).isArray()) {
+            if (pointsToArrayElement(jsonPointer)) {
                 // no support for resetting an element of array
-                LOGGER.atError().kv("pointer provided", jsonPointer)
+                LOGGER.atError().kv("jsonPointer", jsonPointer)
                         .log("Failed to reset because provided pointer for reset points to an element of array.");
                 continue;
             }
 
-            JsonNode targetDefaultNode = defaultValue.at(jsonPointer);
-
-            if (targetDefaultNode.isMissingNode()) {
-                // missing default value -> remove the entry completely
-                if (node.at(jsonPointer.head()).isObject()) {
-                    ((ObjectNode) node.at(jsonPointer.head())).remove(jsonPointer.last().getMatchingProperty());
-                } else {
-                    // parent is missing node, or value node. Do nothing.
-                    LOGGER.atDebug().kv("pointer provided", jsonPointer)
-                            .log("Parent is missing node or value node. Noop for reset.");
-                }
-            } else {
-                // target is container node, or a value node, including null node.
-                // replace the entry
-                if (node.at(jsonPointer.head()).isObject()) {
-                    ((ObjectNode) node.at(jsonPointer.head()))
-                            .replace(jsonPointer.last().getMatchingProperty(), targetDefaultNode);
-                } else {
-                    // parent is not a container node. should not happen.
-                    LOGGER.atError().kv("pointer provided", jsonPointer)
-                            .log("Failed to reset because provided pointer points to a parent who is not a container "
-                                         + "node. Please reset the component configurations entirely");
-                }
+            Topic topic = original.find(path);
+            Topics topics = original.findTopics(path);
+            if (topics != null) {
+                topics.remove();
+            }
+            if (topic != null) {
+                topic.remove();
             }
         }
-
-        return MAPPER.convertValue(node, Map.class);
     }
 
-    private static Map<String, Object> deepMerge(@Nullable Map<String, Object> original,
-            @Nullable Map<String, ?> newMap) {
-
-        if (original == null) {
-            if (newMap == null) {
-                return null;    // both are null. return null.
-            } else {
-                // original is null but newMap is not, return new map
-                return new HashMap<>(newMap); // deep copy for being more robust to handle immutable map
-            }
+    private boolean pointsToArrayElement(JsonPointer pointer) {
+        if (pointer.tail() != null) {
+            return pointer.mayMatchElement() || pointsToArrayElement(pointer.tail());
         }
+        return pointer.mayMatchElement();
+    }
 
-        Map<String, Object> mergedMap = new HashMap<>(original);  // deep copy for robustness against immutable map
-
-        if (newMap == null || newMap.isEmpty()) {
-            // original is not null but new map is null or empty, return original
-            return mergedMap;
+    private List<String> pointerToPath(JsonPointer pointer) {
+        if (pointer.tail() != null) {
+            List<String> path = pointerToPath(pointer.tail());
+            path.add(0, pointer.getMatchingProperty());
+            return path;
         }
-
-        // start merging process
-        for (Map.Entry<String, ?> newMapEntry : newMap.entrySet()) {
-            String key = newMapEntry.getKey();
-            Object newChild = newMapEntry.getValue();
-            Object originalChild = original.get(key);
-
-            if (newChild instanceof Map && original.get(key) instanceof Map) {
-                // if both are container node, recursively deep merge for children
-                // note either originalChild nor newChild could be null here as they are instance of Map
-                mergedMap.put(key, deepMerge((Map<String, Object>) originalChild, (Map<String, Object>) newChild));
-            } else {
-                // This branch supports container node -> value node and vice versa as it just overrides the value.
-                // This branch also handles the list with entire replacement.
-                // Note: we don't support list operations such as appending to an list or inserting to a index of a lit.
-                // This branch also handles setting explict null value.
-                mergedMap.put(key, newChild);
-            }
+        if (Utils.isNotEmpty(pointer.getMatchingProperty())) {
+            return new ArrayList<>(Collections.singletonList(pointer.getMatchingProperty()));
         }
-        return mergedMap;
+        return new ArrayList<>();
     }
 
     /**
@@ -729,10 +696,7 @@ public class KernelConfigResolver {
     private String getNucleusComponentName(Map<String, Object> newServiceConfig) {
         Optional<String> nucleusComponentName = newServiceConfig.keySet().stream()
                 .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(newServiceConfig.get(s)))).findAny();
-        if (nucleusComponentName.isPresent()) {
-            return nucleusComponentName.get();
-        }
-        return DEFAULT_NUCLEUS_COMPONENT_NAME;
+        return nucleusComponentName.orElse(DEFAULT_NUCLEUS_COMPONENT_NAME);
     }
 
     private Object getNucleusComponentConfig(String nucleusComponentName) {

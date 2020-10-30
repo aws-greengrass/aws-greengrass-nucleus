@@ -48,6 +48,8 @@ public class ResourceNotFoundError extends GreengrassCoreIPCError implements Eve
   public ResourceNotFoundError(String errorMessage) {
     super("ResourceNotFoundError", errorMessage);
     this.message = Optional.ofNullable(errorMessage);
+    this.resourceType = Optional.empty();
+    this.resourceName = Optional.empty();
   }
 
   public ResourceNotFoundError() {

@@ -22,6 +22,7 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
+import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -33,6 +34,7 @@ import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
@@ -66,6 +68,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -93,7 +96,7 @@ import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMP
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
-import static com.aws.greengrass.integrationtests.util.SudoUtil.assumeCanSudoShell;
+import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -163,10 +166,11 @@ class DeploymentTaskIntegrationTest {
     static void setupKernel() {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
+        NoOpArtifactHandler.register(kernel);
+
         kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
 
         kernel.launch();
-
         // get required instances from context
         componentManager = kernel.getContext().get(ComponentManager.class);
         componentStore = kernel.getContext().get(ComponentStore.class);
@@ -185,6 +189,9 @@ class DeploymentTaskIntegrationTest {
 
         // pre-load contents to package store
         preloadLocalStoreContent();
+
+        assumeCanSudoShell(kernel);
+
     }
 
     @AfterEach
@@ -728,7 +735,6 @@ class DeploymentTaskIntegrationTest {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
 
-        assumeCanSudoShell(kernel);
 
         countDownLatch = new CountDownLatch(2);
         // Set up stdout listener to capture stdout for verifying users
@@ -741,8 +747,7 @@ class DeploymentTaskIntegrationTest {
                 countDownLatch.countDown();
             }
         };
-        Slf4jLogAdapter.addGlobalListener(listener);
-        try {
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
             /*
              * 1st deployment. Default Config.
              */
@@ -754,29 +759,37 @@ class DeploymentTaskIntegrationTest {
             // verify user
             String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
                     .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
-            assertEquals("123456", user);
-            countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
+            assertEquals("nobody", user);
+            countDownLatch.await(10, TimeUnit.SECONDS);
             assertThat(stdouts, hasItem(containsString("installing app with user root")));
-            assertThat(stdouts, hasItem(containsString("starting app with user #123456")));
-
+            assertThat(stdouts, hasItem(containsString("starting app with user nobody")));
             stdouts.clear();
-            /*
-             * 2nd deployment. Change user
-             */
-            countDownLatch = new CountDownLatch(2);
-            resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentWithUser_2.json").toURI(),
-                    System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
-            user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
-                    .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
-            assertEquals("54321", user);
+        }
 
-            countDownLatch.await(5, TimeUnit.SECONDS); // the output should appear within 5 seconds
-            assertThat(stdouts, hasItem(containsString("stopping app with user #123456")));
-            assertThat(stdouts, hasItem(containsString("starting app with user #54321")));
-        } finally {
-            Slf4jLogAdapter.removeGlobalListener(listener);
+
+        /*
+         * 2nd deployment. Change user
+         */
+        countDownLatch = new CountDownLatch(2);
+
+        // update component to runas the user running the test
+        String doc = Utils.inputStreamToString(DeploymentTaskIntegrationTest.class.getResource(
+                "SampleJobDocumentWithUser_2.json").openStream());
+        String currentUser = System.getProperty("user.name");
+        doc = String.format(doc, currentUser);
+        File f = File.createTempFile("user-deployment", ".json");
+        f.deleteOnExit();
+        Files.write(f.toPath(), doc.getBytes(StandardCharsets.UTF_8));
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            Future<DeploymentResult> resultFuture = submitSampleJobDocument(f.toURI(), System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
+            String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
+                    .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
+            assertEquals(currentUser, user);
+
+            countDownLatch.await(10, TimeUnit.SECONDS);
+            assertThat(stdouts, hasItem(containsString("stopping app with user nobody")));
+            assertThat(stdouts, hasItem(containsString(String.format("starting app with user %s", currentUser))));
         }
     }
 
