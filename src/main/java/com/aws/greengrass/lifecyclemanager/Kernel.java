@@ -6,6 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.ConfigurationWriter;
@@ -89,6 +90,7 @@ public class Kernel {
     private static final String PLUGIN_SERVICE_TYPE_NAME = "plugin";
     static final String DEFAULT_CONFIG_YAML_FILE = "config.yaml";
     static final String DEFAULT_CONFIG_TLOG_FILE = "config.tlog";
+    public static final String SERVICE_DIGEST_TOPIC_KEY = "service-digest";
 
     @Getter
     private final Context context;
@@ -458,6 +460,21 @@ public class Kernel {
             throw new ServiceLoadException(
                     String.format("Unable to find %s because %s does not exist", name, pluginJar));
         }
+
+        Topic storedDigest = config.find(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
+                GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, SERVICE_DIGEST_TOPIC_KEY, componentId.toString());
+        if (storedDigest == null || storedDigest.getOnce() == null) {
+            logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
+                    .log("Local external plugin is not supported by this greengrass version");
+            throw new ServiceLoadException("Custom plugins is not supported by this greengrass version");
+        }
+        ComponentStore componentStore = context.get(ComponentStore.class);
+        if (!componentStore.validateComponentRecipeDigest(componentId, Coerce.toString(storedDigest))) {
+            logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
+                    .log("Local plugin does not match the version in cloud!!");
+            throw new ServiceLoadException("Plugin has been modified after it was downloaded");
+        }
+        
         Class<?> clazz;
         try {
             AtomicReference<Class<?>> classReference = new AtomicReference<>();
