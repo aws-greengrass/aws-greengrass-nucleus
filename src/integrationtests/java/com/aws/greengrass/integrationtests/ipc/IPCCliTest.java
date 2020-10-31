@@ -109,14 +109,14 @@ class IPCCliTest {
 
     private static Kernel kernel;
     private static final int LOCAL_DEPLOYMENT_TIMEOUT_SECONDS = 15;
-    private static final int SERVICE_STATE_CHECK_TIMEOUT_SECONDS = 15;
+    private static final int SERVICE_STATE_CHECK_TIMEOUT_SECONDS = 30;
     private IPCClient client;
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @BeforeAll
-    static void beforeAll() throws InterruptedException, ServiceLoadException {
+    static void beforeAll() throws InterruptedException {
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCCliTest.class, CLI_SERVICE, TEST_SERVICE_NAME);
         BaseITCase.setDeviceConfig(kernel, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 1L);
     }
