@@ -14,8 +14,11 @@ import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.constants.FileSuffix;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
@@ -28,6 +31,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -85,6 +89,39 @@ public class ComponentStore {
         Optional<String> recipeContent = findComponentRecipeContent(pkgId);
 
         return recipeContent.isPresent() ? RecipeLoader.loadFromFile(recipeContent.get()) : Optional.empty();
+    }
+
+    /**
+     * Validate whether given digest matches the component recipe on disk.
+     * @param componentIdentifier component whose recipe is read from disk
+     * @param expectedDigest expected digest for the recipe
+     * @return whether the expected digest matches the calculated digest on disk
+     */
+    public boolean validateComponentRecipeDigest(@NonNull ComponentIdentifier componentIdentifier,
+                                                 String expectedDigest) {
+        try {
+            Optional<String> recipeContent = findComponentRecipeContent(componentIdentifier);
+            if (!recipeContent.isPresent()) {
+                logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY,
+                        componentIdentifier.getName())
+                        .log("Recipe not found for component " + componentIdentifier.getName());
+                return false;
+            }
+            String digest = Digest.calculate(recipeContent.get());
+            logger.atInfo("plugin-load").log("Digest from store: " + Coerce.toString(expectedDigest));
+            logger.atInfo("plugin-load").log("Digest from recipe: " + Coerce.toString(digest));
+            if (!Digest.isEqual(digest, expectedDigest)) {
+                logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY,
+                        componentIdentifier.getName())
+                        .log("Recipe on disk was modified after it was downloaded from cloud");
+                return false;
+            }
+            return true;
+        } catch (PackageLoadingException | NoSuchAlgorithmException e) {
+            logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY,
+                    componentIdentifier.getName()).log("Cannot validate digest for recipe");
+        }
+        return false;
     }
 
     Optional<String> findComponentRecipeContent(@NonNull ComponentIdentifier componentId)

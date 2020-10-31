@@ -31,13 +31,16 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
+import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.platforms.Platform;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,14 +48,17 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
 
 import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
@@ -64,6 +70,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -99,9 +106,19 @@ class PluginComponentTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_kernel_WHEN_locate_plugin_THEN_plugin_is_loaded_into_JVM() throws Exception {
+    void GIVEN_kernel_WHEN_locate_plugin_without_digest_THEN_plugin_is_not_loaded_into_JVM(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, RuntimeException.class);
         kernel.parseArgs("-i", this.getClass().getResource("plugin.yaml").toString());
         setupPackageStore();
+        assertThrows(RuntimeException.class, () -> kernel.launch());
+    }
+
+    @Test
+    void GIVEN_kernel_WHEN_locate_plugin_THEN_plugin_is_loaded_into_JVM() throws Exception {
+        kernel.parseArgs("-i", this.getClass().getResource("plugin.yaml").toString());
+        setupPackageStoreAndConfigWithDigest();
+
         launchAndWait();
 
         GreengrassService eg = kernel.locate(componentName);
@@ -132,7 +149,7 @@ class PluginComponentTest extends BaseITCase {
     @Test
     void GIVEN_kernel_WHEN_locate_plugin_dependency_THEN_dependency_from_plugin_is_loaded_into_JVM() throws Exception {
         kernel.parseArgs("-i", this.getClass().getResource("plugin_dependency.yaml").toString());
-        setupPackageStore();
+        setupPackageStoreAndConfigWithDigest();
         launchAndWait();
 
         GreengrassService eg = kernel.locate("plugin-dependency");
@@ -148,7 +165,7 @@ class PluginComponentTest extends BaseITCase {
 
         // launch kernel
         kernel.parseArgs();
-        setupPackageStore();
+        setupPackageStoreAndConfigWithDigest();
         launchAndWait();
 
         // Ensure that the dependency isn't somehow in our class loader already
@@ -174,7 +191,7 @@ class PluginComponentTest extends BaseITCase {
         ignoreExceptionOfType(context, IOException.class);
 
         Kernel kernelSpy = spy(kernel.parseArgs());
-        setupPackageStore();
+        setupPackageStoreAndConfigWithDigest();
         String deploymentId = "deployment1";
         KernelAlternatives kernelAltsSpy = spy(kernelSpy.getContext().get(KernelAlternatives.class));
         kernelSpy.getContext().put(KernelAlternatives.class, kernelAltsSpy);
@@ -205,7 +222,7 @@ class PluginComponentTest extends BaseITCase {
                 .forName("com.aws.greengrass.integrationtests.lifecyclemanager.resource.PluginDependency");
 
         // setup again because local files removed by cleanup in the previous deployment
-        setupPackageStore();
+        setupPackageStoreAndConfigWithDigest();
         String deploymentId2 = "deployment2";
         // No need to actually verify directory setup or make directory changes here.
         doReturn(true).when(kernelAltsSpy).isLaunchDirSetup();
@@ -217,6 +234,11 @@ class PluginComponentTest extends BaseITCase {
                 getPluginDeploymentDocument(System.currentTimeMillis(), "1.1.0", deploymentId2), kernelSpy)
                 .get(10, TimeUnit.SECONDS));
         verify(kernelSpy).shutdown(eq(30), eq(REQUEST_RESTART));
+    }
+
+    private void setupPackageStoreAndConfigWithDigest() throws IOException, PackagingException, URISyntaxException {
+        setupPackageStore();
+        setDigestInConfig();
     }
 
     private void setupPackageStore() throws IOException, PackagingException, URISyntaxException {
@@ -249,6 +271,29 @@ class PluginComponentTest extends BaseITCase {
 
 
         FileUtils.copyFile(jarFilePath.toFile(), artifactPath1_0_0.toFile());
+    }
+
+    private void setDigestInConfig() throws IOException, URISyntaxException {
+        Path localStoreContentPath = Paths.get(getClass().getResource("local_store_content").toURI());
+        Path recipePath = localStoreContentPath.resolve("recipes");
+        try (Stream<Path> paths = Files.walk(recipePath)) {
+                paths.filter(Files::isRegularFile).forEach(path -> {
+                    try {
+                        String digest = Digest.calculate(FileUtils.readFileToString(path.toFile()));
+                        String filename = FilenameUtils.removeExtension(path.getFileName().toString());
+                        String componentId =
+                                String.format("%s-v%s", filename.split("-")[0], filename.split("-")[1]);
+                        kernel.getConfig()
+                                .lookupTopics(GreengrassService.SERVICES_NAMESPACE_TOPIC,
+                                        KernelCommandLine.MAIN_SERVICE_NAME,
+                                        GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC)
+                                .lookup(Kernel.SERVICE_DIGEST_TOPIC_KEY, componentId)
+                                .withValue(digest);
+                    } catch (IOException | NoSuchAlgorithmException e) {
+                        fail("Error reading local_store_content");
+                    }
+            });
+        }
     }
 
     private DeploymentDocument getPluginDeploymentDocument(Long timestamp, String version, String deploymentId) {
