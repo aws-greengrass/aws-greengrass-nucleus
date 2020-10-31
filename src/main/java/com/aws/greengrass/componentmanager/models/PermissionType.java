@@ -23,8 +23,21 @@ public enum PermissionType {
      */
     ALL;
 
+    /**
+     * Convert a string to a permission type.
+     *
+     * @param s the string to convert.
+     * @return a permission type
+     */
     public static PermissionType fromString(String s) {
-        return PermissionType.valueOf(s.toUpperCase());
+        if (s == null || s.isEmpty()) {
+            return NONE;
+        }
+        try {
+            return PermissionType.valueOf(s.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return NONE;
+        }
     }
 
 }

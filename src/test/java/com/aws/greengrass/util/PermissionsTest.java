@@ -5,10 +5,12 @@
 
 package com.aws.greengrass.util;
 
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
@@ -18,6 +20,7 @@ import java.nio.file.Path;
 import static com.aws.greengrass.testcommons.testutilities.Matchers.hasPermission;
 import static org.hamcrest.MatcherAssert.assertThat;
 
+@ExtendWith(GGExtension.class)
 @EnabledOnOs({OS.LINUX, OS.MAC})
 class PermissionsTest {
 
