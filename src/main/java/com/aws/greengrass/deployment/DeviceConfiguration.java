@@ -79,6 +79,7 @@ public class DeviceConfiguration {
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
+    private static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
 
     private final Kernel kernel;
 
@@ -99,8 +100,8 @@ public class DeviceConfiguration {
         deTildeValidator = getDeTildeValidator();
         regionValidator = getRegionValidator();
 
-        getComponentStoreMaxSizeBytes().withValue(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
-        getDeploymentPollingFrequencySeconds().withValue(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
+        getComponentStoreMaxSizeBytes().dflt(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
+        getDeploymentPollingFrequencySeconds().dflt(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
     }
 
     /**
@@ -220,8 +221,16 @@ public class DeviceConfiguration {
         return getRunWithTopic().lookup(RUN_WITH_DEFAULT_WINDOWS_USER);
     }
 
+    /**
+     * Get thing name configuration. Also adds the thing name to the env vars if it has changed.
+     *
+     * @return Thing name config topic.
+     */
     public Topic getThingName() {
-        return getTopic(DEVICE_PARAM_THING_NAME).dflt("");
+        Topic thingNameTopic = kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME).dflt("");
+        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, AWS_IOT_THING_NAME_ENV)
+                .withValue(Coerce.toString(thingNameTopic));
+        return thingNameTopic;
     }
 
     public Topic getCertificateFilePath() {
@@ -299,9 +308,15 @@ public class DeviceConfiguration {
         return getTopic(DEPLOYMENT_POLLING_FREQUENCY_SECONDS);
     }
 
+    /**
+     * Subscribe to all device configuration change.
+     *
+     * @param cc Subscribe handler
+     */
     public void onAnyChange(ChildChanged cc) {
         kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, CONFIGURATION_CONFIG_KEY)
                 .subscribe(cc);
+        kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY).subscribe(cc);
     }
 
     public void onTopicChange(String topicName, Subscriber s) {

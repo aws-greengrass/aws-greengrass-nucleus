@@ -97,4 +97,20 @@ public final class Permissions {
     public static void setCliIpcInfoPermission(Path p) throws IOException {
         platform.setPermissions(OWNER_RWX_EVERYONE_RX, p);
     }
+
+    /**
+     * Set permissions on the IPC socket path.
+     *
+     * @param p path to socket.
+     * @throws IOException if permissions could not be set.
+     */
+    public static void setIpcSocketPermission(Path p) throws IOException {
+        // note this uses File#set methods as using posix permissions fails.
+        boolean succeeded = p.toFile().setReadable(true, false)
+                && p.toFile().setWritable(true, false)
+                && p.toFile().setExecutable(false, false);
+        if (!succeeded) {
+            throw new IOException("Could not set permissions on " + p.toString());
+        }
+    }
 }
