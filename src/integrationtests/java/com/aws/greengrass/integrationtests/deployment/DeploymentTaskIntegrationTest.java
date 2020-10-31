@@ -302,8 +302,8 @@ class DeploymentTaskIntegrationTest {
     void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel(ExtensionContext context)
             throws Exception {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
-                                                                                                 GreengrassService.class
-                                                                                                         .getName());
+                GreengrassService.class
+                        .getName());
         outputMessagesToTimestamp.clear();
         final List<String> listOfExpectedMessages =
                 Arrays.asList(TEST_TICK_TOCK_STRING, TEST_MOSQUITTO_STRING, TEST_CUSTOMER_APP_STRING);
@@ -533,7 +533,7 @@ class DeploymentTaskIntegrationTest {
 
         assertThat(resultConfig, IsMapContaining.hasKey("path"));
         assertThat((Map<String, String>) resultConfig.get("path"),
-                   IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
+                IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
         // verify interpolation result
         assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
@@ -724,6 +724,7 @@ class DeploymentTaskIntegrationTest {
         assertThrows(ServiceLoadException.class, () -> kernel.locate("Mosquitto"));
         assertThrows(ServiceLoadException.class, () -> kernel.locate("GreenSignal"));
     }
+
     /**
      * Start a service running with a user, then deploy an update to change the user and ensure the correct user
      * stops the process and starts the new one.
@@ -912,30 +913,31 @@ class DeploymentTaskIntegrationTest {
         SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest = new SubscribeToComponentUpdatesRequest();
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         CompletableFuture<SubscribeToComponentUpdatesResponse> fut =
-        greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest, Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
-            @Override
-            public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
-                if (streamEvent.getPreUpdateEvent() != null ) {
-                    DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
-                    deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(60).toMillis());
-                    deferComponentUpdateRequest.setMessage("Test");
-                    greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
-                }
-            }
+                greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest,
+                        Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+                            @Override
+                            public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                                if (streamEvent.getPreUpdateEvent() != null) {
+                                    DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+                                    deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(60).toMillis());
+                                    deferComponentUpdateRequest.setMessage("Test");
+                                    greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
+                                }
+                            }
 
-            @Override
-            public boolean onStreamError(Throwable error) {
-                logger.atError().setCause(error).log("Stream closed due to error");
-                return false;
-            }
+                            @Override
+                            public boolean onStreamError(Throwable error) {
+                                logger.atError().setCause(error).log("Stream closed due to error");
+                                return false;
+                            }
 
-            @Override
-            public void onStreamClosed() {
+                            @Override
+                            public void onStreamClosed() {
 
-            }
-        })).getResponse();
+                            }
+                        })).getResponse();
         try {
-            fut.get(3, TimeUnit.SECONDS);
+            fut.get(30, TimeUnit.SECONDS);
         } catch (Exception e) {
             logger.atError().setCause(e).log("Error when subscribing to component updates");
             fail("Caught exception when subscribing to component updates");
@@ -993,7 +995,7 @@ class DeploymentTaskIntegrationTest {
         // safety check
         Future<DeploymentResult> resultFuture =
                 submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("SkipSafetyCheck.json").toURI(),
-                                        System.currentTimeMillis());
+                        System.currentTimeMillis());
         DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies()
                 .stream()
@@ -1063,9 +1065,9 @@ class DeploymentTaskIntegrationTest {
         sampleJobDocument.setGroupName(MOCK_GROUP_NAME);
         DefaultDeploymentTask deploymentTask =
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
-                                          deploymentConfigMerger, logger,
-                                          new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId",
-                                                         DEFAULT), deploymentServiceTopics);
+                        deploymentConfigMerger, logger,
+                        new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId",
+                                DEFAULT), deploymentServiceTopics);
         return executorService.submit(deploymentTask);
     }
 }
