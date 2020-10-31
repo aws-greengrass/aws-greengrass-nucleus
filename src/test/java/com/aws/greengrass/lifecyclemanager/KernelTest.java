@@ -37,10 +37,10 @@ import java.util.List;
 import java.util.Map;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
@@ -63,7 +63,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -483,8 +482,11 @@ class KernelTest {
         doThrow(new IOException()).when(kernelAlternatives).prepareRollback();
         kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
+        Deployment deployment = mock(Deployment.class);
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doReturn(mock(Path.class)).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
+        doReturn(deployment).when(deploymentDirectoryManager).readDeploymentMetadata();
+        doNothing().when(deploymentDirectoryManager).writeDeploymentMetadata(any());
         doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
 
         BootstrapManager bootstrapManager = mock(BootstrapManager.class);
@@ -498,7 +500,6 @@ class KernelTest {
         }
 
         verify(kernelAlternatives).prepareRollback();
-        verify(deploymentDirectoryManager, times(0)).writeDeploymentMetadata(any());
         verify(kernelLifecycle).shutdown(eq(30), eq(2));
     }
 
