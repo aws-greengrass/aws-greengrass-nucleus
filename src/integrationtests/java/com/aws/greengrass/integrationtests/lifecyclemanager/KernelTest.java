@@ -24,6 +24,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -36,8 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -328,7 +328,7 @@ class KernelTest extends BaseITCase {
     @SuppressWarnings("PMD.CloseResource")
     @Test
     void GIVEN_kernel_running_WHEN_truncate_tlog_THEN_current_config_saved_and_using_new_tlog()
-            throws InterruptedException {
+            throws IOException {
         kernel = new Kernel().parseArgs().launch();
         Context context = kernel.getContext();
         Configuration config = context.get(Configuration.class);
@@ -348,20 +348,16 @@ class KernelTest extends BaseITCase {
             kernelLifecycle.getTlog().withMaxEntries(1);
             testTopic1.withNewerValue(System.currentTimeMillis(), "triggering truncate");
             // immediately queue a task to increase max size to prevent repeated truncation
-            context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxEntries(100_000));
+            context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxEntries(10000));
         });
-        // wait for things to finish
-        Thread.sleep(1000);
-        testTopic1.withNewerValue(System.currentTimeMillis(),"should be in new log");
+        context.runOnPublishQueueAndWait(() -> {});
+        kernel.shutdown();
 
-        // block and check equivalence
-        context.runOnPublishQueueAndWait(() -> {
-            Configuration fullConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("full.tlog"));
-            Configuration newConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog"));
-            Map<String, Object> fullConfigMap = fullConfig.toPOJO();
-            Map<String, Object> newConfigMap = newConfig.toPOJO();
-            assertThat(newConfigMap, is(fullConfigMap));
-        });
+        Map<String, Object> fullConfigMap =
+                ConfigurationReader.createFromTLog(context, configPath.resolve("full.tlog")).toPOJO();
+        Map<String, Object> tlogConfigMap =
+                ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog")).toPOJO();
+        assertEquals(fullConfigMap, tlogConfigMap);
     }
 
     private static class ExpectedStdoutPattern {
