@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
@@ -173,6 +174,23 @@ class ComponentStoreTest {
         assertThat(path.toFile(), anExistingDirectory());
     }
 
+    @Test
+    void GIVEN_component_WHEN_validate_recipe_called_THEN_works() throws Exception {
+        preloadRecipeFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
+        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
+        String recipeString = new String(Files.readAllBytes(sourceRecipe));
+
+        assertTrue(componentStore.validateComponentRecipeDigest(
+                MONITORING_SERVICE_PKG_ID, Digest.calculate(recipeString)));
+
+        assertFalse(componentStore.validateComponentRecipeDigest(
+                MONITORING_SERVICE_PKG_ID, Digest.calculate("random String")));
+
+        ComponentIdentifier nonExistentComponent =
+                new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("5.0.0"));
+        assertFalse(componentStore.validateComponentRecipeDigest(
+                nonExistentComponent, Digest.calculate(recipeString)));
+    }
 
     @Test
     void GIVEN_a_recipe_does_not_exist_WHEN_findPackageRecipe_THEN_empty_is_returned() throws Exception {
