@@ -11,6 +11,7 @@ import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +32,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import javax.inject.Inject;
@@ -57,6 +59,9 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     // https://www.gnu.org/software/libc/manual/html_node/Local-Namespace-Details.html
     private static final int UDS_SOCKET_PATH_MAX_LEN = 108;
+
+    private static final int MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS = 30;
+    public static final int SOCKET_CREATE_POLL_INTERVAL_MS = 200;
 
     private static final Logger logger = LogManager.getLogger(IPCEventStreamService.class);
 
@@ -87,7 +92,7 @@ public class IPCEventStreamService implements Startable, Closeable {
         this.config = config;
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.ExceptionAsFlowControl"})
     @Override
     public void startup() {
         try {
@@ -113,7 +118,8 @@ public class IPCEventStreamService implements Startable, Closeable {
                     logger.atDebug().log("Deleting the ipc server socket descriptor file");
                     Files.delete(Paths.get(ipcServerSocketAbsolutePath));
                 } catch (IOException e) {
-                    logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file");
+                    logger.atError().setCause(e).kv("path", ipcServerSocketAbsolutePath)
+                            .log("Failed to delete the ipc server socket descriptor file");
                 }
             }
 
@@ -141,7 +147,7 @@ public class IPCEventStreamService implements Startable, Closeable {
                         + "IPC server as the long nucleus root path is making socket filepath greater than 108 chars. "
                         + "Shorten root path and start nucleus again");
                 close();
-                return;
+                throw new RuntimeException(e);
             }
 
             // For domain sockets:
@@ -155,6 +161,29 @@ public class IPCEventStreamService implements Startable, Closeable {
             // Make sure to cleanup anything we created since we don't know where exactly we failed
             close();
             throw e;
+        }
+
+        // IPC socket does not get created immediately after runServer returns
+        // Wait up to 30s for it to exist
+        Path ipcPath = Paths.get(ipcServerSocketAbsolutePath);
+        long maxTime = System.currentTimeMillis() + MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS * 1000;
+        while (System.currentTimeMillis() < maxTime && Files.notExists(ipcPath)) {
+            logger.atDebug().log("Waiting for server socket file");
+            try {
+                Thread.sleep(SOCKET_CREATE_POLL_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                logger.atWarn().setCause(e).log("Service interrupted before server socket exists");
+                close();
+                throw new RuntimeException(e);
+            }
+        }
+        // set permissions on IPC socket so that everyone can read/write
+        try {
+            Permissions.setIpcSocketPermission(ipcPath);
+        } catch (IOException e) {
+            logger.atError().setCause(e).log("Error while setting permissions for IPC server socket");
+            close();
+            throw new RuntimeException(e);
         }
     }
 
