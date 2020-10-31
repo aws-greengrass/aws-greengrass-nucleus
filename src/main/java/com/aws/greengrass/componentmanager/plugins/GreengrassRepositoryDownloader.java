@@ -22,11 +22,12 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Objects;
 import javax.inject.Inject;
 
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private static final Logger logger = LogManager.getLogger(GreengrassRepositoryDownloader.class);
-    private static final String HTTP_HEADER_CONTENT_DISPOSITION = "Content-Disposition";
     private static final String ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT =
             "Failed to download artifact %s for package %s-%s";
     public static final String ARTIFACT_URI_LOG_KEY = "artifactUri";
@@ -43,38 +44,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     @Override
     public boolean downloadRequired(ComponentIdentifier componentIdentifier, ComponentArtifact artifact,
                                     Path saveToPath) throws PackageDownloadException {
-        // GG_NEEDS_REVIEW: TODO can we simplify getting filename without network request
-        try {
-            String preSignedUrl =
-                    getArtifactDownloadURL(componentIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
-            URL url = new URL(preSignedUrl);
-            HttpURLConnection httpConn = connect(url);
-            try {
-                int responseCode = httpConn.getResponseCode();
-
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
-                    String filename = extractFilename(url, disposition);
-                    return !artifactExistsAndChecksum(artifact, saveToPath.resolve(filename));
-                }
-            } finally {
-                if (httpConn != null) {
-                    httpConn.disconnect();
-                }
-            }
-        } catch (IOException e) {
-            throw new PackageDownloadException("Failed to check greengrass artifact", e);
-        } catch (PackageDownloadException e) {
-            if (!saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile().exists()) {
-                throw e;
-            }
-            logger.atInfo("download-required-from-greengrass-repo")
-                    .addKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, componentIdentifier)
-                    .addKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
-                    .log("Failed to download artifact, but found it locally, using that version", e);
-            return false;
-        }
-        return true;
+        String filename = getFilename(artifact);
+        return !artifactExistsAndChecksum(artifact, saveToPath.resolve(filename));
     }
 
     @Override
@@ -94,8 +65,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                 int responseCode = httpConn.getResponseCode();
 
                 if (responseCode == HttpURLConnection.HTTP_OK) {
-                    String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
-                    String filename = extractFilename(url, disposition);
+                    String filename = getFilename(artifact);
 
                     try (InputStream inputStream = httpConn.getInputStream()) {
                         if (artifactExistsAndChecksum(artifact, saveToPath.resolve(filename))) {
@@ -110,23 +80,17 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                 }
                 // GG_NEEDS_REVIEW: TODO handle the other status code
             } finally {
-                if (httpConn != null) {
-                    httpConn.disconnect();
-                }
+                httpConn.disconnect();
             }
         } catch (PackageDownloadException e) {
-            if (!saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile().exists()) {
+            if (!saveToPath.resolve(getFilename(artifact)).toFile().exists()) {
                 throw e;
             }
             logger.atInfo("download-artifact-from-greengrass-repo")
                     .addKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, componentIdentifier)
                     .addKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
                     .log("Failed to download artifact, but found it locally, using that version", e);
-            // GG_NEEDS_REVIEW: TODO : In the download from cloud step we rely on the content-disposition header
-            // to get the file name and that's the accurate name, but here we're only using the scheme specific part
-            //  of the URI when we don't find the file in cloud, we need to follow up on what is the
-            //  right way to get file name
-            return saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
+            return saveToPath.resolve(getFilename(artifact)).toFile();
         }
         return null;
     }
@@ -155,11 +119,12 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     @Override
     public File getArtifactFile(Path artifactDir, ComponentArtifact artifact, ComponentIdentifier componentIdentifier) {
-        // GG_NEEDS_REVIEW: TODO : In the download from cloud step we rely on the content-disposition header to get the
-        //  file name and that's the accurate name, but here we're only using the scheme specific part
-        //  of the URI when we don't find the file in cloud, we need to follow up on what is the
-        //  right way to get file name
-        return artifactDir.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
+        return artifactDir.resolve(getFilename(artifact)).toFile();
+    }
+
+    String getFilename(ComponentArtifact artifact) {
+        String ssp = artifact.getArtifactUri().getSchemeSpecificPart();
+        return Objects.toString(Paths.get(ssp).getFileName());
     }
 
     HttpURLConnection connect(URL url) throws IOException {
@@ -183,21 +148,5 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, componentIdentifier.getName(),
                             componentIdentifier.getVersion().toString()), ace);
         }
-    }
-
-    static String extractFilename(URL preSignedUrl, String contentDisposition) {
-        if (contentDisposition != null) {
-            String filenameKey = "filename=";
-            int index = contentDisposition.indexOf(filenameKey);
-            if (index > 0) {
-                //extract filename from content, remove double quotes
-                return contentDisposition.substring(index + filenameKey.length()).replaceAll("^\"|\"$", "");
-            }
-        }
-        //extract filename from URL
-        //URL can contain parameters, such as /filename.txt?sessionId=value
-        //extract 'filename.txt' from it
-        String[] pathStrings = preSignedUrl.getPath().split("/");
-        return pathStrings[pathStrings.length - 1];
     }
 }
