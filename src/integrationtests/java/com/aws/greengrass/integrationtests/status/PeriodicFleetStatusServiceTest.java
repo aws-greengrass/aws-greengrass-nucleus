@@ -31,10 +31,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -118,10 +120,14 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         assertEquals("ThingName", fleetStatusDetails.get().getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.get().getOverallStatus());
         assertNotNull(fleetStatusDetails.get().getComponentStatusDetails());
+        Set<String> allComponents =
+                kernel.orderedDependencies().stream().map(GreengrassService::getName).collect(Collectors.toSet());
         for (ComponentStatusDetails componentStatusDetail : fleetStatusDetails.get().getComponentStatusDetails()) {
             assertNotNull(componentStatusDetail.getComponentName());
             assertNotNull(componentStatusDetail.getFleetConfigArns());
             assertNotNull(componentStatusDetail.getState());
+            allComponents.remove(componentStatusDetail.getComponentName());
         }
+        assertTrue(allComponents.isEmpty());
     }
 }
