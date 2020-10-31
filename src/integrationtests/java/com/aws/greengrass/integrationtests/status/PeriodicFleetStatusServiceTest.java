@@ -48,8 +48,8 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static DeviceConfiguration deviceConfiguration;
     private static Kernel kernel;
-    private final CountDownLatch allComponentsInFssUpdate = new CountDownLatch(1);
-    private final AtomicReference<FleetStatusDetails> fleetStatusDetails = new AtomicReference<>();
+    private CountDownLatch allComponentsInFssUpdate;
+    private AtomicReference<FleetStatusDetails> fleetStatusDetails;
 
     @Mock
     private MqttClient mqttClient;
@@ -59,6 +59,8 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         ignoreExceptionOfType(context, TLSAuthException.class);
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
+        allComponentsInFssUpdate = new CountDownLatch(1);
+        fleetStatusDetails = new AtomicReference<>();
         CompletableFuture cf = new CompletableFuture();
         cf.complete(null);
         kernel = new Kernel();
