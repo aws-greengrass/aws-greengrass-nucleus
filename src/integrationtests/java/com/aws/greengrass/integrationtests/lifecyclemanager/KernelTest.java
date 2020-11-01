@@ -7,8 +7,9 @@ package com.aws.greengrass.integrationtests.lifecyclemanager;
 
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.ConfigurationReader;
-import com.aws.greengrass.config.ConfigurationWriter;
+import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
@@ -17,6 +18,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.Coerce;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import org.junit.jupiter.api.AfterAll;
@@ -24,7 +26,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -39,6 +40,7 @@ import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYC
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -327,37 +329,75 @@ class KernelTest extends BaseITCase {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
-    void GIVEN_kernel_running_WHEN_truncate_tlog_THEN_current_config_saved_and_using_new_tlog()
-            throws IOException {
+    void GIVEN_kernel_running_WHEN_truncate_tlog_and_shutdown_THEN_tlog_consistent_with_config() throws Exception {
         kernel = new Kernel().parseArgs().launch();
+        Configuration config = kernel.getConfig();
         Context context = kernel.getContext();
-        Configuration config = context.get(Configuration.class);
-        Path configPath = kernel.getNucleusPaths().configPath();
+        Path configPath = tempRootDir.resolve("config");
+
+        Topic testTopic = config.lookup("testTopic").withValue("initial");
         KernelLifecycle kernelLifecycle = context.get(KernelLifecycle.class);
-
-        // create a tlog that's not interrupted by truncation workflow. goal is to be consistent with this one
         context.runOnPublishQueueAndWait(() -> {
-            kernel.writeEffectiveConfigAsTransactionLog(configPath.resolve("full.tlog"));
-            ConfigurationWriter.logTransactionsTo(config, configPath.resolve("full.tlog")).flushImmediately(true);
-        });
-
-        // create some test topics
-        Topic testTopic1 = config.lookup("testTopic1").withValue("initial");
-        context.runOnPublishQueueAndWait(() -> {
-            // make truncate run by setting a small size
+            // make truncate run by setting a small limit
             kernelLifecycle.getTlog().withMaxEntries(1);
-            testTopic1.withNewerValue(System.currentTimeMillis(), "triggering truncate");
+            testTopic.withValue("triggering truncate");
             // immediately queue a task to increase max size to prevent repeated truncation
             context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxEntries(10000));
         });
+        // wait for truncate to complete
         context.runOnPublishQueueAndWait(() -> {});
+        // shutdown to stop config/tlog changes
         kernel.shutdown();
+        Topics fullConfig = config.getRoot();
+        Topics tlogConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog")).getRoot();
+        // (Nested) null Topic can be created via lookup. These won't fire update and be written to tlog
+        // So we deeply remove null topics from the kernel config
+        removeNullTopicsDeep(fullConfig);
+        // Also need to remove them from config created from tlog here. Because during truncate we call
+        // writeEffectiveConfigAsTransactionLog which can persist those nulls to tlog
+        removeNullTopicsDeep(tlogConfig);
+        assertEquals("triggering truncate", fullConfig.find("testTopic").getOnce());
+        assertEqualsDeepMap(fullConfig.toPOJO(), tlogConfig.toPOJO());
+    }
 
-        Map<String, Object> fullConfigMap =
-                ConfigurationReader.createFromTLog(context, configPath.resolve("full.tlog")).toPOJO();
-        Map<String, Object> tlogConfigMap =
-                ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog")).toPOJO();
-        assertEquals(fullConfigMap, tlogConfigMap);
+    /**
+     * Remove Topic that has null value. Keep removing the parent Topics if it's empty
+     */
+    private void removeNullTopicsDeep(Topics root) {
+        for (Node child : root.children.values()) {
+            if (child instanceof Topics) {
+                removeNullTopicsDeep((Topics) child);
+            } else {
+                Topic childTopic = (Topic) child;
+                if (childTopic.getOnce() == null) {
+                    child.remove();
+                }
+            }
+        }
+        if (root.isEmpty()) {
+            root.remove();
+        }
+    }
+
+    /**
+     * Assert two nested Map<String, Object> is equal. Leaf objects are Coerce.toString before comparison
+     */
+    private void assertEqualsDeepMap(Map<String, Object> expected, Map<String, Object> actual) {
+        for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {
+            String key = expectedEntry.getKey();
+            Object expectedVal = expectedEntry.getValue();
+            Object actualVal = actual.get(key);
+            if (expectedVal == null) {
+                assertNull(actualVal);
+            } else {
+                if (expected.getClass().isInstance(expectedVal)) {
+                    assertTrue(expected.getClass().isInstance(actualVal));
+                    assertEqualsDeepMap((Map<String, Object>) expectedVal, (Map<String, Object>) actualVal);
+                } else {
+                    assertEquals(Coerce.toString(expectedVal), Coerce.toString(actualVal));
+                }
+            }
+        }
     }
 
     private static class ExpectedStdoutPattern {
