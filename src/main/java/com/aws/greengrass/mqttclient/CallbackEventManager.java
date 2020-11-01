@@ -13,8 +13,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CallbackEventManager {
     private final Set<MqttClientConnectionEvents> oneTimeCallbackEvents = new CopyOnWriteArraySet<>();
+    private final Set<OnConnectCallback> onConnectCallbacks = new CopyOnWriteArraySet<>();
     private final AtomicBoolean hasCallBacked = new AtomicBoolean(false);
 
+    public interface OnConnectCallback {
+        void onConnect(boolean curSessionPresent);
+    }
+
+    public void runOnInitialConnect(boolean curSessionPresent) {
+        // This type of callback would only be triggered once by one of the AwsIotMqttClient.
+        if (hasCallBacked.compareAndSet(false, true)) {
+            for (OnConnectCallback callback : onConnectCallbacks) {
+                callback.onConnect(curSessionPresent);
+            }
+        }
+    }
     /**
      *  A MqttClient may control multiple AwsIotMqttClients
      *  and each AwsIotMqttClients may have multiple callback events.
@@ -47,6 +60,11 @@ public class CallbackEventManager {
      * @param callback is an instance of MqttClientConnectionEvents.
      */
     public void addToCallbackEvents(MqttClientConnectionEvents callback) {
+        oneTimeCallbackEvents.add(callback);
+    }
+
+    public void addToCallbackEvents(OnConnectCallback onConnect, MqttClientConnectionEvents callback) {
+        onConnectCallbacks.add(onConnect);
         oneTimeCallbackEvents.add(callback);
     }
 

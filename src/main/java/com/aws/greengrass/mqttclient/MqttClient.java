@@ -116,6 +116,13 @@ public class MqttClient implements Closeable {
         }
     };
 
+    private final CallbackEventManager.OnConnectCallback onConnect = new CallbackEventManager.OnConnectCallback() {
+        @Override
+        public void onConnect(boolean curSessionPresent) {
+            callbacks.onConnectionResumed(curSessionPresent);
+        }
+    };
+
     //
     // GG_NEEDS_REVIEW: TODO: Handle timeouts and retries
     //
@@ -239,7 +246,7 @@ public class MqttClient implements Closeable {
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
         spool = new Spool(deviceConfiguration);
-        addToCallbackEvents(callbacks);
+        callbackEventManager.addToCallbackEvents(onConnect, callbacks);
     }
 
     // constructor specific for unit test with spooler
