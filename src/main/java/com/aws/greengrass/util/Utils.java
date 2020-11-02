@@ -90,6 +90,23 @@ public final class Utils {
     }
 
     /**
+     * Returns true if the two strings are different, including null.
+     *
+     * @param oldValue first string
+     * @param newValue second string
+     * @return true if the two strings are not equal
+     */
+    public static boolean stringHasChanged(String oldValue, String newValue) {
+        if (oldValue == null && newValue == null) {
+            return false;
+        }
+        if ((oldValue == null) != (newValue == null)) {
+            return true;
+        }
+        return !oldValue.equals(newValue);
+    }
+
+    /**
      * Returns true if the given string is null, empty, or only whitespace.
      *
      * @param s string to check.
