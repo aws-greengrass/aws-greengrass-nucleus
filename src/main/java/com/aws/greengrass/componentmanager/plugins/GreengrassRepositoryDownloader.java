@@ -143,7 +143,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     evgCmsClient.getComponentArtifact(getComponentArtifactRequest);
             return getComponentArtifactResult.getPreSignedUrl();
         } catch (AmazonClientException ace) {
-            // TODO: [P41215221]: Properly handle all retryable / nonretryable exceptions for component cloud service calls
+            // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions
             throw new PackageDownloadException(
                     String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, componentIdentifier.getName(),
                             componentIdentifier.getVersion().toString()), ace);

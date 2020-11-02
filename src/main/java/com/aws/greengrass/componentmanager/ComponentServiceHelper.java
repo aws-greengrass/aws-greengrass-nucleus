@@ -130,7 +130,7 @@ public class ComponentServiceHelper {
         try {
             return evgCmsClient.getComponent(r);
         } catch (AmazonClientException e) {
-            // TODO: [P41215221]: Properly handle all retryable / nonretryable exceptions for component cloud service calls
+            // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions
             String errorMsg = String.format(PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT, id);
             throw new PackageDownloadException(errorMsg, e);
         }
