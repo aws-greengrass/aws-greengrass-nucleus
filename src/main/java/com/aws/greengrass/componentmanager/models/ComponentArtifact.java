@@ -26,4 +26,7 @@ public class ComponentArtifact {
 
     @Builder.Default
     Unarchive unarchive = Unarchive.NONE;
+
+    @Builder.Default
+    Permission permission = Permission.builder().build();
 }

@@ -101,7 +101,9 @@ class S3DownloaderTest {
             }
             s3Downloader.downloadToPath(
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
-                    new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, VALID_ALGORITHM, null), saveToPath);
+                    ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI))
+                        .checksum(checksum).algorithm(VALID_ALGORITHM).build(),
+                    saveToPath);
             byte[] downloadedFile = Files.readAllBytes(saveToPath.resolve("artifact.txt"));
             assertThat("Content of downloaded file should be same as the artifact content",
                     Arrays.equals(Files.readAllBytes(artifactFilePath), downloadedFile));
@@ -126,7 +128,8 @@ class S3DownloaderTest {
                     StandardCharsets.UTF_8);
             s3Downloader.downloadToPath(
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
-                    new ComponentArtifact(new URI(VALID_ARTIFACT_URI), null, null, null), saveToPath);
+                    ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI)).build(),
+                    saveToPath);
             verify(s3Client, never()).getObject(any(GetObjectRequest.class));
         } finally {
             ComponentTestResourceHelper.cleanDirectory(testCache);
@@ -140,7 +143,8 @@ class S3DownloaderTest {
             Path saveToPath = testCache.resolve(TEST_COMPONENT_NAME).resolve(TEST_COMPONENT_VERSION);
             assertThrows(InvalidArtifactUriException.class, () -> s3Downloader.downloadToPath(
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
-                    new ComponentArtifact(new URI(INVALID_ARTIFACT_URI), "somechecksum", VALID_ALGORITHM, null),
+                    ComponentArtifact.builder().artifactUri(new URI(INVALID_ARTIFACT_URI)).checksum( "somechecksum")
+                        .algorithm(VALID_ALGORITHM).build(),
                     saveToPath));
         } finally {
             ComponentTestResourceHelper.cleanDirectory(testCache);
@@ -167,7 +171,8 @@ class S3DownloaderTest {
             }
             assertThrows(PackageDownloadException.class, () -> s3Downloader.downloadToPath(
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
-                    new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, VALID_ALGORITHM, null), saveToPath));
+                    ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI)).checksum(checksum)
+                            .algorithm(VALID_ALGORITHM).build(), saveToPath));
         } finally {
             if (getObjectResponse != null) {
                 getObjectResponse.close();
@@ -199,7 +204,8 @@ class S3DownloaderTest {
             }
             assertThrows(PackageDownloadException.class, () -> s3Downloader.downloadToPath(
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
-                    new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, "WrongAlgorithm", null), saveToPath));
+                    ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI)).checksum(checksum)
+                            .algorithm("WrongAlgorithm").build(), saveToPath));
         } finally {
             if (getObjectResponse != null) {
                 getObjectResponse.close();
@@ -221,7 +227,8 @@ class S3DownloaderTest {
             }
             assertThrows(PackageDownloadException.class, () -> s3Downloader.downloadToPath(
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
-                    new ComponentArtifact(new URI(VALID_ARTIFACT_URI), VALID_ARTIFACT_CHECKSUM, VALID_ALGORITHM, null),
+                    ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI))
+                            .checksum(VALID_ARTIFACT_CHECKSUM).algorithm(VALID_ALGORITHM).build(),
                     saveToPath));
         } finally {
             ComponentTestResourceHelper.cleanDirectory(testCache);
@@ -243,7 +250,8 @@ class S3DownloaderTest {
                     .encodeToString(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(artifactFilePath)));
             boolean downloadRequired = s3Downloader.downloadRequired(
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
-                    new ComponentArtifact(new URI(VALID_ARTIFACT_URI), checksum, VALID_ALGORITHM, null), saveToPath);
+                    ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI)).checksum(checksum)
+                            .algorithm(VALID_ALGORITHM).build(), saveToPath);
             assertFalse(downloadRequired);
         } finally {
             ComponentTestResourceHelper.cleanDirectory(testCache);

@@ -180,8 +180,8 @@ class ComponentManagerTest {
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
         componentManager.prepareArtifacts(pkgId,
-                Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null, null, null),
-                        new ComponentArtifact(new URI("greengrass:binary2"), null, null, null)));
+                Arrays.asList(ComponentArtifact.builder().artifactUri(new URI("greengrass:binary1")).build(),
+                        ComponentArtifact.builder().artifactUri(new URI("greengrass:binary2")).build()));
 
         ArgumentCaptor<ComponentArtifact> artifactArgumentCaptor = ArgumentCaptor.forClass(ComponentArtifact.class);
         verify(artifactDownloader, times(2)).downloadToPath(eq(pkgId), artifactArgumentCaptor.capture(), eq(tempDir));
@@ -199,9 +199,11 @@ class ComponentManagerTest {
         when(artifactDownloader.downloadToPath(any(), any(), any())).thenReturn(new File("binary1"));
         when(artifactDownloader.getArtifactFile(any(), any(), any())).thenReturn(new File("binary1"));
 
-        componentManager.prepareArtifacts(pkgId,
-                Arrays.asList(new ComponentArtifact(new URI("greengrass:binary1"), null, null, Unarchive.ZIP),
-                        new ComponentArtifact(new URI("greengrass:binary2"), null, null, Unarchive.NONE)));
+        componentManager.prepareArtifacts(pkgId, Arrays.asList(
+                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary1"))
+                        .unarchive(Unarchive.ZIP).build(),
+                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary2"))
+                        .unarchive(Unarchive.NONE).build()));
 
         ArgumentCaptor<File> fileCaptor = ArgumentCaptor.forClass(File.class);
         verify(mockUnarchiver).unarchive(any(), fileCaptor.capture(), any());
@@ -215,7 +217,8 @@ class ComponentManagerTest {
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
         componentManager.prepareArtifacts(pkgId,
-                Collections.singletonList(new ComponentArtifact(new URI("s3://bucket/path/to/key"), null, null, null)));
+                Collections.singletonList(ComponentArtifact.builder()
+                        .artifactUri(new URI("s3://bucket/path/to/key")).build()));
 
         ArgumentCaptor<ComponentArtifact> artifactArgumentCaptor = ArgumentCaptor.forClass(ComponentArtifact.class);
         verify(s3Downloader, times(1)).downloadToPath(eq(pkgId), artifactArgumentCaptor.capture(), eq(tempDir));
@@ -231,7 +234,8 @@ class ComponentManagerTest {
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
         Exception exception = assertThrows(PackageLoadingException.class, () -> componentManager.prepareArtifacts(pkgId,
-                Collections.singletonList(new ComponentArtifact(new URI("docker:image1"), null, null, null))));
+                Collections.singletonList(
+                        ComponentArtifact.builder().artifactUri(new URI("docker:image1")).build())));
         assertThat(exception.getMessage(), is("artifact URI scheme DOCKER is not supported yet"));
     }
 
@@ -242,7 +246,7 @@ class ComponentManagerTest {
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         Exception exception = assertThrows(PackageLoadingException.class, () -> componentManager.prepareArtifacts(pkgId,
-                Collections.singletonList(new ComponentArtifact(new URI("binary1"), null, null, null))));
+                Collections.singletonList(ComponentArtifact.builder().artifactUri(new URI("binary1")).build())));
         assertThat(exception.getMessage(), is("artifact URI scheme null is not supported yet"));
     }
 

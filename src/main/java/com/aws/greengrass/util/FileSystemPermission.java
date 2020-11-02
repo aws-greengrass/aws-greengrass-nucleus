@@ -14,7 +14,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Value
-@Builder
+@Builder(toBuilder = true)
 @AllArgsConstructor
 public class FileSystemPermission {
     String ownerUser;
