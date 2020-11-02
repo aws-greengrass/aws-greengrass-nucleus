@@ -26,6 +26,7 @@ import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.util.NucleusPaths;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.Setter;
 
 import java.io.IOException;
@@ -66,6 +67,7 @@ public class KernelLifecycle {
     private List<Class<? extends Startable>> startables = Arrays.asList(IPCService.class, IPCEventStreamService.class,
             AuthorizationService.class, ConfigStoreIPCService.class, LifecycleIPCService.class,
             PubSubIPCService.class, MqttProxyIPCService.class);
+    @Getter
     private ConfigurationWriter tlog;
     private GreengrassService mainService;
     private final AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
@@ -150,7 +152,8 @@ public class KernelLifecycle {
             kernel.writeEffectiveConfig(configurationFile);
 
             // hook tlog to config
-            tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), transactionLogPath).flushImmediately(true);
+            tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), transactionLogPath)
+                    .flushImmediately(true).withAutoTruncate(kernel.getContext());
         } catch (IOException ioe) {
             logger.atError().setEventType("kernel-read-config-error").setCause(ioe).log();
             throw new RuntimeException(ioe);

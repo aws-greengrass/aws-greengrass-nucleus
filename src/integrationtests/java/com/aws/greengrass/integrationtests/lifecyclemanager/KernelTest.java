@@ -5,12 +5,21 @@
 
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
+import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.ConfigurationReader;
+import com.aws.greengrass.config.ConfigurationWriter;
+import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.Coerce;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import org.junit.jupiter.api.AfterAll;
@@ -18,6 +27,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -29,7 +40,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -313,6 +328,124 @@ class KernelTest extends BaseITCase {
             System.err.println("\n\nDid see: ");
             actualTransitions.forEach(System.err::println);
             fail("Didn't see all expected state transitions");
+        }
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
+    @Test
+    void GIVEN_kernel_running_WHEN_truncate_tlog_and_shutdown_THEN_tlog_consistent_with_config() throws Exception {
+        kernel = new Kernel().parseArgs().launch();
+        Configuration config = kernel.getConfig();
+        Context context = kernel.getContext();
+        Path configPath = tempRootDir.resolve("config");
+
+        Topic testTopic = config.lookup("testTopic").withValue("initial");
+        KernelLifecycle kernelLifecycle = context.get(KernelLifecycle.class);
+        context.runOnPublishQueueAndWait(() -> {
+            // make truncate run by setting a small limit
+            kernelLifecycle.getTlog().withMaxEntries(1);
+            testTopic.withValue("triggering truncate");
+            // immediately queue a task to increase max size to prevent repeated truncation
+            context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxEntries(10000));
+        });
+        // wait for truncate to complete
+        context.runOnPublishQueueAndWait(() -> {});
+        // shutdown to stop config/tlog changes
+        kernel.shutdown();
+        Topics fullConfig = config.getRoot();
+        Topics tlogConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog")).getRoot();
+        // (Nested) null Topic can be created via lookup. These won't fire update and be written to tlog
+        // So we deeply remove null topics from the kernel config
+        removeNullTopicsDeep(fullConfig);
+        // Also need to remove them from config created from tlog here. Because during truncate we call
+        // writeEffectiveConfigAsTransactionLog which can persist those nulls to tlog
+        removeNullTopicsDeep(tlogConfig);
+        assertEquals("triggering truncate", fullConfig.find("testTopic").getOnce());
+        // data type may be different when recreating tlog
+        // using this to coerce to string for comparison
+        assertEqualsDeepMap(fullConfig.toPOJO(), tlogConfig.toPOJO());
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
+    @Test
+    void GIVEN_kernel_running_WHEN_truncate_tlog_and_shutdown_THEN_tlog_consistent_with_non_truncated_tlog()
+            throws Exception {
+        kernel = new Kernel();
+        Configuration config = kernel.getConfig();
+        Context context = kernel.getContext();
+        Path configPath = tempRootDir.resolve("config");
+        Files.createDirectories(configPath);
+
+        kernel.writeEffectiveConfigAsTransactionLog(configPath.resolve("full.tlog"));
+        ConfigurationWriter.logTransactionsTo(config, configPath.resolve("full.tlog")).flushImmediately(true);
+        kernel.parseArgs().launch();
+
+        Topic testTopic = config.lookup("testTopic").withValue("initial");
+        KernelLifecycle kernelLifecycle = context.get(KernelLifecycle.class);
+        context.runOnPublishQueueAndWait(() -> {
+            // make truncate run by setting a small limit
+            kernelLifecycle.getTlog().withMaxEntries(1);
+            testTopic.withValue("triggering truncate");
+            // immediately queue a task to increase max size to prevent repeated truncation
+            context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxEntries(10000));
+        });
+        // wait for things to complete
+        CountDownLatch startupCdl = new CountDownLatch(1);
+        context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
+                startupCdl.countDown();
+            }
+        });
+        startupCdl.await(30, TimeUnit.SECONDS);
+        // shutdown to stop config/tlog changes
+        kernel.shutdown();
+        Topics fullConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("full.tlog")).getRoot();
+        Topics compressedConfig =
+                ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog")).getRoot();
+        // During truncate we call writeEffectiveConfigAsTransactionLog which can persist nulls to tlog
+        // remove nulls to be consistent with the tlog created in the beginning
+        removeNullTopicsDeep(compressedConfig);
+        assertEquals("triggering truncate", compressedConfig.find("testTopic").getOnce());
+        assertThat(fullConfig.toPOJO(), is(compressedConfig.toPOJO()));
+    }
+
+    /**
+     * Remove Topic that has null value. Keep removing the parent Topics if it's empty
+     */
+    private void removeNullTopicsDeep(Topics root) {
+        for (Node child : root.children.values()) {
+            if (child instanceof Topics) {
+                removeNullTopicsDeep((Topics) child);
+            } else {
+                Topic childTopic = (Topic) child;
+                if (childTopic.getOnce() == null) {
+                    child.remove();
+                }
+            }
+        }
+        if (root.isEmpty()) {
+            root.remove();
+        }
+    }
+
+    /**
+     * Assert two nested Map<String, Object> is equal. Leaf objects are Coerce.toString before comparison
+     */
+    private void assertEqualsDeepMap(Map<String, Object> expected, Map<String, Object> actual) {
+        for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {
+            String key = expectedEntry.getKey();
+            Object expectedVal = expectedEntry.getValue();
+            Object actualVal = actual.get(key);
+            if (expectedVal == null) {
+                assertNull(actualVal);
+            } else {
+                if (expected.getClass().isInstance(expectedVal)) {
+                    assertTrue(expected.getClass().isInstance(actualVal));
+                    assertEqualsDeepMap((Map<String, Object>) expectedVal, (Map<String, Object>) actualVal);
+                } else {
+                    assertEquals(Coerce.toString(expectedVal), Coerce.toString(actualVal));
+                }
+            }
         }
     }
 

@@ -55,7 +55,7 @@ public class Topic extends Node {
      */
     public Topic addValidator(Validator validator) {
         if (addWatcher(validator) && value != null) {
-            value = validator.validate(value, null);
+            withValue(validator.validate(value, null));
         }
         return this;
     }
