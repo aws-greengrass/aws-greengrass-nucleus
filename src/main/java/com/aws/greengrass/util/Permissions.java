@@ -15,7 +15,7 @@ import java.util.Iterator;
 import static com.aws.greengrass.util.FileSystemPermission.Option.IgnoreOwner;
 
 public final class Permissions {
-    private static final Platform platform = Platform.getInstance();
+    static Platform platform = Platform.getInstance();
 
     static final FileSystemPermission OWNER_RWX_ONLY =  FileSystemPermission.builder()
             .ownerRead(true).ownerWrite(true).ownerExecute(true).build();
@@ -46,6 +46,11 @@ public final class Permissions {
                 setArtifactPermission(it.next(), permission);
             }
         } else {
+            if (!platform.lookupCurrentUser().isSuperUser() && !permission.isOwnerWrite()) {
+                // if not a super user, ownership cannot be changed and users can override permissions outside of
+                // Greengrass. Set write permission so the file can be deleted on cleanup of artifacts.
+                permission = permission.toBuilder().ownerWrite(true).build();
+            }
             // don't reset the owner when setting permissions
             platform.setPermissions(permission, p, IgnoreOwner);
         }
@@ -68,6 +73,7 @@ public final class Permissions {
     }
 
     public static void setServiceWorkPathPermission(Path p) throws IOException {
+        platform.setPermissions(OWNER_RWX_ONLY, p);
     }
 
     public static void setRootPermission(Path p) throws IOException {
@@ -95,6 +101,7 @@ public final class Permissions {
     }
 
     public static void setLoggerPermission(Path p) throws IOException {
+        platform.setPermissions(OWNER_RWX_ONLY, p);
     }
 
     public static void setCliIpcInfoPermission(Path p) throws IOException {

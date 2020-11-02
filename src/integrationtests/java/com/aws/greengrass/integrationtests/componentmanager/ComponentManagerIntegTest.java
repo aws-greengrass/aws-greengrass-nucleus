@@ -14,8 +14,10 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.platforms.Platform;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,6 +40,8 @@ import static org.mockito.Mockito.when;
 
 class ComponentManagerIntegTest extends BaseITCase {
     private Kernel kernel;
+
+    private static final String ROOT = Platform.getInstance().getPrivilegedUser();
 
     @BeforeEach
     void before() {
@@ -90,7 +94,9 @@ class ComponentManagerIntegTest extends BaseITCase {
 
         // check perms match what we gave
         FileSystemPermission allRead = FileSystemPermission.builder()
-                .ownerRead(true).groupRead(true).otherRead(true).build();
+                .ownerRead(true).groupRead(true).otherRead(true)
+                .ownerWrite(!SystemUtils.USER_NAME.equals(ROOT)) // we preserve write permissions for non-root user
+                .build();
 
         assertThat(zipPath.resolve("zip").resolve("1"), hasPermission(allRead));
         assertThat(zipPath.resolve("zip").resolve("2"), hasPermission(allRead));
@@ -127,11 +133,14 @@ class ComponentManagerIntegTest extends BaseITCase {
                 .get(10, TimeUnit.SECONDS);
         assertThat(nucleusPaths.artifactPath(ident).resolve("script.sh"), hasPermission(FileSystemPermission.builder()
                 .ownerRead(true).groupRead(true).otherRead(true)
-                .ownerExecute(true)
+                .ownerWrite(!SystemUtils.USER_NAME.equals(ROOT)) // we preserve write permissions for  non-root user
+                .ownerExecute(true).groupExecute(true)
                 .build()));
 
         assertThat(nucleusPaths.artifactPath(ident).resolve("empty.txt"), hasPermission(FileSystemPermission.builder()
-                .ownerRead(true).build()));
+                .ownerRead(true).groupRead(true)
+                .ownerWrite(!SystemUtils.USER_NAME.equals(ROOT)) // we preserve write permissions for non-root user
+                .build()));
     }
 
     /**
