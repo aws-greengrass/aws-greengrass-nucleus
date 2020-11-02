@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
@@ -63,11 +64,19 @@ class ConfigurationWriterTest {
             config.lookup("a.x", "b", "c.f", "d", "e").withValue("New Val");
             // Create another Topic and use yet another data type (list)
             config.lookup("a.x", "b", "c.f", "d", "e3").withValue(Arrays.asList("1", "2", "3"));
-            context.runOnPublishQueueAndWait(() -> {
-            });
+            // Create null-valued node
+            config.lookup("a.x", "b", "c.f", "d", "e5").withValue((String) null);
+            // Create empty map
+            config.lookupTopics("x", "y", "z").remove();
+            context.waitForPublishQueueToClear();
 
             // Assert that we can get back to the current in-memory state by reading the tlog
             Configuration readConfig = ConfigurationReader.createFromTLog(context, tlog);
+            assertThat(readConfig.toPOJO(), is(config.toPOJO()));
+
+            Files.deleteIfExists(tlog);
+            ConfigurationWriter.dump(config, tlog);
+            readConfig = ConfigurationReader.createFromTLog(context, tlog);
             assertThat(readConfig.toPOJO(), is(config.toPOJO()));
         }
     }

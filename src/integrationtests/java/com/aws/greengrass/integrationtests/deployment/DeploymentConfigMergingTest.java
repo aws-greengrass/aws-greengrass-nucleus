@@ -476,7 +476,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         GreengrassService sleeperB = kernel.locate("sleeperB");
         assertEquals(State.RUNNING, sleeperB.getState());
         // ensure context finish all tasks
-        kernel.getContext().runOnPublishQueueAndWait(() -> {});
+        kernel.getContext().waitForPublishQueueToClear();
         // ensuring config value for sleeperA is removed
         assertFalse(kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC).children.containsKey("sleeperA"),
                 "sleeperA removed");

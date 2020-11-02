@@ -31,6 +31,7 @@ public class Topics extends Node implements Iterable<Node> {
 
     Topics(Context c, String n, Topics p) {
         super(c, n, p);
+        modtime = System.currentTimeMillis();
     }
 
     public static Topics of(Context c, String n, Topics p) {
@@ -66,6 +67,7 @@ public class Topics extends Node implements Iterable<Node> {
     public void copyFrom(Node from) {
         Objects.requireNonNull(from);
         if (from instanceof Topics) {
+            this.modtime = from.modtime;
             ((Topics) from).forEach(n -> {
                 Objects.requireNonNull(n);
                 if (n instanceof Topic) {
@@ -97,7 +99,11 @@ public class Topics extends Node implements Iterable<Node> {
 
     private Topic createLeafChild(CaseInsensitiveString name) {
         Node n = children.computeIfAbsent(name,
-                (nm) -> new Topic(context, nm.toString(), this));
+                (nm) -> {
+                    Topic t = new Topic(context, nm.toString(), this);
+                    context.runOnPublishQueue(() -> childChanged(WhatHappened.childChanged, t));
+                    return t;
+                });
         if (n instanceof Topic) {
             return (Topic) n;
         } else {
@@ -118,7 +124,11 @@ public class Topics extends Node implements Iterable<Node> {
 
     private Topics createInteriorChild(CaseInsensitiveString name) {
         Node n = children.computeIfAbsent(name,
-                (nm) -> new Topics(context, nm.toString(), this));
+                (nm) -> {
+                    Topics t = new Topics(context, nm.toString(), this);
+                    context.runOnPublishQueue(() -> childChanged(WhatHappened.interiorAdded, t));
+                    return t;
+                });
         if (n instanceof Topics) {
             return (Topics) n;
         } else {
@@ -371,7 +381,7 @@ public class Topics extends Node implements Iterable<Node> {
                 updateFromMap(newValue,
                         new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()))
         );
-        context.runOnPublishQueueAndWait(() -> {});
+        context.waitForPublishQueueToClear();
     }
 
     protected void childChanged(WhatHappened what, Node child) {
@@ -434,5 +444,19 @@ public class Topics extends Node implements Iterable<Node> {
 
     public Context getContext() {
         return this.context;
+    }
+
+    /**
+     * Call a callback on every leaf Topics node which has no children.
+     *
+     * @param f callback to be called with the Topics
+     */
+    public void forEachChildlessTopics(Consumer<Topics> f) {
+        if (children.isEmpty()) {
+            f.accept(this);
+        } else {
+            children.values().stream().filter(n -> n instanceof Topics)
+                    .forEach(t -> ((Topics) t).forEachChildlessTopics(f));
+        }
     }
 }

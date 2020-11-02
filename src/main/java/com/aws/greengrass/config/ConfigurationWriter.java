@@ -156,6 +156,8 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
             tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.removed, null);
         } else if (what == WhatHappened.timestampUpdated) {
             tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.timestampUpdated, null);
+        } else if (what == WhatHappened.interiorAdded) {
+            tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.interiorAdded, null);
         } else {
             return;
         }
@@ -177,6 +179,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
 
     public void writeAll() { // GG_NEEDS_REVIEW: TODO double check this
         conf.deepForEachTopic(n -> childChanged(WhatHappened.childChanged, n));
+        conf.forEachChildlessTopics(t -> childChanged(WhatHappened.interiorAdded, t));
     }
 
     /**
