@@ -6,6 +6,7 @@
 package com.aws.greengrass.config;
 
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,12 @@ import java.util.Arrays;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
 class ConfigurationWriterTest {
     @TempDir
@@ -97,5 +103,67 @@ class ConfigurationWriterTest {
             assertNull(readConfig.find("a", "toBeRemoved"));
             assertNull(readConfig.find("a", "containerToBeRemoved"));
         }
+    }
+
+    @Test
+    void GIVEN_config_with_configuration_writer_WHEN_max_size_reached_THEN_auto_truncate()
+            throws IOException {
+        Path tlog = tempDir.resolve("test_truncate.tlog");
+        Configuration config = new Configuration(context);
+        Kernel mockKernel = mock(Kernel.class);
+        doNothing().when(mockKernel).writeEffectiveConfigAsTransactionLog(any());
+        context.put(Kernel.class, mockKernel);
+
+        ConfigurationWriter.logTransactionsTo(config, tlog)
+                .flushImmediately(true).withAutoTruncate(context).withMaxEntries(1);
+
+        // make some changes to trigger truncate
+        config.lookup("test0").withValue("0");
+        config.lookup("test0").withValue("exceed limit");
+        context.runOnPublishQueueAndWait(() -> {});
+        // now test1 should be written to the new tlog
+        config.lookup("test1").withValue("1");
+        context.runOnPublishQueueAndWait(() -> {});
+        // verify
+        Configuration newTlogConfig1 = ConfigurationReader.createFromTLog(context, tlog);
+        assertNull(newTlogConfig1.find("test0"));
+        assertEquals("1", newTlogConfig1.find("test1").getOnce());
+
+        // trigger truncate again to make sure it succeeds reliably
+        config.lookup("test1").withValue("exceed limit");
+        context.runOnPublishQueueAndWait(() -> {});
+        // now test2 should be written to the new tlog
+        config.lookup("test2").withValue("2");
+        context.runOnPublishQueueAndWait(() -> {});
+        // verify
+        Configuration newTlogConfig2 = ConfigurationReader.createFromTLog(context, tlog);
+        assertNull(newTlogConfig2.find("test1"));
+        assertEquals("2", newTlogConfig2.find("test2").getOnce());
+    }
+
+    @Test
+    void GIVEN_config_with_configuration_writer_WHEN_truncate_and_write_effective_config_failed_THEN_recover()
+            throws IOException {
+        Path tlog = tempDir.resolve("test_truncate.tlog");
+        Configuration config = new Configuration(context);
+        Kernel mockKernel = mock(Kernel.class);
+        doThrow(new IOException("test")).when(mockKernel).writeEffectiveConfigAsTransactionLog(any());
+        context.put(Kernel.class, mockKernel);
+
+        ConfigurationWriter.logTransactionsTo(config, tlog)
+                .flushImmediately(true).withAutoTruncate(context).withMaxEntries(1);
+
+        // make some changes to trigger truncate
+        Topic test1 = config.lookup("test1").withValue("1");
+        context.runOnPublishQueueAndWait(() -> {});
+        test1.withNewerValue(System.currentTimeMillis(), "exceed limit");
+        context.runOnPublishQueueAndWait(() -> {});
+        // truncate should fail and recover, keep using the old tlog
+        config.lookup("test2").withValue("new");
+        context.runOnPublishQueueAndWait(() -> {});
+        // verify values
+        Configuration newTlogConfig = ConfigurationReader.createFromTLog(context, tlog);
+        assertEquals("exceed limit", newTlogConfig.find("test1").getOnce());
+        assertEquals("new", newTlogConfig.find("test2").getOnce());
     }
 }
