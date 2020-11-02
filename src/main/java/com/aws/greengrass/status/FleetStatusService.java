@@ -124,7 +124,7 @@ public class FleetStatusService extends GreengrassService {
         this.platform = System.getProperty("os.name");
 
         updateThingNameAndPublishTopic(Coerce.toString(deviceConfiguration.getThingName()));
-        topics.lookup(DeviceConfiguration.DEVICE_PARAM_THING_NAME)
+        deviceConfiguration.getThingName()
                 .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
 
         topics.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC)
