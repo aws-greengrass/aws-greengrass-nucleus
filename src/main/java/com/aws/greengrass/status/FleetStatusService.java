@@ -83,7 +83,6 @@ public class FleetStatusService extends GreengrassService {
     // GG_NEEDS_REVIEW: TODO: Remove this variable after implementing callbacks for service removal notifications.
     private final ConcurrentHashMap<GreengrassService, Instant> allServiceNamesMap = new ConcurrentHashMap<>();
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
-    private final AtomicBoolean thingDeployment = new AtomicBoolean(false);
     private final AtomicReference<Map<String, Object>> thingDeploymentDetails = new AtomicReference<>();
     private final Object periodicUpdateInProgressLock = new Object();
     private int periodicUpdateIntervalSec;
@@ -246,13 +245,7 @@ public class FleetStatusService extends GreengrassService {
             logger.atDebug().log("Updating Fleet Status service for deployment with ID: {}",
                     deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME));
             isDeploymentInProgress.set(false);
-            if (type == SHADOW) {
-                thingDeployment.set(true);
-                thingDeploymentDetails.set(new HashMap<>(deploymentDetails));
-            } else {
-                thingDeployment.set(false);
-                thingDeploymentDetails.set(null);
-            }
+            thingDeploymentDetails.set(new HashMap<>(deploymentDetails));
             updateEventTriggeredFleetStatusData();
         }
         // GG_NEEDS_REVIEW: TODO: Handle local deployment update for FSS
@@ -364,6 +357,18 @@ public class FleetStatusService extends GreengrassService {
             sequenceNumberTopic.withValue(sequenceNumber + 1);
         }
 
+        Map<String, Object> deploymentDetails = thingDeploymentDetails.get();
+        Map<String, String> statusDetailsMap =
+                (Map<String, String>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
+        StatusDetails statusDetails = StatusDetails.builder()
+                .detailedStatus(statusDetailsMap.get(DEPLOYMENT_DETAILED_STATUS_KEY))
+                .failureCause(statusDetailsMap.get(DEPLOYMENT_FAILURE_CAUSE_KEY))
+                .build();
+        DeploymentInformation deploymentInformation = DeploymentInformation.builder()
+                .status((String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME))
+                .fleetConfigurationArnForStatus((String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME))
+                .statusDetails(statusDetails)
+                .build();
         FleetStatusDetails fleetStatusDetails = FleetStatusDetails.builder()
                 .overallStatus(overAllStatus)
                 .architecture(this.architecture)
@@ -371,24 +376,8 @@ public class FleetStatusService extends GreengrassService {
                 .thing(thingName)
                 .ggcVersion(KERNEL_VERSION)
                 .sequenceNumber(sequenceNumber)
+                .deploymentInformation(deploymentInformation)
                 .build();
-
-        if (thingDeployment.get()) {
-            Map<String, Object> deploymentDetails = thingDeploymentDetails.get();
-            Map<String, String> statusDetailsMap =
-                    (Map<String, String>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
-            StatusDetails statusDetails = StatusDetails.builder()
-                    .detailedStatus(statusDetailsMap.get(DEPLOYMENT_DETAILED_STATUS_KEY))
-                    .failureCause(statusDetailsMap.get(DEPLOYMENT_FAILURE_CAUSE_KEY))
-                    .build();
-            DeploymentInformation deploymentInformation = DeploymentInformation.builder()
-                    .status((String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME))
-                    .fleetConfigurationArnForStatus((String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME))
-                    .statusDetails(statusDetails)
-                    .build();
-            fleetStatusDetails.setDeploymentInformation(deploymentInformation);
-        }
-
         publisher.publish(fleetStatusDetails, components);
         logger.atInfo().event("fss-status-update-published").log("Status update published to FSS");
     }

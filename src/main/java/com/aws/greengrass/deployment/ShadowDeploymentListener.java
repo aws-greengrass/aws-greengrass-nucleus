@@ -215,10 +215,12 @@ public class ShadowDeploymentListener implements InjectionActions {
 
     @SuppressWarnings("PMD.LooseCoupling")
     private HashMap<String, Object> getReportedShadowState(Map<String, Object> deploymentDetails) {
-        HashMap<String, Object> statusDetails =
-                (HashMap<String, Object>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
-        statusDetails.put(DETAILED_STATUS_KEY, statusDetails.get(DEPLOYMENT_DETAILED_STATUS_KEY));
-        statusDetails.put(FAILURE_CAUSE_KEY, statusDetails.get(DEPLOYMENT_FAILURE_CAUSE_KEY));
+        Map<String, Object> deploymentStatusDetails =
+                (Map<String, Object>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
+
+        HashMap<String, Object> statusDetails = new HashMap<>();
+        statusDetails.put(DETAILED_STATUS_KEY, deploymentStatusDetails.get(DEPLOYMENT_DETAILED_STATUS_KEY));
+        statusDetails.put(FAILURE_CAUSE_KEY, deploymentStatusDetails.get(DEPLOYMENT_FAILURE_CAUSE_KEY));
 
         HashMap<String, Object> reported = new HashMap<>();
         reported.put(ARN_FOR_STATUS_KEY, deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME));
@@ -229,12 +231,13 @@ public class ShadowDeploymentListener implements InjectionActions {
         return reported;
     }
 
-    protected void shadowUpdated(Map<String, Object> configuration, Integer version) {
-        if (configuration == null || configuration.isEmpty()) {
+    protected void shadowUpdated(Map<String, Object> desired, Integer version) {
+        if (desired == null || desired.isEmpty()) {
             logger.debug("Empty desired state, no device deployments created yet");
             return;
         }
-        String configurationArn = (String) ((Map<String, Object>) configuration.get(FLEET_CONFIG_KEY)).get(ARN_KEY);
+        Map<String, Object> fleetConfig = (Map<String, Object>) desired.get(FLEET_CONFIG_KEY);
+        String configurationArn = (String) fleetConfig.get(ARN_KEY);
         synchronized (ShadowDeploymentListener.class) {
             if (lastVersion != null && lastVersion > version) {
                 logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
@@ -253,14 +256,14 @@ public class ShadowDeploymentListener implements InjectionActions {
 
         String configurationString;
         try {
-            configurationString = SerializerFactory.getJsonObjectMapper().writeValueAsString(configuration);
+            configurationString = SerializerFactory.getJsonObjectMapper().writeValueAsString(fleetConfig);
         } catch (JsonProcessingException e) {
             logger.atError("Unable to process shadow update", e);
             return;
         }
 
         Deployment deployment;
-        if (configuration.get(DESIRED_STATUS_KEY).equals(DESIRED_STATUS_CANCELED)) {
+        if (desired.get(DESIRED_STATUS_KEY).equals(DESIRED_STATUS_CANCELED)) {
             deployment = new Deployment(DeploymentType.SHADOW, configurationArn, true);
         } else {
             deployment = new Deployment(configurationString, DeploymentType.SHADOW, configurationArn);
