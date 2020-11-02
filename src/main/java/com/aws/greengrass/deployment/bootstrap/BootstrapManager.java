@@ -155,24 +155,21 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         String newProxyUrl = Coerce.toString(newProxy.get(DEVICE_PARAM_PROXY_URL));
         String currentProxyUrl = Coerce.toString(currentDeviceConfiguration.getProxyUrl());
         if (Utils.stringHasChanged(newProxyUrl, currentProxyUrl)) {
-            logger.atInfo().kv(DEVICE_NETWORK_PROXY_NAMESPACE.concat(".").concat(DEVICE_PROXY_NAMESPACE).concat(".")
-                    .concat(DEVICE_PARAM_PROXY_URL), newProxyUrl).log(RESTART_REQUIRED_MESSAGE);
+            logger.atInfo().kv(DEVICE_PARAM_PROXY_URL, newProxyUrl).log(RESTART_REQUIRED_MESSAGE);
             return true;
         }
 
         String newProxyUsername = Coerce.toString(newProxy.get(DEVICE_PARAM_PROXY_USERNAME));
         String currentProxyUsername = Coerce.toString(currentDeviceConfiguration.getProxyUsername());
         if (Utils.stringHasChanged(newProxyUsername, currentProxyUsername)) {
-            logger.atInfo().kv(DEVICE_NETWORK_PROXY_NAMESPACE.concat(".").concat(DEVICE_PROXY_NAMESPACE).concat(".")
-                    .concat(DEVICE_PARAM_PROXY_USERNAME), newProxyUsername).log(RESTART_REQUIRED_MESSAGE);
+            logger.atInfo().kv(DEVICE_PARAM_PROXY_USERNAME, newProxyUsername).log(RESTART_REQUIRED_MESSAGE);
             return true;
         }
 
         String newProxyPassword = Coerce.toString(newProxy.get(DEVICE_PARAM_PROXY_PASSWORD));
         String currentProxyPassword = Coerce.toString(currentDeviceConfiguration.getProxyPassword());
         if (Utils.stringHasChanged(newProxyPassword, currentProxyPassword)) {
-            logger.atInfo().kv(DEVICE_NETWORK_PROXY_NAMESPACE.concat(".").concat(DEVICE_PROXY_NAMESPACE).concat(".")
-                    .concat(DEVICE_PARAM_PROXY_PASSWORD), newProxyPassword).log(RESTART_REQUIRED_MESSAGE);
+            logger.atInfo().kv(DEVICE_PARAM_PROXY_PASSWORD, newProxyPassword).log(RESTART_REQUIRED_MESSAGE);
             return true;
         }
 
