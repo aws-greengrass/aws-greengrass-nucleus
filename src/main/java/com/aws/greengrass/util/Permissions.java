@@ -12,17 +12,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
 
+import static com.aws.greengrass.util.FileSystemPermission.Option.IgnoreOwner;
+
 public final class Permissions {
-    private static final Platform platform = Platform.getInstance();
-    private static final FileSystemPermission OWNER_RWX_ONLY =  FileSystemPermission.builder()
+    static Platform platform = Platform.getInstance();
+
+    static final FileSystemPermission OWNER_RWX_ONLY =  FileSystemPermission.builder()
             .ownerRead(true).ownerWrite(true).ownerExecute(true).build();
-    private static final FileSystemPermission OWNER_RWX_EVERYONE_RX = FileSystemPermission.builder()
+    static final FileSystemPermission OWNER_RWX_EVERYONE_RX = FileSystemPermission.builder()
             .ownerRead(true).ownerWrite(true).ownerExecute(true)
             .groupRead(true).groupExecute(true)
             .otherRead(true).otherExecute(true)
             .build();
-    private static final FileSystemPermission OWNER_R_ONLY =
-            FileSystemPermission.builder().ownerRead(true).build();
 
     private Permissions() {
     }
@@ -31,9 +32,10 @@ public final class Permissions {
      * Set default permissions on an artifact.
      *
      * @param p the artifact path.
+     * @param permission the permission to apply.
      * @throws IOException if an error occurs.
      */
-    public static void setArtifactPermission(Path p) throws IOException {
+    public static void setArtifactPermission(Path p, FileSystemPermission permission) throws IOException {
         if (p == null || !Files.exists(p)) {
             return;
         }
@@ -41,10 +43,16 @@ public final class Permissions {
         if (Files.isDirectory(p)) {
             platform.setPermissions(OWNER_RWX_EVERYONE_RX, p);
             for (Iterator<Path> it = Files.list(p).iterator(); it.hasNext(); ) {
-                setArtifactPermission(it.next());
+                setArtifactPermission(it.next(), permission);
             }
         } else {
-            platform.setPermissions(OWNER_R_ONLY, p);
+            if (!platform.lookupCurrentUser().isSuperUser() && !permission.isOwnerWrite()) {
+                // if not a super user, ownership cannot be changed and users can override permissions outside of
+                // Greengrass. Set write permission so the file can be deleted on cleanup of artifacts.
+                permission = permission.toBuilder().ownerWrite(true).build();
+            }
+            // don't reset the owner when setting permissions
+            platform.setPermissions(permission, p, IgnoreOwner);
         }
     }
 
@@ -65,6 +73,7 @@ public final class Permissions {
     }
 
     public static void setServiceWorkPathPermission(Path p) throws IOException {
+        platform.setPermissions(OWNER_RWX_ONLY, p);
     }
 
     public static void setRootPermission(Path p) throws IOException {
@@ -92,6 +101,7 @@ public final class Permissions {
     }
 
     public static void setLoggerPermission(Path p) throws IOException {
+        platform.setPermissions(OWNER_RWX_ONLY, p);
     }
 
     public static void setCliIpcInfoPermission(Path p) throws IOException {

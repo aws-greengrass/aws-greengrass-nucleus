@@ -99,7 +99,6 @@ class TelemetryAgentTest extends GGServiceTestUtil {
                 .lookup(TELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC))
                 .thenReturn(lastPeriodicPublishTime);
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
-        when(config.lookup(DEVICE_PARAM_THING_NAME)).thenReturn(thingNameTopic);
         when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
         Topic telemetryMetricsPublishTopic = Topic.of(context, TELEMETRY_METRICS_PUBLISH_TOPICS,
                 DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC);

@@ -12,6 +12,8 @@ import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentParameter;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
+import com.aws.greengrass.componentmanager.models.Permission;
+import com.aws.greengrass.componentmanager.models.PermissionType;
 import com.aws.greengrass.config.PlatformResolver;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -132,6 +134,17 @@ public final class RecipeLoader {
             @Nonnull com.amazon.aws.iot.greengrass.component.common.ComponentArtifact componentArtifact) {
         return ComponentArtifact.builder().artifactUri(componentArtifact.getUri())
                 .algorithm(componentArtifact.getAlgorithm()).checksum(componentArtifact.getDigest())
-                .unarchive(componentArtifact.getUnarchive()).build();
+                .unarchive(componentArtifact.getUnarchive())
+                .permission(convertPermissionFromFile(componentArtifact.getPermission())).build();
+    }
+
+    private static Permission convertPermissionFromFile(
+            com.amazon.aws.iot.greengrass.component.common.Permission permission) {
+        Permission.PermissionBuilder builder = Permission.builder();
+        if (permission != null) {
+            builder.read(PermissionType.fromString(permission.getRead().name()));
+            builder.execute(PermissionType.fromString(permission.getExecute().name()));
+        }
+        return builder.build();
     }
 }
