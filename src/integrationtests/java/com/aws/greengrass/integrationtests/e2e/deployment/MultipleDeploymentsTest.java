@@ -9,6 +9,7 @@ import com.amazonaws.services.evergreen.model.PackageMetaData;
 import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.greengrass.integrationtests.e2e.util.DeploymentJobHelper;
 import com.aws.greengrass.integrationtests.e2e.util.IotJobsUtils;
@@ -145,7 +146,7 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
                 .lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS,
                         RUNTIME_STORE_NAMESPACE_TOPIC, PROCESSED_DEPLOYMENTS_TOPICS);
         processedDeployments.subscribe((whatHappened, newValue) -> {
-            if (!(newValue instanceof Topics)) {
+            if (!(newValue instanceof Topics) || whatHappened == WhatHappened.interiorAdded) {
                 return;
             }
             Map<String, Object> deploymentDetails = ((Topics) newValue).toPOJO();
