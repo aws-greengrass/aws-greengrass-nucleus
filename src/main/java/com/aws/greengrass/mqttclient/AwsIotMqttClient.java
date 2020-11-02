@@ -118,7 +118,6 @@ class AwsIotMqttClient implements Closeable {
                 return i;
             });
         });
-
     }
 
     CompletableFuture<Integer> publish(MqttMessage message, QualityOfService qos, boolean retain) {
@@ -138,7 +137,7 @@ class AwsIotMqttClient implements Closeable {
         }
     }
 
-    private synchronized CompletableFuture<Boolean> connect() {
+    protected synchronized CompletableFuture<Boolean> connect() {
         if (connection != null) {
             return CompletableFuture.completedFuture(true);
         }
@@ -157,10 +156,10 @@ class AwsIotMqttClient implements Closeable {
             return connection.connect().thenApply((sessionPresent) -> {
                 currentlyConnected.set(true);
                 logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
-
                 if (!sessionPresent) {
                     resubscribe();
                 }
+                callbackEventManager.runOnInitialConnect(sessionPresent);
                 return sessionPresent;
             }).whenComplete((session, error) -> {
                 if (error != null) {

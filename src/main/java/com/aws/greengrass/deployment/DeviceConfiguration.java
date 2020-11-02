@@ -56,6 +56,7 @@ public class DeviceConfiguration {
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
+    public static final String DEVICE_SPOOLER_NAMESPACE = "spooler";
     public static final String RUN_WITH_TOPIC = "runWithDefault";
     public static final String RUN_WITH_DEFAULT_POSIX_USER = "posixUser";
     public static final String RUN_WITH_DEFAULT_POSIX_GROUP = "posixGroup";
@@ -270,6 +271,10 @@ public class DeviceConfiguration {
 
     public Topics getMQTTNamespace() {
         return getTopics(DEVICE_MQTT_NAMESPACE);
+    }
+
+    public Topics getSpoolerNamespace() {
+        return getMQTTNamespace().lookupTopics(DEVICE_SPOOLER_NAMESPACE);
     }
 
     public Topics getNetworkProxyNamespace() {
