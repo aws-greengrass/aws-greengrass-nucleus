@@ -172,7 +172,7 @@ public class CLIServiceAgent {
         String componentName = request.getComponentName();
         try {
             GreengrassService service = kernel.locate(componentName);
-            // GG_NEEDS_REVIEW: TODO: Add any checks that can prevent triggering a restart. Right now they do not exist.
+            // TODO: [P41179234]: Add checks that can prevent triggering a restart/stop for IPC restart/stop component
             // Success of this request means restart was triggered successfully
             service.requestRestart();
         } catch (ServiceLoadException e) {
@@ -198,7 +198,7 @@ public class CLIServiceAgent {
         String componentName = request.getComponentName();
         try {
             GreengrassService service = kernel.locate(componentName);
-            // GG_NEEDS_REVIEW: TODO: Add any checks that can prevent triggering a stop. Right now they do not exist.
+            // TODO: [P41179234]: Add checks that can prevent triggering a restart/stop for IPC restart/stop component
             // Success of this request means stop was triggered successfully
             service.requestStop();
         } catch (ServiceLoadException e) {
@@ -399,7 +399,7 @@ public class CLIServiceAgent {
         String deploymentId = (String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME);
         Topics localDeploymentDetails = localDeployments.lookupTopics(deploymentId);
         localDeploymentDetails.replaceAndWait(deploymentDetails);
-        // GG_NEEDS_REVIEW: TODO: Remove the succeeded deployments if the number of deployments have exceeded max limit
+        // TODO: [P41178971]: Implement a limit on no of local deployments to persist status for
     }
 
     @SuppressWarnings("PMD.PreserveStackTrace")
