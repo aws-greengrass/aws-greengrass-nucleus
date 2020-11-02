@@ -140,6 +140,10 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                                            DeviceConfiguration currentDeviceConfiguration) {
         Map<String, Object> newNetworkProxy =
                 (Map<String, Object>) newNucleusParameters.get(DEVICE_NETWORK_PROXY_NAMESPACE);
+        if (newNetworkProxy == null && Utils.isNotEmpty(currentDeviceConfiguration.getProxyUrl())) {
+            return true;
+        }
+
         if (newNetworkProxy == null) {
             return false;
         }

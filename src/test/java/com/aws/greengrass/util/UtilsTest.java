@@ -143,6 +143,7 @@ class UtilsTest {
         assertTrue(Utils.stringHasChanged(null, "test2"));
         assertTrue(Utils.stringHasChanged("test1", ""));
         assertTrue(Utils.stringHasChanged("", "test2"));
+        assertTrue(Utils.stringHasChanged("tEsT1", "test1"));
 
         assertFalse(Utils.stringHasChanged("test", "test"));
         assertFalse(Utils.stringHasChanged(null, null));

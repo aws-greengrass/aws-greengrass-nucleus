@@ -103,7 +103,7 @@ public final class Utils {
         if ((oldValue == null) != (newValue == null)) {
             return true;
         }
-        return !oldValue.equalsIgnoreCase(newValue);
+        return !oldValue.equals(newValue);
     }
 
     /**
