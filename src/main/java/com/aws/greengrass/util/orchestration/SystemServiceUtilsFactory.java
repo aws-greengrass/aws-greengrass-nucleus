@@ -34,7 +34,6 @@ public class SystemServiceUtilsFactory {
             if (bootPath.contains("systemd")) {
                 return context.get(SystemdUtils.class);
             }
-            // GG_NEEDS_REVIEW: TODO: implement other system services
         } catch (IOException e) {
             logger.atError().log("Unable to determine init process type");
         }

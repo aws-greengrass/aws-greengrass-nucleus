@@ -84,7 +84,7 @@ public class ConfigStoreIPCAgent {
      */
     public SubscribeToConfigurationUpdateResponse subscribeToConfigUpdate(SubscribeToConfigurationUpdateRequest request,
                                                                           ConnectionContext context) {
-        // GG_NEEDS_REVIEW: TODO: Input validation. https://sim.amazon.com/issues/P32540011
+        // TODO: [P32540011]: All IPC service requests need input validation
         String componentName =
                 request.getComponentName() == null ? context.getServiceName() : request.getComponentName();
 
@@ -270,9 +270,7 @@ public class ConfigStoreIPCAgent {
             }
             return response.responseStatus(ConfigStoreResponseStatus.Success).build();
         }
-        // GG_NEEDS_REVIEW: TODO : Does not support updating internal nodes, at least yet, will need to decide if that
-        //  should be a merge/replace or a choice for customers to make. We'll gain clarity once
-        //  nested config support at the component recipe and deployment level is hashed out.
+        // TODO :[P41210581]: UpdateConfiguration API should support updating nested configuration
         if (node instanceof Topics) {
             return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest)
                     .errorMessage("Cannot update a " + "non-leaf config node").build();
@@ -315,7 +313,7 @@ public class ConfigStoreIPCAgent {
      */
     public SubscribeToValidateConfigurationResponse subscribeToConfigValidation(ConnectionContext context) {
         log.atDebug().kv(CONTEXT_LOGGING_KEY, context).log("Config IPC subscribe to config validation request");
-        // GG_NEEDS_REVIEW: TODO: Input validation. https://sim.amazon.com/issues/P32540011
+        // TODO: [P32540011]: All IPC service requests need input validation
         configValidationListeners.computeIfAbsent(context, (key) -> {
             context.onDisconnect(() -> configValidationListeners.remove(context));
             return sendConfigValidationEvent(context);
@@ -345,14 +343,13 @@ public class ConfigStoreIPCAgent {
      */
     public SendConfigurationValidityReportResponse handleConfigValidityReport(
             SendConfigurationValidityReportRequest request, ConnectionContext context) {
-        // GG_NEEDS_REVIEW: TODO: Input validation. https://sim.amazon.com/issues/P32540011
+        // TODO: [P32540011]: All IPC service requests need input validation
         log.atDebug().kv(CONTEXT_LOGGING_KEY, context).log("Config IPC report config validation request");
         SendConfigurationValidityReportResponse.SendConfigurationValidityReportResponseBuilder response =
                 SendConfigurationValidityReportResponse.builder();
 
-        // GG_NEEDS_REVIEW: TODO : Edge case - With the current API model, there is no way to associate a validation
-        //  report from client with the event sent from server, meaning if event 1 from server was abandoned due to
-        //  timeout, then event 2 was triggered, then report in response to event 1 arrives, server won't detect this.
+        // TODO : [P41210395]: Add mechanism to associate the validity report sent by the component to a
+        //  validation request made by the IPC server
         if (!configValidationReportFutures.containsKey(context.getServiceName())) {
             return response.responseStatus(ConfigStoreResponseStatus.InvalidRequest)
                     .errorMessage("Validation request either timed out or was never made").build();
@@ -390,9 +387,8 @@ public class ConfigStoreIPCAgent {
                     configValidationReportFutures.put(componentName, reportFuture);
                     return true;
                 } catch (Exception ex) {
-                    // GG_NEEDS_REVIEW: TODO : Catch specific exceptions in sending service event when an equivalent
-                    //  utility of ServiceEventHelper.sendServiceEvent() is available as part of the event stream based
-                    //  server
+                    // TODO: [P41211196]: Retries, timeouts & and better exception handling in sending server event to
+                    //  components
                     throw new ValidateEventRegistrationException(ex);
                 }
             }

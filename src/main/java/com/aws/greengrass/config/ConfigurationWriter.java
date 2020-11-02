@@ -177,7 +177,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         }
     }
 
-    public void writeAll() { // GG_NEEDS_REVIEW: TODO double check this
+    public void writeAll() {
         conf.deepForEachTopic(n -> childChanged(WhatHappened.childChanged, n));
         conf.forEachChildlessTopics(t -> childChanged(WhatHappened.interiorAdded, t));
     }

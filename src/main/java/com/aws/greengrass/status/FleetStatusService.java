@@ -6,6 +6,7 @@
 package com.aws.greengrass.status;
 
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
@@ -76,7 +77,6 @@ public class FleetStatusService extends GreengrassService {
     private final AtomicBoolean isEventTriggeredUpdateInProgress = new AtomicBoolean(false);
     private final Set<GreengrassService> updatedGreengrassServiceSet =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
-    // GG_NEEDS_REVIEW: TODO: Remove this variable after implementing callbacks for service removal notifications.
     private final ConcurrentHashMap<GreengrassService, Instant> allServiceNamesMap = new ConcurrentHashMap<>();
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
     private final Object periodicUpdateInProgressLock = new Object();
@@ -117,11 +117,8 @@ public class FleetStatusService extends GreengrassService {
         this.kernel = kernel;
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
         this.architecture = System.getProperty("os.arch");
-
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
-
-        // GG_NEEDS_REVIEW: TODO: Make this more robust to handle all platforms.
-        this.platform = System.getProperty("os.name");
+        this.platform = PlatformResolver.CURRENT_PLATFORM.getOs().getName();
 
         updateThingNameAndPublishTopic(Coerce.toString(deviceConfiguration.getThingName()));
         deviceConfiguration.getThingName()
@@ -242,7 +239,7 @@ public class FleetStatusService extends GreengrassService {
             isDeploymentInProgress.set(false);
             updateEventTriggeredFleetStatusData();
         }
-        // GG_NEEDS_REVIEW: TODO: Handle local deployment update for FSS
+        // TODO: [P41214799] Handle local deployment update for FSS
         return true;
     }
 

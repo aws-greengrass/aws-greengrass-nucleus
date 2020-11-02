@@ -64,7 +64,7 @@ public class GreengrassService implements InjectionActions {
     protected final Topics config;
     private final Topics privateConfig;
 
-    // GG_NEEDS_REVIEW: TODO: make the field private
+    // TODO: [P41215222] make the field private
     @Getter
     public Context context;
 
@@ -102,7 +102,7 @@ public class GreengrassService implements InjectionActions {
         this.privateConfig = privateConfig;
         this.context = topics.getContext();
 
-        // GG_NEEDS_REVIEW: TODO: Validate syntax for lifecycle keywords and fail early
+        // TODO: [P41215193]: Validate syntax for lifecycle keywords and fail early
         // skipif will require validation for onpath/exists etc. keywords
 
         this.logger = LogManager.getLogger(this.getClass()).createChild();

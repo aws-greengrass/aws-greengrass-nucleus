@@ -78,7 +78,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     }
                     return saveToPath.resolve(filename).toFile();
                 }
-                // GG_NEEDS_REVIEW: TODO handle the other status code
+                // TODO: [P41214764]: Handle all status codes in downloading greengrass: artifacts
             } finally {
                 httpConn.disconnect();
             }
@@ -143,7 +143,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     evgCmsClient.getComponentArtifact(getComponentArtifactRequest);
             return getComponentArtifactResult.getPreSignedUrl();
         } catch (AmazonClientException ace) {
-            // GG_NEEDS_REVIEW: TODO: This should be expanded to handle various retryable/non-retryable exceptions
+            // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions
             throw new PackageDownloadException(
                     String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, componentIdentifier.getName(),
                             componentIdentifier.getVersion().toString()), ace);

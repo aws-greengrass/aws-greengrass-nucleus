@@ -307,7 +307,6 @@ public class Topics extends Node implements Iterable<Node> {
         // if new node is a container node
         if (value instanceof Map) {
             // if existing child is a leaf node
-            // GG_NEEDS_REVIEW: TODO: handle node type change between container/leaf node
             if (existingChild != null && !(existingChild instanceof Topics)) {
                 remove(existingChild);
             }
@@ -384,12 +383,16 @@ public class Topics extends Node implements Iterable<Node> {
         context.waitForPublishQueueToClear();
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     protected void childChanged(WhatHappened what, Node child) {
         for (Watcher s : watchers) {
             if (s instanceof ChildChanged) {
-                ((ChildChanged) s).childChanged(what, child);
+                try {
+                    ((ChildChanged) s).childChanged(what, child);
+                } catch (Throwable t) {
+                    logger.atError().log("Exception while notifying that {} changed", child, t);
+                }
             }
-            // GG_NEEDS_REVIEW: TODO: detect if a subscriber fails. Possibly unsubscribe it if the fault is persistent
         }
 
         if (what.equals(WhatHappened.removed)) {

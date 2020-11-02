@@ -341,7 +341,7 @@ public class DeviceProvisioningHelper {
                     AttachRolePolicyRequest.builder().roleName(roleName).policyArn(tesRolePolicyArn).build());
             return Optional.of(tesRolePolicyArn);
         } catch (EntityAlreadyExistsException e) {
-            // GG_NEEDS_REVIEW: TODO get and reuse the policy. non trivial because we can only get IAM policy by ARN
+            // TODO: [P41215965] get and reuse the policy. non trivial because we can only get IAM policy by ARN
             outStream.printf("IAM policy named \"%s\" already exists. Please attach it to the IAM role if not "
                     + "already%n", rolePolicyName);
             return Optional.empty();

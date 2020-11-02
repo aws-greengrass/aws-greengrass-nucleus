@@ -67,14 +67,12 @@ can be in any of the following states:
 | ----- | -------
 |    Stateless | Object does not have a state (it is not a Lifecycle)
 |    New | Freshly created, probably being injected
-|    Installing | Associated artifacts being installed.  TODO: This should probably be preceded by a new state: PreparingToInstall which can run while the service is running, and should do downloads in preparation to installation.
-|    AwaitingStartup | Waiting for some dependency to start Running
+|    Installed | Associated artifacts have installed.
 |    Starting | Executed when all dependencies are satisfied. When this step is completed the service will be Running.
 |    Running | Up and running, operating normally.  This is the only state that should ever take a significant amount of time to run.
-|    Unstable | Running, but experiencing problems that the service is attempting to repair itself.  The kernel does not participate in the recovery effort.  A good example is a connected device that is not functioning properly, like a GPS receiver inside a building: there's nothing to do except wait until the antenna can see the sky again.  But clients of that service may want to know that it isn't producing good results.
 |    Errored | Not running.  It may be useful for the enclosing framework to restart it.
-|    Recovering | In the process of being restarted.
-|    Shutdown | Shut down, cannot be restarted.
+|    Stopping | Shutting down
+|    Broken   | Errored repeatedly and will not be restarted
 |    Finished | The service has done it's job and has no more to do.  May be restarted (for example, by a timer)
 
 

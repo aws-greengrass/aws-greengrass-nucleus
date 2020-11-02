@@ -31,6 +31,7 @@ import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
  * Easy setup for getting started with Greengrass kernel on a device.
  */
 public class GreengrassSetup {
+    // GG_REL_BLOCKER: TODO: [P41215451]: Review with tech writer prior to launch (including TES)
     private static final String SHOW_HELP_RESPONSE = "\n" + "DESCRIPTION\n"
             + "\tInstall Greengrass kernel on your device, register the device as IoT thing,\n"
             + "\tcreate certificates and attach role for TES to them, install the Greengrass\n"
@@ -90,8 +91,6 @@ public class GreengrassSetup {
     private static final String POLICY_NAME_ARG_SHORT = "-pn";
     private static final String POLICY_NAME_DEFAULT = "MyIotThingPolicy";
 
-    // GG_NEEDS_REVIEW: TODO : Customers don't understand TES, when we decide the name for TES to expose
-    //  to customers in the context of Greengrass, rename TES related things here and change description
     private static final String TES_ROLE_NAME_ARG = "--tes-role-name";
     private static final String TES_ROLE_NAME_ARG_SHORT = "-trn";
     private static final String TES_ROLE_NAME_DEFAULT = "MyIotRoleForTes";
@@ -136,7 +135,7 @@ public class GreengrassSetup {
 
     private static final String VERSION_ARG = "--version";
 
-    // GG_NEEDS_REVIEW: TODO : Add optional input for credentials, currently creds are assumed to be set into env vars
+    // TODO: [P41215511]: Add optional input for credentials, currently creds are read from env vars
 
     private static final Logger logger = LogManager.getLogger(GreengrassSetup.class);
     private final String[] setupArgs;
@@ -239,7 +238,8 @@ public class GreengrassSetup {
 
         // Install Greengrass cli
         if (installCli) {
-            // GG_NEEDS_REVIEW: TODO : Download CLI binary from CDN and install
+            // GG_REL_BLOCKER: TODO: [P41215604]: Download CLI binary from CDN and install
+            // Don't lie about installing the CLI if we didn't do it...
             outStream.println("Installed Greengrass CLI");
         }
 
@@ -403,7 +403,7 @@ public class GreengrassSetup {
             outStream.printf("Successfully added Thing into Thing Group: [%s]%n", thingGroupName);
         }
 
-        // GG_NEEDS_REVIEW: TODO : setupTes should not be an arg anymore since role alias is required, need to remove
+        // TODO: [P41215965]: setupTes should not be an arg anymore since role alias is required, need to remove
         //  this arg and always pass either user specified or a default role alias
         if (setupTes) {
             outStream.println("Setting up resources for TokenExchangeService...");

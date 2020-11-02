@@ -59,9 +59,6 @@ class AwsIotMqttClient implements Closeable {
             // Error code 0 means that the disconnection was intentional, so we don't need to log it
             if (errorCode != 0) {
                 logger.atWarn().kv("error", CRT.awsErrorString(errorCode)).log("Connection interrupted");
-                // Copy-paste from Amit's original work, ask him about this if needed
-                // GG_NEEDS_REVIEW: TODO: Detect this using secondary mechanisms like checking if internet is available
-                // instead of using ping to Mqtt server. Mqtt ping is expensive and should be used as the last resort.
             }
             // To run the callbacks shared by the different AwsIotMqttClient.
             callbackEventManager.runOnConnectionInterrupted(errorCode);

@@ -158,7 +158,6 @@ public final class IotSdkClientFactory {
                     return validStage;
                 }
             }
-            // GG_NEEDS_REVIEW: TODO: throw exception
             String errorMessage = String.format("%s is not a valid environment stage. Valid stages are %s", stage,
                     Arrays.toString(values()));
             throw new InvalidEnvironmentStageException(errorMessage);

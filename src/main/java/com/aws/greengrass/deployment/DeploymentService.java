@@ -265,7 +265,7 @@ public class DeploymentService extends GreengrassService {
                                 .withValue(currentDeploymentTaskMetadata.getDeploymentId());
                     }
                     Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
-                    // GG_NEEDS_REVIEW: TODO: Removal of group from the mappings. Currently there is no action taken
+                    // TODO: [P41179087] Removal of group from the mappings. Currently there is no action taken
                     // when a device is removed from a thing group. Empty configuration is treated as a valid config
                     // for a group but not treated as removal.
                     deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
@@ -290,7 +290,7 @@ public class DeploymentService extends GreengrassService {
                     if (result.getFailureCause() != null) {
                         statusDetails.put("deployment-failure-cause", result.getFailureCause().getMessage());
                     }
-                    // GG_NEEDS_REVIEW: TODO: Update the groupToRootPackages mapping in config for the case where there
+                    // TODO: [P41179126] Update the groupToRootPackages mapping in config for the case where there
                     // is no rollback and now the packages deployed for the current group are not the same as before
                     // starting deployment
                     deploymentStatusKeeper
@@ -451,8 +451,6 @@ public class DeploymentService extends GreengrassService {
                             localOverrideRequest.getGroupName() == null ? DEFAULT_GROUP_NAME
                                     : localOverrideRequest.getGroupName())
                             .forEach(t -> rootComponentsInRequestedGroup.add(t.getName()));
-                    // GG_NEEDS_REVIEW: TODO: pulling the versions from kernel. Can pull it from the config itself.
-                    // Confirm if pulling from config should not break any use case for local
                     if (!Utils.isEmpty(rootComponentsInRequestedGroup)) {
                         rootComponentsInRequestedGroup.forEach(c -> {
                             Topics serviceTopic = kernel.findServiceTopic(c);

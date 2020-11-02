@@ -97,7 +97,8 @@ public class MqttProxyIPCAgent {
                     .retain(request.isRetain()).qos(getQualityOfServiceFromQOS(request.getQos())).build();
             CompletableFuture<Integer> future = mqttClient.publish(publishRequest);
 
-            // GG_NEEDS_REVIEW: TODO: replace this with a check that message is inserted in spooler queue
+            // TODO: [P41211814]: Check that message is inserted in spooler queue instead of relying on the message
+            //  publish future
             try {
                 future.get(mqttClient.getTimeout(), TimeUnit.MILLISECONDS);
             } catch (InterruptedException | ExecutionException | TimeoutException e) {

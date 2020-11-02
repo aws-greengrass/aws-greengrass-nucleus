@@ -72,7 +72,7 @@ public class ComponentServiceHelper {
                                              String deploymentConfigurationId)
             throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
 
-        // GG_NEEDS_REVIEW: TODO add osVersion and osFlavor once they are supported
+        // TODO: [P41215526]: Use osVersion and osFlavor for resolving component version once they are supported
         ComponentPlatform platform = new ComponentPlatform().withOs(PlatformResolver.CURRENT_PLATFORM.getOs().getName())
                 .withArchitecture(PlatformResolver.CURRENT_PLATFORM.getArchitecture().getName());
         Map<String, String> versionRequirementsInString = versionRequirements.entrySet().stream()
@@ -82,7 +82,7 @@ public class ComponentServiceHelper {
                 .withVersionRequirements(versionRequirementsInString);
         ResolveComponentVersionsRequest request = new ResolveComponentVersionsRequest().withPlatform(platform)
                 .withComponentCandidates(Collections.singletonList(candidate))
-                // GG_NEEDS_REVIEW: TODO switch back deploymentConfigurationId once it's removed from URL path
+                // TODO: [P41215565]: Switch back deploymentConfigurationId once it's removed from URL path
                 // use UUID to avoid ARN complication in URL, deploymentConfigurationId is used for logging purpose
                 // in server, so could have this hack now
                 .withDeploymentConfigurationId(UUID.randomUUID().toString());
@@ -130,7 +130,7 @@ public class ComponentServiceHelper {
         try {
             return evgCmsClient.getComponent(r);
         } catch (AmazonClientException e) {
-            // GG_NEEDS_REVIEW: TODO: This should be expanded to handle various retryable/non-retryable exceptions
+            // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions
             String errorMsg = String.format(PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT, id);
             throw new PackageDownloadException(errorMsg, e);
         }
@@ -144,7 +144,7 @@ public class ComponentServiceHelper {
      * @return {@link CreateComponentResult}
      * @throws IOException if file reading fails
      */
-    // GG_NEEDS_REVIEW: TODO make this an instance method
+    // TODO: [P41215855]: Make createComponent method non static
     public static CreateComponentResult createComponent(AWSEvergreen cmsClient, Path recipeFilePath)
             throws IOException {
         ByteBuffer recipeBuf = ByteBuffer.wrap(Files.readAllBytes(recipeFilePath));

@@ -46,7 +46,7 @@ public final class PlatformResolver {
                     .architecture(getArchInfo())
                     .build();
         } catch (InterruptedException | IOException e) {
-            // GG_NEEDS_REVIEW: TODO: Better err handling
+            // TODO: [P41215409] Better error handling
             logger.atError().setCause(e).log("Fail to read platform info");
             return Platform.builder()
                     .os(OS.ALL)
@@ -70,7 +70,6 @@ public final class PlatformResolver {
         Map<String, Integer> ranks = new HashMap<>();
         // figure out what OS we're running and add applicable tags
         // The more specific a tag is, the higher its rank should be
-        //GG_NEEDS_REVIEW: TODO:use better way to determine if a field is platform specific. Eg:using 'platform$' prefix
         ranks.put("all", 0);
         ranks.put("any", 0);
         if (Files.exists(Paths.get("/bin/sh")) || Files.exists(Paths.get("/bin/bash"))
@@ -98,7 +97,6 @@ public final class PlatformResolver {
                 }
                 if (sysver.contains("darwin")) {
                     ranks.put("darwin", 10);
-                    // GG_NEEDS_REVIEW: TODO: currently we assume darwin is MacOS
                     ranks.put("macos", 20);
                 }
                 if (sysver.contains("raspbian")) {
@@ -129,7 +127,7 @@ public final class PlatformResolver {
             return OS.WINDOWS;
         }
 
-        // GG_NEEDS_REVIEW: TODO: use UNRECOGNIZED instead.
+        // TODO: [P41215465] use UNKNOWN instead?
         OS currentOS = OS.ALL;
         String sysver = Exec.sh("uname -a").toLowerCase();
 
@@ -176,7 +174,7 @@ public final class PlatformResolver {
         if ("aarch64".equals(arch)) {
             return Architecture.AARCH64;
         }
-        // GG_NEEDS_REVIEW: TODO: use UNRECOGNIZED instead.
+        // TODO: [P41215465] use UNKNOWN instead.
         return Architecture.ALL;
     }
 
@@ -202,7 +200,6 @@ public final class PlatformResolver {
     }
 
     @Deprecated // Still used in source code for existing tests that use multi-platform config.yaml when kernel starts.
-    // GG_NEEDS_REVIEW: TODO Remove from source code and put into test utils
     public static Object resolvePlatform(Map<String, Object> input) {
         return resolvePlatform(RANKS.get(), input);
     }
