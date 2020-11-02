@@ -106,7 +106,6 @@ public class MqttProxyIPCAgentTest {
         CompletableFuture<Integer> completableFuture = new CompletableFuture<>();
         completableFuture.complete(0);
         when(mqttClient.publish(any())).thenReturn(completableFuture);
-        when(mqttClient.getTimeout()).thenReturn(1000);
         when(authorizationHandler.getAuthorizedResources(any(), any(), any()))
                 .thenReturn(Collections.singletonList(TEST_TOPIC));
         ArgumentCaptor<PublishRequest> publishRequestArgumentCaptor = ArgumentCaptor.forClass(PublishRequest.class);

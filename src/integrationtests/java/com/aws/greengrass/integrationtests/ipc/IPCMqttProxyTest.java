@@ -112,7 +112,6 @@ public class IPCMqttProxyTest {
         CompletableFuture<Integer> completableFuture = new CompletableFuture<>();
         completableFuture.complete(0);
         when(mqttClient.publish(any())).thenReturn(completableFuture);
-        when(mqttClient.getTimeout()).thenReturn(1000);
 
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
