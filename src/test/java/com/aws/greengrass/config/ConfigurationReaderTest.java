@@ -45,7 +45,7 @@ class ConfigurationReaderTest {
         ConfigurationReader.mergeTLogInto(config, tlogPath, true,
                                                 s -> !s.childOf(SKIP_MERGE_NAMESPACE_KEY));
          // block until all changes are merged in
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
         // Test tlog file has value set to "TLogValue"
         assertEquals("Test", config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                                            SKIP_MERGE_NAMESPACE_KEY, "testTopic").getOnce());
@@ -61,7 +61,7 @@ class ConfigurationReaderTest {
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
         // block until all changes are merged in
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
         assertEquals("TLogValue", config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
                                                 SKIP_MERGE_NAMESPACE_KEY, "testTopic").getOnce());
     }
@@ -79,7 +79,7 @@ class ConfigurationReaderTest {
         ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
 
         // block until all changes are merged in
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
         assertNull(config.find(topicPathToRemove));
     }
 
@@ -95,7 +95,7 @@ class ConfigurationReaderTest {
         ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
 
         // block until all changes are merged in
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
         assertNull(config.find(topicPathToRemove));
     }
 
@@ -110,7 +110,7 @@ class ConfigurationReaderTest {
         ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
 
         // block until all changes are merged in
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
         Topic resultTopic = config.find(topicPath);
         assertEquals("Test", resultTopic.getOnce());
         assertEquals(Long.MAX_VALUE, resultTopic.getModtime());
@@ -127,7 +127,7 @@ class ConfigurationReaderTest {
         ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
 
         // block until all changes are merged in
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
         assertNull(config.findNode(topicPath));
     }
 
@@ -138,13 +138,13 @@ class ConfigurationReaderTest {
                 SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
         config.lookup(ArrayUtils.add(topicPath, "script"))
                 .withNewerValue(Long.MAX_VALUE, "Test");
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
         assertEquals(Long.MAX_VALUE, config.findNode(topicPath).modtime);
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
 
         // block until all changes are merged in
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
         assertNotNull(config.findNode(topicPath));
         assertEquals(Long.MAX_VALUE, config.findNode(topicPath).modtime);
     }
@@ -155,7 +155,7 @@ class ConfigurationReaderTest {
         ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
 
         // block until all changes are merged in
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
 
         assertEquals("firstline", config.find("test", "firstline").getOnce());
         assertEquals("lastline", config.find("test", "lastline").getOnce());
