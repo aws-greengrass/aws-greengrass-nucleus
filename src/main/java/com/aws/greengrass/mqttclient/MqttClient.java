@@ -436,8 +436,7 @@ public class MqttClient implements Closeable {
                 }).get();
             }
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.atError().log("Spooler message is interrupted", e);
+            logger.atDebug().log("Shutting down spooler task");
         } catch (ExecutionException e) {
             logger.atError().log("Error when publishing from spooler", e);
         }
