@@ -553,7 +553,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 }
         )).getResponse();
         try {
-            fut.get(3, TimeUnit.SECONDS);
+            fut.get(30, TimeUnit.SECONDS);
         } catch (Exception e) {
             logger.atError().setCause(e).log("Error when subscribing to component updates");
             fail("Caught exception when subscribing to component updates");

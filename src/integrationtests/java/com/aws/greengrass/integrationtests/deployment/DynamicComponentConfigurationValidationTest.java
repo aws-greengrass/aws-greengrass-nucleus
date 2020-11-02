@@ -39,6 +39,7 @@ import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityReport;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityStatus;
 import software.amazon.awssdk.aws.greengrass.model.SendConfigurationValidityReportRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToValidateConfigurationUpdatesRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToValidateConfigurationUpdatesResponse;
 import software.amazon.awssdk.aws.greengrass.model.ValidateConfigurationUpdateEvents;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
@@ -49,6 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -171,11 +173,11 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
         CountDownLatch subscriptionLatch = new CountDownLatch(1);
         try (EventStreamRPCConnection clientConnection =
                      IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
-            AutoCloseable l = TestUtils.createCloseableLogListener(m -> {
-                if (m.getMessage().contains("Config IPC subscribe to config validation request")) {
-                    subscriptionLatch.countDown();
-                }
-            })) {
+             AutoCloseable l = TestUtils.createCloseableLogListener(m -> {
+                 if (m.getMessage().contains("Config IPC subscribe to config validation request")) {
+                     subscriptionLatch.countDown();
+                 }
+             })) {
 
             GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
 
@@ -241,6 +243,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
     }
 
     @Test
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     void GIVEN_deployment_changes_component_config_WHEN_component_invalidates_config_THEN_deployment_fails()
             throws Throwable {
         // Subscribe to config validation on behalf of the running service
@@ -253,43 +256,50 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
             GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
 
             SubscribeToValidateConfigurationUpdatesRequest subscribe = new SubscribeToValidateConfigurationUpdatesRequest();
-            greengrassCoreIPCClient.subscribeToValidateConfigurationUpdates(subscribe, Optional.of(new StreamResponseHandler<ValidateConfigurationUpdateEvents>() {
+            CompletableFuture<SubscribeToValidateConfigurationUpdatesResponse> fut =
+                    greengrassCoreIPCClient.subscribeToValidateConfigurationUpdates(subscribe,
+                            Optional.of(new StreamResponseHandler<ValidateConfigurationUpdateEvents>() {
+                                @Override
+                                public void onStreamEvent(ValidateConfigurationUpdateEvents events) {
+                                    assertNotNull(events);
+                                    assertNotNull(events.getValidateConfigurationUpdateEvent());
+                                    assertNotNull(events.getValidateConfigurationUpdateEvent().getConfiguration());
+                                    assertThat(events.getValidateConfigurationUpdateEvent().getConfiguration(),
+                                            IsMapContaining.hasEntry("ConfigKey1", "ConfigValue2"));
+                                    eventReceivedByClient.countDown();
 
-                @Override
-                public void onStreamEvent(ValidateConfigurationUpdateEvents events) {
-                    assertNotNull(events);
-                    assertNotNull(events.getValidateConfigurationUpdateEvent());
-                    assertNotNull(events.getValidateConfigurationUpdateEvent().getConfiguration());
-                    assertThat(events.getValidateConfigurationUpdateEvent().getConfiguration(),
-                            IsMapContaining.hasEntry("ConfigKey1", "ConfigValue2"));
-                    eventReceivedByClient.countDown();
+                                    SendConfigurationValidityReportRequest reportRequest =
+                                            new SendConfigurationValidityReportRequest();
+                                    ConfigurationValidityReport report = new ConfigurationValidityReport();
+                                    report.setStatus(ConfigurationValidityStatus.REJECTED);
+                                    report.setMessage("I don't like this configuration");
+                                    reportRequest.setConfigurationValidityReport(report);
 
-                    SendConfigurationValidityReportRequest reportRequest =
-                            new SendConfigurationValidityReportRequest();
-                    ConfigurationValidityReport report = new ConfigurationValidityReport();
-                    report.setStatus(ConfigurationValidityStatus.REJECTED);
-                    report.setMessage("I don't like this configuration");
-                    reportRequest.setConfigurationValidityReport(report);
+                                    try {
+                                        greengrassCoreIPCClient.sendConfigurationValidityReport(reportRequest, Optional.empty()).getResponse()
+                                                .get(10, TimeUnit.SECONDS);
+                                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                                        fail("received invalid update validate configuration event", e);
+                                    }
+                                }
 
-                    try {
-                        greengrassCoreIPCClient.sendConfigurationValidityReport(reportRequest, Optional.empty()).getResponse()
-                                .get(10, TimeUnit.SECONDS);
-                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                        fail("received invalid update validate configuration event", e);
-                    }
-                }
+                                @Override
+                                public boolean onStreamError(Throwable error) {
+                                    log.atError().log("Received stream error.", error);
+                                    return false;
+                                }
 
-                @Override
-                public boolean onStreamError(Throwable error) {
-                    log.atError().log("Received stream error.", error);
-                    return false;
-                }
+                                @Override
+                                public void onStreamClosed() {
 
-                @Override
-                public void onStreamClosed() {
+                                }
+                            })).getResponse();
 
-                }
-            }));
+            try {
+                fut.get(30, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                fail("Caught exception when subscribing to configuration validation updates.");
+            }
 
             // Attempt changing the configuration for the running service
             Map<String, Object> newConfig = new HashMap<String, Object>() {{
