@@ -348,22 +348,21 @@ class KernelTest extends BaseITCase {
             // immediately queue a task to increase max size to prevent repeated truncation
             context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxEntries(10000));
         });
-        // wait for truncate to complete
-        context.runOnPublishQueueAndWait(() -> {});
+        // wait for things to complete
+        CountDownLatch startupCdl = new CountDownLatch(1);
+        context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
+                startupCdl.countDown();
+            }
+        });
+        startupCdl.await(30, TimeUnit.SECONDS);
         // shutdown to stop config/tlog changes
         kernel.shutdown();
-        Topics fullConfig = config.getRoot();
-        Topics tlogConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog")).getRoot();
-        // (Nested) null Topic can be created via lookup. These won't fire update and be written to tlog
-        // So we deeply remove null topics from the kernel config
-        removeNullTopicsDeep(fullConfig);
-        // Also need to remove them from config created from tlog here. Because during truncate we call
-        // writeEffectiveConfigAsTransactionLog which can persist those nulls to tlog
-        removeNullTopicsDeep(tlogConfig);
-        assertEquals("triggering truncate", fullConfig.find("testTopic").getOnce());
+        Configuration tlogConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog"));
+        assertEquals("triggering truncate", tlogConfig.find("testTopic").getOnce());
         // data type may be different when recreating tlog
         // using this to coerce to string for comparison
-        assertEqualsDeepMap(fullConfig.toPOJO(), tlogConfig.toPOJO());
+        assertEqualsDeepMap(config.toPOJO(), tlogConfig.toPOJO());
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -399,33 +398,10 @@ class KernelTest extends BaseITCase {
         startupCdl.await(30, TimeUnit.SECONDS);
         // shutdown to stop config/tlog changes
         kernel.shutdown();
-        Topics fullConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("full.tlog")).getRoot();
-        Topics compressedConfig =
-                ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog")).getRoot();
-        // During truncate we call writeEffectiveConfigAsTransactionLog which can persist nulls to tlog
-        // remove nulls to be consistent with the tlog created in the beginning
-        removeNullTopicsDeep(compressedConfig);
+        Configuration fullConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("full.tlog"));
+        Configuration compressedConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog"));
         assertEquals("triggering truncate", compressedConfig.find("testTopic").getOnce());
         assertThat(fullConfig.toPOJO(), is(compressedConfig.toPOJO()));
-    }
-
-    /**
-     * Remove Topic that has null value. Keep removing the parent Topics if it's empty
-     */
-    private void removeNullTopicsDeep(Topics root) {
-        for (Node child : root.children.values()) {
-            if (child instanceof Topics) {
-                removeNullTopicsDeep((Topics) child);
-            } else {
-                Topic childTopic = (Topic) child;
-                if (childTopic.getOnce() == null) {
-                    child.remove();
-                }
-            }
-        }
-        if (root.isEmpty()) {
-            root.remove();
-        }
     }
 
     /**
