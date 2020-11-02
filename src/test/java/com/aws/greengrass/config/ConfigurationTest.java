@@ -205,6 +205,7 @@ class ConfigurationTest {
     @Test
     void GIVEN_config_with_subscribers_WHEN_topic_removed_THEN_subscribers_notified() throws Exception {
         Topic testTopic = config.lookup("a", "b", "c");
+        config.context.waitForPublishQueueToClear();
 
         AtomicInteger numCalled = new AtomicInteger(0);
         Pair<CompletableFuture<Void>, BiConsumer<WhatHappened, Topic>> childRemoved =
@@ -266,7 +267,7 @@ class ConfigurationTest {
         });
 
         config.lookupTopics("a").remove();
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
 
         assertEquals(1, childNotified[0].get());
         assertNull(config.findTopics("a"));
@@ -345,7 +346,7 @@ class ConfigurationTest {
             initConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
         config.mergeMap(System.currentTimeMillis(), initConfigMap);
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
 
         AtomicInteger containerNodeRemoved = new AtomicInteger(0);
         config.findTopics("foo", "nodeToBeRemoved").subscribe((what, c) -> {
@@ -387,7 +388,7 @@ class ConfigurationTest {
         assertEquals(updateConfigMap, config.toPOJO());
 
         // block until all subscribers are notified
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
 
         assertEquals(1, leafNodeRemoved.get());
         assertEquals(1, containerNodeRemoved.get());
@@ -422,7 +423,7 @@ class ConfigurationTest {
             initConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
         config.mergeMap(System.currentTimeMillis(), initConfigMap);
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
 
         AtomicInteger nodeMerged = new AtomicInteger(0);
         config.findTopics("foo", "nodeToBeMerged").subscribe((what, c) -> {
@@ -452,8 +453,8 @@ class ConfigurationTest {
         assertEquals(expectedConfig, config.toPOJO());
 
         // block until all subscribers are notified
-        config.context.runOnPublishQueueAndWait(() -> {});
-        assertEquals(1, nodeMerged.get());
+        config.context.waitForPublishQueueToClear();
+        assertEquals(2, nodeMerged.get());
     }
 
     @Test
@@ -493,7 +494,7 @@ class ConfigurationTest {
             initConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
         config.mergeMap(System.currentTimeMillis(), initConfigMap);
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
 
         AtomicInteger nodeMerged = new AtomicInteger(0);
         config.findTopics("foo", "nodeToBeMerged").subscribe((what, c) -> {
@@ -536,8 +537,8 @@ class ConfigurationTest {
         assertEquals(expectedConfig, config.toPOJO());
 
         // block until all subscribers are notified
-        config.context.runOnPublishQueueAndWait(() -> {});
-        assertEquals(1, nodeMerged.get());
+        config.context.waitForPublishQueueToClear();
+        assertEquals(2, nodeMerged.get());
         assertEquals(0, nodeUnchangedCount.get());
     }
 
@@ -583,7 +584,7 @@ class ConfigurationTest {
         Path tlogPath = tempDir.resolve("t.tlog");
         ConfigurationWriter.logTransactionsTo(config, tlogPath).flushImmediately(true);
         config.mergeMap(then, initConfigMap);
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
 
         // WHEN
         Map<String, Object> updateConfigMap;
@@ -606,7 +607,7 @@ class ConfigurationTest {
         );
 
         config.updateMap(updateConfigMap, updateBehavior);
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
 
         // THEN
         Map<String, Object> expectedConfig;
@@ -624,7 +625,7 @@ class ConfigurationTest {
 
         config = new Configuration(config.context);
         ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
-        config.context.runOnPublishQueueAndWait(() -> {});
+        config.context.waitForPublishQueueToClear();
 
         assertEquals(expectedConfig, config.toPOJO());
         assertEquals(now, config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey2").modtime);

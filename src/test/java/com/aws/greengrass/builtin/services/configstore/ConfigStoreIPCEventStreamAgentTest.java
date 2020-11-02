@@ -108,7 +108,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         root.lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B);
         root.lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B, PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_3)
                 .withNewerValue(100, TEST_CONFIG_KEY_3_INITIAL_VALUE);
-        configuration.context.runOnPublishQueueAndWait(() -> {});
+        configuration.context.waitForPublishQueueToClear();
         lenient().when(kernel.getConfig()).thenReturn(configuration);
 
         when(mockContext.getContinuation()).thenReturn(mockServerConnectionContinuation);
@@ -118,7 +118,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         agent = new ConfigStoreIPCEventStreamAgent();
         agent.setKernel(kernel);
     }
-    
+
     @AfterEach
     void cleanup() throws IOException {
         configuration.context.close();
@@ -422,7 +422,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerNode", "SomeLeafNode").withValue("SomeValue");
-        configuration.context.runOnPublishQueueAndWait(() -> {});
+        configuration.context.waitForPublishQueueToClear();
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         when(mockServerConnectionContinuation.sendMessage(anyList(), byteArrayCaptor.capture(), any(MessageType.class), anyInt()))
                 .thenReturn(new CompletableFuture<>());
@@ -458,7 +458,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         componentAConfiguration
                 .lookup(PARAMETERS_CONFIG_KEY, "Level1ContainerNode", "Level2ContainerNode", "SomeLeafNode")
                 .withValue("SomeValue");
-        configuration.context.runOnPublishQueueAndWait(() -> {});
+        configuration.context.waitForPublishQueueToClear();
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         when(mockServerConnectionContinuation.sendMessage(anyList(), byteArrayCaptor.capture(), any(MessageType.class), anyInt()))
                 .thenReturn(new CompletableFuture<>());
