@@ -14,7 +14,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Value
-@Builder
+@Builder(toBuilder = true)
 @AllArgsConstructor
 public class FileSystemPermission {
     String ownerUser;
@@ -68,5 +68,20 @@ public class FileSystemPermission {
         }
 
         return ret;
+    }
+
+    public enum Option {
+        /**
+         * Apply permissions all the child directories and files.
+         */
+        Recurse,
+        /**
+         * Ignore the owner fields - only set the permission.
+         */
+        IgnoreOwner,
+        /**
+         * Ignore the permission bits - only set the owner.
+         */
+        IgnorePermission;
     }
 }

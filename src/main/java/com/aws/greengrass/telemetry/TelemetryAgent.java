@@ -12,6 +12,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.KernelMetricsEmitter;
 import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.MqttChunkedPayloadPublisher;
 import lombok.AccessLevel;
@@ -39,6 +40,10 @@ public class TelemetryAgent extends GreengrassService {
             "$aws/things/{thingName}/greengrass/health/json";
     public static final String TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC = "periodicAggregateMetricsIntervalSec";
     public static final String TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicPublishMetricsIntervalSec";
+    public static final String TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC
+            = "telemetryPeriodicAggregateMetricsIntervalSec";
+    public static final String TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC
+            = "telemetryPeriodicPublishMetricsIntervalSec";
     public static final String TELEMETRY_LAST_PERIODIC_PUBLISH_TIME_TOPIC = "lastPeriodicPublishMetricsTime";
     public static final String TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC = "lastPeriodicAggregationMetricsTime";
     static final int DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC = 3_600;
@@ -118,8 +123,10 @@ public class TelemetryAgent extends GreengrassService {
         this.ses = ses;
         this.metricsAggregator = ma;
         this.thingName = Coerce.toString(deviceConfiguration.getThingName());
-        this.periodicAggregateMetricsIntervalSec = periodicAggregateMetricsIntervalSec;
-        this.periodicPublishMetricsIntervalSec = periodicPublishMetricsIntervalSec;
+        this.periodicAggregateMetricsIntervalSec = TestFeatureParameters.retrieveWithDefault(Integer.class,
+                TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC, periodicAggregateMetricsIntervalSec);
+        this.periodicPublishMetricsIntervalSec = TestFeatureParameters.retrieveWithDefault(Integer.class,
+                TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC, periodicPublishMetricsIntervalSec);
         periodicMetricsEmitters.add(sme);
         periodicMetricsEmitters.add(kme);
         getPeriodicAggregateTimeTopic();

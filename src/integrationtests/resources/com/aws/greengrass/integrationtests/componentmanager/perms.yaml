@@ -1,0 +1,13 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: A
+ComponentVersion: '1.0.0'
+Manifests:
+  - Platform:
+      os: all
+    Artifacts:
+      - URI: greengrass:script.sh
+        Permission:
+          Read: ALL
+          Execute: OWNER
+      - URI: greengrass:empty.txt
