@@ -8,8 +8,8 @@ package com.aws.greengrass.componentmanager.plugins;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.model.GetComponentArtifactRequest;
-import com.amazonaws.services.evergreen.model.GetComponentArtifactResult;
+import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactRequest;
+import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactResult;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
@@ -171,8 +171,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     String getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws PackageDownloadException {
-        GetComponentArtifactRequest getComponentArtifactRequest =
-                new GetComponentArtifactRequest().withArtifactName(artifactName)
+        GetComponentVersionArtifactRequest GetComponentVersionArtifactRequest =
+                new GetComponentVersionArtifactRequest().withArtifactName(artifactName)
                         .withComponentName(componentIdentifier.getName())
                         .withComponentVersion(componentIdentifier.getVersion().toString());
 
@@ -181,9 +181,9 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         // catch the exception for the redirect. This response code needs a revisit from the service side either to
         // change the response code or to gracefully respond instead of throwing exception
         try {
-            GetComponentArtifactResult getComponentArtifactResult =
-                    evgCmsClient.getComponentArtifact(getComponentArtifactRequest);
-            return getComponentArtifactResult.getRedirectUrl();
+            GetComponentVersionArtifactResult GetComponentVersionArtifactResult =
+                    evgCmsClient.getComponentVersionArtifact(GetComponentVersionArtifactRequest);
+            return GetComponentVersionArtifactResult.getRedirectUrl();
         } catch (AmazonServiceException ase) {
             // GG_NEEDS_REVIEW: TODO: This should be expanded to handle various retryable/non-retryable exceptions
             // Ideally service side response is fixed and this can be merged with the Client Exception handling

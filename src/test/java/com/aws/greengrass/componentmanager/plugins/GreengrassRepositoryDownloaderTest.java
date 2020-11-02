@@ -7,7 +7,7 @@ package com.aws.greengrass.componentmanager.plugins;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.model.GetComponentArtifactRequest;
+import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactRequest;
 import com.aws.greengrass.componentmanager.ComponentTestResourceHelper;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
@@ -59,7 +59,7 @@ class GreengrassRepositoryDownloaderTest {
     private GreengrassRepositoryDownloader downloader;
 
     @Captor
-    ArgumentCaptor<GetComponentArtifactRequest> getComponentArtifactRequestArgumentCaptor;
+    ArgumentCaptor<GetComponentVersionArtifactRequest> GetComponentVersionArtifactRequestArgumentCaptor;
 
     @BeforeEach
     void beforeEach() {
@@ -74,7 +74,7 @@ class GreengrassRepositoryDownloaderTest {
         headers.put("Location", "https://www.amazon.com/artifact.txt");
         ase.setStatusCode(HttpStatus.SC_MOVED_TEMPORARILY);
         ase.setHttpHeaders(headers);
-        when(client.getComponentArtifact(getComponentArtifactRequestArgumentCaptor.capture())).thenThrow(ase);
+        when(client.getComponentVersionArtifact(GetComponentVersionArtifactRequestArgumentCaptor.capture())).thenThrow(ase);
 
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
@@ -93,7 +93,7 @@ class GreengrassRepositoryDownloaderTest {
                 pkgId, new ComponentArtifact(new URI("greengrass:artifactName"),
                         checksum, SHA256, null), saveToPath);
 
-        GetComponentArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
+        GetComponentVersionArtifactRequest generatedRequest = GetComponentVersionArtifactRequestArgumentCaptor.getValue();
         assertEquals("CoolService", generatedRequest.getComponentName());
         assertEquals("1.0.0", generatedRequest.getComponentVersion());
         assertNull(generatedRequest.getScope());
@@ -112,7 +112,7 @@ class GreengrassRepositoryDownloaderTest {
         headers.put("Location", "https://www.amazon.com/artifact.txt");
         ase.setStatusCode(HttpStatus.SC_MOVED_TEMPORARILY);
         ase.setHttpHeaders(headers);
-        when(client.getComponentArtifact(any())).thenThrow(ase);
+        when(client.getComponentVersionArtifact(any())).thenThrow(ase);
 
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenThrow(IOException.class);
