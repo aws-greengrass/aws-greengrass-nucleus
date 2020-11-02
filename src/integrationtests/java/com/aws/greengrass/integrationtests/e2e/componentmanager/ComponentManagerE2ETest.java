@@ -17,6 +17,8 @@ import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.platforms.Platform;
+import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Order;
@@ -147,7 +149,10 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
             assertThat(artifactTxt.toFile(), anExistingFile());
 
             assertThat(artifactTxt, hasPermission(FileSystemPermission.builder()
-                            .ownerRead(true).groupRead(true).otherRead(true).ownerExecute(true).build()));
+                    .ownerRead(true).groupRead(true).otherRead(true)
+                    .ownerWrite(!SystemUtils.USER_NAME.equals(Platform.getInstance().getPrivilegedUser()))
+                    .ownerExecute(true).groupExecute(true)
+                    .build()));
         }
     }
 }
