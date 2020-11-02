@@ -6,6 +6,8 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
@@ -65,7 +67,11 @@ public class GreengrassComponentServiceClientFactory {
                     .log("Error during configure greengrass client mutual auth", e);
         }
         AWSEvergreenClientBuilder clientBuilder =
-                AWSEvergreenClientBuilder.standard().withClientConfiguration(clientConfiguration);
+                AWSEvergreenClientBuilder.standard()
+                        // Use an empty credential provider because our requests don't need SigV4
+                        // signing, as they are going through IoT Core instead
+                        .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
+                        .withClientConfiguration(clientConfiguration);
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
 
         if (!Utils.isEmpty(region)) {
