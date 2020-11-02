@@ -15,9 +15,13 @@ services:
   echo_service:
     lifecycle:
       install:
-        posix: echo "install as `id -u -n`"
+        posix: |-
+          echo "install as `id -u -n`"
+          touch ./install-file
       run:
         posix:
           requiresPrivilege: true
-          script: echo "run as `id -u -n`"
+          script: |-
+            echo "run as `id -u -n`"
+            touch ./run-file
     version: 1.0.0

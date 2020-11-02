@@ -16,7 +16,7 @@ import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
-import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
+import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.util.Coerce;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
@@ -65,7 +65,7 @@ public final class IPCTestUtils {
 
     public static Kernel prepareKernelFromConfigFile(String configFile, Class testClass, String... serviceNames) throws InterruptedException {
         Kernel kernel = new Kernel();
-        NoOpArtifactHandler.register(kernel);
+        NoOpPathOwnershipHandler.register(kernel);
         kernel.parseArgs("-i", testClass.getResource(configFile).toString());
         // ensure awaitIpcServiceLatch starts
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(serviceNames.length);

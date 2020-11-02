@@ -31,7 +31,7 @@ import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.OverallStatus;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
-import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
+import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import org.junit.jupiter.api.AfterEach;
@@ -119,7 +119,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
                     return cf;
                 });
         kernel = new Kernel();
-        NoOpArtifactHandler.register(kernel);
+        NoOpPathOwnershipHandler.register(kernel);
         kernel.parseArgs("-i", IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml").toString());
         kernel.getContext().put(MqttClient.class, mqttClient);
         kernel.getContext().put(IotJobsClient.class, mockIotJobsClient);

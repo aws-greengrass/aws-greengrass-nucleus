@@ -66,7 +66,7 @@ public class GenericExternalService extends GreengrassService {
     protected Kernel kernel;
 
     @Inject
-    protected RunWithArtifactHandler artifactHandler;
+    protected RunWithPathOwnershipHandler ownershipHandler;
 
     protected RunWith runWith;
 
@@ -405,11 +405,24 @@ public class GenericExternalService extends GreengrassService {
     }
 
     /**
-     * Ownership of all files in the artifact directory is updated to reflect the current runWithUser and runWithGroup.
+     * Ownership of all files in the artifact and service work directory is updated to reflect the current runWithUser
+     * and runWithGroup.
+     *
+     * @deprecated use {@link #updateComponentPathOwner()} instead
+     * @return <tt>true</tt> if the update succeeds, otherwise false.
+     */
+    @Deprecated
+    protected boolean updateArtifactOwner() {
+        return updateComponentPathOwner();
+    }
+
+    /**
+     * Ownership of all files in the artifact and service work directory is updated to reflect the current runWithUser
+     * and runWithGroup.
      *
      * @return <tt>true</tt> if the update succeeds, otherwise false.
      */
-    protected boolean updateArtifactOwner() {
+    protected boolean updateComponentPathOwner() {
         // no artifacts if no version key
         if (config.findLeafChild(VERSION_CONFIG_KEY) == null) {
             return true;
@@ -417,7 +430,7 @@ public class GenericExternalService extends GreengrassService {
 
         ComponentIdentifier id = ComponentIdentifier.fromServiceTopics(config);
         try {
-            artifactHandler.updateOwner(id, runWith);
+            ownershipHandler.updateOwner(id, runWith);
             return true;
         } catch (IOException e) {
             LogEventBuilder logEvent = logger.atError()
@@ -448,7 +461,6 @@ public class GenericExternalService extends GreengrassService {
             return new Pair<>(RunStatus.NothingDone, null);
         }
 
-
         if (n instanceof Topic) {
             return run((Topic) n, Coerce.toString(n), background, trackingList, isPrivilegeRequired(name));
         }
@@ -465,6 +477,7 @@ public class GenericExternalService extends GreengrassService {
             if (!storeInitialRunWithConfiguration()) {
                 return new Pair<>(RunStatus.Errored, null);
             }
+            // use deprecated method until Lambda is updated
             if (!updateArtifactOwner()) {
                 logger.atError().log("Service artifacts may not be accessible to user");
             }

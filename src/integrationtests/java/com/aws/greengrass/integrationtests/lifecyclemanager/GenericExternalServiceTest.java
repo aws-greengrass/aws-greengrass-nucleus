@@ -13,7 +13,7 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
-import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
+import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +23,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -42,6 +44,8 @@ import static com.aws.greengrass.testcommons.testutilities.TestUtils.createClose
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -58,7 +62,7 @@ class GenericExternalServiceTest extends BaseITCase {
     @BeforeEach
     void beforeEach() {
         kernel = new Kernel();
-        NoOpArtifactHandler.register(kernel);
+        NoOpPathOwnershipHandler.register(kernel);
     }
 
     @AfterEach
@@ -350,6 +354,20 @@ class GenericExternalServiceTest extends BaseITCase {
             assertTrue(countDownLatch.await(20, TimeUnit.SECONDS), "expect log finished");
             assertThat(stdouts, hasItem(containsString(String.format("install as %s", expectedInstallUser))));
             assertThat(stdouts, hasItem(containsString(String.format("run as %s", expectedRunUser))));
+
+
+            // get work path (workPath(service) sets permissions)
+            Path echoServiceWorkPath = kernel.getNucleusPaths().workPath().resolve("echo_service");
+            Path installedFile = echoServiceWorkPath.resolve("install-file");
+            Path runFile = echoServiceWorkPath.resolve("run-file");
+
+            assertThat(installedFile.toString(), installedFile.toFile(), anExistingFile());
+            assertThat(runFile.toString(), runFile.toFile(), anExistingFile());
+
+            assertThat(Files.getOwner(echoServiceWorkPath).getName(), is(expectedInstallUser));
+            assertThat(Files.getOwner(installedFile).getName(), is(expectedInstallUser));
+            assertThat(Files.getOwner(runFile).getName(), is(expectedRunUser));
+
         }
     }
 

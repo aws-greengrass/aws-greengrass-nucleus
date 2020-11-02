@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.Arrays;
@@ -38,9 +39,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
-public class RunWithArtifactHandlerTest {
+public class RunWithPathOwnershipHandlerTest {
 
-    RunWithArtifactHandler handler;
+    RunWithPathOwnershipHandler handler;
 
     @Mock
     NucleusPaths paths;
@@ -61,7 +62,13 @@ public class RunWithArtifactHandlerTest {
     Path nonExisting;
 
     @Mock
-    Path artifactFile;
+    Path firstPath;
+
+    @Mock
+    Path secondPath;
+
+    @Mock
+    Path workPath;
 
     @SuppressWarnings("PMD.CloseResource")
     @BeforeEach
@@ -74,29 +81,32 @@ public class RunWithArtifactHandlerTest {
         DirectoryStream<Path> ds = mock(DirectoryStream.class);
         lenient().doReturn(ds).when(fsProvider).newDirectoryStream(eq(existing), any());
 
-        Iterator<Path> existingFiles1 = Arrays.stream(new Path[]{artifactFile}).iterator();
-        Iterator<Path> existingFiles2 = Arrays.stream(new Path[]{artifactFile}).iterator();
-        lenient().doReturn(existingFiles1, existingFiles2).when(ds).iterator();
+        Iterator<Path> firstIteration = Arrays.stream(new Path[]{firstPath}).iterator();
+        Iterator<Path> secondIteration = Arrays.stream(new Path[]{secondPath}).iterator();
+        lenient().doReturn(firstIteration, secondIteration).when(ds).iterator();
 
-        lenient().doThrow(IOException.class).when(fsProvider).checkAccess(eq(nonExisting));
+        lenient().doThrow(NoSuchFileException.class).when(fsProvider).checkAccess(eq(nonExisting));
 
         lenient().doReturn(fs).when(existing).getFileSystem();
         lenient().doReturn(fs).when(nonExisting).getFileSystem();
+        lenient().doReturn(fs).when(workPath).getFileSystem();
 
         doReturn("foo").when(runWith).getUser();
         doReturn("bar").when(runWith).getGroup();
-        handler = new RunWithArtifactHandler(paths, platform);
+        handler = new RunWithPathOwnershipHandler(paths, platform);
     }
 
     @Test
     public void GIVEN_paths_and_run_with_WHEN_updateOwner_THEN_update_paths() throws IOException {
         doReturn(existing).when(paths).artifactPath(id);
         doReturn(existing).when(paths).unarchiveArtifactPath(id);
+        doReturn(workPath).when(paths).workPath(any());
         handler.updateOwner(id, runWith);
 
         ArgumentCaptor<FileSystemPermission> permissions = ArgumentCaptor.forClass(FileSystemPermission.class);
-        verify(platform, times(2))
-                .setPermissions(permissions.capture(), eq(artifactFile), eq(Recurse), eq(IgnorePermission));
+        verify(platform).setPermissions(permissions.capture(), eq(firstPath), eq(Recurse), eq(IgnorePermission));
+        verify(platform).setPermissions(permissions.capture(), eq(secondPath), eq(Recurse), eq(IgnorePermission));
+        verify(platform).setPermissions(permissions.capture(), eq(workPath), eq(Recurse), eq(IgnorePermission));
 
         permissions.getAllValues().forEach(p -> {
             assertThat(p.getOwnerUser(), is("foo"));
@@ -108,9 +118,11 @@ public class RunWithArtifactHandlerTest {
     public void GIVEN_archive_path_and_run_with_WHEN_updateOwner_THEN_update_paths() throws IOException {
         doReturn(existing).when(paths).artifactPath(id);
         doReturn(nonExisting).when(paths).unarchiveArtifactPath(id);
+        doReturn(nonExisting).when(paths).workPath(any());
+
         handler.updateOwner(id, runWith);
 
-        verify(platform).setPermissions(any(), eq(artifactFile), eq(Recurse), eq(IgnorePermission));
+        verify(platform).setPermissions(any(), eq(firstPath), eq(Recurse), eq(IgnorePermission));
 
     }
 
@@ -118,17 +130,29 @@ public class RunWithArtifactHandlerTest {
     public void GIVEN_unarchive_path_and_run_with_WHEN_updateOwner_THEN_update_paths() throws IOException {
         doReturn(nonExisting).when(paths).artifactPath(id);
         doReturn(existing).when(paths).unarchiveArtifactPath(id);
+        doReturn(nonExisting).when(paths).workPath(any());
         handler.updateOwner(id, runWith);
 
-        verify(platform).setPermissions(any(), eq(artifactFile), eq(Recurse), eq(IgnorePermission));
+        verify(platform).setPermissions(any(), eq(firstPath), eq(Recurse), eq(IgnorePermission));
     }
 
     @Test
     public void GIVEN_no_path_and_run_with_WHEN_updateOwner_THEN_no_update_paths() throws IOException {
         doReturn(nonExisting).when(paths).artifactPath(id);
         doReturn(nonExisting).when(paths).unarchiveArtifactPath(id);
+        doReturn(nonExisting).when(paths).workPath(any());
         handler.updateOwner(id, runWith);
 
         verify(platform, times(0)).setPermissions(any(), eq(nonExisting), eq(Recurse), eq(IgnorePermission));
+    }
+
+    @Test
+    public void GIVEN_work_path_and_run_with_WHEN_updateOwner_THEN_update_paths() throws IOException {
+        doReturn(nonExisting).when(paths).artifactPath(id);
+        doReturn(nonExisting).when(paths).unarchiveArtifactPath(id);
+        doReturn(workPath).when(paths).workPath(any());
+        handler.updateOwner(id, runWith);
+
+        verify(platform).setPermissions(any(), eq(workPath), eq(Recurse), eq(IgnorePermission));
     }
 }
