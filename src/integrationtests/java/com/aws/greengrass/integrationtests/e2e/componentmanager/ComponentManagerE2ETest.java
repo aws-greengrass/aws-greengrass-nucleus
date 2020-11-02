@@ -16,6 +16,9 @@ import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.platforms.Platform;
+import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Order;
@@ -34,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.componentmanager.ComponentStore.ARTIFACT_DIRECTORY;
 import static com.aws.greengrass.componentmanager.ComponentStore.RECIPE_DIRECTORY;
+import static com.aws.greengrass.testcommons.testutilities.Matchers.hasPermission;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.io.FileMatchers.anExistingDirectory;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
@@ -140,9 +144,15 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
             assertThat(componentStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
             assertThat(componentStorePath.resolve(RECIPE_DIRECTORY)
                     .resolve(appWithS3ArtifactsPackageName + "-1.0.0" + ".yaml").toFile(), anExistingFile());
-            assertThat(
-                    componentStorePath.resolve(ARTIFACT_DIRECTORY).resolve(appWithS3ArtifactsPackageName).resolve("1.0.0")
-                            .resolve("artifact.txt").toFile(), anExistingFile());
+            Path artifactTxt = componentStorePath.resolve(ARTIFACT_DIRECTORY).resolve(appWithS3ArtifactsPackageName)
+                    .resolve("1.0.0").resolve("artifact.txt");
+            assertThat(artifactTxt.toFile(), anExistingFile());
+
+            assertThat(artifactTxt, hasPermission(FileSystemPermission.builder()
+                    .ownerRead(true).groupRead(true).otherRead(true)
+                    .ownerWrite(!SystemUtils.USER_NAME.equals(Platform.getInstance().getPrivilegedUser()))
+                    .ownerExecute(true).groupExecute(true)
+                    .build()));
         }
     }
 }

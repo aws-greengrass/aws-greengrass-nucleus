@@ -85,8 +85,10 @@ class GreengrassRepositoryDownloaderTest {
         Files.createDirectories(saveToPath);
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
-        downloader.downloadToPath(pkgId,
-                new ComponentArtifact(new URI("greengrass:artifactName"), checksum, SHA256, null), saveToPath);
+
+        downloader.downloadToPath(
+                pkgId, ComponentArtifact.builder().artifactUri(new URI("greengrass:artifactName"))
+                        .checksum(checksum).algorithm(SHA256).build(), saveToPath);
 
         GetComponentArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
         assertEquals("CoolService", generatedRequest.getComponentName());
@@ -111,7 +113,8 @@ class GreengrassRepositoryDownloaderTest {
 
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         assertThrows(IOException.class, () -> downloader
-                .downloadToPath(pkgId, new ComponentArtifact(new URI("greengrass:binary"), null, null, null), null));
+                .downloadToPath(pkgId,
+                        ComponentArtifact.builder().artifactUri(new URI("greengrass:binary")).build(),null));
     }
 
     @Test
