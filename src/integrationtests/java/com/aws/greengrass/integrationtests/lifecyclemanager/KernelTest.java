@@ -40,6 +40,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -359,6 +361,8 @@ class KernelTest extends BaseITCase {
         // writeEffectiveConfigAsTransactionLog which can persist those nulls to tlog
         removeNullTopicsDeep(tlogConfig);
         assertEquals("triggering truncate", fullConfig.find("testTopic").getOnce());
+        // data type may be different when recreating tlog
+        // using this to coerce to string for comparison
         assertEqualsDeepMap(fullConfig.toPOJO(), tlogConfig.toPOJO());
     }
 
@@ -372,7 +376,8 @@ class KernelTest extends BaseITCase {
         Path configPath = tempRootDir.resolve("config");
         Files.createDirectories(configPath);
 
-        ConfigurationWriter.logTransactionsTo(config, configPath.resolve("full.tlog"));
+        kernel.writeEffectiveConfigAsTransactionLog(configPath.resolve("full.tlog"));
+        ConfigurationWriter.logTransactionsTo(config, configPath.resolve("full.tlog")).flushImmediately(true);
         kernel.parseArgs().launch();
 
         Topic testTopic = config.lookup("testTopic").withValue("initial");
@@ -384,9 +389,14 @@ class KernelTest extends BaseITCase {
             // immediately queue a task to increase max size to prevent repeated truncation
             context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxEntries(10000));
         });
-        // wait for truncate to complete
-        context.runOnPublishQueueAndWait(() -> {
+        // wait for things to complete
+        CountDownLatch startupCdl = new CountDownLatch(1);
+        context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
+                startupCdl.countDown();
+            }
         });
+        startupCdl.await(30, TimeUnit.SECONDS);
         // shutdown to stop config/tlog changes
         kernel.shutdown();
         Topics fullConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("full.tlog")).getRoot();
@@ -396,7 +406,7 @@ class KernelTest extends BaseITCase {
         // remove nulls to be consistent with the tlog created in the beginning
         removeNullTopicsDeep(compressedConfig);
         assertEquals("triggering truncate", compressedConfig.find("testTopic").getOnce());
-        assertEqualsDeepMap(fullConfig.toPOJO(), compressedConfig.toPOJO());
+        assertThat(fullConfig.toPOJO(), is(compressedConfig.toPOJO()));
     }
 
     /**
