@@ -325,6 +325,21 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
+    public void createUser(String user) throws IOException, InterruptedException {
+        Exec.cmd("useradd", "-m", user);
+    }
+
+    @Override
+    public void createGroup(String group) throws IOException, InterruptedException {
+        Exec.cmd("groupadd", group);
+    }
+
+    @Override
+    public void addUserToGroup(String user, String group) throws IOException, InterruptedException {
+        Exec.cmd("usermod", "-a", "-G", group, user);
+    }
+
+    @Override
     public void setPermissions(FileSystemPermission permission, Path path, EnumSet<Option> options)
             throws IOException {
 
