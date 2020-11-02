@@ -16,6 +16,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.Validator;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.LogManagerHelper;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
@@ -162,6 +163,7 @@ public class DeviceConfiguration {
         mainDependencies.add(DEFAULT_NUCLEUS_COMPONENT_NAME);
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
                 .dflt(mainDependencies);
+        LogManagerHelper.handleLoggingConfig(kernel);
     }
 
     private String getComponentType(String serviceName) {
