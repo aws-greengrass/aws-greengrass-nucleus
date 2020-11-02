@@ -67,6 +67,8 @@ public final class ConfigurationReader {
                         if (tlogline.timestamp > targetTopic.modtime) {
                             targetTopic.modtime = tlogline.timestamp;
                         }
+                    } else if (WhatHappened.interiorAdded.equals(tlogline.action)) {
+                        config.lookupTopics(tlogline.topicPath).modtime = tlogline.timestamp;
                     }
                 } catch (JsonProcessingException e) {
                     logger.atError().setCause(e).log("Fail to parse log line");

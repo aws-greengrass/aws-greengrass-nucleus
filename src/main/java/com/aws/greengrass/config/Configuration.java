@@ -181,6 +181,10 @@ public class Configuration {
         root.deepForEachTopic(f);
     }
 
+    public void forEachChildlessTopics(Consumer<Topics> f) {
+        root.forEachChildlessTopics(f);
+    }
+
     public Configuration read(String s) throws IOException {
         return s.contains(":/") ? read(new URL(s), false) : read(Paths.get(s));
     }

@@ -6,5 +6,5 @@
 package com.aws.greengrass.config;
 
 public enum WhatHappened {
-    changed, initialized, childChanged, removed, childRemoved, timestampUpdated
+    changed, initialized, childChanged, removed, childRemoved, timestampUpdated, interiorAdded
 }

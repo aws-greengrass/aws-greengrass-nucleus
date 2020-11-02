@@ -306,6 +306,10 @@ public class Context implements Closeable {
         return ret.get();
     }
 
+    public void waitForPublishQueueToClear() {
+        runOnPublishQueueAndWait(() -> {});
+    }
+
     private boolean onPublishThread() {
         return Thread.currentThread() == publishThread;
     }

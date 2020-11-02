@@ -95,7 +95,7 @@ class ConfigStoreIPCAgentTest {
         root.lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_2)
                 .withNewerValue(100, TEST_CONFIG_KEY_2_INITIAL_VALUE);
         root.lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B);
-        configuration.context.runOnPublishQueueAndWait(() -> {});
+        configuration.context.waitForPublishQueueToClear();
         lenient().when(kernel.getConfig()).thenReturn(configuration);
 
         lenient().when(componentAContext.getServiceName()).thenReturn(TEST_COMPONENT_A);
@@ -361,7 +361,7 @@ class ConfigStoreIPCAgentTest {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerNode", "SomeLeafNode").withValue("SomeValue");
-        configuration.context.runOnPublishQueueAndWait(() -> {});
+        configuration.context.waitForPublishQueueToClear();
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         SubscribeToConfigurationUpdateRequest request =
                 SubscribeToConfigurationUpdateRequest.builder().componentName(TEST_COMPONENT_A)
@@ -394,7 +394,7 @@ class ConfigStoreIPCAgentTest {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerNode", "SomeLeafNode").withValue("SomeValue");
-        configuration.context.runOnPublishQueueAndWait(() -> {});
+        configuration.context.waitForPublishQueueToClear();
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         SubscribeToConfigurationUpdateRequest request =
                 SubscribeToConfigurationUpdateRequest.builder().componentName(TEST_COMPONENT_A)
@@ -429,7 +429,7 @@ class ConfigStoreIPCAgentTest {
         componentAConfiguration
                 .lookup(PARAMETERS_CONFIG_KEY, "Level1ContainerNode", "Level2ContainerNode", "SomeLeafNode")
                 .withValue("SomeValue");
-        configuration.context.runOnPublishQueueAndWait(() -> {});
+        configuration.context.waitForPublishQueueToClear();
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         SubscribeToConfigurationUpdateRequest request =
                 SubscribeToConfigurationUpdateRequest.builder().componentName(TEST_COMPONENT_A)
