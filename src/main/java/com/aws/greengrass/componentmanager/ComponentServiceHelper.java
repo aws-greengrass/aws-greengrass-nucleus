@@ -56,20 +56,19 @@ public class ComponentServiceHelper {
     }
 
     /**
-     * Resolve a component version with greengrass cloud service.
-     * The dependency resolution algorithm goes through the dependencies node by node,
-     * so one component got resolve a time.
-     * @param componentName component name to be resolve
-     * @param localCandidateVersion component local candidate version if available
-     * @param versionRequirements component dependents version requirement map
+     * Resolve a component version with greengrass cloud service. The dependency resolution algorithm goes through the
+     * dependencies node by node, so one component got resolve a time.
+     *
+     * @param componentName             component name to be resolve
+     * @param localCandidateVersion     component local candidate version if available
+     * @param versionRequirements       component dependents version requirement map
      * @param deploymentConfigurationId deployment configuration id
      * @return resolved component version and recipe
      * @throws NoAvailableComponentVersionException if no applicable version available in cloud service
      * @throws ComponentVersionNegotiationException if service exception happens
      */
     ComponentContent resolveComponentVersion(String componentName, Semver localCandidateVersion,
-                                             Map<String, Requirement> versionRequirements,
-                                             String deploymentConfigurationId)
+            Map<String, Requirement> versionRequirements, String deploymentConfigurationId)
             throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
 
         // GG_NEEDS_REVIEW: TODO add osVersion and osFlavor once they are supported
@@ -95,7 +94,7 @@ public class ComponentServiceHelper {
                     .log("No available version when resolving component");
             throw new NoAvailableComponentVersionException(
                     String.format("No applicable version of component %s " + "found in cloud registry satisfying %s",
-                            componentName, versionRequirements), e);
+                                  componentName, versionRequirements), e);
         } catch (AmazonClientException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
                     .log("Server error when resolving component");
@@ -104,7 +103,7 @@ public class ComponentServiceHelper {
         }
 
         Validate.isTrue(result.getComponents() != null && result.getComponents().size() == 1,
-                "Component service " + "invalid response, it should contain resolved component version");
+                        "Component service " + "invalid response, it should contain resolved component version");
         return result.getComponents().get(0);
     }
 
@@ -117,16 +116,17 @@ public class ComponentServiceHelper {
      */
     public String downloadPackageRecipeAsString(ComponentIdentifier componentIdentifier)
             throws PackageDownloadException {
-        GetComponentVersionRequest GetComponentVersionRequest =
+        GetComponentVersionRequest getComponentVersionRequest =
                 new GetComponentVersionRequest().withComponentName(componentIdentifier.getName())
                         .withComponentVersion(componentIdentifier.getVersion().toString())
                         .withType(RecipeFormatType.YAML);
 
-        GetComponentVersionResult getPackageResult = download(GetComponentVersionRequest, componentIdentifier);
+        GetComponentVersionResult getPackageResult = download(getComponentVersionRequest, componentIdentifier);
         return StandardCharsets.UTF_8.decode(getPackageResult.getRecipe()).toString();
     }
 
-    private GetComponentVersionResult download(GetComponentVersionRequest r, ComponentIdentifier id) throws PackageDownloadException {
+    private GetComponentVersionResult download(GetComponentVersionRequest r, ComponentIdentifier id)
+            throws PackageDownloadException {
         try {
             return evgCmsClient.getComponentVersion(r);
         } catch (AmazonClientException e) {
@@ -165,12 +165,14 @@ public class ComponentServiceHelper {
      * @return {@link DeleteComponentVersionResult}
      */
     public static DeleteComponentVersionResult deleteComponent(AWSEvergreen cmsClient, String componentName,
-                                                        String componentVersion) {
-        DeleteComponentVersionRequest DeleteComponentVersionRequest =
-                new DeleteComponentVersionRequest().withComponentName(componentName).withComponentVersion(componentVersion);
-        logger.atDebug("delete-component").kv("request", DeleteComponentVersionRequest).log();
-        DeleteComponentVersionResult DeleteComponentVersionResult = cmsClient.deleteComponentVersion(DeleteComponentVersionRequest);
-        logger.atDebug("delete-component").kv("result", DeleteComponentVersionResult).log();
-        return DeleteComponentVersionResult;
+            String componentVersion) {
+        DeleteComponentVersionRequest deleteComponentVersionRequest =
+                new DeleteComponentVersionRequest().withComponentName(componentName)
+                        .withComponentVersion(componentVersion);
+        logger.atDebug("delete-component").kv("request", deleteComponentVersionRequest).log();
+        DeleteComponentVersionResult deleteComponentVersionResult =
+                cmsClient.deleteComponentVersion(deleteComponentVersionRequest);
+        logger.atDebug("delete-component").kv("result", deleteComponentVersionResult).log();
+        return deleteComponentVersionResult;
     }
 }
