@@ -99,7 +99,11 @@ public class Topics extends Node implements Iterable<Node> {
 
     private Topic createLeafChild(CaseInsensitiveString name) {
         Node n = children.computeIfAbsent(name,
-                (nm) -> new Topic(context, nm.toString(), this));
+                (nm) -> {
+                    Topic t = new Topic(context, nm.toString(), this);
+                    context.runOnPublishQueue(() -> childChanged(WhatHappened.childChanged, t));
+                    return t;
+                });
         if (n instanceof Topic) {
             return (Topic) n;
         } else {
@@ -377,7 +381,7 @@ public class Topics extends Node implements Iterable<Node> {
                 updateFromMap(newValue,
                         new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()))
         );
-        context.runOnPublishQueueAndWait(() -> {});
+        context.waitForPublishQueueToClear();
     }
 
     protected void childChanged(WhatHappened what, Node child) {

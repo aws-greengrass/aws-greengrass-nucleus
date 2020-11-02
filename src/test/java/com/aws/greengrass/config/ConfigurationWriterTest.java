@@ -58,10 +58,11 @@ class ConfigurationWriterTest {
             config.lookup("a.x", "b", "c.f", "d", "e").withValue("New Val");
             // Create another Topic and use yet another data type (list)
             config.lookup("a.x", "b", "c.f", "d", "e3").withValue(Arrays.asList("1", "2", "3"));
-
+            // Create null-valued node
+            config.lookup("a.x", "b", "c.f", "d", "e5").withValue((String) null);
             // Create empty map
             config.lookupTopics("x", "y", "z").remove();
-            context.runOnPublishQueueAndWait(() -> {});
+            context.waitForPublishQueueToClear();
 
             // Assert that we can get back to the current in-memory state by reading the tlog
             Configuration readConfig = ConfigurationReader.createFromTLog(context, tlog);

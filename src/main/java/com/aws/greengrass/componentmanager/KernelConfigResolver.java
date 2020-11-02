@@ -312,7 +312,7 @@ public class KernelConfigResolver {
                     .orElse(MAPPER.createObjectNode()); // init null to be empty default config
             // Merge in the defaults from the recipe using timestamp 1 to denote a default
             currentRunningConfig.mergeMap(1, MAPPER.convertValue(defaultConfig, Map.class));
-            currentRunningConfig.context.runOnPublishQueueAndWait(() -> {});
+            currentRunningConfig.context.waitForPublishQueueToClear();
 
             // Merge in the requested config updates
             if (configurationUpdateOperation != null && configurationUpdateOperation.getValueToMerge() != null) {
