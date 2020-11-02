@@ -20,6 +20,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.util.ArrayList;
@@ -55,6 +56,7 @@ public class DeviceConfiguration {
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
+    public static final String DEVICE_SPOOLER_NAMESPACE = "spooler";
     public static final String RUN_WITH_TOPIC = "runWithDefault";
     public static final String RUN_WITH_DEFAULT_POSIX_USER = "posixUser";
     public static final String RUN_WITH_DEFAULT_POSIX_GROUP = "posixGroup";
@@ -78,6 +80,7 @@ public class DeviceConfiguration {
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
+    private static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
 
     private final Kernel kernel;
 
@@ -98,8 +101,8 @@ public class DeviceConfiguration {
         deTildeValidator = getDeTildeValidator();
         regionValidator = getRegionValidator();
 
-        getComponentStoreMaxSizeBytes().withValue(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
-        getDeploymentPollingFrequencySeconds().withValue(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
+        getComponentStoreMaxSizeBytes().dflt(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
+        getDeploymentPollingFrequencySeconds().dflt(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
     }
 
     /**
@@ -219,8 +222,16 @@ public class DeviceConfiguration {
         return getRunWithTopic().lookup(RUN_WITH_DEFAULT_WINDOWS_USER);
     }
 
+    /**
+     * Get thing name configuration. Also adds the thing name to the env vars if it has changed.
+     *
+     * @return Thing name config topic.
+     */
     public Topic getThingName() {
-        return getTopic(DEVICE_PARAM_THING_NAME).dflt("");
+        Topic thingNameTopic = kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME).dflt("");
+        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, AWS_IOT_THING_NAME_ENV)
+                .withValue(Coerce.toString(thingNameTopic));
+        return thingNameTopic;
     }
 
     public Topic getCertificateFilePath() {
@@ -262,6 +273,10 @@ public class DeviceConfiguration {
         return getTopics(DEVICE_MQTT_NAMESPACE);
     }
 
+    public Topics getSpoolerNamespace() {
+        return getMQTTNamespace().lookupTopics(DEVICE_SPOOLER_NAMESPACE);
+    }
+
     public Topics getNetworkProxyNamespace() {
         return getTopics(DEVICE_NETWORK_PROXY_NAMESPACE);
     }
@@ -298,9 +313,15 @@ public class DeviceConfiguration {
         return getTopic(DEPLOYMENT_POLLING_FREQUENCY_SECONDS);
     }
 
+    /**
+     * Subscribe to all device configuration change.
+     *
+     * @param cc Subscribe handler
+     */
     public void onAnyChange(ChildChanged cc) {
         kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, CONFIGURATION_CONFIG_KEY)
                 .subscribe(cc);
+        kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY).subscribe(cc);
     }
 
     public void onTopicChange(String topicName, Subscriber s) {
@@ -330,6 +351,7 @@ public class DeviceConfiguration {
         String iotDataEndpoint = Coerce.toString(getIotDataEndpoint());
         String iotCredEndpoint = Coerce.toString(getIotCredentialEndpoint());
         String awsRegion = Coerce.toString(getAWSRegion());
+
         validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, iotDataEndpoint,
                 iotCredEndpoint, awsRegion);
     }
@@ -361,7 +383,8 @@ public class DeviceConfiguration {
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,
                                              String rootCAPath, String iotDataEndpoint, String iotCredEndpoint,
-                                             String awsRegion) throws DeviceConfigurationException {
+                                             String awsRegion)
+            throws DeviceConfigurationException {
         List<String> errors = new ArrayList<>();
         if (Utils.isEmpty(thingName)) {
             errors.add(DEVICE_PARAM_THING_NAME + CANNOT_BE_EMPTY);
@@ -383,6 +406,12 @@ public class DeviceConfiguration {
         }
         if (Utils.isEmpty(awsRegion)) {
             errors.add(DEVICE_PARAM_AWS_REGION + CANNOT_BE_EMPTY);
+        }
+
+        try {
+            Platform.getInstance().getRunWithGenerator().validateDefaultConfiguration(this);
+        } catch (DeviceConfigurationException e) {
+            errors.add(e.getMessage());
         }
         if (!errors.isEmpty()) {
             throw new DeviceConfigurationException(errors.toString());

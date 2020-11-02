@@ -13,6 +13,7 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,9 +23,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import java.io.File;
-import java.nio.file.Files;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -33,9 +35,13 @@ import java.util.stream.Stream;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
-import static com.aws.greengrass.integrationtests.util.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
+import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -52,6 +58,7 @@ class GenericExternalServiceTest extends BaseITCase {
     @BeforeEach
     void beforeEach() {
         kernel = new Kernel();
+        NoOpArtifactHandler.register(kernel);
     }
 
     @AfterEach
@@ -308,39 +315,49 @@ class GenericExternalServiceTest extends BaseITCase {
     @EnabledOnOs({OS.LINUX, OS.MAC})
     @ParameterizedTest
     @MethodSource("posixTestUserConfig")
-    void GIVEN_posix_default_user_WHEN_runs_THEN_runs_with_default_user(String file, String expectedUid)
+    void GIVEN_posix_default_user_WHEN_runs_THEN_runs_with_default_user(String file, String expectedInstallUser,
+                                                                        String expectedRunUser)
             throws Exception {
-        kernel.parseArgs("-i", getClass().getResource(file).toString());
 
-        // skip when running as a user that cannot sudo to shell
-        assumeCanSudoShell(kernel);
-
-        // create file for test to write UID into
-        File testFile = File.createTempFile("user-test", ".txt");
-        testFile.deleteOnExit();
-        assertTrue(testFile.setWritable(true, false), "could not set test file to be writable");
-        GenericExternalService service = (GenericExternalService) kernel.locate("echo_service");
-        service.getServiceConfig().find(SETENV_CONFIG_NAMESPACE, "output_path").withValue(testFile.getAbsolutePath());
-
-        CountDownLatch main = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((s, oldState, newState) -> {
-            if (s.getName().equals("main") && newState.equals(State.FINISHED)) {
-                main.countDown();
+        CountDownLatch countDownLatch = new CountDownLatch(2);
+        // Set up stdout listener to capture stdout for verifying users
+        List<String> stdouts = new CopyOnWriteArrayList<>();
+        try (AutoCloseable l = createCloseableLogListener((m) -> {
+            Map<String, String> contexts = m.getContexts();
+            String messageOnStdout = contexts.get("stdout");
+            if (messageOnStdout != null
+                    && (messageOnStdout.contains("run as")
+                        || messageOnStdout.contains("install as") )) {
+                stdouts.add(messageOnStdout);
+                countDownLatch.countDown();
             }
-        });
-        kernel.launch();
+        })) {
 
-        assertTrue(main.await(10, TimeUnit.SECONDS));
+            kernel.parseArgs("-i", getClass().getResource(file).toString());
 
-        String user = Files.newBufferedReader(testFile.toPath()).readLine();
-        assertEquals(expectedUid, user);
+            // skip when running as a user that cannot sudo to shell
+            assumeCanSudoShell(kernel);
+
+            CountDownLatch main = new CountDownLatch(1);
+            kernel.getContext().addGlobalStateChangeListener((s, oldState, newState) -> {
+                if (s.getName().equals("main") && newState.equals(State.FINISHED)) {
+                    main.countDown();
+                }
+            });
+            kernel.launch();
+
+            assertTrue(main.await(20, TimeUnit.SECONDS), "main finished");
+            assertTrue(countDownLatch.await(20, TimeUnit.SECONDS), "expect log finished");
+            assertThat(stdouts, hasItem(containsString(String.format("install as %s", expectedInstallUser))));
+            assertThat(stdouts, hasItem(containsString(String.format("run as %s", expectedRunUser))));
+        }
     }
 
     static Stream<Arguments> posixTestUserConfig() {
         return Stream.of(
-                arguments("config_run_with_user.yaml", "123456"),
-                arguments("config_run_with_user_shell.yaml", "123456"),
-                arguments("config_run_with_privilege.yaml", "0")
+                arguments("config_run_with_user.yaml", "nobody", "nobody"),
+                arguments("config_run_with_user_shell.yaml", "nobody", "nobody"),
+                arguments("config_run_with_privilege.yaml", "nobody", "root")
         );
     }
 }

@@ -11,6 +11,7 @@ import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +32,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import javax.inject.Inject;
@@ -44,7 +46,7 @@ public class IPCEventStreamService implements Startable, Closeable {
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipcEventStreamServer.socket";
+    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipc.socket";
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./nucleusRoot/ipc.socket";
     public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
     // This is relative to component's CWD
@@ -58,7 +60,10 @@ public class IPCEventStreamService implements Startable, Closeable {
     // https://www.gnu.org/software/libc/manual/html_node/Local-Namespace-Details.html
     private static final int UDS_SOCKET_PATH_MAX_LEN = 108;
 
-    private static Logger logger = LogManager.getLogger(IPCEventStreamService.class);
+    private static final int MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS = 30;
+    public static final int SOCKET_CREATE_POLL_INTERVAL_MS = 200;
+
+    private static final Logger logger = LogManager.getLogger(IPCEventStreamService.class);
 
     private IpcServer ipcServer;
 
@@ -87,65 +92,99 @@ public class IPCEventStreamService implements Startable, Closeable {
         this.config = config;
     }
 
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.ExceptionAsFlowControl"})
     @Override
     public void startup() {
-        greengrassCoreIPCService.getAllOperations().forEach(operation -> {
-            greengrassCoreIPCService.setOperationHandler(operation,
-                    (context) -> new DebugLoggingOperationHandler(GreengrassCoreIPCServiceModel.getInstance()
-                            .getOperationModelContext(operation), context));
-        });
-        greengrassCoreIPCService.setAuthenticationHandler(
-                (List<Header> headers, byte[] bytes) -> ipcAuthenticationHandler(bytes));
-        greengrassCoreIPCService.setAuthorizationHandler(
-                authenticationData -> ipcAuthorizationHandler(authenticationData));
-
-        socketOptions = new SocketOptions();
-        socketOptions.connectTimeoutMs = 3000;
-        socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
-        socketOptions.type = SocketOptions.SocketType.STREAM;
-        eventLoopGroup = new EventLoopGroup(1);
-        ipcServerSocketAbsolutePath = kernel.getNucleusPaths().rootPath()
-                .resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
-
-        if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
-            try {
-                logger.atDebug().log("Deleting the ipc server socket descriptor file");
-                Files.delete(Paths.get(ipcServerSocketAbsolutePath));
-            } catch (IOException e) {
-                logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file");
-            }
-        }
-
-        Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
-        kernelUri.withValue(ipcServerSocketAbsolutePath);
-        Topic kernelRelativeUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE,
-                NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
-        kernelRelativeUri.withValue(ipcServerSocketAbsolutePath);
-
-        boolean symLinkCreated = false;
-
         try {
-            // Usually we do not want to write outside of kernel root. Because of socket path length limitations we
-            // will create a symlink only if needed
-            if (ipcServerSocketAbsolutePath.length() > UDS_SOCKET_PATH_MAX_LEN) {
-                Files.createSymbolicLink(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), kernel.getNucleusPaths().rootPath());
-                kernelRelativeUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE,
-                        NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
-                kernelRelativeUri.withValue(IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME);
-                symLinkCreated = true;
+            greengrassCoreIPCService.getAllOperations().forEach(operation ->
+                    greengrassCoreIPCService.setOperationHandler(operation,
+                    (context) -> new DebugLoggingOperationHandler(GreengrassCoreIPCServiceModel.getInstance()
+                            .getOperationModelContext(operation), context)));
+            greengrassCoreIPCService.setAuthenticationHandler((List<Header> headers, byte[] bytes) ->
+                    ipcAuthenticationHandler(bytes));
+            greengrassCoreIPCService.setAuthorizationHandler(authenticationData ->
+                    ipcAuthorizationHandler(authenticationData));
+
+            socketOptions = new SocketOptions();
+            socketOptions.connectTimeoutMs = 3000;
+            socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
+            socketOptions.type = SocketOptions.SocketType.STREAM;
+            eventLoopGroup = new EventLoopGroup(1);
+            ipcServerSocketAbsolutePath =
+                    kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+
+            if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
+                try {
+                    logger.atDebug().log("Deleting the ipc server socket descriptor file");
+                    Files.delete(Paths.get(ipcServerSocketAbsolutePath));
+                } catch (IOException e) {
+                    logger.atError().setCause(e).kv("path", ipcServerSocketAbsolutePath)
+                            .log("Failed to delete the ipc server socket descriptor file");
+                }
             }
 
-        } catch (IOException e) {
-            logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path");
+            Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
+            kernelUri.withValue(ipcServerSocketAbsolutePath);
+            Topic kernelRelativeUri =
+                    config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
+            kernelRelativeUri.withValue(ipcServerSocketAbsolutePath);
+
+            boolean symLinkCreated = false;
+
+            try {
+                // Usually we do not want to write outside of kernel root. Because of socket path length limitations we
+                // will create a symlink only if needed
+                if (ipcServerSocketAbsolutePath.length() > UDS_SOCKET_PATH_MAX_LEN) {
+                    Files.createSymbolicLink(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), kernel.getNucleusPaths().rootPath());
+                    kernelRelativeUri = config.getRoot()
+                            .lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
+                    kernelRelativeUri.withValue(IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME);
+                    symLinkCreated = true;
+                }
+
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path. Cannot start "
+                        + "IPC server as the long nucleus root path is making socket filepath greater than 108 chars. "
+                        + "Shorten root path and start nucleus again");
+                close();
+                throw new RuntimeException(e);
+            }
+
+            // For domain sockets:
+            // 1. Port number is ignored. IpcServer does not accept a null value so we are using a default value.
+            // 2. The hostname parameter expects the socket filepath
+            ipcServer = new IpcServer(eventLoopGroup, socketOptions, null,
+                    symLinkCreated ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK : ipcServerSocketAbsolutePath,
+                    DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
+            ipcServer.runServer();
+        } catch (RuntimeException e) {
+            // Make sure to cleanup anything we created since we don't know where exactly we failed
+            close();
+            throw e;
         }
 
-        // For domain sockets:
-        // 1. Port number is ignored. IpcServer does not accept a null value so we are using a default value.
-        // 2. The hostname parameter expects the socket filepath
-        ipcServer = new IpcServer(eventLoopGroup, socketOptions, null,
-                symLinkCreated ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK : ipcServerSocketAbsolutePath,
-                DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
-        ipcServer.runServer();
+        // IPC socket does not get created immediately after runServer returns
+        // Wait up to 30s for it to exist
+        Path ipcPath = Paths.get(ipcServerSocketAbsolutePath);
+        long maxTime = System.currentTimeMillis() + MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS * 1000;
+        while (System.currentTimeMillis() < maxTime && Files.notExists(ipcPath)) {
+            logger.atDebug().log("Waiting for server socket file");
+            try {
+                Thread.sleep(SOCKET_CREATE_POLL_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                logger.atWarn().setCause(e).log("Service interrupted before server socket exists");
+                close();
+                throw new RuntimeException(e);
+            }
+        }
+        // set permissions on IPC socket so that everyone can read/write
+        try {
+            Permissions.setIpcSocketPermission(ipcPath);
+        } catch (IOException e) {
+            logger.atError().setCause(e).log("Error while setting permissions for IPC server socket");
+            close();
+            throw new RuntimeException(e);
+        }
     }
 
 
@@ -178,12 +217,7 @@ public class IPCEventStreamService implements Startable, Closeable {
         AuthenticationData authenticationData;
         try {
             final String serviceName = authenticationHandler.doAuthentication(authToken);
-            authenticationData = new AuthenticationData() {
-                @Override
-                public String getIdentityLabel() {
-                    return serviceName;
-                }
-            };
+            authenticationData = () -> serviceName;
         } catch (UnauthenticatedException e) {
             throw new RuntimeException("Unrecognized client connecting to GGC over IPC");
         }
@@ -193,16 +227,6 @@ public class IPCEventStreamService implements Startable, Closeable {
     @Override
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public void close() {
-
-        if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
-            try {
-                logger.atDebug().log("Deleting the ipc server socket descriptor file symlink");
-                Files.delete(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK));
-            } catch (IOException e) {
-                logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file symlink");
-            }
-        }
-
         // GG_NEEDS_REVIEW: TODO: Future does not complete, wait on them when fixed.
         if (ipcServer != null) {
             ipcServer.stopServer();
@@ -214,6 +238,15 @@ public class IPCEventStreamService implements Startable, Closeable {
         if (socketOptions != null) {
             socketOptions.close();
         }
+
+        if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
+            try {
+                logger.atDebug().log("Deleting the ipc server socket descriptor file symlink");
+                Files.delete(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK));
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file symlink");
+            }
+        }
         // Removing it during close as CWD might change on next run
         if (Files.exists(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
             try {
@@ -221,6 +254,14 @@ public class IPCEventStreamService implements Startable, Closeable {
                 Files.delete(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK));
             } catch (IOException e) {
                 logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file symlink");
+            }
+        }
+        if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
+            try {
+                logger.atDebug().log("Deleting the ipc server socket descriptor file");
+                Files.delete(Paths.get(ipcServerSocketAbsolutePath));
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file");
             }
         }
     }

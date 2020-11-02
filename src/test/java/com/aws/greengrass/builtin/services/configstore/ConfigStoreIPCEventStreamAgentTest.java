@@ -26,7 +26,7 @@ import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityStatus;
 import software.amazon.awssdk.aws.greengrass.model.FailedUpdateConditionCheckError;
 import software.amazon.awssdk.aws.greengrass.model.GetConfigurationRequest;
 import software.amazon.awssdk.aws.greengrass.model.GetConfigurationResponse;
-import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentError;
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 import software.amazon.awssdk.aws.greengrass.model.ResourceNotFoundError;
 import software.amazon.awssdk.aws.greengrass.model.SendConfigurationValidityReportRequest;
 import software.amazon.awssdk.aws.greengrass.model.SendConfigurationValidityReportResponse;
@@ -108,7 +108,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         root.lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B);
         root.lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B, PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_3)
                 .withNewerValue(100, TEST_CONFIG_KEY_3_INITIAL_VALUE);
-        configuration.context.runOnPublishQueueAndWait(() -> {});
+        configuration.context.waitForPublishQueueToClear();
         lenient().when(kernel.getConfig()).thenReturn(configuration);
 
         when(mockContext.getContinuation()).thenReturn(mockServerConnectionContinuation);
@@ -118,7 +118,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         agent = new ConfigStoreIPCEventStreamAgent();
         agent.setKernel(kernel);
     }
-    
+
     @AfterEach
     void cleanup() throws IOException {
         configuration.context.close();
@@ -333,7 +333,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         request.setNewValue(Collections.singletonMap("SomeContainerKey", "SomeOtherValue"));
         request.setTimestamp(Instant.now());
 
-        InvalidArgumentError error = assertThrows(InvalidArgumentError.class, () ->
+        InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class, () ->
                 agent.getUpdateConfigurationHandler(mockContext).handleRequest(request));
         assertEquals("Cannot update a non-leaf config node",
                 error.getMessage());
@@ -349,7 +349,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         request.setNewValue(Collections.singletonMap(TEST_CONFIG_KEY_1, 20));
         request.setTimestamp(Instant.now());
 
-        InvalidArgumentError error = assertThrows(InvalidArgumentError.class, () ->
+        InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class, () ->
                 agent.getUpdateConfigurationHandler(mockContext).handleRequest(request));
         assertEquals("Cross component updates are not allowed",
                 error.getMessage());
@@ -422,7 +422,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerNode", "SomeLeafNode").withValue("SomeValue");
-        configuration.context.runOnPublishQueueAndWait(() -> {});
+        configuration.context.waitForPublishQueueToClear();
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         when(mockServerConnectionContinuation.sendMessage(anyList(), byteArrayCaptor.capture(), any(MessageType.class), anyInt()))
                 .thenReturn(new CompletableFuture<>());
@@ -458,7 +458,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         componentAConfiguration
                 .lookup(PARAMETERS_CONFIG_KEY, "Level1ContainerNode", "Level2ContainerNode", "SomeLeafNode")
                 .withValue("SomeValue");
-        configuration.context.runOnPublishQueueAndWait(() -> {});
+        configuration.context.waitForPublishQueueToClear();
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         when(mockServerConnectionContinuation.sendMessage(anyList(), byteArrayCaptor.capture(), any(MessageType.class), anyInt()))
                 .thenReturn(new CompletableFuture<>());
@@ -572,7 +572,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         ConfigurationValidityReport validityReport = new ConfigurationValidityReport();
         validityReport.setStatus(ConfigurationValidityStatus.ACCEPTED);
         reportRequest.setConfigurationValidityReport(validityReport);
-        InvalidArgumentError error = assertThrows(InvalidArgumentError.class, () ->
+        InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class, () ->
                 agent.getSendConfigurationValidityReportHandler(mockContext).handleRequest(reportRequest));
         assertEquals("Validation request either timed out or was never made", error.getMessage());
     }

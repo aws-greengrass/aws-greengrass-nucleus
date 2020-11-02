@@ -65,6 +65,7 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.File;
 import java.io.IOException;
@@ -85,7 +86,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
-import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.STAGE_TO_ENDPOINT_FORMAT;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -96,6 +96,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @ExtendWith(GGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
+    private static final Map<IotSdkClientFactory.EnvironmentStage, String> STAGE_TO_ENDPOINT_FORMAT =
+            ImmutableMap.of(
+            IotSdkClientFactory.EnvironmentStage.PROD, "evergreen.%s.amazonaws.com",
+            IotSdkClientFactory.EnvironmentStage.GAMMA, "evergreen-gamma.%s.amazonaws.com",
+            IotSdkClientFactory.EnvironmentStage.BETA, "evergreen-beta.%s.amazonaws.com"
+    );
+
     protected static final Region GAMMA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
     protected static final String THING_TARGET_TYPE = "thing";
@@ -217,16 +224,20 @@ public class BaseE2ETestCase implements AutoCloseable {
         createdThingGroups.add(thingGroupName);
     }
 
+    public static void setDefaultRunWithUser(Kernel kernel) {
+        new DeviceConfiguration(kernel).getRunWithDefaultPosixUser().dflt("nobody");
+    }
+
     protected void initKernel()
             throws IOException, DeviceConfigurationException, InterruptedException, ServiceLoadException {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString(), "-ar", GAMMA_REGION.toString()
                 , "-es", envStage.toString());
         setupTesRoleAndAlias();
+        setDefaultRunWithUser(kernel);
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString(),
                 TES_ROLE_ALIAS_NAME);
         // Force context to create TES now to that it subscribes to the role alias changes
         kernel.getContext().get(TokenExchangeService.class);
-
         while (kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {
             logger.atInfo().kv("roleAlias", TES_ROLE_ALIAS_NAME)
                     .log("Waiting 5 seconds for TES to get credentials that work");

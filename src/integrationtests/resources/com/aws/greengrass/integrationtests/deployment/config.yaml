@@ -1,5 +1,9 @@
 ---
 services:
+  aws.greengrass.Nucleus:
+    parameters:
+      runWithDefault:
+        posixUser: nobody
   bar:
     lifecycle:
       run: echo bar-service phase 3
@@ -9,3 +13,4 @@ services:
         all: echo All installed
     dependencies:
       - bar
+      - aws.greengrass.Nucleus
