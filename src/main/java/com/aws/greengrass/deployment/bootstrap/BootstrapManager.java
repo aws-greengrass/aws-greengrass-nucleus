@@ -44,15 +44,12 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_NETWORK_PROXY_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_NO_PROXY_ADDRESSES;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_PASSWORD;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_URL;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_USERNAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PROXY_NAMESPACE;
-import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
@@ -69,7 +66,7 @@ import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_
 @NotThreadSafe
 public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     private static final String COMPONENT_NAME_LOG_KEY_NAME = "componentName";
-    private static final String RESTART_REQUIRED_MESSAGE = "Restart required due to parameter change";
+    private static final String RESTART_REQUIRED_MESSAGE = "Restart required due to configuration change";
     private static final Logger logger = LogManager.getLogger(BootstrapManager.class);
     @Setter(AccessLevel.PACKAGE)
     @Getter(AccessLevel.PACKAGE)
@@ -139,34 +136,6 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         return nucleusConfigValidAndNeedsRestart || !bootstrapTaskStatusList.isEmpty();
     }
 
-    private Map<String, Object> getNucleusParametersFromDeploymentConfig(Map<String, Object> newConfig) {
-        Map<String, Object> services = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
-        if (services == null) {
-            return null;
-        }
-        Map<String, Object> nucleus = (Map<String, Object>) services.get(DEFAULT_NUCLEUS_COMPONENT_NAME);
-        if (nucleus == null) {
-            return null;
-        }
-        return (Map<String, Object>) nucleus.get(PARAMETERS_CONFIG_KEY);
-    }
-
-    private boolean iotRoleAliasHasChanged(Map<String, Object> newNucleusParameters,
-                                           DeviceConfiguration currentDeviceConfiguration) {
-        String newIotRoleAlias = Coerce.toString(newNucleusParameters.get(IOT_ROLE_ALIAS_TOPIC));
-        String currentIotRoleAlias = Coerce.toString(currentDeviceConfiguration.getIotRoleAlias());
-
-        if (Utils.stringHasChanged(newIotRoleAlias, currentIotRoleAlias)) {
-            logger.atInfo().kv(IOT_ROLE_ALIAS_TOPIC, newIotRoleAlias).log(RESTART_REQUIRED_MESSAGE);
-            return true;
-        }
-        return false;
-    }
-
-    private boolean networkProxyIsCurrentlyUsed(DeviceConfiguration currentDeviceConfiguration) {
-        return Utils.isNotEmpty(currentDeviceConfiguration.getProxyUrl());
-    }
-
     private boolean networkProxyHasChanged(Map<String, Object> newNucleusParameters,
                                            DeviceConfiguration currentDeviceConfiguration) {
         Map<String, Object> newNetworkProxy =
@@ -178,8 +147,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         String newNoProxyAddresses = Coerce.toString(newNetworkProxy.get(DEVICE_PARAM_NO_PROXY_ADDRESSES));
         String currentNoProxyAddresses = Coerce.toString(currentDeviceConfiguration.getNoProxyAddresses());
         if (Utils.stringHasChanged(newNoProxyAddresses, currentNoProxyAddresses)) {
-            logger.atInfo().kv(DEVICE_NETWORK_PROXY_NAMESPACE.concat(".").concat(DEVICE_PARAM_NO_PROXY_ADDRESSES),
-                    newNoProxyAddresses).log(RESTART_REQUIRED_MESSAGE);
+            logger.atInfo().kv(DEVICE_PARAM_NO_PROXY_ADDRESSES, newNoProxyAddresses).log(RESTART_REQUIRED_MESSAGE);
             return true;
         }
 
@@ -211,19 +179,9 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         return false;
     }
 
-    private boolean nucleusConfigChangeRequiresRestart(Map<String, Object> newConfig,
-                                                       DeviceConfiguration deviceConfiguration) {
-        Map<String, Object> newNucleusParameters = getNucleusParametersFromDeploymentConfig(newConfig);
-        if (newNucleusParameters == null) {
-            return false;
-        }
-
-        if (networkProxyIsCurrentlyUsed(deviceConfiguration)
-                && iotRoleAliasHasChanged(newNucleusParameters, deviceConfiguration)) {
-            return true;
-        }
-
-        return networkProxyHasChanged(newNucleusParameters, deviceConfiguration);
+    private boolean nucleusConfigChangeRequiresRestart(Map<String, Object> newNucleusParameters,
+                                                       DeviceConfiguration currentDeviceConfiguration) {
+        return networkProxyHasChanged(newNucleusParameters, currentDeviceConfiguration);
     }
 
     private boolean nucleusConfigValidAndNeedsRestart(Map<String, Object> deploymentConfig)
@@ -231,7 +189,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         boolean needsRestart = false;
         Map<String, Object> proposedNucleusConfig = getProposedNucleusConfig(deploymentConfig);
 
-        needsRestart = nucleusConfigChangeRequiresRestart(deploymentConfig,
+        needsRestart = nucleusConfigChangeRequiresRestart(proposedNucleusConfig,
                 kernel.getContext().get(DeviceConfiguration.class));
 
         for (GreengrassService s : kernel.orderedDependencies()) {
