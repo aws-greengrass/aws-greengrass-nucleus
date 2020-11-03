@@ -64,6 +64,7 @@ import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInA
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -272,6 +273,43 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             Set<String> allComponentGroupConfigs = deploymentService.getGroupNamesForUserComponent("MockService");
             assertEquals(1, allComponentGroupConfigs.size());
             assertThat(allComponentGroupConfigs, containsInAnyOrder("testGroup"));
+        }
+
+        @Test
+        void GIVEN_groups_to_root_components_WHEN_isRootComponent_called_THEN_returns_value_correctly() {
+            Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+            Topics deploymentGroupTopics = Topics.of(context, EXPECTED_GROUP_NAME, allGroupTopics);
+            Topics deploymentGroupTopics2 = Topics.of(context, "AnotherGroup", allGroupTopics);
+            Topic pkgTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0");
+            Topic groupTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
+                    "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
+            Map<CaseInsensitiveString, Node> pkgDetails = new HashMap<>();
+            pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY),
+                    pkgTopic1);
+            pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN),
+                    groupTopic1);
+            Topics pkgTopics = Topics.of(context, EXPECTED_ROOT_PACKAGE_NAME, deploymentGroupTopics);
+            pkgTopics.children.putAll(pkgDetails);
+            deploymentGroupTopics.children.put(new CaseInsensitiveString(EXPECTED_ROOT_PACKAGE_NAME), pkgTopics);
+
+            Topic pkgTopic2 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "2.0.0");
+            Topic groupTopic2 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
+                    "arn:aws:greengrass:testRegion:12345:configuration:testGroup2:900");
+            Map<CaseInsensitiveString, Node> pkgDetails2 = new HashMap<>();
+            pkgDetails2.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY),
+                    pkgTopic2);
+            pkgDetails2.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN),
+                    groupTopic2);
+            Topics pkgTopics2 = Topics.of(context, "AnotherRootComponent", deploymentGroupTopics2);
+            pkgTopics2.children.putAll(pkgDetails);
+            deploymentGroupTopics2.children.put(new CaseInsensitiveString("AnotherRootComponent"), pkgTopics2);
+            allGroupTopics.children.putIfAbsent(new CaseInsensitiveString(EXPECTED_GROUP_NAME), deploymentGroupTopics);
+            allGroupTopics.children.putIfAbsent(new CaseInsensitiveString("AnotherGroup"), deploymentGroupTopics2);
+            when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
+
+            assertTrue(deploymentService.isComponentRoot(EXPECTED_ROOT_PACKAGE_NAME));
+            assertTrue(deploymentService.isComponentRoot("AnotherRootComponent"));
+            assertFalse(deploymentService.isComponentRoot("RandomComponent"));
         }
 
         @Test
