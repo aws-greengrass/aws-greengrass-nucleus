@@ -10,6 +10,7 @@ import lombok.Value;
 
 @Value
 public class UpdateAction {
+    String deploymentId;
     boolean ggcRestart;
     Integer timeout;
     Crashable action;

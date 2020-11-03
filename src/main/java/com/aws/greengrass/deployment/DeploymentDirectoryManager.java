@@ -19,7 +19,6 @@ import lombok.Getter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.inject.Inject;
@@ -95,8 +94,24 @@ public class DeploymentDirectoryManager {
         }
     }
 
+    private void cleanupPointersIfExist(Path target) {
+        try {
+            if (Files.isSymbolicLink(previousFailureDir) && Files.readSymbolicLink(previousFailureDir).equals(target)) {
+                Files.delete(previousFailureDir);
+            }
+        } catch (IOException ignore) {
+        }
+
+        try {
+            if (Files.isSymbolicLink(previousSuccessDir) && Files.readSymbolicLink(previousSuccessDir).equals(target)) {
+                Files.delete(previousSuccessDir);
+            }
+        } catch (IOException ignore) {
+        }
+    }
+
     private void cleanupPreviousDeployments(Path symlink) {
-        if (!Files.exists(symlink)) {
+        if (!Files.isSymbolicLink(symlink)) {
             return;
         }
         logger.atInfo().kv(LINK_LOG_KEY, symlink).log("Clean up link to earlier deployment");
@@ -216,10 +231,11 @@ public class DeploymentDirectoryManager {
         Path path = deploymentsDir.resolve(getSafeFileName(fleetConfigArn));
 
         if (Files.exists(path)) {
-            logger.atWarn().log("Deployment directory already exists. Clean up outdated artifacts and create new",
-                    new FileAlreadyExistsException(path.toString()));
+            logger.atWarn().kv("directory", path)
+                    .log("Deployment directory already exists. Clean up outdated artifacts and create new");
             try {
                 Utils.deleteFileRecursively(path.toFile());
+                cleanupPointersIfExist(path);
             } catch (IOException e) {
                 logger.atError().log("Failed to clean up outdated deployment artifacts. Ignoring", e);
             }

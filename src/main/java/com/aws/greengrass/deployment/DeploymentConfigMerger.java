@@ -83,7 +83,8 @@ public class DeploymentConfigMerger {
                 .equals(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction())) {
             kernel.getContext().get(UpdateSystemSafelyService.class)
                     .addUpdateAction(deploymentDocument.getDeploymentId(),
-                            new UpdateAction(ggcRestart, deploymentDocument.getComponentUpdatePolicy().getTimeout(),
+                            new UpdateAction(deploymentDocument.getDeploymentId(),
+                                    ggcRestart, deploymentDocument.getComponentUpdatePolicy().getTimeout(),
                                     () -> updateActionForDeployment(newConfig, deployment, activator,
                                             totallyCompleteFuture)));
         } else {

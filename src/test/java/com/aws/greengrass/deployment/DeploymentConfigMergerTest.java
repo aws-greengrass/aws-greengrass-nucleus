@@ -336,6 +336,7 @@ class DeploymentConfigMergerTest {
                 .addUpdateAction(any(), cancelledTaskCaptor.capture());
 
         assertEquals(0, cancelledTaskCaptor.getValue().getTimeout());
+        assertEquals("DeploymentId", cancelledTaskCaptor.getValue().getDeploymentId());
         assertTrue(cancelledTaskCaptor.getValue().isGgcRestart());
         // WHEN
         fut.cancel(true);
@@ -361,6 +362,7 @@ class DeploymentConfigMergerTest {
         // GIVEN
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
         DeploymentDocument doc = mock(DeploymentDocument.class);
+        when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
                 new ComponentUpdatePolicy(0, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
 
@@ -369,6 +371,7 @@ class DeploymentConfigMergerTest {
         verify(updateSystemSafelyService).addUpdateAction(any(), taskCaptor.capture());
 
         assertEquals(0, taskCaptor.getValue().getTimeout());
+        assertEquals("DeploymentId", taskCaptor.getValue().getDeploymentId());
         assertFalse(taskCaptor.getValue().isGgcRestart());
         // WHEN
         taskCaptor.getValue().getAction().run();
