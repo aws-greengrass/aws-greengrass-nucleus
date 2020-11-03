@@ -256,6 +256,7 @@ public abstract class OperationContinuationHandler
                 initialRequestHeaders = new ArrayList<>(list);
                 initialRequest = serviceModel.fromJson(getRequestClass(), bytes);
                 //call into business logic
+                
                 final ResponseType result = handleRequest(initialRequest);
                 if (result != null) {
                     if (!getResponseClass().isInstance(result)) {
@@ -288,7 +289,6 @@ public abstract class OperationContinuationHandler
             // TODO: this is the kind of exception that should be logged with a request ID especially in a server-client context
             LOGGER.severe(String.format("[%s] operation threw unexpected %s: %s", getOperationName(),
                     e.getClass().getCanonicalName(), e.getMessage()));
-            e.printStackTrace();
 
             continuation.sendMessage(responseHeaders, outputPayload, MessageType.ApplicationError, MessageFlags.TerminateStream.getByteValue())
                     .whenComplete((res, ex) -> {
