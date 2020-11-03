@@ -547,10 +547,6 @@ public class MqttClient implements Closeable {
         callbackEventManager.addToCallbackEvents(callbacks);
     }
 
-    public int getTimeout() {
-        return Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_OPERATION_TIMEOUT, MQTT_OPERATION_TIMEOUT_KEY));
-    }
-
     protected void setMqttOnline(boolean networkStatus) {
         mqttOnline.set(networkStatus);
     }

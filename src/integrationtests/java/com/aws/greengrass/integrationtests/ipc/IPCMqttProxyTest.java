@@ -14,6 +14,7 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.mqttclient.SubscribeRequest;
 import com.aws.greengrass.mqttclient.UnsubscribeRequest;
+import com.aws.greengrass.mqttclient.spool.SpoolerLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
@@ -28,6 +30,7 @@ import software.amazon.awssdk.aws.greengrass.SubscribeToIoTCoreResponseHandler;
 import software.amazon.awssdk.aws.greengrass.model.IoTCoreMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.QOS;
+import software.amazon.awssdk.aws.greengrass.model.ServiceError;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreRequest;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
@@ -41,6 +44,7 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -48,7 +52,9 @@ import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -112,7 +118,6 @@ public class IPCMqttProxyTest {
         CompletableFuture<Integer> completableFuture = new CompletableFuture<>();
         completableFuture.complete(0);
         when(mqttClient.publish(any())).thenReturn(completableFuture);
-        when(mqttClient.getTimeout()).thenReturn(1000);
 
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
@@ -188,5 +193,34 @@ public class IPCMqttProxyTest {
         UnsubscribeRequest capturedUnsubscribeRequest = unsubscribeRequestArgumentCaptor.getValue();
         assertThat(capturedUnsubscribeRequest.getTopic(), is(TEST_SUBSCRIBE_TOPIC));
         assertThat(capturedUnsubscribeRequest.getCallback(), is(callback));
+    }
+
+    @Test
+    void GIVEN_MqttProxyEventStreamClient_WHEN_publish_throws_error_THEN_client_gets_error(ExtensionContext context)
+            throws InterruptedException {
+        ignoreExceptionOfType(context, ExecutionException.class);
+        ignoreExceptionOfType(context, SpoolerLoadException.class);
+        ignoreExceptionOfType(context, ServiceError.class);
+
+        CompletableFuture<Integer> completableFuture = new CompletableFuture<>();
+        String spoolerExceptionMessage = "Spooler queue is full and new message would not be added into spooler";
+        completableFuture.completeExceptionally(new SpoolerLoadException(spoolerExceptionMessage));
+        when(mqttClient.publish(any())).thenReturn(completableFuture);
+        String expectedSpoolerException = SpoolerLoadException.class.getCanonicalName() + ": " + spoolerExceptionMessage;
+
+        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+        PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
+        publishToIoTCoreRequest.setPayload(TEST_PAYLOAD);
+        publishToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
+        publishToIoTCoreRequest.setTopicName(TEST_PUBLISH_TOPIC);
+        publishToIoTCoreRequest.setRetain(false);
+
+        String clientException = "";
+        try {
+            greengrassCoreIPCClient.publishToIoTCore(publishToIoTCoreRequest, Optional.empty()).getResponse().get();
+        } catch (ExecutionException e) {
+            clientException = e.getCause().getMessage();
+        }
+        assertThat(clientException, containsString(expectedSpoolerException));
     }
 }
