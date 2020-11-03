@@ -23,7 +23,7 @@ import java.util.Map;
  *  This class represents the deployment configuration model that FCS sends down for IOT_JOBS and SHADOWS.
  *  During a deployment, this model gets converted to DeploymentDocument, which is the core device model.
  *
- *  <p>TODO Move to common model.
+ *  <p>TODO: [P41179644] Move to common model.
  */
 
 @Getter

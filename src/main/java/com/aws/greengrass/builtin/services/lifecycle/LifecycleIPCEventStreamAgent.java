@@ -48,6 +48,7 @@ import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_STREAM_MESSAG
 
 public class LifecycleIPCEventStreamAgent {
     private static final String SERVICE_NAME_LOG_KEY = "service name";
+    private static final Logger logger = LogManager.getLogger(LifecycleIPCEventStreamAgent.class);
 
     @Getter (AccessLevel.PACKAGE)
     private final ConcurrentHashMap<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>>
@@ -58,9 +59,7 @@ public class LifecycleIPCEventStreamAgent {
     // sendPreComponentUpdateEvent will have reference to the set of futures.
     // deferUpdateFuturesMap maps the context of a component to the future created for the component.
     // This map is from service name to the Futures. Only one (latest) Future per service is maintained.
-    // GG_NEEDS_REVIEW: TODO
-    //TODO: Remove the DeferUpdateRequest when we remove the LifecycleIPCAgent. Keeping it right now so both old and new
-    // IPC can work.
+    //TODO: [P41211652]: Remove the DeferUpdateRequest when we remove the LifecycleIPCAgent.
     @Getter (AccessLevel.PACKAGE)
     private final Map<String, CompletableFuture<DeferUpdateRequest>> deferUpdateFuturesMap =
             new ConcurrentHashMap<>();
@@ -191,8 +190,8 @@ public class LifecycleIPCEventStreamAgent {
 
         @Override
         public DeferComponentUpdateResponse handleRequest(DeferComponentUpdateRequest request) {
-            // GG_NEEDS_REVIEW: TODO: Input validation. https://sim.amazon.com/issues/P32540011
-
+            // TODO: [P32540011]: All IPC service requests need input validation
+            logger.atInfo().log("Entering defer request handler");
             if (!componentUpdateListeners.containsKey(serviceName)) {
                 throw new InvalidArgumentsError("Component is not subscribed to component update events");
             }
@@ -206,6 +205,7 @@ public class LifecycleIPCEventStreamAgent {
                         .complete(new DeferUpdateRequest(serviceName, request.getMessage(),
                                 request.getRecheckAfterMs()));
             }
+            logger.atInfo().log("Exiting defer request handler");
             return new DeferComponentUpdateResponse();
         }
 

@@ -64,7 +64,7 @@ class MqttTest extends BaseE2ETestCase {
         for (int i = 0; i < NUM_MESSAGES; i++) {
             client.publish(PublishRequest.builder().topic("A/B/C").payload("What's up".getBytes(StandardCharsets.UTF_8))
                     .build()).get(5, TimeUnit.SECONDS);
-            logger.atInfo().kv("total", i + 1).log("Published 1 message to cloud.");
+            logger.atInfo().kv("total", i + 1).log("Added 1 message to spooler.");
         }
 
         assertTrue(cdl.await(1, TimeUnit.MINUTES), "All messages published and received");

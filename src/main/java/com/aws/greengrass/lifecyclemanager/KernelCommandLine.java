@@ -172,7 +172,7 @@ public class KernelCommandLine {
             throw rte;
         }
 
-        // GG_NEEDS_REVIEW: TODO: Add current kernel to local component store, if not exits.
+        // GG_NEEDS_REVIEW (Hui): TODO: Add current kernel to local component store, if not exits.
         // Add symlinks for current Kernel alt, if not exits
         // Register Kernel Loader as system service (platform-specific), if not exits
 
