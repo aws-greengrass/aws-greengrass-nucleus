@@ -9,10 +9,8 @@ package com.aws.greengrass.dependency;
  * The states in the lifecycle of a service.
  */
 public enum State {
-    // GG_NEEDS_REVIEW: TODO Not sure I trust this list yet
-
     /**
-     * TODO Remove this?
+     * TODO: [P41178790]: Remove STATELESS state
      * Object does not have a state (not a Lifecycle).
      */
     STATELESS(true, false, false, "Stateless"),
@@ -66,7 +64,6 @@ public enum State {
 
 
     State(boolean happy, boolean running, boolean functioningProperly, String name) {
-        // GG_NEEDS_REVIEW: TODO Review with James and Team about do we need this anymore?
         this.happy = happy;
         this.running = running;
         this.functioningProperly = functioningProperly;

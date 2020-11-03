@@ -100,6 +100,10 @@ public class TelemetryAgent extends GreengrassService {
         periodicMetricsEmitters.add(kme);
         getPeriodicAggregateTimeTopic();
         getPeriodicPublishTimeTopic();
+
+        // Subscribe to thing name changes.
+        deviceConfiguration.getThingName()
+                .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
     }
 
     /**
@@ -188,7 +192,7 @@ public class TelemetryAgent extends GreengrassService {
         Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap =
                 metricsAggregator.getMetricsToPublish(lastPublish, timestamp);
         getPeriodicPublishTimeTopic().withValue(timestamp);
-        // GG_NEEDS_REVIEW: TODO : Do not publish if the metrics are empty.
+        // TODO: [P41214679] Do not publish if the metrics are empty.
         publisher.publish(MetricsPayload.builder().build(), metricsToPublishMap.get(timestamp));
     }
 
@@ -247,8 +251,6 @@ public class TelemetryAgent extends GreengrassService {
                     //update topic with the existing thing name
                     updateThingNameAndPublishTopic(thingName);
                 });
-        config.lookup(DeviceConfiguration.DEVICE_PARAM_THING_NAME)
-                .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
         updateThingNameAndPublishTopic(thingName);
         schedulePeriodicAggregateMetrics(false);
         schedulePeriodicPublishMetrics(false);

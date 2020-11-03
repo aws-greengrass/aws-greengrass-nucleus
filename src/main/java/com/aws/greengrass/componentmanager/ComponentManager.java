@@ -61,6 +61,7 @@ import javax.inject.Inject;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
+import static org.apache.commons.io.FileUtils.ONE_MB;
 
 public class ComponentManager implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(ComponentManager.class);
@@ -70,7 +71,7 @@ public class ComponentManager implements InjectionActions {
     private static final String PACKAGE_IDENTIFIER = "packageIdentifier";
     private static final String COMPONENT_STR = "component";
 
-    private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 1_000_000L;
+    private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
 
     private final S3Downloader s3ArtifactsDownloader;
     private final GreengrassRepositoryDownloader greengrassArtifactDownloader;
@@ -317,8 +318,7 @@ public class ComponentManager implements InjectionActions {
 
         for (ComponentArtifact artifact : artifacts) {
             // check disk space before download
-            // GG_NEEDS_REVIEW: TODO refactor to check total size of artifacts from all components at once instead of
-            //  one by one because all artifacts must fit otherwise the deployment still fails.
+            // TODO: [P41215447]: Check artifact size for all artifacts to download early to fail early
             long usableSpaceBytes = componentStore.getUsableSpace();
             if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
                 throw new SizeLimitException(
@@ -346,9 +346,9 @@ public class ComponentManager implements InjectionActions {
             }
             File artifactFile = downloader.getArtifactFile(packageArtifactDirectory, artifact, componentIdentifier);
             if (artifactFile != null) {
-                // TODO: Change permissions - set world readable until artifact permissions can be set via model
                 try {
-                    Permissions.setArtifactPermission(artifactFile.toPath());
+                    Permissions.setArtifactPermission(artifactFile.toPath(),
+                            artifact.getPermission().toFileSystemPermission());
                 } catch (IOException e) {
                     throw new PackageDownloadException(
                             String.format("Failed to change permissions of component %s artifact %s",
@@ -366,7 +366,8 @@ public class ComponentManager implements InjectionActions {
                             getFileName(artifactFile));
                     unarchiver.unarchive(unarchive, artifactFile, unarchivePath);
                     try {
-                        Permissions.setArtifactPermission(unarchivePath);
+                        Permissions.setArtifactPermission(unarchivePath,
+                                artifact.getPermission().toFileSystemPermission());
                     } catch (IOException e) {
                         throw new PackageDownloadException(
                                 String.format("Failed to change permissions of component %s artifact %s",

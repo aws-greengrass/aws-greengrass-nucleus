@@ -33,7 +33,6 @@ public class Deployment {
     private DeploymentStage deploymentStage;
     @Setter
     private String stageDetails;
-    // GG_NEEDS_REVIEW: TODO: Add interface to pass a method for status update
 
     /**
      * Constructor for regular deployments.
