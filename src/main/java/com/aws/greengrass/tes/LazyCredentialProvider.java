@@ -46,8 +46,7 @@ public class LazyCredentialProvider implements AWSCredentialsProvider, AwsCreden
     }
 
     // AWSCredentials is for the V1 AWS SDK. Greengrass SDK is only built with V1 right now.
-    // GG_NEEDS_REVIEW: TODO: Get V2 version of Greengrass SDK and then remove this.
-    //  (https://sim.amazon.com/issues/1e07a20f-05d2-436d-b562-82c03abbce01)
+    // TODO: [P38334789] Get V2 version of Greengrass SDK and then remove this.
     @Override
     public AWSCredentials getCredentials() {
         try {

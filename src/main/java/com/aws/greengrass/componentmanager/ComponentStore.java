@@ -73,7 +73,7 @@ public class ComponentStore {
             Path recipePath = resolveRecipePath(pkgId.getName(), pkgId.getVersion());
             FileUtils.writeStringToFile(recipePath.toFile(), recipeContent);
         } catch (IOException e) {
-            // GG_NEEDS_REVIEW: TODO refine exception
+            // TODO: [P41215929]: Better logging and exception messages in component store
             throw new PackageLoadingException("Failed to save package recipe", e);
         }
     }
@@ -153,7 +153,7 @@ public class ComponentStore {
         Optional<ComponentRecipe> optionalPackage = findPackageRecipe(pkgId);
 
         if (!optionalPackage.isPresent()) {
-            // GG_NEEDS_REVIEW: TODO refine exception and logs
+            // TODO: [P41215929]: Better logging and exception messages in component store
             throw new PackageLoadingException(String.format(
                     "Failed to find usable recipe for current platform: %s, for package: '%s' in the "
                             + "local package store.", PlatformResolver.CURRENT_PLATFORM, pkgId));
@@ -379,7 +379,7 @@ public class ComponentStore {
     }
 
     private static String parsePackageNameFromFileName(String filename) {
-        // GG_NEEDS_REVIEW: TODO validate filename
+        // TODO: [P41215992]: Validate recipe filename before extracting name and version from it
 
         // MonitoringService-1.0.0.yaml
         String[] packageNameAndVersionParts = filename.split(FileSuffix.YAML_SUFFIX)[0].split("-");
@@ -388,7 +388,7 @@ public class ComponentStore {
     }
 
     private static Semver parseVersionFromFileName(String filename) throws PackageLoadingException {
-        // GG_NEEDS_REVIEW: TODO validate filename
+        // TODO: [P41215992]: Validate recipe filename before extracting name and version from it
 
         // MonitoringService-1.0.0.yaml
         String[] packageNameAndVersionParts = filename.split(FileSuffix.YAML_SUFFIX)[0].split("-");

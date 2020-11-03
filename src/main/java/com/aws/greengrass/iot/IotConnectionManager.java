@@ -33,7 +33,6 @@ import javax.inject.Inject;
 import static com.aws.greengrass.mqttclient.MqttClient.EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS;
 
 public class IotConnectionManager implements Closeable {
-    // GG_NEEDS_REVIEW: TODO: Move Iot related classes to a central location
     private static final Logger LOGGER = LogManager.getLogger(IotConnectionManager.class);
     // Max wait time for device to establish mTLS connection with IOT core
     private static final long TIMEOUT_FOR_CONNECTION_SETUP_SECONDS = Duration.ofMinutes(1).getSeconds();
@@ -71,7 +70,6 @@ public class IotConnectionManager implements Closeable {
         final String keyPath = Coerce.toString(deviceConfiguration.getPrivateKeyFilePath());
         final String caPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
         try (TlsContextOptions tlsCtxOptions = TlsContextOptions.createWithMtlsFromPath(certPath, keyPath)) {
-            // GG_NEEDS_REVIEW: TODO: Proxy support, ALPN support. Reuse connections across kernel
             tlsCtxOptions.overrideDefaultTrustStoreFromPath(null, caPath);
             return HttpClientConnectionManager
                     .create(new HttpClientConnectionManagerOptions().withClientBootstrap(clientBootstrap)
