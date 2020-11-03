@@ -25,7 +25,9 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings({"PMD.AvoidUsingOctalValues", "PMD.MethodNamingConventions"})
 @ExtendWith(GGExtension.class)
@@ -132,5 +134,19 @@ class UtilsTest {
         assertThat(result, IsMapWithSize.aMapWithSize(2));
         assertThat(result.get(1), containsInAnyOrder("a", "c"));
         assertThat(result.get(2), containsInAnyOrder("b"));
+    }
+
+    @Test
+    void testStringHasChanged() {
+        assertTrue(Utils.stringHasChanged("test1", "test2"));
+        assertTrue(Utils.stringHasChanged("test1", null));
+        assertTrue(Utils.stringHasChanged(null, "test2"));
+        assertTrue(Utils.stringHasChanged("test1", ""));
+        assertTrue(Utils.stringHasChanged("", "test2"));
+        assertTrue(Utils.stringHasChanged("tEsT1", "test1"));
+
+        assertFalse(Utils.stringHasChanged("test", "test"));
+        assertFalse(Utils.stringHasChanged(null, null));
+        assertFalse(Utils.stringHasChanged("", ""));
     }
 }

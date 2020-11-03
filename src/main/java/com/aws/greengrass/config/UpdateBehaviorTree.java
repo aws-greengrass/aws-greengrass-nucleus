@@ -114,6 +114,4 @@ public class UpdateBehaviorTree {
         }
         return new UpdateBehaviorTree(defaultBehavior, timestampToUse);
     }
-
-    // GG_NEEDS_REVIEW: TODO: add utility to parse from json/yaml
 }
