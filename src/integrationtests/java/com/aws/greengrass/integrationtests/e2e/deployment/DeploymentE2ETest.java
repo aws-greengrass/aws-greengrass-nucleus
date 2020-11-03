@@ -63,9 +63,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -488,6 +486,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
+        Consumer<GreengrassLogMessage> logListener = null;
         try (EventStreamRPCConnection connection = IPCTestUtils
                 .getEventStreamRpcConnection(kernel, "NonDisruptableService" + testComponentSuffix)) {
             GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
@@ -500,12 +499,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                         DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
                         deferComponentUpdateRequest.setRecheckAfterMs(TimeUnit.SECONDS.toMillis(60));
                         deferComponentUpdateRequest.setMessage("NonDisruptableService");
-                        try {
-                            ipcClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty()).getResponse().get(5, TimeUnit.SECONDS);
-                        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                            logger.atError().setCause(e)
-                                    .log("Caught exception while send component defer request");
-                        }
+                        // Cannot wait for response inside a callback
+                        ipcClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
                     }
                 }
 
@@ -531,7 +526,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
             CountDownLatch updateRegistered = new CountDownLatch(1);
             CountDownLatch deploymentCancelled = new CountDownLatch(1);
-            Consumer<GreengrassLogMessage> logListener = m -> {
+            logListener = m -> {
                 if ("register-service-update-action".equals(m.getEventType())) {
                     updateRegistered.countDown();
                 }
@@ -560,8 +555,10 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
             assertThat(getCloudDeployedComponent("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
             assertEquals("1.0.0", getCloudDeployedComponent("NonDisruptableService").getConfig().find("version").getOnce());
-
-            Slf4jLogAdapter.removeGlobalListener(logListener);
+        } finally {
+            if (logListener != null) {
+                Slf4jLogAdapter.removeGlobalListener(logListener);
+            }
         }
     }
 
@@ -631,6 +628,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, publishResult1.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+        Consumer<GreengrassLogMessage> logListener = null;
 
         try (EventStreamRPCConnection connection = IPCTestUtils
                 .getEventStreamRpcConnection(kernel, "NonDisruptableService" + testComponentSuffix)) {
@@ -640,15 +638,13 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                         @Override
                         public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
                             if (streamEvent.getPreUpdateEvent() != null) {
+                                logger.atInfo().log("Got pre component update event");
                                 DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
                                 deferComponentUpdateRequest.setRecheckAfterMs(TimeUnit.SECONDS.toMillis(60));
                                 deferComponentUpdateRequest.setMessage("NonDisruptableService");
-                                try {
-                                    ipcClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty()).getResponse().get(5, TimeUnit.SECONDS);
-                                } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                                    logger.atError().setCause(e)
-                                            .log("Caught exception while send component defer request");
-                                }
+                                logger.atInfo().log("Sending defer request");
+                                // Cannot wait inside a callback
+                                ipcClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
                             }
                         }
 
@@ -666,7 +662,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
             CountDownLatch updateRegistered = new CountDownLatch(1);
             CountDownLatch deploymentCancelled = new CountDownLatch(1);
-            Consumer<GreengrassLogMessage> logListener = m -> {
+            logListener = m -> {
                 if ("register-service-update-action".equals(m.getEventType())) {
                     updateRegistered.countDown();
                 }
@@ -715,7 +711,11 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             assertThat(getCloudDeployedComponent("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
             assertEquals("1.0.0", getCloudDeployedComponent("NonDisruptableService").getConfig().find("version").getOnce());
 
-            Slf4jLogAdapter.removeGlobalListener(logListener);
+
+        } finally {
+            if (logListener != null) {
+                Slf4jLogAdapter.removeGlobalListener(logListener);
+            }
         }
     }
 
