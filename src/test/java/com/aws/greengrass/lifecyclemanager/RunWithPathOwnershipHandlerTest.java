@@ -26,8 +26,8 @@ import java.nio.file.spi.FileSystemProvider;
 import java.util.Arrays;
 import java.util.Iterator;
 
-import static com.aws.greengrass.util.FileSystemPermission.Option.IgnorePermission;
 import static com.aws.greengrass.util.FileSystemPermission.Option.Recurse;
+import static com.aws.greengrass.util.FileSystemPermission.Option.SetOwner;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -104,9 +104,9 @@ public class RunWithPathOwnershipHandlerTest {
         handler.updateOwner(id, runWith);
 
         ArgumentCaptor<FileSystemPermission> permissions = ArgumentCaptor.forClass(FileSystemPermission.class);
-        verify(platform).setPermissions(permissions.capture(), eq(firstPath), eq(Recurse), eq(IgnorePermission));
-        verify(platform).setPermissions(permissions.capture(), eq(secondPath), eq(Recurse), eq(IgnorePermission));
-        verify(platform).setPermissions(permissions.capture(), eq(workPath), eq(Recurse), eq(IgnorePermission));
+        verify(platform).setPermissions(permissions.capture(), eq(firstPath), eq(Recurse), eq(SetOwner));
+        verify(platform).setPermissions(permissions.capture(), eq(secondPath), eq(Recurse), eq(SetOwner));
+        verify(platform).setPermissions(permissions.capture(), eq(workPath), eq(Recurse), eq(SetOwner));
 
         permissions.getAllValues().forEach(p -> {
             assertThat(p.getOwnerUser(), is("foo"));
@@ -122,7 +122,7 @@ public class RunWithPathOwnershipHandlerTest {
 
         handler.updateOwner(id, runWith);
 
-        verify(platform).setPermissions(any(), eq(firstPath), eq(Recurse), eq(IgnorePermission));
+        verify(platform).setPermissions(any(), eq(firstPath), eq(Recurse), eq(SetOwner));
 
     }
 
@@ -133,7 +133,7 @@ public class RunWithPathOwnershipHandlerTest {
         doReturn(nonExisting).when(paths).workPath(any());
         handler.updateOwner(id, runWith);
 
-        verify(platform).setPermissions(any(), eq(firstPath), eq(Recurse), eq(IgnorePermission));
+        verify(platform).setPermissions(any(), eq(firstPath), eq(Recurse), eq(SetOwner));
     }
 
     @Test
@@ -143,7 +143,7 @@ public class RunWithPathOwnershipHandlerTest {
         doReturn(nonExisting).when(paths).workPath(any());
         handler.updateOwner(id, runWith);
 
-        verify(platform, times(0)).setPermissions(any(), eq(nonExisting), eq(Recurse), eq(IgnorePermission));
+        verify(platform, times(0)).setPermissions(any(), eq(nonExisting), eq(Recurse), eq(SetOwner));
     }
 
     @Test
@@ -153,6 +153,6 @@ public class RunWithPathOwnershipHandlerTest {
         doReturn(workPath).when(paths).workPath(any());
         handler.updateOwner(id, runWith);
 
-        verify(platform).setPermissions(any(), eq(workPath), eq(Recurse), eq(IgnorePermission));
+        verify(platform).setPermissions(any(), eq(workPath), eq(Recurse), eq(SetOwner));
     }
 }
