@@ -256,6 +256,8 @@ public class DeviceProvisioningHelper {
 
         new DeviceConfiguration(kernel, thing.thingName, thing.dataEndpoint, thing.credEndpoint,
                 privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(), awsRegion, roleAliasName);
+        // Make sure tlog persists the device configuration
+        kernel.getContext().waitForPublishQueueToClear();
         outStream.println("Created device configuration");
     }
 

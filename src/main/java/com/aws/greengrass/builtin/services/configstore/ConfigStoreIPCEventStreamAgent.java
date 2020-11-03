@@ -261,7 +261,8 @@ public class ConfigStoreIPCEventStreamAgent {
             Node node = configTopics.findNode(keyPath);
             if (node == null) {
                 try {
-                    configTopics.lookup(keyPath).withValueChecked(request.getNewValue().get(keyPath[0]));
+                    configTopics.lookup(keyPath)
+                            .withValueChecked(request.getNewValue().get(keyPath[keyPath.length - 1]));
                 } catch (UnsupportedInputTypeException e) {
                     throw new InvalidArgumentsError(e.getMessage());
                 }
@@ -269,7 +270,7 @@ public class ConfigStoreIPCEventStreamAgent {
             }
             // TODO :[P41210581]: UpdateConfiguration API should support updating nested configuration
             if (node instanceof Topics) {
-                throw new InvalidArgumentsError("Cannot update a " + "non-leaf config node");
+                throw new InvalidArgumentsError("Cannot update a non-leaf config node");
             }
             if (!(node instanceof Topic)) {
                 logger.atError().kv(SERVICE_NAME, serviceName)
