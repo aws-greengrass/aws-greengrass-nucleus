@@ -30,6 +30,7 @@ Manifests:
         Unarchive: zip
     Lifecycle:
       bootstrap:
+          RequiresPrivilege: true
           script: |-
             set -eu
             KERNEL_ROOT="{{kernel:rootPath}}"
@@ -50,6 +51,7 @@ Manifests:
         Unarchive: zip
     Lifecycle:
       bootstrap:
+        RequiresPrivilege: true
         script: |-
           set -eu
           KERNEL_ROOT="{{kernel:rootPath}}"
