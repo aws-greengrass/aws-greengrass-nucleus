@@ -619,7 +619,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
         };
 
-        kernel.getContext().get(DeploymentDirectoryManager.class).createNewDeploymentDirectoryIfNotExists(
+        kernel.getContext().get(DeploymentDirectoryManager.class).createNewDeploymentDirectory(
                 "mockFleetConfigArn");
         kernel.getContext().addGlobalStateChangeListener(listener);
         DeploymentResult result =

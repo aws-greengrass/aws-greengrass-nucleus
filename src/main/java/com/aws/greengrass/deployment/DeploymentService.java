@@ -398,11 +398,11 @@ public class DeploymentService extends GreengrassService {
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                 JobStatus.IN_PROGRESS.toString(), new HashMap<>());
         try {
-            deploymentDirectoryManager.createNewDeploymentDirectoryIfNotExists(
+            deploymentDirectoryManager.createNewDeploymentDirectory(
                     deployment.getDeploymentDocumentObj().getDeploymentId());
             deploymentDirectoryManager.writeDeploymentMetadata(deployment);
         } catch (IOException ioException) {
-            logger.atError().log("Unable to create deployment directory", ioException);
+            logger.atError().log("Unable to create deployment directory. Ignoring", ioException);
         }
         Future<DeploymentResult> process = executorService.submit(deploymentTask);
         logger.atInfo().kv("deployment", deployment.getId()).log("Started deployment execution");

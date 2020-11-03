@@ -131,6 +131,6 @@ class DeploymentDirectoryManagerTest {
     }
 
     private Path createNewDeploymentDir(String arn) throws IOException {
-        return deploymentDirectoryManager.createNewDeploymentDirectoryIfNotExists(arn);
+        return deploymentDirectoryManager.createNewDeploymentDirectory(arn);
     }
 }

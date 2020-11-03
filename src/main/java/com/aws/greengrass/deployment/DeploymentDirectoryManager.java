@@ -19,6 +19,7 @@ import lombok.Getter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.inject.Inject;
@@ -210,18 +211,23 @@ public class DeploymentDirectoryManager {
      * @return Path to the deployment directory
      * @throws IOException on I/O errors
      */
-    public Path createNewDeploymentDirectoryIfNotExists(String fleetConfigArn) throws IOException {
+    public Path createNewDeploymentDirectory(String fleetConfigArn) throws IOException {
+        cleanupPreviousDeployments(ongoingDir);
         Path path = deploymentsDir.resolve(getSafeFileName(fleetConfigArn));
-        if (Files.exists(path) && Files.isDirectory(path)) {
-            return path;
+
+        if (Files.exists(path)) {
+            logger.atWarn().log("Deployment directory already exists. Clean up outdated artifacts and create new",
+                    new FileAlreadyExistsException(path.toString()));
+            try {
+                Utils.deleteFileRecursively(path.toFile());
+            } catch (IOException e) {
+                logger.atError().log("Failed to clean up outdated deployment artifacts. Ignoring", e);
+            }
         }
-        if (Files.isRegularFile(path)) {
-            Files.delete(path);
-        }
+
         logger.atInfo().kv("directory", path).kv(DEPLOYMENT_ID_LOG_KEY, fleetConfigArn).kv(LINK_LOG_KEY, ongoingDir)
                 .log("Create work directory for new deployment");
         Utils.createPaths(path);
-        cleanupPreviousDeployments(ongoingDir);
         Files.createSymbolicLink(ongoingDir, path);
 
         return path;
