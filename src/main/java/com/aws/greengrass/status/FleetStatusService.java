@@ -29,7 +29,6 @@ import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -241,13 +240,16 @@ public class FleetStatusService extends GreengrassService {
             logger.atDebug().log("Updating Fleet Status service for deployment with ID: {}",
                     deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME));
             isDeploymentInProgress.set(false);
-            updateEventTriggeredFleetStatusData(new HashMap<>(deploymentDetails));
+            DeploymentInformation deploymentInformation = getDeploymentInformation(deploymentDetails);
+            updateEventTriggeredFleetStatusData(deploymentInformation);
         }
         // TODO: [P41214799] Handle local deployment update for FSS
         return true;
     }
 
-    private void updateEventTriggeredFleetStatusData(Map<String, Object> deploymentDetails) {
+
+
+    private void updateEventTriggeredFleetStatusData(DeploymentInformation deploymentInformation) {
         if (!isConnected.get()) {
             logger.atDebug().log("Not updating FSS data on event triggered since MQTT connection is interrupted.");
             return;
@@ -278,13 +280,13 @@ public class FleetStatusService extends GreengrassService {
         });
         removedDependenciesSet.forEach(allServiceNamesMap::remove);
         removedDependenciesSet.clear();
-        uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(), deploymentDetails);
+        uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(), deploymentInformation);
         isEventTriggeredUpdateInProgress.set(false);
     }
 
     private void uploadFleetStatusServiceData(Set<GreengrassService> greengrassServiceSet,
                                               OverallStatus overAllStatus,
-                                              Map<String, Object> deploymentDetails) {
+                                              DeploymentInformation deploymentInformation) {
         if (!isConnected.get()) {
             logger.atDebug().log("Not updating fleet status data since MQTT connection is interrupted.");
             return;
@@ -360,25 +362,8 @@ public class FleetStatusService extends GreengrassService {
                 .thing(thingName)
                 .ggcVersion(KERNEL_VERSION)
                 .sequenceNumber(sequenceNumber)
+                .deploymentInformation(deploymentInformation)
                 .build();
-
-        if (deploymentDetails != null) {
-            DeploymentInformation deploymentInformation = DeploymentInformation.builder()
-                    .status((String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME))
-                    .fleetConfigurationArnForStatus((String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME))
-                    .build();
-            Map<String, String> statusDetailsMap =
-                    (Map<String, String>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
-            if (statusDetailsMap != null) {
-                StatusDetails statusDetails = StatusDetails.builder()
-                        .detailedStatus(statusDetailsMap.get(DEPLOYMENT_DETAILED_STATUS_KEY))
-                        .failureCause(statusDetailsMap.get(DEPLOYMENT_FAILURE_CAUSE_KEY))
-                        .build();
-                deploymentInformation.setStatusDetails(statusDetails);
-            }
-            fleetStatusDetails.setDeploymentInformation(deploymentInformation);
-        }
-
         publisher.publish(fleetStatusDetails, components);
         logger.atInfo().event("fss-status-update-published").log("Status update published to FSS");
     }
@@ -404,6 +389,20 @@ public class FleetStatusService extends GreengrassService {
         return OverallStatus.HEALTHY;
     }
 
+    private DeploymentInformation getDeploymentInformation(Map<String, Object> deploymentDetails) {
+        DeploymentInformation deploymentInformation = DeploymentInformation.builder()
+                .status((String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME))
+                .fleetConfigurationArnForStatus((String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME)).build();
+        if (deploymentDetails.containsKey(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)) {
+            Map<String, String> statusDetailsMap =
+                    (Map<String, String>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
+            StatusDetails statusDetails = StatusDetails.builder()
+                    .detailedStatus(statusDetailsMap.get(DEPLOYMENT_DETAILED_STATUS_KEY))
+                    .failureCause(statusDetailsMap.get(DEPLOYMENT_FAILURE_CAUSE_KEY)).build();
+            deploymentInformation.setStatusDetails(statusDetails);
+        }
+        return deploymentInformation;
+    }
 
     @Override
     @SuppressWarnings("PMD.UselessOverridingMethod")

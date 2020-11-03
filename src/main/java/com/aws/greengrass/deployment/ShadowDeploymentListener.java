@@ -259,7 +259,7 @@ public class ShadowDeploymentListener implements InjectionActions {
         }
 
         Deployment deployment;
-        if (desired.get(DESIRED_STATUS_KEY).equals(DESIRED_STATUS_CANCELED)) {
+        if (DESIRED_STATUS_CANCELED.equals(desired.get(DESIRED_STATUS_KEY))) {
             deployment = new Deployment(DeploymentType.SHADOW, configurationArn, true);
         } else {
             deployment = new Deployment(configurationString, DeploymentType.SHADOW, configurationArn);
