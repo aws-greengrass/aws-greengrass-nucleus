@@ -103,7 +103,7 @@ public class MqttProxyIPCAgent {
                     // this won't happen since future already completed
                 } catch (ExecutionException e) {
                     LOGGER.atError().cause(e).kv(TOPIC_KEY, topic).kv(SERVICE_KEY, serviceName)
-                            .log("Unable to publish to topic");
+                            .log("Unable to spool the publish request");
                     throw new ServiceError(String.format("Publish to topic %s failed with error %s", topic, e));
                 }
             }
