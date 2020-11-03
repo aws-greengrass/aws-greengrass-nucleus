@@ -306,10 +306,11 @@ public class CLIEventStreamAgentTest {
     }
 
     @Test
-    public void testCreateLocalDeployment_deployments_Q_not_initialized() {
+    public void testCreateLocalDeployment_deployments_Q_not_initialized(ExtensionContext context) {
+        ignoreExceptionOfType(context, ServiceError.class);
         Topics mockCliConfig = mock(Topics.class);
         CreateLocalDeploymentRequest request = new CreateLocalDeploymentRequest();
-       try {
+        try {
             cliEventStreamAgent.getCreateLocalDeploymentHandler(mockContext, mockCliConfig).handleRequest(request);
         } catch (ServiceError e) {
            assertEquals(DEPLOYMENTS_QUEUE_NOT_INITIALIZED, e.getMessage());
