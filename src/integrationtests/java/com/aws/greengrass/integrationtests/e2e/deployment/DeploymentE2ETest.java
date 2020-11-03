@@ -38,6 +38,7 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.hamcrest.collection.IsCollectionWithSize;
 import org.hamcrest.collection.IsMapContaining;
 import org.hamcrest.collection.IsMapWithSize;
 import org.junit.jupiter.api.AfterEach;
@@ -74,7 +75,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -508,18 +508,18 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         // Wait for the second deployment to start waiting for safe time to update and
         // then cancel it's corresponding job from cloud
         assertTrue(updateRegistered.await(60, TimeUnit.SECONDS));
-        assertTrue(kernel.getContext().get(UpdateSystemSafelyService.class)
-                .hasPendingUpdateAction(createDeploymentResult2.getDeploymentId()),
-                "Pending Actions: " + kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions());
+        assertThat("The UpdateSystemService should have one pending action.",
+                   kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions(),
+                   IsCollectionWithSize.hasSize(1));
 
         // GG_NEEDS_REVIEW: TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
         IotJobsUtils.cancelJob(iotClient, createDeploymentResult2.getJobId());
 
         // Wait for indication that cancellation has gone through
         assertTrue(deploymentCancelled.await(60, TimeUnit.SECONDS));
-        assertFalse(kernel.getContext().get(UpdateSystemSafelyService.class)
-                .hasPendingUpdateAction(createDeploymentResult2.getDeploymentId()),
-                "Pending Actions: " + kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions());
+        assertThat("The UpdateSystemService's one pending action should be be removed.",
+                   kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions(),
+                   IsCollectionWithSize.hasSize(0));
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
@@ -646,18 +646,18 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         // Wait for the second deployment to start waiting for safe time to update and
         // then cancel it's corresponding job from cloud
         assertTrue(updateRegistered.await(60, TimeUnit.SECONDS));
-        assertTrue(kernel.getContext().get(UpdateSystemSafelyService.class)
-                .hasPendingUpdateAction(result2.getDeploymentId()),
-                "Pending Actions: " + kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions());
+        assertThat("The UpdateSystemService should have one pending action.",
+                   kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions(),
+                   IsCollectionWithSize.hasSize(1));
 
         // GG_NEEDS_REVIEW: TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
         IotJobsUtils.cancelJob(iotClient, result2.getJobId());
 
         // Wait for indication that cancellation has gone through
         assertTrue(deploymentCancelled.await(240, TimeUnit.SECONDS));
-        assertFalse(kernel.getContext().get(UpdateSystemSafelyService.class)
-                .hasPendingUpdateAction(result2.getDeploymentId()),
-                "Pending Actions: " + kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions());
+        assertThat("The UpdateSystemService's one pending action should be be removed.",
+                   kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions(),
+                   IsCollectionWithSize.hasSize(0));
 
         // Now that we've verified that the job got cancelled, let's verify that the next job was picked up
         // and put into IN_PROGRESS state
