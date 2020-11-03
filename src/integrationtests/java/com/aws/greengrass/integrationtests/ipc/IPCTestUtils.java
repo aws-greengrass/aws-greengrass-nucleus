@@ -154,7 +154,6 @@ public final class IPCTestUtils {
         try (EventLoopGroup elGroup = new EventLoopGroup(1); ClientBootstrap clientBootstrap = new ClientBootstrap(elGroup, null)) {
 
             String ipcServerSocketPath = kernel.getContext().get(IPCEventStreamService.class).getIpcServerSocketAbsolutePath();
-            System.out.println("IPc server socket path is " + ipcServerSocketPath);
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elGroup,
                     socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER,
                     GreengrassConnectMessageSupplier.connectMessageSupplier(authToken));

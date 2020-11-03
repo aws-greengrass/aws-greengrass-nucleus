@@ -81,7 +81,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 @Tag("E2E")
@@ -504,7 +503,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                         try {
                             ipcClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty()).getResponse().get(5, TimeUnit.SECONDS);
                         } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                            fail("Caught exception while send component defer request");
+                            logger.atError().setCause(e)
+                                    .log("Caught exception while send component defer request");
                         }
                     }
                 }
@@ -646,7 +646,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                                 try {
                                     ipcClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty()).getResponse().get(5, TimeUnit.SECONDS);
                                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                                    fail("Caught exception while send component defer request");
+                                    logger.atError().setCause(e)
+                                            .log("Caught exception while send component defer request");
                                 }
                             }
                         }
