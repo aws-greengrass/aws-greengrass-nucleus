@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -34,9 +35,7 @@ import java.util.Base64;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
@@ -81,7 +80,7 @@ class GreengrassRepositoryDownloaderTest {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
-        Path artifactFilePath = saveToPath.resolve("artifactName");
+        Path artifactFilePath = saveToPath.resolve("artifact.txt");
         Files.createDirectories(saveToPath);
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
@@ -118,15 +117,19 @@ class GreengrassRepositoryDownloaderTest {
     }
 
     @Test
-    void GIVEN_filename_in_uri_WHEN_attempt_resolve_filename_THEN_parse_filename() {
-        String filename = downloader.getFilename(ComponentArtifact.builder().artifactUri(
-                URI.create("greengrass:abcd.jj")).build());
-        assertThat(filename, is("abcd.jj"));
-        filename = downloader.getFilename(ComponentArtifact.builder().artifactUri(
-                URI.create("greengrass:abcd")).build());
-        assertThat(filename, is("abcd"));
-        filename = downloader.getFilename(ComponentArtifact.builder().artifactUri(
-                URI.create("greengrass:jkdfjk/kdjfkdj/abcd.jj")).build());
-        assertThat(filename, is("abcd.jj"));
+    void GIVEN_filename_in_disposition_WHEN_attempt_resolve_filename_THEN_parse_filename() throws Exception {
+        String filename = downloader.extractFilename(new URL("https://www.amazon.com/artifact.txt"),
+                "attachment; " + "filename=\"filename.jpg\"");
+
+        assertThat(filename, is("filename.jpg"));
     }
+
+    @Test
+    void GIVEN_filename_in_url_WHEN_attempt_resolve_filename_THEN_parse_filename() throws Exception {
+        String filename =
+                downloader.extractFilename(new URL("https://www.amazon.com/artifact.txt?key=value"), "attachment");
+
+        assertThat(filename, is("artifact.txt"));
+    }
+
 }
