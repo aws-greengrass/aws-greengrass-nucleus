@@ -200,8 +200,8 @@ public class DeploymentService extends GreengrassService {
                 if (deployment.getDeploymentType().equals(DeploymentType.SHADOW)) {
                     // A new device deployment invalidates the previous deployment, cancel the ongoing device deployment
                     // and wait till the new device deployment can be picked up.
-                    if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentType()
-                            .equals(DeploymentType.SHADOW)) {
+                    if (currentDeploymentTaskMetadata != null && DeploymentType.SHADOW.equals(
+                            currentDeploymentTaskMetadata.getDeploymentType())) {
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                                 .log("Canceling current device deployment");
                         cancelCurrentDeployment();
@@ -358,7 +358,7 @@ public class DeploymentService extends GreengrassService {
                 } else {
                     logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                             .log("Deployment is in a stage where it cannot be cancelled,"
-                                         + "need to wait for it to finish");
+                                         + " need to wait for it to finish");
                     try {
                         currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
                     } catch (ExecutionException | InterruptedException e) {

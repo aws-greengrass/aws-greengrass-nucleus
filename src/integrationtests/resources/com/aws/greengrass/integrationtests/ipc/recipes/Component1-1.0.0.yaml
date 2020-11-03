@@ -19,6 +19,6 @@ Manifests:
       os: all
     Lifecycle:
       run: |-
-        sh {{artifacts:path}}/run.sh; echo {configuration:/Message}; sleep 100
+        sh {artifacts:path}/run.sh; echo {configuration:/Message}; sleep 100
     Artifacts:
       - URI: greengrass:run.sh
