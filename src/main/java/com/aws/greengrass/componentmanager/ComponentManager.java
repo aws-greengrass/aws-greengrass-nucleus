@@ -61,6 +61,7 @@ import javax.inject.Inject;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
+import static org.apache.commons.io.FileUtils.ONE_MB;
 
 public class ComponentManager implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(ComponentManager.class);
@@ -70,7 +71,7 @@ public class ComponentManager implements InjectionActions {
     private static final String PACKAGE_IDENTIFIER = "packageIdentifier";
     private static final String COMPONENT_STR = "component";
 
-    private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 1_000_000L;
+    private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
 
     private final S3Downloader s3ArtifactsDownloader;
     private final GreengrassRepositoryDownloader greengrassArtifactDownloader;
