@@ -48,6 +48,7 @@ import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_STREAM_MESSAG
 
 public class LifecycleIPCEventStreamAgent {
     private static final String SERVICE_NAME_LOG_KEY = "service name";
+    private static final Logger logger = LogManager.getLogger(LifecycleIPCEventStreamAgent.class);
 
     @Getter (AccessLevel.PACKAGE)
     private final ConcurrentHashMap<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>>
@@ -190,7 +191,7 @@ public class LifecycleIPCEventStreamAgent {
         @Override
         public DeferComponentUpdateResponse handleRequest(DeferComponentUpdateRequest request) {
             // TODO: [P32540011]: All IPC service requests need input validation
-
+            logger.atInfo().log("Entering defer request handler");
             if (!componentUpdateListeners.containsKey(serviceName)) {
                 throw new InvalidArgumentsError("Component is not subscribed to component update events");
             }
@@ -204,6 +205,7 @@ public class LifecycleIPCEventStreamAgent {
                         .complete(new DeferUpdateRequest(serviceName, request.getMessage(),
                                 request.getRecheckAfterMs()));
             }
+            logger.atInfo().log("Exiting defer request handler");
             return new DeferComponentUpdateResponse();
         }
 

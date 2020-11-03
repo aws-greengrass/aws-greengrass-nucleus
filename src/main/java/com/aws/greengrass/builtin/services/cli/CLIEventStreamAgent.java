@@ -184,7 +184,8 @@ public class CLIEventStreamAgent {
             } catch (ServiceLoadException e) {
                 logger.atError().kv("ComponentName", componentName).setCause(e)
                         .log("Did not find the component with the given name in Greengrass");
-                throw new ResourceNotFoundError("Component with name " + componentName + " not found in Greengrass");
+                throw new ResourceNotFoundError("Component with name " + componentName
+                        + " not found in Greengrass");
             }
             ComponentDetails componentDetails = new ComponentDetails();
             componentDetails.setComponentName(service.getName());
@@ -281,7 +282,8 @@ public class CLIEventStreamAgent {
             } catch (ServiceLoadException e) {
                 logger.atError().kv("ComponentName", componentName).setCause(e)
                         .log("Did not find the component with the given name in Greengrass");
-                throw new ResourceNotFoundError("Component with name " + componentName + " not found in Greengrass");
+                throw new ResourceNotFoundError("Component with name " + componentName
+                        + " not found in Greengrass");
             }
             RestartComponentResponse response =  new RestartComponentResponse();
             response.setRestartStatus(RequestStatus.SUCCEEDED);
@@ -323,7 +325,8 @@ public class CLIEventStreamAgent {
             } catch (ServiceLoadException e) {
                 logger.atError().kv("ComponentName", componentName).setCause(e)
                         .log("Did not find the component with the given name in Greengrass");
-                throw new ResourceNotFoundError("Component with name " + componentName + " not found in Greengrass");
+                throw new ResourceNotFoundError("Component with name " + componentName
+                        + " not found in Greengrass");
             }
             StopComponentResponse response = new StopComponentResponse();
             response.setStopStatus(RequestStatus.SUCCEEDED);
@@ -398,7 +401,8 @@ public class CLIEventStreamAgent {
             String recipeDirectoryPath = request.getRecipeDirectoryPath();
             String artifactsDirectoryPath = request.getArtifactsDirectoryPath();
             if (StringUtils.isEmpty(recipeDirectoryPath) && StringUtils.isEmpty(artifactsDirectoryPath)) {
-                throw new InvalidArgumentsError("Need to provide at least one of the directory paths to update");
+                throw new InvalidArgumentsError("Need to provide at least one of the directory "
+                        + "paths to update");
             }
         }
 
@@ -455,57 +459,65 @@ public class CLIEventStreamAgent {
         }
 
         @Override
-        @SuppressWarnings("PMD.PreserveStackTrace")
+        @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.AvoidCatchingGenericException"})
         public CreateLocalDeploymentResponse handleRequest(CreateLocalDeploymentRequest request) {
-            //All inputs are valid. If all inputs are empty, then user might just want to retrigger the deployment with
-            // new recipes set using the updateRecipesAndArtifacts API.
             String deploymentId = UUID.randomUUID().toString();
-
-            Map<String, ConfigurationUpdateOperation> configUpdate = null;
-            if (request.getComponentToConfiguration() != null) {
-                configUpdate = request.getComponentToConfiguration().entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, e -> {
-                            ConfigurationUpdateOperation configUpdateOption = new ConfigurationUpdateOperation();
-                            configUpdateOption.setValueToMerge((Map) e.getValue().get("MERGE"));
-                            configUpdateOption.setPathsToReset((List) e.getValue().get("RESET"));
-                            return configUpdateOption;
-                        }));
-            }
-            LocalOverrideRequest localOverrideRequest = LocalOverrideRequest.builder().requestId(deploymentId)
-                    .componentsToMerge(request.getRootComponentVersionsToAdd())
-                    .componentsToRemove(request.getRootComponentsToRemove())
-                    .requestTimestamp(System.currentTimeMillis())
-                    .groupName(request.getGroupName() == null || request.getGroupName().isEmpty() ? DEFAULT_GROUP_NAME
-                            : request.getGroupName())
-                    .configurationUpdate(configUpdate).build();
-            String deploymentDocument;
             try {
-                deploymentDocument = OBJECT_MAPPER.writeValueAsString(localOverrideRequest);
-            } catch (JsonProcessingException e) {
-                logger.atError().setCause(e).log("Caught exception while parsing local deployment request");
-                throw new ServiceError(e.getMessage());
-            }
-            Deployment deployment = new Deployment(deploymentDocument, Deployment.DeploymentType.LOCAL, deploymentId);
-            if (deploymentQueue == null) {
-                logger.atError().log("Deployments queue not initialized");
-                throw new ServiceError(DEPLOYMENTS_QUEUE_NOT_INITIALIZED);
-            } else {
-                // save the deployment status as queued
-                LocalDeploymentDetails localDeploymentDetails = new LocalDeploymentDetails();
-                localDeploymentDetails.setDeploymentId(deploymentId);
-                localDeploymentDetails.setDeploymentType(Deployment.DeploymentType.LOCAL);
-                localDeploymentDetails.setStatus(DeploymentStatus.QUEUED);
-                persistLocalDeployment(cliServiceConfig, localDeploymentDetails.convertToMapOfObject());
-                if (deploymentQueue.offer(deployment)) {
-                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).log("Submitted local deployment request.");
-                    CreateLocalDeploymentResponse createLocalDeploymentResponse = new CreateLocalDeploymentResponse();
-                    createLocalDeploymentResponse.setDeploymentId(deploymentId);
-                    return createLocalDeploymentResponse;
-                } else {
-                    logger.atError().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
-                            .log("Failed to submit local deployment request because deployment queue is full");
-                    throw new ServiceError(DEPLOYMENTS_QUEUE_FULL);
+                //All inputs are valid. If all inputs are empty, then user might just want to retrigger the deployment
+                // with new recipes set using the updateRecipesAndArtifacts API.
+                Map<String, ConfigurationUpdateOperation> configUpdate = null;
+                if (request.getComponentToConfiguration() != null) {
+                    configUpdate = request.getComponentToConfiguration().entrySet().stream()
+                            .collect(Collectors.toMap(Map.Entry::getKey, e -> {
+                        ConfigurationUpdateOperation configUpdateOption = new ConfigurationUpdateOperation();
+                        configUpdateOption.setValueToMerge((Map) e.getValue().get("MERGE"));
+                        configUpdateOption.setPathsToReset((List) e.getValue().get("RESET"));
+                        return configUpdateOption;
+                    }));
                 }
+                LocalOverrideRequest localOverrideRequest = LocalOverrideRequest.builder().requestId(deploymentId)
+                        .componentsToMerge(request.getRootComponentVersionsToAdd())
+                        .componentsToRemove(request.getRootComponentsToRemove())
+                        .requestTimestamp(System.currentTimeMillis())
+                        .groupName(request.getGroupName() == null || request.getGroupName()
+                                .isEmpty() ? DEFAULT_GROUP_NAME : request.getGroupName())
+                        .configurationUpdate(configUpdate).build();
+                String deploymentDocument;
+                try {
+                    deploymentDocument = OBJECT_MAPPER.writeValueAsString(localOverrideRequest);
+                } catch (JsonProcessingException e) {
+                    logger.atError().setCause(e).log("Caught exception while parsing local deployment request");
+                    throw new ServiceError(e.getMessage());
+                }
+                Deployment deployment = new Deployment(deploymentDocument,
+                        Deployment.DeploymentType.LOCAL, deploymentId);
+                if (deploymentQueue == null) {
+                    logger.atError().log("Deployments queue not initialized");
+                    throw new ServiceError(DEPLOYMENTS_QUEUE_NOT_INITIALIZED);
+                } else {
+                    // save the deployment status as queued
+                    LocalDeploymentDetails localDeploymentDetails = new LocalDeploymentDetails();
+                    localDeploymentDetails.setDeploymentId(deploymentId);
+                    localDeploymentDetails.setDeploymentType(Deployment.DeploymentType.LOCAL);
+                    localDeploymentDetails.setStatus(DeploymentStatus.QUEUED);
+                    persistLocalDeployment(cliServiceConfig, localDeploymentDetails.convertToMapOfObject());
+                    if (deploymentQueue.offer(deployment)) {
+                        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+                                .log("Submitted local deployment request.");
+                        CreateLocalDeploymentResponse createLocalDeploymentResponse =
+                                new CreateLocalDeploymentResponse();
+                        createLocalDeploymentResponse.setDeploymentId(deploymentId);
+                        return createLocalDeploymentResponse;
+                    } else {
+                        logger.atError().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+                                .log("Failed to submit local deployment request because deployment queue is full");
+                        throw new ServiceError(DEPLOYMENTS_QUEUE_FULL);
+                    }
+                }
+            } catch (RuntimeException e) {
+              logger.atError().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).setCause(e)
+                      .log("Caught exception while creating local deployment");
+              throw new ServiceError(e.getMessage());
             }
         }
 

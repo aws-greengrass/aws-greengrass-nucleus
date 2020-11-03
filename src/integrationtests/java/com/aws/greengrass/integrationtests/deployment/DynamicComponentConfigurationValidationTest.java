@@ -17,15 +17,12 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
-import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
-import com.aws.greengrass.ipc.IPCClient;
-import com.aws.greengrass.ipc.IPCClientImpl;
-import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import org.hamcrest.collection.IsMapContaining;
@@ -62,7 +59,6 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETER
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
@@ -82,7 +78,6 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
     private static final String DEFAULT_EXISTING_SERVICE_VERSION = "1.0.0";
     private static SocketOptions socketOptions;
 
-    private IPCClient client;
     private Kernel kernel;
     private DeploymentConfigMerger deploymentConfigMerger;
 
@@ -146,17 +141,10 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
 
         assertTrue(mainRestarted.get());
         assertTrue(serviceStarted.get());
-
-        // Establish an IPC connection on behalf of the running service
-        KernelIPCClientConfig config = getIPCConfigForService("OldService", kernel);
-        client = new IPCClientImpl(config);
     }
 
     @AfterEach
     void after() throws IOException {
-        if (client != null) {
-            client.disconnect();
-        }
         if (kernel != null) {
             kernel.shutdown();
         }

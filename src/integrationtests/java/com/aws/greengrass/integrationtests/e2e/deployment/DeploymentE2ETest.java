@@ -21,12 +21,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.greengrass.integrationtests.e2e.util.IotJobsUtils;
-import com.aws.greengrass.ipc.IPCClientImpl;
-import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
-import com.aws.greengrass.ipc.services.lifecycle.Lifecycle;
-import com.aws.greengrass.ipc.services.lifecycle.LifecycleImpl;
-import com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent;
-import com.aws.greengrass.ipc.services.lifecycle.exceptions.LifecycleIPCException;
+import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
@@ -48,7 +43,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
+import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
+import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 import software.amazon.awssdk.iot.iotshadow.IotShadowClient;
 import software.amazon.awssdk.iot.iotshadow.model.GetShadowRequest;
 import software.amazon.awssdk.iot.iotshadow.model.GetShadowSubscriptionRequest;
@@ -62,12 +63,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
@@ -468,68 +469,85 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult1.getJobId(),
                 thingInfo.getThingName(), Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
-        KernelIPCClientConfig nonDisruptable =
-                getIPCConfigForService(getTestComponentNameInCloud("NonDisruptableService"), kernel);
-        IPCClientImpl ipcClient = new IPCClientImpl(nonDisruptable);
-        Lifecycle lifecycle = new LifecycleImpl(ipcClient);
+        Consumer<GreengrassLogMessage> logListener = null;
+        try (EventStreamRPCConnection connection = IPCTestUtils
+                .getEventStreamRpcConnection(kernel, "NonDisruptableService" + testComponentSuffix)) {
+            GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
 
-        lifecycle.subscribeToComponentUpdate((event) -> {
-            if (event instanceof PreComponentUpdateEvent) {
-                try {
-                    lifecycle.deferComponentUpdate("NonDisruptableService", TimeUnit.SECONDS.toMillis(60));
-                    ipcClient.disconnect();
-                } catch (LifecycleIPCException e) {
+            ipcClient.subscribeToComponentUpdates(new SubscribeToComponentUpdatesRequest(),
+                    Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+                @Override
+                public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                    if (streamEvent.getPreUpdateEvent() != null) {
+                        DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+                        deferComponentUpdateRequest.setRecheckAfterMs(TimeUnit.SECONDS.toMillis(60));
+                        deferComponentUpdateRequest.setMessage("NonDisruptableService");
+                        // Cannot wait for response inside a callback
+                        ipcClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
+                    }
                 }
+
+                @Override
+                public boolean onStreamError(Throwable error) {
+                    logger.atError().setCause(error).log("Caught stream error while subscribing for component update");
+                    return false;
+                }
+
+                @Override
+                public void onStreamClosed() {
+                }
+            }));
+
+            // Second deployment to update the service which is currently running an important task so deployment should
+            // wait for a safe time to update
+            CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest()
+                    .withDeploymentPolicies(new DeploymentPolicies()
+                            .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
+                            .withComponentUpdatePolicy(new ComponentUpdatePolicy()
+                                    .withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS).withTimeout(120)))
+                    .addComponentsEntry("NonDisruptableService", new ComponentInfo().withVersion("1.0.1"));
+            CreateDeploymentResult createDeploymentResult2 = draftAndCreateDeployment(createDeploymentRequest2);
+
+            CountDownLatch updateRegistered = new CountDownLatch(1);
+            CountDownLatch deploymentCancelled = new CountDownLatch(1);
+            logListener = m -> {
+                if ("register-service-update-action".equals(m.getEventType())) {
+                    updateRegistered.countDown();
+                }
+                if (m.getMessage() != null && m.getMessage().contains("Deployment was cancelled")) {
+                    deploymentCancelled.countDown();
+                }
+            };
+            Slf4jLogAdapter.addGlobalListener(logListener);
+
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult2.getJobId(), thingInfo
+                    .getThingName(), Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
+
+            // Wait for the second deployment to start waiting for safe time to update and
+            // then cancel it's corresponding job from cloud
+            assertTrue(updateRegistered.await(60, TimeUnit.SECONDS));
+            assertThat("The UpdateSystemService should have one pending action.",
+                    kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions(),
+                    IsCollectionWithSize.hasSize(1));
+
+            // GG_NEEDS_REVIEW: TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
+            IotJobsUtils.cancelJob(iotClient, createDeploymentResult2.getJobId());
+
+            // Wait for indication that cancellation has gone through
+            assertTrue(deploymentCancelled.await(60, TimeUnit.SECONDS));
+            assertThat("The UpdateSystemService's one pending action should be be removed.",
+                    kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions(),
+                    IsCollectionWithSize.hasSize(0));
+
+            // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
+            assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+            assertThat(getCloudDeployedComponent("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
+            assertEquals("1.0.0", getCloudDeployedComponent("NonDisruptableService").getConfig().find("version").getOnce());
+        } finally {
+            if (logListener != null) {
+                Slf4jLogAdapter.removeGlobalListener(logListener);
             }
-        });
-
-        // Second deployment to update the service which is currently running an important task so deployment should
-        // wait for a safe time to update
-        CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest()
-                .withDeploymentPolicies(new DeploymentPolicies()
-                        .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
-                        .withComponentUpdatePolicy(new ComponentUpdatePolicy()
-                                .withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS).withTimeout(120)))
-                .addComponentsEntry("NonDisruptableService", new ComponentInfo().withVersion("1.0.1"));
-        CreateDeploymentResult createDeploymentResult2 = draftAndCreateDeployment(createDeploymentRequest2);
-
-        CountDownLatch updateRegistered = new CountDownLatch(1);
-        CountDownLatch deploymentCancelled = new CountDownLatch(1);
-        Consumer<GreengrassLogMessage> logListener = m -> {
-            if ("register-service-update-action".equals(m.getEventType())) {
-                updateRegistered.countDown();
-            }
-            if (m.getMessage() != null && m.getMessage().contains("Deployment was cancelled")) {
-                deploymentCancelled.countDown();
-            }
-        };
-        Slf4jLogAdapter.addGlobalListener(logListener);
-
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult2.getJobId(),
-                thingInfo.getThingName(), Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
-
-        // Wait for the second deployment to start waiting for safe time to update and
-        // then cancel it's corresponding job from cloud
-        assertTrue(updateRegistered.await(60, TimeUnit.SECONDS));
-        assertThat("The UpdateSystemService should have one pending action.",
-                   kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions(),
-                   IsCollectionWithSize.hasSize(1));
-
-        // GG_NEEDS_REVIEW: TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
-        IotJobsUtils.cancelJob(iotClient, createDeploymentResult2.getJobId());
-
-        // Wait for indication that cancellation has gone through
-        assertTrue(deploymentCancelled.await(60, TimeUnit.SECONDS));
-        assertThat("The UpdateSystemService's one pending action should be be removed.",
-                   kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions(),
-                   IsCollectionWithSize.hasSize(0));
-
-        // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(getCloudDeployedComponent("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
-        assertEquals("1.0.0", getCloudDeployedComponent("NonDisruptableService").getConfig().find("version").getOnce());
-
-        Slf4jLogAdapter.removeGlobalListener(logListener);
+        }
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
@@ -593,94 +611,113 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
+        Consumer<GreengrassLogMessage> logListener = null;
 
-        KernelIPCClientConfig nonDisruptable =
-                getIPCConfigForService(getTestComponentNameInCloud("NonDisruptableService"), kernel);
-        IPCClientImpl ipcClient = new IPCClientImpl(nonDisruptable);
-        Lifecycle lifecycle = new LifecycleImpl(ipcClient);
+        try (EventStreamRPCConnection connection = IPCTestUtils
+                .getEventStreamRpcConnection(kernel, "NonDisruptableService" + testComponentSuffix)) {
+            GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
 
-        lifecycle.subscribeToComponentUpdate((event) -> {
-            if (event instanceof PreComponentUpdateEvent) {
-                try {
-                    lifecycle.deferComponentUpdate("NonDisruptableService", TimeUnit.SECONDS.toMillis(60));
-                    ipcClient.disconnect();
-                } catch (LifecycleIPCException e) {
+            ipcClient.subscribeToComponentUpdates(new SubscribeToComponentUpdatesRequest(), Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+                        @Override
+                        public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                            if (streamEvent.getPreUpdateEvent() != null) {
+                                logger.atInfo().log("Got pre component update event");
+                                DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+                                deferComponentUpdateRequest.setRecheckAfterMs(TimeUnit.SECONDS.toMillis(60));
+                                deferComponentUpdateRequest.setMessage("NonDisruptableService");
+                                logger.atInfo().log("Sending defer request");
+                                // Cannot wait inside a callback
+                                ipcClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
+                            }
+                        }
+
+                        @Override
+                        public boolean onStreamError(Throwable error) {
+                            logger.atError().setCause(error).log("Caught stream error while subscribing for component update");
+                            return false;
+                        }
+
+                        @Override
+                        public void onStreamClosed() {
+
+                        }
+                    }));
+
+            CountDownLatch updateRegistered = new CountDownLatch(1);
+            CountDownLatch deploymentCancelled = new CountDownLatch(1);
+            logListener = m -> {
+                if ("register-service-update-action".equals(m.getEventType())) {
+                    updateRegistered.countDown();
                 }
+                if (m.getMessage() != null && m.getMessage().contains("Deployment was cancelled")) {
+                    deploymentCancelled.countDown();
+                }
+            };
+            Slf4jLogAdapter.addGlobalListener(logListener);
+
+            // Second deployment to update the service which is currently running an important task so deployment should
+            // keep waiting for a safe time to update
+            CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest()
+                    .withDeploymentPolicies(new DeploymentPolicies()
+                            .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
+                            .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).withComponentUpdatePolicy(
+                                    new ComponentUpdatePolicy()
+                                            .withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
+                                            .withTimeout(120)))
+                    .addComponentsEntry("NonDisruptableService", new ComponentInfo().withVersion("1.0.1"));
+            CreateDeploymentResult result2 = draftAndCreateDeployment(createDeploymentRequest2);
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getJobId(), thingInfo.getThingName(),
+                    Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
+
+            // Create one more deployment so that it's queued in cloud
+            CreateDeploymentRequest createDeploymentRequest3 = new CreateDeploymentRequest()
+                    .withDeploymentPolicies(new DeploymentPolicies()
+                            .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
+                            .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).withComponentUpdatePolicy(
+                                    new ComponentUpdatePolicy()
+                                            .withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
+                                            .withTimeout(120)))
+                    .addComponentsEntry("NonDisruptableService", new ComponentInfo().withVersion("1.0.1"));
+            CreateDeploymentResult result3 = draftAndCreateDeployment(createDeploymentRequest3);
+
+            // Wait for the second deployment to start waiting for safe time to update and
+            // then cancel it's corresponding job from cloud
+            assertTrue(updateRegistered.await(60, TimeUnit.SECONDS));
+            UpdateSystemSafelyService updateSystemSafelyService = kernel.getContext().get(UpdateSystemSafelyService.class);
+            assertThat("The UpdateSystemService should have one pending action.",
+                    updateSystemSafelyService.getPendingActions(),
+                    IsCollectionWithSize.hasSize(1));
+            // Get the value of the pending Action
+            String pendingAction = updateSystemSafelyService.getPendingActions().iterator().next();
+
+            // GG_NEEDS_REVIEW: TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
+            IotJobsUtils.cancelJob(iotClient, result2.getJobId());
+
+            // Wait for indication that cancellation has gone through
+            assertTrue(deploymentCancelled.await(240, TimeUnit.SECONDS));
+            // the third deployment may have reached device.
+            Set<String> pendingActions = updateSystemSafelyService.getPendingActions();
+            if (pendingActions.size() == 1) {
+                String newPendingAction = pendingActions.iterator().next();
+                assertNotEquals(pendingAction, newPendingAction, "The UpdateSystemService's one pending action should be be replaced.");
+            } else if (pendingActions.size() > 1) {
+                fail("Deployment not cancelled, pending actions: " + updateSystemSafelyService.getPendingActions());
             }
-        });
 
-        CountDownLatch updateRegistered = new CountDownLatch(1);
-        CountDownLatch deploymentCancelled = new CountDownLatch(1);
-        Consumer<GreengrassLogMessage> logListener = m -> {
-            if ("register-service-update-action".equals(m.getEventType())) {
-                updateRegistered.countDown();
+            // Now that we've verified that the job got cancelled, let's verify that the next job was picked up
+            // and put into IN_PROGRESS state
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result3.getJobId(), thingInfo
+                    .getThingName(), Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
+
+            // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
+            assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+            assertThat(getCloudDeployedComponent("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
+            assertEquals("1.0.0", getCloudDeployedComponent("NonDisruptableService").getConfig().find("version").getOnce());
+        } finally {
+            if (logListener != null) {
+                Slf4jLogAdapter.removeGlobalListener(logListener);
             }
-            if (m.getMessage() != null && m.getMessage().contains("Deployment was cancelled")) {
-                deploymentCancelled.countDown();
-            }
-        };
-        Slf4jLogAdapter.addGlobalListener(logListener);
-
-        // Second deployment to update the service which is currently running an important task so deployment should
-        // keep waiting for a safe time to update
-        CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest()
-                .withDeploymentPolicies(new DeploymentPolicies()
-                        .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
-                        .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).withComponentUpdatePolicy(
-                                new ComponentUpdatePolicy()
-                                        .withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                                        .withTimeout(120)))
-                .addComponentsEntry("NonDisruptableService", new ComponentInfo().withVersion("1.0.1"));
-        CreateDeploymentResult result2 = draftAndCreateDeployment(createDeploymentRequest2);
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getJobId(), thingInfo.getThingName(),
-                Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
-
-        // Create one more deployment so that it's queued in cloud
-        CreateDeploymentRequest createDeploymentRequest3 = new CreateDeploymentRequest()
-                .withDeploymentPolicies(new DeploymentPolicies()
-                        .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
-                        .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).withComponentUpdatePolicy(
-                                new ComponentUpdatePolicy()
-                                        .withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                                        .withTimeout(120)))
-                .addComponentsEntry("NonDisruptableService", new ComponentInfo().withVersion("1.0.1"));
-        CreateDeploymentResult result3 = draftAndCreateDeployment(createDeploymentRequest3);
-
-        // Wait for the second deployment to start waiting for safe time to update and
-        // then cancel it's corresponding job from cloud
-        assertTrue(updateRegistered.await(60, TimeUnit.SECONDS));
-        UpdateSystemSafelyService updateSystemSafelyService = kernel.getContext().get(UpdateSystemSafelyService.class);
-        assertThat("The UpdateSystemService should have one pending action.",
-                   updateSystemSafelyService.getPendingActions(),
-                   IsCollectionWithSize.hasSize(1));
-        // Get the value of the pending Action
-        String pendingAction = updateSystemSafelyService.getPendingActions().iterator().next();
-
-        // GG_NEEDS_REVIEW: TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
-        IotJobsUtils.cancelJob(iotClient, result2.getJobId());
-
-        // Wait for indication that cancellation has gone through
-        assertTrue(deploymentCancelled.await(240, TimeUnit.SECONDS));
-        // the third deployment could have reached device.
-        Set<String> pendingActions = updateSystemSafelyService.getPendingActions();
-        if (pendingActions.size() == 1) {
-            String newPendingAction = pendingActions.iterator().next();
-            assertNotEquals(pendingAction, newPendingAction, "The UpdateSystemService's one pending action should be be replaced.");
-        } else if (pendingActions.size() > 1) {
-            fail("Deployment not cancelled, pending actions: " + updateSystemSafelyService.getPendingActions());
         }
-
-        // Now that we've verified that the job got cancelled, let's verify that the next job was picked up
-        // and put into IN_PROGRESS state
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result3.getJobId(), thingInfo.getThingName(),
-                Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
-
-        // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(getCloudDeployedComponent("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
-        assertEquals("1.0.0", getCloudDeployedComponent("NonDisruptableService").getConfig().find("version").getOnce());
-
-        Slf4jLogAdapter.removeGlobalListener(logListener);
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
