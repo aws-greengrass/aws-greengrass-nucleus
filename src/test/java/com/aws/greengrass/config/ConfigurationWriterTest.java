@@ -56,8 +56,7 @@ class ConfigurationWriterTest {
             config.lookup("a.x", "b", "c", "d", "e").withValue("Some Val");
             // Create another Topic and use a different data type as the value (number)
             config.lookup("a.x", "b", "c.f", "d", "e2").withValue(2);
-            context.runOnPublishQueueAndWait(() -> {
-            }); // Block until publish queue is empty to ensure all changes have
+            context.waitForPublishQueueToClear(); // Block until publish queue is empty to ensure all changes have
             // been processed
 
             // Update the first Topic to show that the tlog can have multiple values over time
@@ -98,14 +97,12 @@ class ConfigurationWriterTest {
             containerNode.lookup("foo", "bar").withValue("dummy");
             containerNode.remove();
 
-            context.runOnPublishQueueAndWait(() -> {
-            }); // Block until publish queue is empty to ensure all changes have
+            context.waitForPublishQueueToClear(); // Block until publish queue is empty to ensure all changes have
             // been processed
 
             // Assert that we can get back to the current in-memory state by reading the tlog
             Configuration readConfig = ConfigurationReader.createFromTLog(context, tlog);
-            context.runOnPublishQueueAndWait(() -> {
-            }); // Block until publish queue is empty to ensure all changes have
+            context.waitForPublishQueueToClear(); // Block until publish queue is empty to ensure all changes have
             // been processed
 
             assertThat(readConfig.toPOJO(), is(config.toPOJO()));
@@ -123,27 +120,38 @@ class ConfigurationWriterTest {
         doNothing().when(mockKernel).writeEffectiveConfigAsTransactionLog(any());
         context.put(Kernel.class, mockKernel);
 
-        ConfigurationWriter.logTransactionsTo(config, tlog)
-                .flushImmediately(true).withAutoTruncate(context).withMaxEntries(1);
+        try (ConfigurationWriter writer = ConfigurationWriter.logTransactionsTo(config, tlog).flushImmediately(true)
+                .withAutoTruncate(context)) {
+            // make some changes to trigger truncate
+            config.lookup("test0").withValue("0");
+            context.runOnPublishQueueAndWait(() -> {
+                writer.withMaxEntries(2);
+                config.lookup("test0").withValue("exceed limit");
+                context.runOnPublishQueue(() -> writer.withMaxEntries(100));
+            });
+            // wait for truncate to finish
+            context.waitForPublishQueueToClear();
+            // now test1 should be written to the new tlog
+            config.lookup("test1").withValue("1");
+            context.waitForPublishQueueToClear();
+            // verify
+            Configuration newTlogConfig1 = ConfigurationReader.createFromTLog(context, tlog);
+            assertNull(newTlogConfig1.find("test0"));
+            assertEquals("1", newTlogConfig1.find("test1").getOnce());
 
-        // make some changes to trigger truncate
-        config.lookup("test0").withValue("0");
-        config.lookup("test0").withValue("exceed limit");
-        context.runOnPublishQueueAndWait(() -> {});
-        // now test1 should be written to the new tlog
-        config.lookup("test1").withValue("1");
-        context.runOnPublishQueueAndWait(() -> {});
-        // verify
-        Configuration newTlogConfig1 = ConfigurationReader.createFromTLog(context, tlog);
-        assertNull(newTlogConfig1.find("test0"));
-        assertEquals("1", newTlogConfig1.find("test1").getOnce());
+            // trigger truncate again to make sure it succeeds reliably
+            context.runOnPublishQueueAndWait(() -> {
+                writer.withMaxEntries(2);
+                config.lookup("test1").withValue("exceed limit");
+                context.runOnPublishQueue(() -> writer.withMaxEntries(100));
+            });
 
-        // trigger truncate again to make sure it succeeds reliably
-        config.lookup("test1").withValue("exceed limit");
-        context.runOnPublishQueueAndWait(() -> {});
-        // now test2 should be written to the new tlog
-        config.lookup("test2").withValue("2");
-        context.runOnPublishQueueAndWait(() -> {});
+            // wait for truncate to finish
+            context.waitForPublishQueueToClear();
+            // now test2 should be written to the new tlog
+            config.lookup("test2").withValue("2");
+            context.waitForPublishQueueToClear();
+        }
         // verify
         Configuration newTlogConfig2 = ConfigurationReader.createFromTLog(context, tlog);
         assertNull(newTlogConfig2.find("test1"));
@@ -159,17 +167,22 @@ class ConfigurationWriterTest {
         doThrow(new IOException("test")).when(mockKernel).writeEffectiveConfigAsTransactionLog(any());
         context.put(Kernel.class, mockKernel);
 
-        ConfigurationWriter.logTransactionsTo(config, tlog)
-                .flushImmediately(true).withAutoTruncate(context).withMaxEntries(1);
+        try (ConfigurationWriter writer = ConfigurationWriter.logTransactionsTo(config, tlog).flushImmediately(true)
+                .withAutoTruncate(context)) {
+            // make some changes to trigger truncate
+            config.lookup("test1").withValue("1");
+            context.waitForPublishQueueToClear();
+            context.runOnPublishQueueAndWait(() -> {
+                writer.withMaxEntries(2);
+                config.lookup("test1").withValue("exceed limit");
+                context.runOnPublishQueue(() -> writer.withMaxEntries(100));
+            });
 
-        // make some changes to trigger truncate
-        Topic test1 = config.lookup("test1").withValue("1");
-        context.runOnPublishQueueAndWait(() -> {});
-        test1.withNewerValue(System.currentTimeMillis(), "exceed limit");
-        context.runOnPublishQueueAndWait(() -> {});
-        // truncate should fail and recover, keep using the old tlog
-        config.lookup("test2").withValue("new");
-        context.runOnPublishQueueAndWait(() -> {});
+            context.waitForPublishQueueToClear();
+            // truncate should fail and recover, keep using the old tlog
+            config.lookup("test2").withValue("new");
+            context.waitForPublishQueueToClear();
+        }
         // verify values
         Configuration newTlogConfig = ConfigurationReader.createFromTLog(context, tlog);
         assertEquals("exceed limit", newTlogConfig.find("test1").getOnce());
