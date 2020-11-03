@@ -8,12 +8,6 @@ package com.aws.greengrass.integrationtests.ipc;
 import com.aws.greengrass.authorization.AuthorizationModule;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.config.Topic;
-import com.aws.greengrass.ipc.IPCClient;
-import com.aws.greengrass.ipc.IPCClientImpl;
-import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
-import com.aws.greengrass.ipc.services.pubsub.PubSub;
-import com.aws.greengrass.ipc.services.pubsub.PubSubException;
-import com.aws.greengrass.ipc.services.pubsub.PubSubImpl;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -24,13 +18,13 @@ import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Pair;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
-import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
-import software.amazon.awssdk.aws.greengrass.model.PublishMessage;
-import software.amazon.awssdk.aws.greengrass.model.PublishToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicResponse;
 import software.amazon.awssdk.aws.greengrass.model.SubscriptionResponseMessage;
@@ -39,7 +33,6 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -50,8 +43,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
+import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.publishToTopicOverIpcAsBinaryMessage;
+import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.subscribeToTopicOveripcForBinaryMessages;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTROL_NAMESPACE_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -66,12 +60,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class IPCPubSubTest {
     private static final Logger logger = LogManager.getLogger(IPCPubSubTest.class);
 
     private static int TIMEOUT_FOR_PUBSUB_SECONDS = 2;
     private static Kernel kernel;
-    private static IPCClient client;
     public static Permission TES_DEFAULT_POLICY =
             Permission.builder().principal("*").operation("getCredentials").resource(null).build();
     private static final String newACl =
@@ -120,79 +114,90 @@ class IPCPubSubTest {
     }
 
     @AfterAll
-    static void stopKernel() throws IOException {
-        if (client != null) {
-            client.disconnect();
-        }
+    static void stopKernel() {
         kernel.shutdown();
     }
 
     @Test
     void GIVEN_pubsubclient_WHEN_subscribe_and_publish_is_authorized_THEN_succeeds() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("SubscribeAndPublish", kernel);
-        client = new IPCClientImpl(config);
-        PubSub c = new PubSubImpl(client);
+        try(EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
+                "SubscribeAndPublish")) {
+            GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
 
-        Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
-            assertEquals("some message", new String(m, StandardCharsets.UTF_8));
-        });
-        c.subscribeToTopic("a", cb.getRight());
-        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
+            Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
+                assertEquals("some message", new String(m, StandardCharsets.UTF_8));
+            });
+            subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight());
+            publishToTopicOverIpcAsBinaryMessage(ipcClient, "a", "some message");
+            cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
+        }
     }
+
+
 
     @Test
     void GIVEN_pubsubclient_WHEN_subscribe_is_not_authorized_THEN_Fail() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("PublishNotSubscribe", kernel);
-        client = new IPCClientImpl(config);
-        PubSub c = new PubSubImpl(client);
+        try(EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
+                "PublishNotSubscribe")) {
+            GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
 
-        Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
-            assertEquals("some message", new String(m, StandardCharsets.UTF_8));
-        });
-
-        assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
+            Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
+                assertEquals("some message", new String(m, StandardCharsets.UTF_8));
+            });
+            ExecutionException executionException = assertThrows(ExecutionException.class,
+                    () -> subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight()));
+            assertTrue(executionException.getCause() instanceof UnauthorizedError);
+        }
     }
 
     @Test
     void GIVEN_pubsubclient_WHEN_publish_is_not_authorized_THEN_Fail() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("SubscribeNotPublish", kernel);
-        client = new IPCClientImpl(config);
-        PubSub c = new PubSubImpl(client);
-
-        assertThrows(PubSubException.class, () -> c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8)));
+        try(EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
+                "SubscribeNotPublish")) {
+            GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
+            ExecutionException executionException1 = assertThrows(ExecutionException.class,
+                    () -> publishToTopicOverIpcAsBinaryMessage(ipcClient, "a", "some message"));
+            assertTrue(executionException1.getCause() instanceof UnauthorizedError);
+        }
     }
 
     @Test
+    @Order(1)
     void GIVEN_pubsubclient_WHEN_subscribe_authorization_changes_to_authorized_THEN_succeeds() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("OnlyPublish", kernel);
-        client = new IPCClientImpl(config);
-        PubSub c = new PubSubImpl(client);
+        try(EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
+                "OnlyPublish")) {
+            GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
 
-        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
 
-        Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
-            assertEquals("some message", new String(m, StandardCharsets.UTF_8));
-        });
-        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        assertThrows(PubSubException.class, () -> c.subscribeToTopic("a", cb.getRight()));
-        Topic aclTopic = kernel.findServiceTopic("OnlyPublish").find(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
-        aclTopic.withNewerValue(System.currentTimeMillis(), newACl);
-        //Block until events are completed
-        kernel.getContext().runOnPublishQueueAndWait(() -> {
-        });
+            Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
+                assertEquals("some message", new String(m, StandardCharsets.UTF_8));
+            });
+            publishToTopicOverIpcAsBinaryMessage(ipcClient, "a", "some message");
 
-        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+            ExecutionException executionException = assertThrows(ExecutionException.class,
+                    () -> subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight()));
+            assertTrue(executionException.getCause() instanceof UnauthorizedError);
 
-        c.subscribeToTopic("a", cb.getRight()); //now this should succeed
-        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-        cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
+            Topic aclTopic = kernel.findServiceTopic("OnlyPublish").find(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+            aclTopic.withNewerValue(System.currentTimeMillis(), newACl);
+            //Block until events are completed
+            kernel.getContext().runOnPublishQueueAndWait(() -> {
+            });
 
-        aclTopic = kernel.findServiceTopic("OnlyPublish").find(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
-        aclTopic.withNewerValue(System.currentTimeMillis(), oldACl);
-        //Block until events are completed
-        kernel.getContext().runOnPublishQueueAndWait(() -> {
-        });
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+
+            subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight());//now this should succeed
+            publishToTopicOverIpcAsBinaryMessage(ipcClient, "a", "some message");
+
+            cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
+
+            aclTopic = kernel.findServiceTopic("OnlyPublish").find(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+            aclTopic.withNewerValue(System.currentTimeMillis(), oldACl);
+            //Block until events are completed
+            kernel.getContext().runOnPublishQueueAndWait(() -> {
+            });
+        }
     }
 
 
@@ -248,14 +253,7 @@ class IPCPubSubTest {
             }
             assertTrue(subscriptionLatch.await(10, TimeUnit.SECONDS));
 
-            PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
-            publishToTopicRequest.setTopic(topicName);
-            PublishMessage publishMessage = new PublishMessage();
-            BinaryMessage binaryMessage = new BinaryMessage();
-            binaryMessage.setMessage("ABCDEFG".getBytes());
-            publishMessage.setBinaryMessage(binaryMessage);
-            publishToTopicRequest.setPublishMessage(publishMessage);
-            greengrassCoreIPCClient.publishToTopic(publishToTopicRequest, Optional.empty()).getResponse().get(10, TimeUnit.SECONDS);
+            publishToTopicOverIpcAsBinaryMessage(greengrassCoreIPCClient, topicName, "ABCDEFG");
             assertTrue(cdl.await(20, TimeUnit.SECONDS));
         }
     }
@@ -284,28 +282,20 @@ class IPCPubSubTest {
 
     @Test
     void GIVEN_pubsubclient_with_event_stream_WHEN_publish_is_not_authorized_THEN_Fail() throws Exception {
-        String authToken = IPCTestUtils.getAuthTokeForService(kernel, "PublishNotSubscribe");
+        String authToken = IPCTestUtils.getAuthTokeForService(kernel, "SubscribeNotPublish");
         SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
         try (EventStreamRPCConnection clientConnection =
                      IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel)) {
             GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
 
             String topicName = "topicName";
-            PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
-            publishToTopicRequest.setTopic(topicName);
-            PublishMessage publishMessage = new PublishMessage();
-            BinaryMessage binaryMessage = new BinaryMessage();
-            binaryMessage.setMessage("ABCDEFG".getBytes());
-            publishMessage.setBinaryMessage(binaryMessage);
-            publishToTopicRequest.setPublishMessage(publishMessage);
             ExecutionException executionException = assertThrows(ExecutionException.class, () ->
-                    greengrassCoreIPCClient.publishToTopic(publishToTopicRequest, Optional.empty()).getResponse()
-                            .get(10, TimeUnit.SECONDS));
+                    publishToTopicOverIpcAsBinaryMessage(greengrassCoreIPCClient, topicName, "ABCDEFG"));
             assertTrue(executionException.getCause() instanceof UnauthorizedError);
             UnauthorizedError unauthorizedError = (UnauthorizedError) executionException.getCause();
-            assertEquals("Principal PublishNotSubscribe is not authorized to perform aws.greengrass.ipc.pubsub:aws.greengrass#PublishToTopic on resource topicName",
+            assertEquals("Principal SubscribeNotPublish is not authorized to perform aws.greengrass.ipc.pubsub:aws" +
+                            ".greengrass#PublishToTopic on resource topicName",
                     unauthorizedError.getMessage());
-
         }
     }
 
@@ -389,6 +379,8 @@ class IPCPubSubTest {
             }
         });
     }
+
+
 
     // GG_NEEDS_REVIEW: TODO: review if we want to add future support for the `unsubscribe` operation:
     // https://issues-iad.amazon.com/issues/V234932355

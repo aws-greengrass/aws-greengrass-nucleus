@@ -17,7 +17,7 @@ services:
             "policyId1":{
               "policyDescription":"access to pubsub topics for mqtt",
               "operations":[
-                "publish"
+                "aws.greengrass#PublishToTopic"
               ],
               "resources":[
                 "/topic/1/#",
@@ -73,7 +73,7 @@ services:
              "policyId3":{
                "policyDescription":"access to pubsub topics",
                "operations":[
-                 "subscribe"
+                 "aws.greengrass#SubscribeToTopic"
                ],
                "resources":[
                  "/topic/1/#",
@@ -99,7 +99,7 @@ services:
                "policyId4":{
                  "policyDescription":"access to pubsub topics",
                  "operations":[
-                   "publish"
+                   "aws.greengrass#PublishToTopic"
                  ],
                  "resources":[
                    "/topic/1/#",

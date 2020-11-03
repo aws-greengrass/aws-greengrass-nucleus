@@ -131,7 +131,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected static final Logger logger = LogManager.getLogger(BaseE2ETestCase.class);
 
-    private static final String testComponentSuffix = "_" + UUID.randomUUID().toString();
+    protected static final String testComponentSuffix = "_" + UUID.randomUUID().toString();
     protected static Optional<String> tesRolePolicyArn;
     protected static final IotSdkClientFactory.EnvironmentStage envStage = IotSdkClientFactory.EnvironmentStage.GAMMA;
 

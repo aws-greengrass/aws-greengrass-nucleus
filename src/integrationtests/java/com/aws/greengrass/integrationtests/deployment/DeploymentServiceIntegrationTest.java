@@ -12,14 +12,11 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.integrationtests.BaseITCase;
-import com.aws.greengrass.ipc.IPCClientImpl;
-import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
-import com.aws.greengrass.ipc.services.lifecycle.Lifecycle;
-import com.aws.greengrass.ipc.services.lifecycle.LifecycleImpl;
-import com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent;
-import com.aws.greengrass.ipc.services.lifecycle.exceptions.LifecycleIPCException;
+import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
@@ -31,18 +28,27 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
+import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
+import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
+import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.DEFAULT_IPC_API_TIMEOUT_SECONDS;
 import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
@@ -51,7 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(GGExtension.class)
 public class DeploymentServiceIntegrationTest extends BaseITCase {
-
+    private static final Logger logger = LogManager.getLogger(DeploymentServiceIntegrationTest.class);
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
     private Kernel kernel;
@@ -127,27 +133,46 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
             });
             assertTrue(nonDisruptableServiceServiceLatch.await(30, TimeUnit.SECONDS));
 
-            KernelIPCClientConfig nonDisruptable = getIPCConfigForService("NonDisruptableService", kernel);
-            IPCClientImpl ipcClient = new IPCClientImpl(nonDisruptable);
-            Lifecycle lifecycle = new LifecycleImpl(ipcClient);
-            lifecycle.subscribeToComponentUpdate((event) -> {
-                if (event instanceof PreComponentUpdateEvent) {
-                    try {
-                        lifecycle.deferComponentUpdate("NonDisruptableService", TimeUnit.SECONDS.toMillis(60));
-                    } catch (LifecycleIPCException e) {
+            try (EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
+                    "NonDisruptableService")) {
+                GreengrassCoreIPCClient ipcEventStreamClient = new GreengrassCoreIPCClient(connection);
+                ipcEventStreamClient.subscribeToComponentUpdates(new SubscribeToComponentUpdatesRequest(),
+                        Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+
+                    @Override
+                    public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                        if (streamEvent.getPreUpdateEvent() != null) {
+                            try {
+                                DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+                                deferComponentUpdateRequest.setRecheckAfterMs(TimeUnit.SECONDS.toMillis(60));
+                                deferComponentUpdateRequest.setMessage("Test");
+                                ipcEventStreamClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty())
+                                        .getResponse().get(DEFAULT_IPC_API_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                            }
+                        }
                     }
-                }
-            });
-            assertTrue(cdlDeployNonDisruptable.await(30, TimeUnit.SECONDS));
-            submitSampleJobDocument(
-                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json").toURI(),
-                    "deployRedSignal", DeploymentType.SHADOW);
-            submitSampleJobDocument(
-                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithNonDisruptableService.json").toURI(),
-                    "redeployNonDisruptable", DeploymentType.SHADOW);
-            assertTrue(cdlRedeployNonDisruptable.await(15, TimeUnit.SECONDS));
-            ipcClient.disconnect();
-            assertTrue(cdlDeployRedSignal.await(1, TimeUnit.SECONDS));
+
+                    @Override
+                    public boolean onStreamError(Throwable error) {
+                        logger.atError().setCause(error).log("Caught error stream when subscribing for component " + "updates");
+                        return false;
+                    }
+
+                    @Override
+                    public void onStreamClosed() {
+
+                    }
+                }));
+
+                assertTrue(cdlDeployNonDisruptable.await(30, TimeUnit.SECONDS));
+                submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
+                        .toURI(), "deployRedSignal", DeploymentType.SHADOW);
+                submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithNonDisruptableService.json")
+                        .toURI(), "redeployNonDisruptable", DeploymentType.SHADOW);
+                assertTrue(cdlRedeployNonDisruptable.await(15, TimeUnit.SECONDS));
+                assertTrue(cdlDeployRedSignal.await(1, TimeUnit.SECONDS));
+            }
         }
     }
 

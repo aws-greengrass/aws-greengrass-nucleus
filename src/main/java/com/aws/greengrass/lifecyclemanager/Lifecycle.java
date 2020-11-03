@@ -775,6 +775,7 @@ public class Lifecycle {
         if (isClosed.get()) {
             return false;
         }
+        logger.atInfo().log("Waiting for the desired state list");
         synchronized (desiredStateList) {
             // If there are no more desired states and the service is currently new, then do not
             // restart. Only restart when the service is "RUNNING" (which includes several states)
@@ -791,6 +792,7 @@ public class Lifecycle {
             desiredStateList.subList(index + 1, desiredStateList.size()).clear();
             desiredStateList.add(State.RUNNING);
         }
+        logger.atInfo().log("Returning true from request restart");
         return true;
     }
 
