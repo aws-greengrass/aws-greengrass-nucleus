@@ -104,7 +104,7 @@ class IPCServicesTest {
     private static SocketOptions socketOptions;
 
     @BeforeAll
-    static void beforeAll() throws InterruptedException, IOException, ExecutionException {
+    static void beforeAll() throws InterruptedException, ExecutionException {
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCServicesTest.class, TEST_SERVICE_NAME);
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, TEST_SERVICE_NAME);
         socketOptions = TestUtils.getSocketOptionsForIPC();
@@ -261,6 +261,7 @@ class IPCServicesTest {
                                     new SendConfigurationValidityReportRequest();
                             ConfigurationValidityReport report = new ConfigurationValidityReport();
                             report.setStatus(ConfigurationValidityStatus.ACCEPTED);
+                            report.setDeploymentId(events.getValidateConfigurationUpdateEvent().getDeploymentId());
                             reportRequest.setConfigurationValidityReport(report);
 
                             try {
@@ -293,10 +294,12 @@ class IPCServicesTest {
             CompletableFuture<ConfigurationValidityReport> responseTracker = new CompletableFuture<>();
             ConfigStoreIPCEventStreamAgent agent = kernel.getContext().get(ConfigStoreIPCEventStreamAgent.class);
             agent.validateConfiguration("ServiceName",
+                    "A",
                     Collections.singletonMap("keyToValidate", "valueToValidate"), responseTracker);
             assertTrue(cdl.await(20, TimeUnit.SECONDS));
 
-            assertEquals(ConfigurationValidityStatus.ACCEPTED, responseTracker.get().getStatus());
+            assertEquals(ConfigurationValidityStatus.ACCEPTED,
+                    responseTracker.get(20, TimeUnit.SECONDS).getStatus());
         }
     }
 
