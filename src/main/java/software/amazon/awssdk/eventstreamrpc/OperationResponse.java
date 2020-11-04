@@ -5,6 +5,8 @@
 
 package software.amazon.awssdk.eventstreamrpc;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.crt.eventstream.ClientConnectionContinuation;
 import software.amazon.awssdk.crt.eventstream.Header;
 import software.amazon.awssdk.crt.eventstream.MessageFlags;
@@ -15,7 +17,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.logging.Logger;
 
 /**
  * Underlying type for operation response handling. Enables publishing on stream operations from
@@ -28,7 +29,8 @@ import java.util.logging.Logger;
 public class OperationResponse<ResponseType extends EventStreamJsonMessage,
                         StreamRequestType extends EventStreamJsonMessage>
         implements StreamResponse<ResponseType, StreamRequestType>, AutoCloseable {
-    private static final Logger LOGGER = Logger.getLogger(OperationResponse.class.getName());
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(OperationResponse.class);
     private final OperationModelContext operationModelContext;
     private final ClientConnectionContinuation continuation;
     private final CompletableFuture<ResponseType> responseFuture;
@@ -87,7 +89,7 @@ public class OperationResponse<ResponseType extends EventStreamJsonMessage,
                     MessageType.ApplicationMessage, 0)
                     .whenComplete((res, ex) -> {
                         if (ex != null) {
-                            LOGGER.warning(String.format("%s caught %s while sending message the event stream: %s",
+                            LOGGER.warn(String.format("%s caught %s while sending message the event stream: %s",
                                     operationModelContext.getOperationName(), ex.getClass().getName(),
                                     ex.getMessage()));
                             closeStream();
@@ -113,7 +115,7 @@ public class OperationResponse<ResponseType extends EventStreamJsonMessage,
                     .whenComplete((res, ex) -> {
                         continuation.close();
                         if (ex != null) {
-                            LOGGER.warning(String.format("%s threw %s while closing the event stream: %s",
+                            LOGGER.warn(String.format("%s threw %s while closing the event stream: %s",
                                     operationModelContext.getOperationName(), ex.getClass().getName(),
                                     ex.getMessage()));
                         }
