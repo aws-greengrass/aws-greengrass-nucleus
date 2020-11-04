@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -24,6 +25,9 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Objects;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.NUCLEUS_CONFIG_LOGGING_TOPICS;
 import static com.aws.greengrass.util.Utils.HOME_PATH;
 
 public class KernelCommandLine {
@@ -152,7 +156,16 @@ public class KernelCommandLine {
             TelemetryConfig.getInstance().setRoot(Paths.get(deTilde(ROOT_DIR_PREFIX)));
             LogManager.setRoot(Paths.get(deTilde(ROOT_DIR_PREFIX)));
             nucleusPaths.setTelemetryPath(TelemetryConfig.getInstance().getStoreDirectory());
-            nucleusPaths.setLoggerPath(LogManager.getRootLogConfiguration().getStoreDirectory());
+            String storeDirectory = LogManager.getRootLogConfiguration().getStoreDirectory().toAbsolutePath()
+                    .toString();
+            Topic outputDirectoryTopic = kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC,
+                    DeviceConfiguration.getNucleusComponentName(kernel).getLeft(), CONFIGURATION_CONFIG_KEY,
+                    NUCLEUS_CONFIG_LOGGING_TOPICS, "outputDirectory");
+            String outputDirectory = Coerce.toString(outputDirectoryTopic);
+            if (Utils.isNotEmpty(outputDirectory)) {
+                storeDirectory = deTilde(outputDirectory);
+            }
+            nucleusPaths.setLoggerPath(Paths.get(storeDirectory));
             nucleusPaths.initPaths(Paths.get(rootAbsolutePath).toAbsolutePath(),
                     Paths.get(deTilde(workPathName)).toAbsolutePath(),
                     Paths.get(deTilde(packageStorePathName)).toAbsolutePath(),

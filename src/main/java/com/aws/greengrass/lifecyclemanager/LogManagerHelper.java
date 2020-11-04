@@ -5,24 +5,20 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
-import com.amazon.aws.iot.greengrass.component.common.ComponentType;
-import com.aws.greengrass.config.CaseInsensitiveString;
+import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.WhatHappened;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.logging.impl.config.LogFormat;
+import com.aws.greengrass.logging.impl.config.LogStore;
 import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
 import com.aws.greengrass.util.Coerce;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.MapperFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import com.aws.greengrass.util.Pair;
+import org.slf4j.event.Level;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 
 /**
  * Helper function to get a logger with configurations separate from the root logger.
@@ -31,8 +27,6 @@ public final class LogManagerHelper {
     public static final String NUCLEUS_CONFIG_LOGGING_TOPICS = "logging";
     static final String SERVICE_CONFIG_LOGGING_TOPICS = "ComponentLogging";
     private static final String LOG_FILE_EXTENSION = ".log";
-    private static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true);
     private static final Logger logger = LogManager.getLogger(LogManagerHelper.class);
 
     private LogManagerHelper() {
@@ -43,49 +37,12 @@ public final class LogManagerHelper {
      * @param kernel {@link Kernel}
      */
     public static void handleLoggingConfig(Kernel kernel) {
+        Pair<String, Boolean> nucleusComponentNamePair = DeviceConfiguration.getNucleusComponentName(kernel);
         kernel.getConfig()
-                .lookup(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(kernel),
+                .lookupTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentNamePair.getLeft(),
                         CONFIGURATION_CONFIG_KEY, NUCLEUS_CONFIG_LOGGING_TOPICS)
-                //.dflt(LoggerConfiguration.builder().build())
-                .subscribe((what, loggingParam) -> {
-                    if (loggingParam == null) {
-                        logger.atInfo().log("No logging configuration configured");
-                        return;
-                    }
-                    try {
-                        List<LoggerConfiguration> configuration = OBJECT_MAPPER.convertValue(loggingParam.toPOJO(),
-                                new TypeReference<List<LoggerConfiguration>>() {
-                                });
-                        if (configuration == null) {
-                            configuration =  new ArrayList<>();
-                        }
-                        if (configuration.isEmpty()) {
-                            configuration.add(LoggerConfiguration.builder().build());
-                        }
-                        LogManager.reconfigureAllLoggers(configuration.get(0));
-                    } catch (IllegalArgumentException e) {
-                        logger.atError().kv("node", loggingParam.getFullName()).kv("value", loggingParam).setCause(e)
-                                .log("Unable to parse logging configuration");
-                    }
-                });
+                .subscribe(LogManagerHelper::handleLoggingConfigurationChanges);
     }
-
-    /**
-     * Get the Nucleus component name to lookup the configuration in the right place. If no component of type Nucleus
-     * exists, create service config for the default Nucleus component.
-     */
-    private static String getNucleusComponentName(Kernel kernel) {
-        Optional<CaseInsensitiveString> nucleusComponent =
-                kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet().stream()
-                        .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(kernel, s.toString())))
-                        .findAny();
-        return nucleusComponent.map(CaseInsensitiveString::toString).orElse(DEFAULT_NUCLEUS_COMPONENT_NAME);
-    }
-
-    private static String getComponentType(Kernel kernel, String serviceName) {
-        return Coerce.toString(kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC, serviceName, SERVICE_TYPE_TOPIC_KEY));
-    }
-
 
     /**
      * Get the logger for a particular component. The logs will be added to the a log file with the same name as the
@@ -113,5 +70,34 @@ public final class LogManagerHelper {
      */
     private static Logger getComponentLogger(String name, String fileName) {
         return LogManager.getLogger(name, LoggerConfiguration.builder().fileName(fileName).build());
+    }
+
+    private static void handleLoggingConfigurationChanges(WhatHappened what, Node loggingParam) {
+        if (loggingParam == null) {
+            logger.atInfo().log("No logging configuration configured");
+            return;
+        }
+        LoggerConfiguration configuration2 = LoggerConfiguration.builder().build();
+        if (WhatHappened.childChanged.equals(what)) {
+            if ("level".equals(loggingParam.getFullName())) {
+                configuration2.setLevel(Level.valueOf(Coerce.toString(loggingParam.toPOJO())));
+            }
+            if ("fileSizeKB".equals(loggingParam.getFullName())) {
+                configuration2.setFileSizeKB(Coerce.toLong(loggingParam.toPOJO()));
+            }
+            if ("totalLogsSizeKB".equals(loggingParam.getFullName())) {
+                configuration2.setTotalLogsSizeKB(Coerce.toLong(loggingParam.toPOJO()));
+            }
+            if ("format".equals(loggingParam.getFullName())) {
+                configuration2.setFormat(LogFormat.valueOf(Coerce.toString(loggingParam.toPOJO())));
+            }
+            if ("outputDirectory".equals(loggingParam.getFullName())) {
+                configuration2.setOutputDirectory(Coerce.toString(loggingParam.toPOJO()));
+            }
+            if ("outputType".equals(loggingParam.getFullName())) {
+                configuration2.setOutputType(LogStore.valueOf(Coerce.toString(loggingParam.toPOJO())));
+            }
+        }
+        LogManager.reconfigureAllLoggers(configuration2);
     }
 }

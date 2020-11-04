@@ -5,9 +5,11 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -22,6 +24,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.event.Level;
@@ -30,13 +34,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.NUCLEUS_CONFIG_LOGGING_TOPICS;
 import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.SERVICE_CONFIG_LOGGING_TOPICS;
 import static com.aws.greengrass.telemetry.impl.MetricFactory.METRIC_LOGGER_PREFIX;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -58,6 +58,8 @@ class LogManagerHelperTest {
     private GreengrassService mockGreengrassService;
     @Mock
     private Kernel kernel;
+    @Captor
+    ArgumentCaptor<ChildChanged> childChangedArgumentCaptor;
 
     @BeforeEach
     void setup() {
@@ -72,7 +74,7 @@ class LogManagerHelperTest {
             logConfig.reset();
             logConfig.closeContext();
         }
-
+        LogManager.getTelemetryConfig().reset();
     }
 
     @BeforeAll
@@ -82,6 +84,7 @@ class LogManagerHelperTest {
     }
     @AfterAll
     static void cleanupLogger() {
+        LogManager.getTelemetryConfig().setStore(LogStore.CONSOLE);
         LogManager.getRootLogConfiguration().setStore(LogStore.CONSOLE);
     }
 
@@ -109,28 +112,35 @@ class LogManagerHelperTest {
         assertEquals(0, ggLogFile.length());
     }
 
+    @SuppressWarnings("PMD.CloseResource")
     @Test
     void GIVEN_all_fields_logger_config_WHEN_subscribe_THEN_correctly_reconfigures_all_loggers() {
+        Context context = mock(Context.class);
         Configuration configuration = mock(Configuration.class);
         when(kernel.getConfig()).thenReturn(configuration);
-        Map<String, String> map = new HashMap<>();
-        map.put("level", "TRACE");
-        map.put("fileName", "something");
-        map.put("fileSizeKB", "10");
-        map.put("totalLogsSizeKB", "1026");
-        map.put("format", "TEXT");
-        map.put("outputType", "FILE");
-        map.put("outputDirectory", "/tmp/test");
-        List<Map<String, String>> list = new ArrayList<>();
-        list.add(map);
-        Topic topic = Topic.of(mock(Context.class), NUCLEUS_CONFIG_LOGGING_TOPICS, list);
+        Topics topic = mock(Topics.class);
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
-        when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(topic);
+        when(topic.subscribe(childChangedArgumentCaptor.capture())).thenReturn(topic);
+        when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(topic);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
         LogManagerHelper.handleLoggingConfig(kernel);
 
+        Topic levelTopic = Topic.of(context, "level", "TRACE");
+        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, levelTopic);
+        Topic fileNameTopic = Topic.of(context, "fileName", "something");
+        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, fileNameTopic);
+        Topic fileSizeKBTopic = Topic.of(context, "fileSizeKB", "10");
+        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, fileSizeKBTopic);
+        Topic totalLogsSizeKBTopic = Topic.of(context, "totalLogsSizeKB", "1026");
+        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, totalLogsSizeKBTopic);
+        Topic formatTopic = Topic.of(context, "format", "TEXT");
+        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, formatTopic);
+        Topic outputTypeTopic = Topic.of(context, "outputType", "FILE");
+        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, outputTypeTopic);
+        Topic outputDirectoryTopic = Topic.of(context, "outputDirectory", "/tmp/test");
+        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, outputDirectoryTopic);
+
         assertEquals(Level.TRACE, LogManager.getRootLogConfiguration().getLevel());
-        assertEquals("something", LogManager.getRootLogConfiguration().getFileName());
         assertEquals(LogStore.FILE, LogManager.getRootLogConfiguration().getStore());
         assertEquals(LogFormat.TEXT, LogManager.getRootLogConfiguration().getFormat());
         assertEquals(10, LogManager.getRootLogConfiguration().getFileSizeKB());
@@ -139,7 +149,7 @@ class LogManagerHelperTest {
 
         assertEquals(Level.TRACE, LogManager.getTelemetryConfig().getLevel());
         assertEquals(LogStore.FILE, LogManager.getTelemetryConfig().getStore());
-        assertEquals(LogFormat.TEXT, LogManager.getTelemetryConfig().getFormat());
+        assertEquals(LogFormat.JSON, LogManager.getTelemetryConfig().getFormat());
         assertEquals(10, LogManager.getTelemetryConfig().getFileSizeKB());
         assertEquals(1026, LogManager.getTelemetryConfig().getTotalLogStoreSizeKB());
     }
@@ -148,45 +158,23 @@ class LogManagerHelperTest {
     void GIVEN_null_logger_config_WHEN_subscribe_THEN_correctly_reconfigures_all_loggers() {
         Configuration configuration = mock(Configuration.class);
         when(kernel.getConfig()).thenReturn(configuration);
-        Topic topic = Topic.of(mock(Context.class), NUCLEUS_CONFIG_LOGGING_TOPICS, null);
+        Topics topic = mock(Topics.class);
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
-        when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(topic);
+        when(topic.subscribe(childChangedArgumentCaptor.capture())).thenReturn(topic);
+        when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(topic);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
         LogManagerHelper.handleLoggingConfig(kernel);
+
+        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, null);
 
         assertEquals(Level.INFO, LogManager.getRootLogConfiguration().getLevel());
         assertEquals("greengrass", LogManager.getRootLogConfiguration().getFileName());
         assertEquals(LogStore.CONSOLE, LogManager.getRootLogConfiguration().getStore());
-        assertEquals(LogFormat.JSON, LogManager.getRootLogConfiguration().getFormat());
+        assertEquals(LogFormat.TEXT, LogManager.getRootLogConfiguration().getFormat());
         assertEquals(1024, LogManager.getRootLogConfiguration().getFileSizeKB());
         assertEquals(10240, LogManager.getRootLogConfiguration().getTotalLogStoreSizeKB());
 
-        assertEquals(Level.INFO, LogManager.getTelemetryConfig().getLevel());
-        assertEquals(LogStore.CONSOLE, LogManager.getTelemetryConfig().getStore());
-        assertEquals(LogFormat.JSON, LogManager.getTelemetryConfig().getFormat());
-        assertEquals(1024, LogManager.getTelemetryConfig().getFileSizeKB());
-        assertEquals(10240, LogManager.getTelemetryConfig().getTotalLogStoreSizeKB());
-    }
-
-    @Test
-    void GIVEN_empty_logger_config_WHEN_subscribe_THEN_correctly_reconfigures_all_loggers() {
-        Configuration configuration = mock(Configuration.class);
-        when(kernel.getConfig()).thenReturn(configuration);
-        List<Map<String, String>> list = new ArrayList<>();
-        Topic topic = Topic.of(mock(Context.class), NUCLEUS_CONFIG_LOGGING_TOPICS, list);
-        Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
-        when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(topic);
-        when(configuration.lookupTopics(anyString())).thenReturn(topics);
-        LogManagerHelper.handleLoggingConfig(kernel);
-
-        assertEquals(Level.INFO, LogManager.getRootLogConfiguration().getLevel());
-        assertEquals("greengrass", LogManager.getRootLogConfiguration().getFileName());
-        assertEquals(LogStore.CONSOLE, LogManager.getRootLogConfiguration().getStore());
-        assertEquals(LogFormat.JSON, LogManager.getRootLogConfiguration().getFormat());
-        assertEquals(1024, LogManager.getRootLogConfiguration().getFileSizeKB());
-        assertEquals(10240, LogManager.getRootLogConfiguration().getTotalLogStoreSizeKB());
-
-        assertEquals(Level.INFO, LogManager.getTelemetryConfig().getLevel());
+        assertEquals(Level.TRACE, LogManager.getTelemetryConfig().getLevel());
         assertEquals(LogStore.CONSOLE, LogManager.getTelemetryConfig().getStore());
         assertEquals(LogFormat.JSON, LogManager.getTelemetryConfig().getFormat());
         assertEquals(1024, LogManager.getTelemetryConfig().getFileSizeKB());
