@@ -101,13 +101,13 @@
         <dependency>
             <groupId>com.amazonaws.services</groupId>
             <artifactId>evergreen</artifactId>
-            <version>1.0.0-MR-SNAPSHOT</version>
+            <version>1.0.354</version>
         </dependency>
         <dependency>
             <groupId>com.aws.iot</groupId>
             <artifactId>component-common</artifactId>
             <!-- change back to 0.0.0-SNAPSHOT after common model is updated in repo -->
-            <version>0.0.0-SNAPSHOT</version>
+            <version>0.0.0-ba9d57ca61b8396c92ab4df91a77fbaad9f8d9ef</version>
         </dependency>
         <!-- TODO: This is temporary, adding because there is some confusion about which version
         of core should be used for the AWS SDK (2.x or 1.x). Will be removed once the pom file for

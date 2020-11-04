@@ -4,13 +4,13 @@ ComponentName: GreenSignal
 ComponentDescription: A service indicating approval to proceed
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
+ComponentConfiguration:
+  DefaultConfiguration:
+    NumApprovals: 2
+
 Manifests:
   - Platform:
       os: all
-    Parameters:
-      - name: NumApprovals
-        type: NUMBER
-        value: 2
     Lifecycle:
-      run:
-        "echo Go ahead with {{params:NumApprovals.value}} approvals"
+      run: |-
+        echo "Go ahead with {configuration:/NumApprovals} approvals"

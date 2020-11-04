@@ -1058,7 +1058,7 @@ class DeploymentTaskIntegrationTest {
     private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
         kernel.getContext()
                 .get(DeploymentDirectoryManager.class)
-                .createNewDeploymentDirectoryIfNotExists("testFleetConfigArn" + deploymentCount.getAndIncrement());
+                .createNewDeploymentDirectory("testFleetConfigArn" + deploymentCount.getAndIncrement());
 
         sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
         sampleJobDocument.setTimestamp(timestamp);
