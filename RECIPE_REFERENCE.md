@@ -36,7 +36,7 @@ Manifests:
       architecture: x86_64
     Lifecycle:
       Run:
-        python3 {{artifacts:path}}/hello_windows_server.py {configuration:/args/windowsArg}
+        python3 {artifacts:path}/hello_windows_server.py {configuration:/args/windowsArg}
     Artifacts:
       - URI: s3://some-bucket/hello_windows.zip
         Unarchive: ZIP
@@ -45,7 +45,7 @@ Manifests:
       architecture: arm
     Lifecycle:
       Run:
-        python3 {{artifacts:path}}/hello_world.py {configuration:/args/linuxArg}
+        python3 {artifacts:path}/hello_world.py {configuration:/args/linuxArg}
     Artifacts:
       - URI: s3://some-bucket/hello_world.py
 ```

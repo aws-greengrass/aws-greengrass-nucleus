@@ -6,6 +6,7 @@
 package com.aws.greengrass.deployment;
 
 
+import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
@@ -34,6 +35,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
@@ -96,7 +98,8 @@ public class DeploymentService extends GreengrassService {
     @Inject
     private Kernel kernel;
 
-    @Inject DeviceConfiguration deviceConfiguration;
+    @Inject
+    DeviceConfiguration deviceConfiguration;
 
     private DeploymentTaskMetadata currentDeploymentTaskMetadata = null;
 
@@ -123,7 +126,7 @@ public class DeploymentService extends GreengrassService {
      * @param topics                 The configuration coming from  kernel
      * @param executorService        Executor service coming from kernel
      * @param dependencyResolver     {@link DependencyResolver}
-     * @param componentManager         {@link ComponentManager}
+     * @param componentManager       {@link ComponentManager}
      * @param kernelConfigResolver   {@link KernelConfigResolver}
      * @param deploymentConfigMerger {@link DeploymentConfigMerger}
      * @param kernel                 {@link Kernel}
@@ -131,10 +134,10 @@ public class DeploymentService extends GreengrassService {
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     DeploymentService(Topics topics, ExecutorService executorService, DependencyResolver dependencyResolver,
-                      ComponentManager componentManager, KernelConfigResolver kernelConfigResolver,
-                      DeploymentConfigMerger deploymentConfigMerger, DeploymentStatusKeeper deploymentStatusKeeper,
-                      DeploymentDirectoryManager deploymentDirectoryManager, Context context, Kernel kernel,
-                      DeviceConfiguration deviceConfiguration) {
+            ComponentManager componentManager, KernelConfigResolver kernelConfigResolver,
+            DeploymentConfigMerger deploymentConfigMerger, DeploymentStatusKeeper deploymentStatusKeeper,
+            DeploymentDirectoryManager deploymentDirectoryManager, Context context, Kernel kernel,
+            DeviceConfiguration deviceConfiguration) {
         super(topics);
         this.executorService = executorService;
         this.dependencyResolver = dependencyResolver;
@@ -199,8 +202,8 @@ public class DeploymentService extends GreengrassService {
                 if (deployment.getDeploymentType().equals(DeploymentType.SHADOW)) {
                     // A new device deployment invalidates the previous deployment, cancel the ongoing device deployment
                     // and wait till the new device deployment can be picked up.
-                    if (currentDeploymentTaskMetadata != null
-                            && currentDeploymentTaskMetadata.getDeploymentType().equals(DeploymentType.SHADOW)) {
+                    if (currentDeploymentTaskMetadata != null && DeploymentType.SHADOW.equals(
+                            currentDeploymentTaskMetadata.getDeploymentType())) {
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                                 .log("Canceling current device deployment");
                         cancelCurrentDeployment();
@@ -208,8 +211,8 @@ public class DeploymentService extends GreengrassService {
                     }
                     // On device start up, Shadow listener will fetch the shadow and schedule a shadow deployment
                     // Discard the deployment if Kernel starts up from a tlog file and has already processed deployment
-                    if (deployment.getId().equals(
-                            Coerce.toString(config.lookup(LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC)))) {
+                    if (deployment.getId()
+                            .equals(Coerce.toString(config.lookup(LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC)))) {
                         deploymentQueue.remove();
                         continue;
                     }
@@ -259,8 +262,8 @@ public class DeploymentService extends GreengrassService {
                 if (deploymentStatus.equals(DeploymentResult.DeploymentStatus.SUCCESSFUL)) {
                     //Add the root packages of successful deployment to the configuration
                     DeploymentDocument deploymentDocument = currentDeploymentTaskMetadata.getDeploymentDocument();
-                    Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
-                            deploymentDocument.getGroupName());
+                    Topics deploymentGroupTopics =
+                            config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, deploymentDocument.getGroupName());
 
                     if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {
                         config.lookup(LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC)
@@ -275,9 +278,8 @@ public class DeploymentService extends GreengrassService {
                             Map<String, Object> pkgDetails = new HashMap<>();
                             pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
                             pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
-                                    deploymentDocument.getDeploymentId());
-                            pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_NAME,
-                                    deploymentDocument.getGroupName());
+                                           deploymentDocument.getDeploymentId());
+                            pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_NAME, deploymentDocument.getGroupName());
                             deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
                         }
                     });
@@ -285,8 +287,8 @@ public class DeploymentService extends GreengrassService {
                     setComponentsToGroupsMapping(deploymentGroupTopics);
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                    currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.SUCCEEDED.toString(),
-                                    statusDetails);
+                                                               currentDeploymentTaskMetadata.getDeploymentType(),
+                                                               JobStatus.SUCCEEDED.toString(), statusDetails);
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
                     if (result.getFailureCause() != null) {
@@ -297,8 +299,8 @@ public class DeploymentService extends GreengrassService {
                     // starting deployment
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                    currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED.toString(),
-                                    statusDetails);
+                                                               currentDeploymentTaskMetadata.getDeploymentType(),
+                                                               JobStatus.FAILED.toString(), statusDetails);
                     deploymentDirectoryManager.persistLastFailedDeployment();
                 }
             }
@@ -312,8 +314,8 @@ public class DeploymentService extends GreengrassService {
                     || currentDeploymentTaskMetadata.getDeploymentAttemptCount().get() >= DEPLOYMENT_MAX_ATTEMPTS) {
                 deploymentStatusKeeper
                         .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED.toString(),
-                                statusDetails);
+                                                           currentDeploymentTaskMetadata.getDeploymentType(),
+                                                           JobStatus.FAILED.toString(), statusDetails);
                 deploymentDirectoryManager.persistLastFailedDeployment();
             } else if (t instanceof RetryableDeploymentTaskFailureException) {
                 // Resubmit task, increment attempt count and return
@@ -342,10 +344,10 @@ public class DeploymentService extends GreengrassService {
      */
     @SuppressWarnings("PMD.NullAssignment")
     private void cancelCurrentDeployment() {
-        if (currentDeploymentTaskMetadata.getDeploymentResultFuture() != null
-                && !currentDeploymentTaskMetadata.getDeploymentResultFuture().isCancelled()) {
-            if (currentDeploymentTaskMetadata.getDeploymentResultFuture().isDone()
-                    || !currentDeploymentTaskMetadata.isCancellable()) {
+        if (currentDeploymentTaskMetadata.getDeploymentResultFuture() != null && !currentDeploymentTaskMetadata
+                .getDeploymentResultFuture().isCancelled()) {
+            if (currentDeploymentTaskMetadata.getDeploymentResultFuture().isDone() || !currentDeploymentTaskMetadata
+                    .isCancellable()) {
                 logger.atInfo().log("Deployment already finished processing or cannot be cancelled");
             } else {
                 boolean canCancelDeployment = context.get(UpdateSystemSafelyService.class).discardPendingUpdateAction(
@@ -358,13 +360,13 @@ public class DeploymentService extends GreengrassService {
                 } else {
                     logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                             .log("Deployment is in a stage where it cannot be cancelled,"
-                                    + "need to wait for it to finish");
+                                         + " need to wait for it to finish");
                     try {
                         currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
                     } catch (ExecutionException | InterruptedException e) {
                         logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                                 .log("Error while finishing "
-                                        + "deployment, no-op since the deployment was canceled at the source");
+                                             + "deployment, no-op since the deployment was canceled at the source");
                     }
                 }
             }
@@ -397,10 +399,11 @@ public class DeploymentService extends GreengrassService {
             return;
         }
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
-                JobStatus.IN_PROGRESS.toString(), new HashMap<>());
+                                                                 JobStatus.IN_PROGRESS.toString(), new HashMap<>());
         try {
-            deploymentDirectoryManager.createNewDeploymentDirectory(
-                    deployment.getDeploymentDocumentObj().getDeploymentId());
+            deploymentDirectoryManager
+                    .createNewDeploymentDirectory(deployment.getDeploymentDocumentObj().getDeploymentId());
+
             deploymentDirectoryManager.writeDeploymentMetadata(deployment);
         } catch (IOException ioException) {
             logger.atError().log("Unable to create deployment directory", ioException);
@@ -415,7 +418,7 @@ public class DeploymentService extends GreengrassService {
 
         currentDeploymentTaskMetadata =
                 new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(), deployment.getDeploymentType(),
-                        new AtomicInteger(1), deployment.getDeploymentDocumentObj(), cancellable);
+                                           new AtomicInteger(1), deployment.getDeploymentDocumentObj(), cancellable);
     }
 
     private KernelUpdateDeploymentTask createKernelUpdateDeployment(Deployment deployment) {
@@ -434,11 +437,11 @@ public class DeploymentService extends GreengrassService {
             HashMap<String, String> statusDetails = new HashMap<>();
             statusDetails.put("error", e.getMessage());
             deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
-                    JobStatus.FAILED.toString(), statusDetails);
+                                                                     JobStatus.FAILED.toString(), statusDetails);
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
-                deploymentConfigMerger, logger.createChild(), deployment, config);
+                                         deploymentConfigMerger, logger.createChild(), deployment, config);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {
@@ -450,13 +453,13 @@ public class DeploymentService extends GreengrassService {
         try {
             switch (deployment.getDeploymentType()) {
                 case LOCAL:
-                    LocalOverrideRequest localOverrideRequest = SerializerFactory.getJsonObjectMapper().readValue(
-                            jobDocumentString, LocalOverrideRequest.class);
+                    LocalOverrideRequest localOverrideRequest = SerializerFactory.getJsonObjectMapper()
+                            .readValue(jobDocumentString, LocalOverrideRequest.class);
                     Map<String, String> rootComponents = new HashMap<>();
                     Set<String> rootComponentsInRequestedGroup = new HashSet<>();
                     config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
-                            localOverrideRequest.getGroupName() == null ? DEFAULT_GROUP_NAME
-                                    : localOverrideRequest.getGroupName())
+                                        localOverrideRequest.getGroupName() == null ? DEFAULT_GROUP_NAME
+                                                : localOverrideRequest.getGroupName())
                             .forEach(t -> rootComponentsInRequestedGroup.add(t.getName()));
                     if (!Utils.isEmpty(rootComponentsInRequestedGroup)) {
                         rootComponentsInRequestedGroup.forEach(c -> {
@@ -472,9 +475,25 @@ public class DeploymentService extends GreengrassService {
                     break;
                 case IOT_JOBS:
                 case SHADOW:
-                    FleetConfiguration config = SerializerFactory.getJsonObjectMapper()
-                            .readValue(jobDocumentString, FleetConfiguration.class);
-                    document = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
+                    JsonNode jsonNode =
+                            SerializerFactory.getJsonObjectMapper().readValue(jobDocumentString, JsonNode.class);
+
+                    if (jsonNode.has("packages")) {
+                        // If "packages" exists, the document is in the old format, which is
+                        // the result of Set/PublishConfiguration
+                        // TODO remove after migrating off Set/PublishConfiguration:
+                        // https://issues.amazon.com/issues/P41383716
+                        FleetConfiguration config = SerializerFactory.getJsonObjectMapper()
+                                .readValue(jobDocumentString, FleetConfiguration.class);
+                        document = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
+                    } else {
+                        // Note: This is the data contract that gets sending down from FCS::CreateDeployment
+                        // Configuration is really a bad name choice as it is too generic but we can change it later
+                        // since it is only a internal model
+                        Configuration configuration = SerializerFactory.getJsonObjectMapper()
+                                .readValue(jobDocumentString, Configuration.class);
+                        document = DeploymentDocumentConverter.convertFromDeploymentConfiguration(configuration);
+                    }
                     break;
                 default:
                     throw new IllegalArgumentException("Invalid deployment type: " + deployment.getDeploymentType());
@@ -537,8 +556,7 @@ public class DeploymentService extends GreengrassService {
                             (Map<String, Object>) componentsToGroupsMappingCache
                                     .getOrDefault(greengrassService1.getName(), new HashMap<>());
                     groupNamesForDependentComponent.putAll(groupNamesForComponent);
-                    componentsToGroupsMappingCache.put(greengrassService1.getName(),
-                            groupNamesForDependentComponent);
+                    componentsToGroupsMappingCache.put(greengrassService1.getName(), groupNamesForDependentComponent);
                 });
             } catch (ServiceLoadException ex) {
                 logger.atError().cause(ex).log("Unable to get status for {}.", componentName);
@@ -564,19 +582,19 @@ public class DeploymentService extends GreengrassService {
         Set<String> componentGroups = new HashSet<>();
         if (componentsToGroupsTopics != null) {
             Topics groupsTopics = componentsToGroupsTopics.lookupTopics(componentName);
-            groupsTopics.children.values().stream().map(n -> (Topic) n)
-                    .forEach(topic -> {
-                        String groupName = Coerce.toString(topic);
-                        if (!Utils.isEmpty(groupName)) {
-                            componentGroups.add(groupName);
-                        }
-                    });
+            groupsTopics.children.values().stream().map(n -> (Topic) n).forEach(topic -> {
+                String groupName = Coerce.toString(topic);
+                if (!Utils.isEmpty(groupName)) {
+                    componentGroups.add(groupName);
+                }
+            });
         }
         return componentGroups;
     }
 
     /**
      * Gets the list of all the groups that the thing is a part of.
+     *
      * @return All the group configs.
      */
     public Set<String> getAllGroupNames() {
@@ -586,13 +604,12 @@ public class DeploymentService extends GreengrassService {
         if (componentsToGroupsTopics != null) {
             componentsToGroupsTopics.iterator().forEachRemaining(node -> {
                 Topics groupsTopics = (Topics) node;
-                groupsTopics.children.values().stream().map(n -> (Topic) n)
-                        .forEach(topic -> {
-                            String groupName = Coerce.toString(topic);
-                            if (!Utils.isEmpty(groupName)) {
-                                allGroupNames.add(groupName);
-                            }
-                        });
+                groupsTopics.children.values().stream().map(n -> (Topic) n).forEach(topic -> {
+                    String groupName = Coerce.toString(topic);
+                    if (!Utils.isEmpty(groupName)) {
+                        allGroupNames.add(groupName);
+                    }
+                });
 
             });
         }

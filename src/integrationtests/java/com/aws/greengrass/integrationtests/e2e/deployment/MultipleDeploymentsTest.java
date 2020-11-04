@@ -5,9 +5,9 @@
 
 package com.aws.greengrass.integrationtests.e2e.deployment;
 
-import com.amazonaws.services.evergreen.model.PackageMetaData;
-import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
-import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
+import com.amazonaws.services.evergreen.model.ComponentInfo;
+import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
+import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
@@ -109,13 +109,11 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
 
         // Create multiple jobs
         for (DeploymentJobHelper helper : helpers) {
-            SetConfigurationRequest setRequest = new SetConfigurationRequest()
-                    .withTargetName(thingGroupName)
-                    .withTargetType(THING_GROUP_TARGET_TYPE)
-                    .addPackagesEntry(helper.targetPkgName, new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
+            CreateDeploymentRequest createDeploymentRequest = new CreateDeploymentRequest()
+                    .addComponentsEntry(helper.targetPkgName, new ComponentInfo().withVersion("1.0.0"));
 
-            PublishConfigurationResult publishResult = setAndPublishFleetConfiguration(setRequest);
-            helper.jobId = publishResult.getJobId();
+            CreateDeploymentResult createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest);
+            helper.jobId = createDeploymentResult.getJobId();
 
             IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
                     Duration.ofMinutes(1), s -> s.ordinal() >= JobExecutionStatus.QUEUED.ordinal());

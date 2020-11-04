@@ -1,13 +1,10 @@
 {
   "configurationArn": "Test",
-  "packages": {
+  "components": {
     "NonDisruptableService": {
-      "rootComponent": true,
-      "version": "1.0.0",
-      "configuration": {}
+      "version": "1.0.0"
     }
   },
-  "platforms": null,
   "creationTimestamp": 1601276785085,
   "failureHandlingPolicy": "ROLLBACK",
   "componentUpdatePolicy": {

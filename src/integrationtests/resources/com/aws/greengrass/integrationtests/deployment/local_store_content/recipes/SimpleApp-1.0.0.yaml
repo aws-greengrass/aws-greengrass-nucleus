@@ -4,15 +4,14 @@ ComponentName: SimpleApp
 ComponentDescription: A simple test app
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
+ComponentConfiguration:
+  DefaultConfiguration:
+    sampleText: This is a test
 Manifests:
   - Platform:
       os: all
-    Parameters:
-      - name: sampleText
-        value: This is a test
-        type: STRING
     Lifecycle:
       run:
-        echo "Hello From Simple App. {{params:sampleText.value}}"
+        echo "Hello From Simple App. {configuration:/sampleText}"
     Artifacts:
       - URI: greengrass:simpleApp.txt

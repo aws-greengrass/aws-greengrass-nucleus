@@ -15,11 +15,13 @@ import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
 
 import java.time.Clock;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -82,6 +84,10 @@ public class UpdateSystemSafelyService extends GreengrassService {
         synchronized (pendingActions) {
             pendingActions.notifyAll();
         }
+    }
+
+    public synchronized Set<String> getPendingActions() {
+        return new HashSet<>(pendingActions.keySet());
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")

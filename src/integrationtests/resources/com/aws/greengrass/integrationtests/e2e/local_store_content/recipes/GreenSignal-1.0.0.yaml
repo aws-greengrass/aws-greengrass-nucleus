@@ -4,21 +4,16 @@ ComponentName: {{GreenSignal}}
 ComponentDescription: A service indicating approval to proceed
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
+ComponentConfiguration:
+  DefaultConfiguration:
+    NumApprovals: 2
+
 Manifests:
   - Platform:
-      os: darwin
-    Parameters:
-      - name: NumApprovals
-        type: NUMBER
-        value: 2
+      os: windows
     Lifecycle:
-      run: "echo Go ahead with {{params:NumApprovals.value}} approvals"
-
+      run: powershell -command "& { echo \"Go ahead with {configuration:/NumApprovals} approvals\" }"
   - Platform:
-      os: linux
-    Parameters:
-      - name: NumApprovals
-        type: NUMBER
-        value: 2
+      os: all
     Lifecycle:
-      run: "echo Go ahead with {{params:NumApprovals.value}} approvals"
+      run: echo "Go ahead with {configuration:/NumApprovals} approvals"

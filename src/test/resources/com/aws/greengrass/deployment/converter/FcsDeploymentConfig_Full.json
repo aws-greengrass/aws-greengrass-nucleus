@@ -1,0 +1,27 @@
+{
+  "deploymentId": "3b86691d-4f81-408a-852e-edc14cd351a7",
+  "configurationValidationPolicy": {
+    "timeout": 120.0
+  },
+  "components": {
+    "CustomerApp": {
+      "version": "1.0.0",
+      "configurationUpdate": {
+        "merge": {
+          "key": "val"
+        },
+        "reset": [
+          "/sampleText",
+          "/path"
+        ]
+      }
+    }
+  },
+  "componentUpdatePolicy": {
+    "timeout": 120.0,
+    "action": "NOTIFY_COMPONENTS"
+  },
+  "creationTimestamp": 1.604067741583E12,
+  "failureHandlingPolicy": "DO_NOTHING",
+  "configurationArn": "arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"
+}

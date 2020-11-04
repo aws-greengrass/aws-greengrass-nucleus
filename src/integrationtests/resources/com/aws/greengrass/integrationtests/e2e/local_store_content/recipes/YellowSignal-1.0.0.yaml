@@ -4,23 +4,17 @@ ComponentName: {{YellowSignal}}
 ComponentDescription: A service signalling proceed with caution
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
+ComponentConfiguration:
+  DefaultConfiguration:
+    message: This is a test
 Manifests:
   - Platform:
-      os: darwin
-    Parameters:
-      - name: message
-        type: STRING
-        value: This is a test
-    Lifecycle:
-        run:
-          "echo proceed with caution {{params:message.value}}"
-
-  - Platform:
-      os: linux
-    Parameters:
-      - name: message
-        type: STRING
-        value: This is a test
+      os: windows
     Lifecycle:
       run:
-        "echo proceed with caution {{params:message.value}}"
+        powershell -command "& { echo \"echo proceed with caution {configuration:/message}\" }"
+  - Platform:
+      os: all
+    Lifecycle:
+        run:
+          echo "proceed with caution {configuration:/message}"

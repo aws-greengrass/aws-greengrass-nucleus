@@ -4,6 +4,10 @@ ComponentName: CustomerApp
 ComponentDescription: A customer app
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
+ComponentConfiguration:
+  DefaultConfiguration:
+    sampleText: This is a test
+
 Manifests:
   - Platform:
       os: windows
@@ -12,8 +16,8 @@ Manifests:
         value: This is a test
         type: STRING
     Lifecycle:
-      run:
-        powershell -command "& { echo \"Hello Greengrass. {{params:sampleText.value}}\" }"
+      run: |-
+        powershell -command "& { echo \"Hello Greengrass. {configuration:/sampleTest}\" }"
     Dependencies:
       Mosquitto:
         VersionRequirement: 1.0.0
@@ -27,7 +31,7 @@ Manifests:
         type: STRING
     Lifecycle:
       run:
-        echo "Hello Greengrass. {{params:sampleText.value}}"
+        echo "Hello Greengrass. {configuration:/sampleTest}"
     Dependencies:
       Mosquitto:
         VersionRequirement: 1.0.0

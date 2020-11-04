@@ -4,24 +4,29 @@ ComponentName: SubscribeAndPublish
 ComponentVersion: '1.0.0'
 ComponentDescription: SubscribeAndPublish
 ComponentPublisher: Amazon
-Manifests:
-  - Parameters:
-      - Name: accessControl
-        Value: >-
-          {"aws.greengrass.ipc.pubsub":
-            [
-              {
-                "policyId1": {
-                  "policyDescription":"access to pubsub topics",
-                  "operations":["*"],"resources":["*"]
-                }
-              }
-            ]
+ComponentConfiguration:
+  DefaultConfiguration:
+    accessControl: >-
+      {"aws.greengrass.ipc.pubsub":
+        [
+          {
+            "policyId1": {
+              "policyDescription": "access to pubsub topics",
+              "operations": ["*"],
+              "resources": ["*"]
+            }
           }
-        Type: STRING
+        ]
+      }
+
+Manifests:
+  - Platform:
+      os: windows
     Lifecycle:
-      Run:
-        windows:
-          powershell -command sleep 1
-        posix:
-          sleep 1
+      run:
+        powershell -command sleep 1
+  - Platform:
+      os: all
+    Lifecycle:
+      run:
+        sleep 1

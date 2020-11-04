@@ -9,26 +9,22 @@ ComponentDependencies:
     VersionRequirement: 1.0.0
   ClassService:
     VersionRequirement: 1.0.0
+ComponentConfiguration:
+  DefaultConfiguration:
+    sampleText: This is a test
+
 Manifests:
   - Platform:
       os: windows
-    Parameters:
-      - name: sampleText
-        value: This is a test
-        type: STRING
     Lifecycle:
-      run:
-        powershell -command "& { echo \"Hello Greengrass. {{params:sampleText.value}}\" }"
+      run: |-
+        powershell -command "& { echo \"Hello Greengrass. {configuration:/sampleText}\" }"
     Artifacts:
       - URI: greengrass:customerApp
   - Platform:
       os: all
-    Parameters:
-      - name: sampleText
-        value: This is a test
-        type: STRING
     Lifecycle:
-      run:
-        echo "Hello Greengrass. {{params:sampleText.value}}"
+      run: |-
+        echo "Hello Greengrass. {configuration:/sampleText}"
     Artifacts:
       - URI: greengrass:customerApp

@@ -7,8 +7,8 @@ package com.aws.greengrass.componentmanager.plugins;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.model.GetComponentArtifactRequest;
-import com.amazonaws.services.evergreen.model.GetComponentArtifactResult;
+import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactRequest;
+import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactResult;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
@@ -168,14 +168,14 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     String getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws PackageDownloadException {
-        GetComponentArtifactRequest getComponentArtifactRequest =
-                new GetComponentArtifactRequest().withArtifactName(artifactName)
+        GetComponentVersionArtifactRequest getComponentArtifactRequest =
+                new GetComponentVersionArtifactRequest().withArtifactName(artifactName)
                         .withComponentName(componentIdentifier.getName())
                         .withComponentVersion(componentIdentifier.getVersion().toString());
 
         try {
-            GetComponentArtifactResult getComponentArtifactResult =
-                    evgCmsClient.getComponentArtifact(getComponentArtifactRequest);
+            GetComponentVersionArtifactResult getComponentArtifactResult =
+                    evgCmsClient.getComponentVersionArtifact(getComponentArtifactRequest);
             return getComponentArtifactResult.getPreSignedUrl();
         } catch (AmazonClientException ace) {
             // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions
