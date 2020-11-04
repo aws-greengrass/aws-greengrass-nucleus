@@ -402,7 +402,7 @@ public class DeploymentService extends GreengrassService {
                                                                  JobStatus.IN_PROGRESS.toString(), new HashMap<>());
         try {
             deploymentDirectoryManager
-                    .createNewDeploymentDirectoryIfNotExists(deployment.getDeploymentDocumentObj().getDeploymentId());
+                    .createNewDeploymentDirectory(deployment.getDeploymentDocumentObj().getDeploymentId());
 
             deploymentDirectoryManager.writeDeploymentMetadata(deployment);
         } catch (IOException ioException) {
