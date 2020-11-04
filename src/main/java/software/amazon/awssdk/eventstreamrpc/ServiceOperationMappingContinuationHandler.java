@@ -11,12 +11,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import java.util.logging.Logger;
-
+import com.aws.greengrass.logging.impl.LogManager;
 import software.amazon.awssdk.crt.eventstream.*;
 
 public class ServiceOperationMappingContinuationHandler extends ServerConnectionHandler {
-    private static final Logger LOGGER = Logger.getLogger(ServiceOperationMappingContinuationHandler.class.getName());
+    private static final com.aws.greengrass.logging.api.Logger LOGGER =
+            LogManager.getLogger(ServiceOperationMappingContinuationHandler.class);
     private final EventStreamRPCServiceHandler serviceHandler;
     private AuthenticationData authenticationData;  //should only be set once after AuthN
 
@@ -79,47 +79,47 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                     throw new IllegalStateException(String.format("%s has null authorization handler!"));
                 }
 
-                LOGGER.finer(String.format("%s running authentication handler", serviceHandler.getServiceName()));
+                LOGGER.debug(String.format("%s running authentication handler", serviceHandler.getServiceName()));
                 authenticationData = authentication.apply(headers, payload);
                 if (authenticationData == null) {
                     throw new IllegalStateException(String.format("%s authentication handler returned null", serviceHandler.getServiceName()));
                 }
-                LOGGER.info(String.format("%s authenticated identity: %s", serviceHandler.getServiceName(), authenticationData.getIdentityLabel()));
+                LOGGER.debug(String.format("%s authenticated identity: %s", serviceHandler.getServiceName(), authenticationData.getIdentityLabel()));
 
                 final Authorization authorizationDecision = authorization.apply(authenticationData);
                 switch (authorizationDecision) {
                     case ACCEPT:
-                        LOGGER.info("Connection accepted for " + authenticationData.getIdentityLabel());
+                        LOGGER.debug("Connection accepted for " + authenticationData.getIdentityLabel());
                         responseMessageFlag[0] = MessageFlags.ConnectionAccepted.getByteValue();
                         break;
                     case REJECT:
-                        LOGGER.info("Connection rejected for: " + authenticationData.getIdentityLabel());
+                        LOGGER.debug("Connection rejected for: " + authenticationData.getIdentityLabel());
                         break;
                     default:
                         //got a big problem if this is the outcome. Someone forgot to update this switch-case
                         throw new RuntimeException("Unknown authorization decision for " + authenticationData.getIdentityLabel());
                 }
             } else { //version mismatch
-                LOGGER.warning(String.format("Client version {%s} mismatches server version {%s}",
+                LOGGER.debug(String.format("Client version {%s} mismatches server version {%s}",
                         versionHeader.isPresent() ? versionHeader.get() : "null",
                         Version.getInstance().getVersionString()));
             }
         } catch (Exception e) {
-            LOGGER.severe(String.format("%s occurred while attempting to authN/authZ connect: %s", e.getClass(), e.getMessage()));
+            LOGGER.debug(String.format("%s occurred while attempting to authN/authZ connect: %s", e.getClass(), e.getMessage()));
         } finally {
             final String authLabel =  authenticationData != null ? authenticationData.getIdentityLabel() : "null";
-            LOGGER.info("Sending connect response for " + authLabel);
+            LOGGER.debug("Sending connect response for " + authLabel);
             connection.sendProtocolMessage(null, null, acceptResponseType, responseMessageFlag[0])
                 .whenComplete((res, ex) -> {
                     if (ex != null) {
-                        LOGGER.severe(String.format("Sending connection response for %s threw exception (%s): %s",
+                        LOGGER.debug(String.format("Sending connection response for %s threw exception (%s): %s",
                            authLabel, ex.getClass().getCanonicalName(), ex.getMessage()));
                     }
                     else {
-                        LOGGER.info("Successfully sent connection response for: " + authLabel);
+                        LOGGER.debug("Successfully sent connection response for: " + authLabel);
                     }
                     if (responseMessageFlag[0] != MessageFlags.ConnectionAccepted.getByteValue()) {
-                        LOGGER.info("Closing connection due to connection not being accepted...");
+                        LOGGER.debug("Closing connection due to connection not being accepted...");
                         connection.closeConnection(0);
                     }
                 });
