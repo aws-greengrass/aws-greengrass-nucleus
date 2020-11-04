@@ -95,6 +95,8 @@ class DeploymentDocumentConverterTest {
         DeploymentDocument deploymentDocument = DeploymentDocumentConverter
                 .convertFromLocalOverrideRequestAndRoot(testRequest, CURRENT_ROOT_COMPONENTS);
 
+        assertThat(deploymentDocument.getFailureHandlingPolicy(), is(FailureHandlingPolicy.DO_NOTHING));
+
         assertThat(deploymentDocument.getDeploymentId(), is(REQUEST_ID));
         assertThat(deploymentDocument.getTimestamp(), is(REQUEST_TIMESTAMP));
         assertThat(deploymentDocument.getRootPackages(),
@@ -161,6 +163,8 @@ class DeploymentDocumentConverterTest {
 
         DeploymentDocument deploymentDocument = DeploymentDocumentConverter
                 .convertFromLocalOverrideRequestAndRoot(testRequest, CURRENT_ROOT_COMPONENTS);
+
+        assertThat(deploymentDocument.getFailureHandlingPolicy(), is(FailureHandlingPolicy.DO_NOTHING));
 
         assertThat(deploymentDocument.getDeploymentId(), is(REQUEST_ID));
         assertThat(deploymentDocument.getTimestamp(), is(REQUEST_TIMESTAMP));
