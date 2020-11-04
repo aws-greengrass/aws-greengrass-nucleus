@@ -177,10 +177,10 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
     }
 
     private void submitSampleJobDocument(URI uri, String arn, DeploymentType type) throws Exception {
-        Configuration DeploymentConfiguration = OBJECT_MAPPER.readValue(new File(uri), Configuration.class);
-        DeploymentConfiguration.setCreationTimestamp(System.currentTimeMillis());
-        DeploymentConfiguration.setConfigurationArn(arn);
-        Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(DeploymentConfiguration), type, DeploymentConfiguration.getConfigurationArn());
+        Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(uri), Configuration.class);
+        deploymentConfiguration.setCreationTimestamp(System.currentTimeMillis());
+        deploymentConfiguration.setConfigurationArn(arn);
+        Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(deploymentConfiguration), type, deploymentConfiguration.getConfigurationArn());
         deploymentQueue.offer(deployment);
     }
 }
