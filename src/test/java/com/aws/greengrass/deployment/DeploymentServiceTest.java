@@ -41,6 +41,7 @@ import org.mockito.verification.VerificationWithTimeout;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -59,6 +60,7 @@ import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROU
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
@@ -379,6 +381,25 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
 
+            deploymentService.shutdown();
+        }
+
+
+        @Test
+        void GIVEN_deployment_job_WHEN_deployment_metadata_setup_fails_THEN_report_failed_job_status(ExtensionContext context)
+                throws Exception {
+            ignoreExceptionUltimateCauseWithMessage(context,"mock error");
+
+            when(deploymentDirectoryManager.createNewDeploymentDirectory(any()))
+                    .thenThrow(new IOException("mock error"));
+            startDeploymentServiceInAnotherThread();
+            ArgumentCaptor<Map<String, String>> statusDetails = ArgumentCaptor.forClass(Map.class);
+
+            verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
+            verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), statusDetails.capture());
+            assertEquals("java.io.IOException: mock error", statusDetails.getValue().get("error"));
             deploymentService.shutdown();
         }
 

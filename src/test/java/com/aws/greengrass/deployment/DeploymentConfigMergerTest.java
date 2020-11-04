@@ -8,11 +8,11 @@ package com.aws.greengrass.deployment;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
-import com.aws.greengrass.dependency.Crashable;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.activator.DefaultActivator;
 import com.aws.greengrass.deployment.activator.DeploymentActivator;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
+import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
@@ -21,17 +21,18 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.UpdateAction;
 import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Pair;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.exceptions.misusing.InvalidUseOfMatchersException;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Arrays;
@@ -55,6 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
@@ -306,9 +308,20 @@ class DeploymentConfigMergerTest {
 
     @Test
     void GIVEN_deployment_WHEN_task_cancelled_THEN_update_is_cancelled() throws Throwable {
-        ArgumentCaptor<Pair<Integer,Crashable>> cancelledTaskCaptor = ArgumentCaptor.forClass(Pair.class);
+        ArgumentCaptor<UpdateAction> cancelledTaskCaptor = ArgumentCaptor.forClass(UpdateAction.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
-        when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
+        DeploymentActivatorFactory factory = mock(DeploymentActivatorFactory.class);
+        when(factory.getDeploymentActivator(anyMap())).thenReturn(mock(KernelUpdateActivator.class));
+
+        when(context.get(any())).thenAnswer(invocationOnMock -> {
+            Object argument = invocationOnMock.getArgument(0);
+            if (UpdateSystemSafelyService.class.equals(argument)) {
+                return updateSystemSafelyService;
+            } else if (DeploymentActivatorFactory.class.equals(argument)) {
+                return factory;
+            }
+            throw new InvalidUseOfMatchersException(String.format("Argument %s does not match", argument));
+        });
 
         // GIVEN
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
@@ -322,9 +335,12 @@ class DeploymentConfigMergerTest {
         verify(updateSystemSafelyService)
                 .addUpdateAction(any(), cancelledTaskCaptor.capture());
 
+        assertEquals(0, cancelledTaskCaptor.getValue().getTimeout());
+        assertEquals("DeploymentId", cancelledTaskCaptor.getValue().getDeploymentId());
+        assertTrue(cancelledTaskCaptor.getValue().isGgcRestart());
         // WHEN
         fut.cancel(true);
-        cancelledTaskCaptor.getValue().getRight().run();
+        cancelledTaskCaptor.getValue().getAction().run();
 
         // THEN
         verify(doc, times(0)).getFailureHandlingPolicy();
@@ -332,7 +348,7 @@ class DeploymentConfigMergerTest {
 
     @Test
     void GIVEN_deployment_WHEN_task_not_cancelled_THEN_update_is_continued() throws Throwable {
-        ArgumentCaptor<Pair<Integer,Crashable>> taskCaptor = ArgumentCaptor.forClass(Pair.class);
+        ArgumentCaptor<UpdateAction> taskCaptor = ArgumentCaptor.forClass(UpdateAction.class);
         UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
         when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
         DeploymentActivatorFactory deploymentActivatorFactory = new DeploymentActivatorFactory(kernel);
@@ -346,6 +362,7 @@ class DeploymentConfigMergerTest {
         // GIVEN
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
         DeploymentDocument doc = mock(DeploymentDocument.class);
+        when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
                 new ComponentUpdatePolicy(0, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
 
@@ -353,8 +370,11 @@ class DeploymentConfigMergerTest {
 
         verify(updateSystemSafelyService).addUpdateAction(any(), taskCaptor.capture());
 
+        assertEquals(0, taskCaptor.getValue().getTimeout());
+        assertEquals("DeploymentId", taskCaptor.getValue().getDeploymentId());
+        assertFalse(taskCaptor.getValue().isGgcRestart());
         // WHEN
-        taskCaptor.getValue().getRight().run();
+        taskCaptor.getValue().getAction().run();
 
         // THEN
         verify(defaultActivator, times(1)).activate(any(), any(), any());

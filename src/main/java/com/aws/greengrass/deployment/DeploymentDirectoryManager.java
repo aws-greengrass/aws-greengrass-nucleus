@@ -94,8 +94,24 @@ public class DeploymentDirectoryManager {
         }
     }
 
+    private void cleanupPointersIfExist(Path target) {
+        try {
+            if (Files.isSymbolicLink(previousFailureDir) && Files.readSymbolicLink(previousFailureDir).equals(target)) {
+                Files.delete(previousFailureDir);
+            }
+        } catch (IOException ignore) {
+        }
+
+        try {
+            if (Files.isSymbolicLink(previousSuccessDir) && Files.readSymbolicLink(previousSuccessDir).equals(target)) {
+                Files.delete(previousSuccessDir);
+            }
+        } catch (IOException ignore) {
+        }
+    }
+
     private void cleanupPreviousDeployments(Path symlink) {
-        if (!Files.exists(symlink)) {
+        if (!Files.isSymbolicLink(symlink)) {
             return;
         }
         logger.atInfo().kv(LINK_LOG_KEY, symlink).log("Clean up link to earlier deployment");
@@ -210,18 +226,24 @@ public class DeploymentDirectoryManager {
      * @return Path to the deployment directory
      * @throws IOException on I/O errors
      */
-    public Path createNewDeploymentDirectoryIfNotExists(String fleetConfigArn) throws IOException {
+    public Path createNewDeploymentDirectory(String fleetConfigArn) throws IOException {
+        cleanupPreviousDeployments(ongoingDir);
         Path path = deploymentsDir.resolve(getSafeFileName(fleetConfigArn));
-        if (Files.exists(path) && Files.isDirectory(path)) {
-            return path;
+
+        if (Files.exists(path)) {
+            logger.atWarn().kv("directory", path)
+                    .log("Deployment directory already exists. Clean up outdated artifacts and create new");
+            try {
+                Utils.deleteFileRecursively(path.toFile());
+                cleanupPointersIfExist(path);
+            } catch (IOException e) {
+                logger.atError().log("Failed to clean up outdated deployment artifacts. Ignoring", e);
+            }
         }
-        if (Files.isRegularFile(path)) {
-            Files.delete(path);
-        }
+
         logger.atInfo().kv("directory", path).kv(DEPLOYMENT_ID_LOG_KEY, fleetConfigArn).kv(LINK_LOG_KEY, ongoingDir)
                 .log("Create work directory for new deployment");
         Utils.createPaths(path);
-        cleanupPreviousDeployments(ongoingDir);
         Files.createSymbolicLink(ongoingDir, path);
 
         return path;
