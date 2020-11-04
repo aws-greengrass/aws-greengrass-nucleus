@@ -9,7 +9,7 @@ public enum FailureHandlingPolicy {
     ROLLBACK("ROLLBACK"),
     DO_NOTHING("DO_NOTHING");
 
-    private String failureHandlingPolicy;
+    private final String failureHandlingPolicy;
 
     FailureHandlingPolicy(final String val) {
         this.failureHandlingPolicy = val;

@@ -12,10 +12,10 @@ import com.amazonaws.services.evergreen.model.ComponentContent;
 import com.amazonaws.services.evergreen.model.ComponentPlatform;
 import com.amazonaws.services.evergreen.model.CreateComponentRequest;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
-import com.amazonaws.services.evergreen.model.DeleteComponentRequest;
-import com.amazonaws.services.evergreen.model.DeleteComponentResult;
-import com.amazonaws.services.evergreen.model.GetComponentRequest;
-import com.amazonaws.services.evergreen.model.GetComponentResult;
+import com.amazonaws.services.evergreen.model.DeleteComponentVersionRequest;
+import com.amazonaws.services.evergreen.model.DeleteComponentVersionResult;
+import com.amazonaws.services.evergreen.model.GetComponentVersionRequest;
+import com.amazonaws.services.evergreen.model.GetComponentVersionResult;
 import com.amazonaws.services.evergreen.model.RecipeFormatType;
 import com.amazonaws.services.evergreen.model.ResolveComponentVersionsRequest;
 import com.amazonaws.services.evergreen.model.ResolveComponentVersionsResult;
@@ -56,20 +56,19 @@ public class ComponentServiceHelper {
     }
 
     /**
-     * Resolve a component version with greengrass cloud service.
-     * The dependency resolution algorithm goes through the dependencies node by node,
-     * so one component got resolve a time.
-     * @param componentName component name to be resolve
-     * @param localCandidateVersion component local candidate version if available
-     * @param versionRequirements component dependents version requirement map
+     * Resolve a component version with greengrass cloud service. The dependency resolution algorithm goes through the
+     * dependencies node by node, so one component got resolve a time.
+     *
+     * @param componentName             component name to be resolve
+     * @param localCandidateVersion     component local candidate version if available
+     * @param versionRequirements       component dependents version requirement map
      * @param deploymentConfigurationId deployment configuration id
      * @return resolved component version and recipe
      * @throws NoAvailableComponentVersionException if no applicable version available in cloud service
      * @throws ComponentVersionNegotiationException if service exception happens
      */
     ComponentContent resolveComponentVersion(String componentName, Semver localCandidateVersion,
-                                             Map<String, Requirement> versionRequirements,
-                                             String deploymentConfigurationId)
+            Map<String, Requirement> versionRequirements, String deploymentConfigurationId)
             throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
 
         // TODO: [P41215526]: Use osVersion and osFlavor for resolving component version once they are supported
@@ -95,7 +94,7 @@ public class ComponentServiceHelper {
                     .log("No available version when resolving component");
             throw new NoAvailableComponentVersionException(
                     String.format("No applicable version of component %s " + "found in cloud registry satisfying %s",
-                            componentName, versionRequirements), e);
+                                  componentName, versionRequirements), e);
         } catch (AmazonClientException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
                     .log("Server error when resolving component");
@@ -104,7 +103,7 @@ public class ComponentServiceHelper {
         }
 
         Validate.isTrue(result.getComponents() != null && result.getComponents().size() == 1,
-                "Component service " + "invalid response, it should contain resolved component version");
+                        "Component service " + "invalid response, it should contain resolved component version");
         return result.getComponents().get(0);
     }
 
@@ -117,18 +116,19 @@ public class ComponentServiceHelper {
      */
     public String downloadPackageRecipeAsString(ComponentIdentifier componentIdentifier)
             throws PackageDownloadException {
-        GetComponentRequest getComponentRequest =
-                new GetComponentRequest().withComponentName(componentIdentifier.getName())
+        GetComponentVersionRequest getComponentVersionRequest =
+                new GetComponentVersionRequest().withComponentName(componentIdentifier.getName())
                         .withComponentVersion(componentIdentifier.getVersion().toString())
                         .withType(RecipeFormatType.YAML);
 
-        GetComponentResult getPackageResult = download(getComponentRequest, componentIdentifier);
+        GetComponentVersionResult getPackageResult = download(getComponentVersionRequest, componentIdentifier);
         return StandardCharsets.UTF_8.decode(getPackageResult.getRecipe()).toString();
     }
 
-    private GetComponentResult download(GetComponentRequest r, ComponentIdentifier id) throws PackageDownloadException {
+    private GetComponentVersionResult download(GetComponentVersionRequest r, ComponentIdentifier id)
+            throws PackageDownloadException {
         try {
-            return evgCmsClient.getComponent(r);
+            return evgCmsClient.getComponentVersion(r);
         } catch (AmazonClientException e) {
             // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions
             String errorMsg = String.format(PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT, id);
@@ -162,15 +162,17 @@ public class ComponentServiceHelper {
      * @param cmsClient        client of Component Management Service
      * @param componentName    name of the component to delete
      * @param componentVersion version of the component to delete
-     * @return {@link DeleteComponentResult}
+     * @return {@link DeleteComponentVersionResult}
      */
-    public static DeleteComponentResult deleteComponent(AWSEvergreen cmsClient, String componentName,
-                                                        String componentVersion) {
-        DeleteComponentRequest deleteComponentRequest =
-                new DeleteComponentRequest().withComponentName(componentName).withComponentVersion(componentVersion);
-        logger.atDebug("delete-component").kv("request", deleteComponentRequest).log();
-        DeleteComponentResult deleteComponentResult = cmsClient.deleteComponent(deleteComponentRequest);
-        logger.atDebug("delete-component").kv("result", deleteComponentResult).log();
-        return deleteComponentResult;
+    public static DeleteComponentVersionResult deleteComponent(AWSEvergreen cmsClient, String componentName,
+            String componentVersion) {
+        DeleteComponentVersionRequest deleteComponentVersionRequest =
+                new DeleteComponentVersionRequest().withComponentName(componentName)
+                        .withComponentVersion(componentVersion);
+        logger.atDebug("delete-component").kv("request", deleteComponentVersionRequest).log();
+        DeleteComponentVersionResult deleteComponentVersionResult =
+                cmsClient.deleteComponentVersion(deleteComponentVersionRequest);
+        logger.atDebug("delete-component").kv("result", deleteComponentVersionResult).log();
+        return deleteComponentVersionResult;
     }
 }

@@ -23,12 +23,12 @@ import software.amazon.awssdk.aws.greengrass.model.CreateLocalDeploymentRequest;
 import software.amazon.awssdk.aws.greengrass.model.CreateLocalDeploymentResponse;
 import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
+import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -142,10 +142,10 @@ class IPCPubSubRemovalTest extends BaseITCase {
             updateRecipesAndArtifactsRequest.setRecipeDirectoryPath(recipesPath.toString());
             ipcClient.updateRecipesAndArtifacts(updateRecipesAndArtifactsRequest, Optional.empty());
 
-            Map<String, Object> resetMap = new HashMap<>();
-            resetMap.put("RESET", Arrays.asList("/accessControl"));
-            Map<String, Map<String, Object>> componentToConfiguration = new HashMap<>();
-            componentToConfiguration.put("SubscribeAndPublish", resetMap);
+            Map<String, Object> configUpdate = new HashMap<>();
+            configUpdate.put("MERGE", ImmutableMap.of("accessControl", ""));
+                             Map<String, Map<String, Object>> componentToConfiguration = new HashMap<>();
+            componentToConfiguration.put("SubscribeAndPublish", configUpdate);
             CreateLocalDeploymentRequest createLocalDeploymentRequest =
                     new CreateLocalDeploymentRequest();
             createLocalDeploymentRequest.setRootComponentVersionsToAdd(Collections.singletonMap("SubscribeAndPublish", "1.0.0"));
