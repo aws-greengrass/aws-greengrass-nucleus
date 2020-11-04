@@ -481,7 +481,8 @@ public class DeploymentService extends GreengrassService {
                     if (jsonNode.has("packages")) {
                         // If "packages" exists, the document is in the old format, which is
                         // the result of Set/PublishConfiguration
-                        // TODO remove after migrating off Set/PublishConfiguration
+                        // TODO remove after migrating off Set/PublishConfiguration:
+                        // https://issues.amazon.com/issues/P41383716
                         FleetConfiguration config = SerializerFactory.getJsonObjectMapper()
                                 .readValue(jobDocumentString, FleetConfiguration.class);
                         document = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
