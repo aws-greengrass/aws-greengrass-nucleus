@@ -5,6 +5,8 @@
 
 package software.amazon.awssdk.eventstreamrpc;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.crt.eventstream.*;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamOperationError;
@@ -14,13 +16,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.logging.Logger;
 
 /**
  * Not sure how public we need to make this class
  */
 public class EventStreamRPCClient {
-    private static final Logger LOGGER = Logger.getLogger(EventStreamRPCClient.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(EventStreamRPCClient.class);
     private final EventStreamRPCConnection connection;
 
     public EventStreamRPCClient(EventStreamRPCConnection connection) {
@@ -83,7 +84,7 @@ public class EventStreamRPCClient {
                     final Optional<Class<? extends EventStreamJsonMessage>> errorClass =
                             operationModelContext.getServiceModel().getApplicationModelClass(applicationModelType.orElse(""));
                     if (!errorClass.isPresent()) {
-                        LOGGER.severe(String.format("Could not map error from service. Incoming error type: "
+                        LOGGER.error(String.format("Could not map error from service. Incoming error type: "
                                 + applicationModelType.orElse("null")));
                         handleError(new UnmappedDataException(applicationModelType.orElse("null")),
                                 !initialResponseReceived, responseFuture, streamResponseHandler, continuation, isContinuationClosed);
@@ -102,7 +103,7 @@ public class EventStreamRPCClient {
                             this.close();
                             handleClose(initialResponseReceived, responseFuture, streamResponseHandler);
                         } catch (Exception e) {
-                            LOGGER.warning(String.format("Exception thrown closing stream on application error received %s: %s",
+                            LOGGER.warn(String.format("Exception thrown closing stream on application error received %s: %s",
                                     e.getClass().getName(), e.getMessage()));
                         }
                     }
@@ -112,10 +113,10 @@ public class EventStreamRPCClient {
                 } else if (messageType == MessageType.PingResponse) {    //do nothing on ping response
                 } else if (messageType == MessageType.ServerError) {
                     //TODO: exception should route to response handler here, also is or will be "InternalError" soon
-                    LOGGER.severe(operationModelContext.getOperationName() + " server error received");
+                    LOGGER.error(operationModelContext.getOperationName() + " server error received");
                     this.close();   //underlying connection callbacks should handle things appropriately
                 } else if (messageType == MessageType.ProtocolError) {    //do nothing on ping response
-                    LOGGER.severe(operationModelContext.getOperationName() + " protocol error received");
+                    LOGGER.error(operationModelContext.getOperationName() + " protocol error received");
                     this.close();   //underlying connection callbacks should handle things appropriately but close continuation either way
                 } else {
                     //unexpected message type received on stream
@@ -124,12 +125,12 @@ public class EventStreamRPCClient {
                     try {
                         sendClose(continuation, isContinuationClosed).whenComplete((res, ex) -> {
                             if (ex != null) {
-                                LOGGER.warning(String.format("Sending close on invalid message threw %s: %s",
+                                LOGGER.warn(String.format("Sending close on invalid message threw %s: %s",
                                         ex.getClass().getCanonicalName(), ex.getMessage()));
                             }
                         });
                     } catch (Exception e) {
-                        LOGGER.warning(String.format("Sending close on invalid message threw %s: %s",
+                        LOGGER.warn(String.format("Sending close on invalid message threw %s: %s",
                                 e.getClass().getCanonicalName(), e.getMessage()));
                     }
                 }
@@ -161,7 +162,7 @@ public class EventStreamRPCClient {
             return continuation.sendMessage(null, null,
                     MessageType.ApplicationMessage, MessageFlags.TerminateStream.getByteValue());
         } else {
-            LOGGER.warning("Stream already closed");    //May help debug extra closes? May remove to avoid noise
+            LOGGER.warn("Stream already closed");    //May help debug extra closes? May remove to avoid noise
             return CompletableFuture.completedFuture(null);
         }
     }
@@ -183,7 +184,7 @@ public class EventStreamRPCClient {
             try {
                 streamResponseHandler.get().onStreamClosed();
             } catch (Exception e) {
-                LOGGER.warning(String.format("Client handler onStreamClosed() threw %s: %s",
+                LOGGER.warn(String.format("Client handler onStreamClosed() threw %s: %s",
                         e.getClass().getCanonicalName(), e.getMessage()));
             }
         }
@@ -258,7 +259,7 @@ public class EventStreamRPCClient {
                     });
                 }
             } catch (Exception e) {
-                LOGGER.warning(String.format("Stream response handler threw exception %s: %s",
+                LOGGER.warn(String.format("Stream response handler threw exception %s: %s",
                         e.getClass().getCanonicalName(), e.getMessage()));
                 sendClose(continuation, isClosed).whenComplete((res, ex) -> {
                     handleClose(isInitial, responseFuture, streamResponseHandler);
