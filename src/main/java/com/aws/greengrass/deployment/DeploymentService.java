@@ -431,7 +431,7 @@ public class DeploymentService extends GreengrassService {
                     .log("Received deployment document in queue");
             parseAndValidateJobDocument(deployment);
         } catch (InvalidRequestException e) {
-            logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
+            logger.atError().cause(e).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
                     .kv("DeploymentType", deployment.getDeploymentType().toString())
                     .log("Invalid document for deployment");
             HashMap<String, String> statusDetails = new HashMap<>();
