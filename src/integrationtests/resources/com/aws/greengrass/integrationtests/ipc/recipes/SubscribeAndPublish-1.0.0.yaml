@@ -11,8 +11,9 @@ ComponentConfiguration:
         [
           {
             "policyId1": {
-              "policyDescription":"access to pubsub topics",
-              "operations":["*"],"resources":["*"]
+              "policyDescription": "access to pubsub topics",
+              "operations": ["*"],
+              "resources": ["*"]
             }
           }
         ]
