@@ -34,8 +34,15 @@ public class ValidateConfigurationUpdateEvent implements EventStreamJsonMessage 
   )
   private Optional<Map<String, Object>> configuration;
 
+  @Expose(
+      serialize = true,
+      deserialize = true
+  )
+  private Optional<String> deploymentId;
+
   public ValidateConfigurationUpdateEvent() {
     this.configuration = Optional.empty();
+    this.deploymentId = Optional.empty();
   }
 
   public Map<String, Object> getConfiguration() {
@@ -47,6 +54,17 @@ public class ValidateConfigurationUpdateEvent implements EventStreamJsonMessage 
 
   public void setConfiguration(final Map<String, Object> configuration) {
     this.configuration = Optional.ofNullable(configuration);
+  }
+
+  public String getDeploymentId() {
+    if (deploymentId.isPresent()) {
+      return deploymentId.get();
+    }
+    return null;
+  }
+
+  public void setDeploymentId(final String deploymentId) {
+    this.deploymentId = Optional.of(deploymentId);
   }
 
   @Override
@@ -62,11 +80,12 @@ public class ValidateConfigurationUpdateEvent implements EventStreamJsonMessage 
     final ValidateConfigurationUpdateEvent other = (ValidateConfigurationUpdateEvent)rhs;
     boolean isEquals = true;
     isEquals = isEquals && this.configuration.equals(other.configuration);
+    isEquals = isEquals && this.deploymentId.equals(other.deploymentId);
     return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(configuration);
+    return Objects.hash(configuration, deploymentId);
   }
 }

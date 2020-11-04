@@ -92,8 +92,8 @@ public class MqttProxyIPCAgent {
                 throw new UnauthorizedError(String.format("Authorization failed with error %s", e));
             }
 
-            PublishRequest publishRequest = PublishRequest.builder().payload(request.getPayload()).topic(topic)
-                    .retain(request.isRetain()).qos(getQualityOfServiceFromQOS(request.getQos())).build();
+            PublishRequest publishRequest = PublishRequest.builder().payload(request.getPayload())
+                    .topic(topic).qos(getQualityOfServiceFromQOS(request.getQos())).build();
             CompletableFuture<Integer> future = mqttClient.publish(publishRequest);
 
             if (future.isCompletedExceptionally()) {
