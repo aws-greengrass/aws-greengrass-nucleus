@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.util;
 
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
@@ -18,8 +19,11 @@ import software.amazon.awssdk.services.iam.model.LimitExceededException;
 import software.amazon.awssdk.services.iam.model.ServiceFailureException;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import javax.inject.Inject;
 
 /**
  * Accessor for AWS IAM SDK.
@@ -35,6 +39,20 @@ public final class IamSdkClientFactory {
             RetryPolicy.builder().numRetries(5).backoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
                     .retryCondition(retryCondition).build();
 
+    private static Map<String, Region> regionConverter = new HashMap<>();
+
+    @Inject
+    private static DeviceConfiguration deviceConfiguration;
+
+    static {
+        regionConverter.put("cn-northwest-1", Region.AWS_CN_GLOBAL);
+        regionConverter.put("cn-north-1", Region.AWS_CN_GLOBAL);
+        regionConverter.put("us-gov-east-1", Region.AWS_US_GOV_GLOBAL);
+        regionConverter.put("us-gov-west-1", Region.AWS_US_GOV_GLOBAL);
+        regionConverter.put("us-iso-east-1", Region.AWS_ISO_GLOBAL);
+        regionConverter.put("us-isob-east-1", Region.AWS_ISO_B_GLOBAL);
+    }
+
     private IamSdkClientFactory() {
     }
 
@@ -44,8 +62,10 @@ public final class IamSdkClientFactory {
      * @return IamClient instance
      */
     public static IamClient getIamClient() {
-        // TODO: [P41214188] Add partition support
-        return IamClient.builder().region(Region.AWS_GLOBAL).httpClient(ProxyUtils.getSdkHttpClient())
+        String awsRegion = Coerce.toString(deviceConfiguration.getAWSRegion());
+        Region region = regionConverter.getOrDefault(awsRegion, Region.AWS_GLOBAL);
+
+        return IamClient.builder().region(region).httpClient(ProxyUtils.getSdkHttpClient())
                 .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build()).build();
     }
 }

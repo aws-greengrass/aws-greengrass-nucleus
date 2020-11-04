@@ -26,7 +26,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -37,7 +39,15 @@ public final class IotSdkClientFactory {
             Arrays.asList(ThrottlingException.class, InternalException.class, InternalFailureException.class,
                     LimitExceededException.class));
 
+    // IotEndpoint reference: https://docs.aws.amazon.com/general/latest/gr/iot-core.html
     private static final String IOT_CONTROL_PLANE_ENDPOINT_FORMAT = "https://%s.%s.iot.amazonaws.com";
+    private static final String IOT_CONTROL_PLANE_ENDPOINT_FORMAT_CHINA = "https://%s.%s.iot.amazonaws.com.cn";
+    private static Map<String, String> regionToEndpoint = new HashMap<>();
+
+    static {
+        regionToEndpoint.put("cn-north-1", IOT_CONTROL_PLANE_ENDPOINT_FORMAT_CHINA);
+        regionToEndpoint.put("cn-northwest-1", IOT_CONTROL_PLANE_ENDPOINT_FORMAT_CHINA);
+    }
 
     private IotSdkClientFactory() {
     }
@@ -131,7 +141,10 @@ public final class IotSdkClientFactory {
         }
 
         if (stage != EnvironmentStage.PROD) {
-            String endpoint = String.format(IOT_CONTROL_PLANE_ENDPOINT_FORMAT, stage.value, awsRegion);
+            // TODO: [P41214188] Add partition support
+            String iotControlPlaneEndpointTemplate = regionToEndpoint
+                    .getOrDefault(awsRegion, IOT_CONTROL_PLANE_ENDPOINT_FORMAT);
+            String endpoint = String.format(iotControlPlaneEndpointTemplate, stage.value, awsRegion);
             iotClientBuilder.endpointOverride(new URI(endpoint));
         }
 
