@@ -46,6 +46,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -398,11 +399,16 @@ public class DeploymentService extends GreengrassService {
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                 JobStatus.IN_PROGRESS.toString(), new HashMap<>());
         try {
-            deploymentDirectoryManager.createNewDeploymentDirectoryIfNotExists(
+            deploymentDirectoryManager.createNewDeploymentDirectory(
                     deployment.getDeploymentDocumentObj().getDeploymentId());
             deploymentDirectoryManager.writeDeploymentMetadata(deployment);
         } catch (IOException ioException) {
             logger.atError().log("Unable to create deployment directory", ioException);
+            CompletableFuture<DeploymentResult> process = new CompletableFuture<>();
+            process.completeExceptionally(new NonRetryableDeploymentTaskFailureException(ioException));
+            currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(),
+                    deployment.getDeploymentType(), new AtomicInteger(1), deployment.getDeploymentDocumentObj(), false);
+            return;
         }
         Future<DeploymentResult> process = executorService.submit(deploymentTask);
         logger.atInfo().kv("deployment", deployment.getId()).log("Started deployment execution");

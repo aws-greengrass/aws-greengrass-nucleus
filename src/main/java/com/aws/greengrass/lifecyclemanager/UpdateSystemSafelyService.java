@@ -9,10 +9,8 @@ import com.aws.greengrass.builtin.services.lifecycle.DeferUpdateRequest;
 import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCAgent;
 import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.dependency.Crashable;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
-import com.aws.greengrass.util.Pair;
 import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
 
@@ -48,7 +46,7 @@ public class UpdateSystemSafelyService extends GreengrassService {
     // String identifies the action, the pair consist of timeout and an action. The timeout
     // represents the value in seconds the kernel will wait for components to respond to
     // an precomponent update event
-    private final Map<String, Pair<Integer, Crashable>> pendingActions = new LinkedHashMap<>();
+    private final Map<String, UpdateAction> pendingActions = new LinkedHashMap<>();
     private final AtomicBoolean runningUpdateActions = new AtomicBoolean(false);
 
     @Inject
@@ -73,16 +71,14 @@ public class UpdateSystemSafelyService extends GreengrassService {
     /**
      * Add an update action to be performed when the system is in a "safe" state.
      *
-     * @param tag    used both as a printable description and a de-duplication key.  eg. If
-     *               the action is installing a new config file, the tag should probably be the
-     *               URL of the config.  If a key is duplicated by subsequent actions, they
-     *               are suppressed.
-     * @param pair   Pair of timeout and the action to be performed after the timeout.
+     * @param tag          used both as a printable description and a de-duplication key.  eg. If the action is
+     *                     installing a new config file, the tag should probably be the URL of the config.  If a key is
+     *                     duplicated by subsequent actions, they are suppressed.
+     * @param updateAction Update action to be performed.
      */
-    public synchronized void addUpdateAction(String tag, Pair<Integer, Crashable> pair) {
-        pendingActions.put(tag, pair);
-        logger.atInfo().setEventType("register-service-update-action")
-                .addKeyValue("action", tag).log();
+    public synchronized void addUpdateAction(String tag, UpdateAction updateAction) {
+        pendingActions.put(tag, updateAction);
+        logger.atInfo().setEventType("register-service-update-action").addKeyValue("action", tag).log();
         synchronized (pendingActions) {
             pendingActions.notifyAll();
         }
@@ -91,9 +87,9 @@ public class UpdateSystemSafelyService extends GreengrassService {
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     protected synchronized void runUpdateActions() {
         runningUpdateActions.set(true);
-        for (Map.Entry<String, Pair<Integer, Crashable>> todo : pendingActions.entrySet()) {
+        for (Map.Entry<String, UpdateAction> todo : pendingActions.entrySet()) {
             try {
-                todo.getValue().getRight().run();
+                todo.getValue().getAction().run();
                 logger.atDebug().setEventType("service-update-action").addKeyValue("action", todo.getKey()).log();
             } catch (Throwable t) {
                 logger.atError().setEventType("service-update-action-error").addKeyValue("action", todo.getKey())
@@ -148,16 +144,23 @@ public class UpdateSystemSafelyService extends GreengrassService {
             logger.atDebug().setEventType("service-update-pending").addKeyValue("numOfUpdates", pendingActions.size())
                     .log();
 
-            // TODO: [P41214442]: set isGgcRestarting to true if the updates involves kernel restart
+            boolean ggcRestarting = false;
+            for (UpdateAction action : pendingActions.values()) {
+                if (action.isGgcRestart()) {
+                    ggcRestarting = true;
+                    break;
+                }
+            }
+
             PreComponentUpdateEvent preComponentUpdateEvent = new PreComponentUpdateEvent();
-            preComponentUpdateEvent.setIsGgcRestarting(false);
+            preComponentUpdateEvent.setIsGgcRestarting(ggcRestarting);
             List<Future<DeferUpdateRequest>> deferRequestFutures =
                     lifecycleIPCAgent.sendPreComponentUpdateEvent(preComponentUpdateEvent);
 
             // GG_NEEDS_REVIEW (Amit): TODO: Remove when move all UATs and integ tests to lifecycle APIs on new IPC
             com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent preComponentUpdateEventOld =
                     new com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent();
-            preComponentUpdateEventOld.setGgcRestarting(false);
+            preComponentUpdateEventOld.setGgcRestarting(ggcRestarting);
             lifecycleAgent.sendPreComponentUpdateEvent(preComponentUpdateEventOld, deferRequestFutures);
 
             long timeToReCheck = getTimeToReCheck(getMaxTimeoutInMillis(), deferRequestFutures);
@@ -186,9 +189,8 @@ public class UpdateSystemSafelyService extends GreengrassService {
      deployments at the same time and pendingActions will have only one action to run at a time.
      */
     private long getMaxTimeoutInMillis() {
-        Optional<Integer> maxTimeoutInSec = pendingActions.values().stream()
-                .map(Pair::getLeft)
-                .max(Integer::compareTo);
+        Optional<Integer> maxTimeoutInSec =
+                pendingActions.values().stream().map(UpdateAction::getTimeout).max(Integer::compareTo);
         return TimeUnit.SECONDS.toMillis(maxTimeoutInSec.get());
     }
 
