@@ -6,7 +6,6 @@
 package software.amazon.awssdk.aws.greengrass.model;
 
 import com.google.gson.annotations.Expose;
-import java.lang.Boolean;
 import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
@@ -45,18 +44,11 @@ public class PublishToIoTCoreRequest implements EventStreamJsonMessage {
       serialize = true,
       deserialize = true
   )
-  private Optional<Boolean> retain;
-
-  @Expose(
-      serialize = true,
-      deserialize = true
-  )
   private Optional<byte[]> payload;
 
   public PublishToIoTCoreRequest() {
     this.topicName = Optional.empty();
     this.qos = Optional.empty();
-    this.retain = Optional.empty();
     this.payload = Optional.empty();
   }
 
@@ -80,17 +72,6 @@ public class PublishToIoTCoreRequest implements EventStreamJsonMessage {
 
   public void setQos(final QOS qos) {
     this.qos = Optional.of(qos);
-  }
-
-  public Boolean isRetain() {
-    if (retain.isPresent()) {
-      return retain.get();
-    }
-    return null;
-  }
-
-  public void setRetain(final Boolean retain) {
-    this.retain = Optional.ofNullable(retain);
   }
 
   public byte[] getPayload() {
@@ -118,13 +99,12 @@ public class PublishToIoTCoreRequest implements EventStreamJsonMessage {
     boolean isEquals = true;
     isEquals = isEquals && this.topicName.equals(other.topicName);
     isEquals = isEquals && this.qos.equals(other.qos);
-    isEquals = isEquals && this.retain.equals(other.retain);
     isEquals = isEquals && EventStreamRPCServiceModel.blobTypeEquals(this.payload, other.payload);
     return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(topicName, qos, retain, payload);
+    return Objects.hash(topicName, qos, payload);
   }
 }

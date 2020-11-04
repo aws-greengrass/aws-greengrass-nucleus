@@ -54,7 +54,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class MqttProxyIPCAgentTest {
+class MqttProxyIPCAgentTest {
     private static final String TEST_SERVICE = "TestService";
     private static final String TEST_TOPIC = "TestTopic";
     private static final byte[] TEST_PAYLOAD = "TestPayload".getBytes(StandardCharsets.UTF_8);
@@ -100,7 +100,6 @@ public class MqttProxyIPCAgentTest {
         PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
         publishToIoTCoreRequest.setPayload(TEST_PAYLOAD);
         publishToIoTCoreRequest.setTopicName(TEST_TOPIC);
-        publishToIoTCoreRequest.setRetain(true);
         publishToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
 
         CompletableFuture<Integer> completableFuture = new CompletableFuture<>();
@@ -123,7 +122,6 @@ public class MqttProxyIPCAgentTest {
             PublishRequest capturedPublishRequest = publishRequestArgumentCaptor.getValue();
             assertThat(capturedPublishRequest.getPayload(), is(TEST_PAYLOAD));
             assertThat(capturedPublishRequest.getTopic(), is(TEST_TOPIC));
-            assertThat(capturedPublishRequest.isRetain(), is(true));
             assertThat(capturedPublishRequest.getQos(), is(QualityOfService.AT_LEAST_ONCE));
         }
     }

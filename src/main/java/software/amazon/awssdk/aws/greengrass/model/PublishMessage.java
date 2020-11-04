@@ -45,6 +45,9 @@ public class PublishMessage implements EventStreamJsonMessage {
   }
 
   public void setJsonMessage(final JsonMessage jsonMessage) {
+    if (setUnionMember != null) {
+      setUnionMember.nullify(this);
+    }
     this.jsonMessage = Optional.of(jsonMessage);
     this.setUnionMember = UnionMember.JSON_MESSAGE;
   }
@@ -57,6 +60,9 @@ public class PublishMessage implements EventStreamJsonMessage {
   }
 
   public void setBinaryMessage(final BinaryMessage binaryMessage) {
+    if (setUnionMember != null) {
+      setUnionMember.nullify(this);
+    }
     this.binaryMessage = Optional.of(binaryMessage);
     this.setUnionMember = UnionMember.BINARY_MESSAGE;
   }
