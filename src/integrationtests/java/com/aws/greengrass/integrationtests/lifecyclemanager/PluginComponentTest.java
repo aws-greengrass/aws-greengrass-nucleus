@@ -198,7 +198,7 @@ class PluginComponentTest extends BaseITCase {
         // In actual workflow, DeploymentService will setup deployment artifacts directory per deployment before
         // submitting task. Here in test, it's called explicitly because the directory is required by snapshot file.
         kernelSpy.getContext().get(DeploymentDirectoryManager.class)
-                .createNewDeploymentDirectoryIfNotExists(deploymentId);
+                .createNewDeploymentDirectory(deploymentId);
         kernelSpy.getContext().put(KernelUpdateActivator.class,
                 new KernelUpdateActivator(kernelSpy, kernelSpy.getContext().get(BootstrapManager.class)));
 
