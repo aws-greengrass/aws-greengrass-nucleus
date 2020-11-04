@@ -11,18 +11,16 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.eventstream.*;
 import software.amazon.awssdk.eventstreamrpc.model.AccessDeniedException;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamError;
 
 public class EventStreamRPCConnection implements AutoCloseable {
-    private static final Logger LOGGER = LoggerFactory.getLogger(EventStreamRPCConnection.class);
+    private static final Logger LOGGER = Logger.getLogger(EventStreamRPCConnection.class.getName());
 
     private final EventStreamRPCConnectionConfig config;
     private final AtomicBoolean isConnecting;
@@ -95,7 +93,7 @@ public class EventStreamRPCConnection implements AutoCloseable {
                                     doOnConnect(lifecycleHandler);
                                 } else {
                                     //This is access denied, implied due to not having ConnectionAccepted msg flag
-                                    LOGGER.warn("AccessDenied to event stream RPC server");
+                                    LOGGER.warning("AccessDenied to event stream RPC server");
                                     final AccessDeniedException ade = new AccessDeniedException("Connection access denied to event stream RPC server");
                                     if (!initialConnectFuture.isDone()) {
                                         initialConnectFuture.completeExceptionally(ade);
@@ -110,19 +108,19 @@ public class EventStreamRPCConnection implements AutoCloseable {
                                 isConnecting.compareAndSet(true, false);
                             }
                         } else if (MessageType.PingResponse.equals(messageType)) {
-                            LOGGER.trace("Ping response received");
+                            LOGGER.finer("Ping response received");
                         } else if (MessageType.Ping.equals(messageType)) {
                             sendPingResponse(Optional.of(new MessageAmendInfo(headers, payload)))
                                 .whenComplete((res, ex) -> {
-                                    LOGGER.trace("Ping response sent");
+                                    LOGGER.finer("Ping response sent");
                                 });
                         } else if (MessageType.Connect.equals(messageType)) {
-                            LOGGER.error("Erroneous connect message type received by client. Closing");
+                            LOGGER.severe("Erroneous connect message type received by client. Closing");
                             //TODO: client sends protocol error here?
                             disconnect();
 
                         } else if (MessageType.ProtocolError.equals(messageType) || MessageType.ServerError.equals(messageType)) {
-                            LOGGER.error("Received " + messageType.name() + ": " + CRT.awsErrorName(CRT.awsLastError()));
+                            LOGGER.severe("Received " + messageType.name() + ": " + CRT.awsErrorName(CRT.awsLastError()));
                             final EventStreamError ese = EventStreamError.create(headers, payload, messageType);
                             if (!initialConnectFuture.isDone()) {
                                 initialConnectFuture.completeExceptionally(ese);
@@ -130,14 +128,14 @@ public class EventStreamRPCConnection implements AutoCloseable {
                             doOnError(lifecycleHandler, ese);
                             disconnect();
                         } else {
-                            LOGGER.error("Unprocessed message type: " + messageType.name());
+                            LOGGER.severe("Unprocessed message type: " + messageType.name());
                             doOnError(lifecycleHandler, new EventStreamError("Unprocessed message type: " + messageType.name()));
                         }
                     }
 
                     @Override
                     protected void onConnectionClosed(int errorCode) {
-                        LOGGER.trace("Socket connection closed: " + CRT.awsErrorName(errorCode));
+                        LOGGER.finer("Socket connection closed: " + CRT.awsErrorName(errorCode));
                         doOnDisconnect(lifecycleHandler, errorCode);
                     }
                 });
@@ -156,7 +154,7 @@ public class EventStreamRPCConnection implements AutoCloseable {
             lifecycleHandler.onConnect();
         }
         catch (Exception ex) {
-            LOGGER.warn(String.format("LifecycleHandler::onConnect() threw %s : %s",
+            LOGGER.warning(String.format("LifecycleHandler::onConnect() threw %s : %s",
                     ex.getClass().getCanonicalName(), ex.getMessage()));
             doOnError(lifecycleHandler, ex);
         }
@@ -165,12 +163,12 @@ public class EventStreamRPCConnection implements AutoCloseable {
     private void doOnError(LifecycleHandler lifecycleHandler, Throwable t) {
         try {
             if (lifecycleHandler.onError(t)) {
-                LOGGER.debug("Closing connection due to LifecycleHandler::onError() returning true");
+                LOGGER.fine("Closing connection due to LifecycleHandler::onError() returning true");
                 disconnect();
             }
         }
         catch (Exception ex) {
-            LOGGER.warn(String.format("Closing connection due to LifecycleHandler::onError() throwing %s : %s",
+            LOGGER.warning(String.format("Closing connection due to LifecycleHandler::onError() throwing %s : %s",
                     ex.getClass().getCanonicalName(), ex.getMessage()));
             disconnect();
         }
@@ -181,7 +179,7 @@ public class EventStreamRPCConnection implements AutoCloseable {
             lifecycleHandler.onDisconnect(errorCode);
         }
         catch (Exception ex) {
-            LOGGER.warn(String.format("LifecycleHandler::onDisconnect(" + CRT.awsErrorName(errorCode) + ") threw %s : %s",
+            LOGGER.warning(String.format("LifecycleHandler::onDisconnect(" + CRT.awsErrorName(errorCode) + ") threw %s : %s",
                     ex.getClass().getCanonicalName(), ex.getMessage()));
         }
     }
