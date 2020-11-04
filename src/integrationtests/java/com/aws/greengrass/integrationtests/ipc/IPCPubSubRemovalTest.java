@@ -143,7 +143,7 @@ class IPCPubSubRemovalTest extends BaseITCase {
             ipcClient.updateRecipesAndArtifacts(updateRecipesAndArtifactsRequest, Optional.empty());
 
             Map<String, Object> configUpdate = new HashMap<>();
-            configUpdate.put("MERGE", ImmutableMap.of("accessControl", null));
+            configUpdate.put("MERGE", ImmutableMap.of("accessControl", ""));
                              Map<String, Map<String, Object>> componentToConfiguration = new HashMap<>();
             componentToConfiguration.put("SubscribeAndPublish", configUpdate);
             CreateLocalDeploymentRequest createLocalDeploymentRequest =
