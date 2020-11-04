@@ -14,7 +14,6 @@ import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.amazonaws.arn.Arn;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
-import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
@@ -39,10 +38,10 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
+import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class DeploymentDocumentConverterTest {
     private static final String ROOT_COMPONENT_TO_REMOVE_1 = "componentToRemove1";
@@ -346,17 +345,36 @@ class DeploymentDocumentConverterTest {
 
 
     @Test
-    void GIVEN_FCS_Deployment_Config_Missing_Components_When_convert_Then_InvalidRequestException_is_thrown()
+    void GIVEN_FCS_Deployment_Config_Missing_Components_When_convert_is_empty_list_is_returned()
             throws Exception {
         // GIVEN
         String filename = "FcsDeploymentConfig_Missing_Components.json";
         String json = new String(Files.readAllBytes(Paths.get(getClass().getResource(filename).toURI())));
 
         Configuration resultConfig = mapper.readValue(json, Configuration.class);
+        DeploymentDocumentConverter.convertFromDeploymentConfiguration(resultConfig);
+        // WHEN
+        DeploymentDocument deploymentDocument =
+                DeploymentDocumentConverter.convertFromDeploymentConfiguration(resultConfig);
 
-        // WHEN & THEN
-        assertThrows(InvalidRequestException.class,
-                     () -> DeploymentDocumentConverter.convertFromDeploymentConfiguration(resultConfig));
+        // THEN
+
+        // The following values are from FcsDeploymentConfig_Missing_Components.json
+        assertThat(deploymentDocument.getDeploymentPackageConfigurationList(), empty());
+
+        assertThat(deploymentDocument.getTimestamp(), is(1604067741583L));
+        assertThat(deploymentDocument.getDeploymentId(),
+                   is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
+        assertThat(deploymentDocument.getGroupName(), is("thinggroup/SampleGroup"));
+
+        // The following fields are not provided in the json so default values should be used.
+        // Default for FailureHandlingPolicy should be ROLLBACK
+        assertThat(deploymentDocument.getFailureHandlingPolicy(), is(FailureHandlingPolicy.DO_NOTHING));
+
+        // Default for ComponentUpdatePolicy is NOTIFY_COMPONENTS with 60 sec as timeout
+        assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
+                   is(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+        assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(120));
 
     }
 
