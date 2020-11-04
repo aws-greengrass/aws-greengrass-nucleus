@@ -27,7 +27,8 @@ import java.util.*;
 public abstract class EventStreamRPCServiceModel {
     private static final Gson GSON;
 
-    public static final String VERSION_HEADER = ":version";
+    //package visibility so client
+    static final String VERSION_HEADER = ":version";
     public static final String CONTENT_TYPE_HEADER = ":content-type";
     public static final String CONTENT_TYPE_APPLICATION_TEXT = "text/plain";
     public static final String CONTENT_TYPE_APPLICATION_JSON = "application/json";

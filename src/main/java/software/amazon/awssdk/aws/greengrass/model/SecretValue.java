@@ -46,6 +46,9 @@ public class SecretValue implements EventStreamJsonMessage {
   }
 
   public void setSecretString(final String secretString) {
+    if (setUnionMember != null) {
+      setUnionMember.nullify(this);
+    }
     this.secretString = Optional.of(secretString);
     this.setUnionMember = UnionMember.SECRET_STRING;
   }
@@ -58,6 +61,9 @@ public class SecretValue implements EventStreamJsonMessage {
   }
 
   public void setSecretBinary(final byte[] secretBinary) {
+    if (setUnionMember != null) {
+      setUnionMember.nullify(this);
+    }
     this.secretBinary = Optional.of(secretBinary);
     this.setUnionMember = UnionMember.SECRET_BINARY;
   }

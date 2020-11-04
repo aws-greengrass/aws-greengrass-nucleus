@@ -39,6 +39,9 @@ public class ValidateConfigurationUpdateEvents implements EventStreamJsonMessage
 
   public void setValidateConfigurationUpdateEvent(
       final ValidateConfigurationUpdateEvent validateConfigurationUpdateEvent) {
+    if (setUnionMember != null) {
+      setUnionMember.nullify(this);
+    }
     this.validateConfigurationUpdateEvent = Optional.of(validateConfigurationUpdateEvent);
     this.setUnionMember = UnionMember.VALIDATE_CONFIGURATION_UPDATE_EVENT;
   }

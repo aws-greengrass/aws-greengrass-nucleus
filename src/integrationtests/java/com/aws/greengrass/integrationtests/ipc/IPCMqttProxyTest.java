@@ -124,7 +124,6 @@ public class IPCMqttProxyTest {
         publishToIoTCoreRequest.setPayload(TEST_PAYLOAD);
         publishToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
         publishToIoTCoreRequest.setTopicName(TEST_PUBLISH_TOPIC);
-        publishToIoTCoreRequest.setRetain(false);
         greengrassCoreIPCClient.publishToIoTCore(publishToIoTCoreRequest, Optional.empty()).getResponse()
                 .get(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS);
 
@@ -133,7 +132,6 @@ public class IPCMqttProxyTest {
         PublishRequest capturedPublishRequest = publishRequestArgumentCaptor.getValue();
         assertThat(capturedPublishRequest.getPayload(), is(TEST_PAYLOAD));
         assertThat(capturedPublishRequest.getTopic(), is(TEST_PUBLISH_TOPIC));
-        assertThat(capturedPublishRequest.isRetain(), is(false));
         assertThat(capturedPublishRequest.getQos(), is(QualityOfService.AT_LEAST_ONCE));
     }
 
@@ -213,7 +211,6 @@ public class IPCMqttProxyTest {
         publishToIoTCoreRequest.setPayload(TEST_PAYLOAD);
         publishToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
         publishToIoTCoreRequest.setTopicName(TEST_PUBLISH_TOPIC);
-        publishToIoTCoreRequest.setRetain(false);
 
         String clientException = "";
         try {

@@ -38,6 +38,9 @@ public class ConfigurationUpdateEvents implements EventStreamJsonMessage {
   }
 
   public void setConfigurationUpdateEvent(final ConfigurationUpdateEvent configurationUpdateEvent) {
+    if (setUnionMember != null) {
+      setUnionMember.nullify(this);
+    }
     this.configurationUpdateEvent = Optional.of(configurationUpdateEvent);
     this.setUnionMember = UnionMember.CONFIGURATION_UPDATE_EVENT;
   }

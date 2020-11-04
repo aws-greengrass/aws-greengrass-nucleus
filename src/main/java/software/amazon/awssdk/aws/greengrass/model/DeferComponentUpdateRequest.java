@@ -32,6 +32,12 @@ public class DeferComponentUpdateRequest implements EventStreamJsonMessage {
       serialize = true,
       deserialize = true
   )
+  private Optional<String> deploymentId;
+
+  @Expose(
+      serialize = true,
+      deserialize = true
+  )
   private Optional<String> message;
 
   @Expose(
@@ -41,8 +47,20 @@ public class DeferComponentUpdateRequest implements EventStreamJsonMessage {
   private Optional<Long> recheckAfterMs;
 
   public DeferComponentUpdateRequest() {
+    this.deploymentId = Optional.empty();
     this.message = Optional.empty();
     this.recheckAfterMs = Optional.empty();
+  }
+
+  public String getDeploymentId() {
+    if (deploymentId.isPresent()) {
+      return deploymentId.get();
+    }
+    return null;
+  }
+
+  public void setDeploymentId(final String deploymentId) {
+    this.deploymentId = Optional.of(deploymentId);
   }
 
   public String getMessage() {
@@ -79,6 +97,7 @@ public class DeferComponentUpdateRequest implements EventStreamJsonMessage {
     if (this == rhs) return true;
     final DeferComponentUpdateRequest other = (DeferComponentUpdateRequest)rhs;
     boolean isEquals = true;
+    isEquals = isEquals && this.deploymentId.equals(other.deploymentId);
     isEquals = isEquals && this.message.equals(other.message);
     isEquals = isEquals && this.recheckAfterMs.equals(other.recheckAfterMs);
     return isEquals;
@@ -86,6 +105,6 @@ public class DeferComponentUpdateRequest implements EventStreamJsonMessage {
 
   @Override
   public int hashCode() {
-    return Objects.hash(message, recheckAfterMs);
+    return Objects.hash(deploymentId, message, recheckAfterMs);
   }
 }

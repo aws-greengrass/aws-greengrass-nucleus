@@ -37,10 +37,17 @@ public class ConfigurationValidityReport implements EventStreamJsonMessage {
       serialize = true,
       deserialize = true
   )
+  private Optional<String> deploymentId;
+
+  @Expose(
+      serialize = true,
+      deserialize = true
+  )
   private Optional<String> message;
 
   public ConfigurationValidityReport() {
     this.status = Optional.empty();
+    this.deploymentId = Optional.empty();
     this.message = Optional.empty();
   }
 
@@ -53,6 +60,17 @@ public class ConfigurationValidityReport implements EventStreamJsonMessage {
 
   public void setStatus(final ConfigurationValidityStatus status) {
     this.status = Optional.of(status);
+  }
+
+  public String getDeploymentId() {
+    if (deploymentId.isPresent()) {
+      return deploymentId.get();
+    }
+    return null;
+  }
+
+  public void setDeploymentId(final String deploymentId) {
+    this.deploymentId = Optional.of(deploymentId);
   }
 
   public String getMessage() {
@@ -79,12 +97,13 @@ public class ConfigurationValidityReport implements EventStreamJsonMessage {
     final ConfigurationValidityReport other = (ConfigurationValidityReport)rhs;
     boolean isEquals = true;
     isEquals = isEquals && this.status.equals(other.status);
+    isEquals = isEquals && this.deploymentId.equals(other.deploymentId);
     isEquals = isEquals && this.message.equals(other.message);
     return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(status, message);
+    return Objects.hash(status, deploymentId, message);
   }
 }

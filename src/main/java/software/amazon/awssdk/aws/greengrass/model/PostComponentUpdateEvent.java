@@ -5,10 +5,12 @@
 
 package software.amazon.awssdk.aws.greengrass.model;
 
+import com.google.gson.annotations.Expose;
 import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Objects;
+import java.util.Optional;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 public class PostComponentUpdateEvent implements EventStreamJsonMessage {
@@ -25,7 +27,25 @@ public class PostComponentUpdateEvent implements EventStreamJsonMessage {
     };
   }
 
+  @Expose(
+      serialize = true,
+      deserialize = true
+  )
+  private Optional<String> deploymentId;
+
   public PostComponentUpdateEvent() {
+    this.deploymentId = Optional.empty();
+  }
+
+  public String getDeploymentId() {
+    if (deploymentId.isPresent()) {
+      return deploymentId.get();
+    }
+    return null;
+  }
+
+  public void setDeploymentId(final String deploymentId) {
+    this.deploymentId = Optional.of(deploymentId);
   }
 
   @Override
@@ -40,11 +60,12 @@ public class PostComponentUpdateEvent implements EventStreamJsonMessage {
     if (this == rhs) return true;
     final PostComponentUpdateEvent other = (PostComponentUpdateEvent)rhs;
     boolean isEquals = true;
+    isEquals = isEquals && this.deploymentId.equals(other.deploymentId);
     return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash();
+    return Objects.hash(deploymentId);
   }
 }
