@@ -11,12 +11,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import java.util.logging.Logger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.crt.eventstream.*;
 
 public class ServiceOperationMappingContinuationHandler extends ServerConnectionHandler {
-    private static final Logger LOGGER = Logger.getLogger(ServiceOperationMappingContinuationHandler.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(ServiceOperationMappingContinuationHandler.class);
     private final EventStreamRPCServiceHandler serviceHandler;
     private AuthenticationData authenticationData;  //should only be set once after AuthN
 
@@ -79,7 +80,7 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                     throw new IllegalStateException(String.format("%s has null authorization handler!"));
                 }
 
-                LOGGER.finer(String.format("%s running authentication handler", serviceHandler.getServiceName()));
+                LOGGER.trace(String.format("%s running authentication handler", serviceHandler.getServiceName()));
                 authenticationData = authentication.apply(headers, payload);
                 if (authenticationData == null) {
                     throw new IllegalStateException(String.format("%s authentication handler returned null", serviceHandler.getServiceName()));
@@ -100,19 +101,19 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                         throw new RuntimeException("Unknown authorization decision for " + authenticationData.getIdentityLabel());
                 }
             } else { //version mismatch
-                LOGGER.warning(String.format("Client version {%s} mismatches server version {%s}",
+                LOGGER.warn(String.format("Client version {%s} mismatches server version {%s}",
                         versionHeader.isPresent() ? versionHeader.get() : "null",
                         Version.getInstance().getVersionString()));
             }
         } catch (Exception e) {
-            LOGGER.severe(String.format("%s occurred while attempting to authN/authZ connect: %s", e.getClass(), e.getMessage()));
+            LOGGER.error(String.format("%s occurred while attempting to authN/authZ connect: %s", e.getClass(), e.getMessage()));
         } finally {
             final String authLabel =  authenticationData != null ? authenticationData.getIdentityLabel() : "null";
             LOGGER.info("Sending connect response for " + authLabel);
             connection.sendProtocolMessage(null, null, acceptResponseType, responseMessageFlag[0])
                 .whenComplete((res, ex) -> {
                     if (ex != null) {
-                        LOGGER.severe(String.format("Sending connection response for %s threw exception (%s): %s",
+                        LOGGER.error(String.format("Sending connection response for %s threw exception (%s): %s",
                            authLabel, ex.getClass().getCanonicalName(), ex.getMessage()));
                     }
                     else {
