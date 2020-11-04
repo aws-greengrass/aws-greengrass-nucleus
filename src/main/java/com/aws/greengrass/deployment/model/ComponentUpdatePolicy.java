@@ -23,8 +23,9 @@ import lombok.ToString;
 @EqualsAndHashCode
 @ToString
 public class ComponentUpdatePolicy {
+
     @JsonProperty("Timeout")
-    private Integer timeout;
+    private Integer timeout = 60;
     @JsonProperty("ComponentUpdatePolicyAction")
-    private ComponentUpdatePolicyAction componentUpdatePolicyAction;
+    private ComponentUpdatePolicyAction componentUpdatePolicyAction = ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 }

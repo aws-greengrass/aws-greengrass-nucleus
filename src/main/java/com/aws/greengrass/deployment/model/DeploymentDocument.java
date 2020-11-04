@@ -51,10 +51,12 @@ public class DeploymentDocument {
     private Long timestamp;
 
     @JsonProperty("FailureHandlingPolicy")
-    private FailureHandlingPolicy failureHandlingPolicy;
+    @Builder.Default
+    private FailureHandlingPolicy failureHandlingPolicy = FailureHandlingPolicy.ROLLBACK;
 
     @JsonProperty("ComponentUpdatePolicy")
-    private ComponentUpdatePolicy componentUpdatePolicy;
+    @Builder.Default
+    private ComponentUpdatePolicy componentUpdatePolicy = new ComponentUpdatePolicy();
 
     /**
      * Get a list of root component names from the deploymentPackageConfigurationList.
