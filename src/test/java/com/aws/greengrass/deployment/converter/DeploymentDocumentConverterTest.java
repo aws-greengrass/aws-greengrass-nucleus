@@ -369,12 +369,12 @@ class DeploymentDocumentConverterTest {
 
         // The following fields are not provided in the json so default values should be used.
         // Default for FailureHandlingPolicy should be ROLLBACK
-        assertThat(deploymentDocument.getFailureHandlingPolicy(), is(FailureHandlingPolicy.ROLLBACK));
+        assertThat(deploymentDocument.getFailureHandlingPolicy(), is(FailureHandlingPolicy.DO_NOTHING));
 
         // Default for ComponentUpdatePolicy is NOTIFY_COMPONENTS with 60 sec as timeout
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
                    is(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
-        assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(60));
+        assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(120));
 
     }
 
