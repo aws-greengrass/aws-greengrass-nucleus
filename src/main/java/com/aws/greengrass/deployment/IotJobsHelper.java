@@ -19,6 +19,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
+import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.SerializerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -120,6 +121,9 @@ public class IotJobsHelper implements InjectionActions {
     private DeploymentStatusKeeper deploymentStatusKeeper;
 
     @Inject
+    private FleetStatusService fleetStatusService;
+
+    @Inject
     private Kernel kernel;
 
     @Inject
@@ -193,7 +197,7 @@ public class IotJobsHelper implements InjectionActions {
         try {
             documentString = SerializerFactory.getJsonObjectMapper().writeValueAsString(jobExecutionData.jobDocument);
         } catch (JsonProcessingException e) {
-            // GG_NEEDS_REVIEW: TODO: Handle when job document is incorrect json.
+            // TODO: [P41179444] Handle when job document is incorrect json.
             // This should not happen as we are converting a HashMap
             return;
         }
@@ -238,7 +242,8 @@ public class IotJobsHelper implements InjectionActions {
                   ExecutorService executorService,
                   Kernel kernel,
                   WrapperMqttConnectionFactory wrapperMqttConnectionFactory,
-                  MqttClient mqttClient) {
+                  MqttClient mqttClient,
+                  FleetStatusService fleetStatusService) {
         this.deviceConfiguration = deviceConfiguration;
         this.iotJobsClientFactory = iotJobsClientFactory;
         this.deploymentQueue = deploymentQueue;
@@ -247,6 +252,7 @@ public class IotJobsHelper implements InjectionActions {
         this.kernel = kernel;
         this.wrapperMqttConnectionFactory = wrapperMqttConnectionFactory;
         this.mqttClient = mqttClient;
+        this.fleetStatusService = fleetStatusService;
     }
 
     private static void unwrapExecutionException(ExecutionException e)
@@ -267,8 +273,6 @@ public class IotJobsHelper implements InjectionActions {
         try {
             deviceConfiguration.validate();
         } catch (DeviceConfigurationException e) {
-            // GG_NEEDS_REVIEW: TODO: If the device configurations are updated later, while the kernel is running,
-            //  then device should attempt to connect to AWS Iot cloud again
             logger.atWarn().log("Device not configured to talk to AWS Iot cloud. Device will run in offline mode");
             return;
         }
@@ -283,6 +287,7 @@ public class IotJobsHelper implements InjectionActions {
             logger.atInfo().log("Connection established to IoT cloud");
             deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS,
                     this::deploymentStatusChanged, IotJobsHelper.class.getName());
+            this.fleetStatusService.updateFleetStatusUpdateForAllComponents();
         });
     }
 
@@ -348,7 +353,6 @@ public class IotJobsHelper implements InjectionActions {
                 (response) -> {
                     logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
                             .log("Job status updated rejected");
-                    // GG_NEEDS_REVIEW: TODO: Can this be due to duplicate messages being sent for the job?
                     gotResponse.completeExceptionally(new Exception(response.message));
                 });
 
@@ -447,10 +451,6 @@ public class IotJobsHelper implements InjectionActions {
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();
                 if (cause instanceof MqttException || cause instanceof TimeoutException) {
-                    // GG_NEEDS_REVIEW: TODO: If network is not available then it will throw MqttException
-                    // If there is any other problem like thingName is not specified in the request then also
-                    // it throws Mqtt exception. This can be identified based on error code. Currently error code is not
-                    // exposed. Will make required change in CRT package to expose the error code and then update this
                     logger.atWarn().setCause(cause).log(SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE);
                 }
                 if (cause instanceof InterruptedException) {
@@ -498,10 +498,6 @@ public class IotJobsHelper implements InjectionActions {
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();
                 if (cause instanceof MqttException || cause instanceof TimeoutException) {
-                    // GG_NEEDS_REVIEW: TODO: If network is not available then it will throw MqttException
-                    // If there is any other problem like thingName is not specified in the request then also
-                    // it throws Mqtt exception. This can be identified based on error code. Currently error code is not
-                    // exposed. Will make required change in CRT package to expose the error code and then update this
                     logger.atWarn().setCause(cause).log(SUBSCRIPTION_EVENT_NOTIFICATIONS_RETRY);
                 }
                 if (cause instanceof InterruptedException) {

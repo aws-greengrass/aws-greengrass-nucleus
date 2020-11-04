@@ -22,7 +22,7 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
-import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
+import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -166,7 +166,7 @@ class DeploymentTaskIntegrationTest {
     static void setupKernel() {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
-        NoOpArtifactHandler.register(kernel);
+        NoOpPathOwnershipHandler.register(kernel);
 
         kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
 

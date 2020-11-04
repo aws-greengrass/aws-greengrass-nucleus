@@ -8,3 +8,5 @@ Manifests:
     Artifacts:
       - URI: greengrass:zip.zip
         Unarchive: ZIP
+        Permission:
+          Read: ALL

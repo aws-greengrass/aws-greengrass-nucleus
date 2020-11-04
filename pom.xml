@@ -699,8 +699,6 @@
         <snapshotRepository>
             <id>greengrass-dev-snapshot</id>
             <name>greengrass Dev Snapshot</name>
-            <!--TODO: Need to update the BuildSpec in
-            https://us-west-2.console.aws.amazon.com/codesuite/codebuild/projects/Stargate-Dev-Build/details?region=us-west-2-->
             <url>${stargate-snapshot-repository-url}</url>
         </snapshotRepository>
     </distributionManagement>

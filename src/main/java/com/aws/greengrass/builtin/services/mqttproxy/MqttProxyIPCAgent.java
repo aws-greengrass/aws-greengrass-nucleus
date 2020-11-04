@@ -36,7 +36,6 @@ import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import javax.inject.Inject;
@@ -90,21 +89,23 @@ public class MqttProxyIPCAgent {
                 doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
             } catch (AuthorizationException e) {
                 LOGGER.atError().cause(e).log();
-                throw new UnauthorizedError(String.format("Authorization failed with error %s", e.getMessage()));
+                throw new UnauthorizedError(String.format("Authorization failed with error %s", e));
             }
 
-            PublishRequest publishRequest = PublishRequest.builder().payload(request.getPayload()).topic(topic)
-                    .retain(request.isRetain()).qos(getQualityOfServiceFromQOS(request.getQos())).build();
+            PublishRequest publishRequest = PublishRequest.builder().payload(request.getPayload())
+                    .topic(topic).qos(getQualityOfServiceFromQOS(request.getQos())).build();
             CompletableFuture<Integer> future = mqttClient.publish(publishRequest);
 
-            // GG_NEEDS_REVIEW: TODO: replace this with a check that message is inserted in spooler queue
-            try {
-                future.get(mqttClient.getTimeout(), TimeUnit.MILLISECONDS);
-            } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                LOGGER.atError().cause(e).kv(TOPIC_KEY, topic).kv(SERVICE_KEY, serviceName)
-                        .log("Unable to publish to topic");
-                throw new ServiceError(String.format("Publish to topic %s failed with error %s", topic,
-                        e.getMessage()));
+            if (future.isCompletedExceptionally()) {
+                try {
+                    future.get();
+                } catch (InterruptedException ignore) {
+                    // this won't happen since future already completed
+                } catch (ExecutionException e) {
+                    LOGGER.atError().cause(e).kv(TOPIC_KEY, topic).kv(SERVICE_KEY, serviceName)
+                            .log("Unable to spool the publish request");
+                    throw new ServiceError(String.format("Publish to topic %s failed with error %s", topic, e));
+                }
             }
 
             return new PublishToIoTCoreResponse();
@@ -153,7 +154,7 @@ public class MqttProxyIPCAgent {
                 doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
             } catch (AuthorizationException e) {
                 LOGGER.atError().cause(e).log();
-                throw new UnauthorizedError(String.format("Authorization failed with error %s", e.getMessage()));
+                throw new UnauthorizedError(String.format("Authorization failed with error %s", e));
             }
 
             Consumer<MqttMessage> callback = this::forwardToSubscriber;
@@ -165,8 +166,7 @@ public class MqttProxyIPCAgent {
             } catch (ExecutionException | InterruptedException | TimeoutException e) {
                 LOGGER.atError().cause(e).kv(TOPIC_KEY, topic).kv(SERVICE_KEY, serviceName)
                         .log("Unable to subscribe to topic");
-                throw new ServiceError(String.format("Subscribe to topic %s failed with error %s", topic,
-                        e.getMessage()));
+                throw new ServiceError(String.format("Subscribe to topic %s failed with error %s", topic, e));
             }
 
             subscribedTopic = topic;

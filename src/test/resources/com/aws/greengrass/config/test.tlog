@@ -16,5 +16,5 @@
 {"TS":1588872928102,"TP":["services","_AUTH_TOKENS","FakeToken"],"W":"changed","V":"main"}
 {"TS":1588872930080,"TP":["services","_AUTH_TOKENS","FakeToken2"],"W":"changed","V":"YellowSignal"}
 {"TS":1588872931120,"TP":["services","YellowSignal","notMerged","testTopic"],"W":"changed","V":"TLogValue"}
-{"TS":1588872931120,"TP":["services","YellowSignal","lifecycle","shutdown"],"W":"removed"}
+{"TS":15888729311200,"TP":["services","YellowSignal","lifecycle","shutdown"],"W":"removed"}
 {"TS":1,"TP":["test","lastline"],"W":"changed","V":"lastline"}

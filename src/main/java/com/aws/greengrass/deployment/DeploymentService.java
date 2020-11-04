@@ -9,6 +9,7 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -265,7 +266,7 @@ public class DeploymentService extends GreengrassService {
                                 .withValue(currentDeploymentTaskMetadata.getDeploymentId());
                     }
                     Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
-                    // GG_NEEDS_REVIEW: TODO: Removal of group from the mappings. Currently there is no action taken
+                    // TODO: [P41179087] Removal of group from the mappings. Currently there is no action taken
                     // when a device is removed from a thing group. Empty configuration is treated as a valid config
                     // for a group but not treated as removal.
                     deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
@@ -290,7 +291,7 @@ public class DeploymentService extends GreengrassService {
                     if (result.getFailureCause() != null) {
                         statusDetails.put("deployment-failure-cause", result.getFailureCause().getMessage());
                     }
-                    // GG_NEEDS_REVIEW: TODO: Update the groupToRootPackages mapping in config for the case where there
+                    // TODO: [P41179126] Update the groupToRootPackages mapping in config for the case where there
                     // is no rollback and now the packages deployed for the current group are not the same as before
                     // starting deployment
                     deploymentStatusKeeper
@@ -451,8 +452,6 @@ public class DeploymentService extends GreengrassService {
                             localOverrideRequest.getGroupName() == null ? DEFAULT_GROUP_NAME
                                     : localOverrideRequest.getGroupName())
                             .forEach(t -> rootComponentsInRequestedGroup.add(t.getName()));
-                    // GG_NEEDS_REVIEW: TODO: pulling the versions from kernel. Can pull it from the config itself.
-                    // Confirm if pulling from config should not break any use case for local
                     if (!Utils.isEmpty(rootComponentsInRequestedGroup)) {
                         rootComponentsInRequestedGroup.forEach(c -> {
                             Topics serviceTopic = kernel.findServiceTopic(c);
@@ -592,5 +591,30 @@ public class DeploymentService extends GreengrassService {
             });
         }
         return allGroupNames;
+    }
+
+    /**
+     * Checks whether a component is a root component or not.
+     * @param componentName The name of the component.
+     * @return a boolean indicating whether a component is a root component or not.
+     */
+    public boolean isComponentRoot(String componentName) {
+        Topics groupToRootComponentsTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
+        if (groupToRootComponentsTopics != null) {
+            for (Node node: groupToRootComponentsTopics.children.values()) {
+                if (node instanceof Topics) {
+                    Topics groupTopics = (Topics) node;
+                    for (Node componentNode: groupTopics.children.values()) {
+                        if (componentNode instanceof Topics) {
+                            Topics componentTopics = (Topics) componentNode;
+                            if (componentName.equals(componentTopics.getName())) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 }

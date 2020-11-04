@@ -91,8 +91,6 @@ public final class Periodicity {
         return null;
     }
 
-    // GG_NEEDS_REVIEW: TODO: use of parseInterval to parse the phase offset is wholly inadequate: it should
-    // allow for all sorts of complexity, like being relative to local time (eg. 2am)
     @SuppressWarnings("PMD.DefaultLabelNotLastInSwitchStmt")
     static long parseInterval(String v) {
         CharBuffer p = CharBuffer.wrap(v);
@@ -134,7 +132,6 @@ public final class Periodicity {
                 tu = 1000 * 60 * 60 * 24 * 7;
                 break;
         }
-        // GG_NEEDS_REVIEW: TODO: Should do months
         return n * tu;
     }
 
