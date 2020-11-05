@@ -5,15 +5,6 @@
 
 package software.amazon.awssdk.aws.greengrass;
 
-import java.lang.Class;
-import java.lang.Override;
-import java.lang.String;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
 import software.amazon.awssdk.aws.greengrass.model.ComponentDetails;
 import software.amazon.awssdk.aws.greengrass.model.ComponentNotFoundError;
@@ -58,6 +49,7 @@ import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreResponse;
 import software.amazon.awssdk.aws.greengrass.model.PublishToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.PublishToTopicResponse;
 import software.amazon.awssdk.aws.greengrass.model.QOS;
+import software.amazon.awssdk.aws.greengrass.model.ReportedLifecycleState;
 import software.amazon.awssdk.aws.greengrass.model.RequestStatus;
 import software.amazon.awssdk.aws.greengrass.model.ResourceNotFoundError;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentRequest;
@@ -93,6 +85,13 @@ import software.amazon.awssdk.aws.greengrass.model.ValidateConfigurationUpdateEv
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
 import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
+
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
   private static final GreengrassCoreIPCServiceModel INSTANCE = new GreengrassCoreIPCServiceModel();
@@ -303,7 +302,7 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OBJECT_MODEL_MAP.put(RequestStatus.APPLICATION_MODEL_TYPE, RequestStatus.class);
     SERVICE_OBJECT_MODEL_MAP.put(LocalDeployment.APPLICATION_MODEL_TYPE, LocalDeployment.class);
     SERVICE_OBJECT_MODEL_MAP.put(SecretValue.APPLICATION_MODEL_TYPE, SecretValue.class);
-    SERVICE_OBJECT_MODEL_MAP.put(LifecycleState.APPLICATION_MODEL_TYPE, LifecycleState.class);
+    SERVICE_OBJECT_MODEL_MAP.put(ReportedLifecycleState.APPLICATION_MODEL_TYPE, ReportedLifecycleState.class);
     SERVICE_OBJECT_MODEL_MAP.put(SubscriptionResponseMessage.APPLICATION_MODEL_TYPE, SubscriptionResponseMessage.class);
     SERVICE_OBJECT_MODEL_MAP.put(ComponentDetails.APPLICATION_MODEL_TYPE, ComponentDetails.class);
     SERVICE_OBJECT_MODEL_MAP.put(ComponentUpdatePolicyEvents.APPLICATION_MODEL_TYPE, ComponentUpdatePolicyEvents.class);
@@ -314,6 +313,7 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OBJECT_MODEL_MAP.put(ConfigurationValidityStatus.APPLICATION_MODEL_TYPE, ConfigurationValidityStatus.class);
     SERVICE_OBJECT_MODEL_MAP.put(ValidateConfigurationUpdateEvent.APPLICATION_MODEL_TYPE, ValidateConfigurationUpdateEvent.class);
     SERVICE_OBJECT_MODEL_MAP.put(DeploymentStatus.APPLICATION_MODEL_TYPE, DeploymentStatus.class);
+    SERVICE_OBJECT_MODEL_MAP.put(LifecycleState.APPLICATION_MODEL_TYPE, LifecycleState.class);
     SERVICE_OBJECT_MODEL_MAP.put(PreComponentUpdateEvent.APPLICATION_MODEL_TYPE, PreComponentUpdateEvent.class);
     SERVICE_OBJECT_MODEL_MAP.put(PostComponentUpdateEvent.APPLICATION_MODEL_TYPE, PostComponentUpdateEvent.class);
   }

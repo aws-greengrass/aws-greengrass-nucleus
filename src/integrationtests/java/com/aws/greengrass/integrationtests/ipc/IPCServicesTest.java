@@ -43,9 +43,9 @@ import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityStatus;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.GetConfigurationRequest;
 import software.amazon.awssdk.aws.greengrass.model.GetConfigurationResponse;
-import software.amazon.awssdk.aws.greengrass.model.LifecycleState;
 import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
+import software.amazon.awssdk.aws.greengrass.model.ReportedLifecycleState;
 import software.amazon.awssdk.aws.greengrass.model.SendConfigurationValidityReportRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesResponse;
@@ -457,7 +457,7 @@ class IPCServicesTest {
             clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
             UpdateStateRequest updateStateRequest = new UpdateStateRequest();
             updateStateRequest.setServiceName("StartupService");
-            updateStateRequest.setState(LifecycleState.RUNNING);
+            updateStateRequest.setState(ReportedLifecycleState.RUNNING);
             GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
             greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty());
             assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
@@ -480,7 +480,7 @@ class IPCServicesTest {
             }
         });
         UpdateStateRequest updateStateRequest = new UpdateStateRequest();
-        updateStateRequest.setState(LifecycleState.ERRORED);
+        updateStateRequest.setState(ReportedLifecycleState.ERRORED);
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty()).getResponse().get();
         assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
