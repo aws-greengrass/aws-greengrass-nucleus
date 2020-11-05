@@ -6,6 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
@@ -17,6 +18,11 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
 import org.slf4j.event.Level;
 
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.Map;
+import java.util.Objects;
+
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 
@@ -27,6 +33,9 @@ public final class LogManagerHelper {
     public static final String NUCLEUS_CONFIG_LOGGING_TOPICS = "logging";
     static final String SERVICE_CONFIG_LOGGING_TOPICS = "ComponentLogging";
     private static final String LOG_FILE_EXTENSION = ".log";
+    private static Topics loggingTopics;
+    private static Kernel kernel;
+    private static LoggerConfiguration currentConfiguration;
     private static final Logger logger = LogManager.getLogger(LogManagerHelper.class);
 
     private LogManagerHelper() {
@@ -37,9 +46,9 @@ public final class LogManagerHelper {
      * @param kernel {@link Kernel}
      */
     public static void handleLoggingConfig(Kernel kernel) {
+        LogManagerHelper.kernel = kernel;
         Pair<String, Boolean> nucleusComponentNamePair = DeviceConfiguration.getNucleusComponentName(kernel);
-        kernel.getConfig()
-                .lookupTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentNamePair.getLeft(),
+        loggingTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentNamePair.getLeft(),
                         CONFIGURATION_CONFIG_KEY, NUCLEUS_CONFIG_LOGGING_TOPICS)
                 .subscribe(LogManagerHelper::handleLoggingConfigurationChanges);
     }
@@ -72,32 +81,55 @@ public final class LogManagerHelper {
         return LogManager.getLogger(name, LoggerConfiguration.builder().fileName(fileName).build());
     }
 
-    private static void handleLoggingConfigurationChanges(WhatHappened what, Node loggingParam) {
+    @SuppressWarnings("PMD.UselessParentheses")
+    static synchronized void handleLoggingConfigurationChanges(WhatHappened what, Node loggingParam) {
         if (loggingParam == null) {
-            logger.atInfo().log("No logging configuration configured");
             return;
         }
-        LoggerConfiguration configuration2 = LoggerConfiguration.builder().build();
-        if (WhatHappened.childChanged.equals(what)) {
-            if ("level".equals(loggingParam.getFullName())) {
-                configuration2.setLevel(Level.valueOf(Coerce.toString(loggingParam.toPOJO())));
+        LoggerConfiguration configuration = fromPojo(loggingTopics.toPOJO());
+        if (currentConfiguration == null || !currentConfiguration.equals(configuration)) {
+            if (configuration.getOutputDirectory() != null
+                    && (currentConfiguration == null || !Objects.equals(currentConfiguration.getOutputDirectory(),
+                    configuration.getOutputDirectory()))) {
+                try {
+                    LogManagerHelper.kernel.getNucleusPaths()
+                            .setLoggerPath(Paths.get(configuration.getOutputDirectory()));
+                } catch (IOException e) {
+                    logger.atError().cause(e).log("Unable to initialize logger output directory path");
+                }
             }
-            if ("fileSizeKB".equals(loggingParam.getFullName())) {
-                configuration2.setFileSizeKB(Coerce.toLong(loggingParam.toPOJO()));
-            }
-            if ("totalLogsSizeKB".equals(loggingParam.getFullName())) {
-                configuration2.setTotalLogsSizeKB(Coerce.toLong(loggingParam.toPOJO()));
-            }
-            if ("format".equals(loggingParam.getFullName())) {
-                configuration2.setFormat(LogFormat.valueOf(Coerce.toString(loggingParam.toPOJO())));
-            }
-            if ("outputDirectory".equals(loggingParam.getFullName())) {
-                configuration2.setOutputDirectory(Coerce.toString(loggingParam.toPOJO()));
-            }
-            if ("outputType".equals(loggingParam.getFullName())) {
-                configuration2.setOutputType(LogStore.valueOf(Coerce.toString(loggingParam.toPOJO())));
-            }
+            currentConfiguration = configuration;
+            LogManager.reconfigureAllLoggers(configuration);
         }
-        LogManager.reconfigureAllLoggers(configuration2);
     }
+
+    private static LoggerConfiguration fromPojo(Map<String, Object> pojoMap) {
+        LoggerConfiguration configuration = LoggerConfiguration.builder().build();
+        pojoMap.forEach((s, o) -> {
+            switch (s) {
+                case "level":
+                    configuration.setLevel(Level.valueOf(Coerce.toString(o)));
+                    break;
+                case "fileSizeKB":
+                    configuration.setFileSizeKB(Coerce.toLong(o));
+                    break;
+                case "totalLogsSizeKB":
+                    configuration.setTotalLogsSizeKB(Coerce.toLong(o));
+                    break;
+                case "format":
+                    configuration.setFormat(LogFormat.valueOf(Coerce.toString(o)));
+                    break;
+                case "outputDirectory":
+                    configuration.setOutputDirectory(Coerce.toString(o));
+                    break;
+                case "outputType":
+                    configuration.setOutputType(LogStore.valueOf(Coerce.toString(o)));
+                    break;
+                default:
+                    throw new IllegalStateException("Unexpected value: " + s);
+            }
+        });
+        return configuration;
+    }
+
 }

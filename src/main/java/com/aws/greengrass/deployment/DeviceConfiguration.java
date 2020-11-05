@@ -101,7 +101,7 @@ public class DeviceConfiguration {
         this.kernel = kernel;
         Pair<String, Boolean> nucleusComponentNamePair = getNucleusComponentName(this.kernel);
         this.nucleusComponentName = nucleusComponentNamePair.getLeft();
-        // If the Nucleus name is default, then initialize the nucleus component configuration.
+        // If the Nucleus component does not exist, then initialize the nucleus component configuration.
         if (Boolean.FALSE.equals(nucleusComponentNamePair.getRight())) {
             initializeNucleusComponentConfig();
         }

@@ -7,7 +7,6 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Configuration;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.Context;
@@ -17,6 +16,7 @@ import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.logging.impl.config.LogFormat;
 import com.aws.greengrass.logging.impl.config.LogStore;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.NucleusPaths;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -37,6 +37,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.NUCLEUS_CONFIG_LOGGING_TOPICS;
 import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.SERVICE_CONFIG_LOGGING_TOPICS;
 import static com.aws.greengrass.telemetry.impl.MetricFactory.METRIC_LOGGER_PREFIX;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -46,8 +47,12 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.io.FileMatchers.aFileNamed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -114,31 +119,24 @@ class LogManagerHelperTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
-    void GIVEN_all_fields_logger_config_WHEN_subscribe_THEN_correctly_reconfigures_all_loggers() {
+    void GIVEN_all_fields_logger_config_WHEN_subscribe_THEN_correctly_reconfigures_all_loggers() throws IOException {
         Context context = mock(Context.class);
         Configuration configuration = mock(Configuration.class);
+        NucleusPaths nucleusPaths = mock(NucleusPaths.class);
         when(kernel.getConfig()).thenReturn(configuration);
-        Topics topic = mock(Topics.class);
+        when(kernel.getNucleusPaths()).thenReturn(nucleusPaths);
+        Topics loggingConfig = Topics.of(context, NUCLEUS_CONFIG_LOGGING_TOPICS, null);
+        loggingConfig.createLeafChild("level").withValue("TRACE");
+        loggingConfig.createLeafChild("fileSizeKB").withValue("10");
+        loggingConfig.createLeafChild("totalLogsSizeKB").withValue("1026");
+        loggingConfig.createLeafChild("format").withValue("TEXT");
+        loggingConfig.createLeafChild("outputType").withValue("FILE");
+        loggingConfig.createLeafChild("outputDirectory").withValue("/tmp/test");
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
-        when(topic.subscribe(childChangedArgumentCaptor.capture())).thenReturn(topic);
-        when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(topic);
+        when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(loggingConfig);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
         LogManagerHelper.handleLoggingConfig(kernel);
-
-        Topic levelTopic = Topic.of(context, "level", "TRACE");
-        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, levelTopic);
-        Topic fileNameTopic = Topic.of(context, "fileName", "something");
-        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, fileNameTopic);
-        Topic fileSizeKBTopic = Topic.of(context, "fileSizeKB", "10");
-        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, fileSizeKBTopic);
-        Topic totalLogsSizeKBTopic = Topic.of(context, "totalLogsSizeKB", "1026");
-        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, totalLogsSizeKBTopic);
-        Topic formatTopic = Topic.of(context, "format", "TEXT");
-        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, formatTopic);
-        Topic outputTypeTopic = Topic.of(context, "outputType", "FILE");
-        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, outputTypeTopic);
-        Topic outputDirectoryTopic = Topic.of(context, "outputDirectory", "/tmp/test");
-        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, outputDirectoryTopic);
+        LogManagerHelper.handleLoggingConfigurationChanges(WhatHappened.childChanged, loggingConfig);
 
         assertEquals(Level.TRACE, LogManager.getRootLogConfiguration().getLevel());
         assertEquals(LogStore.FILE, LogManager.getRootLogConfiguration().getStore());
@@ -152,18 +150,22 @@ class LogManagerHelperTest {
         assertEquals(LogFormat.JSON, LogManager.getTelemetryConfig().getFormat());
         assertEquals(10, LogManager.getTelemetryConfig().getFileSizeKB());
         assertEquals(1026, LogManager.getTelemetryConfig().getTotalLogStoreSizeKB());
+        verify(nucleusPaths, times(1)).setLoggerPath(any(Path.class));
     }
 
     @Test
-    void GIVEN_null_logger_config_WHEN_subscribe_THEN_correctly_reconfigures_all_loggers() {
+    void GIVEN_null_logger_config_WHEN_subscribe_THEN_correctly_reconfigures_all_loggers() throws IOException {
         Configuration configuration = mock(Configuration.class);
+        NucleusPaths nucleusPaths = mock(NucleusPaths.class);
         when(kernel.getConfig()).thenReturn(configuration);
+        lenient().when(kernel.getNucleusPaths()).thenReturn(nucleusPaths);
         Topics topic = mock(Topics.class);
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
         when(topic.subscribe(childChangedArgumentCaptor.capture())).thenReturn(topic);
         when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(topic);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
         LogManagerHelper.handleLoggingConfig(kernel);
+        LogManagerHelper.handleLoggingConfigurationChanges(WhatHappened.childChanged, null);
 
         childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, null);
 
@@ -179,5 +181,6 @@ class LogManagerHelperTest {
         assertEquals(LogFormat.JSON, LogManager.getTelemetryConfig().getFormat());
         assertEquals(1024, LogManager.getTelemetryConfig().getFileSizeKB());
         assertEquals(10240, LogManager.getTelemetryConfig().getTotalLogStoreSizeKB());
+        verify(nucleusPaths, times(0)).setLoggerPath(any(Path.class));
     }
 }
