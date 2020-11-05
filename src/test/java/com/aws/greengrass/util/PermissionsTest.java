@@ -23,7 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static com.aws.greengrass.testcommons.testutilities.Matchers.hasPermission;
-import static com.aws.greengrass.util.FileSystemPermission.Option.IgnoreOwner;
+import static com.aws.greengrass.util.FileSystemPermission.Option.SetMode;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -76,7 +76,7 @@ class PermissionsTest {
 
         verify(platform).setPermissions(eq(Permissions.OWNER_RWX_EVERYONE_RX), eq(testDir));
         FileSystemPermission withOwnerWrite = artifactPermission.toBuilder().ownerWrite(true).build();
-        verify(platform).setPermissions(eq(withOwnerWrite), eq(artifactFile), eq(IgnoreOwner));
+        verify(platform).setPermissions(eq(withOwnerWrite), eq(artifactFile), eq(SetMode));
     }
 
     @Test
@@ -93,7 +93,7 @@ class PermissionsTest {
         Permissions.setArtifactPermission(testDir, artifactPermission);
 
         verify(platform).setPermissions(eq(Permissions.OWNER_RWX_EVERYONE_RX), eq(testDir));
-        verify(platform).setPermissions(eq(artifactPermission), eq(artifactFile), eq(IgnoreOwner));
+        verify(platform).setPermissions(eq(artifactPermission), eq(artifactFile), eq(SetMode));
     }
 
     @Test
@@ -108,7 +108,7 @@ class PermissionsTest {
 
         Permissions.setArtifactPermission(artifactFile, artifactPermission);
         FileSystemPermission withOwnerWrite = artifactPermission.toBuilder().ownerWrite(true).build();
-        verify(platform).setPermissions(eq(withOwnerWrite), eq(artifactFile), eq(IgnoreOwner));
+        verify(platform).setPermissions(eq(withOwnerWrite), eq(artifactFile), eq(SetMode));
     }
 
     @Test
@@ -122,7 +122,7 @@ class PermissionsTest {
         doReturn(true).when(user).isSuperUser();
 
         Permissions.setArtifactPermission(artifactFile, artifactPermission);
-        verify(platform).setPermissions(eq(artifactPermission), eq(artifactFile), eq(IgnoreOwner));
+        verify(platform).setPermissions(eq(artifactPermission), eq(artifactFile), eq(SetMode));
     }
 
     @Test

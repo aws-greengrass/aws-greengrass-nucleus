@@ -30,10 +30,10 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAM
  * and  group must be provided.
  */
 public class UnixRunWithGenerator implements RunWithGenerator {
-    public static final Logger logger = LogManager.getLogger(UnixRunWithGenerator.class);
+    static final Logger logger = LogManager.getLogger(UnixRunWithGenerator.class);
     public static final String EVENT_TYPE = "generate-service-run-with-user-configuration";
 
-    private final UnixPlatform platform;
+    protected final UnixPlatform platform;
 
     /**
      * Create a new instance.

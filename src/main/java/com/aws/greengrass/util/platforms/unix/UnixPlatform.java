@@ -9,6 +9,7 @@ import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.CrashableFunction;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.FileSystemPermission.Option;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -63,6 +64,8 @@ public class UnixPlatform extends Platform {
     protected static final int SIGINT = 2;
     protected static final int SIGKILL = 9;
     private static final String POSIX_GROUP_FILE = "/etc/group";
+    public static final String SET_PERMISSIONS_EVENT = "set-permissions";
+    public static final String PATH = "path";
 
     private static UnixUserAttributes CURRENT_USER;
     private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
@@ -308,64 +311,75 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public void setPermissions(FileSystemPermission permission, Path path, EnumSet<FileSystemPermission.Option> options)
+    public void setPermissions(FileSystemPermission permission, Path path, EnumSet<Option> options)
             throws IOException {
 
         // noop function that does not set owner
         CrashableFunction<PosixFileAttributeView, Void, IOException> setOwner = (p) -> null;
 
-        if (!options.contains(FileSystemPermission.Option.IgnoreOwner)
-                && !Utils.isEmpty(permission.getOwnerUser())) {
-            UserPrincipalLookupService lookupService = path.getFileSystem().getUserPrincipalLookupService();
-            UserPrincipal userPrincipal = lookupService.lookupPrincipalByName(permission.getOwnerUser());
-            GroupPrincipal groupPrincipal = Utils.isEmpty(permission.getOwnerGroup()) ? null
-                    : lookupService.lookupPrincipalByGroupName(permission.getOwnerGroup());
+        if (options.contains(Option.SetOwner)) {
+            if (Utils.isEmpty(permission.getOwnerUser())) {
+                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).log("No owner to set for path");
+            } else {
+                UserPrincipalLookupService lookupService = path.getFileSystem().getUserPrincipalLookupService();
+                UserPrincipal userPrincipal = lookupService.lookupPrincipalByName(permission.getOwnerUser());
+                GroupPrincipal groupPrincipal = Utils.isEmpty(permission.getOwnerGroup()) ? null :
+                        lookupService.lookupPrincipalByGroupName(permission.getOwnerGroup());
 
-            setOwner = (view) -> {
-                logger.atTrace().setEventType("set-permissions").kv("path", path).kv("owner",
-                        permission.getOwnerUser()).log();
-                view.setOwner(userPrincipal);
-                if (groupPrincipal != null) {
-                    logger.atTrace().setEventType("set-permissions").kv("path", path).kv("group",
-                            permission.getOwnerGroup()).log();
-                    view.setGroup(groupPrincipal);
-                }
-                return null;
-            };
+                setOwner = (view) -> {
+                    logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path)
+                            .kv("owner", permission.getOwnerUser()).log();
+                    view.setOwner(userPrincipal);
+                    if (groupPrincipal != null) {
+                        logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path)
+                                .kv("group", permission.getOwnerGroup()).log();
+                        view.setGroup(groupPrincipal);
+                    }
+                    return null;
+                };
+            }
         }
 
-        final CrashableFunction<PosixFileAttributeView, Void, IOException> setOwnerFunc = setOwner;
 
-        Set<PosixFilePermission> perms = permission.toPosixFilePermissions();
+        // noop function that does not change the file mode
+        CrashableFunction<PosixFileAttributeView, Void, IOException> setMode = (p) -> null;
 
-        CrashableFunction<Path, Void, IOException> setPerm = (p) -> {
-            PosixFileAttributeView view =
-                    Files.getFileAttributeView(p, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
-            setOwnerFunc.apply(view);
-            if (!options.contains(FileSystemPermission.Option.IgnorePermission)) {
-                logger.atTrace().setEventType("set-permissions").kv("path", p).kv("perm",
+        if (options.contains(Option.SetMode)) {
+            Set<PosixFilePermission> perms = permission.toPosixFilePermissions();
+            setMode = (view) -> {
+                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm",
                         PosixFilePermissions.toString(perms)).log();
                 view.setPermissions(perms);
-            }
-            return null;
-        };
-
-        if (options.contains(FileSystemPermission.Option.Recurse)) {
+               return null;
+           };
+        }
+        final CrashableFunction<PosixFileAttributeView, Void, IOException> setModeFunc = setMode;
+        final CrashableFunction<PosixFileAttributeView, Void, IOException> setOwnerFunc = setOwner;
+        if (options.contains(Option.Recurse)) {
             Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    setPerm.apply(dir);
+                    PosixFileAttributeView view = Files.getFileAttributeView(dir, PosixFileAttributeView.class,
+                            LinkOption.NOFOLLOW_LINKS);
+                    setModeFunc.apply(view);
+                    setOwnerFunc.apply(view);
                     return FileVisitResult.CONTINUE;
                 }
 
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    setPerm.apply(file);
+                    PosixFileAttributeView view = Files.getFileAttributeView(file, PosixFileAttributeView.class,
+                            LinkOption.NOFOLLOW_LINKS);
+                    setModeFunc.apply(view);
+                    setOwnerFunc.apply(view);
                     return FileVisitResult.CONTINUE;
                 }
             });
         } else {
-            setPerm.apply(path);
+            PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
+                    LinkOption.NOFOLLOW_LINKS);
+            setModeFunc.apply(view);
+            setOwnerFunc.apply(view);
         }
     }
 

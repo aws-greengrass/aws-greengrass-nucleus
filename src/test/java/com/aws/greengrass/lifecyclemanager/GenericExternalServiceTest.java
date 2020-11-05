@@ -11,14 +11,12 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
-import com.aws.greengrass.util.platforms.RunWithGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Optional;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -27,7 +25,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
@@ -88,12 +85,7 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
 
     @Test
     void GIVEN_runwith_info_WHEN_exec_add_group_THEN_use_runwith() throws Exception {
-        RunWithGenerator generator = mock(RunWithGenerator.class);
-        doReturn(generator).when(platform).getRunWithGenerator();
-        doReturn(Optional.of(RunWith.builder().user("foo").group("bar").build()))
-                .when(generator).generate(any(), any());
-
-        ges.storeInitialRunWithConfiguration();
+        ges.runWith = RunWith.builder().user("foo").group("bar").build();
 
         try (Exec exec = ges.addUserGroup(new Exec().withExec("echo", "hello"))) {
             assertThat(exec.getCommand(), arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "-g", "bar",

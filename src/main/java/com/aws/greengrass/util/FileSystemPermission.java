@@ -76,12 +76,12 @@ public class FileSystemPermission {
          */
         Recurse,
         /**
-         * Ignore the owner fields - only set the permission.
+         * Set owner.
          */
-        IgnoreOwner,
+        SetOwner,
         /**
-         * Ignore the permission bits - only set the owner.
+         * Set file mode (read/write/execute).
          */
-        IgnorePermission;
+        SetMode
     }
 }

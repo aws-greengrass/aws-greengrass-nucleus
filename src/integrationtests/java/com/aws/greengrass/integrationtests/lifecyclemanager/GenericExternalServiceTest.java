@@ -14,6 +14,7 @@ import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
+import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,7 @@ import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -322,6 +324,8 @@ class GenericExternalServiceTest extends BaseITCase {
     void GIVEN_posix_default_user_WHEN_runs_THEN_runs_with_default_user(String file, String expectedInstallUser,
                                                                         String expectedRunUser)
             throws Exception {
+        assumeTrue("root".equals(SystemUtils.USER_NAME), "test must be run as root as services run as different users"
+                + " and write files to service work path");
 
         CountDownLatch countDownLatch = new CountDownLatch(2);
         // Set up stdout listener to capture stdout for verifying users
