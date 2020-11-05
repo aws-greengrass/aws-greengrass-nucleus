@@ -498,6 +498,7 @@ class IPCServicesTest {
             m.getMessage().contains("subscribed to component update");
             subscriptionLatch.countDown();
         });
+        CompletableFuture<Future> futureFuture = new CompletableFuture<>();
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         CompletableFuture<SubscribeToComponentUpdatesResponse> fut =
                 greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest,
@@ -511,8 +512,8 @@ class IPCServicesTest {
                                     deferComponentUpdateRequest.setDeploymentId(streamEvent.getPreUpdateEvent()
                                             .getDeploymentId());
                                     deferComponentUpdateRequest.setMessage("Test");
-                                    greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest,
-                                            Optional.empty());
+                                    futureFuture.complete(greengrassCoreIPCClient.deferComponentUpdate(
+                                            deferComponentUpdateRequest, Optional.empty()).getResponse());
                                 }
                                 if (streamEvent.getPostUpdateEvent() != null) {
                                     cdl.countDown();
@@ -530,12 +531,8 @@ class IPCServicesTest {
 
                             }
                         })).getResponse();
-        try {
-            fut.get(3, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            logger.atError().setCause(e).log("Error when subscribing to component updates");
-            fail("Caught exception when subscribing to component updates");
-        }
+
+        fut.get(3, TimeUnit.SECONDS);
 
         assertTrue(subscriptionLatch.await(5, TimeUnit.SECONDS));
         // GG_NEEDS_REVIEW: TODO: When Cli support safe update setting in local deployment, then create a local deployment here to
@@ -546,7 +543,9 @@ class IPCServicesTest {
         event.setDeploymentId("abc");
         List<Future<DeferUpdateRequest>> futureList =
                 lifecycleIPCEventStreamAgent.sendPreComponentUpdateEvent(event);
-        futureList.get(0).get(2, TimeUnit.SECONDS);
+        assertEquals(1, futureList.size());
+        futureFuture.get(5, TimeUnit.SECONDS).get(5, TimeUnit.SECONDS);
+        futureList.get(0).get(5, TimeUnit.SECONDS);
         lifecycleIPCEventStreamAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
         assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
     }
