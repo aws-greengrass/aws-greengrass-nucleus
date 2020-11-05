@@ -406,11 +406,13 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     protected void cleanup() {
+        createdDeployments.forEach(greengrassClient::cancelDeployment);
+        createdDeployments.clear();
+
         deviceProvisioningHelper.cleanThing(iotClient, thingInfo, false);
         createdThingGroups.forEach(thingGroup-> IotJobsUtils.cleanThingGroup(iotClient, thingGroupName));
         createdThingGroups.clear();
-        createdDeployments.forEach(greengrassClient::cancelDeployment);
-        createdDeployments.clear();
+
         if (kernel == null || kernel.getNucleusPaths().configPath() == null) {
             return;
         }

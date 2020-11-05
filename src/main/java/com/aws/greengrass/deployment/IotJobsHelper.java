@@ -363,9 +363,11 @@ public class IotJobsHelper implements InjectionActions {
 
         iotJobsClient.SubscribeToUpdateJobExecutionRejected(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
-                    logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
-                            .log("Job status updated rejected");
-                    gotResponse.completeExceptionally(new Exception(response.message));
+                    if (!response.message.startsWith("Namespace id not match for requested")) {
+                        logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+                                .log("Job status updated rejected");
+                        gotResponse.completeExceptionally(new Exception(response.message));
+                    }
                 });
 
         iotJobsClientWrapper.SubscribeToUpdateJobExecutionAccepted(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
@@ -377,10 +379,11 @@ public class IotJobsHelper implements InjectionActions {
 
         iotJobsClientWrapper.SubscribeToUpdateJobExecutionRejected(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
-                    logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
-                            .log("Job status updated rejected");
-                    // GG_NEEDS_REVIEW: TODO: Can this be due to duplicate messages being sent for the job?
-                    gotResponse.completeExceptionally(new Exception(response.message));
+                    if (!response.message.startsWith("Namespace id not match for requested")) {
+                        logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+                                .log("Job status updated rejected");
+                        gotResponse.completeExceptionally(new Exception(response.message));
+                    }
                 });
 
         UpdateJobExecutionRequest updateJobRequest = new UpdateJobExecutionRequest();
