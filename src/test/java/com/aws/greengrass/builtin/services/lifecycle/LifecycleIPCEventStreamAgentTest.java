@@ -19,7 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateResponse;
 import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
-import software.amazon.awssdk.aws.greengrass.model.LifecycleState;
+import software.amazon.awssdk.aws.greengrass.model.ReportedLifecycleState;
 import software.amazon.awssdk.aws.greengrass.model.ResourceNotFoundError;
 import software.amazon.awssdk.aws.greengrass.model.ServiceError;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
@@ -59,7 +59,7 @@ class LifecycleIPCEventStreamAgentTest {
     AuthenticationData mockAuthenticationData;
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         when(mockContext.getContinuation()).thenReturn(mock(ServerConnectionContinuation.class));
         when(mockContext.getAuthenticationData()).thenReturn(mockAuthenticationData);
         when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_SERVICE);
@@ -71,7 +71,7 @@ class LifecycleIPCEventStreamAgentTest {
     @SuppressWarnings("PMD.CloseResource")
     void testUpdateStateHandler_successful_update() throws ServiceLoadException {
         UpdateStateRequest updateStateRequest = new UpdateStateRequest();
-        updateStateRequest.setState(LifecycleState.ERRORED);
+        updateStateRequest.setState(ReportedLifecycleState.ERRORED);
         GreengrassService mockTestService = mock(GreengrassService.class);
         when(kernel.locate(TEST_SERVICE)).thenReturn(mockTestService);
         UpdateStateResponse response =
@@ -83,7 +83,7 @@ class LifecycleIPCEventStreamAgentTest {
     @SuppressWarnings("PMD.CloseResource")
     void testUpdateStateHandler_service_not_found() throws ServiceLoadException {
         UpdateStateRequest updateStateRequest = new UpdateStateRequest();
-        updateStateRequest.setState(LifecycleState.ERRORED);
+        updateStateRequest.setState(ReportedLifecycleState.ERRORED);
         when(kernel.locate(TEST_SERVICE)).thenThrow(new ServiceLoadException("error"));
         assertThrows(ResourceNotFoundError.class,
                 () -> lifecycleIPCEventStreamAgent.getUpdateStateOperationHandler(mockContext).handleRequest(updateStateRequest));

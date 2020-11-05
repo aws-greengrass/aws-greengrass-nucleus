@@ -5,16 +5,24 @@
 
 package software.amazon.awssdk.eventstreamrpc;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.crt.eventstream.Header;
+import software.amazon.awssdk.crt.eventstream.HeaderType;
+import software.amazon.awssdk.crt.eventstream.MessageFlags;
+import software.amazon.awssdk.crt.eventstream.MessageType;
+import software.amazon.awssdk.crt.eventstream.ServerConnection;
+import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
+import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
+import software.amazon.awssdk.crt.eventstream.ServerConnectionHandler;
+
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.crt.eventstream.*;
+import java.util.stream.Collectors;
 
 public class ServiceOperationMappingContinuationHandler extends ServerConnectionHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(ServiceOperationMappingContinuationHandler.class);
@@ -32,8 +40,8 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
         if (messageType == MessageType.Ping) {
             int responseMessageFlag = 0;
             MessageType responseMessageType = MessageType.PingResponse;
-
-            connection.sendProtocolMessage(null, null, responseMessageType, responseMessageFlag);
+            connection.sendProtocolMessage(headers.stream().filter(header -> !header.getName().startsWith(":"))
+                    .collect(Collectors.toList()), payload, responseMessageType, responseMessageFlag);
         } else if (messageType == MessageType.Connect) {
             onConnectRequest(headers, payload);
         } else if (messageType != MessageType.PingResponse) {
@@ -112,15 +120,16 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
             LOGGER.info("Sending connect response for " + authLabel);
             connection.sendProtocolMessage(null, null, acceptResponseType, responseMessageFlag[0])
                 .whenComplete((res, ex) -> {
+                    //TODO: removing log statements due to known issue of locking up
                     if (ex != null) {
-                        LOGGER.error(String.format("Sending connection response for %s threw exception (%s): %s",
-                           authLabel, ex.getClass().getCanonicalName(), ex.getMessage()));
+                        //LOGGER.severe(String.format("Sending connection response for %s threw exception (%s): %s",
+                        //   authLabel, ex.getClass().getCanonicalName(), ex.getMessage()));
                     }
                     else {
-                        LOGGER.info("Successfully sent connection response for: " + authLabel);
+                        //LOGGER.info("Successfully sent connection response for: " + authLabel);
                     }
                     if (responseMessageFlag[0] != MessageFlags.ConnectionAccepted.getByteValue()) {
-                        LOGGER.info("Closing connection due to connection not being accepted...");
+                        //LOGGER.info("Closing connection due to connection not being accepted...");
                         connection.closeConnection(0);
                     }
                 });

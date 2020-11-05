@@ -5,6 +5,15 @@
 
 package software.amazon.awssdk.eventstreamrpc;
 
+import software.amazon.awssdk.crt.CRT;
+import software.amazon.awssdk.crt.eventstream.ClientConnection;
+import software.amazon.awssdk.crt.eventstream.ClientConnectionHandler;
+import software.amazon.awssdk.crt.eventstream.Header;
+import software.amazon.awssdk.crt.eventstream.MessageFlags;
+import software.amazon.awssdk.crt.eventstream.MessageType;
+import software.amazon.awssdk.eventstreamrpc.model.AccessDeniedException;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamError;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -13,11 +22,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-
-import software.amazon.awssdk.crt.CRT;
-import software.amazon.awssdk.crt.eventstream.*;
-import software.amazon.awssdk.eventstreamrpc.model.AccessDeniedException;
-import software.amazon.awssdk.eventstreamrpc.model.EventStreamError;
 
 public class EventStreamRPCConnection implements AutoCloseable {
     private static final Logger LOGGER = Logger.getLogger(EventStreamRPCConnection.class.getName());
@@ -110,7 +114,9 @@ public class EventStreamRPCConnection implements AutoCloseable {
                         } else if (MessageType.PingResponse.equals(messageType)) {
                             LOGGER.finer("Ping response received");
                         } else if (MessageType.Ping.equals(messageType)) {
-                            sendPingResponse(Optional.of(new MessageAmendInfo(headers, payload)))
+                            sendPingResponse(Optional.of(new MessageAmendInfo(
+                                    headers.stream().filter(header -> !header.getName().startsWith(":"))
+                                    .collect(Collectors.toList()), payload)))
                                 .whenComplete((res, ex) -> {
                                     LOGGER.finer("Ping response sent");
                                 });

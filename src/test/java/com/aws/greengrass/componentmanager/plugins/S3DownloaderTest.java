@@ -21,11 +21,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.http.AbortableInputStream;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.ByteArrayInputStream;
@@ -40,6 +43,7 @@ import java.util.Base64;
 import java.util.Collections;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -78,6 +82,18 @@ class S3DownloaderTest {
         lenient().when(s3Client.getBucketLocation(any(GetBucketLocationRequest.class)))
                 .thenReturn(mock(GetBucketLocationResponse.class));
         s3Downloader = new S3Downloader(s3SdkClientFactory);
+    }
+
+    @Test
+    void GIVEN_wrong_region_WHEN_head_THEN_finds_right_region() throws Exception {
+        when(s3Client.getBucketLocation(any(GetBucketLocationRequest.class))).thenThrow(S3Exception.builder().message(
+                "The authorization header is malformed; the region 'us-east-1' is wrong; expecting 'us-west-2'")
+                .build());
+        when(s3Client.headObject(any(HeadObjectRequest.class)))
+                .thenReturn(HeadObjectResponse.builder().contentLength(123L).build());
+        assertEquals(123L, s3Downloader.getDownloadSize(mock(ComponentIdentifier.class),
+                ComponentArtifact.builder().artifactUri(URI.create("s3://bucket/object")).build(), mock(Path.class)));
+        verify(s3SdkClientFactory).getClientForRegion(Region.US_WEST_2);
     }
 
     @Test
