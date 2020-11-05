@@ -39,6 +39,10 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETER
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -303,13 +307,12 @@ class DynamicComponentConfigurationValidatorTest {
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("OldService", "Faulty Proposed Service Config");
         }};
-        assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
+        assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture), "validation");
         verify(configStoreIPCEventStreamAgent, never()).validateConfiguration(any(), any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
-        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
-        assertTrue(deploymentResult.getFailureCause() instanceof ComponentConfigurationValidationException);
-        assertTrue(deploymentResult.getFailureCause().getMessage() != null && deploymentResult.getFailureCause()
-                .getMessage().contains("Services config must be a map"));
+        assertThat(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, is(deploymentResult.getDeploymentStatus()));
+        assertThat(deploymentResult.getFailureCause(), is(instanceOf(ComponentConfigurationValidationException.class)));
+        assertThat(deploymentResult.getFailureCause().getMessage(), containsString("Services config must be a map"));
     }
 
     private Deployment createTestDeployment() {

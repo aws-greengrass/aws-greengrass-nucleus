@@ -1,6 +1,7 @@
 ---
 services:
   aws.greengrass.Nucleus:
+    componentType: NUCLEUS
     parameters:
       runWithDefault:
         posixUser: nobody
@@ -30,3 +31,5 @@ services:
   main:
     dependencies:
     - CustomerApp:HARD
+    - aws.greengrass.Nucleus:HARD
+

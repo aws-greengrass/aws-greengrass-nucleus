@@ -5,17 +5,23 @@
 
 package com.aws.greengrass.deployment.bootstrap;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.RunWithGenerator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -25,15 +31,20 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -59,10 +70,12 @@ class BootstrapManagerTest {
     Kernel kernel;
     @Mock
     Context context;
-    @Mock
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     DeviceConfiguration deviceConfiguration;
     @Mock
     Path filePath;
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
+    Platform platform;
 
     @Test
     void GIVEN_new_config_without_service_change_WHEN_check_isBootstrapRequired_THEN_return_false() throws Exception {
@@ -74,6 +87,7 @@ class BootstrapManagerTest {
     void GIVEN_new_config_without_service_bootstraps_WHEN_check_isBootstrapRequired_THEN_return_false() throws Exception {
         when(kernel.getContext()).thenReturn(context);
         when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(Collections.emptyMap());
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(false).when(bootstrapManager).serviceBootstrapRequired(any(), any());
         assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
@@ -88,6 +102,7 @@ class BootstrapManagerTest {
     void GIVEN_new_config_with_service_bootstraps_WHEN_check_isBootstrapRequired_THEN_return_true() throws Exception {
         when(kernel.getContext()).thenReturn(context);
         when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(Collections.emptyMap());
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(true).when(bootstrapManager).serviceBootstrapRequired(any(), any());
         assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
@@ -245,5 +260,108 @@ class BootstrapManagerTest {
                         BootstrapTaskStatus.ExecutionStatus.DONE, 100)
         ));
         assertFalse(bootstrapManager.hasNext());
+    }
+
+    @Test
+    void GIVEN_run_with_same_WHEN_isBootstrapRequired_THEN_return_false()
+            throws ServiceUpdateException, ComponentConfigurationValidationException, ServiceLoadException {
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        GenericExternalService service = mock(GenericExternalService.class);
+        doReturn(false).when(service).isBootstrapRequired(anyMap());
+        when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(service);
+
+        Map<String, Object> runWith = new HashMap<String, Object>() {{
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo");
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP, "bar");
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");
+        }};
+        when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(runWith);
+
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel, platform);
+        Map<String, Object> config =
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                            put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                            put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                                    put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                            }});
+                        }});
+                    }});
+                }};
+
+        assertThat("restart required", bootstrapManager.isBootstrapRequired(config), is(false));
+    }
+
+    @Test
+    void GIVEN_run_with_changes_WHEN_isBootstrapRequired_THEN_return_true()
+            throws ServiceUpdateException, ComponentConfigurationValidationException, ServiceLoadException {
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        when(kernel.getContext()).thenReturn(context);
+
+        GenericExternalService service = mock(GenericExternalService.class);
+        doReturn(false).when(service).isBootstrapRequired(anyMap());
+        when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(service);
+        when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(new HashMap<String, Object>() {{
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo");
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP, "bar");
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");
+        }});
+
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel, platform);
+        Map<String, Object> config =
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                            put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                            put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                                put(DeviceConfiguration.RUN_WITH_TOPIC, new HashMap<String, Object>() {{
+                                    put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "different");
+                                    put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP, "different");
+                                    put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "different");
+                                }});
+                            }});
+                        }});
+                    }});
+                }};
+        boolean actual = bootstrapManager.isBootstrapRequired(config);
+        assertThat("restart required", actual, is(true));
+    }
+
+    @Test
+    void GIVEN_run_with_changes_invalid_WHEN_isBootstrapRequired_THEN_return_true()
+            throws DeviceConfigurationException, ServiceUpdateException, ComponentConfigurationValidationException {
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        when(kernel.getContext()).thenReturn(context);
+
+        when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(new HashMap<String, Object>() {{
+                        put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo");
+                        put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP, "bar");
+                        put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");
+                    }});
+
+        RunWithGenerator mockRunWithGenerator = platform.getRunWithGenerator();
+        doThrow(DeviceConfigurationException.class).when(mockRunWithGenerator).validateDefaultConfiguration(anyMap());
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel, platform);
+
+        Map<String, Object> config =
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                            put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                            put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                                put(DeviceConfiguration.RUN_WITH_TOPIC, new HashMap<String, Object>() {{
+                                    put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "different");
+                                    put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP, "different");
+                                    put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "different");
+                                }});
+                            }});
+                        }});
+                    }});
+                }};
+
+        assertThrows(ComponentConfigurationValidationException.class, () ->
+                bootstrapManager.isBootstrapRequired(config));
     }
 }
