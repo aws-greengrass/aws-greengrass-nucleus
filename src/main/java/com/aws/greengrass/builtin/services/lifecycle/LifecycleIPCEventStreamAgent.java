@@ -11,6 +11,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Pair;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -58,13 +59,14 @@ public class LifecycleIPCEventStreamAgent {
     // component responds with DeferComponentUpdateRequest the future is marked as complete. The caller of
     // sendPreComponentUpdateEvent will have reference to the set of futures.
     // deferUpdateFuturesMap maps the context of a component to the future created for the component.
-    // This map is from service name to the Futures. Only one (latest) Future per service is maintained.
+    // This map is from service name and deployment id to the Futures. Only one (latest) Future per service is
+    // maintained.
     //TODO: [P41211652]: Remove the DeferUpdateRequest when we remove the LifecycleIPCAgent.
     @Getter (AccessLevel.PACKAGE)
-    private final Map<String, CompletableFuture<DeferUpdateRequest>> deferUpdateFuturesMap =
+    private final Map<Pair<String, String>, CompletableFuture<DeferUpdateRequest>> deferUpdateFuturesMap =
             new ConcurrentHashMap<>();
 
-    private static Logger log = LogManager.getLogger(LifecycleIPCEventStreamAgent.class);
+    private static final Logger log = LogManager.getLogger(LifecycleIPCEventStreamAgent.class);
 
     @Inject
     @Setter (AccessLevel.PACKAGE)
@@ -195,14 +197,18 @@ public class LifecycleIPCEventStreamAgent {
             if (!componentUpdateListeners.containsKey(serviceName)) {
                 throw new InvalidArgumentsError("Component is not subscribed to component update events");
             }
+            if (request.getDeploymentId() == null) {
+                throw new InvalidArgumentsError("Cannot defer the update, the deployment ID provided was null");
+            }
 
             CompletableFuture<DeferUpdateRequest> deferComponentUpdateRequestFuture =
-                deferUpdateFuturesMap.remove(serviceName);
+                deferUpdateFuturesMap.remove(new Pair<>(serviceName, request.getDeploymentId()));
             if (deferComponentUpdateRequestFuture == null) {
                 throw new ServiceError("Time limit to respond to PreComponentUpdateEvent exceeded");
             } else {
                 deferComponentUpdateRequestFuture
                         .complete(new DeferUpdateRequest(serviceName, request.getMessage(),
+                                request.getDeploymentId(),
                                 request.getRecheckAfterMs()));
             }
             logger.atInfo().log("Exiting defer request handler");
@@ -244,7 +250,8 @@ public class LifecycleIPCEventStreamAgent {
                 deferUpdateFutures.add(deferUpdateFuture);
                 // If there are multiple pre component events sent to same service, we will store the latest future
                 // As the update should be waiting for the latest one to complete.
-                deferUpdateFuturesMap.put(serviceName, deferUpdateFuture);
+                deferUpdateFuturesMap.put(new Pair<>(serviceName, preComponentUpdateEvent.getDeploymentId()),
+                        deferUpdateFuture);
             });
         }
         return deferUpdateFutures;
@@ -271,7 +278,6 @@ public class LifecycleIPCEventStreamAgent {
                 } catch (Exception e) {
                     log.atError().setCause(e).kv(SERVICE_NAME_LOG_KEY, serviceName)
                             .log("Failed to send the post component update on stream");
-                    return;
                 }
             });
         }

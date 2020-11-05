@@ -185,6 +185,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                             new SendConfigurationValidityReportRequest();
                     ConfigurationValidityReport report = new ConfigurationValidityReport();
                     report.setStatus(ConfigurationValidityStatus.ACCEPTED);
+                    report.setDeploymentId(events.getValidateConfigurationUpdateEvent().getDeploymentId());
                     reportRequest.setConfigurationValidityReport(report);
 
                     try {
@@ -261,6 +262,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                                     ConfigurationValidityReport report = new ConfigurationValidityReport();
                                     report.setStatus(ConfigurationValidityStatus.REJECTED);
                                     report.setMessage("I don't like this configuration");
+                                    report.setDeploymentId(events.getValidateConfigurationUpdateEvent().getDeploymentId());
                                     reportRequest.setConfigurationValidityReport(report);
 
                                     try {

@@ -165,7 +165,7 @@ public class LifecycleIPCAgent {
         }
 
         deferComponentUpdateRequestFuture.complete(new DeferUpdateRequest(context.getServiceName(),
-                request.getMessage(), request.getRecheckTimeInMs()));
+                request.getMessage(), null, request.getRecheckTimeInMs()));
         deferUpdateFuturesMap.remove(context);
         return responseBuilder.responseStatus(LifecycleResponseStatus.Success).build();
     }

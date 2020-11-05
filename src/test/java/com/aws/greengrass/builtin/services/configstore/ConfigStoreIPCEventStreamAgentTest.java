@@ -500,7 +500,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         configToValidate.put(TEST_CONFIG_KEY_1, 0);
         configToValidate.put(TEST_CONFIG_KEY_2, 100);
 
-        assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, configToValidate, new CompletableFuture<>()));
+        assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, "A", configToValidate, new CompletableFuture<>()));
         verify(mockServerConnectionContinuation, timeout(10000))
                 .sendMessage(anyList(), any(), any(MessageType.class), anyInt());
 
@@ -532,8 +532,8 @@ class ConfigStoreIPCEventStreamAgentTest {
         configToValidate.put(TEST_CONFIG_KEY_2, 100);
 
         CompletableFuture validationTracker = new CompletableFuture<>();
-        assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, configToValidate, validationTracker));
-        assertTrue(agent.discardValidationReportTracker(TEST_COMPONENT_A, validationTracker));
+        assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, "A", configToValidate, validationTracker));
+        assertTrue(agent.discardValidationReportTracker("A", TEST_COMPONENT_A, validationTracker));
     }
 
     @Test
@@ -551,11 +551,12 @@ class ConfigStoreIPCEventStreamAgentTest {
         configToValidate.put(TEST_CONFIG_KEY_2, 100);
 
         CompletableFuture<ConfigurationValidityReport> validationTracker = new CompletableFuture<>();
-        assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, configToValidate, validationTracker));
+        assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, "A", configToValidate, validationTracker));
 
         SendConfigurationValidityReportRequest reportRequest = new SendConfigurationValidityReportRequest();
         ConfigurationValidityReport validityReport = new ConfigurationValidityReport();
         validityReport.setStatus(ConfigurationValidityStatus.ACCEPTED);
+        validityReport.setDeploymentId("A");
         reportRequest.setConfigurationValidityReport(validityReport);
         SendConfigurationValidityReportResponse reportResponse =
                 agent.getSendConfigurationValidityReportHandler(mockContext).handleRequest(reportRequest);
@@ -571,9 +572,21 @@ class ConfigStoreIPCEventStreamAgentTest {
         SendConfigurationValidityReportRequest reportRequest = new SendConfigurationValidityReportRequest();
         ConfigurationValidityReport validityReport = new ConfigurationValidityReport();
         validityReport.setStatus(ConfigurationValidityStatus.ACCEPTED);
+        validityReport.setDeploymentId("abc");
         reportRequest.setConfigurationValidityReport(validityReport);
         InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class, () ->
                 agent.getSendConfigurationValidityReportHandler(mockContext).handleRequest(reportRequest));
         assertEquals("Validation request either timed out or was never made", error.getMessage());
+    }
+
+    @Test
+    void GIVEN_request_has_null_deployment_id_THEN_fail() {
+        SendConfigurationValidityReportRequest reportRequest = new SendConfigurationValidityReportRequest();
+        ConfigurationValidityReport validityReport = new ConfigurationValidityReport();
+        reportRequest.setConfigurationValidityReport(validityReport);
+        InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class, () ->
+                agent.getSendConfigurationValidityReportHandler(mockContext).handleRequest(reportRequest));
+        assertEquals("Cannot accept configuration validity report, the deployment ID provided was null",
+                error.getMessage());
     }
 }

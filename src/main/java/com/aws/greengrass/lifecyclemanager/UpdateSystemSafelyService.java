@@ -160,6 +160,8 @@ public class UpdateSystemSafelyService extends GreengrassService {
 
             PreComponentUpdateEvent preComponentUpdateEvent = new PreComponentUpdateEvent();
             preComponentUpdateEvent.setIsGgcRestarting(ggcRestarting);
+            String deploymentId = pendingActions.values().stream().map(UpdateAction::getDeploymentId).findFirst().get();
+            preComponentUpdateEvent.setDeploymentId(deploymentId);
             List<Future<DeferUpdateRequest>> deferRequestFutures =
                     lifecycleIPCAgent.sendPreComponentUpdateEvent(preComponentUpdateEvent);
 
@@ -169,7 +171,7 @@ public class UpdateSystemSafelyService extends GreengrassService {
             preComponentUpdateEventOld.setGgcRestarting(ggcRestarting);
             lifecycleAgent.sendPreComponentUpdateEvent(preComponentUpdateEventOld, deferRequestFutures);
 
-            long timeToReCheck = getTimeToReCheck(getMaxTimeoutInMillis(), deferRequestFutures);
+            long timeToReCheck = getTimeToReCheck(getMaxTimeoutInMillis(), deploymentId, deferRequestFutures);
             if (timeToReCheck > 0) {
                 logger.atDebug().setEventType("service-update-pending").addKeyValue("waitInMS", timeToReCheck).log();
                 Thread.sleep(timeToReCheck);
@@ -200,7 +202,8 @@ public class UpdateSystemSafelyService extends GreengrassService {
         return TimeUnit.SECONDS.toMillis(maxTimeoutInSec.get());
     }
 
-    private long getTimeToReCheck(long timeout, List<Future<DeferUpdateRequest>> deferRequestFutures)
+    private long getTimeToReCheck(long timeout, String deploymentId,
+                                  List<Future<DeferUpdateRequest>> deferRequestFutures)
             throws InterruptedException {
         final long currentTimeMillis = clock.millis();
         long maxTimeToReCheck = currentTimeMillis;
@@ -211,13 +214,17 @@ public class UpdateSystemSafelyService extends GreengrassService {
                 if (fut.isDone()) {
                     try {
                         DeferUpdateRequest deferRequest = fut.get();
-                        long timeToRecheck = currentTimeMillis + deferRequest.getRecheckTimeInMs();
-                        if (timeToRecheck > maxTimeToReCheck) {
-                            maxTimeToReCheck = timeToRecheck;
-                            logger.atInfo().setEventType("service-update-deferred")
-                                    .log("deferred for {} millis with message {}",
-                                            deferRequest.getRecheckTimeInMs(),
-                                            deferRequest.getMessage());
+                        if (deploymentId.equals(deferRequest.getDeploymentId())) {
+                            long timeToRecheck = currentTimeMillis + deferRequest.getRecheckTimeInMs();
+                            if (timeToRecheck > maxTimeToReCheck) {
+                                maxTimeToReCheck = timeToRecheck;
+                                logger.atInfo().setEventType("service-update-deferred")
+                                        .log("deferred for {} millis with message {}",
+                                                deferRequest.getRecheckTimeInMs(),
+                                                deferRequest.getMessage());
+                            }
+                        } else {
+                            logger.atWarn().log("Deferral request is not for the action which is pending");
                         }
                     } catch (ExecutionException e) {
                         logger.error("Failed to process component update request", e);

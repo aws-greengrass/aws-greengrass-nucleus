@@ -18,6 +18,7 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -57,6 +58,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -70,13 +72,13 @@ public class ConfigStoreIPCEventStreamAgent {
     private final ConcurrentHashMap<String, Set<StreamEventPublisher<ConfigurationUpdateEvents>>>
             configUpdateListeners = new ConcurrentHashMap<>();
     @Getter(AccessLevel.PACKAGE)
-    private final ConcurrentHashMap<String, Consumer<Map<String, Object>>>
+    private final ConcurrentHashMap<String, BiConsumer<String, Map<String, Object>>>
             configValidationListeners = new ConcurrentHashMap<>();
-    // Map of component --> future to complete with validation status received from service in response to validate
-    // event
+    // Map of component + deployment id --> future to complete with validation status received from service in response
+    // to validate event
     @Getter(AccessLevel.PACKAGE)
-    private final Map<String, CompletableFuture<ConfigurationValidityReport>> configValidationReportFutures =
-            new ConcurrentHashMap<>();
+    private final Map<Pair<String, String>, CompletableFuture<ConfigurationValidityReport>>
+            configValidationReportFutures = new ConcurrentHashMap<>();
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
@@ -131,10 +133,15 @@ public class ConfigStoreIPCEventStreamAgent {
         public SendConfigurationValidityReportResponse handleRequest(SendConfigurationValidityReportRequest request) {
             // TODO: [P32540011]: All IPC service requests need input validation
             logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC report config validation request");
-            // TODO : [P41210395]: Add mechanism to associate the validity report sent by the component to a
-            //  validation request made by the IPC server
+
+            if (request.getConfigurationValidityReport().getDeploymentId() == null) {
+                throw new InvalidArgumentsError(
+                        "Cannot accept configuration validity report, the deployment ID provided was null");
+            }
+            Pair<String, String> serviceDeployment =
+                    new Pair<>(serviceName, request.getConfigurationValidityReport().getDeploymentId());
             CompletableFuture<ConfigurationValidityReport> reportFuture =
-                    configValidationReportFutures.get(serviceName);
+                    configValidationReportFutures.get(serviceDeployment);
             if (reportFuture == null) {
                 throw new InvalidArgumentsError("Validation request either timed out or was never made");
             }
@@ -142,7 +149,7 @@ public class ConfigStoreIPCEventStreamAgent {
             if (!reportFuture.isCancelled()) {
                 reportFuture.complete(request.getConfigurationValidityReport());
             }
-            configValidationReportFutures.remove(serviceName);
+            configValidationReportFutures.remove(serviceDeployment);
 
             return new SendConfigurationValidityReportResponse();
         }
@@ -458,11 +465,12 @@ public class ConfigStoreIPCEventStreamAgent {
             // NA
         }
 
-        private Consumer<Map<String, Object>> sendConfigValidationEvent() {
-            return configuration -> {
+        private BiConsumer<String, Map<String, Object>> sendConfigValidationEvent() {
+            return (deploymentId, configuration) -> {
                 ValidateConfigurationUpdateEvents events = new ValidateConfigurationUpdateEvents();
                 ValidateConfigurationUpdateEvent validationEvent = new ValidateConfigurationUpdateEvent();
                 validationEvent.setConfiguration(configuration);
+                validationEvent.setDeploymentId(deploymentId);
                 events.setValidateConfigurationUpdateEvent(validationEvent);
                 logger.atDebug().kv(SERVICE_NAME, serviceName)
                         .log("Requesting validation for component config {}", configuration);
@@ -476,20 +484,21 @@ public class ConfigStoreIPCEventStreamAgent {
      * Trigger a validate event to service/component, typically used during deployments.
      *
      * @param componentName service/component to send validate event to
+     * @param deploymentId deployment id which is being validated
      * @param configuration new component configuration to validate
      * @param reportFuture  future to track validation report in response to the event
      * @return true if the service has registered a validator, false if not
      * @throws ValidateEventRegistrationException throws when triggering requested validation event failed
      */
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    public boolean validateConfiguration(String componentName, Map<String, Object> configuration,
+    public boolean validateConfiguration(String componentName, String deploymentId, Map<String, Object> configuration,
                                          CompletableFuture<ConfigurationValidityReport> reportFuture)
             throws ValidateEventRegistrationException {
-        for (Map.Entry<String, Consumer<Map<String, Object>>> e : configValidationListeners.entrySet()) {
+        for (Map.Entry<String, BiConsumer<String, Map<String, Object>>> e : configValidationListeners.entrySet()) {
             if (e.getKey().equals(componentName)) {
                 try {
-                    e.getValue().accept(configuration);
-                    configValidationReportFutures.put(componentName, reportFuture);
+                    e.getValue().accept(deploymentId, configuration);
+                    configValidationReportFutures.put(new Pair<>(componentName, deploymentId), reportFuture);
                     return true;
                 } catch (Exception ex) {
                     // TODO: [P41211196]: Retries, timeouts & and better exception handling in sending server event to
@@ -505,12 +514,13 @@ public class ConfigStoreIPCEventStreamAgent {
      * Abandon tracking for report of configuration validation event. Can be used by the caller in the case of timeouts
      * or other errors.
      *
+     * @param deploymentId  the deployment id which is being validated
      * @param componentName component name to abandon validation for
      * @param reportFuture  tracking future for validation report to abandon
      * @return true if abandon request was successful
      */
-    public boolean discardValidationReportTracker(String componentName,
+    public boolean discardValidationReportTracker(String deploymentId, String componentName,
                                                   CompletableFuture<ConfigurationValidityReport> reportFuture) {
-        return configValidationReportFutures.remove(componentName, reportFuture);
+        return configValidationReportFutures.remove(new Pair<>(componentName, deploymentId), reportFuture);
     }
 }

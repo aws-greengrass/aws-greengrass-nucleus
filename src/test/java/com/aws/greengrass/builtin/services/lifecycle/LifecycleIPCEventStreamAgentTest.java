@@ -9,6 +9,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,7 +43,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class LifecycleIPCEventStreamAgentTest {
+class LifecycleIPCEventStreamAgentTest {
 
     private static final String TEST_SERVICE = "TestService";
 
@@ -68,7 +69,7 @@ public class LifecycleIPCEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void testUpdateStateHandler_successful_update() throws ServiceLoadException {
+    void testUpdateStateHandler_successful_update() throws ServiceLoadException {
         UpdateStateRequest updateStateRequest = new UpdateStateRequest();
         updateStateRequest.setState(LifecycleState.ERRORED);
         GreengrassService mockTestService = mock(GreengrassService.class);
@@ -80,7 +81,7 @@ public class LifecycleIPCEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void testUpdateStateHandler_service_not_found() throws ServiceLoadException {
+    void testUpdateStateHandler_service_not_found() throws ServiceLoadException {
         UpdateStateRequest updateStateRequest = new UpdateStateRequest();
         updateStateRequest.setState(LifecycleState.ERRORED);
         when(kernel.locate(TEST_SERVICE)).thenThrow(new ServiceLoadException("error"));
@@ -90,7 +91,7 @@ public class LifecycleIPCEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void testSubscribeToComponent_successful_request() {
+    void testSubscribeToComponent_successful_request() {
         SubscribeToComponentUpdatesRequest subsRequest = new SubscribeToComponentUpdatesRequest();
         LifecycleIPCEventStreamAgent.SubscribeToComponentUpdateOperationHandler handler =
                 lifecycleIPCEventStreamAgent.getSubscribeToComponentUpdateHandler(mockContext);
@@ -102,7 +103,7 @@ public class LifecycleIPCEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void testSubscribeToComponent_on_stream_closure() {
+    void testSubscribeToComponent_on_stream_closure() {
         SubscribeToComponentUpdatesRequest subsRequest = new SubscribeToComponentUpdatesRequest();
         LifecycleIPCEventStreamAgent.SubscribeToComponentUpdateOperationHandler handler =
                 lifecycleIPCEventStreamAgent.getSubscribeToComponentUpdateHandler(mockContext);
@@ -115,7 +116,7 @@ public class LifecycleIPCEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void testSubscribeToComponent_request_from_removed_service(ExtensionContext context) throws ServiceLoadException {
+    void testSubscribeToComponent_request_from_removed_service(ExtensionContext context) throws ServiceLoadException {
         ignoreExceptionOfType(context, ServiceLoadException.class);
         SubscribeToComponentUpdatesRequest subsRequest = new SubscribeToComponentUpdatesRequest();
         LifecycleIPCEventStreamAgent.SubscribeToComponentUpdateOperationHandler handler =
@@ -125,7 +126,7 @@ public class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
-    public void testDeferComponentUpdateHandler_defer_without_subscribing() {
+    void testDeferComponentUpdateHandler_defer_without_subscribing() {
         DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
         deferComponentUpdateRequest.setMessage("Test defer");
         deferComponentUpdateRequest.setRecheckAfterMs(1000L);
@@ -136,30 +137,33 @@ public class LifecycleIPCEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void testUpdateStateHandler_subscribe_then_defer() throws ExecutionException, InterruptedException {
+    void testUpdateStateHandler_subscribe_then_defer() throws ExecutionException, InterruptedException {
         SubscribeToComponentUpdatesRequest subsRequest = new SubscribeToComponentUpdatesRequest();
         LifecycleIPCEventStreamAgent.SubscribeToComponentUpdateOperationHandler handler =
                 lifecycleIPCEventStreamAgent.getSubscribeToComponentUpdateHandler(mockContext);
         SubscribeToComponentUpdatesResponse response = handler.handleRequest(subsRequest);
         assertNotNull(response);
         CompletableFuture<DeferUpdateRequest> deferFuture = new CompletableFuture<>();
-        lifecycleIPCEventStreamAgent.getDeferUpdateFuturesMap().put(TEST_SERVICE, deferFuture);
+        lifecycleIPCEventStreamAgent.getDeferUpdateFuturesMap().put(new Pair<>(TEST_SERVICE, "A"), deferFuture);
         DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
         deferComponentUpdateRequest.setMessage("Test defer");
+        deferComponentUpdateRequest.setDeploymentId("A");
         deferComponentUpdateRequest.setRecheckAfterMs(1000L);
         DeferComponentUpdateResponse response1 = lifecycleIPCEventStreamAgent.getDeferComponentHandler(mockContext)
                 .handleRequest(deferComponentUpdateRequest);
         assertNotNull(response1);
         DeferUpdateRequest request = deferFuture.get();
         assertEquals(TEST_SERVICE, request.getComponentName());
+        assertEquals("A", request.getDeploymentId());
         assertEquals("Test defer", request.getMessage());
         assertEquals(1000L, request.getRecheckTimeInMs());
-        assertFalse(lifecycleIPCEventStreamAgent.getDeferUpdateFuturesMap().containsKey(TEST_SERVICE));
+        assertFalse(lifecycleIPCEventStreamAgent.getDeferUpdateFuturesMap()
+                .containsKey(new Pair<>(TEST_SERVICE, "A")));
     }
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void testUpdateStateHandler_subscribe_then_defer_when_future_no_longer_waiting() {
+    void testUpdateStateHandler_subscribe_then_defer_when_future_no_longer_waiting() {
         SubscribeToComponentUpdatesRequest subsRequest = new SubscribeToComponentUpdatesRequest();
         LifecycleIPCEventStreamAgent.SubscribeToComponentUpdateOperationHandler handler =
                 lifecycleIPCEventStreamAgent.getSubscribeToComponentUpdateHandler(mockContext);
@@ -167,8 +171,19 @@ public class LifecycleIPCEventStreamAgentTest {
         assertNotNull(response);
         DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
         deferComponentUpdateRequest.setMessage("Test defer");
+        deferComponentUpdateRequest.setDeploymentId("abc");
         deferComponentUpdateRequest.setRecheckAfterMs(1000L);
         assertThrows(ServiceError.class, () -> lifecycleIPCEventStreamAgent.getDeferComponentHandler(mockContext)
+                .handleRequest(deferComponentUpdateRequest));
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_defer_request_without_deployment_id_THEN_fail() {
+        DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+        deferComponentUpdateRequest.setMessage("Test defer");
+        deferComponentUpdateRequest.setRecheckAfterMs(1000L);
+        assertThrows(InvalidArgumentsError.class, () -> lifecycleIPCEventStreamAgent.getDeferComponentHandler(mockContext)
                 .handleRequest(deferComponentUpdateRequest));
     }
 }

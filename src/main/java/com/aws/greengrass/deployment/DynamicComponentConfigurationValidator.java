@@ -86,7 +86,7 @@ public class DynamicComponentConfigurationValidator {
             return false;
         }
 
-        return validateOverIpc(componentsToValidate, deploymentResultFuture);
+        return validateOverIpc(deployment.getId(), componentsToValidate, deploymentResultFuture);
     }
 
     /**
@@ -160,7 +160,7 @@ public class DynamicComponentConfigurationValidator {
                         .deepEquals(proposedConfig, currentConfig.toPOJO());
     }
 
-    private boolean validateOverIpc(Set<ComponentToValidate> componentsToValidate,
+    private boolean validateOverIpc(String deploymentId, Set<ComponentToValidate> componentsToValidate,
                                     CompletableFuture<DeploymentResult> deploymentResultFuture) {
         try {
             String failureMsg = null;
@@ -170,7 +170,8 @@ public class DynamicComponentConfigurationValidator {
             for (ComponentToValidate componentToValidate : componentsToValidate) {
                 try {
                     if (configStoreIPCEventStreamAgent
-                            .validateConfiguration(componentToValidate.componentName, componentToValidate.configuration,
+                            .validateConfiguration(componentToValidate.componentName, deploymentId,
+                                    componentToValidate.configuration,
                                     componentToValidate.response)) {
                         validationRequested = true;
                     }
@@ -264,7 +265,8 @@ public class DynamicComponentConfigurationValidator {
             return valid;
         } finally {
             componentsToValidate.forEach(c -> {
-                configStoreIPCEventStreamAgent.discardValidationReportTracker(c.componentName, c.response);
+                configStoreIPCEventStreamAgent.discardValidationReportTracker(deploymentId, c.componentName,
+                        c.response);
                 c.response.cancel(true);
 
                 // GG_NEEDS_REVIEW: TODO: Remove when all tests moved to new IPC
