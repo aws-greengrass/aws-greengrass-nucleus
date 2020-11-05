@@ -71,10 +71,15 @@ public final class EndpointGenerator {
                                                                     IotSdkClientFactory.EnvironmentStage stage) {
 
         String iotControlPlaneEndpointTemplate = REGION_TO_IOT_CONTROL_PLANE_ENDPOINT
-                .getOrDefault(awsRegion, DEFAULT_IOT_CONTROL_PLANE_ENDPOINT_FORMAT);
+                .getOrDefault(awsRegion.toString(), DEFAULT_IOT_CONTROL_PLANE_ENDPOINT_FORMAT);
         return  String.format(iotControlPlaneEndpointTemplate, stage.value, awsRegion);
     }
 
+    /**
+     * Get global region.
+     * @param awsRegion aws region
+     * @return Region
+     */
     public static Region getGlobalRegion(String awsRegion) {
         return GLOBAL_REGION_CONVERTER.getOrDefault(awsRegion, Region.AWS_GLOBAL);
     }
