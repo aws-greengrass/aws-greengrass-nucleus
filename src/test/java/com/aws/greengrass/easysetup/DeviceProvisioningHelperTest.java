@@ -6,6 +6,7 @@
 package com.aws.greengrass.easysetup;
 
 import com.amazonaws.arn.Arn;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.IamSdkClientFactory;
@@ -98,6 +99,8 @@ class DeviceProvisioningHelperTest {
     private CreateRoleResponse createRoleResponse;
     @Mock
     private ListAttachedPoliciesResponse listAttachedPoliciesResponse;
+    @Mock
+    DeviceConfiguration deviceConfiguration;
     private DeviceProvisioningHelper deviceProvisioningHelper;
     private Kernel kernel;
 
@@ -215,7 +218,7 @@ class DeviceProvisioningHelperTest {
     }
 
     @Test
-    void GIVEN_iam_client_factory_WHEN_test_get_iam_client_THEN_client_is_built_with_appropriate_configuration() {
+    void GIVENGIVEN_iam_client_factory_WHEN_test_g_iam_client_factory_WHEN_test_get_iam_client_THEN_client_is_built_with_appropriate_configuration() {
         assertNotNull(IamSdkClientFactory.getIamClient());
     }
 
