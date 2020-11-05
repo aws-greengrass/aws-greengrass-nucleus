@@ -39,6 +39,7 @@ import javax.inject.Inject;
 public class S3Downloader extends ArtifactDownloader {
     private static final Logger logger = LogManager.getLogger(S3Downloader.class);
     private static final Pattern S3_PATH_REGEX = Pattern.compile("s3:\\/\\/([^\\/]+)\\/(.*)");
+    protected static final String REGION_EXPECTING_STRING = "expecting '";
     private final S3Client s3Client;
     private final S3SdkClientFactory s3ClientFactory;
 
@@ -134,7 +135,17 @@ public class S3Downloader extends ArtifactDownloader {
 
     private S3Client getRegionClientForBucket(String bucket) {
         GetBucketLocationRequest getBucketLocationRequest = GetBucketLocationRequest.builder().bucket(bucket).build();
-        String region = s3Client.getBucketLocation(getBucketLocationRequest).locationConstraintAsString();
+        String region = null;
+        try {
+            region = s3Client.getBucketLocation(getBucketLocationRequest).locationConstraintAsString();
+        } catch (S3Exception e) {
+            String message = e.getMessage();
+            if (message.contains(REGION_EXPECTING_STRING)) {
+                message =
+                        message.substring(message.indexOf(REGION_EXPECTING_STRING) + REGION_EXPECTING_STRING.length());
+                region = message.substring(0, message.indexOf('\''));
+            }
+        }
         // If the region is empty, it is us-east-1
         return s3ClientFactory.getClientForRegion(Utils.isEmpty(region) ? Region.US_EAST_1 : Region.of(region));
     }

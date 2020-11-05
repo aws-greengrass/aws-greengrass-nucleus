@@ -921,6 +921,8 @@ class DeploymentTaskIntegrationTest {
                                     DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
                                     deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(60).toMillis());
                                     deferComponentUpdateRequest.setMessage("Test");
+                                    deferComponentUpdateRequest.setDeploymentId(streamEvent.getPreUpdateEvent()
+                                            .getDeploymentId());
                                     greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
                                 }
                             }

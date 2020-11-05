@@ -14,6 +14,7 @@ public class DeferUpdateRequest {
 
     private final String componentName;
     private final String message;
+    private final String deploymentId;
     /**
      Estimated time in milliseconds after which component will be willing to be disrupted.
      If the returned value is zero the handler is granting permission to be disrupted.

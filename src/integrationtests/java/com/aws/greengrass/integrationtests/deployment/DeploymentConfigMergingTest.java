@@ -529,6 +529,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
                                 DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
                                 deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(7).toMillis());
                                 deferComponentUpdateRequest.setMessage("Test");
+                                deferComponentUpdateRequest
+                                        .setDeploymentId(streamEvent.getPreUpdateEvent().getDeploymentId());
                                 greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest,
                                         Optional.empty());
                                 deferCount.getAndIncrement();
