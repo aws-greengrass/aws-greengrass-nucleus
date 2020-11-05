@@ -572,9 +572,21 @@ class ConfigStoreIPCEventStreamAgentTest {
         SendConfigurationValidityReportRequest reportRequest = new SendConfigurationValidityReportRequest();
         ConfigurationValidityReport validityReport = new ConfigurationValidityReport();
         validityReport.setStatus(ConfigurationValidityStatus.ACCEPTED);
+        validityReport.setDeploymentId("abc");
         reportRequest.setConfigurationValidityReport(validityReport);
         InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class, () ->
                 agent.getSendConfigurationValidityReportHandler(mockContext).handleRequest(reportRequest));
         assertEquals("Validation request either timed out or was never made", error.getMessage());
+    }
+
+    @Test
+    void GIVEN_request_has_null_deployment_id_THEN_fail() {
+        SendConfigurationValidityReportRequest reportRequest = new SendConfigurationValidityReportRequest();
+        ConfigurationValidityReport validityReport = new ConfigurationValidityReport();
+        reportRequest.setConfigurationValidityReport(validityReport);
+        InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class, () ->
+                agent.getSendConfigurationValidityReportHandler(mockContext).handleRequest(reportRequest));
+        assertEquals("Cannot accept configuration validity report, the deployment ID provided was null",
+                error.getMessage());
     }
 }

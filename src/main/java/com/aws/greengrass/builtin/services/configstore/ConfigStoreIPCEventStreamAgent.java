@@ -133,6 +133,11 @@ public class ConfigStoreIPCEventStreamAgent {
         public SendConfigurationValidityReportResponse handleRequest(SendConfigurationValidityReportRequest request) {
             // TODO: [P32540011]: All IPC service requests need input validation
             logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC report config validation request");
+
+            if (request.getConfigurationValidityReport().getDeploymentId() == null) {
+                throw new InvalidArgumentsError(
+                        "Cannot accept configuration validity report, the deployment ID provided was null");
+            }
             Pair<String, String> serviceDeployment =
                     new Pair<>(serviceName, request.getConfigurationValidityReport().getDeploymentId());
             CompletableFuture<ConfigurationValidityReport> reportFuture =

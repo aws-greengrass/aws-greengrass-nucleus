@@ -197,6 +197,9 @@ public class LifecycleIPCEventStreamAgent {
             if (!componentUpdateListeners.containsKey(serviceName)) {
                 throw new InvalidArgumentsError("Component is not subscribed to component update events");
             }
+            if (request.getDeploymentId() == null) {
+                throw new InvalidArgumentsError("Cannot defer the update, the deployment ID provided was null");
+            }
 
             CompletableFuture<DeferUpdateRequest> deferComponentUpdateRequestFuture =
                 deferUpdateFuturesMap.remove(new Pair<>(serviceName, request.getDeploymentId()));

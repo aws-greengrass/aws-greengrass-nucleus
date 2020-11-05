@@ -171,8 +171,19 @@ class LifecycleIPCEventStreamAgentTest {
         assertNotNull(response);
         DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
         deferComponentUpdateRequest.setMessage("Test defer");
+        deferComponentUpdateRequest.setDeploymentId("abc");
         deferComponentUpdateRequest.setRecheckAfterMs(1000L);
         assertThrows(ServiceError.class, () -> lifecycleIPCEventStreamAgent.getDeferComponentHandler(mockContext)
+                .handleRequest(deferComponentUpdateRequest));
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_defer_request_without_deployment_id_THEN_fail() {
+        DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+        deferComponentUpdateRequest.setMessage("Test defer");
+        deferComponentUpdateRequest.setRecheckAfterMs(1000L);
+        assertThrows(InvalidArgumentsError.class, () -> lifecycleIPCEventStreamAgent.getDeferComponentHandler(mockContext)
                 .handleRequest(deferComponentUpdateRequest));
     }
 }
