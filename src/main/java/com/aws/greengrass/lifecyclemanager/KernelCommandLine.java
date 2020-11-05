@@ -25,9 +25,6 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Objects;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.NUCLEUS_CONFIG_LOGGING_TOPICS;
 import static com.aws.greengrass.util.Utils.HOME_PATH;
 
 public class KernelCommandLine {
@@ -158,9 +155,8 @@ public class KernelCommandLine {
             nucleusPaths.setTelemetryPath(TelemetryConfig.getInstance().getStoreDirectory());
             String storeDirectory = LogManager.getRootLogConfiguration().getStoreDirectory().toAbsolutePath()
                     .toString();
-            Topic outputDirectoryTopic = kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC,
-                    DeviceConfiguration.getNucleusComponentName(kernel).getLeft(), CONFIGURATION_CONFIG_KEY,
-                    NUCLEUS_CONFIG_LOGGING_TOPICS, "outputDirectory");
+            Topic outputDirectoryTopic = DeviceConfiguration.getLoggingConfigurationTopic(kernel)
+                    .lookup("outputDirectory");
             String outputDirectory = Coerce.toString(outputDirectoryTopic);
             if (Utils.isNotEmpty(outputDirectory)) {
                 storeDirectory = deTilde(outputDirectory);

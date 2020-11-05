@@ -15,7 +15,6 @@ import com.aws.greengrass.logging.impl.config.LogFormat;
 import com.aws.greengrass.logging.impl.config.LogStore;
 import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Pair;
 import org.slf4j.event.Level;
 
 import java.io.IOException;
@@ -23,14 +22,10 @@ import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Objects;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
-
 /**
  * Helper function to get a logger with configurations separate from the root logger.
  */
 public final class LogManagerHelper {
-    public static final String NUCLEUS_CONFIG_LOGGING_TOPICS = "logging";
     static final String SERVICE_CONFIG_LOGGING_TOPICS = "ComponentLogging";
     private static final String LOG_FILE_EXTENSION = ".log";
     private static Topics loggingTopics;
@@ -47,9 +42,7 @@ public final class LogManagerHelper {
      */
     public static void handleLoggingConfig(Kernel kernel) {
         LogManagerHelper.kernel = kernel;
-        Pair<String, Boolean> nucleusComponentNamePair = DeviceConfiguration.getNucleusComponentName(kernel);
-        loggingTopics = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentNamePair.getLeft(),
-                        CONFIGURATION_CONFIG_KEY, NUCLEUS_CONFIG_LOGGING_TOPICS)
+        loggingTopics = DeviceConfiguration.getLoggingConfigurationTopic(kernel)
                 .subscribe(LogManagerHelper::handleLoggingConfigurationChanges);
     }
 
@@ -83,10 +76,16 @@ public final class LogManagerHelper {
 
     @SuppressWarnings("PMD.UselessParentheses")
     static synchronized void handleLoggingConfigurationChanges(WhatHappened what, Node loggingParam) {
-        if (loggingParam == null) {
+        if (loggingTopics == null) {
             return;
         }
-        LoggerConfiguration configuration = fromPojo(loggingTopics.toPOJO());
+        LoggerConfiguration configuration;
+        try {
+            configuration = fromPojo(loggingTopics.toPOJO());
+        } catch (IllegalArgumentException e) {
+            logger.atError().kv("logging-config", loggingTopics).cause(e).log("Unable to parse logging config.");
+            return;
+        }
         if (currentConfiguration == null || !currentConfiguration.equals(configuration)) {
             if (configuration.getOutputDirectory() != null
                     && (currentConfiguration == null || !Objects.equals(currentConfiguration.getOutputDirectory(),
@@ -103,6 +102,12 @@ public final class LogManagerHelper {
         }
     }
 
+    /**
+     * Get the logger configuration from POJO.
+     * @param pojoMap   The map containing logger configuration.
+     * @return  the logger configuration.
+     * @throws IllegalArgumentException if the POJO map has an invalid argument.
+     */
     private static LoggerConfiguration fromPojo(Map<String, Object> pojoMap) {
         LoggerConfiguration configuration = LoggerConfiguration.builder().build();
         pojoMap.forEach((s, o) -> {
@@ -126,7 +131,7 @@ public final class LogManagerHelper {
                     configuration.setOutputType(LogStore.valueOf(Coerce.toString(o)));
                     break;
                 default:
-                    throw new IllegalStateException("Unexpected value: " + s);
+                    throw new IllegalArgumentException("Unexpected value: " + s);
             }
         });
         return configuration;

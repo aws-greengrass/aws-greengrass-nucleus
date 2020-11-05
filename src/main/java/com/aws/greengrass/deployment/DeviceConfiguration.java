@@ -67,6 +67,7 @@ public class DeviceConfiguration {
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
     public static final String COMPONENT_STORE_MAX_SIZE_BYTES = "componentStoreMaxSizeBytes";
     public static final String DEPLOYMENT_POLLING_FREQUENCY_SECONDS = "deploymentPollingFrequencySeconds";
+    public static final String NUCLEUS_CONFIG_LOGGING_TOPICS = "logging";
 
     public static final String DEVICE_NETWORK_PROXY_NAMESPACE = "networkProxy";
     public static final String DEVICE_PROXY_NAMESPACE = "proxy";
@@ -143,11 +144,21 @@ public class DeviceConfiguration {
     }
 
     /**
+     * Get the logging configuration.
+     * @param kernel    {@link Kernel}
+     * @return  Configuration for logger.
+     */
+    public static Topics getLoggingConfigurationTopic(Kernel kernel) {
+        return kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(kernel).getLeft(),
+                CONFIGURATION_CONFIG_KEY, NUCLEUS_CONFIG_LOGGING_TOPICS);
+    }
+
+    /**
      * Get the Nucleus component name to lookup the configuration in the right place. If no component of type Nucleus
      * exists, create service config for the default Nucleus component.
      * @param kernel {@link Kernel}
      */
-    public static Pair<String, Boolean> getNucleusComponentName(Kernel kernel) {
+    private static Pair<String, Boolean> getNucleusComponentName(Kernel kernel) {
         Optional<CaseInsensitiveString> nucleusComponent =
                 kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet().stream()
                         .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(kernel, s.toString())))
