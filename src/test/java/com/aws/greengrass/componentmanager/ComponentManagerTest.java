@@ -25,6 +25,7 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -333,7 +334,8 @@ class ComponentManagerTest {
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_2_0_md);
 
         ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("LOCAL", Requirement.buildNPM("^1.0")),
+                .resolveComponentVersion(componentA, Collections.singletonMap(
+                        DeploymentDocumentConverter.DEFAULT_GROUP_NAME, Requirement.buildNPM("^1.0")),
                         DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentMetadata, is(componentA_1_2_0_md));
