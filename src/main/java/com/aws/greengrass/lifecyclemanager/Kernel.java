@@ -29,6 +29,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.AwsRegionPartition;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.DependencyOrder;
@@ -71,7 +72,6 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
-import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -555,7 +555,7 @@ public class Kernel {
         }
 
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
-        String endpoint = String.format(GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT.get(stage), region);
+        String endpoint = AwsRegionPartition.getGreengrassServiceEndpointByRegionAndStage(region, stage);
         logger.atInfo().log("Configured to use Greengrass endpoint: {}", endpoint);
         context.put(CONTEXT_COMPONENT_SERVICE_ENDPOINT, endpoint);
     }
