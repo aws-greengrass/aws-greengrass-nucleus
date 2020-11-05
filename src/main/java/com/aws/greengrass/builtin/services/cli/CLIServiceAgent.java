@@ -379,12 +379,13 @@ public class CLIServiceAgent {
     public ListLocalDeploymentResponse listLocalDeployments(Topics serviceConfig) {
         List<LocalDeployment> persistedDeployments = new ArrayList<>();
         Topics localDeployments = serviceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
-        localDeployments.forEach(topic -> {
-            Topics topics = (Topics) topic;
-            persistedDeployments.add(LocalDeployment.builder().deploymentId(topics.getName())
-                                             .status(Coerce.toEnum(DeploymentStatus.class,
-                                                                   topics.find(DEPLOYMENT_STATUS_KEY_NAME))).build());
-        });
+        if (localDeployments != null) {
+            localDeployments.forEach(topic -> {
+                Topics topics = (Topics) topic;
+                persistedDeployments.add(LocalDeployment.builder().deploymentId(topics.getName())
+                        .status(Coerce.toEnum(DeploymentStatus.class, topics.find(DEPLOYMENT_STATUS_KEY_NAME))).build());
+            });
+        }
         return ListLocalDeploymentResponse.builder().localDeployments(persistedDeployments).build();
     }
 

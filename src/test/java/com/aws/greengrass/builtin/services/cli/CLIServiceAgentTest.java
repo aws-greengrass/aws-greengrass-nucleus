@@ -452,6 +452,14 @@ class CLIServiceAgentTest {
         assertThat(response.getLocalDeployments(), hasItem(expectedLocalDeployment));
     }
 
+    @Test
+    void testListLocalDeployments_emptyList() throws Exception {
+        Topics mockServiceConfig = mock(Topics.class);
+        when(mockServiceConfig.findTopics(eq(PERSISTENT_LOCAL_DEPLOYMENTS))).thenReturn(null);
+        ListLocalDeploymentResponse response = cliServiceAgent.listLocalDeployments(mockServiceConfig);
+        assertTrue(response.getLocalDeployments().isEmpty());
+    }
+
     private GreengrassService createMockService(String componentName, State state, String version,
                                                 Map<String, Object> parameters) {
         GreengrassService mockService = mock(GreengrassService.class);
