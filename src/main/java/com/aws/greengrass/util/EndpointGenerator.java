@@ -8,18 +8,16 @@ package com.aws.greengrass.util;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.utils.ImmutableMap;
 
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
-public final class AwsRegionPartition {
-    private static final Set<String> chinaRegions = new HashSet<>(Arrays.asList("cn-north-1", "cn-northwest-1"));
+public final class EndpointGenerator {
     private static final String DEFAULT_IOT_CONTROL_PLANE_ENDPOINT_FORMAT = "https://%s.%s.iot.amazonaws.com";
-    private static final String CHINA_IOT_CONTROL_PLANE_ENDPOINT_FORMAT = "https://%s.%s.iot.amazonaws.com.cn";
+    private static final String CN_IOT_CONTROL_PLANE_ENDPOINT_FORMAT = "https://%s.%s.iot.amazonaws.com.cn";
     private static Map<String, String> REGION_TO_IOT_CONTROL_PLANE_ENDPOINT = new HashMap<>();
     private static Map<String, Region> GLOBAL_REGION_CONVERTER = new HashMap<>();
+    private static Map<String, Map<IotSdkClientFactory.EnvironmentStage, String>>
+            REGION_TO_GREENGRASS_SERVICE_STAGE_TO_ENDPOINT = new HashMap<>();
 
     private static final Map<IotSdkClientFactory.EnvironmentStage, String>
             DEFAULT_GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
@@ -28,45 +26,45 @@ public final class AwsRegionPartition {
             IotSdkClientFactory.EnvironmentStage.BETA, "greengrass-ats.beta.%s.iot.amazonaws.com:8443/greengrass"
     );
     private static final Map<IotSdkClientFactory.EnvironmentStage, String>
-            CHINA_GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
+            CN_GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
             IotSdkClientFactory.EnvironmentStage.PROD, "greengrass-ats.iot.%s.amazonaws.com.cn:8443/greengrass",
             IotSdkClientFactory.EnvironmentStage.GAMMA, "greengrass-ats.gamma.%s.iot.amazonaws.com.cn:8443/greengrass",
             IotSdkClientFactory.EnvironmentStage.BETA, "greengrass-ats.beta.%s.iot.amazonaws.com.cn:8443/greengrass"
     );
 
     static {
-        REGION_TO_IOT_CONTROL_PLANE_ENDPOINT.put("cn-north-1", CHINA_IOT_CONTROL_PLANE_ENDPOINT_FORMAT);
-        REGION_TO_IOT_CONTROL_PLANE_ENDPOINT.put("cn-northwest-1", CHINA_IOT_CONTROL_PLANE_ENDPOINT_FORMAT);
+        REGION_TO_IOT_CONTROL_PLANE_ENDPOINT.put("cn-north-1", CN_IOT_CONTROL_PLANE_ENDPOINT_FORMAT);
 
-        GLOBAL_REGION_CONVERTER.put("cn-northwest-1", Region.AWS_CN_GLOBAL);
+        REGION_TO_GREENGRASS_SERVICE_STAGE_TO_ENDPOINT.put("cn-north-1",
+                CN_GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT);
+
         GLOBAL_REGION_CONVERTER.put("cn-north-1", Region.AWS_CN_GLOBAL);
         GLOBAL_REGION_CONVERTER.put("us-gov-east-1", Region.AWS_US_GOV_GLOBAL);
         GLOBAL_REGION_CONVERTER.put("us-gov-west-1", Region.AWS_US_GOV_GLOBAL);
-        GLOBAL_REGION_CONVERTER.put("us-iso-east-1", Region.AWS_ISO_GLOBAL);
-        GLOBAL_REGION_CONVERTER.put("us-isob-east-1", Region.AWS_ISO_B_GLOBAL);
     }
 
-    private AwsRegionPartition() {
+    private EndpointGenerator() {
     }
 
     /**
      * Get Greengrass ServiceEndpoint by region and stage.
      * @param awsRegion aws region
-     * @param stage envrioment stage
+     * @param stage environment stage
      * @return Greengrass ServiceEndpoint
      */
     public static String getGreengrassServiceEndpointByRegionAndStage(String awsRegion,
                                                                       IotSdkClientFactory.EnvironmentStage stage) {
-        if (chinaRegions.contains(awsRegion)) {
-            return String.format(CHINA_GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT.get(stage), awsRegion);
-        }
-        return String.format(DEFAULT_GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT.get(stage), awsRegion);
+
+        Map<IotSdkClientFactory.EnvironmentStage, String> greengrassServiceEndpointTemplate =
+                REGION_TO_GREENGRASS_SERVICE_STAGE_TO_ENDPOINT
+                .getOrDefault(awsRegion, DEFAULT_GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT);
+        return String.format(greengrassServiceEndpointTemplate.get(stage), awsRegion);
     }
 
     /**
-     * Get Iot Control Plane Endpoint by regition and stage.
+     * Get Iot Control Plane Endpoint by region and stage.
      * @param awsRegion aws region
-     * @param stage envrioment stage
+     * @param stage environment stage
      * @return Iot Control Plane Endpoint
      */
     public static String getIotControlPlaneEndpointByRegionAndStage(Region awsRegion,

@@ -101,7 +101,7 @@ public class DeviceProvisioningHelper {
         this.envStage = StringUtils.isEmpty(environmentStage)
                 ? EnvironmentStage.PROD : EnvironmentStage.fromString(environmentStage);
         this.iotClient = IotSdkClientFactory.getIotClient(awsRegion, envStage);
-        this.iamClient = IamSdkClientFactory.getIamClient();
+        this.iamClient = IamSdkClientFactory.getIamClient(awsRegion);
         this.outStream = outStream;
     }
 
