@@ -238,20 +238,26 @@ public class LifecycleIPCEventStreamAgent {
                 log.atInfo().kv("serviceName", serviceName).log("Sending preComponentUpdate event");
                 ComponentUpdatePolicyEvents componentUpdatePolicyEvents = new ComponentUpdatePolicyEvents();
                 componentUpdatePolicyEvents.setPreUpdateEvent(preComponentUpdateEvent);
+
+                CompletableFuture<DeferUpdateRequest> deferUpdateFuture = new CompletableFuture<>();
+                // If there are multiple pre component events sent to same service, we will store the latest future
+                // As the update should be waiting for the latest one to complete.
+                Pair<String, String> serviceAndDeployment =
+                        new Pair<>(serviceName, preComponentUpdateEvent.getDeploymentId());
+                // Save to the map before sending the event so that it will be there if
+                // they respond very quickly
+                deferUpdateFuturesMap.put(serviceAndDeployment, deferUpdateFuture);
+
                 try {
                     subscribeHandler.sendStreamEvent(componentUpdatePolicyEvents)
                             .get(DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 } catch (Exception e) {
                     log.atError().setCause(e).kv(SERVICE_NAME_LOG_KEY, serviceName)
                             .log("Failed to send the pre component update on stream");
+                    deferUpdateFuturesMap.remove(serviceAndDeployment);
                    return;
                 }
-                CompletableFuture<DeferUpdateRequest> deferUpdateFuture = new CompletableFuture<>();
                 deferUpdateFutures.add(deferUpdateFuture);
-                // If there are multiple pre component events sent to same service, we will store the latest future
-                // As the update should be waiting for the latest one to complete.
-                deferUpdateFuturesMap.put(new Pair<>(serviceName, preComponentUpdateEvent.getDeploymentId()),
-                        deferUpdateFuture);
             });
         }
         return deferUpdateFutures;

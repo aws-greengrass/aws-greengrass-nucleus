@@ -31,7 +31,7 @@ public class UpdateStateRequest implements EventStreamJsonMessage {
       serialize = true,
       deserialize = true
   )
-  private Optional<LifecycleState> state;
+  private Optional<ReportedLifecycleState> state;
 
   @Expose(
       serialize = true,
@@ -44,14 +44,14 @@ public class UpdateStateRequest implements EventStreamJsonMessage {
     this.serviceName = Optional.empty();
   }
 
-  public LifecycleState getState() {
+  public ReportedLifecycleState getState() {
     if (state.isPresent()) {
       return state.get();
     }
     return null;
   }
 
-  public void setState(final LifecycleState state) {
+  public void setState(final ReportedLifecycleState state) {
     this.state = Optional.of(state);
   }
 
