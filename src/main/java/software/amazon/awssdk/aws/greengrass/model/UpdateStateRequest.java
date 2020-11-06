@@ -33,15 +33,8 @@ public class UpdateStateRequest implements EventStreamJsonMessage {
   )
   private Optional<ReportedLifecycleState> state;
 
-  @Expose(
-      serialize = true,
-      deserialize = true
-  )
-  private Optional<String> serviceName;
-
   public UpdateStateRequest() {
     this.state = Optional.empty();
-    this.serviceName = Optional.empty();
   }
 
   public ReportedLifecycleState getState() {
@@ -53,17 +46,6 @@ public class UpdateStateRequest implements EventStreamJsonMessage {
 
   public void setState(final ReportedLifecycleState state) {
     this.state = Optional.of(state);
-  }
-
-  public String getServiceName() {
-    if (serviceName.isPresent()) {
-      return serviceName.get();
-    }
-    return null;
-  }
-
-  public void setServiceName(final String serviceName) {
-    this.serviceName = Optional.ofNullable(serviceName);
   }
 
   @Override
@@ -79,12 +61,11 @@ public class UpdateStateRequest implements EventStreamJsonMessage {
     final UpdateStateRequest other = (UpdateStateRequest)rhs;
     boolean isEquals = true;
     isEquals = isEquals && this.state.equals(other.state);
-    isEquals = isEquals && this.serviceName.equals(other.serviceName);
     return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(state, serviceName);
+    return Objects.hash(state);
   }
 }
