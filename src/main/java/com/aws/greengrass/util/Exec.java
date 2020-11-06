@@ -500,7 +500,11 @@ public final class Exec implements Closeable {
             // Wait for it to die, but ignore the outcome and just forcefully kill it and all its
             // children anyway. This way, any misbehaving children or grandchildren will be killed
             // whether or not the parent behaved appropriately.
-            p.waitFor(2, TimeUnit.SECONDS);
+            boolean died = p.waitFor(2, TimeUnit.SECONDS);
+            if (!died) {
+                logger.atWarn().log("Command {} did not respond to interruption within 2 seconds. "
+                        + "Going to kill it now", this);
+            }
             platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
             if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
                 throw new IOException("Could not stop " + this);
