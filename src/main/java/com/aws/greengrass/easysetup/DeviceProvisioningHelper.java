@@ -408,7 +408,9 @@ public class DeviceProvisioningHelper {
                     software.amazon.awssdk.services.iam.model.CreatePolicyRequest.builder().policyName(rolePolicyName)
                             .policyDocument(rolePolicyDocument).build());
             tesRolePolicyArn = createPolicyResponse.policy().arn();
-            outStream.printf("IAM role policy for TES \"%s\" created%n", rolePolicyName);
+            outStream.printf("IAM role policy for TES \"%s\" created. This policy DOES NOT have S3 access, please "
+                            + "modify it with your private components' artifact buckets/objects as needed when you "
+                    + "create and deploy private components %n", rolePolicyName);
             outStream.println("Attaching IAM role policy for TES to IAM role for TES...");
             iamClient.attachRolePolicy(
                     AttachRolePolicyRequest.builder().roleName(roleName).policyArn(tesRolePolicyArn).build());

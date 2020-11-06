@@ -21,7 +21,11 @@ OPTIONS
 --thing-name, -tn               Desired thing name to register the device with in AWS IoT cloud
 --thing-group-name, -tgn        Desired thing group to add the IoT Thing into
 —-tes-role-name, -trn           Name of the IAM role to use for TokenExchangeService for the device to talk
-                                to AWS services, if the role does not exist then it will be created in your AWS account
+                                to AWS services, the default is GreengrassV2TokenExchangeRole.
+                                If the role does not exist in your account it will be created with a default policy
+                                called GreengrassV2TokenExchangeRoleAccess, by default it DOES NOT have access
+                                to your S3 buckets where you will host your private component artifacts, so you need
+                                to add your component artifact S3 buckets/objects to that role in your AWS account.
 --tes-role-alias-name, -tra     Name of the RoleAlias to attach to the IAM role for TES in the AWS
                                 IoT cloud, if the role alias does not exist then it will be created in your AWS account
 --provision, -p                 Y/N Indicate if you want to register the device as an AWS IoT thing

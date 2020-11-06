@@ -47,8 +47,11 @@ public class GreengrassSetup {
             + "\t--thing-group-name, -tgn\tDesired thing group to add the IoT Thing into\n"
             + "\t—tes-role-name, -trn\t\tName of the IAM role to use for "
             + TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS
-            + "\n\t\t\t\t\tdevice to talk to AWS services, if the role does not exist then it will be created\n"
-            + "\t\t\t\t\tin your AWS account\n"
+            + "\n\t\t\t\t\tdevice to talk to AWS services, the default is GreengrassV2TokenExchangeRole.\n"
+            + "\t\t\t\t\tIf the role does not exist in your account it will be created with a default policy\n"
+            + "\t\t\t\t\tcalled GreengrassV2TokenExchangeRoleAccess, by default it DOES NOT have access\n"
+            + "\t\t\t\t\tto your S3 buckets where you will host your private component artifacts, so you need\n"
+            + "\t\t\t\t\tto add your component artifact S3 buckets/objects to that role in your AWS account.\n"
             + "\t--tes-role-alias-name, -tra\tName of the RoleAlias to attach to the IAM role for\n"
             + "\t\t\t\t\t"
             + TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS
@@ -369,10 +372,7 @@ public class GreengrassSetup {
             // as the default user so we do not need to create anything here
             String user = defaultUser;
             if (platform.lookupCurrentUser().isSuperUser()) {
-                if (Utils.isNotEmpty(defaultUser)) {
-                    // Ensure user exists
-                    platform.lookupUserByName(defaultUser);
-                } else {
+                if (Utils.isEmpty(defaultUser) || GGC_USER.equals(defaultUser)) {
                     try {
                         platform.lookupUserByName(GGC_USER);
                         outStream.printf("Got no input for component default user, using %s %n", GGC_USER);
@@ -384,11 +384,21 @@ public class GreengrassSetup {
                     user = GGC_USER;
                     kernelArgs.add(DEFAULT_USER_ARG);
                     kernelArgs.add(GGC_USER);
-                }
-                if (Utils.isNotEmpty(defaultGroup)) {
-                    // Ensure group exists
-                    platform.lookupGroupByName(defaultGroup);
                 } else {
+                    // Ensure user exists
+                    try {
+                        platform.lookupUserByName(defaultUser);
+                    } catch (IOException nnf) {
+                        try {
+                            platform.lookupUserByIdentifier(defaultUser);
+                        } catch (IOException inf) {
+                            throw new RuntimeException(
+                                    String.format("The specified component default user %s does " + "not exist",
+                                            defaultUser));
+                        }
+                    }
+                }
+                if (Utils.isEmpty(defaultGroup) || GGC_GROUP.equals(defaultGroup)) {
                     try {
                         platform.lookupGroupByName(GGC_GROUP);
                         outStream.printf("Got no input for component default user, using %s %n", GGC_GROUP);
@@ -401,6 +411,19 @@ public class GreengrassSetup {
                     outStream.printf("Added %s to %s %n", user, GGC_GROUP);
                     kernelArgs.add(DEFAULT_GROUP_ARG);
                     kernelArgs.add(GGC_GROUP);
+                } else {
+                    // Ensure group exists
+                    try {
+                        platform.lookupUserByName(defaultGroup);
+                    } catch (IOException nnf) {
+                        try {
+                            platform.lookupUserByIdentifier(defaultGroup);
+                        } catch (IOException inf) {
+                            throw new RuntimeException(
+                                    String.format("The specified component default group %s does " + "not exist",
+                                            defaultGroup));
+                        }
+                    }
                 }
             }
         } catch (IOException | InterruptedException e) {

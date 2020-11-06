@@ -5,10 +5,7 @@
 
 package com.aws.greengrass.util.platforms.unix;
 
-import com.aws.greengrass.util.Exec;
-
 import java.io.IOException;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class DarwinPlatform extends UnixPlatform {
@@ -21,38 +18,32 @@ public class DarwinPlatform extends UnixPlatform {
 
     @Override
     public void createUser(String user) throws IOException, InterruptedException {
-        try (Exec exec = new Exec()) {
-            AtomicLong uniqueUid = new AtomicLong();
-            Optional<Integer> exit = exec.withExec(AVAILABLE_UNIQUE_ID_CMD.split(" ")).withShell().withOut(o -> {
-                uniqueUid.set(Long.parseLong(o.toString().replaceAll("\\n", "")) + 1L);
-            }).exec();
-            if (!exit.isPresent() && exit.get() != 0) {
-                throw new IOException("Cannot get a unique id for creating user");
-            }
-            Exec.cmd((CREATE_USER_CMD_PREFIX + user).split(" "));
-            Exec.cmd((CREATE_USER_CMD_PREFIX + user + " UserShell /bin/bash").split(" "));
-            Exec.cmd((CREATE_USER_CMD_PREFIX + user + " UniqueID " + uniqueUid.get()).split(" "));
-            Exec.cmd((CREATE_USER_CMD_PREFIX + user + " PrimaryGroupID " + uniqueUid.get()).split(" "));
-        }
+        AtomicLong uniqueUid = new AtomicLong();
+        runCmd(AVAILABLE_UNIQUE_ID_CMD, o -> {
+            uniqueUid.set(Long.parseLong(o.toString().replaceAll("\\n", "")) + 1L);
+        }, "Cannot get a unique id for creating user");
+        runCmd(CREATE_USER_CMD_PREFIX + user, o -> {}, "Failed to create user");
+        runCmd(CREATE_USER_CMD_PREFIX + user + " UserShell /bin/bash", o -> {}, "Failed to add shell");
+        runCmd(CREATE_USER_CMD_PREFIX + user + " UniqueID " + uniqueUid.get(), o -> {},
+                "Failed to add user id");
+        runCmd(CREATE_USER_CMD_PREFIX + user + " PrimaryGroupID " + uniqueUid.get(), o -> {},
+                "Failed to add group id");
     }
 
     @Override
     public void createGroup(String group) throws IOException, InterruptedException {
-        try (Exec exec = new Exec()) {
-            AtomicLong gid = new AtomicLong();
-            Optional<Integer> exit = exec.withExec(AVAILABLE_GID_CMD.split(" ")).withShell().withOut(o -> {
-                gid.set(Long.parseLong(o.toString().replaceAll("\\n", "")) + 1L);
-            }).exec();
-            if (!exit.isPresent() && exit.get() != 0) {
-                throw new IOException("Cannot get a unique gid for creating group");
-            }
-            Exec.cmd((CREATE_GROUP_CMD_PREFIX + group).split(" "));
-            Exec.cmd((CREATE_GROUP_CMD_PREFIX + group + " PrimaryGroupID " + gid.get()).split(" "));
-        }
+        AtomicLong gid = new AtomicLong();
+        runCmd(AVAILABLE_GID_CMD, o -> {
+            gid.set(Long.parseLong(o.toString().replaceAll("\\n", "")) + 1L);
+        }, "Cannot get a unique gid for creating group");
+        runCmd(CREATE_GROUP_CMD_PREFIX + group, o -> {}, "Failed to create group");
+        runCmd(CREATE_GROUP_CMD_PREFIX + group + " PrimaryGroupID " + gid.get(), o -> {},
+                "Failed to add gid");
     }
 
     @Override
     public void addUserToGroup(String user, String group) throws IOException, InterruptedException {
-        Exec.cmd((ADD_USER_TO_GROUP_CMD_PREFIX + group + " GroupMembership " + user).split(" "));
+        runCmd(ADD_USER_TO_GROUP_CMD_PREFIX + group + " GroupMembership " + user, o -> {},
+                "Failed to add user to group");
     }
 }
