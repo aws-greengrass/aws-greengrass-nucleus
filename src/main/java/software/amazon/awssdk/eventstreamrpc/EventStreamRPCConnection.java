@@ -110,7 +110,9 @@ public class EventStreamRPCConnection implements AutoCloseable {
                         } else if (MessageType.PingResponse.equals(messageType)) {
                             LOGGER.finer("Ping response received");
                         } else if (MessageType.Ping.equals(messageType)) {
-                            sendPingResponse(Optional.of(new MessageAmendInfo(headers, payload)))
+                            sendPingResponse(Optional.of(new MessageAmendInfo(
+                                    headers.stream().filter(header -> !header.getName().startsWith(":"))
+                                    .collect(Collectors.toList()), payload)))
                                 .whenComplete((res, ex) -> {
                                     LOGGER.finer("Ping response sent");
                                 });
