@@ -105,9 +105,9 @@ public class IotJobsClientWrapper extends IotJobsClient {
                 String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
                 UpdateJobExecutionResponse response = this.gson.fromJson(payload, UpdateJobExecutionResponse.class);
                 handler.accept(response);
-            } catch (Exception var6) {
+            } catch (Exception e) {
                 if (exceptionHandler != null) {
-                    exceptionHandler.accept(var6);
+                    exceptionHandler.accept(e);
                 }
             }
         };
@@ -130,9 +130,9 @@ public class IotJobsClientWrapper extends IotJobsClient {
                 String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
                 RejectedError response = this.gson.fromJson(payload, RejectedError.class);
                 handler.accept(response);
-            } catch (Exception var6) {
+            } catch (Exception e) {
                 if (exceptionHandler != null) {
-                    exceptionHandler.accept(var6);
+                    exceptionHandler.accept(e);
                 }
             }
         };
@@ -171,9 +171,9 @@ public class IotJobsClientWrapper extends IotJobsClient {
                 String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
                 DescribeJobExecutionResponse response = this.gson.fromJson(payload, DescribeJobExecutionResponse.class);
                 handler.accept(response);
-            } catch (Exception var6) {
+            } catch (Exception e) {
                 if (exceptionHandler != null) {
-                    exceptionHandler.accept(var6);
+                    exceptionHandler.accept(e);
                 }
             }
         };
@@ -197,9 +197,9 @@ public class IotJobsClientWrapper extends IotJobsClient {
                 String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
                 RejectedError response = this.gson.fromJson(payload, RejectedError.class);
                 handler.accept(response);
-            } catch (Exception var6) {
+            } catch (Exception e) {
                 if (exceptionHandler != null) {
-                    exceptionHandler.accept(var6);
+                    exceptionHandler.accept(e);
                 }
             }
         };
@@ -224,9 +224,9 @@ public class IotJobsClientWrapper extends IotJobsClient {
                 String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
                 JobExecutionsChangedEvent response = this.gson.fromJson(payload, JobExecutionsChangedEvent.class);
                 handler.accept(response);
-            } catch (Exception var6) {
+            } catch (Exception e) {
                 if (exceptionHandler != null) {
-                    exceptionHandler.accept(var6);
+                    exceptionHandler.accept(e);
                 }
             }
 
