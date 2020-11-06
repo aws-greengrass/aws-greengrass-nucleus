@@ -225,7 +225,7 @@ public class IPCEventStreamService implements Startable, Closeable {
     }
 
     @Override
-    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.AvoidCatchingGenericException"})
     public void close() {
         // GG_NEEDS_REVIEW: TODO: Future does not complete, wait on them when fixed.
         if (ipcServer != null) {

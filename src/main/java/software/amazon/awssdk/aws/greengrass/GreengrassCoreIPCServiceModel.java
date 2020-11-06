@@ -5,6 +5,15 @@
 
 package software.amazon.awssdk.aws.greengrass;
 
+import java.lang.Class;
+import java.lang.Override;
+import java.lang.String;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
 import software.amazon.awssdk.aws.greengrass.model.ComponentDetails;
 import software.amazon.awssdk.aws.greengrass.model.ComponentNotFoundError;
@@ -85,13 +94,6 @@ import software.amazon.awssdk.aws.greengrass.model.ValidateConfigurationUpdateEv
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
 import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
-
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 
 public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
   private static final GreengrassCoreIPCServiceModel INSTANCE = new GreengrassCoreIPCServiceModel();
