@@ -497,11 +497,13 @@ public final class Exec implements Closeable {
         try {
             pids = platformInstance.killProcessAndChildren(p, false, pids, userDecorator);
             // TODO: [P41214162] configurable timeout
-            if (!p.waitFor(2, TimeUnit.SECONDS)) {
-                platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
-                if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
-                    throw new IOException("Could not stop " + this);
-                }
+            // Wait for it to die, but ignore the outcome and just forcefully kill it and all its
+            // children anyway. This way, any misbehaving children or grandchildren will be killed
+            // whether or not the parent behaved appropriately.
+            p.waitFor(2, TimeUnit.SECONDS);
+            platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
+            if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
+                throw new IOException("Could not stop " + this);
             }
         } catch (InterruptedException e) {
             // If we're interrupted make sure to kill the process before returning
