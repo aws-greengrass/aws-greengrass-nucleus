@@ -35,7 +35,6 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
@@ -228,20 +227,13 @@ public class IPCEventStreamService implements Startable, Closeable {
     @Override
     @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.AvoidCatchingGenericException"})
     public void close() {
+        // GG_NEEDS_REVIEW: TODO: Future does not complete, wait on them when fixed.
         if (ipcServer != null) {
-            try {
-                ipcServer.stopServer().get(2, TimeUnit.MINUTES);
-            } catch (Exception e) {
-                logger.atError().setCause(e).log("Error stopping IPC server");
-            }
+            ipcServer.stopServer();
         }
         if (eventLoopGroup != null) {
             eventLoopGroup.close();
-            try {
-                eventLoopGroup.getShutdownCompleteFuture().get(2, TimeUnit.MINUTES);
-            } catch (Exception e) {
-                logger.atError().setCause(e).log("Error while waiting for IPC shutdown to finish");
-            }
+            // GG_NEEDS_REVIEW: TODO: Wait for ELG to close. Right now the future does not complete, thus timing out.
         }
         if (socketOptions != null) {
             socketOptions.close();
