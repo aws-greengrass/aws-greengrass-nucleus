@@ -66,7 +66,7 @@ public class GenericExternalService extends GreengrassService {
     protected Kernel kernel;
 
     @Inject
-    protected RunWithArtifactHandler artifactHandler;
+    protected RunWithPathOwnershipHandler ownershipHandler;
 
     protected RunWith runWith;
 
@@ -380,36 +380,23 @@ public class GenericExternalService extends GreengrassService {
     }
 
     /**
-     * Store user, group, and shell that will be used to run the service. This should be used throughout the lifecycle.
-     * This information can change with a deployment, but service *must* execute the lifecycle steps with the same
+     * Computer user, group, and shell that will be used to run the service. This should be used throughout the
+     * lifecycle.
+     *
+     * <p>This information can change with a deployment, but service *must* execute the lifecycle steps with the same
      * user/group/shell that was configured when it started.
      */
-    protected boolean storeInitialRunWithConfiguration() {
-        Optional<RunWith> opt = platform.getRunWithGenerator().generate(deviceConfiguration, config);
-        if (opt.isPresent()) {
-            runWith = opt.get();
-
-            LogEventBuilder logEvent = logger.atDebug().kv("user", runWith.getUser());
-            if (runWith.getGroup() != null) {
-                logEvent.kv("group", runWith.getGroup());
-            }
-            if (runWith.getShell() != null) {
-                logEvent.kv("shell", runWith.getShell());
-            }
-            logEvent.log("saving user information for service execution");
-            return true;
-        } else {
-            logger.atError().log("Could not determine user/group to run with for service");
-            return false;
-        }
+    protected Optional<RunWith> computeRunWithConfiguration() {
+        return platform.getRunWithGenerator().generate(deviceConfiguration, config);
     }
 
     /**
-     * Ownership of all files in the artifact directory is updated to reflect the current runWithUser and runWithGroup.
+     * Ownership of all files in the artifact and service work directory is updated to reflect the current runWithUser
+     * and runWithGroup.
      *
      * @return <tt>true</tt> if the update succeeds, otherwise false.
      */
-    protected boolean updateArtifactOwner() {
+    protected boolean updateComponentPathOwner() {
         // no artifacts if no version key
         if (config.findLeafChild(VERSION_CONFIG_KEY) == null) {
             return true;
@@ -417,7 +404,7 @@ public class GenericExternalService extends GreengrassService {
 
         ComponentIdentifier id = ComponentIdentifier.fromServiceTopics(config);
         try {
-            artifactHandler.updateOwner(id, runWith);
+            ownershipHandler.updateOwner(id, runWith);
             return true;
         } catch (IOException e) {
             LogEventBuilder logEvent = logger.atError()
@@ -448,7 +435,6 @@ public class GenericExternalService extends GreengrassService {
             return new Pair<>(RunStatus.NothingDone, null);
         }
 
-
         if (n instanceof Topic) {
             return run((Topic) n, Coerce.toString(n), background, trackingList, isPrivilegeRequired(name));
         }
@@ -462,10 +448,25 @@ public class GenericExternalService extends GreengrassService {
     protected Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, List<Exec> trackingList,
                                         boolean requiresPrivilege) throws InterruptedException {
         if (runWith == null) {
-            if (!storeInitialRunWithConfiguration()) {
+            Optional<RunWith> opt = computeRunWithConfiguration();
+            if (!opt.isPresent()) {
+                logger.atError().log("Could not determine user/group to run with. Ensure that {} is set for {}",
+                        DeviceConfiguration.RUN_WITH_TOPIC, DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME);
                 return new Pair<>(RunStatus.Errored, null);
             }
-            if (!updateArtifactOwner()) {
+
+            runWith = opt.get();
+
+            LogEventBuilder logEvent = logger.atDebug().kv("user", runWith.getUser());
+            if (runWith.getGroup() != null) {
+                logEvent.kv("group", runWith.getGroup());
+            }
+            if (runWith.getShell() != null) {
+                logEvent.kv("shell", runWith.getShell());
+            }
+            logEvent.log("Saving user information for service execution");
+
+            if (!updateComponentPathOwner()) {
                 logger.atError().log("Service artifacts may not be accessible to user");
             }
         }

@@ -65,7 +65,9 @@ import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_SEQUENCE
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeast;
@@ -112,7 +114,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
         lenient().when(mockGreengrassService2.getName()).thenReturn("MockService2");
         lenient().when(mockGreengrassService1.getName()).thenReturn("MockService");
-        when(config.lookup(DEVICE_PARAM_THING_NAME)).thenReturn(thingNameTopic);
         when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
         Topic sequenceNumberTopic = Topic.of(context, FLEET_STATUS_SEQUENCE_NUMBER_TOPIC, "0");
         lenient().when(config.lookup(FLEET_STATUS_SEQUENCE_NUMBER_TOPIC)).thenReturn(sequenceNumberTopic);
@@ -125,6 +126,14 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         ses.shutdownNow();
         fleetStatusService.shutdown();
         fleetStatusService.clearServiceSet();
+    }
+
+    void assertServiceIsRootOrNot(ComponentStatusDetails componentStatusDetails) {
+        if (componentStatusDetails.getComponentName().equals("MockService")) {
+            assertTrue(componentStatusDetails.isRoot());
+        } else {
+            assertFalse(componentStatusDetails.isRoot());
+        }
     }
 
     @Test
@@ -155,6 +164,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
         when(mockKernel.orderedDependencies()).thenReturn(Arrays.asList(mockGreengrassService1, mockGreengrassService2));
         when(mockDeploymentService.getConfig()).thenReturn(config);
+        when(mockDeploymentService.isComponentRoot("MockService")).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC))
                 .thenReturn(periodicUpdateIntervalMsTopic);
@@ -196,10 +206,12 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
+        assertServiceIsRootOrNot(fleetStatusDetails.getComponentStatusDetails().get(0));
         serviceNamesToCheck.remove(fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentStatusDetails().get(0).getState());
         assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentStatusDetails().get(1).getFleetConfigArns());
+        assertServiceIsRootOrNot(fleetStatusDetails.getComponentStatusDetails().get(1));
         serviceNamesToCheck.remove(fleetStatusDetails.getComponentStatusDetails().get(1).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(1).getStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentStatusDetails().get(1).getState());

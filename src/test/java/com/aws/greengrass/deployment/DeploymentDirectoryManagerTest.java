@@ -59,12 +59,28 @@ class DeploymentDirectoryManagerTest {
     }
 
     @Test
-    Path WHEN_create_new_deployment_dir_THEN_setup_directory_and_symlink() throws Exception {
+    void WHEN_create_new_deployment_dir_THEN_setup_directory_and_symlink() throws Exception {
         Path actual = createNewDeploymentDir(mockArn);
         assertThat(actual.toFile(), anExistingDirectory());
         assertEquals(deploymentsDir.resolve(expectedDirectoryName), actual);
         assertEquals(actual, Files.readSymbolicLink(deploymentDirectoryManager.getOngoingDir()));
-        return actual;
+    }
+
+    @Test
+    void GIVEN_deployment_dir_exists_WHEN_create_new_deployment_dir_THEN_reset_directory_and_symlink() throws Exception {
+        Path actual = createNewDeploymentDir(mockArn);
+        Path oldFile = actual.resolve("oldfile");
+        Files.createFile(oldFile);
+        assertThat(oldFile.toFile(), anExistingFile());
+        deploymentDirectoryManager.persistLastSuccessfulDeployment();
+        assertThat(oldFile.toFile(), anExistingFile());
+        assertThat(deploymentDirectoryManager.getPreviousSuccessDir().toFile(), anExistingDirectory());
+
+        createNewDeploymentDir(mockArn);
+        assertThat(oldFile.toFile(), not(anExistingFileOrDirectory()));
+        assertEquals(deploymentsDir.resolve(expectedDirectoryName), actual);
+        assertEquals(actual, Files.readSymbolicLink(deploymentDirectoryManager.getOngoingDir()));
+        assertThat(deploymentDirectoryManager.getPreviousSuccessDir().toFile(), not(anExistingFileOrDirectory()));
     }
 
     @Test
@@ -131,6 +147,6 @@ class DeploymentDirectoryManagerTest {
     }
 
     private Path createNewDeploymentDir(String arn) throws IOException {
-        return deploymentDirectoryManager.createNewDeploymentDirectoryIfNotExists(arn);
+        return deploymentDirectoryManager.createNewDeploymentDirectory(arn);
     }
 }

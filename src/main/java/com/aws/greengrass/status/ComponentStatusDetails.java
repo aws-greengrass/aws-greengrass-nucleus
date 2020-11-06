@@ -27,6 +27,10 @@ public class ComponentStatusDetails {
 
     private String statusDetails;
 
+    // We need to add this since during serialization, the 'is' is removed.
+    @JsonProperty("isRoot")
+    private boolean isRoot;
+
     @JsonProperty("status")
     private State state;
 }

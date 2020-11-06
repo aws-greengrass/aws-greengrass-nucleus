@@ -6,8 +6,8 @@
 package com.aws.greengrass.componentmanager.plugins;
 
 import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.model.GetComponentArtifactRequest;
-import com.amazonaws.services.evergreen.model.GetComponentArtifactResult;
+import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactRequest;
+import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactResult;
 import com.aws.greengrass.componentmanager.ComponentTestResourceHelper;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -34,9 +35,7 @@ import java.util.Base64;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
@@ -57,7 +56,7 @@ class GreengrassRepositoryDownloaderTest {
     private GreengrassRepositoryDownloader downloader;
 
     @Captor
-    ArgumentCaptor<GetComponentArtifactRequest> getComponentArtifactRequestArgumentCaptor;
+    ArgumentCaptor<GetComponentVersionArtifactRequest> getComponentArtifactRequestArgumentCaptor;
 
     @BeforeEach
     void beforeEach() {
@@ -67,9 +66,9 @@ class GreengrassRepositoryDownloaderTest {
 
     @Test
     void GIVEN_artifact_url_WHEN_attempt_download_THEN_task_succeed() throws Exception {
-        GetComponentArtifactResult result =
-                new GetComponentArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
-        when(client.getComponentArtifact(getComponentArtifactRequestArgumentCaptor.capture())).thenReturn(result);
+        GetComponentVersionArtifactResult result =
+                new GetComponentVersionArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
+        when(client.getComponentVersionArtifact(getComponentArtifactRequestArgumentCaptor.capture())).thenReturn(result);
 
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
@@ -81,7 +80,7 @@ class GreengrassRepositoryDownloaderTest {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
-        Path artifactFilePath = saveToPath.resolve("artifactName");
+        Path artifactFilePath = saveToPath.resolve("artifact.txt");
         Files.createDirectories(saveToPath);
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
@@ -90,7 +89,7 @@ class GreengrassRepositoryDownloaderTest {
                 pkgId, ComponentArtifact.builder().artifactUri(new URI("greengrass:artifactName"))
                         .checksum(checksum).algorithm(SHA256).build(), saveToPath);
 
-        GetComponentArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
+        GetComponentVersionArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
         assertEquals("CoolService", generatedRequest.getComponentName());
         assertEquals("1.0.0", generatedRequest.getComponentVersion());
         assertNull(generatedRequest.getScope());
@@ -104,9 +103,9 @@ class GreengrassRepositoryDownloaderTest {
 
     @Test
     void GIVEN_http_connection_error_WHEN_attempt_download_THEN_return_exception() throws Exception {
-        GetComponentArtifactResult result =
-                new GetComponentArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
-        when(client.getComponentArtifact(any())).thenReturn(result);
+        GetComponentVersionArtifactResult result =
+                new GetComponentVersionArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
+        when(client.getComponentVersionArtifact(any())).thenReturn(result);
 
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenThrow(IOException.class);
@@ -118,15 +117,19 @@ class GreengrassRepositoryDownloaderTest {
     }
 
     @Test
-    void GIVEN_filename_in_uri_WHEN_attempt_resolve_filename_THEN_parse_filename() {
-        String filename = downloader.getFilename(ComponentArtifact.builder().artifactUri(
-                URI.create("greengrass:abcd.jj")).build());
-        assertThat(filename, is("abcd.jj"));
-        filename = downloader.getFilename(ComponentArtifact.builder().artifactUri(
-                URI.create("greengrass:abcd")).build());
-        assertThat(filename, is("abcd"));
-        filename = downloader.getFilename(ComponentArtifact.builder().artifactUri(
-                URI.create("greengrass:jkdfjk/kdjfkdj/abcd.jj")).build());
-        assertThat(filename, is("abcd.jj"));
+    void GIVEN_filename_in_disposition_WHEN_attempt_resolve_filename_THEN_parse_filename() throws Exception {
+        String filename = downloader.extractFilename(new URL("https://www.amazon.com/artifact.txt"),
+                "attachment; " + "filename=\"filename.jpg\"");
+
+        assertThat(filename, is("filename.jpg"));
     }
+
+    @Test
+    void GIVEN_filename_in_url_WHEN_attempt_resolve_filename_THEN_parse_filename() throws Exception {
+        String filename =
+                downloader.extractFilename(new URL("https://www.amazon.com/artifact.txt?key=value"), "attachment");
+
+        assertThat(filename, is("artifact.txt"));
+    }
+
 }

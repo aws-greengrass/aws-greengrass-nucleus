@@ -27,7 +27,13 @@ public enum LifecycleState implements EventStreamJsonMessage {
   INSTALLED("INSTALLED"),
 
   @SerializedName("BROKEN")
-  BROKEN("BROKEN");
+  BROKEN("BROKEN"),
+
+  @SerializedName("STARTING")
+  STARTING("STARTING"),
+
+  @SerializedName("STOPPING")
+  STOPPING("STOPPING");
 
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#LifecycleState";
 

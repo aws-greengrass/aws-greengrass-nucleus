@@ -64,26 +64,26 @@ public abstract class Platform implements UserPlatform {
      *
      * @param permission permissions to set
      * @param path path to apply to
-     * @param options options for how to apply the permission to the path
+     * @param options options for how to apply the permission to the path - if none, then the mode is set
      * @throws IOException if any exception occurs while changing permissions
      */
     public void setPermissions(FileSystemPermission permission, Path path,
                                         Option... options) throws IOException {
         // convert to set for easier checking of set options
-        EnumSet<Option> set = options.length == 0 ? EnumSet.noneOf(Option.class) :
+        EnumSet<Option> set = options.length == 0 ? EnumSet.of(Option.SetMode) :
                 EnumSet.copyOf(Arrays.asList(options));
         setPermissions(permission, path, set);
     }
 
     /**
-     * Set permissions on a path.
+     * Set permissions on a path. This changes the mode and owner.
      *
      * @param permission permissions to set
      * @param path path to apply to
      * @throws IOException if any exception occurs while changing permissions
      */
     public void setPermissions(FileSystemPermission permission, Path path) throws IOException {
-        setPermissions(permission, path, EnumSet.noneOf(Option.class));
+        setPermissions(permission, path, EnumSet.of(Option.SetMode, Option.SetOwner));
     }
 
     /**

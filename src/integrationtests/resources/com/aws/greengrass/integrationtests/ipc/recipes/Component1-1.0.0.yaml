@@ -3,19 +3,22 @@ ComponentName: Component1
 ComponentDescription: Test Component
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
+ComponentConfiguration:
+  DefaultConfiguration:
+    Message: 'World'
+
 Manifests:
   - Platform:
-      os: all
-    Parameters:
-      - name: Message
-        value: 'World'
-        type: STRING
+      os: windows
     Lifecycle:
-      run:
-        windows:
-          powershell -command echo {{params:Message.value}}; sleep -m 100
-        posix:
-          sh {{artifacts:path}}/run.sh; echo {{params:Message.value}}; sleep 100
-
+      run: |-
+        powershell -command echo {configuration:/Message}; sleep -m 100
+    Artifacts:
+      - URI: greengrass:run.sh
+  - Platform:
+      os: all
+    Lifecycle:
+      run: |-
+        sh {artifacts:path}/run.sh; echo {configuration:/Message}; sleep 100
     Artifacts:
       - URI: greengrass:run.sh
