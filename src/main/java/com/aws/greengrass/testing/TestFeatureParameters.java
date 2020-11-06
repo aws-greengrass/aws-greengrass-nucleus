@@ -20,7 +20,7 @@ public final class TestFeatureParameters {
     /**
      * Default implementation when not overridden.
      */
-    /*PackagePrivate*/ static TestFeatureParameterInterface DEFAULT_HANDLER = new TestFeatureParameterInterface() {
+    public static TestFeatureParameterInterface DEFAULT_HANDLER = new TestFeatureParameterInterface() {
 
         /**
          * {@inheritDoc}
@@ -78,7 +78,7 @@ public final class TestFeatureParameters {
      * @return previous handler
      */
     @SuppressWarnings("PMD.CompareObjectsWithEquals") // intentional reference equals
-    /*PackagePrivate*/ static TestFeatureParameterInterface internalEnableTestingFeatureParameters(
+    public static TestFeatureParameterInterface internalEnableTestingFeatureParameters(
             TestFeatureParameterInterface newHandler) {
         if (newHandler == DEFAULT_HANDLER) {
             LOGGER.info("Testing Feature Parameters has been disabled.");
@@ -94,7 +94,7 @@ public final class TestFeatureParameters {
      *
      * @return previous handler
      */
-    /*PackagePrivate*/ static TestFeatureParameterInterface internalDisableTestingFeatureParameters() {
+    public static TestFeatureParameterInterface internalDisableTestingFeatureParameters() {
         return internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
     }
 
