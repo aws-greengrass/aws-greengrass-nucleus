@@ -32,11 +32,11 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.DependencyOrder;
-import com.aws.greengrass.util.EndpointGenerator;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.ProxyUtils;
+import com.aws.greengrass.util.RegionUtils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -555,7 +555,7 @@ public class Kernel {
         }
 
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
-        String endpoint = EndpointGenerator.getGreengrassServiceEndpointByRegionAndStage(region, stage);
+        String endpoint = RegionUtils.getGreengrassServiceEndpointByRegionAndStage(region, stage);
         logger.atInfo().log("Configured to use Greengrass endpoint: {}", endpoint);
         context.put(CONTEXT_COMPONENT_SERVICE_ENDPOINT, endpoint);
     }
