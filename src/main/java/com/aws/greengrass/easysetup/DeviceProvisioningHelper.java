@@ -214,7 +214,8 @@ public class DeviceProvisioningHelper {
                             + "      \"Effect\": \"Allow\",\n      \"Action\": [\n"
                             + "                \"iot:Connect\",\n                \"iot:Publish\",\n"
                             + "                \"iot:Subscribe\",\n                \"iot:Receive\",\n"
-                            + "                \"greengrass:*\"\n],\n" + "      \"Resource\": \"*\"\n    }\n  ]\n}")
+                            + "                \"greengrass:*\"\n],\n"
+                            + "      \"Resource\": \"*\"\n    }\n  ]\n}")
                     .build());
         }
 

@@ -365,6 +365,7 @@ public class GreengrassSetup {
 
     }
 
+    @SuppressWarnings("PMD.PreserveStackTrace")
     private void setComponentDefaultUserAndGroup() {
         try {
             Platform platform = Platform.getInstance();
@@ -393,8 +394,8 @@ public class GreengrassSetup {
                             platform.lookupUserByIdentifier(defaultUser);
                         } catch (IOException inf) {
                             throw new RuntimeException(
-                                    String.format("The specified component default user %s does " + "not exist",
-                                            defaultUser));
+                                    String.format("The specified component default user %s does not exist",
+                                            defaultUser), inf);
                         }
                     }
                 }
@@ -420,8 +421,8 @@ public class GreengrassSetup {
                             platform.lookupUserByIdentifier(defaultGroup);
                         } catch (IOException inf) {
                             throw new RuntimeException(
-                                    String.format("The specified component default group %s does " + "not exist",
-                                            defaultGroup));
+                                    String.format("The specified component default group %s does not exist",
+                                            defaultGroup), inf);
                         }
                     }
                 }
