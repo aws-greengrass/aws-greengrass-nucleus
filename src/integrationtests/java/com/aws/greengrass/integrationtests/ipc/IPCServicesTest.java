@@ -453,15 +453,13 @@ class IPCServicesTest {
             });
             startupService.requestStart();
             assertTrue(started.await(10, TimeUnit.SECONDS));
-            String authToken = IPCTestUtils.getAuthTokeForService(kernel, TEST_SERVICE_NAME);
+            String authToken = IPCTestUtils.getAuthTokeForService(kernel, "StartupService");
             clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
             UpdateStateRequest updateStateRequest = new UpdateStateRequest();
-            updateStateRequest.setServiceName("StartupService");
             updateStateRequest.setState(ReportedLifecycleState.RUNNING);
             GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
-            greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty());
+            greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty()).getResponse().get(5, TimeUnit.SECONDS);
             assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
-
         } finally {
             clientConnection.close();
             startupService.close().get();
