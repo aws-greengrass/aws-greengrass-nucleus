@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Set;
 
 public abstract class Platform implements UserPlatform {
     public static final Logger logger = LogManager.getLogger(Platform.class);
@@ -44,7 +45,8 @@ public abstract class Platform implements UserPlatform {
         return INSTANCE;
     }
 
-    public abstract void killProcessAndChildren(Process process, boolean force, UserDecorator userDecorator)
+    public abstract Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
+                                                        UserDecorator decorator)
             throws IOException, InterruptedException;
 
     public abstract ShellDecorator getShellDecorator();

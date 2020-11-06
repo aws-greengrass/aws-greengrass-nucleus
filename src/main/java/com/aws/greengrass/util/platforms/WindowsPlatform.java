@@ -18,13 +18,16 @@ import org.zeroturnaround.process.WindowsProcess;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Optional;
+import java.util.Set;
 
 public class WindowsPlatform extends Platform {
     @Override
-    public void killProcessAndChildren(Process process, boolean force, UserDecorator userDecorator) throws IOException,
-            InterruptedException {
+    public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
+                                               UserDecorator decorator)
+            throws IOException, InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
         ((WindowsProcess) pp).setIncludeChildren(true);
         ((WindowsProcess) pp).setGracefulDestroyEnabled(true);
@@ -41,6 +44,7 @@ public class WindowsPlatform extends Platform {
                 throw e;
             }
         }
+        return Collections.emptySet();
     }
 
     @Override
