@@ -13,6 +13,7 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.IotJobsClientWrapper;
 import com.aws.greengrass.deployment.IotJobsHelper;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -94,6 +95,8 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     private MqttClient mqttClient;
     @Mock
     private IotJobsClient mockIotJobsClient;
+    @Mock
+    private IotJobsClientWrapper mockIotJobsClientWrapper;
     @Captor
     private ArgumentCaptor<PublishRequest> captor;
 
@@ -119,11 +122,16 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             jobResponseConsumer.accept(mockJobExecutionResponse);
             return cf;
         });
+        when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
+                any(QualityOfService.class))).thenAnswer(invocationOnMock -> {
+            verify(mockIotJobsClientWrapper, atLeastOnce()).SubscribeToUpdateJobExecutionAccepted(any(),
+                    eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
+            return cf;
+        });
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
         kernel.parseArgs("-i", IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml").toString());
         kernel.getContext().put(MqttClient.class, mqttClient);
-        kernel.getContext().put(IotJobsClient.class, mockIotJobsClient);
 
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)
@@ -136,6 +144,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
                 deploymentService = (DeploymentService) service;
                 IotJobsHelper iotJobsHelper = deploymentService.getContext().get(IotJobsHelper.class);
                 iotJobsHelper.setIotJobsClient(mockIotJobsClient);
+                iotJobsHelper.setIotJobsClientWrapper(mockIotJobsClientWrapper);
             }
             componentNamesToCheck.add(service.getName());
         });
