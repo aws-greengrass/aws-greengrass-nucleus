@@ -5,27 +5,19 @@
 
 package software.amazon.awssdk.eventstreamrpc;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.crt.eventstream.Header;
-import software.amazon.awssdk.crt.eventstream.HeaderType;
-import software.amazon.awssdk.crt.eventstream.MessageFlags;
-import software.amazon.awssdk.crt.eventstream.MessageType;
-import software.amazon.awssdk.crt.eventstream.ServerConnection;
-import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
-import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
-import software.amazon.awssdk.crt.eventstream.ServerConnectionHandler;
-
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import software.amazon.awssdk.crt.eventstream.*;
+
 public class ServiceOperationMappingContinuationHandler extends ServerConnectionHandler {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ServiceOperationMappingContinuationHandler.class);
+    private static final Logger LOGGER = Logger.getLogger(ServiceOperationMappingContinuationHandler.class.getName());
     private final EventStreamRPCServiceHandler serviceHandler;
     private AuthenticationData authenticationData;  //should only be set once after AuthN
 
@@ -88,7 +80,7 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                     throw new IllegalStateException(String.format("%s has null authorization handler!"));
                 }
 
-                LOGGER.trace(String.format("%s running authentication handler", serviceHandler.getServiceName()));
+                LOGGER.finer(String.format("%s running authentication handler", serviceHandler.getServiceName()));
                 authenticationData = authentication.apply(headers, payload);
                 if (authenticationData == null) {
                     throw new IllegalStateException(String.format("%s authentication handler returned null", serviceHandler.getServiceName()));
@@ -109,12 +101,12 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                         throw new RuntimeException("Unknown authorization decision for " + authenticationData.getIdentityLabel());
                 }
             } else { //version mismatch
-                LOGGER.warn(String.format("Client version {%s} mismatches server version {%s}",
+                LOGGER.warning(String.format("Client version {%s} mismatches server version {%s}",
                         versionHeader.isPresent() ? versionHeader.get() : "null",
                         Version.getInstance().getVersionString()));
             }
         } catch (Exception e) {
-            LOGGER.error(String.format("%s occurred while attempting to authN/authZ connect: %s", e.getClass(), e.getMessage()));
+            LOGGER.severe(String.format("%s occurred while attempting to authN/authZ connect: %s", e.getClass(), e.getMessage()));
         } finally {
             final String authLabel =  authenticationData != null ? authenticationData.getIdentityLabel() : "null";
             LOGGER.info("Sending connect response for " + authLabel);

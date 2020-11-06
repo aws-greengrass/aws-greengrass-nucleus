@@ -6,18 +6,17 @@
 package software.amazon.awssdk.eventstreamrpc;
 
 import com.google.gson.Gson;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 import java.nio.charset.StandardCharsets;
+import java.util.logging.Logger;
 
 /**
  * Useful to set as a handler for an operation with no implementation yet.
  */
 public class DebugLoggingOperationHandler extends OperationContinuationHandler
         <EventStreamJsonMessage, EventStreamJsonMessage, EventStreamJsonMessage, EventStreamJsonMessage> {
-    private static final Logger LOGGER = LoggerFactory.getLogger(DebugLoggingOperationHandler.class);
+    private static final Logger LOGGER = Logger.getLogger(DebugLoggingOperationHandler.class.getName());
     private final OperationModelContext operationModelContext;
 
     public DebugLoggingOperationHandler(final OperationModelContext modelContext, final OperationContinuationHandlerContext context) {
