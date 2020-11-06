@@ -156,10 +156,9 @@ public class DeviceConfiguration {
 
     /**
      * Get the logging configuration.
-     * @param kernel    {@link Kernel}
      * @return  Configuration for logger.
      */
-    public Topics getLoggingConfigurationTopic(Kernel kernel) {
+    public Topics getLoggingConfigurationTopic() {
         return kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(kernel).getLeft(),
                 CONFIGURATION_CONFIG_KEY, NUCLEUS_CONFIG_LOGGING_TOPICS);
     }
@@ -172,7 +171,7 @@ public class DeviceConfiguration {
     private Pair<String, Boolean> getNucleusComponentName(Kernel kernel) {
         Optional<CaseInsensitiveString> nucleusComponent =
                 kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet().stream()
-                        .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(kernel, s.toString())))
+                        .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(s.toString())))
                         .findAny();
         return new Pair<>(nucleusComponent.map(CaseInsensitiveString::toString).orElse(DEFAULT_NUCLEUS_COMPONENT_NAME),
                 nucleusComponent.isPresent());
@@ -189,15 +188,14 @@ public class DeviceConfiguration {
         mainDependencies.add(DEFAULT_NUCLEUS_COMPONENT_NAME);
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
                 .dflt(mainDependencies);
-        handleLoggingConfig(kernel);
+        handleLoggingConfig();
     }
 
     /**
      * Handles subscribing and reconfiguring logger based on the correct topic.
-     * @param kernel {@link Kernel}
      */
-    private void handleLoggingConfig(Kernel kernel) {
-        loggingTopics = getLoggingConfigurationTopic(kernel);
+    private void handleLoggingConfig() {
+        loggingTopics = getLoggingConfigurationTopic();
         loggingTopics.subscribe(this::handleLoggingConfigurationChanges);
     }
 
@@ -230,7 +228,7 @@ public class DeviceConfiguration {
         }
     }
 
-    private String getComponentType(Kernel kernel, String serviceName) {
+    private String getComponentType(String serviceName) {
         return Coerce.toString(kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC, serviceName, SERVICE_TYPE_TOPIC_KEY));
     }
 
