@@ -82,7 +82,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class CLIEventStreamAgentTest {
+class CLIEventStreamAgentTest {
 
     private CLIEventStreamAgent cliEventStreamAgent;
 
@@ -105,21 +105,21 @@ public class CLIEventStreamAgentTest {
     DeploymentQueue deploymentQueue;
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         when(mockContext.getContinuation()).thenReturn(mock(ServerConnectionContinuation.class));
         cliEventStreamAgent = new CLIEventStreamAgent();
         cliEventStreamAgent.setKernel(kernel);
     }
 
     @Test
-    public void test_GetComponentDetails_empty_component_name() {
+    void test_GetComponentDetails_empty_component_name() {
         GetComponentDetailsRequest request = new GetComponentDetailsRequest();
         assertThrows(InvalidArgumentsError.class, () ->
                 cliEventStreamAgent.getGetComponentDetailsHandler(mockContext).handleRequest(request));
     }
 
     @Test
-    public void test_GetComponentDetails_component_does_not_exist(ExtensionContext context) throws ServiceLoadException {
+    void test_GetComponentDetails_component_does_not_exist(ExtensionContext context) throws ServiceLoadException {
         ignoreExceptionOfType(context, ServiceLoadException.class);
         GetComponentDetailsRequest request = new GetComponentDetailsRequest();
         request.setComponentName(TEST_SERVICE);
@@ -130,7 +130,7 @@ public class CLIEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void test_GetComponentDetails_successful() throws ServiceLoadException, IOException {
+    void test_GetComponentDetails_successful() throws ServiceLoadException, IOException {
         GetComponentDetailsRequest request = new GetComponentDetailsRequest();
         request.setComponentName(TEST_SERVICE);
         GreengrassService mockTestService = mock(GreengrassService.class);
@@ -154,7 +154,7 @@ public class CLIEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void test_GetListComponent_success() throws IOException {
+    void test_GetListComponent_success() throws IOException {
         ListComponentsRequest request = new ListComponentsRequest();
         GreengrassService mockTestService = mock(GreengrassService.class);
         GreengrassService mockMainService = mock(GreengrassService.class);
@@ -166,7 +166,6 @@ public class CLIEventStreamAgentTest {
             Map<String, Object> mockParameterConfig = ImmutableMap.of("param1", "value1");
             mockServiceConfig.lookupTopics(PARAMETERS_CONFIG_KEY).replaceAndWait(mockParameterConfig);
             when(mockTestService.getServiceConfig()).thenReturn(mockServiceConfig);
-            when(mockMainService.getName()).thenReturn("main");
             when(kernel.getMain()).thenReturn(mockMainService);
             when(kernel.orderedDependencies()).thenReturn(Arrays.asList(mockTestService, mockMainService));
             ListComponentsResponse response = cliEventStreamAgent.getListComponentsHandler(mockContext).handleRequest(request);
@@ -179,14 +178,14 @@ public class CLIEventStreamAgentTest {
     }
 
     @Test
-    public void testRestartComponent_emptyComponentName() {
+    void testRestartComponent_emptyComponentName() {
         RestartComponentRequest restartComponentRequest = new RestartComponentRequest();
         assertThrows(InvalidArgumentsError.class,
                 () -> cliEventStreamAgent.getRestartComponentsHandler(mockContext).handleRequest(restartComponentRequest));
     }
 
     @Test
-    public void testRestartComponent_component_not_found(ExtensionContext context) throws ServiceLoadException {
+    void testRestartComponent_component_not_found(ExtensionContext context) throws ServiceLoadException {
         ignoreExceptionOfType(context, ServiceLoadException.class);
         RestartComponentRequest restartComponentRequest = new RestartComponentRequest();
         restartComponentRequest.setComponentName("INVALID_COMPONENT");
@@ -196,7 +195,7 @@ public class CLIEventStreamAgentTest {
     }
 
     @Test
-    public void testRestartComponent_component_restart() throws ServiceLoadException {
+    void testRestartComponent_component_restart() throws ServiceLoadException {
         RestartComponentRequest restartComponentRequest = new RestartComponentRequest();
         restartComponentRequest.setComponentName(TEST_SERVICE);
         GreengrassService mockTestService = mock(GreengrassService.class);
@@ -206,14 +205,14 @@ public class CLIEventStreamAgentTest {
     }
 
     @Test
-    public void testStopComponent_emptyComponentName() {
+    void testStopComponent_emptyComponentName() {
         StopComponentRequest stopComponentRequest = new StopComponentRequest();
         assertThrows(InvalidArgumentsError.class,
                 () -> cliEventStreamAgent.getStopComponentsHandler(mockContext).handleRequest(stopComponentRequest));
     }
 
     @Test
-    public void testStopComponent_component_not_found(ExtensionContext context) throws ServiceLoadException {
+    void testStopComponent_component_not_found(ExtensionContext context) throws ServiceLoadException {
         ignoreExceptionOfType(context, ServiceLoadException.class);
         StopComponentRequest stopComponentRequest = new StopComponentRequest();
         stopComponentRequest.setComponentName("INVALID_COMPONENT");
@@ -223,7 +222,7 @@ public class CLIEventStreamAgentTest {
     }
 
     @Test
-    public void testStopComponent_component_restart() throws ServiceLoadException {
+    void testStopComponent_component_restart() throws ServiceLoadException {
         StopComponentRequest stopComponentRequest = new StopComponentRequest();
         stopComponentRequest.setComponentName(TEST_SERVICE);
         GreengrassService mockTestService = mock(GreengrassService.class);
@@ -233,14 +232,14 @@ public class CLIEventStreamAgentTest {
     }
 
     @Test
-    public void testUpdateRecipesAndArtifacts_empty_paths() {
+    void testUpdateRecipesAndArtifacts_empty_paths() {
         UpdateRecipesAndArtifactsRequest request = new UpdateRecipesAndArtifactsRequest();
         assertThrows(InvalidArgumentsError.class,
                 () -> cliEventStreamAgent.getUpdateRecipesAndArtifactsHandler(mockContext).handleRequest(request));
     }
 
     @Test
-    public void testUpdateRecipesAndArtifacts_invalid_paths(ExtensionContext context) {
+    void testUpdateRecipesAndArtifacts_invalid_paths(ExtensionContext context) {
         ignoreExceptionOfType(context, NoSuchFileException.class);
         UpdateRecipesAndArtifactsRequest request = new UpdateRecipesAndArtifactsRequest();
         request.setArtifactsDirectoryPath("/InvalidPath");
@@ -252,7 +251,7 @@ public class CLIEventStreamAgentTest {
     }
 
     @Test
-    public void testUpdateRecipesAndArtifacts_successful_update(ExtensionContext context) throws IOException {
+    void testUpdateRecipesAndArtifacts_successful_update(ExtensionContext context) throws IOException {
         ignoreExceptionOfType(context, NoSuchFileException.class);
         UpdateRecipesAndArtifactsRequest request = new UpdateRecipesAndArtifactsRequest();
         Path mockArtifactsDirectoryPath = Files.createTempDirectory("mockArtifactsDirectoryPath");
@@ -280,7 +279,7 @@ public class CLIEventStreamAgentTest {
     }
 
     @Test
-    public void testUpdateRecipesAndArtifacts_redundant_dir_path(ExtensionContext context) throws IOException {
+    void testUpdateRecipesAndArtifacts_redundant_dir_path(ExtensionContext context) throws IOException {
         ignoreExceptionOfType(context, NoSuchFileException.class);
         UpdateRecipesAndArtifactsRequest request = new UpdateRecipesAndArtifactsRequest();
         request.setArtifactsDirectoryPath(mockPath.toString());
@@ -306,7 +305,7 @@ public class CLIEventStreamAgentTest {
     }
 
     @Test
-    public void testCreateLocalDeployment_deployments_Q_not_initialized(ExtensionContext context) {
+    void testCreateLocalDeployment_deployments_Q_not_initialized(ExtensionContext context) {
         ignoreExceptionOfType(context, ServiceError.class);
         Topics mockCliConfig = mock(Topics.class);
         CreateLocalDeploymentRequest request = new CreateLocalDeploymentRequest();
@@ -320,7 +319,7 @@ public class CLIEventStreamAgentTest {
     }
 
     @Test
-    public void testCreateLocalDeployment_successfull() throws JsonProcessingException {
+    void testCreateLocalDeployment_successfull() throws JsonProcessingException {
         Topics mockCliConfig = mock(Topics.class);
         Topics localDeployments = mock(Topics.class);
         Topics localDeploymentDetailsTopics = mock(Topics.class);
@@ -362,7 +361,7 @@ public class CLIEventStreamAgentTest {
     }
 
     @Test
-    public void testGetLocalDeploymentStatus_invalidDeploymentId() {
+    void testGetLocalDeploymentStatus_invalidDeploymentId() {
         Topics mockCliConfig = mock(Topics.class);
         GetLocalDeploymentStatusRequest request = new GetLocalDeploymentStatusRequest();
         request.setDeploymentId("InvalidId");
@@ -372,7 +371,7 @@ public class CLIEventStreamAgentTest {
     }
 
     @Test
-    public void testGetLocalDeploymentStatus_deploymentId_not_exist() {
+    void testGetLocalDeploymentStatus_deploymentId_not_exist() {
         Topics localDeployments = mock(Topics.class);
         Topics mockCliConfig = mock(Topics.class);
         String deploymentId = UUID.randomUUID().toString();
@@ -387,7 +386,7 @@ public class CLIEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void testGetLocalDeploymentStatus_successful() throws IOException {
+    void testGetLocalDeploymentStatus_successful() throws IOException {
         Topics localDeployments = mock(Topics.class);
         Topics mockCliConfig = mock(Topics.class);
         try (Context context = new Context()) {
@@ -407,7 +406,7 @@ public class CLIEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void testListLocalDeployment_no_local_deployments() throws IOException {
+    void testListLocalDeployment_no_local_deployments() throws IOException {
         Topics mockCliConfig = mock(Topics.class);
         try(Context context = new Context()) {
             Topics localDeployments = Topics.of(context, "localDeployments", null);
@@ -421,7 +420,7 @@ public class CLIEventStreamAgentTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void testListLocalDeployment_successful() throws IOException {
+    void testListLocalDeployment_successful() throws IOException {
         Topics mockCliConfig = mock(Topics.class);
         try(Context context = new Context()) {
             Topics localDeployments = Topics.of(context, "localDeployments", null);
