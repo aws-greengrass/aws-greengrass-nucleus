@@ -555,7 +555,7 @@ public class Kernel {
         }
 
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
-        String endpoint = RegionUtils.getGreengrassServiceEndpointByRegionAndStage(region, stage);
+        String endpoint = RegionUtils.getGreengrassServiceEndpoint(region, stage);
         logger.atInfo().log("Configured to use Greengrass endpoint: {}", endpoint);
         context.put(CONTEXT_COMPONENT_SERVICE_ENDPOINT, endpoint);
     }

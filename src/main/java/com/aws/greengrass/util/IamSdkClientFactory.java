@@ -40,10 +40,6 @@ public final class IamSdkClientFactory {
     private IamSdkClientFactory() {
     }
 
-    public static IamClient getIamClient() {
-        return getIamClient(DEFAULT_AWS_REGION);
-    }
-
     /**
      * Build IamClient.
      * @param awsRegion aws region

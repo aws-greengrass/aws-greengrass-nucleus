@@ -30,8 +30,8 @@ public final class RegionUtils {
      * @param stage environment stage
      * @return Greengrass ServiceEndpoint
      */
-    public static String getGreengrassServiceEndpointByRegionAndStage(String awsRegion,
-                                                                      IotSdkClientFactory.EnvironmentStage stage) {
+    public static String getGreengrassServiceEndpoint(String awsRegion,
+                                                      IotSdkClientFactory.EnvironmentStage stage) {
         String dnsSuffix = Region.of(awsRegion).metadata().partition().dnsSuffix();
         return String.format(DEFAULT_GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT.get(stage), awsRegion, dnsSuffix);
     }
@@ -42,8 +42,8 @@ public final class RegionUtils {
      * @param stage environment stage
      * @return Iot Control Plane Endpoint
      */
-    public static String getIotControlPlaneEndpointByRegionAndStage(Region awsRegion,
-                                                                    IotSdkClientFactory.EnvironmentStage stage) {
+    public static String getIotControlPlaneEndpoint(Region awsRegion,
+                                                    IotSdkClientFactory.EnvironmentStage stage) {
         String dnsSuffix = awsRegion.metadata().partition().dnsSuffix();
         return String.format(DEFAULT_IOT_CONTROL_PLANE_ENDPOINT_FORMAT, stage.value, awsRegion, dnsSuffix);
     }

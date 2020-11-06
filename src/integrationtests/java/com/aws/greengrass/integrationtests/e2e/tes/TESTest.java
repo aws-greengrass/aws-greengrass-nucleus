@@ -125,9 +125,9 @@ class TESTest extends BaseITCase {
                             Collections.singleton(InvalidRequestException.class)),
                     thingInfo, false);
             IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION, envStage),
-                    IamSdkClientFactory.getIamClient(), roleName, roleAliasName, thingInfo.getCertificateArn());
+                    IamSdkClientFactory.getIamClient(AWS_REGION), roleName, roleAliasName, thingInfo.getCertificateArn());
             IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION, envStage),
-                    IamSdkClientFactory.getIamClient(), roleName, newRoleAliasName, thingInfo.getCertificateArn());
+                    IamSdkClientFactory.getIamClient(AWS_REGION), roleName, newRoleAliasName, thingInfo.getCertificateArn());
         }
     }
 

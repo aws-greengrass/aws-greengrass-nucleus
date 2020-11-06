@@ -172,7 +172,7 @@ public class BaseE2ETestCase implements AutoCloseable {
                                                                                              String.format(STAGE_TO_ENDPOINT_FORMAT.get(envStage), GAMMA_REGION.toString()),
                                                                                              GAMMA_REGION.toString()))
                                                                              .build();
-    protected static final IamClient iamClient = IamSdkClientFactory.getIamClient();
+    protected static final IamClient iamClient = IamSdkClientFactory.getIamClient(GAMMA_REGION.toString());
     protected static final S3Client s3Client = S3Client.builder().region(GAMMA_REGION).build();
 
     private static final ComponentIdentifier[] componentsWithArtifactsInS3 =
