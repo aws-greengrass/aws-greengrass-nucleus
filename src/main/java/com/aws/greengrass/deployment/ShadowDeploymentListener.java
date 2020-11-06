@@ -63,7 +63,7 @@ public class ShadowDeploymentListener implements InjectionActions {
     public static final String ARN_KEY = "configurationArn";
     public static final String GGC_VERSION_KEY = "ggcVersion";
     public static final String DESIRED_STATUS_CANCELED = "CANCELED";
-    public static final String DEPLOYMENT_SHADOW_NAME = "AWSManagedGreengrassDeploymentShadow";
+    public static final String DEPLOYMENT_SHADOW_NAME = "AWSManagedGreengrassV2Deployment";
     @Inject
     private DeploymentQueue deploymentQueue;
     @Inject
