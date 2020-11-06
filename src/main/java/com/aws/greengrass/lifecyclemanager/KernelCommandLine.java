@@ -155,7 +155,7 @@ public class KernelCommandLine {
             nucleusPaths.setTelemetryPath(TelemetryConfig.getInstance().getStoreDirectory());
             String storeDirectory = LogManager.getRootLogConfiguration().getStoreDirectory().toAbsolutePath()
                     .toString();
-            Topic outputDirectoryTopic = DeviceConfiguration.getLoggingConfigurationTopic(kernel)
+            Topic outputDirectoryTopic = deviceConfiguration.getLoggingConfigurationTopic(kernel)
                     .lookup("outputDirectory");
             String outputDirectory = Coerce.toString(outputDirectoryTopic);
             if (Utils.isNotEmpty(outputDirectory)) {

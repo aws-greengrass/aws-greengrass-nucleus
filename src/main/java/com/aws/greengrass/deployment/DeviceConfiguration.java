@@ -10,23 +10,32 @@ import com.amazonaws.SdkClientException;
 import com.amazonaws.regions.DefaultAwsRegionProviderChain;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.ChildChanged;
+import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.Validator;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.lifecyclemanager.LogManagerHelper;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.logging.impl.config.LogFormat;
+import com.aws.greengrass.logging.impl.config.LogStore;
+import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import org.slf4j.event.Level;
 
+import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import javax.inject.Inject;
 
@@ -91,6 +100,8 @@ public class DeviceConfiguration {
     private final Validator regionValidator;
 
     private final String nucleusComponentName;
+    private Topics loggingTopics;
+    private LoggerConfiguration currentConfiguration;
 
     /**
      * Constructor used to read device configuration from the config store.
@@ -148,7 +159,7 @@ public class DeviceConfiguration {
      * @param kernel    {@link Kernel}
      * @return  Configuration for logger.
      */
-    public static Topics getLoggingConfigurationTopic(Kernel kernel) {
+    public Topics getLoggingConfigurationTopic(Kernel kernel) {
         return kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(kernel).getLeft(),
                 CONFIGURATION_CONFIG_KEY, NUCLEUS_CONFIG_LOGGING_TOPICS);
     }
@@ -158,7 +169,7 @@ public class DeviceConfiguration {
      * exists, create service config for the default Nucleus component.
      * @param kernel {@link Kernel}
      */
-    private static Pair<String, Boolean> getNucleusComponentName(Kernel kernel) {
+    private Pair<String, Boolean> getNucleusComponentName(Kernel kernel) {
         Optional<CaseInsensitiveString> nucleusComponent =
                 kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet().stream()
                         .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(kernel, s.toString())))
@@ -178,10 +189,48 @@ public class DeviceConfiguration {
         mainDependencies.add(DEFAULT_NUCLEUS_COMPONENT_NAME);
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
                 .dflt(mainDependencies);
-        LogManagerHelper.handleLoggingConfig(kernel);
+        handleLoggingConfig(kernel);
     }
 
-    private static String getComponentType(Kernel kernel, String serviceName) {
+    /**
+     * Handles subscribing and reconfiguring logger based on the correct topic.
+     * @param kernel {@link Kernel}
+     */
+    private void handleLoggingConfig(Kernel kernel) {
+        loggingTopics = getLoggingConfigurationTopic(kernel);
+        loggingTopics.subscribe(this::handleLoggingConfigurationChanges);
+    }
+
+    /**
+     * Handle logging configuration changes.
+     * @param what          What changed.
+     * @param loggingParam  which logging param changed topic.
+     */
+    @SuppressWarnings("PMD.UselessParentheses")
+    public synchronized void handleLoggingConfigurationChanges(WhatHappened what, Node loggingParam) {
+        LoggerConfiguration configuration;
+        try {
+            configuration = fromPojo(loggingTopics.toPOJO());
+        } catch (IllegalArgumentException e) {
+            logger.atError().kv("logging-config", loggingTopics).cause(e).log("Unable to parse logging config.");
+            return;
+        }
+        if (currentConfiguration == null || !currentConfiguration.equals(configuration)) {
+            if (configuration.getOutputDirectory() != null
+                    && (currentConfiguration == null || !Objects.equals(currentConfiguration.getOutputDirectory(),
+                    configuration.getOutputDirectory()))) {
+                try {
+                    kernel.getNucleusPaths().setLoggerPath(Paths.get(configuration.getOutputDirectory()));
+                } catch (IOException e) {
+                    logger.atError().cause(e).log("Unable to initialize logger output directory path");
+                }
+            }
+            currentConfiguration = configuration;
+            LogManager.reconfigureAllLoggers(configuration);
+        }
+    }
+
+    private String getComponentType(Kernel kernel, String serviceName) {
         return Coerce.toString(kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC, serviceName, SERVICE_TYPE_TOPIC_KEY));
     }
 
@@ -434,5 +483,38 @@ public class DeviceConfiguration {
         }
     }
 
-
+    /**
+     * Get the logger configuration from POJO.
+     * @param pojoMap   The map containing logger configuration.
+     * @return  the logger configuration.
+     * @throws IllegalArgumentException if the POJO map has an invalid argument.
+     */
+    private LoggerConfiguration fromPojo(Map<String, Object> pojoMap) {
+        LoggerConfiguration configuration = LoggerConfiguration.builder().build();
+        pojoMap.forEach((s, o) -> {
+            switch (s) {
+                case "level":
+                    configuration.setLevel(Level.valueOf(Coerce.toString(o)));
+                    break;
+                case "fileSizeKB":
+                    configuration.setFileSizeKB(Coerce.toLong(o));
+                    break;
+                case "totalLogsSizeKB":
+                    configuration.setTotalLogsSizeKB(Coerce.toLong(o));
+                    break;
+                case "format":
+                    configuration.setFormat(LogFormat.valueOf(Coerce.toString(o)));
+                    break;
+                case "outputDirectory":
+                    configuration.setOutputDirectory(Coerce.toString(o));
+                    break;
+                case "outputType":
+                    configuration.setOutputType(LogStore.valueOf(Coerce.toString(o)));
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unexpected value: " + s);
+            }
+        });
+        return configuration;
+    }
 }

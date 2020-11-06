@@ -7,9 +7,11 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogConfig;
@@ -34,6 +36,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.NUCLEUS_CONFIG_LOGGING_TOPICS;
@@ -123,6 +126,11 @@ class LogManagerHelperTest {
         Context context = mock(Context.class);
         Configuration configuration = mock(Configuration.class);
         NucleusPaths nucleusPaths = mock(NucleusPaths.class);
+        Topics rootConfigTopics = mock(Topics.class);
+        when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString())).thenReturn(new ArrayList<>());
+        when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
+        when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
+        when(configuration.getRoot()).thenReturn(rootConfigTopics);
         when(kernel.getConfig()).thenReturn(configuration);
         when(kernel.getNucleusPaths()).thenReturn(nucleusPaths);
         Topics loggingConfig = Topics.of(context, NUCLEUS_CONFIG_LOGGING_TOPICS, null);
@@ -135,8 +143,8 @@ class LogManagerHelperTest {
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
         when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(loggingConfig);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
-        LogManagerHelper.handleLoggingConfig(kernel);
-        LogManagerHelper.handleLoggingConfigurationChanges(WhatHappened.childChanged, loggingConfig);
+        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel);
+        deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.childChanged, loggingConfig);
 
         assertEquals(Level.TRACE, LogManager.getRootLogConfiguration().getLevel());
         assertEquals(LogStore.FILE, LogManager.getRootLogConfiguration().getStore());
@@ -157,6 +165,11 @@ class LogManagerHelperTest {
     void GIVEN_null_logger_config_WHEN_subscribe_THEN_correctly_reconfigures_all_loggers() throws IOException {
         Configuration configuration = mock(Configuration.class);
         NucleusPaths nucleusPaths = mock(NucleusPaths.class);
+        Topics rootConfigTopics = mock(Topics.class);
+        when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString())).thenReturn(new ArrayList<>());
+        when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
+        when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
+        when(configuration.getRoot()).thenReturn(rootConfigTopics);
         when(kernel.getConfig()).thenReturn(configuration);
         lenient().when(kernel.getNucleusPaths()).thenReturn(nucleusPaths);
         Topics topic = mock(Topics.class);
@@ -164,15 +177,15 @@ class LogManagerHelperTest {
         when(topic.subscribe(childChangedArgumentCaptor.capture())).thenReturn(topic);
         when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(topic);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
-        LogManagerHelper.handleLoggingConfig(kernel);
-        LogManagerHelper.handleLoggingConfigurationChanges(WhatHappened.childChanged, null);
+        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel);
+        deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.childChanged, null);
 
         childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, null);
 
         assertEquals(Level.INFO, LogManager.getRootLogConfiguration().getLevel());
         assertEquals("greengrass", LogManager.getRootLogConfiguration().getFileName());
         assertEquals(LogStore.CONSOLE, LogManager.getRootLogConfiguration().getStore());
-        assertEquals(LogFormat.TEXT, LogManager.getRootLogConfiguration().getFormat());
+        assertEquals(LogFormat.JSON, LogManager.getRootLogConfiguration().getFormat());
         assertEquals(1024, LogManager.getRootLogConfiguration().getFileSizeKB());
         assertEquals(10240, LogManager.getRootLogConfiguration().getTotalLogStoreSizeKB());
 
