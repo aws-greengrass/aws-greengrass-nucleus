@@ -35,8 +35,6 @@ public final class IamSdkClientFactory {
             RetryPolicy.builder().numRetries(5).backoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
                     .retryCondition(retryCondition).build();
 
-    private static final String DEFAULT_AWS_REGION = "us-east-1";
-
     private IamSdkClientFactory() {
     }
 
