@@ -63,7 +63,7 @@ public final class SudoUtil {
      */
     public static boolean canSudoShell(String shell) {
         try {
-            return Exec.successful(false, "sudo -u \\#123456 " + shell + " -c 'echo hello'");
+            return Exec.successful(true, "sudo -u nobody " + shell + " -c 'echo hello'");
         } catch (IOException | InterruptedException e) {
             return false;
         }
