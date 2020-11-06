@@ -134,7 +134,7 @@ public class IPCEventStreamService implements Startable, Closeable {
             try {
                 // Usually we do not want to write outside of kernel root. Because of socket path length limitations we
                 // will create a symlink only if needed
-                if (ipcServerSocketAbsolutePath.length() > UDS_SOCKET_PATH_MAX_LEN) {
+                if (ipcServerSocketAbsolutePath.length() >= UDS_SOCKET_PATH_MAX_LEN) {
                     Files.createSymbolicLink(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), kernel.getNucleusPaths().rootPath());
                     kernelRelativeUri = config.getRoot()
                             .lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
