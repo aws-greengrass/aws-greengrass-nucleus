@@ -23,7 +23,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -491,11 +493,12 @@ public final class Exec implements Closeable {
 
         Platform platformInstance = Platform.getInstance();
 
+        Set<Integer> pids = Collections.emptySet();
         try {
-            platformInstance.killProcessAndChildren(p, false, userDecorator);
+            pids = platformInstance.killProcessAndChildren(p, false, pids, userDecorator);
             // TODO: [P41214162] configurable timeout
             if (!p.waitFor(2, TimeUnit.SECONDS)) {
-                platformInstance.killProcessAndChildren(p, true, userDecorator);
+                platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
                 if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
                     throw new IOException("Could not stop " + this);
                 }
@@ -503,7 +506,7 @@ public final class Exec implements Closeable {
         } catch (InterruptedException e) {
             // If we're interrupted make sure to kill the process before returning
             try {
-                platformInstance.killProcessAndChildren(p, true, userDecorator);
+                platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
             } catch (InterruptedException ignore) {
             }
         }
