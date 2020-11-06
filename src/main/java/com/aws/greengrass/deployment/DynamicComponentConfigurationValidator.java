@@ -52,7 +52,6 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 @NoArgsConstructor
 public class DynamicComponentConfigurationValidator {
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
-    private static final long DEFAULT_TIMEOUT = Duration.ofSeconds(20).toMillis();
     private static final Logger logger = LogManager.getLogger(DynamicComponentConfigurationValidator.class);
 
     @Inject
@@ -86,7 +85,7 @@ public class DynamicComponentConfigurationValidator {
             return false;
         }
 
-        return validateOverIpc(deployment.getId(), componentsToValidate, deploymentResultFuture);
+        return validateOverIpc(deployment, componentsToValidate, deploymentResultFuture);
     }
 
     /**
@@ -160,8 +159,11 @@ public class DynamicComponentConfigurationValidator {
                         .deepEquals(proposedConfig, currentConfig.toPOJO());
     }
 
-    private boolean validateOverIpc(String deploymentId, Set<ComponentToValidate> componentsToValidate,
+    private boolean validateOverIpc(Deployment deployment, Set<ComponentToValidate> componentsToValidate,
                                     CompletableFuture<DeploymentResult> deploymentResultFuture) {
+        String deploymentId = deployment.getId();
+        Integer timeOutSec = deployment.getDeploymentDocumentObj().getComponentUpdatePolicy().getTimeout();
+        Long timeOutMs = Duration.ofSeconds(timeOutSec).toMillis();
         try {
             String failureMsg = null;
             boolean validationRequested = false;
@@ -190,10 +192,9 @@ public class DynamicComponentConfigurationValidator {
             }
             if (validationRequested) {
                 try {
-                    // TODO: [P41179329] Use configurable timeout from deployment document
                     CompletableFuture.allOf(componentsToValidate.stream().map(ComponentToValidate::getResponse)
                             .collect(Collectors.toSet()).toArray(new CompletableFuture[0]))
-                            .get(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
+                            .get(timeOutMs, TimeUnit.MILLISECONDS);
 
                     failureMsg = "Components reported that their to-be-deployed configuration is invalid";
                     for (ComponentToValidate componentToValidate : componentsToValidate) {
@@ -223,10 +224,9 @@ public class DynamicComponentConfigurationValidator {
             // GG_NEEDS_REVIEW: TODO: Remove when all UATs move to new IPC
             if (validationRequestedFromOldIpc) {
                 try {
-                    // TODO: [P41179329] Use configurable timeout from deployment document
                     CompletableFuture.allOf(componentsToValidate.stream().map(ComponentToValidate::getOldResponse)
                             .collect(Collectors.toSet()).toArray(new CompletableFuture[0]))
-                            .get(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
+                            .get(timeOutMs, TimeUnit.MILLISECONDS);
 
                     failureMsg = "Components reported that their to-be-deployed configuration is invalid";
                     for (ComponentToValidate componentToValidate : componentsToValidate) {

@@ -106,11 +106,8 @@ public final class DeploymentDocumentConverter {
                         .fromValue(config.getComponentUpdatePolicy().getAction()));
         DeploymentDocument deploymentDocument = DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
                 .timestamp(config.getCreationTimestamp()).failureHandlingPolicy(config.getFailureHandlingPolicy())
-                // TODO: [P41179329] Use full featured component update policy and configuration
-                // validation policy with timeouts
                 .componentUpdatePolicy(componentUpdatePolicy).deploymentPackageConfigurationList(new ArrayList<>())
                 .build();
-
 
         String groupName;
         try {
