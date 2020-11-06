@@ -10,36 +10,18 @@ import java.lang.Override;
 import java.lang.String;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-public enum LifecycleState implements EventStreamJsonMessage {
+public enum ReportedLifecycleState implements EventStreamJsonMessage {
   @SerializedName("RUNNING")
   RUNNING("RUNNING"),
 
   @SerializedName("ERRORED")
-  ERRORED("ERRORED"),
+  ERRORED("ERRORED");
 
-  @SerializedName("NEW")
-  NEW("NEW"),
-
-  @SerializedName("FINISHED")
-  FINISHED("FINISHED"),
-
-  @SerializedName("INSTALLED")
-  INSTALLED("INSTALLED"),
-
-  @SerializedName("BROKEN")
-  BROKEN("BROKEN"),
-
-  @SerializedName("STARTING")
-  STARTING("STARTING"),
-
-  @SerializedName("STOPPING")
-  STOPPING("STOPPING");
-
-  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#LifecycleState";
+  public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ReportedLifecycleState";
 
   String value;
 
-  LifecycleState(String value) {
+  ReportedLifecycleState(String value) {
     this.value = value;
   }
 

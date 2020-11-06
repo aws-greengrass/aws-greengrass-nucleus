@@ -12,6 +12,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
+import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -96,6 +97,10 @@ class IotJobsHelperTest {
     @Mock
     private IotJobsClient mockIotJobsClient;
     @Mock
+    private FleetStatusService mockFleetStatusService;
+    @Mock
+    private IotJobsClientWrapper mockIotJobsClientWrapper;
+    @Mock
     MqttClient mockMqttClient;
 
     @Captor
@@ -113,11 +118,13 @@ class IotJobsHelperTest {
     @BeforeEach
     void setup() throws Exception {
         iotJobsHelper = new IotJobsHelper(deviceConfiguration, mockIotJobsClientFactory, mockDeploymentQueue,
-                deploymentStatusKeeper, executorService,mockKernel, mockWrapperMqttConnectionFactory, mockMqttClient);
+                deploymentStatusKeeper, executorService,mockKernel, mockWrapperMqttConnectionFactory, mockMqttClient,
+                mockFleetStatusService);
         Topic mockThingNameTopic = mock(Topic.class);
         when(mockThingNameTopic.getOnce()).thenReturn(TEST_THING_NAME);
         when(deviceConfiguration.getThingName()).thenReturn(mockThingNameTopic);
         when(mockIotJobsClientFactory.getIotJobsClient(any())).thenReturn(mockIotJobsClient);
+        when(mockIotJobsClientFactory.getIotJobsClientWrapper(any())).thenReturn(mockIotJobsClientWrapper);
         when(mockWrapperMqttConnectionFactory.getAwsIotMqttConnection(any()))
                 .thenReturn(mockWrapperMqttClientConnection);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
@@ -126,6 +133,13 @@ class IotJobsHelperTest {
         when(mockIotJobsClient.SubscribeToDescribeJobExecutionAccepted(any(), any(), any()))
                 .thenReturn(integerCompletableFuture);
         when(mockIotJobsClient.SubscribeToDescribeJobExecutionRejected(any(), any(), any()))
+                .thenReturn(integerCompletableFuture);
+
+        when(mockIotJobsClientWrapper.SubscribeToJobExecutionsChangedEvents(any(), any(), any()))
+                .thenReturn(integerCompletableFuture);
+        when(mockIotJobsClientWrapper.SubscribeToDescribeJobExecutionAccepted(any(), any(), any()))
+                .thenReturn(integerCompletableFuture);
+        when(mockIotJobsClientWrapper.SubscribeToDescribeJobExecutionRejected(any(), any(), any()))
                 .thenReturn(integerCompletableFuture);
 
         lenient().when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
@@ -138,6 +152,7 @@ class IotJobsHelperTest {
         verify(mockIotJobsClient).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(mockIotJobsClient).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
         verify(mockIotJobsClient).SubscribeToDescribeJobExecutionRejected(any(), any(), any());
+        verify(mockFleetStatusService).updateFleetStatusUpdateForAllComponents();
     }
 
     @Test
@@ -508,6 +523,13 @@ class IotJobsHelperTest {
             jobResponseConsumer.accept(mockJobExecutionResponse);
             return cf;
         });
+
+        when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(), any())).thenAnswer(invocationOnMock -> {
+            verify(mockIotJobsClientWrapper).SubscribeToUpdateJobExecutionAccepted(requestArgumentCaptor.capture(),
+                    eq(QualityOfService.AT_LEAST_ONCE), updateJobExecutionResponseCaptor.capture());
+            return cf;
+        });
+
         iotJobsHelper.updateJobStatus(TEST_JOB_ID, JobStatus.IN_PROGRESS, statusDetails);
         verify(mockIotJobsClient).SubscribeToUpdateJobExecutionAccepted(requestArgumentCaptor.capture(),
                 eq(QualityOfService.AT_LEAST_ONCE), updateJobExecutionResponseCaptor.capture());
@@ -547,6 +569,13 @@ class IotJobsHelperTest {
             rejectedErrorConsumer.accept(mockRejectError);
             return cf;
         });
+
+        when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(), any())).thenAnswer(invocationOnMock -> {
+            verify(mockIotJobsClient).SubscribeToUpdateJobExecutionRejected(requestArgumentCaptor.capture(),
+                    eq(QualityOfService.AT_LEAST_ONCE), rejectedErrorCaptor.capture());
+            return cf;
+        });
+
         HashMap<String, String> statusDetails = new HashMap<>();
         statusDetails.put("type", "test" );
         try {

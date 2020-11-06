@@ -1,0 +1,10 @@
+{
+  "deploymentId": "3b86691d-4f81-408a-852e-edc14cd351a7",
+  "components": {
+    "CustomerApp": {
+      "version": "1.0.0"
+    }
+  },
+  "creationTimestamp": 1.604067741583E12,
+  "configurationArn": "arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"
+}

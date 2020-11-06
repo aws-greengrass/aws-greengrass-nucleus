@@ -13,6 +13,7 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.IotJobsClientWrapper;
 import com.aws.greengrass.deployment.IotJobsHelper;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -30,8 +31,8 @@ import com.aws.greengrass.status.FleetStatusDetails;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.OverallStatus;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import org.junit.jupiter.api.AfterEach;
@@ -68,6 +69,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -93,6 +95,8 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     private MqttClient mqttClient;
     @Mock
     private IotJobsClient mockIotJobsClient;
+    @Mock
+    private IotJobsClientWrapper mockIotJobsClientWrapper;
     @Captor
     private ArgumentCaptor<PublishRequest> captor;
 
@@ -111,18 +115,23 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         cf.complete(null);
         when(mockIotJobsClient.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
                 any(QualityOfService.class))).thenAnswer(invocationOnMock -> {
-                    verify(mockIotJobsClient, atLeastOnce()).SubscribeToUpdateJobExecutionAccepted(any(),
-                            eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
-                    Consumer<UpdateJobExecutionResponse> jobResponseConsumer = jobsAcceptedHandlerCaptor.getValue();
-                    UpdateJobExecutionResponse mockJobExecutionResponse = mock(UpdateJobExecutionResponse.class);
-                    jobResponseConsumer.accept(mockJobExecutionResponse);
-                    return cf;
-                });
+            verify(mockIotJobsClient, atLeastOnce()).SubscribeToUpdateJobExecutionAccepted(any(),
+                    eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
+            Consumer<UpdateJobExecutionResponse> jobResponseConsumer = jobsAcceptedHandlerCaptor.getValue();
+            UpdateJobExecutionResponse mockJobExecutionResponse = mock(UpdateJobExecutionResponse.class);
+            jobResponseConsumer.accept(mockJobExecutionResponse);
+            return cf;
+        });
+        when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
+                any(QualityOfService.class))).thenAnswer(invocationOnMock -> {
+            verify(mockIotJobsClientWrapper, atLeastOnce()).SubscribeToUpdateJobExecutionAccepted(any(),
+                    eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
+            return cf;
+        });
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
         kernel.parseArgs("-i", IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml").toString());
         kernel.getContext().put(MqttClient.class, mqttClient);
-        kernel.getContext().put(IotJobsClient.class, mockIotJobsClient);
 
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)
@@ -135,6 +144,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
                 deploymentService = (DeploymentService) service;
                 IotJobsHelper iotJobsHelper = deploymentService.getContext().get(IotJobsHelper.class);
                 iotJobsHelper.setIotJobsClient(mockIotJobsClient);
+                iotJobsHelper.setIotJobsClientWrapper(mockIotJobsClientWrapper);
             }
             componentNamesToCheck.add(service.getName());
         });
@@ -176,30 +186,34 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         verify(mqttClient, atLeastOnce()).publish(captor.capture());
 
         List<PublishRequest> prs = captor.getAllValues();
-        for (PublishRequest pr : prs) {
-            try {
-                FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(),
-                        FleetStatusDetails.class);
-                assertEquals("ThingName", fleetStatusDetails.getThing());
-                assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-                assertEquals(0, fleetStatusDetails.getSequenceNumber());
-                assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-                assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
-                fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
-                    componentNamesToCheck.remove(componentStatusDetails.getComponentName());
-                    if (componentStatusDetails.getComponentName().equals("CustomerApp")) {
-                        assertEquals("1.0.0", componentStatusDetails.getVersion());
-                        assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
-                        assertEquals(MOCK_FLEET_CONFIG_ARN, componentStatusDetails.getFleetConfigArns().get(0));
-                        assertEquals(State.FINISHED, componentStatusDetails.getState());
-                    } else if (componentStatusDetails.getComponentName().equals("Mosquitto")) {
-                        assertEquals("1.0.0", componentStatusDetails.getVersion());
-                        assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
-                        assertEquals(MOCK_FLEET_CONFIG_ARN, componentStatusDetails.getFleetConfigArns().get(0));
-                        assertEquals(State.RUNNING, componentStatusDetails.getState());
-                    }
-                });
-            } catch (UnrecognizedPropertyException ignored) { }
+        // Get the last FSS publish request which should have all the components information.
+        PublishRequest pr = prs.get(prs.size() - 1);
+        try {
+            FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(),
+                    FleetStatusDetails.class);
+            assertEquals("ThingName", fleetStatusDetails.getThing());
+            assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+            assertNotNull(fleetStatusDetails.getComponentStatusDetails());
+            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
+            fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
+                componentNamesToCheck.remove(componentStatusDetails.getComponentName());
+                if (componentStatusDetails.getComponentName().equals("CustomerApp")) {
+                    assertEquals("1.0.0", componentStatusDetails.getVersion());
+                    assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
+                    assertEquals(MOCK_FLEET_CONFIG_ARN, componentStatusDetails.getFleetConfigArns().get(0));
+                    assertEquals(State.FINISHED, componentStatusDetails.getState());
+                    assertTrue(componentStatusDetails.isRoot());
+                } else if (componentStatusDetails.getComponentName().equals("Mosquitto")) {
+                    assertEquals("1.0.0", componentStatusDetails.getVersion());
+                    assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
+                    assertEquals(MOCK_FLEET_CONFIG_ARN, componentStatusDetails.getFleetConfigArns().get(0));
+                    assertEquals(State.RUNNING, componentStatusDetails.getState());
+                    assertFalse(componentStatusDetails.isRoot());
+                } else {
+                    assertFalse(componentStatusDetails.isRoot());
+                }
+            });
+        } catch (UnrecognizedPropertyException ignored) {
         }
         assertEquals(0, componentNamesToCheck.size());
     }

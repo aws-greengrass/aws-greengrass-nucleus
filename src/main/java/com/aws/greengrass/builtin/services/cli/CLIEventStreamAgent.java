@@ -85,7 +85,7 @@ import javax.inject.Inject;
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.LOCAL_DEPLOYMENT_RESOURCE;
 import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.PERSISTENT_LOCAL_DEPLOYMENTS;
 import static com.aws.greengrass.componentmanager.ComponentStore.RECIPE_FILE_NAME_FORMAT;
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
@@ -95,19 +95,19 @@ import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverte
 import static com.aws.greengrass.ipc.common.IPCErrorStrings.DEPLOYMENTS_QUEUE_FULL;
 import static com.aws.greengrass.ipc.common.IPCErrorStrings.DEPLOYMENTS_QUEUE_NOT_INITIALIZED;
 
+@SuppressWarnings("PMD.CouplingBetweenObjects")
 public class CLIEventStreamAgent {
-
-    private static Logger logger = LogManager.getLogger(CLIEventStreamAgent.class);
+    private static final Logger logger = LogManager.getLogger(CLIEventStreamAgent.class);
     private static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            new ObjectMapper().disable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE)
+                    .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     @Inject
-    @Setter (AccessLevel.PACKAGE)
+    @Setter(AccessLevel.PACKAGE)
     private Kernel kernel;
 
     @Inject
-    @Setter (AccessLevel.PACKAGE)
+    @Setter(AccessLevel.PACKAGE)
     private DeploymentQueue deploymentQueue;
 
     public GetComponentDetailsHandler getGetComponentDetailsHandler(OperationContinuationHandlerContext context) {
@@ -137,8 +137,7 @@ public class CLIEventStreamAgent {
     }
 
     public GetLocalDeploymentStatusHandler getGetLocalDeploymentStatusHandler(
-            OperationContinuationHandlerContext context,
-            Topics cliServiceConfig) {
+            OperationContinuationHandlerContext context, Topics cliServiceConfig) {
         return new GetLocalDeploymentStatusHandler(context, cliServiceConfig);
     }
 
@@ -182,22 +181,11 @@ public class CLIEventStreamAgent {
             try {
                 service = kernel.locate(componentName);
             } catch (ServiceLoadException e) {
-                logger.atError().kv("ComponentName", componentName).setCause(e)
+                logger.atError().kv("ComponentName", componentName)
                         .log("Did not find the component with the given name in Greengrass");
                 throw new ResourceNotFoundError("Component with name " + componentName + " not found in Greengrass");
             }
-            ComponentDetails componentDetails = new ComponentDetails();
-            componentDetails.setComponentName(service.getName());
-            componentDetails.setState(LifecycleState.valueOf(service.getState().toString()));
-
-            if (service.getServiceConfig().find(VERSION_CONFIG_KEY) != null) {
-                componentDetails.setVersion(Coerce.toString(service.getServiceConfig()
-                        .find(VERSION_CONFIG_KEY)));
-            }
-            if (service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY) != null) {
-                componentDetails
-                        .setConfiguration(service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY).toPOJO());
-            }
+            ComponentDetails componentDetails = getComponentDetails(service);
             GetComponentDetailsResponse response = new GetComponentDetailsResponse();
             response.setComponentDetails(componentDetails);
             return response;
@@ -211,6 +199,21 @@ public class CLIEventStreamAgent {
         private void validateGetComponentDetailsRequest(GetComponentDetailsRequest request) {
             validateComponentName(request.getComponentName());
         }
+    }
+
+    private ComponentDetails getComponentDetails(GreengrassService service) {
+        ComponentDetails componentDetails = new ComponentDetails();
+        componentDetails.setComponentName(service.getName());
+        componentDetails.setState(LifecycleState.valueOf(service.getState().toString()));
+
+        if (service.getServiceConfig().find(VERSION_CONFIG_KEY) != null) {
+            componentDetails.setVersion(Coerce.toString(service.getServiceConfig().find(VERSION_CONFIG_KEY)));
+        }
+        if (service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY) != null) {
+            componentDetails
+                    .setConfiguration(service.getServiceConfig().findInteriorChild(CONFIGURATION_CONFIG_KEY).toPOJO());
+        }
+        return componentDetails;
     }
 
     @SuppressFBWarnings("SIC_INNER_SHOULD_BE_STATIC")
@@ -228,23 +231,8 @@ public class CLIEventStreamAgent {
         @Override
         public ListComponentsResponse handleRequest(ListComponentsRequest request) {
             Collection<GreengrassService> services = kernel.orderedDependencies();
-            List<ComponentDetails> listOfComponents =
-                    services.stream().filter(service -> !service.getName().equals(kernel.getMain().getName()))
-                            .map(service -> {
-                                ComponentDetails componentDetails = new ComponentDetails();
-                                componentDetails.setComponentName(service.getName());
-                                componentDetails.setState(LifecycleState.valueOf(service.getState().toString()));
-
-                                if (service.getServiceConfig().find(VERSION_CONFIG_KEY) != null) {
-                                    componentDetails.setVersion(Coerce.toString(service.getServiceConfig()
-                                                    .find(VERSION_CONFIG_KEY)));
-                                }
-                                if (service.getServiceConfig().findInteriorChild(PARAMETERS_CONFIG_KEY) != null) {
-                                    componentDetails.setConfiguration(service.getServiceConfig()
-                                            .findInteriorChild(PARAMETERS_CONFIG_KEY).toPOJO());
-                                }
-                                return componentDetails;
-                            }).collect(Collectors.toList());
+            List<ComponentDetails> listOfComponents = services.stream().filter(service -> service != kernel.getMain())
+                    .map(CLIEventStreamAgent.this::getComponentDetails).collect(Collectors.toList());
             ListComponentsResponse response = new ListComponentsResponse();
             response.setComponents(listOfComponents);
             return response;
@@ -273,19 +261,21 @@ public class CLIEventStreamAgent {
         public RestartComponentResponse handleRequest(RestartComponentRequest request) {
             validateRestartComponentRequest(request);
             String componentName = request.getComponentName();
+            RestartComponentResponse response = new RestartComponentResponse();
+            response.setRestartStatus(RequestStatus.SUCCEEDED);
             try {
                 GreengrassService service = kernel.locate(componentName);
                 // TODO: [P41179234]: Add checks that can prevent triggering a component restart/stop
                 // Success of this request means restart was triggered successfully
-                service.requestRestart();
+                if (!service.requestRestart()) {
+                    response.setRestartStatus(RequestStatus.FAILED);
+                }
             } catch (ServiceLoadException e) {
-                logger.atError().kv("ComponentName", componentName).setCause(e)
+                logger.atError().kv("ComponentName", componentName)
                         .log("Did not find the component with the given name in Greengrass");
                 throw new ResourceNotFoundError("Component with name " + componentName + " not found in Greengrass");
             }
-            RestartComponentResponse response =  new RestartComponentResponse();
-            response.setRestartStatus(RequestStatus.SUCCEEDED);
-            return  response;
+            return response;
         }
 
         private void validateRestartComponentRequest(RestartComponentRequest request) {
@@ -321,7 +311,7 @@ public class CLIEventStreamAgent {
                 // Success of this request means stop was triggered successfully
                 service.requestStop();
             } catch (ServiceLoadException e) {
-                logger.atError().kv("ComponentName", componentName).setCause(e)
+                logger.atError().kv("ComponentName", componentName)
                         .log("Did not find the component with the given name in Greengrass");
                 throw new ResourceNotFoundError("Component with name " + componentName + " not found in Greengrass");
             }
@@ -410,12 +400,13 @@ public class CLIEventStreamAgent {
                     logger.atInfo().log("Skipping recipe file {} because it is empty", r);
                     continue;
                 }
+
                 try {
                     switch (ext.toLowerCase()) {
                         case "yaml":
                         case "yml":
-                            recipe = SerializerFactory.getRecipeSerializer().readValue(r.toFile(),
-                                    ComponentRecipe.class);
+                            recipe = SerializerFactory.getRecipeSerializer()
+                                    .readValue(r.toFile(), ComponentRecipe.class);
                             break;
                         case "json":
                             recipe = SerializerFactory.getRecipeSerializerJson()
@@ -425,10 +416,14 @@ public class CLIEventStreamAgent {
                             break;
                     }
                 } catch (IOException e) {
-                    logger.atError().log("Error reading recipe file from {}", r, e);
+                    // Throw on error so that the user will receive this message and we will stop the deployment.
+                    // This is to fail fast while providing actionable feedback.
+                    throw new IOException(
+                            String.format("Unable to parse %s as a recipe due to: %s", r.toString(), e.getMessage()),
+                            e);
                 }
-
                 if (recipe == null) {
+                    logger.atInfo().log("Skipping file {} because it was not recognized as a recipe", r);
                     continue;
                 }
 
@@ -455,57 +450,64 @@ public class CLIEventStreamAgent {
         }
 
         @Override
-        @SuppressWarnings("PMD.PreserveStackTrace")
+        @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.AvoidCatchingGenericException"})
         public CreateLocalDeploymentResponse handleRequest(CreateLocalDeploymentRequest request) {
-            //All inputs are valid. If all inputs are empty, then user might just want to retrigger the deployment with
-            // new recipes set using the updateRecipesAndArtifacts API.
             String deploymentId = UUID.randomUUID().toString();
-
-            Map<String, ConfigurationUpdateOperation> configUpdate = null;
-            if (request.getComponentToConfiguration() != null) {
-                configUpdate = request.getComponentToConfiguration().entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, e -> {
-                            ConfigurationUpdateOperation configUpdateOption = new ConfigurationUpdateOperation();
-                            configUpdateOption.setValueToMerge((Map) e.getValue().get("MERGE"));
-                            configUpdateOption.setPathsToReset((List) e.getValue().get("RESET"));
-                            return configUpdateOption;
-                        }));
-            }
-            LocalOverrideRequest localOverrideRequest = LocalOverrideRequest.builder().requestId(deploymentId)
-                    .componentsToMerge(request.getRootComponentVersionsToAdd())
-                    .componentsToRemove(request.getRootComponentsToRemove())
-                    .requestTimestamp(System.currentTimeMillis())
-                    .groupName(request.getGroupName() == null || request.getGroupName().isEmpty() ? DEFAULT_GROUP_NAME
-                            : request.getGroupName())
-                    .configurationUpdate(configUpdate).build();
-            String deploymentDocument;
             try {
-                deploymentDocument = OBJECT_MAPPER.writeValueAsString(localOverrideRequest);
-            } catch (JsonProcessingException e) {
-                logger.atError().setCause(e).log("Caught exception while parsing local deployment request");
-                throw new ServiceError(e.getMessage());
-            }
-            Deployment deployment = new Deployment(deploymentDocument, Deployment.DeploymentType.LOCAL, deploymentId);
-            if (deploymentQueue == null) {
-                logger.atError().log("Deployments queue not initialized");
-                throw new ServiceError(DEPLOYMENTS_QUEUE_NOT_INITIALIZED);
-            } else {
-                // save the deployment status as queued
-                LocalDeploymentDetails localDeploymentDetails = new LocalDeploymentDetails();
-                localDeploymentDetails.setDeploymentId(deploymentId);
-                localDeploymentDetails.setDeploymentType(Deployment.DeploymentType.LOCAL);
-                localDeploymentDetails.setStatus(DeploymentStatus.QUEUED);
-                persistLocalDeployment(cliServiceConfig, localDeploymentDetails.convertToMapOfObject());
-                if (deploymentQueue.offer(deployment)) {
-                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).log("Submitted local deployment request.");
-                    CreateLocalDeploymentResponse createLocalDeploymentResponse = new CreateLocalDeploymentResponse();
-                    createLocalDeploymentResponse.setDeploymentId(deploymentId);
-                    return createLocalDeploymentResponse;
-                } else {
-                    logger.atError().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
-                            .log("Failed to submit local deployment request because deployment queue is full");
-                    throw new ServiceError(DEPLOYMENTS_QUEUE_FULL);
+                //All inputs are valid. If all inputs are empty, then user might just want to retrigger the deployment
+                // with new recipes set using the updateRecipesAndArtifacts API.
+                Map<String, ConfigurationUpdateOperation> configUpdate = null;
+                if (request.getComponentToConfiguration() != null) {
+                    configUpdate = request.getComponentToConfiguration().entrySet().stream()
+                            .collect(Collectors.toMap(Map.Entry::getKey, e -> {
+                                ConfigurationUpdateOperation configUpdateOption = new ConfigurationUpdateOperation();
+                                configUpdateOption.setValueToMerge((Map) e.getValue().get("MERGE"));
+                                configUpdateOption.setPathsToReset((List) e.getValue().get("RESET"));
+                                return configUpdateOption;
+                            }));
                 }
+                LocalOverrideRequest localOverrideRequest = LocalOverrideRequest.builder().requestId(deploymentId)
+                        .componentsToMerge(request.getRootComponentVersionsToAdd())
+                        .componentsToRemove(request.getRootComponentsToRemove())
+                        .requestTimestamp(System.currentTimeMillis()).groupName(
+                                request.getGroupName() == null || request.getGroupName().isEmpty() ? DEFAULT_GROUP_NAME
+                                        : request.getGroupName()).configurationUpdate(configUpdate).build();
+                String deploymentDocument;
+                try {
+                    deploymentDocument = OBJECT_MAPPER.writeValueAsString(localOverrideRequest);
+                } catch (JsonProcessingException e) {
+                    logger.atError().setCause(e).log("Caught exception while parsing local deployment request");
+                    throw new ServiceError(e.getMessage());
+                }
+                Deployment deployment =
+                        new Deployment(deploymentDocument, Deployment.DeploymentType.LOCAL, deploymentId);
+                if (deploymentQueue == null) {
+                    logger.atError().log("Deployments queue not initialized");
+                    throw new ServiceError(DEPLOYMENTS_QUEUE_NOT_INITIALIZED);
+                } else {
+                    // save the deployment status as queued
+                    LocalDeploymentDetails localDeploymentDetails = new LocalDeploymentDetails();
+                    localDeploymentDetails.setDeploymentId(deploymentId);
+                    localDeploymentDetails.setDeploymentType(Deployment.DeploymentType.LOCAL);
+                    localDeploymentDetails.setStatus(DeploymentStatus.QUEUED);
+                    persistLocalDeployment(cliServiceConfig, localDeploymentDetails.convertToMapOfObject());
+                    if (deploymentQueue.offer(deployment)) {
+                        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+                                .log("Submitted local deployment request.");
+                        CreateLocalDeploymentResponse createLocalDeploymentResponse =
+                                new CreateLocalDeploymentResponse();
+                        createLocalDeploymentResponse.setDeploymentId(deploymentId);
+                        return createLocalDeploymentResponse;
+                    } else {
+                        logger.atError().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+                                .log("Failed to submit local deployment request because deployment queue is full");
+                        throw new ServiceError(DEPLOYMENTS_QUEUE_FULL);
+                    }
+                }
+            } catch (RuntimeException e) {
+                logger.atError().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).setCause(e)
+                        .log("Caught exception while creating local deployment");
+                throw new ServiceError(e.getMessage());
             }
         }
 
@@ -590,8 +592,8 @@ public class CLIEventStreamAgent {
                     Topics topics = (Topics) topic;
                     LocalDeployment localDeployment = new LocalDeployment();
                     localDeployment.setDeploymentId(topics.getName());
-                    localDeployment.setStatus(deploymentStatusFromString(
-                            Coerce.toString(topics.find(DEPLOYMENT_STATUS_KEY_NAME))));
+                    localDeployment.setStatus(
+                            deploymentStatusFromString(Coerce.toString(topics.find(DEPLOYMENT_STATUS_KEY_NAME))));
                     persistedDeployments.add(localDeployment);
                 });
             }
@@ -613,7 +615,7 @@ public class CLIEventStreamAgent {
     }
 
     private DeploymentStatus deploymentStatusFromString(String status) {
-        for (DeploymentStatus ds: DeploymentStatus.values()) {
+        for (DeploymentStatus ds : DeploymentStatus.values()) {
             if (ds.getValue().equals(status.toUpperCase())) {
                 return ds;
             }

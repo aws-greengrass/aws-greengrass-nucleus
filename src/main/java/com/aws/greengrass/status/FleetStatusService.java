@@ -215,17 +215,24 @@ public class FleetStatusService extends GreengrassService {
         }
         logger.atDebug().log("Updating FSS data on a periodic basis.");
         synchronized (periodicUpdateInProgressLock) {
-            Set<GreengrassService> greengrassServiceSet = new HashSet<>();
-            AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
-
-            // Get all running services from the kernel to update the fleet status.
-            this.kernel.orderedDependencies().forEach(greengrassService -> {
-                greengrassServiceSet.add(greengrassService);
-                overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), greengrassService));
-            });
-            uploadFleetStatusServiceData(greengrassServiceSet, overAllStatus.get(), null);
+            updateFleetStatusUpdateForAllComponents();
             getPeriodicUpdateTimeTopic().withValue(Instant.now().toEpochMilli());
         }
+    }
+
+    /**
+     * Update the Fleet Status information for all the components.
+     */
+    public void updateFleetStatusUpdateForAllComponents() {
+        Set<GreengrassService> greengrassServiceSet = new HashSet<>();
+        AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
+
+        // Get all running services from the kernel to update the fleet status.
+        this.kernel.orderedDependencies().forEach(greengrassService -> {
+            greengrassServiceSet.add(greengrassService);
+            overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), greengrassService));
+        });
+        uploadFleetStatusServiceData(greengrassServiceSet, overAllStatus.get(), null);
     }
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
@@ -301,9 +308,14 @@ public class FleetStatusService extends GreengrassService {
 
             Topics componentsToGroupsTopics = null;
             HashSet<String> allGroups = new HashSet<>();
+            DeploymentService deploymentService = null;
             try {
-                GreengrassService deploymentService = this.kernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
-                componentsToGroupsTopics = deploymentService.getConfig().lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
+                GreengrassService deploymentServiceLocateResult = this.kernel
+                        .locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
+                if (deploymentServiceLocateResult instanceof DeploymentService) {
+                    deploymentService = (DeploymentService) deploymentServiceLocateResult;
+                    componentsToGroupsTopics = deploymentService.getConfig().lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
+                }
             } catch (ServiceLoadException e) {
                 logger.atError().cause(e).log("Unable to locate {} service while uploading FSS data",
                         DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
@@ -311,7 +323,8 @@ public class FleetStatusService extends GreengrassService {
 
             Topics finalComponentsToGroupsTopics = componentsToGroupsTopics;
 
-            greengrassServiceSet.forEach((service) -> {
+            DeploymentService finalDeploymentService = deploymentService;
+            greengrassServiceSet.forEach(service -> {
                 if (isSystemLevelService(service)) {
                     return;
                 }
@@ -325,18 +338,18 @@ public class FleetStatusService extends GreengrassService {
                                 allGroups.add(groupName);
                             });
                 }
-
                 Topic versionTopic = service.getServiceConfig().findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY);
                 ComponentStatusDetails componentStatusDetails = ComponentStatusDetails.builder()
                         .componentName(service.getName())
                         .state(service.getState())
                         .version(Coerce.toString(versionTopic))
                         .fleetConfigArns(componentGroups)
+                        .isRoot(finalDeploymentService.isComponentRoot(service.getName()))
                         .build();
                 components.add(componentStatusDetails);
             });
 
-            greengrassServiceSet.forEach((service) -> {
+            greengrassServiceSet.forEach(service -> {
                 if (!isSystemLevelService(service)) {
                     return;
                 }
@@ -346,6 +359,7 @@ public class FleetStatusService extends GreengrassService {
                         .state(service.getState())
                         .version(Coerce.toString(versionTopic))
                         .fleetConfigArns(new ArrayList<>(allGroups))
+                        .isRoot(false) // Set false for all system level services.
                         .build();
                 components.add(componentStatusDetails);
             });
