@@ -24,7 +24,6 @@ import com.aws.greengrass.logging.impl.config.LogFormat;
 import com.aws.greengrass.logging.impl.config.LogStore;
 import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -111,14 +110,10 @@ public class DeviceConfiguration {
     @Inject
     public DeviceConfiguration(Kernel kernel) {
         this.kernel = kernel;
-        Pair<String, Boolean> nucleusComponentNamePair = getNucleusComponentName(this.kernel);
-        this.nucleusComponentName = nucleusComponentNamePair.getLeft();
-        // If the Nucleus component does not exist, then initialize the nucleus component configuration.
-        if (Boolean.FALSE.equals(nucleusComponentNamePair.getRight())) {
-            initializeNucleusComponentConfig();
-        }
+        this.nucleusComponentName = getNucleusComponentName();
         deTildeValidator = getDeTildeValidator();
         regionValidator = getRegionValidator();
+        handleLoggingConfig();
 
         getComponentStoreMaxSizeBytes().dflt(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         getDeploymentPollingFrequencySeconds().dflt(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
@@ -159,22 +154,25 @@ public class DeviceConfiguration {
      * @return  Configuration for logger.
      */
     public Topics getLoggingConfigurationTopic() {
-        return kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(kernel).getLeft(),
+        return kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, this.nucleusComponentName,
                 CONFIGURATION_CONFIG_KEY, NUCLEUS_CONFIG_LOGGING_TOPICS);
     }
 
     /**
      * Get the Nucleus component name to lookup the configuration in the right place. If no component of type Nucleus
      * exists, create service config for the default Nucleus component.
-     * @param kernel {@link Kernel}
      */
-    private Pair<String, Boolean> getNucleusComponentName(Kernel kernel) {
+    private String getNucleusComponentName() {
         Optional<CaseInsensitiveString> nucleusComponent =
                 kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet().stream()
                         .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(s.toString())))
                         .findAny();
-        return new Pair<>(nucleusComponent.map(CaseInsensitiveString::toString).orElse(DEFAULT_NUCLEUS_COMPONENT_NAME),
-                nucleusComponent.isPresent());
+        if (nucleusComponent.isPresent()) {
+            return nucleusComponent.get().toString();
+        } else {
+            initializeNucleusComponentConfig();
+            return DEFAULT_NUCLEUS_COMPONENT_NAME;
+        }
     }
 
     private void initializeNucleusComponentConfig() {
@@ -188,7 +186,6 @@ public class DeviceConfiguration {
         mainDependencies.add(DEFAULT_NUCLEUS_COMPONENT_NAME);
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
                 .dflt(mainDependencies);
-        handleLoggingConfig();
     }
 
     /**
