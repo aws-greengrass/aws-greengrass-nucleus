@@ -5,15 +5,6 @@
 
 package software.amazon.awssdk.eventstreamrpc;
 
-import software.amazon.awssdk.crt.CRT;
-import software.amazon.awssdk.crt.eventstream.ClientConnection;
-import software.amazon.awssdk.crt.eventstream.ClientConnectionHandler;
-import software.amazon.awssdk.crt.eventstream.Header;
-import software.amazon.awssdk.crt.eventstream.MessageFlags;
-import software.amazon.awssdk.crt.eventstream.MessageType;
-import software.amazon.awssdk.eventstreamrpc.model.AccessDeniedException;
-import software.amazon.awssdk.eventstreamrpc.model.EventStreamError;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +13,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+
+import software.amazon.awssdk.crt.CRT;
+import software.amazon.awssdk.crt.eventstream.*;
+import software.amazon.awssdk.eventstreamrpc.model.AccessDeniedException;
+import software.amazon.awssdk.eventstreamrpc.model.EventStreamError;
 
 public class EventStreamRPCConnection implements AutoCloseable {
     private static final Logger LOGGER = Logger.getLogger(EventStreamRPCConnection.class.getName());
