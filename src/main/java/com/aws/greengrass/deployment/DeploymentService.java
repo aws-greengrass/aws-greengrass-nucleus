@@ -372,6 +372,12 @@ public class DeploymentService extends GreengrassService {
             // status should not be reported back since once a job is cancelled IoT Jobs will reject any status
             // updates for it. however, if we later support cancellation for more deployment types this may need to
             // be handled on case by case basis
+            if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {
+                deploymentStatusKeeper
+                        .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
+                                currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.CANCELED.toString(),
+                                new HashMap<>());
+            }
             currentDeploymentTaskMetadata = null;
         }
     }
