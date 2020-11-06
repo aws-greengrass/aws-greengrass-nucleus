@@ -67,6 +67,8 @@ import javax.inject.Inject;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
+import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_ACCEPTED_TOPIC;
+import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_REJECTED_TOPIC;
 
 @NoArgsConstructor
 public class IotJobsHelper implements InjectionActions {
@@ -140,6 +142,8 @@ public class IotJobsHelper implements InjectionActions {
 
     @Setter // For tests
     private IotJobsClient iotJobsClient;
+    @Setter // For tests
+    private IotJobsClientWrapper iotJobsClientWrapper;
     private final Consumer<JobExecutionsChangedEvent> eventHandler = event -> {
         /*
          * This message is received when either of these things happen
@@ -278,7 +282,15 @@ public class IotJobsHelper implements InjectionActions {
         }
         mqttClient.addToCallbackEvents(callbacks);
         this.connection = wrapperMqttConnectionFactory.getAwsIotMqttConnection(mqttClient);
+
+        // Here we use two IoT jobs client, so as to be compatible with old MQTT topics for jobs (iotJobsClient),
+        // as well as the new topics (iotJobsClientWrapper) during GG Cloud integration with jobs namespace, while
+        // device SDK is not available. Two follow-ups needed here:
+        // TODO: [P41016163] After GG cloud changes are completed, keep only one client (IotJobsClientWrapper)
+        // GG_NEEDS_REVIEW: TODO: switch back to IotJobsClient after IoT device sdk updated for jobs namespace
         this.iotJobsClient = iotJobsClientFactory.getIotJobsClient(connection);
+        this.iotJobsClientWrapper = iotJobsClientFactory.getIotJobsClientWrapper(connection);
+
         logger.dfltKv("ThingName", (Supplier<String>) () ->
                 Coerce.toString(deviceConfiguration.getThingName()));
 
@@ -351,9 +363,27 @@ public class IotJobsHelper implements InjectionActions {
 
         iotJobsClient.SubscribeToUpdateJobExecutionRejected(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
-                    logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
-                            .log("Job status updated rejected");
-                    gotResponse.completeExceptionally(new Exception(response.message));
+                    if (!response.message.startsWith("Namespace id not match for requested")) {
+                        logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+                                .log("Job status updated rejected");
+                        gotResponse.completeExceptionally(new Exception(response.message));
+                    }
+                });
+
+        iotJobsClientWrapper.SubscribeToUpdateJobExecutionAccepted(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
+                (response) -> {
+                    logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+                            .log(UPDATE_DEPLOYMENT_STATUS_ACCEPTED);
+                    gotResponse.complete(null);
+                });
+
+        iotJobsClientWrapper.SubscribeToUpdateJobExecutionRejected(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
+                (response) -> {
+                    if (!response.message.startsWith("Namespace id not match for requested")) {
+                        logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+                                .log("Job status updated rejected");
+                        gotResponse.completeExceptionally(new Exception(response.message));
+                    }
                 });
 
         UpdateJobExecutionRequest updateJobRequest = new UpdateJobExecutionRequest();
@@ -363,6 +393,7 @@ public class IotJobsHelper implements InjectionActions {
         updateJobRequest.thingName = thingName;
         try {
             iotJobsClient.PublishUpdateJobExecution(updateJobRequest, QualityOfService.AT_LEAST_ONCE).get();
+            iotJobsClientWrapper.PublishUpdateJobExecution(updateJobRequest, QualityOfService.AT_LEAST_ONCE).get();
         } catch (ExecutionException e) {
             try {
                 unwrapExecutionException(e);
@@ -383,6 +414,9 @@ public class IotJobsHelper implements InjectionActions {
             String acceptTopicForJobId =
                     UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC.replace("{thingName}", thingName).replace("{jobId}", jobId);
             connection.unsubscribe(acceptTopicForJobId);
+
+            connection.unsubscribe(String.format(JOB_UPDATE_ACCEPTED_TOPIC, thingName, jobId));
+            connection.unsubscribe(String.format(JOB_UPDATE_REJECTED_TOPIC, thingName, jobId));
         }
     }
 
@@ -398,6 +432,7 @@ public class IotJobsHelper implements InjectionActions {
         //This method is specifically called from an async event notification handler. Async handler cannot block on
         // this future as that will freeze the MQTT connection.
         iotJobsClient.PublishDescribeJobExecution(describeJobExecutionRequest, QualityOfService.AT_LEAST_ONCE);
+        iotJobsClientWrapper.PublishDescribeJobExecution(describeJobExecutionRequest, QualityOfService.AT_LEAST_ONCE);
         logger.atDebug().log("Requesting the next deployment");
     }
 
@@ -446,6 +481,16 @@ public class IotJobsHelper implements InjectionActions {
                         .SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
                                 QualityOfService.AT_LEAST_ONCE, consumerReject);
                 subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+
+                subscribed = iotJobsClientWrapper
+                        .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
+                                QualityOfService.AT_LEAST_ONCE, consumerAccept);
+                subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+                subscribed = iotJobsClientWrapper
+                        .SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
+                                QualityOfService.AT_LEAST_ONCE, consumerReject);
+                subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+
                 logger.atInfo().log("Subscribed to deployment job execution update.");
                 break;
             } catch (ExecutionException e) {
@@ -493,6 +538,11 @@ public class IotJobsHelper implements InjectionActions {
                     QualityOfService.AT_LEAST_ONCE, eventHandler);
             try {
                 subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+
+                subscribed = iotJobsClientWrapper.SubscribeToJobExecutionsChangedEvents(request,
+                        QualityOfService.AT_LEAST_ONCE, eventHandler);
+                subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+
                 logger.atInfo().log("Subscribed to deployment job event notifications.");
                 break;
             } catch (ExecutionException e) {
@@ -553,6 +603,10 @@ public class IotJobsHelper implements InjectionActions {
     public static class IotJobsClientFactory {
         public IotJobsClient getIotJobsClient(MqttClientConnection connection) {
             return new IotJobsClient(connection);
+        }
+
+        public IotJobsClientWrapper getIotJobsClientWrapper(MqttClientConnection connection) {
+            return new IotJobsClientWrapper(connection);
         }
     }
 
