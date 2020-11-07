@@ -37,6 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.ipc.common.ExceptionUtil.translateExceptions;
 import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
 
 public class PubSubIPCEventStreamAgent {
@@ -164,22 +165,24 @@ public class PubSubIPCEventStreamAgent {
         @SuppressWarnings("PMD.PreserveStackTrace")
         @Override
         public PublishToTopicResponse handleRequest(PublishToTopicRequest publishRequest) {
-            try {
-                doAuthorization(this.getOperationModelContext().getOperationName(), serviceName,
-                        publishRequest.getTopic());
-            } catch (AuthorizationException e) {
-                throw new UnauthorizedError(e.getMessage());
-            }
-            publishRequest.getPublishMessage().selfDesignateSetUnionMember();
-            Optional<Map<String, Object>> jsonMessage = Optional.empty();
-            if (publishRequest.getPublishMessage().getJsonMessage() != null) {
-                jsonMessage = Optional.of(publishRequest.getPublishMessage().getJsonMessage().getMessage());
-            }
-            Optional<byte[]> binaryMessage = Optional.empty();
-            if (publishRequest.getPublishMessage().getBinaryMessage() != null) {
-                binaryMessage = Optional.of(publishRequest.getPublishMessage().getBinaryMessage().getMessage());
-            }
-            return handlePublishToTopicRequest(publishRequest.getTopic(), serviceName, jsonMessage, binaryMessage);
+            return translateExceptions(() -> {
+                try {
+                    doAuthorization(this.getOperationModelContext().getOperationName(), serviceName,
+                            publishRequest.getTopic());
+                } catch (AuthorizationException e) {
+                    throw new UnauthorizedError(e.getMessage());
+                }
+                publishRequest.getPublishMessage().selfDesignateSetUnionMember();
+                Optional<Map<String, Object>> jsonMessage = Optional.empty();
+                if (publishRequest.getPublishMessage().getJsonMessage() != null) {
+                    jsonMessage = Optional.of(publishRequest.getPublishMessage().getJsonMessage().getMessage());
+                }
+                Optional<byte[]> binaryMessage = Optional.empty();
+                if (publishRequest.getPublishMessage().getBinaryMessage() != null) {
+                    binaryMessage = Optional.of(publishRequest.getPublishMessage().getBinaryMessage().getMessage());
+                }
+                return handlePublishToTopicRequest(publishRequest.getTopic(), serviceName, jsonMessage, binaryMessage);
+            });
         }
 
 
@@ -210,15 +213,17 @@ public class PubSubIPCEventStreamAgent {
         @SuppressWarnings("PMD.PreserveStackTrace")
         @Override
         public SubscribeToTopicResponse handleRequest(SubscribeToTopicRequest subscribeRequest) {
-            try {
-                doAuthorization(this.getOperationModelContext().getOperationName(), serviceName,
-                        subscribeRequest.getTopic());
-            } catch (AuthorizationException e) {
-                throw new UnauthorizedError(e.getMessage());
-            }
-            handleSubscribeToTopicRequest(subscribeRequest.getTopic(), serviceName, this);
-            subscribeTopic = subscribeRequest.getTopic();
-            return new SubscribeToTopicResponse();
+            return translateExceptions(() -> {
+                try {
+                    doAuthorization(this.getOperationModelContext().getOperationName(), serviceName,
+                            subscribeRequest.getTopic());
+                } catch (AuthorizationException e) {
+                    throw new UnauthorizedError(e.getMessage());
+                }
+                handleSubscribeToTopicRequest(subscribeRequest.getTopic(), serviceName, this);
+                subscribeTopic = subscribeRequest.getTopic();
+                return new SubscribeToTopicResponse();
+            });
         }
 
         @Override
