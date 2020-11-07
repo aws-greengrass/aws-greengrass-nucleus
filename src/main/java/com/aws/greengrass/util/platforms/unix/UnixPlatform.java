@@ -44,7 +44,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -326,21 +325,6 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public void createUser(String user) throws IOException, InterruptedException {
-        runCmd("useradd -m " + user, o -> {}, "Failed to create user");
-    }
-
-    @Override
-    public void createGroup(String group) throws IOException, InterruptedException {
-        runCmd("groupadd " + group, o -> {}, "Failed to create group");
-    }
-
-    @Override
-    public void addUserToGroup(String user, String group) throws IOException, InterruptedException {
-        runCmd("usermod -a -G " + group + " " + user, o -> {}, "Failed to add user to group");
-    }
-
-    @Override
     public void setPermissions(FileSystemPermission permission, Path path, EnumSet<Option> options)
             throws IOException {
 
@@ -410,27 +394,6 @@ public class UnixPlatform extends Platform {
                     LinkOption.NOFOLLOW_LINKS);
             setModeFunc.apply(view);
             setOwnerFunc.apply(view);
-        }
-    }
-
-    protected void runCmd(String cmdStr, Consumer<CharSequence> out, String msg)
-            throws IOException, InterruptedException {
-        try (Exec exec = new Exec()) {
-            StringBuilder output = new StringBuilder();
-            StringBuilder error = new StringBuilder();
-            Optional<Integer> exit = exec.withExec(cmdStr.split(" "))
-                    .withShell()
-                    .withOut(o -> {
-                        out.accept(o);
-                        output.append(o);
-                    }).withErr(e -> {
-                        error.append(e);
-                    }).exec();
-            if (!exit.isPresent() || exit.get() != 0) {
-                throw new IOException(String.format(
-                        String.format("%s - command: %s, output: %s , error: %s ", cmdStr, msg, output.toString(),
-                                error.toString())));
-            }
         }
     }
 
