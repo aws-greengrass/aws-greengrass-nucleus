@@ -49,11 +49,11 @@ public final class RegionUtils {
     }
 
     /**
-     * Get global region.
+     * Get global region based on the region partition ID.
      * @param awsRegion aws region
      * @return Region
      */
-    public static Region getGlobalRegion(String awsRegion) {
+    public static Region getPartitionFromRegion(String awsRegion) {
         String partitionId = Region.of(awsRegion).metadata().id();
         if (partitionId.equals(CN_PARTITION_ID)) {
             return Region.AWS_CN_GLOBAL;
