@@ -15,6 +15,7 @@ import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 import lombok.NonNull;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -73,6 +74,8 @@ public class AuthorizationHandler  {
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
 
+        // Adding TES component and operation before it's default policies are fetched
+        componentToOperationsMap.put(TOKEN_EXCHANGE_SERVICE_TOPICS, new HashSet<>(Arrays.asList(AUTHZ_TES_OPERATION)));
         //Load default policies
         componentNameToPolicies.putAll(getDefaultPolicies());
 
@@ -313,9 +316,9 @@ public class AuthorizationHandler  {
         }
         // TODO: [V234938383] solve the issue where the authhandler starts up and loads policies before services
         //  are registered
-        //if (!componentToOperationsMap.containsKey(componentName)) {
-        //throw new AuthorizationException("Component not registered: " + componentName);
-        //}
+        if (!componentToOperationsMap.containsKey(componentName)) {
+            throw new AuthorizationException("Component not registered: " + componentName);
+        }
     }
 
     private void isOperationValid(String componentName, String operation)
@@ -348,12 +351,12 @@ public class AuthorizationHandler  {
         }
         // TODO: [V234938383] solve the issue where the authhandler starts up and loads policies before services
         //  are registered
-        //Set<String> supportedOps = componentToOperationsMap.get(componentName);
+        Set<String> supportedOps = componentToOperationsMap.get(componentName);
         // check if operations are valid and registered.
-        //if (operations.stream().anyMatch(o -> !supportedOps.contains(o))) {
-        //throw new AuthorizationException(
-        //String.format("Operation not registered with component %s", componentName));
-        //}
+        if (operations.stream().anyMatch(o -> !supportedOps.contains(o))) {
+            throw new AuthorizationException(
+            String.format("Operation not registered with component %s", componentName));
+        }
     }
 
     private void validatePrincipals(AuthorizationPolicy policy) throws AuthorizationException {

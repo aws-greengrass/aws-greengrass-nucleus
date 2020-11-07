@@ -411,7 +411,7 @@ class AuthorizationHandlerTest {
 
     @Test
     void GIVEN_authZ_handler_WHEN_loaded_incorrect_config_THEN_load_fails(ExtensionContext context)
-            throws InterruptedException {
+            throws InterruptedException, AuthorizationException {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
 
         ignoreExceptionOfType(context, AuthorizationException.class);
@@ -431,14 +431,14 @@ class AuthorizationHandlerTest {
 
         // GG_NEEDS_REVIEW: TODO:Add component registration logic back in along with this assertion:
         // https://issues-iad.amazon.com/issues/V234938383
-//        setupLogListener("load-authorization-config-invalid-component");
-//        authorizationHandler.loadAuthorizationPolicies(
-//                "ServiceA",
-//                Collections.singletonList(getAuthZPolicy()), false);
-//        assertTrue(logReceived.await(5, TimeUnit.SECONDS));
-//
+        setupLogListener("load-authorization-config-invalid-component");
+        authorizationHandler.loadAuthorizationPolicies(
+                "ServiceA",
+                Collections.singletonList(getAuthZPolicy()), false);
+        assertTrue(logReceived.await(5, TimeUnit.SECONDS));
+
 //        // register the component
-//        authorizationHandler.registerComponent("ServiceA", new HashSet(Arrays.asList("Op")));
+        authorizationHandler.registerComponent("ServiceA", new HashSet(Arrays.asList("Op")));
 
         // Empty principal should fail to load now
         setupLogListener("load-authorization-config-invalid-principal");
