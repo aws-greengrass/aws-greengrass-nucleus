@@ -10,13 +10,11 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.tes.TokenExchangeService;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.aws.greengrass.util.orchestration.SystemServiceUtilsFactory;
-import com.aws.greengrass.util.platforms.Platform;
 import lombok.Setter;
 import software.amazon.awssdk.regions.Region;
 
@@ -25,7 +23,6 @@ import java.io.PrintStream;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.ThingInfo;
 import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
@@ -35,35 +32,35 @@ import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
  */
 public class GreengrassSetup {
     // GG_REL_BLOCKER: TODO: [P41215451]: Review with tech writer prior to launch (including TES)
-    private static final String SHOW_HELP_RESPONSE = "DESCRIPTION\n"
+    private static final String SHOW_HELP_RESPONSE = "\n" + "DESCRIPTION\n"
             + "\tInstall Greengrass kernel on your device, register the device as IoT thing,\n"
             + "\tcreate certificates and attach role for TES to them, install the Greengrass\n"
             + "\tdevice CLI. Please set the AWS credentials in the environment variables\n"
-            + "\n"
-            + "OPTIONS\n"
-            + "\t--config, -i\t\t\tPath to the configuration file to start Greengrass kernel with\n"
-            + "\t--root, -r\t\t\tPath to the directory to use as the root for Greengrass\n"
+            + "\nOPTIONS\n"
+            + "\t--config, -i\t\tPath to the configuration file to start Greengrass kernel with\n"
+            + "\t--root, -r\t\tPath to the directory to use as the root for Greengrass\n"
             + "\t--thing-name, -tn\t\tDesired thing name to register the device with in AWS IoT cloud\n"
-            + "\t--thing-group-name, -tgn\tDesired thing group to add the IoT Thing into\n"
-            + "\t—tes-role-name, -trn\t\tName of the IAM role to use for "
-            + TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS
-            + "\n\t\t\t\t\tdevice to talk to AWS services, the default is GreengrassV2TokenExchangeRole.\n"
-            + "\t\t\t\t\tIf the role does not exist in your account it will be created with a default policy\n"
-            + "\t\t\t\t\tcalled GreengrassV2TokenExchangeRoleAccess, by default it DOES NOT have access\n"
-            + "\t\t\t\t\tto your S3 buckets where you will host your private component artifacts, so you need\n"
-            + "\t\t\t\t\tto add your component artifact S3 buckets/objects to that role in your AWS account.\n"
-            + "\t--tes-role-alias-name, -tra\tName of the RoleAlias to attach to the IAM role for\n"
-            + "\t\t\t\t\t"
-            + TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS
-            + "in the AWS IoT cloud if the role\n"
-            + "\t\t\t\t\talias does not exist then it will be created in your AWS account\n"
-            + "\t--provision, -p\t\t\t/N Indicate if you want to register the device as an AWS IoT thing\n"
+            + "\t--thing-group-name, -tgn\t\tDesired thing group to add the IoT Thing into\n"
+            + "\t--policy-name, -pn\t\tDesired name for IoT thing policy\n"
+            + "\t—tes-role-name, -trn\t\tName of the IAM role to use for TokenExchangeService for the device to talk\n"
+            + "\t\t\tto AWS services, if the role does not exist then it will be created in your AWS account\n"
+            + "\t--tes-role-policy-name, -trpn\t\tName of the IAM policy to create and attach to the TES role\n"
+            + "\t--tes-role-policy-doc, -trpd\t\tJSON policy document for the IAM policy to create and attach to the "
+            + "TES role\n"
+            + "\t--tes-role-alias-name, -tra\t\tName of the RoleAlias to attach to the IAM role for TES in the AWS\n"
+            + "\t\t\tIoT cloud, if the role alias does not exist then it will be created in your AWS account\n"
+            + "\t--provision, -p\t\tY/N Indicate if you want to register the device as an AWS IoT thing\n"
             + "\t--aws-region, -ar\t\tAWS region where the resources should be looked for/created\n"
-            + "\t\t\t\t\tCorresponding Iot environment stage will be used.\n"
-            + "\t--setup-system-service, -ss\tY/N Indicate if you want to setup Greengrass as a system service\n"
-            + "\t--component-default-user, -u\tName of the default user that will be used to run component services\n"
-            + "\t--component-default-group, -g\tName of the default group that will be used to run component services."
-            + "\n\t\t\t\t\tIf not specified the primary group of the default user will be used.\n";
+            + "\t--env-stage, -es\t\tEnvironment stage (beta/prod/gamma) in which to configure the device. "
+            + "Corresponding Iot environment stage will be used.\n"
+            + "\t--setup-tes, -t\t\tY/N Indicate if you want to use Token Exchange Service to talk to"
+            + " AWS services using the device certificate\n"
+            + "\t--install-cli, -ic\t\tY/N Indicate if you want to install Greengrass device CLI\n"
+            + "\t--setup-system-service, -ss\t\tY/N Indicate if you want to setup Greengrass as a system service\n"
+            + "\t--component-default-user, -u\t\tName of the default user that will be used to run component "
+            + "services\n"
+            + "\t--component-default-group, -g\t\tName of the default group that will be used to run component "
+            + "services. If not specified the primary group of the default user will be used.\n";
 
     private static final String SHOW_VERSION_RESPONSE = "AWS Greengrass v%s";
 
@@ -81,24 +78,40 @@ public class GreengrassSetup {
     private static final String DEFAULT_GROUP_ARG = "--component-default-group";
     private static final String DEFAULT_GROUP_ARG_SHORT = "-g";
 
+
     private static final String THING_NAME_ARG = "--thing-name";
     private static final String THING_NAME_ARG_SHORT = "-tn";
-    private static final String THING_NAME_DEFAULT = "GreengrassV2IotThing_" + UUID.randomUUID();
+    private static final String THING_NAME_DEFAULT = "MyIotThing";
 
     private static final String THING_GROUP_NAME_ARG = "--thing-group-name";
     private static final String THING_GROUP_NAME_ARG_SHORT = "-tgn";
+    private static final String THING_GROUP_NAME_DEFAULT = "MyIotThingGroup";
+
+    private static final String POLICY_NAME_ARG = "--policy-name";
+    private static final String POLICY_NAME_ARG_SHORT = "-pn";
+    private static final String POLICY_NAME_DEFAULT = "MyIotThingPolicy";
 
     private static final String TES_ROLE_NAME_ARG = "--tes-role-name";
     private static final String TES_ROLE_NAME_ARG_SHORT = "-trn";
-    private static final String TES_ROLE_NAME_DEFAULT = "GreengrassV2TokenExchangeRole";
+    private static final String TES_ROLE_NAME_DEFAULT = "MyIotRoleForTes";
+
+    // no defaults. must user input
+    private static final String TES_ROLE_POLICY_NAME_ARG = "--tes-role-policy-name";
+    private static final String TES_ROLE_POLICY_NAME_ARG_SHORT = "-trpn";
+    private static final String TES_ROLE_POLICY_DOC_ARG = "--tes-role-policy-doc";
+    private static final String TES_ROLE_POLICY_DOC_ARG_SHORT = "-trpd";
 
     private static final String TES_ROLE_ALIAS_NAME_ARG = "--tes-role-alias-name";
     private static final String TES_ROLE_ALIAS_NAME_ARG_SHORT = "-tra";
-    private static final String TES_ROLE_ALIAS_NAME_DEFAULT = "GreengrassV2TokenExchangeRoleAlias";
+    private static final String TES_ROLE_ALIAS_NAME_DEFAULT = "MyIotRoleAliasForTes";
 
     private static final String PROVISION_THING_ARG = "--provision";
     private static final String PROVISION_THING_ARG_SHORT = "-p";
     private static final boolean NEED_PROVISIONING_DEFAULT = false;
+
+    private static final String SETUP_TES_ARG = "--setup-tes";
+    private static final String SETUP_TES_ARG_SHORT = "-t";
+    private static final boolean SETUP_TES_DEFAULT = false;
 
     private static final String AWS_REGION_ARG = "--aws-region";
     private static final String AWS_REGION_ARG_SHORT = "-ar";
@@ -108,6 +121,10 @@ public class GreengrassSetup {
     private static final String ENV_STAGE_ARG_SHORT = "-es";
     private static final String ENV_STAGE_DEFAULT = "prod";
 
+    private static final String INSTALL_CLI_ARG = "--install-cli";
+    private static final String INSTALL_CLI_ARG_SHORT = "-ic";
+    private static final boolean INSTALL_CLI_ARG_DEFAULT = false;
+
     private static final String SETUP_SYSTEM_SERVICE_ARG = "--setup-system-service";
     private static final String SETUP_SYSTEM_SERVICE_ARG_SHORT = "-ss";
     private static final boolean SETUP_SYSTEM_SERVICE_ARG_DEFAULT = false;
@@ -116,14 +133,10 @@ public class GreengrassSetup {
     private static final String KERNEL_START_ARG_SHORT = "-s";
     private static final boolean KERNEL_START_ARG_DEFAULT = true;
 
-    private static final String DEPLOY_DEV_TOOLS_ARG = "--deploy-dev-tools";
-    private static final String DEPLOY_DEV_TOOLS_ARG_SHORT = "-d";
-    private static final boolean DEPLOY_DEV_TOOLS_ARG_DEFAULT = false;
-
     private static final String VERSION_ARG = "--version";
 
-    private static final String GGC_USER = "ggc_user";
-    private static final String GGC_GROUP = "ggc_group";
+    // TODO: [P41215511]: Add optional input for credentials, currently creds are read from env vars
+
     private static final Logger logger = LogManager.getLogger(GreengrassSetup.class);
     private final String[] setupArgs;
     private final List<String> kernelArgs = new ArrayList<>();
@@ -136,17 +149,21 @@ public class GreengrassSetup {
     private boolean showHelp = false;
     private boolean showVersion = false;
     private String thingName = THING_NAME_DEFAULT;
-    private String thingGroupName;
+    private String thingGroupName = THING_GROUP_NAME_DEFAULT;
+    private String policyName = POLICY_NAME_DEFAULT;
     private String tesRoleName = TES_ROLE_NAME_DEFAULT;
     private String tesRoleAliasName = TES_ROLE_ALIAS_NAME_DEFAULT;
+    private String tesRolePolicyName;
+    private String tesRolePolicyDoc;
     private String awsRegion = AWS_REGION_DEFAULT;
     private String environmentStage = ENV_STAGE_DEFAULT;
     private String defaultUser;
     private String defaultGroup;
     private boolean needProvisioning = NEED_PROVISIONING_DEFAULT;
+    private boolean setupTes = SETUP_TES_DEFAULT;
+    private boolean installCli = INSTALL_CLI_ARG_DEFAULT;
     private boolean setupSystemService = SETUP_SYSTEM_SERVICE_ARG_DEFAULT;
     private boolean kernelStart = KERNEL_START_ARG_DEFAULT;
-    private boolean deployDevTools = DEPLOY_DEV_TOOLS_ARG_DEFAULT;
 
     /**
      * Constructor to create an instance using CLI args.
@@ -210,8 +227,6 @@ public class GreengrassSetup {
             return;
         }
 
-        setComponentDefaultUserAndGroup();
-
         Kernel kernel = getKernel();
 
         //initialize the device provisioning helper
@@ -219,6 +234,13 @@ public class GreengrassSetup {
 
         if (needProvisioning) {
             provision(kernel);
+        }
+
+        // Install Greengrass cli
+        if (installCli) {
+            // GG_REL_BLOCKER: TODO: [P41215604]: Download CLI binary from CDN and install
+            // Don't lie about installing the CLI if we didn't do it...
+            outStream.println("Installed Greengrass CLI");
         }
 
         if (setupSystemService) {
@@ -268,9 +290,26 @@ public class GreengrassSetup {
                 case THING_GROUP_NAME_ARG_SHORT:
                     this.thingGroupName = getArg();
                     break;
+                case POLICY_NAME_ARG:
+                case POLICY_NAME_ARG_SHORT:
+                    this.policyName = getArg();
+                    break;
                 case TES_ROLE_NAME_ARG:
                 case TES_ROLE_NAME_ARG_SHORT:
                     this.tesRoleName = getArg();
+                    break;
+                case TES_ROLE_POLICY_NAME_ARG:
+                case TES_ROLE_POLICY_NAME_ARG_SHORT:
+                    this.tesRolePolicyName = getArg();
+                    break;
+                case TES_ROLE_POLICY_DOC_ARG:
+                case TES_ROLE_POLICY_DOC_ARG_SHORT:
+                    try {
+                        this.tesRolePolicyDoc = Utils.loadParamMaybeFile(getArg());
+                    } catch (URISyntaxException | IOException e) {
+                        throw new RuntimeException(
+                                String.format("Error loading TES role policy doc: %s", this.tesRolePolicyDoc), e);
+                    }
                     break;
                 case TES_ROLE_ALIAS_NAME_ARG:
                 case TES_ROLE_ALIAS_NAME_ARG_SHORT:
@@ -293,6 +332,14 @@ public class GreengrassSetup {
                 case PROVISION_THING_ARG_SHORT:
                     this.needProvisioning = Coerce.toBoolean(getArg());
                     break;
+                case SETUP_TES_ARG:
+                case SETUP_TES_ARG_SHORT:
+                    this.setupTes = Coerce.toBoolean(getArg());
+                    break;
+                case INSTALL_CLI_ARG:
+                case INSTALL_CLI_ARG_SHORT:
+                    this.installCli = Coerce.toBoolean(getArg());
+                    break;
                 case SETUP_SYSTEM_SERVICE_ARG:
                 case SETUP_SYSTEM_SERVICE_ARG_SHORT:
                     this.setupSystemService = Coerce.toBoolean(getArg());
@@ -313,16 +360,18 @@ public class GreengrassSetup {
                     this.defaultGroup = Coerce.toString(getArg());
                     kernelArgs.add(defaultGroup);
                     break;
-                case DEPLOY_DEV_TOOLS_ARG:
-                case DEPLOY_DEV_TOOLS_ARG_SHORT:
-                    this.deployDevTools = Coerce.toBoolean(getArg());
-                    break;
                 default:
                     RuntimeException rte =
                             new RuntimeException(String.format("Undefined command line argument: %s", arg));
                     logger.atError().setEventType("parse-args-error").setCause(rte).log();
                     throw rte;
             }
+        }
+
+        // validate args
+        if (this.tesRolePolicyName == null ^ this.tesRolePolicyDoc == null) {
+            throw new RuntimeException(String.format("%s and %s must be provided together", TES_ROLE_POLICY_NAME_ARG,
+                    TES_ROLE_POLICY_DOC_ARG));
         }
 
         if (Region.of(awsRegion) == null) {
@@ -344,92 +393,29 @@ public class GreengrassSetup {
     void provision(Kernel kernel) throws IOException, DeviceConfigurationException {
         outStream.printf("Provisioning AWS IoT resources for the device with IoT Thing Name: [%s]...%n", thingName);
         final ThingInfo thingInfo =
-                deviceProvisioningHelper.createThing(deviceProvisioningHelper.getIotClient(), thingName);
+                deviceProvisioningHelper.createThing(deviceProvisioningHelper.getIotClient(), policyName, thingName);
         outStream.printf("Successfully provisioned AWS IoT resources for the device with IoT Thing Name: [%s]!%n",
                 thingName);
         if (!Utils.isEmpty(thingGroupName)) {
             outStream.printf("Adding IoT Thing [%s] into Thing Group: [%s]...%n", thingName, thingGroupName);
-            deviceProvisioningHelper
-                    .addThingToGroup(deviceProvisioningHelper.getIotClient(), thingName, thingGroupName);
+                deviceProvisioningHelper.addThingToGroup(deviceProvisioningHelper.getIotClient(), thingName,
+                        thingGroupName);
             outStream.printf("Successfully added Thing into Thing Group: [%s]%n", thingGroupName);
         }
-        outStream.printf("Setting up resources for %s ... %n", TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS);
-        deviceProvisioningHelper.setupIoTRoleForTes(tesRoleName, tesRoleAliasName, thingInfo.getCertificateArn());
-        deviceProvisioningHelper.createAndAttachRolePolicy(tesRoleName);
-        outStream.println("Configuring Nucleus with provisioned resource details...");
+
+        // TODO: [P41215965]: setupTes should not be an arg anymore since role alias is required, need to remove
+        //  this arg and always pass either user specified or a default role alias
+        if (setupTes) {
+            outStream.println("Setting up resources for TokenExchangeService...");
+            deviceProvisioningHelper.setupIoTRoleForTes(tesRoleName, tesRoleAliasName, thingInfo.getCertificateArn());
+            if (tesRolePolicyName != null && tesRolePolicyDoc != null) {
+                deviceProvisioningHelper.createAndAttachRolePolicy(tesRoleName, tesRolePolicyName, tesRolePolicyDoc);
+            }
+        }
+        outStream.println("Configuring kernel with provisioned resource details...");
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion, tesRoleAliasName);
         outStream.println("Successfully configured kernel with provisioned resource details!");
-        if (deployDevTools) {
-            deviceProvisioningHelper.createInitialDeploymentIfNeeded(thingInfo, thingGroupName);
-        }
 
-    }
-
-    @SuppressWarnings("PMD.PreserveStackTrace")
-    private void setComponentDefaultUserAndGroup() {
-        try {
-            Platform platform = Platform.getInstance();
-            // If not super user and default user option is not provided, the current user will be used
-            // as the default user so we do not need to create anything here
-            String user = defaultUser;
-            if (platform.lookupCurrentUser().isSuperUser()) {
-                if (Utils.isEmpty(defaultUser) || GGC_USER.equals(defaultUser)) {
-                    try {
-                        platform.lookupUserByName(GGC_USER);
-                        outStream.printf("Got no input for component default user, using %s %n", GGC_USER);
-                    } catch (IOException e) {
-                        outStream.printf("Got no input for component default user, creating %s %n", GGC_USER);
-                        platform.createUser(GGC_USER);
-                        outStream.printf("%s created %n", GGC_USER);
-                    }
-                    user = GGC_USER;
-                    kernelArgs.add(DEFAULT_USER_ARG);
-                    kernelArgs.add(GGC_USER);
-                } else {
-                    // Ensure user exists
-                    try {
-                        platform.lookupUserByName(defaultUser);
-                    } catch (IOException nnf) {
-                        try {
-                            platform.lookupUserByIdentifier(defaultUser);
-                        } catch (IOException inf) {
-                            throw new RuntimeException(
-                                    String.format("The specified component default user %s does not exist",
-                                            defaultUser), inf);
-                        }
-                    }
-                }
-                if (Utils.isEmpty(defaultGroup) || GGC_GROUP.equals(defaultGroup)) {
-                    try {
-                        platform.lookupGroupByName(GGC_GROUP);
-                        outStream.printf("Got no input for component default user, using %s %n", GGC_GROUP);
-                    } catch (IOException e) {
-                        outStream.printf("Got no input for component default group, creating %s %n", GGC_GROUP);
-                        platform.createGroup(GGC_GROUP);
-                        outStream.printf("%s created %n", GGC_GROUP);
-                    }
-                    platform.addUserToGroup(user, GGC_GROUP);
-                    outStream.printf("Added %s to %s %n", user, GGC_GROUP);
-                    kernelArgs.add(DEFAULT_GROUP_ARG);
-                    kernelArgs.add(GGC_GROUP);
-                } else {
-                    // Ensure group exists
-                    try {
-                        platform.lookupUserByName(defaultGroup);
-                    } catch (IOException nnf) {
-                        try {
-                            platform.lookupUserByIdentifier(defaultGroup);
-                        } catch (IOException inf) {
-                            throw new RuntimeException(
-                                    String.format("The specified component default group %s does not exist",
-                                            defaultGroup), inf);
-                        }
-                    }
-                }
-            }
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException("Error setting up component default user / group", e);
-        }
     }
 
     Kernel getKernel() {

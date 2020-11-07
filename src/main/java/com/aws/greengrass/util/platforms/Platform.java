@@ -11,7 +11,6 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.FileSystemPermission.Option;
-import com.aws.greengrass.util.platforms.unix.DarwinPlatform;
 import com.aws.greengrass.util.platforms.unix.QNXPlatform;
 import com.aws.greengrass.util.platforms.unix.UnixPlatform;
 
@@ -39,9 +38,6 @@ public abstract class Platform implements UserPlatform {
             INSTANCE = new WindowsPlatform();
         } else if (PlatformResolver.RANKS.get().containsKey("qnx")) {
             INSTANCE = new QNXPlatform();
-        } else if (PlatformResolver.RANKS.get().containsKey("macos") || PlatformResolver.RANKS.get()
-                .containsKey("darwin")) {
-            INSTANCE = new DarwinPlatform();
         } else {
             INSTANCE = new UnixPlatform();
         }
@@ -64,12 +60,6 @@ public abstract class Platform implements UserPlatform {
     public abstract String getPrivilegedUser();
 
     public abstract RunWithGenerator getRunWithGenerator();
-
-    public abstract void createUser(String user) throws IOException, InterruptedException;
-
-    public abstract void createGroup(String group) throws IOException, InterruptedException;
-
-    public abstract void addUserToGroup(String user, String group) throws IOException, InterruptedException;
 
     /**
      * Set permissions on a path.

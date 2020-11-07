@@ -5,16 +5,6 @@
 
 package com.aws.greengrass.easysetup;
 
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
-import com.amazonaws.services.evergreen.model.ComponentInfo;
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
-import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
-import com.amazonaws.services.evergreen.model.DeploymentPolicies;
-import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -22,7 +12,6 @@ import com.aws.greengrass.util.CommitableFile;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory.EnvironmentStage;
-import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -50,7 +39,6 @@ import software.amazon.awssdk.services.iot.model.DeletePolicyRequest;
 import software.amazon.awssdk.services.iot.model.DeleteThingRequest;
 import software.amazon.awssdk.services.iot.model.DescribeEndpointRequest;
 import software.amazon.awssdk.services.iot.model.DescribeRoleAliasRequest;
-import software.amazon.awssdk.services.iot.model.DescribeThingGroupRequest;
 import software.amazon.awssdk.services.iot.model.DetachPolicyRequest;
 import software.amazon.awssdk.services.iot.model.DetachThingPrincipalRequest;
 import software.amazon.awssdk.services.iot.model.GetPolicyRequest;
@@ -81,96 +69,59 @@ import java.util.UUID;
  */
 @Getter
 public class DeviceProvisioningHelper {
-    private static final String GG_THING_POLICY_NAME = "GreengrassV2IoTThingPolicy";
-    private static final String GG_TOKEN_EXCHANGE_ROLE_ACCESS_POLICY_SUFFIX = "Access";
-    private static final String GG_TOKEN_EXCHANGE_ROLE_ACCESS_POLICY_DOCUMENT =
-            "{\n" + "    \"Version\": \"2012-10-17\",\n"
-                    + "    \"Statement\": [\n"
-                    + "        {\n"
-                    + "            \"Effect\": \"Allow\",\n"
-                    + "            \"Action\": [\n"
-                    + "                \"iot:DescribeCertificate\",\n"
-                    + "                \"logs:CreateLogGroup\",\n"
-                    + "                \"logs:CreateLogStream\",\n"
-                    + "                \"logs:PutLogEvents\",\n"
-                    + "                \"logs:DescribeLogStreams\",\n"
-                    + "                \"iot:Connect\",\n"
-                    + "                \"iot:Publish\",\n"
-                    + "                \"iot:Subscribe\",\n"
-                    + "                \"iot:Receive\",\n"
-                    + "                \"s3:GetBucketLocation\"\n"
-                    + "            ],\n"
-                    + "            \"Resource\": \"*\"\n"
-                    + "        }\n"
-                    + "    ]\n"
-                    + "}";
-    private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
-    private static final String IOT_ROLE_POLICY_NAME_PREFIX = "GreengrassTESCertificatePolicy";
-    private static final String HTTP_DEBUG_VIEW_COMPONENT_NAME = "aws.greengrass.HttpDebugView";
-    private static final String HTTP_DEBUG_VIEW_COMPONENT_VERSION = "1.0.0";
-    private static final String GREENGRASS_CLI_COMPONENT_NAME = "aws.greengrass.CLI";
-    private static final String GREENGRASS_CLI_COMPONENT_VERSION = "1.0.0";
-
-    private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
-    private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
 
     public static final Map<EnvironmentStage, String> GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
             EnvironmentStage.PROD, "greengrass-ats.iot.%s.amazonaws.com:8443/greengrass",
             EnvironmentStage.GAMMA, "greengrass-ats.gamma.%s.iot.amazonaws.com:8443/greengrass",
             EnvironmentStage.BETA, "greengrass-ats.beta.%s.iot.amazonaws.com:8443/greengrass"
     );
+
+    private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
+    private static final String IOT_ROLE_POLICY_NAME_PREFIX = "GreengrassTESCertificatePolicy";
+    private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
+    private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
+
+    private EnvironmentStage envStage = EnvironmentStage.PROD;
     private final Map<EnvironmentStage, String> tesServiceEndpoints = ImmutableMap.of(
             EnvironmentStage.PROD, "credentials.iot.amazonaws.com",
             EnvironmentStage.GAMMA, "credentials.iot.test.amazonaws.com",
             EnvironmentStage.BETA, "credentials.iot.test.amazonaws.com"
     );
-    private static final Map<IotSdkClientFactory.EnvironmentStage, String> STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
-            IotSdkClientFactory.EnvironmentStage.PROD, "evergreen.%s.amazonaws.com",
-            IotSdkClientFactory.EnvironmentStage.GAMMA, "evergreen-gamma.%s.amazonaws.com",
-            IotSdkClientFactory.EnvironmentStage.BETA, "evergreen-beta.%s.amazonaws.com"
-    );
+
     private final PrintStream outStream;
+
     private final IotClient iotClient;
     private final IamClient iamClient;
-    private final AWSEvergreen greengrassClient;
-    private EnvironmentStage envStage = EnvironmentStage.PROD;
 
     /**
      * Constructor for a desired region and stage.
      *
-     * @param awsRegion        aws region
-     * @param outStream        stream used to provide customer feedback
+     * @param awsRegion aws region
+     * @param outStream stream used to provide customer feedback
      * @param environmentStage {@link EnvironmentStage}
-     * @throws URISyntaxException               when Iot endpoint is malformed
+     * @throws URISyntaxException when Iot endpoint is malformed
      * @throws InvalidEnvironmentStageException when the environmentStage passes is invalid
      */
     public DeviceProvisioningHelper(String awsRegion, String environmentStage, PrintStream outStream)
             throws URISyntaxException, InvalidEnvironmentStageException {
-        this.outStream = outStream;
-        this.envStage = StringUtils.isEmpty(environmentStage) ? EnvironmentStage.PROD
-                : EnvironmentStage.fromString(environmentStage);
+        this.envStage = StringUtils.isEmpty(environmentStage)
+                ? EnvironmentStage.PROD : EnvironmentStage.fromString(environmentStage);
         this.iotClient = IotSdkClientFactory.getIotClient(awsRegion, envStage);
         this.iamClient = IamSdkClientFactory.getIamClient();
-        this.greengrassClient = AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
-                new AwsClientBuilder.EndpointConfiguration(
-                        String.format(STAGE_TO_ENDPOINT_FORMAT.get(envStage), awsRegion), awsRegion)).build();
-
+        this.outStream = outStream;
     }
 
     /**
      * Constructor for unit tests.
      *
-     * @param outStream        stream to provide customer feedback
-     * @param iotClient        iot client
-     * @param iamClient        iam client
-     * @param greengrassClient Greengrass client
+     * @param outStream stream to provide customer feedback
+     * @param iotClient iot client
+     * @param iamClient iam client
      */
-    DeviceProvisioningHelper(PrintStream outStream, IotClient iotClient, IamClient iamClient,
-                             AWSEvergreen greengrassClient) {
+    DeviceProvisioningHelper(PrintStream outStream, IotClient iotClient, IamClient iamClient) {
         this.outStream = outStream;
         this.iotClient = iotClient;
         this.iamClient = iamClient;
-        this.greengrassClient = greengrassClient;
     }
 
     /**
@@ -181,17 +132,6 @@ public class DeviceProvisioningHelper {
     public ThingInfo createThingForE2ETests() {
         return createThing(iotClient, E2E_TESTS_POLICY_NAME_PREFIX,
                 E2E_TESTS_THING_NAME_PREFIX + UUID.randomUUID().toString());
-    }
-
-    /**
-     * Create a thing with provided configuration.
-     *
-     * @param client    iotClient to use
-     * @param thingName thingName
-     * @return created thing info
-     */
-    public ThingInfo createThing(IotClient client, String thingName) {
-        return createThing(client, GG_THING_POLICY_NAME, thingName);
     }
 
     /**
@@ -215,8 +155,7 @@ public class DeviceProvisioningHelper {
                             + "                \"iot:Connect\",\n                \"iot:Publish\",\n"
                             + "                \"iot:Subscribe\",\n                \"iot:Receive\",\n"
                             + "                \"greengrass:*\"\n],\n"
-                            + "      \"Resource\": \"*\"\n    }\n  ]\n}")
-                    .build());
+                            + "      \"Resource\": \"*\"\n    }\n  ]\n}").build());
         }
 
         // Create cert
@@ -246,9 +185,8 @@ public class DeviceProvisioningHelper {
 
     /**
      * Clean up an existing thing from AWS account using the provided client.
-     *
-     * @param client         iotClient to use
-     * @param thing          thing info
+     *  @param client iotClient to use
+     * @param thing  thing info
      * @param deletePolicies true if iot policies should be deleted
      */
     public void cleanThing(IotClient client, ThingInfo thing, boolean deletePolicies) {
@@ -352,7 +290,8 @@ public class DeviceProvisioningHelper {
                         "Role for Greengrass IoT things to interact with AWS services using token exchange service")
                         .assumeRolePolicyDocument("{\n  \"Version\": \"2012-10-17\",\n"
                                 + "  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n"
-                                + "      \"Principal\": {\n       \"Service\": \"" + tesServiceEndpoints.get(envStage)
+                                + "      \"Principal\": {\n       \"Service\": \""
+                                + tesServiceEndpoints.get(envStage)
                                 + "\"\n      },\n      \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}").build();
                 roleArn = iamClient.createRole(createRoleRequest).role().arn();
             }
@@ -385,17 +324,6 @@ public class DeviceProvisioningHelper {
     /**
      * Creates IAM policy using specified name and document. Attach the policy to given IAM role name.
      *
-     * @param roleName name of target role
-     * @return ARN of created policy
-     */
-    public Optional<String> createAndAttachRolePolicy(String roleName) {
-        return createAndAttachRolePolicy(roleName, roleName + GG_TOKEN_EXCHANGE_ROLE_ACCESS_POLICY_SUFFIX,
-                GG_TOKEN_EXCHANGE_ROLE_ACCESS_POLICY_DOCUMENT);
-    }
-
-    /**
-     * Creates IAM policy using specified name and document. Attach the policy to given IAM role name.
-     *
      * @param roleName           name of target role
      * @param rolePolicyName     name of policy to create and attach
      * @param rolePolicyDocument document of policy to create and attach
@@ -409,9 +337,7 @@ public class DeviceProvisioningHelper {
                     software.amazon.awssdk.services.iam.model.CreatePolicyRequest.builder().policyName(rolePolicyName)
                             .policyDocument(rolePolicyDocument).build());
             tesRolePolicyArn = createPolicyResponse.policy().arn();
-            outStream.printf("IAM role policy for TES \"%s\" created. This policy DOES NOT have S3 access, please "
-                            + "modify it with your private components' artifact buckets/objects as needed when you "
-                    + "create and deploy private components %n", rolePolicyName);
+            outStream.printf("IAM role policy for TES \"%s\" created%n", rolePolicyName);
             outStream.println("Attaching IAM role policy for TES to IAM role for TES...");
             iamClient.attachRolePolicy(
                     AttachRolePolicyRequest.builder().roleName(roleName).policyArn(tesRolePolicyArn).build());
@@ -427,8 +353,8 @@ public class DeviceProvisioningHelper {
     /**
      * Add an existing Thing into a Thing Group which may or may not exist.
      *
-     * @param iotClient      client
-     * @param thingName      thing name
+     * @param iotClient client
+     * @param thingName thing name
      * @param thingGroupName group to add the thing into
      */
     public void addThingToGroup(IotClient iotClient, String thingName, String thingGroupName) {
@@ -437,56 +363,8 @@ public class DeviceProvisioningHelper {
         } catch (ResourceAlreadyExistsException e) {
             outStream.printf("IoT Thing Group \"%s\" already existed, reusing it%n", thingGroupName);
         }
-        iotClient.addThingToThingGroup(
-                AddThingToThingGroupRequest.builder().thingName(thingName).thingGroupName(thingGroupName).build());
-    }
-
-    private boolean thingGroupExists(String thingGroupName) {
-        try {
-            return thingGroupName.equals(iotClient
-                    .describeThingGroup(DescribeThingGroupRequest.builder().thingGroupName(thingGroupName).build())
-                    .thingGroupName());
-        } catch (ResourceNotFoundException e) {
-            return false;
-        }
-    }
-
-    /**
-     * Creates an initial deployment to deploy dev tools like the Greengrass CLI and the Http Debug View component.
-     *
-     * @param thingInfo thing info for the device
-     * @param thingGroupName thing group name
-     */
-    public void createInitialDeploymentIfNeeded(ThingInfo thingInfo, String thingGroupName) {
-        if (Utils.isNotEmpty(thingGroupName) && thingGroupExists(thingGroupName)) {
-            outStream.println(
-                    "Thing group exists, no need to create a deployment for Greengrass first party components");
-            return;
-        }
-
-        CreateDeploymentRequest deploymentRequest = new CreateDeploymentRequest().withDeploymentPolicies(
-                new DeploymentPolicies()
-                        .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(60))
-                        .withComponentUpdatePolicy(
-                                new ComponentUpdatePolicy().withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                                        .withTimeout(60)).withFailureHandlingPolicy(FailureHandlingPolicy.ROLLBACK));
-
-        if (Utils.isNotEmpty(thingGroupName)) {
-            outStream.println("Creating a deployment for Greengrass first party components to the thing group");
-            deploymentRequest.withTargetName(thingGroupName).withTargetType("thinggroup");
-        } else {
-            outStream.println("Creating a deployment for Greengrass first party components to the device");
-            deploymentRequest.withTargetName(thingInfo.thingName).withTargetType("thing");
-        }
-
-        deploymentRequest.addComponentsEntry(HTTP_DEBUG_VIEW_COMPONENT_NAME,
-                new ComponentInfo().withVersion(HTTP_DEBUG_VIEW_COMPONENT_VERSION))
-                .addComponentsEntry(GREENGRASS_CLI_COMPONENT_NAME,
-                        new ComponentInfo().withVersion(GREENGRASS_CLI_COMPONENT_VERSION));
-
-        greengrassClient.createDeployment(deploymentRequest);
-        outStream.printf("Configured Nucleus to deploy components %s and %s %n", GREENGRASS_CLI_COMPONENT_NAME,
-                HTTP_DEBUG_VIEW_COMPONENT_NAME);
+        iotClient.addThingToThingGroup(AddThingToThingGroupRequest.builder()
+                .thingName(thingName).thingGroupName(thingGroupName).build());
     }
 
     @AllArgsConstructor

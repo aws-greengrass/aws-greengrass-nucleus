@@ -6,7 +6,6 @@
 package com.aws.greengrass.easysetup;
 
 import com.amazonaws.arn.Arn;
-import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.IamSdkClientFactory;
@@ -82,8 +81,6 @@ class DeviceProvisioningHelperTest {
     @Mock
     private IamClient iamClient;
     @Mock
-    private AWSEvergreen greengrassClient;
-    @Mock
     private GetPolicyResponse getPolicyResponse;
     @Mock
     private CreateThingResponse createThingResponse;
@@ -112,7 +109,7 @@ class DeviceProvisioningHelperTest {
 
     @BeforeEach
     void setup() {
-        deviceProvisioningHelper = new DeviceProvisioningHelper(System.out, iotClient, iamClient, greengrassClient);
+        deviceProvisioningHelper = new DeviceProvisioningHelper(System.out, iotClient, iamClient);
     }
 
     @AfterEach
