@@ -15,6 +15,7 @@ import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.amazon.aws.iot.greengrass.configuration.common.ConfigurationUpdate;
 import com.amazonaws.arn.Arn;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
+import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -44,6 +45,7 @@ public final class DeploymentDocumentConverter {
 
     public static final String DEFAULT_GROUP_NAME = "DEFAULT";
     public static final Integer NO_OP_TIMEOUT = 0;
+    private static final  Integer DEFAULT_TIMEOUT_SECOND = 20;
 
     public static final String ANY_VERSION = "*";
 
@@ -81,6 +83,10 @@ public final class DeploymentDocumentConverter {
         List<DeploymentPackageConfiguration> packageConfigurations =
                 buildDeploymentPackageConfigurations(localOverrideRequest, newRootComponents);
 
+        // set up configurationValidationPolicy
+        ConfigurationValidationPolicy configurationValidationPolicy =
+                new ConfigurationValidationPolicy().withTimeout(DEFAULT_TIMEOUT_SECOND);
+
         return DeploymentDocument.builder().timestamp(localOverrideRequest.getRequestTimestamp())
                 .deploymentId(localOverrideRequest.getRequestId())
                 .deploymentPackageConfigurationList(packageConfigurations)
@@ -88,7 +94,9 @@ public final class DeploymentDocumentConverter {
                 // Currently we always skip safety check for local deployment to not slow down testing for customers
                 // If we make this configurable in local development then we can plug that input in here
                 // NO_OP_TIMEOUT is not used since the policy is SKIP_NOTIFY_COMPONENTS
-                .componentUpdatePolicy(new ComponentUpdatePolicy(NO_OP_TIMEOUT, SKIP_NOTIFY_COMPONENTS)).groupName(
+                .componentUpdatePolicy(new ComponentUpdatePolicy(NO_OP_TIMEOUT, SKIP_NOTIFY_COMPONENTS))
+                .configurationValidationPolicy(configurationValidationPolicy)
+                .groupName(
                         StringUtils.isEmpty(localOverrideRequest.getGroupName()) ? DEFAULT_GROUP_NAME
                                 : localOverrideRequest.getGroupName()).build();
     }
@@ -104,9 +112,13 @@ public final class DeploymentDocumentConverter {
         ComponentUpdatePolicy componentUpdatePolicy =
                 new ComponentUpdatePolicy(config.getComponentUpdatePolicy().getTimeout(), ComponentUpdatePolicyAction
                         .fromValue(config.getComponentUpdatePolicy().getAction()));
+        ConfigurationValidationPolicy configurationValidationPolicy = new ConfigurationValidationPolicy();
+        configurationValidationPolicy.setTimeout(config.getConfigurationValidationPolicy().getTimeout());
+
         DeploymentDocument deploymentDocument = DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
                 .timestamp(config.getCreationTimestamp()).failureHandlingPolicy(config.getFailureHandlingPolicy())
                 .componentUpdatePolicy(componentUpdatePolicy).deploymentPackageConfigurationList(new ArrayList<>())
+                .configurationValidationPolicy(configurationValidationPolicy)
                 .build();
 
         String groupName;
@@ -230,6 +242,17 @@ public final class DeploymentDocumentConverter {
             builder.componentUpdatePolicy(convertComponentUpdatePolicy(config.getComponentUpdatePolicy()));
         }
 
+        if (config.getConfigurationValidationPolicy() == null) {
+            // ConfigurationValidationPolicy should be provided per contract with CreateDeployment API.
+            // However if it is not, device could proceed with default for resilience.
+            logger.atWarn().log("ConfigurationValidationPolicy should be provided but is not provided. "
+                    + "Proceeding with default failure handling policy.");
+        } else {
+            builder.configurationValidationPolicy(convertConfigurationValidationPolicy(
+                    config.getConfigurationValidationPolicy())
+            );
+        }
+
         return builder.build();
     }
 
@@ -296,6 +319,17 @@ public final class DeploymentDocumentConverter {
                     ComponentUpdatePolicyAction.fromValue(componentUpdatePolicy.getAction().name()));
         }
 
+        return converted;
+    }
+
+    private static ConfigurationValidationPolicy convertConfigurationValidationPolicy(
+            @Nonnull  com.amazon.aws.iot.greengrass.configuration.common.ConfigurationValidationPolicy
+                    configurationValidationPolicy) {
+
+        ConfigurationValidationPolicy converted = new ConfigurationValidationPolicy();
+        if (configurationValidationPolicy.getTimeout() != null) {
+            converted.setTimeout(configurationValidationPolicy.getTimeout());
+        }
         return converted;
     }
 
