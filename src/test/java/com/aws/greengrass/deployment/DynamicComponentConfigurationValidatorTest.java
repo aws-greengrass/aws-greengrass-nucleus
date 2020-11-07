@@ -185,7 +185,8 @@ class DynamicComponentConfigurationValidatorTest {
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
             }});
         }};
-        assertFalse(validator.validate(servicesConfig, createTestDeployment(), deploymentResultFuture));
+        // Override default timeout in ComponentUpdatePolicy so this times out quickly
+        assertFalse(validator.validate(servicesConfig, createTestDeployment(1), deploymentResultFuture));
         verify(configStoreIPCEventStreamAgent, times(1)).validateConfiguration(any(), any(), any(), any());
         DeploymentResult deploymentResult = deploymentResultFuture.get();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, deploymentResult.getDeploymentStatus());
@@ -318,6 +319,12 @@ class DynamicComponentConfigurationValidatorTest {
         doc.setTimestamp(DEFAULT_DEPLOYMENT_TIMESTAMP);
         Deployment deployment = new Deployment();
         deployment.setDeploymentDocumentObj(doc);
+        return deployment;
+    }
+
+    private Deployment createTestDeployment(Integer timeout) {
+        Deployment deployment = createTestDeployment();
+        deployment.getDeploymentDocumentObj().getComponentUpdatePolicy().setTimeout(timeout);
         return deployment;
     }
 
