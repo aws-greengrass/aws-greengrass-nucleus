@@ -6,8 +6,8 @@
 package com.aws.greengrass.componentmanager.plugins;
 
 import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.model.GetComponentArtifactRequest;
-import com.amazonaws.services.evergreen.model.GetComponentArtifactResult;
+import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactRequest;
+import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactResult;
 import com.aws.greengrass.componentmanager.ComponentTestResourceHelper;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
@@ -56,7 +56,7 @@ class GreengrassRepositoryDownloaderTest {
     private GreengrassRepositoryDownloader downloader;
 
     @Captor
-    ArgumentCaptor<GetComponentArtifactRequest> getComponentArtifactRequestArgumentCaptor;
+    ArgumentCaptor<GetComponentVersionArtifactRequest> getComponentArtifactRequestArgumentCaptor;
 
     @BeforeEach
     void beforeEach() {
@@ -66,9 +66,9 @@ class GreengrassRepositoryDownloaderTest {
 
     @Test
     void GIVEN_artifact_url_WHEN_attempt_download_THEN_task_succeed() throws Exception {
-        GetComponentArtifactResult result =
-                new GetComponentArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
-        when(client.getComponentArtifact(getComponentArtifactRequestArgumentCaptor.capture())).thenReturn(result);
+        GetComponentVersionArtifactResult result =
+                new GetComponentVersionArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
+        when(client.getComponentVersionArtifact(getComponentArtifactRequestArgumentCaptor.capture())).thenReturn(result);
 
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
@@ -84,10 +84,12 @@ class GreengrassRepositoryDownloaderTest {
         Files.createDirectories(saveToPath);
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
-        downloader.downloadToPath(pkgId,
-                new ComponentArtifact(new URI("greengrass:artifactName"), checksum, SHA256, null), saveToPath);
 
-        GetComponentArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
+        downloader.downloadToPath(
+                pkgId, ComponentArtifact.builder().artifactUri(new URI("greengrass:artifactName"))
+                        .checksum(checksum).algorithm(SHA256).build(), saveToPath);
+
+        GetComponentVersionArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
         assertEquals("CoolService", generatedRequest.getComponentName());
         assertEquals("1.0.0", generatedRequest.getComponentVersion());
         assertNull(generatedRequest.getScope());
@@ -101,16 +103,17 @@ class GreengrassRepositoryDownloaderTest {
 
     @Test
     void GIVEN_http_connection_error_WHEN_attempt_download_THEN_return_exception() throws Exception {
-        GetComponentArtifactResult result =
-                new GetComponentArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
-        when(client.getComponentArtifact(any())).thenReturn(result);
+        GetComponentVersionArtifactResult result =
+                new GetComponentVersionArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
+        when(client.getComponentVersionArtifact(any())).thenReturn(result);
 
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenThrow(IOException.class);
 
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         assertThrows(IOException.class, () -> downloader
-                .downloadToPath(pkgId, new ComponentArtifact(new URI("greengrass:binary"), null, null, null), null));
+                .downloadToPath(pkgId,
+                        ComponentArtifact.builder().artifactUri(new URI("greengrass:binary")).build(),null));
     }
 
     @Test

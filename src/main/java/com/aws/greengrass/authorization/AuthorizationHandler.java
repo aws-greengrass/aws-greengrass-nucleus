@@ -13,6 +13,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
+import lombok.NonNull;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,7 +47,7 @@ import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE
  */
 @Singleton
 public class AuthorizationHandler  {
-    private static final String ANY_REGEX = "*";
+    public static final String ANY_REGEX = "*";
     private static final Logger logger = LogManager.getLogger(AuthorizationHandler.class);
     private final ConcurrentHashMap<String, Set<String>> componentToOperationsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<AuthorizationPolicy>>
@@ -107,10 +108,8 @@ public class AuthorizationHandler  {
                         return;
                     }
 
-                    //Reload all policies
-                    // GG_NEEDS_REVIEW: TODO: Add more sophisticated logic to specifically update policies scoped to
-                    // this component, instead of reloading everything on every update.
-                    // https://issues-iad.amazon.com/issues/V243584397
+                    // TODO: [V243584397]: Partial policy reload
+                    // For now, reload all policies
                     Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
                             .parseAllAuthorizationPolicies(kernel);
 
@@ -190,6 +189,28 @@ public class AuthorizationHandler  {
                         destination,
                         operation,
                         resource));
+    }
+
+    /**
+     * Get allowed resources for the combination of destination, principal and operation.
+     * Also returns resources covered by permissions with * operation/principal.
+     *
+     * @param destination destination
+     * @param principal   principal (cannot be *)
+     * @param operation   operation (cannot be *)
+     * @return list of allowed resources
+     * @throws AuthorizationException when arguments are invalid
+     */
+    public List<String> getAuthorizedResources(String destination, @NonNull String principal, @NonNull String operation)
+            throws AuthorizationException {
+        isOperationValid(destination, operation);
+
+        List<String> authorizedResources;
+        try (LockScope scope = LockScope.lock(rwLock.readLock())) {
+            authorizedResources = authModule.getResources(destination, principal, operation);
+        }
+
+        return authorizedResources;
     }
 
     /**
@@ -290,8 +311,8 @@ public class AuthorizationHandler  {
         if (Utils.isEmpty(componentName)) {
             throw new AuthorizationException("Component name is not specified: " + componentName);
         }
-        // GG_NEEDS_REVIEW: TODO: solve the issue where the authhandler starts up and loads policies before services
-        // are registered: https://issues-iad.amazon.com/issues/V234938383
+        // TODO: [V234938383] solve the issue where the authhandler starts up and loads policies before services
+        //  are registered
         //if (!componentToOperationsMap.containsKey(componentName)) {
         //throw new AuthorizationException("Component not registered: " + componentName);
         //}
@@ -308,7 +329,7 @@ public class AuthorizationHandler  {
     }
 
     private void validatePolicyId(List<AuthorizationPolicy> policies) throws AuthorizationException {
-        if (!policies.stream().filter(p -> Utils.isEmpty(p.getPolicyId())).collect(Collectors.toList()).isEmpty()) {
+        if (policies.stream().anyMatch(p -> Utils.isEmpty(p.getPolicyId()))) {
             throw new AuthorizationException("Malformed policy with empty/null policy Id's");
         }
         // check for duplicates
@@ -325,8 +346,8 @@ public class AuthorizationHandler  {
             throw new AuthorizationException("Malformed policy with invalid/empty operations: "
                     + policy.getPolicyId());
         }
-        // GG_NEEDS_REVIEW: TODO: solve the issue where the authhandler starts up and loads policies before services
-        // are registered: https://issues-iad.amazon.com/issues/V234938383
+        // TODO: [V234938383] solve the issue where the authhandler starts up and loads policies before services
+        //  are registered
         //Set<String> supportedOps = componentToOperationsMap.get(componentName);
         // check if operations are valid and registered.
         //if (operations.stream().anyMatch(o -> !supportedOps.contains(o))) {

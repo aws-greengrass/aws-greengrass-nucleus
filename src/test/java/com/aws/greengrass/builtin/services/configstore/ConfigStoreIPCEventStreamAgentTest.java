@@ -108,7 +108,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         root.lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B);
         root.lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B, PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_3)
                 .withNewerValue(100, TEST_CONFIG_KEY_3_INITIAL_VALUE);
-        configuration.context.runOnPublishQueueAndWait(() -> {});
+        configuration.context.waitForPublishQueueToClear();
         lenient().when(kernel.getConfig()).thenReturn(configuration);
 
         when(mockContext.getContinuation()).thenReturn(mockServerConnectionContinuation);
@@ -118,7 +118,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         agent = new ConfigStoreIPCEventStreamAgent();
         agent.setKernel(kernel);
     }
-    
+
     @AfterEach
     void cleanup() throws IOException {
         configuration.context.close();
@@ -422,7 +422,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerNode", "SomeLeafNode").withValue("SomeValue");
-        configuration.context.runOnPublishQueueAndWait(() -> {});
+        configuration.context.waitForPublishQueueToClear();
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         when(mockServerConnectionContinuation.sendMessage(anyList(), byteArrayCaptor.capture(), any(MessageType.class), anyInt()))
                 .thenReturn(new CompletableFuture<>());
@@ -458,7 +458,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         componentAConfiguration
                 .lookup(PARAMETERS_CONFIG_KEY, "Level1ContainerNode", "Level2ContainerNode", "SomeLeafNode")
                 .withValue("SomeValue");
-        configuration.context.runOnPublishQueueAndWait(() -> {});
+        configuration.context.waitForPublishQueueToClear();
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         when(mockServerConnectionContinuation.sendMessage(anyList(), byteArrayCaptor.capture(), any(MessageType.class), anyInt()))
                 .thenReturn(new CompletableFuture<>());
@@ -500,7 +500,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         configToValidate.put(TEST_CONFIG_KEY_1, 0);
         configToValidate.put(TEST_CONFIG_KEY_2, 100);
 
-        assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, configToValidate, new CompletableFuture<>()));
+        assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, "A", configToValidate, new CompletableFuture<>()));
         verify(mockServerConnectionContinuation, timeout(10000))
                 .sendMessage(anyList(), any(), any(MessageType.class), anyInt());
 
@@ -532,8 +532,8 @@ class ConfigStoreIPCEventStreamAgentTest {
         configToValidate.put(TEST_CONFIG_KEY_2, 100);
 
         CompletableFuture validationTracker = new CompletableFuture<>();
-        assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, configToValidate, validationTracker));
-        assertTrue(agent.discardValidationReportTracker(TEST_COMPONENT_A, validationTracker));
+        assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, "A", configToValidate, validationTracker));
+        assertTrue(agent.discardValidationReportTracker("A", TEST_COMPONENT_A, validationTracker));
     }
 
     @Test
@@ -551,11 +551,12 @@ class ConfigStoreIPCEventStreamAgentTest {
         configToValidate.put(TEST_CONFIG_KEY_2, 100);
 
         CompletableFuture<ConfigurationValidityReport> validationTracker = new CompletableFuture<>();
-        assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, configToValidate, validationTracker));
+        assertTrue(agent.validateConfiguration(TEST_COMPONENT_A, "A", configToValidate, validationTracker));
 
         SendConfigurationValidityReportRequest reportRequest = new SendConfigurationValidityReportRequest();
         ConfigurationValidityReport validityReport = new ConfigurationValidityReport();
         validityReport.setStatus(ConfigurationValidityStatus.ACCEPTED);
+        validityReport.setDeploymentId("A");
         reportRequest.setConfigurationValidityReport(validityReport);
         SendConfigurationValidityReportResponse reportResponse =
                 agent.getSendConfigurationValidityReportHandler(mockContext).handleRequest(reportRequest);
@@ -571,9 +572,21 @@ class ConfigStoreIPCEventStreamAgentTest {
         SendConfigurationValidityReportRequest reportRequest = new SendConfigurationValidityReportRequest();
         ConfigurationValidityReport validityReport = new ConfigurationValidityReport();
         validityReport.setStatus(ConfigurationValidityStatus.ACCEPTED);
+        validityReport.setDeploymentId("abc");
         reportRequest.setConfigurationValidityReport(validityReport);
         InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class, () ->
                 agent.getSendConfigurationValidityReportHandler(mockContext).handleRequest(reportRequest));
         assertEquals("Validation request either timed out or was never made", error.getMessage());
+    }
+
+    @Test
+    void GIVEN_request_has_null_deployment_id_THEN_fail() {
+        SendConfigurationValidityReportRequest reportRequest = new SendConfigurationValidityReportRequest();
+        ConfigurationValidityReport validityReport = new ConfigurationValidityReport();
+        reportRequest.setConfigurationValidityReport(validityReport);
+        InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class, () ->
+                agent.getSendConfigurationValidityReportHandler(mockContext).handleRequest(reportRequest));
+        assertEquals("Cannot accept configuration validity report, the deployment ID provided was null",
+                error.getMessage());
     }
 }

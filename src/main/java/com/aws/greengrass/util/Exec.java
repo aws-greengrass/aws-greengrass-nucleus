@@ -23,7 +23,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -85,7 +87,6 @@ public final class Exec implements Closeable {
                     }
                 });
                 bg.start();
-                // GG_NEEDS_REVIEW: TODO: configurable timeout?
                 bg.join(2000);
                 addPathEntries(path.toString().trim());
                 // Ensure some level of sanity
@@ -183,7 +184,7 @@ public final class Exec implements Closeable {
     public static Path which(String fn) {  // mirrors shell command
         fn = deTilde(fn);
         if (fn.startsWith("/")) {
-            // GG_NEEDS_REVIEW: TODO sort out windows filename issues, if we ever care
+            // TODO: [P41214135] sort out windows filename issues, if we ever care
             Path f = Paths.get(fn);
             return Files.isExecutable(f) ? f : null;
         }
@@ -492,19 +493,26 @@ public final class Exec implements Closeable {
 
         Platform platformInstance = Platform.getInstance();
 
+        Set<Integer> pids = Collections.emptySet();
         try {
-            platformInstance.killProcessAndChildren(p, false, userDecorator);
-            // GG_NEEDS_REVIEW: TODO: configurable timeout?
-            if (!p.waitFor(2, TimeUnit.SECONDS)) {
-                platformInstance.killProcessAndChildren(p, true, userDecorator);
-                if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
-                    throw new IOException("Could not stop " + this);
-                }
+            pids = platformInstance.killProcessAndChildren(p, false, pids, userDecorator);
+            // TODO: [P41214162] configurable timeout
+            // Wait for it to die, but ignore the outcome and just forcefully kill it and all its
+            // children anyway. This way, any misbehaving children or grandchildren will be killed
+            // whether or not the parent behaved appropriately.
+            boolean died = p.waitFor(2, TimeUnit.SECONDS);
+            if (!died) {
+                logger.atWarn().log("Command {} did not respond to interruption within 2 seconds. "
+                        + "Going to kill it now", this);
+            }
+            platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
+            if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
+                throw new IOException("Could not stop " + this);
             }
         } catch (InterruptedException e) {
             // If we're interrupted make sure to kill the process before returning
             try {
-                platformInstance.killProcessAndChildren(p, true, userDecorator);
+                platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
             } catch (InterruptedException ignore) {
             }
         }

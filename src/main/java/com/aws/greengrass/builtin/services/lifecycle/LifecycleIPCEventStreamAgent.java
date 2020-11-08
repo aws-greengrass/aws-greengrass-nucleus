@@ -11,6 +11,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Pair;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -45,11 +46,13 @@ import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS;
+import static com.aws.greengrass.ipc.common.ExceptionUtil.translateExceptions;
 
 public class LifecycleIPCEventStreamAgent {
-    private static final String SERVICE_NAME_LOG_KEY = "service name";
+    private static final String COMPONENT_NAME = "componentName";
+    private static final Logger logger = LogManager.getLogger(LifecycleIPCEventStreamAgent.class);
 
-    @Getter (AccessLevel.PACKAGE)
+    @Getter(AccessLevel.PACKAGE)
     private final ConcurrentHashMap<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>>
             componentUpdateListeners = new ConcurrentHashMap<>();
 
@@ -57,18 +60,17 @@ public class LifecycleIPCEventStreamAgent {
     // component responds with DeferComponentUpdateRequest the future is marked as complete. The caller of
     // sendPreComponentUpdateEvent will have reference to the set of futures.
     // deferUpdateFuturesMap maps the context of a component to the future created for the component.
-    // This map is from service name to the Futures. Only one (latest) Future per service is maintained.
-    // GG_NEEDS_REVIEW: TODO
-    //TODO: Remove the DeferUpdateRequest when we remove the LifecycleIPCAgent. Keeping it right now so both old and new
-    // IPC can work.
-    @Getter (AccessLevel.PACKAGE)
-    private final Map<String, CompletableFuture<DeferUpdateRequest>> deferUpdateFuturesMap =
+    // This map is from service name and deployment id to the Futures. Only one (latest) Future per service is
+    // maintained.
+    //TODO: [P41211652]: Remove the DeferUpdateRequest when we remove the LifecycleIPCAgent.
+    @Getter(AccessLevel.PACKAGE)
+    private final Map<Pair<String, String>, CompletableFuture<DeferUpdateRequest>> deferUpdateFuturesMap =
             new ConcurrentHashMap<>();
 
-    private static Logger log = LogManager.getLogger(LifecycleIPCEventStreamAgent.class);
+    private static final Logger log = LogManager.getLogger(LifecycleIPCEventStreamAgent.class);
 
     @Inject
-    @Setter (AccessLevel.PACKAGE)
+    @Setter(AccessLevel.PACKAGE)
     private Kernel kernel;
 
     public UpdateStateOperationHandler getUpdateStateOperationHandler(OperationContinuationHandlerContext context) {
@@ -101,23 +103,24 @@ public class LifecycleIPCEventStreamAgent {
         @Override
         @SuppressWarnings("PMD.PreserveStackTrace")
         public UpdateStateResponse handleRequest(UpdateStateRequest request) {
-            log.atInfo().log("Got update state request for service " + serviceName);
-            State s = State.valueOf(request.getState().toString());
-            String serviceN = request.getServiceName() == null ? serviceName : request.getServiceName();
-            GreengrassService service;
-            try {
-                service = kernel.locate(serviceN);
-                service.reportState(s);
-            } catch (ServiceLoadException e) {
-                log.atWarn().kv(SERVICE_NAME_LOG_KEY, request.getServiceName()).log("Service not present");
-                ResourceNotFoundError rnf = new ResourceNotFoundError();
-                rnf.setMessage("Service with given name not found");
-                rnf.setResourceType("Service/Component");
-                rnf.setResourceName(request.getServiceName());
-                throw rnf;
-            }
+            return translateExceptions(() -> {
+                log.atInfo().log("Got update state request for component " + serviceName);
+                GreengrassService service;
+                try {
+                    service = kernel.locate(serviceName);
+                    State s = State.valueOf(request.getState().toString());
+                    service.reportState(s);
+                } catch (ServiceLoadException e) {
+                    log.atWarn().log("Component {} not found", serviceName);
+                    ResourceNotFoundError rnf = new ResourceNotFoundError();
+                    rnf.setMessage("Component with given name not found");
+                    rnf.setResourceType("Component");
+                    rnf.setResourceName(serviceName);
+                    throw rnf;
+                }
 
-            return new UpdateStateResponse();
+                return new UpdateStateResponse();
+            });
         }
 
         @Override
@@ -128,8 +131,8 @@ public class LifecycleIPCEventStreamAgent {
     }
 
 
-    class SubscribeToComponentUpdateOperationHandler extends
-            GeneratedAbstractSubscribeToComponentUpdatesOperationHandler {
+    class SubscribeToComponentUpdateOperationHandler
+            extends GeneratedAbstractSubscribeToComponentUpdatesOperationHandler {
 
         private final String serviceName;
 
@@ -150,22 +153,23 @@ public class LifecycleIPCEventStreamAgent {
         @Override
         @SuppressWarnings("PMD.PreserveStackTrace")
         public SubscribeToComponentUpdatesResponse handleRequest(SubscribeToComponentUpdatesRequest request) {
-            try {
-                kernel.locate(serviceName);
-            } catch (ServiceLoadException e) {
-                log.atWarn().kv(SERVICE_NAME_LOG_KEY, serviceName).setCause(e)
-                        .log("Got subscribe to component update request from a "
-                        + "service that is not found in Greengrass");
-                ResourceNotFoundError rnf = new ResourceNotFoundError();
-                rnf.setMessage("Service with given name not found currently in Greengrass");
-                rnf.setResourceType("Service/Component");
-                rnf.setResourceName(serviceName);
-                throw rnf;
-            }
-            componentUpdateListeners.putIfAbsent(serviceName, new HashSet<>());
-            componentUpdateListeners.get(serviceName).add(this);
-            log.atInfo().log("{} subscribed to component update", serviceName);
-            return SubscribeToComponentUpdatesResponse.VOID;
+            return translateExceptions(() -> {
+                try {
+                    kernel.locate(serviceName);
+                } catch (ServiceLoadException e) {
+                    log.atWarn().kv(COMPONENT_NAME, serviceName).log("Got subscribe to component update request from a "
+                            + "component that is not found in Greengrass");
+                    ResourceNotFoundError rnf = new ResourceNotFoundError();
+                    rnf.setMessage("Component with given name not found currently in Greengrass");
+                    rnf.setResourceType("Component");
+                    rnf.setResourceName(serviceName);
+                    throw rnf;
+                }
+                componentUpdateListeners.putIfAbsent(serviceName, new HashSet<>());
+                componentUpdateListeners.get(serviceName).add(this);
+                log.atInfo().log("{} subscribed to component update", serviceName);
+                return SubscribeToComponentUpdatesResponse.VOID;
+            });
         }
 
         @Override
@@ -191,22 +195,28 @@ public class LifecycleIPCEventStreamAgent {
 
         @Override
         public DeferComponentUpdateResponse handleRequest(DeferComponentUpdateRequest request) {
-            // GG_NEEDS_REVIEW: TODO: Input validation. https://sim.amazon.com/issues/P32540011
+            return translateExceptions(() -> {
+                // TODO: [P32540011]: All IPC service requests need input validation
+                logger.atInfo().log("Entering defer request handler");
+                if (!componentUpdateListeners.containsKey(serviceName)) {
+                    throw new InvalidArgumentsError("Component is not subscribed to component update events");
+                }
+                if (request.getDeploymentId() == null) {
+                    throw new InvalidArgumentsError("Cannot defer the update, the deployment ID provided was null");
+                }
 
-            if (!componentUpdateListeners.containsKey(serviceName)) {
-                throw new InvalidArgumentsError("Component is not subscribed to component update events");
-            }
-
-            CompletableFuture<DeferUpdateRequest> deferComponentUpdateRequestFuture =
-                deferUpdateFuturesMap.remove(serviceName);
-            if (deferComponentUpdateRequestFuture == null) {
-                throw new ServiceError("Time limit to respond to PreComponentUpdateEvent exceeded");
-            } else {
-                deferComponentUpdateRequestFuture
-                        .complete(new DeferUpdateRequest(serviceName, request.getMessage(),
-                                request.getRecheckAfterMs()));
-            }
-            return new DeferComponentUpdateResponse();
+                CompletableFuture<DeferUpdateRequest> deferComponentUpdateRequestFuture =
+                        deferUpdateFuturesMap.remove(new Pair<>(serviceName, request.getDeploymentId()));
+                if (deferComponentUpdateRequestFuture == null) {
+                    throw new ServiceError("Time limit to respond to PreComponentUpdateEvent exceeded");
+                } else {
+                    deferComponentUpdateRequestFuture.complete(
+                            new DeferUpdateRequest(serviceName, request.getMessage(), request.getDeploymentId(),
+                                    request.getRecheckAfterMs()));
+                }
+                logger.atInfo().log("Exiting defer request handler");
+                return new DeferComponentUpdateResponse();
+            });
         }
 
         @Override
@@ -225,26 +235,33 @@ public class LifecycleIPCEventStreamAgent {
             PreComponentUpdateEvent preComponentUpdateEvent) {
         List<Future<DeferUpdateRequest>> deferUpdateFutures = new ArrayList<>();
         discardDeferComponentUpdateFutures();
-        for (Map.Entry<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>> entry
-                : componentUpdateListeners.entrySet()) {
+        for (Map.Entry<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>> entry : componentUpdateListeners
+                .entrySet()) {
             String serviceName = entry.getKey();
             entry.getValue().forEach(subscribeHandler -> {
-                log.atInfo().kv("serviceName", serviceName).log("Sending preComponentUpdate event");
+                log.atInfo().kv(COMPONENT_NAME, serviceName).log("Sending preComponentUpdate event");
                 ComponentUpdatePolicyEvents componentUpdatePolicyEvents = new ComponentUpdatePolicyEvents();
                 componentUpdatePolicyEvents.setPreUpdateEvent(preComponentUpdateEvent);
+
+                CompletableFuture<DeferUpdateRequest> deferUpdateFuture = new CompletableFuture<>();
+                // If there are multiple pre component events sent to same service, we will store the latest future
+                // As the update should be waiting for the latest one to complete.
+                Pair<String, String> serviceAndDeployment =
+                        new Pair<>(serviceName, preComponentUpdateEvent.getDeploymentId());
+                // Save to the map before sending the event so that it will be there if
+                // they respond very quickly
+                deferUpdateFuturesMap.put(serviceAndDeployment, deferUpdateFuture);
+
                 try {
                     subscribeHandler.sendStreamEvent(componentUpdatePolicyEvents)
                             .get(DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 } catch (Exception e) {
-                    log.atError().setCause(e).kv(SERVICE_NAME_LOG_KEY, serviceName)
+                    log.atError().setCause(e).kv(COMPONENT_NAME, serviceName)
                             .log("Failed to send the pre component update on stream");
-                   return;
+                    deferUpdateFuturesMap.remove(serviceAndDeployment);
+                    return;
                 }
-                CompletableFuture<DeferUpdateRequest> deferUpdateFuture = new CompletableFuture<>();
                 deferUpdateFutures.add(deferUpdateFuture);
-                // If there are multiple pre component events sent to same service, we will store the latest future
-                // As the update should be waiting for the latest one to complete.
-                deferUpdateFuturesMap.put(serviceName, deferUpdateFuture);
             });
         }
         return deferUpdateFutures;
@@ -257,29 +274,28 @@ public class LifecycleIPCEventStreamAgent {
      */
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public void sendPostComponentUpdateEvent(PostComponentUpdateEvent postComponentUpdateEvent) {
-        for (Map.Entry<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>> entry
-                : componentUpdateListeners.entrySet()) {
+        for (Map.Entry<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>> entry : componentUpdateListeners
+                .entrySet()) {
             String serviceName = entry.getKey();
             entry.getValue().forEach(subscribeHandler -> {
                 ComponentUpdatePolicyEvents componentUpdatePolicyEvents = new ComponentUpdatePolicyEvents();
-                log.atDebug().kv("serviceName", serviceName).log("Sending postComponentUpdate event to");
+                log.atDebug().kv(COMPONENT_NAME, serviceName).log("Sending postComponentUpdate event");
                 componentUpdatePolicyEvents.setPostUpdateEvent(postComponentUpdateEvent);
 
                 try {
                     subscribeHandler.sendStreamEvent(componentUpdatePolicyEvents)
                             .get(DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 } catch (Exception e) {
-                    log.atError().setCause(e).kv(SERVICE_NAME_LOG_KEY, serviceName)
+                    log.atError().setCause(e).kv(COMPONENT_NAME, serviceName)
                             .log("Failed to send the post component update on stream");
-                    return;
                 }
             });
         }
     }
 
     /**
-     * Discard the futures used to track components responding to PreComponentUpdateEvent. This is invoked when
-     * the max time limit to respond to PreComponentUpdateEvent is reached.
+     * Discard the futures used to track components responding to PreComponentUpdateEvent. This is invoked when the max
+     * time limit to respond to PreComponentUpdateEvent is reached.
      */
     public void discardDeferComponentUpdateFutures() {
         log.debug("Discarding {} DeferComponentUpdateRequest futures", deferUpdateFuturesMap.size());

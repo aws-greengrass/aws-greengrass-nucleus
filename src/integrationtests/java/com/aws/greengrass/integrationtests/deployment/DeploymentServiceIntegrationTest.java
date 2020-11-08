@@ -5,12 +5,12 @@
 
 package com.aws.greengrass.integrationtests.deployment;
 
+import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.Deployment;
-import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -19,7 +19,7 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.aws.greengrass.testcommons.testutilities.NoOpArtifactHandler;
+import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,7 +67,7 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
     void before(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         kernel = new Kernel();
-        NoOpArtifactHandler.register(kernel);
+        NoOpPathOwnershipHandler.register(kernel);
         kernel.parseArgs("-i",
                 DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
         // ensure deployment service starts
@@ -139,31 +139,31 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
                 ipcEventStreamClient.subscribeToComponentUpdates(new SubscribeToComponentUpdatesRequest(),
                         Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
 
-                            @Override
-                            public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
-                                if (streamEvent.getPreUpdateEvent() != null) {
-                                    try {
-                                        DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
-                                        deferComponentUpdateRequest.setRecheckAfterMs(TimeUnit.SECONDS.toMillis(60));
-                                        deferComponentUpdateRequest.setMessage("Test");
-                                        ipcEventStreamClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty())
-                                                .getResponse().get(DEFAULT_IPC_API_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                                    }
-                                }
+                    @Override
+                    public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                        if (streamEvent.getPreUpdateEvent() != null) {
+                            try {
+                                DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+                                deferComponentUpdateRequest.setRecheckAfterMs(TimeUnit.SECONDS.toMillis(60));
+                                deferComponentUpdateRequest.setMessage("Test");
+                                ipcEventStreamClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty())
+                                        .getResponse().get(DEFAULT_IPC_API_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                            } catch (InterruptedException | ExecutionException | TimeoutException e) {
                             }
+                        }
+                    }
 
-                            @Override
-                            public boolean onStreamError(Throwable error) {
-                                logger.atError().setCause(error).log("Caught error stream when subscribing for component " + "updates");
-                                return false;
-                            }
+                    @Override
+                    public boolean onStreamError(Throwable error) {
+                        logger.atError().setCause(error).log("Caught error stream when subscribing for component " + "updates");
+                        return false;
+                    }
 
-                            @Override
-                            public void onStreamClosed() {
+                    @Override
+                    public void onStreamClosed() {
 
-                            }
-                        }));
+                    }
+                }));
 
                 assertTrue(cdlDeployNonDisruptable.await(30, TimeUnit.SECONDS));
                 submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
@@ -177,10 +177,10 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
     }
 
     private void submitSampleJobDocument(URI uri, String arn, DeploymentType type) throws Exception {
-        FleetConfiguration fleetConfiguration = OBJECT_MAPPER.readValue(new File(uri), FleetConfiguration.class);
-        fleetConfiguration.setCreationTimestamp(System.currentTimeMillis());
-        fleetConfiguration.setConfigurationArn(arn);
-        Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(fleetConfiguration), type, fleetConfiguration.getConfigurationArn());
+        Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(uri), Configuration.class);
+        deploymentConfiguration.setCreationTimestamp(System.currentTimeMillis());
+        deploymentConfiguration.setConfigurationArn(arn);
+        Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(deploymentConfiguration), type, deploymentConfiguration.getConfigurationArn());
         deploymentQueue.offer(deployment);
     }
 }

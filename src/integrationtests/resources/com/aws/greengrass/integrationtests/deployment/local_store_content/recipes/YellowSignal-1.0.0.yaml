@@ -4,13 +4,12 @@ ComponentName: YellowSignal
 ComponentDescription: A service signalling proceed with caution
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
+ComponentConfiguration:
+  DefaultConfiguration:
+    message: This is a test
 Manifests:
   - Platform:
       os: all
-    Parameters:
-      - name: message
-        type: STRING
-        value: This is a test
     Lifecycle:
-      run:
-        "echo proceed with caution {{params:message.value}}"
+      run: |-
+        echo "proceed with caution {configuration:/message}"

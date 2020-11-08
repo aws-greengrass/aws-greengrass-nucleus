@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.builtin.services.configstore;
 
-import com.amazonaws.services.evergreen.model.InternalServerException;
 import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
@@ -18,6 +17,7 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -37,6 +37,7 @@ import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 import software.amazon.awssdk.aws.greengrass.model.ResourceNotFoundError;
 import software.amazon.awssdk.aws.greengrass.model.SendConfigurationValidityReportRequest;
 import software.amazon.awssdk.aws.greengrass.model.SendConfigurationValidityReportResponse;
+import software.amazon.awssdk.aws.greengrass.model.ServiceError;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToConfigurationUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToConfigurationUpdateResponse;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToValidateConfigurationUpdatesRequest;
@@ -57,10 +58,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.ipc.common.ExceptionUtil.translateExceptions;
 
 public class ConfigStoreIPCEventStreamAgent {
     private static final Logger logger = LogManager.getLogger(ConfigStoreIPCEventStreamAgent.class);
@@ -70,13 +73,13 @@ public class ConfigStoreIPCEventStreamAgent {
     private final ConcurrentHashMap<String, Set<StreamEventPublisher<ConfigurationUpdateEvents>>>
             configUpdateListeners = new ConcurrentHashMap<>();
     @Getter(AccessLevel.PACKAGE)
-    private final ConcurrentHashMap<String, Consumer<Map<String, Object>>>
-            configValidationListeners = new ConcurrentHashMap<>();
-    // Map of component --> future to complete with validation status received from service in response to validate
-    // event
-    @Getter(AccessLevel.PACKAGE)
-    private final Map<String, CompletableFuture<ConfigurationValidityReport>> configValidationReportFutures =
+    private final ConcurrentHashMap<String, BiConsumer<String, Map<String, Object>>> configValidationListeners =
             new ConcurrentHashMap<>();
+    // Map of component + deployment id --> future to complete with validation status received from service in response
+    // to validate event
+    @Getter(AccessLevel.PACKAGE)
+    private final Map<Pair<String, String>, CompletableFuture<ConfigurationValidityReport>>
+            configValidationReportFutures = new ConcurrentHashMap<>();
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
@@ -97,8 +100,7 @@ public class ConfigStoreIPCEventStreamAgent {
         return new UpdateConfigurationOperationHandler(context);
     }
 
-    public GetConfigurationOperationHandler getGetConfigurationHandler(
-            OperationContinuationHandlerContext context) {
+    public GetConfigurationOperationHandler getGetConfigurationHandler(OperationContinuationHandlerContext context) {
         return new GetConfigurationOperationHandler(context);
     }
 
@@ -107,8 +109,8 @@ public class ConfigStoreIPCEventStreamAgent {
         return new SendConfigurationValidityReportOperationHandler(context);
     }
 
-    class SendConfigurationValidityReportOperationHandler extends
-            GeneratedAbstractSendConfigurationValidityReportOperationHandler {
+    class SendConfigurationValidityReportOperationHandler
+            extends GeneratedAbstractSendConfigurationValidityReportOperationHandler {
         private final String serviceName;
 
         protected SendConfigurationValidityReportOperationHandler(OperationContinuationHandlerContext context) {
@@ -129,24 +131,29 @@ public class ConfigStoreIPCEventStreamAgent {
          */
         @Override
         public SendConfigurationValidityReportResponse handleRequest(SendConfigurationValidityReportRequest request) {
-            // GG_NEEDS_REVIEW: TODO: Input validation. P32540011
-            logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC report config validation request");
-            // GG_NEEDS_REVIEW: TODO
-            // TODO : Edge case - With the current API model, there is no way to associate a validation report from
-            //  client with the event sent from server, meaning if event 1 from server was abandoned due to timeout,
-            //  then event 2 was triggered, then report in response to event 1 arrives, server won't detect this.
-            CompletableFuture<ConfigurationValidityReport> reportFuture =
-                    configValidationReportFutures.get(serviceName);
-            if (reportFuture == null) {
-                throw new InvalidArgumentsError("Validation request either timed out or was never made");
-            }
+            return translateExceptions(() -> {
+                // TODO: [P32540011]: All IPC service requests need input validation
+                logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC report config validation request");
 
-            if (!reportFuture.isCancelled()) {
-                reportFuture.complete(request.getConfigurationValidityReport());
-            }
-            configValidationReportFutures.remove(serviceName);
+                if (request.getConfigurationValidityReport().getDeploymentId() == null) {
+                    throw new InvalidArgumentsError(
+                            "Cannot accept configuration validity report, the deployment ID provided was null");
+                }
+                Pair<String, String> serviceDeployment =
+                        new Pair<>(serviceName, request.getConfigurationValidityReport().getDeploymentId());
+                CompletableFuture<ConfigurationValidityReport> reportFuture =
+                        configValidationReportFutures.get(serviceDeployment);
+                if (reportFuture == null) {
+                    throw new InvalidArgumentsError("Validation request either timed out or was never made");
+                }
 
-            return new SendConfigurationValidityReportResponse();
+                if (!reportFuture.isCancelled()) {
+                    reportFuture.complete(request.getConfigurationValidityReport());
+                }
+                configValidationReportFutures.remove(serviceDeployment);
+
+                return new SendConfigurationValidityReportResponse();
+            });
         }
 
         @Override
@@ -171,50 +178,52 @@ public class ConfigStoreIPCEventStreamAgent {
         /**
          * Read specified key from the service's dynamic config.
          *
-         * @param request   request
+         * @param request request
          * @return response data
          */
         @Override
         public GetConfigurationResponse handleRequest(GetConfigurationRequest request) {
-            logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC get config request");
-            String finalServiceName = request.getComponentName() == null ? this.serviceName
-                    : request.getComponentName();
-            Topics serviceTopics = kernel.findServiceTopic(finalServiceName);
+            return translateExceptions(() -> {
+                logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC get config request");
+                String finalServiceName =
+                        request.getComponentName() == null ? this.serviceName : request.getComponentName();
+                Topics serviceTopics = kernel.findServiceTopic(finalServiceName);
 
-            if (serviceTopics == null) {
-                throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
-            }
-
-            Topics configTopics = serviceTopics.findInteriorChild(PARAMETERS_CONFIG_KEY);
-            if (configTopics == null) {
-                throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
-            }
-
-            Node node;
-            if (Utils.isEmpty(request.getKeyPath())) {
-                // Request is for reading all configuration
-                node = configTopics;
-            } else {
-                String[] keyPath = request.getKeyPath().toArray(new String[0]);
-                node = configTopics.findNode(keyPath);
-                if (node == null) {
+                if (serviceTopics == null) {
                     throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
                 }
-            }
 
-            GetConfigurationResponse response = new GetConfigurationResponse();
-            response.setComponentName(finalServiceName);
-            if (node instanceof Topic) {
-                Map<String, Object> map = new HashMap<>();
-                map.put(node.getName(), ((Topic) node).getOnce());
-                response.setValue(map);
-            } else if (node instanceof Topics) {
-                response.setValue(((Topics) node).toPOJO());
-            } else {
-                logger.atError().log("Somehow Node has an unknown type {}", node.getClass());
-                throw new InternalServerException("Node has an unknown type");
-            }
-            return response;
+                Topics configTopics = serviceTopics.findInteriorChild(PARAMETERS_CONFIG_KEY);
+                if (configTopics == null) {
+                    throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
+                }
+
+                Node node;
+                if (Utils.isEmpty(request.getKeyPath())) {
+                    // Request is for reading all configuration
+                    node = configTopics;
+                } else {
+                    String[] keyPath = request.getKeyPath().toArray(new String[0]);
+                    node = configTopics.findNode(keyPath);
+                    if (node == null) {
+                        throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
+                    }
+                }
+
+                GetConfigurationResponse response = new GetConfigurationResponse();
+                response.setComponentName(finalServiceName);
+                if (node instanceof Topic) {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put(node.getName(), ((Topic) node).getOnce());
+                    response.setValue(map);
+                } else if (node instanceof Topics) {
+                    response.setValue(((Topics) node).toPOJO());
+                } else {
+                    logger.atError().log("Somehow Node has an unknown type {}", node.getClass());
+                    throw new ServiceError("Node has an unknown type");
+                }
+                return response;
+            });
         }
 
         @Override
@@ -245,64 +254,64 @@ public class ConfigStoreIPCEventStreamAgent {
         @SuppressWarnings("PMD.PreserveStackTrace")
         @Override
         public UpdateConfigurationResponse handleRequest(UpdateConfigurationRequest request) {
-            logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC config update request");
-            if (Utils.isEmpty(request.getKeyPath())) {
-                throw new InvalidArgumentsError("Key is required");
-            }
+            return translateExceptions(() -> {
+                logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC config update request");
+                if (Utils.isEmpty(request.getKeyPath())) {
+                    throw new InvalidArgumentsError("Key is required");
+                }
 
-            if (request.getComponentName() != null && !serviceName.equals(request.getComponentName())) {
-                throw new InvalidArgumentsError("Cross component updates are not allowed");
-            }
+                if (request.getComponentName() != null && !serviceName.equals(request.getComponentName())) {
+                    throw new InvalidArgumentsError("Cross component updates are not allowed");
+                }
 
-            Topics serviceTopics = kernel.findServiceTopic(serviceName);
-            if (serviceTopics == null) {
-                throw new InvalidArgumentsError("Service config not found");
-            }
-            Topics configTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
-            String[] keyPath = request.getKeyPath().toArray(new String[0]);
-            Node node = configTopics.findNode(keyPath);
-            if (node == null) {
+                Topics serviceTopics = kernel.findServiceTopic(serviceName);
+                if (serviceTopics == null) {
+                    throw new InvalidArgumentsError("Service config not found");
+                }
+                Topics configTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
+                String[] keyPath = request.getKeyPath().toArray(new String[0]);
+                Node node = configTopics.findNode(keyPath);
+                if (node == null) {
+                    try {
+                        configTopics.lookup(keyPath)
+                                .withValueChecked(request.getNewValue().get(keyPath[keyPath.length - 1]));
+                    } catch (UnsupportedInputTypeException e) {
+                        throw new InvalidArgumentsError(e.getMessage());
+                    }
+                    return new UpdateConfigurationResponse();
+                }
+                // TODO :[P41210581]: UpdateConfiguration API should support updating nested configuration
+                if (node instanceof Topics) {
+                    throw new InvalidArgumentsError("Cannot update a non-leaf config node");
+                }
+                if (!(node instanceof Topic)) {
+                    logger.atError().kv(SERVICE_NAME, serviceName)
+                            .log("Somehow Node has an unknown type {}", node.getClass());
+                    throw new InvalidArgumentsError("Node has an unknown type");
+                }
+                Topic topic = (Topic) node;
+
+                // Perform compare and swap if the customer has specified current value to compare
+                if (request.getOldValue() != null && request.getOldValue().get(topic.getName()) != null && !request
+                        .getOldValue().get(topic.getName()).equals(topic.getOnce())) {
+                    throw new FailedUpdateConditionCheckError(
+                            "Current value for config is different from the current value needed for the update");
+                }
+
                 try {
-                    configTopics.lookup(keyPath).withValueChecked(request.getNewValue().get(keyPath[0]));
+                    Topic updatedNode = topic.withValueChecked(request.getTimestamp().toEpochMilli(),
+                            request.getNewValue().get(topic.getName()));
+                    if (request.getTimestamp().toEpochMilli() != updatedNode.getModtime() && !request.getNewValue()
+                            .equals(updatedNode.getOnce())) {
+                        throw new FailedUpdateConditionCheckError(
+                                "Proposed timestamp is older than the config's latest modified timestamp");
+                    }
                 } catch (UnsupportedInputTypeException e) {
                     throw new InvalidArgumentsError(e.getMessage());
                 }
+
                 return new UpdateConfigurationResponse();
-            }
-            // GG_NEEDS_REVIEW: TODO
-            // TODO : Does not support updating internal nodes, at least yet, will need to decide if that
-            //  should be a merge/replace or a choice for customers to make. We'll gain clarity once
-            //  nested config support at the component recipe and deployment level is hashed out.
-            if (node instanceof Topics) {
-                throw new InvalidArgumentsError("Cannot update a " + "non-leaf config node");
-            }
-            if (!(node instanceof Topic)) {
-                logger.atError().kv(SERVICE_NAME, serviceName)
-                        .log("Somehow Node has an unknown type {}", node.getClass());
-                throw new InvalidArgumentsError("Node has an unknown type");
-            }
-            Topic topic = (Topic) node;
-
-            // Perform compare and swap if the customer has specified current value to compare
-            if (request.getOldValue() != null && request.getOldValue().get(topic.getName()) != null
-                    && !request.getOldValue().get(topic.getName()).equals(topic.getOnce())) {
-                throw new FailedUpdateConditionCheckError(
-                        "Current value for config is different from the current value needed for the update");
-            }
-
-            try {
-                Topic updatedNode = topic.withValueChecked(request.getTimestamp().toEpochMilli(),
-                        request.getNewValue().get(topic.getName()));
-                if (request.getTimestamp().toEpochMilli() != updatedNode.getModtime() && !request.getNewValue()
-                        .equals(updatedNode.getOnce())) {
-                    throw new FailedUpdateConditionCheckError(
-                            "Proposed timestamp is older than the config's latest modified timestamp");
-                }
-            } catch (UnsupportedInputTypeException e) {
-                throw new InvalidArgumentsError(e.getMessage());
-            }
-
-            return new UpdateConfigurationResponse();
+            });
         }
 
         @Override
@@ -311,8 +320,8 @@ public class ConfigStoreIPCEventStreamAgent {
         }
     }
 
-    public class ConfigurationUpdateOperationHandler extends
-            GeneratedAbstractSubscribeToConfigurationUpdateOperationHandler {
+    public class ConfigurationUpdateOperationHandler
+            extends GeneratedAbstractSubscribeToConfigurationUpdateOperationHandler {
         private final String serviceName;
         private Node subscribedToNode;
         private Watcher subscribedToWatcher;
@@ -337,36 +346,38 @@ public class ConfigStoreIPCEventStreamAgent {
 
         @Override
         public SubscribeToConfigurationUpdateResponse handleRequest(SubscribeToConfigurationUpdateRequest request) {
-            String componentName = request.getComponentName() == null ? this.serviceName : request.getComponentName();
+            return translateExceptions(() -> {
+                String componentName =
+                        request.getComponentName() == null ? this.serviceName : request.getComponentName();
 
-            Topics serviceTopics = kernel.findServiceTopic(componentName);
-            if (serviceTopics == null) {
-                throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
-            }
+                Topics serviceTopics = kernel.findServiceTopic(componentName);
+                if (serviceTopics == null) {
+                    throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
+                }
 
-            Topics configurationTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
-            if (configurationTopics == null) {
-                throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
-            }
+                Topics configurationTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
+                if (configurationTopics == null) {
+                    throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
+                }
 
-            Node subscribeTo = getNodeToSubscribeTo(configurationTopics, request.getKeyPath());
-            if (subscribeTo == null) {
-                throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
-            }
+                Node subscribeTo = getNodeToSubscribeTo(configurationTopics, request.getKeyPath());
+                if (subscribeTo == null) {
+                    throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
+                }
 
-            Optional<Watcher> watcher = registerWatcher(subscribeTo, componentName);
-            if (!watcher.isPresent()) {
-                throw new InternalServerException(KEY_NOT_FOUND_ERROR_MESSAGE);
-            }
+                Optional<Watcher> watcher = registerWatcher(subscribeTo, componentName);
+                if (!watcher.isPresent()) {
+                    throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
+                }
 
-            logger.atInfo().kv(SERVICE_NAME, serviceName)
-                    .log("{} subscribed to configuration update", serviceName);
-            subscribedToNode = subscribeTo;
-            subscribedToWatcher = watcher.get();
-            configUpdateListeners.putIfAbsent(serviceName, ConcurrentHashMap.newKeySet());
-            configUpdateListeners.get(serviceName).add(this);
+                logger.atInfo().kv(SERVICE_NAME, serviceName).log("{} subscribed to configuration update", serviceName);
+                subscribedToNode = subscribeTo;
+                subscribedToWatcher = watcher.get();
+                configUpdateListeners.putIfAbsent(serviceName, ConcurrentHashMap.newKeySet());
+                configUpdateListeners.get(serviceName).add(this);
 
-            return new SubscribeToConfigurationUpdateResponse();
+                return new SubscribeToConfigurationUpdateResponse();
+            });
         }
 
         @Override
@@ -404,8 +415,8 @@ public class ConfigStoreIPCEventStreamAgent {
             // then the path in update event should be key_1.nested_key_1
             int configurationTopicsIndex =
                     kernel.findServiceTopic(componentName).lookupTopics(PARAMETERS_CONFIG_KEY).path().length - 1;
-            String[] keyPath = Arrays.copyOfRange(changedNode.path(), configurationTopicsIndex + 1,
-                    changedNode.path().length);
+            String[] keyPath =
+                    Arrays.copyOfRange(changedNode.path(), configurationTopicsIndex + 1, changedNode.path().length);
 
             sendConfigUpdateToListener(componentName).accept(keyPath);
         }
@@ -433,8 +444,8 @@ public class ConfigStoreIPCEventStreamAgent {
         }
     }
 
-    class ValidateConfigurationUpdatesOperationHandler extends
-            GeneratedAbstractSubscribeToValidateConfigurationUpdatesOperationHandler {
+    class ValidateConfigurationUpdatesOperationHandler
+            extends GeneratedAbstractSubscribeToValidateConfigurationUpdatesOperationHandler {
 
         private final String serviceName;
 
@@ -451,10 +462,12 @@ public class ConfigStoreIPCEventStreamAgent {
         @Override
         public SubscribeToValidateConfigurationUpdatesResponse handleRequest(
                 SubscribeToValidateConfigurationUpdatesRequest request) {
-            // GG_NEEDS_REVIEW: TODO: Input validation. P32540011
-            configValidationListeners.computeIfAbsent(serviceName, key -> sendConfigValidationEvent());
-            logger.atInfo().kv(SERVICE_NAME, serviceName).log("Config IPC subscribe to config validation request");
-            return new SubscribeToValidateConfigurationUpdatesResponse();
+            return translateExceptions(() -> {
+                // TODO: [P32540011]: All IPC service requests need input validation
+                configValidationListeners.computeIfAbsent(serviceName, key -> sendConfigValidationEvent());
+                logger.atInfo().kv(SERVICE_NAME, serviceName).log("Config IPC subscribe to config validation request");
+                return new SubscribeToValidateConfigurationUpdatesResponse();
+            });
         }
 
         @Override
@@ -462,11 +475,12 @@ public class ConfigStoreIPCEventStreamAgent {
             // NA
         }
 
-        private Consumer<Map<String, Object>> sendConfigValidationEvent() {
-            return configuration -> {
+        private BiConsumer<String, Map<String, Object>> sendConfigValidationEvent() {
+            return (deploymentId, configuration) -> {
                 ValidateConfigurationUpdateEvents events = new ValidateConfigurationUpdateEvents();
                 ValidateConfigurationUpdateEvent validationEvent = new ValidateConfigurationUpdateEvent();
                 validationEvent.setConfiguration(configuration);
+                validationEvent.setDeploymentId(deploymentId);
                 events.setValidateConfigurationUpdateEvent(validationEvent);
                 logger.atDebug().kv(SERVICE_NAME, serviceName)
                         .log("Requesting validation for component config {}", configuration);
@@ -480,25 +494,25 @@ public class ConfigStoreIPCEventStreamAgent {
      * Trigger a validate event to service/component, typically used during deployments.
      *
      * @param componentName service/component to send validate event to
+     * @param deploymentId  deployment id which is being validated
      * @param configuration new component configuration to validate
      * @param reportFuture  future to track validation report in response to the event
      * @return true if the service has registered a validator, false if not
      * @throws ValidateEventRegistrationException throws when triggering requested validation event failed
      */
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    public boolean validateConfiguration(String componentName, Map<String, Object> configuration,
+    public boolean validateConfiguration(String componentName, String deploymentId, Map<String, Object> configuration,
                                          CompletableFuture<ConfigurationValidityReport> reportFuture)
             throws ValidateEventRegistrationException {
-        for (Map.Entry<String, Consumer<Map<String, Object>>> e : configValidationListeners.entrySet()) {
+        for (Map.Entry<String, BiConsumer<String, Map<String, Object>>> e : configValidationListeners.entrySet()) {
             if (e.getKey().equals(componentName)) {
                 try {
-                    e.getValue().accept(configuration);
-                    configValidationReportFutures.put(componentName, reportFuture);
+                    e.getValue().accept(deploymentId, configuration);
+                    configValidationReportFutures.put(new Pair<>(componentName, deploymentId), reportFuture);
                     return true;
                 } catch (Exception ex) {
-                    // GG_NEEDS_REVIEW: TODO
-                    // TODO : Catch specific exceptions in sending service event when an equivalent utility of
-                    //  ServiceEventHelper.sendServiceEvent() is available as part of the event stream based server
+                    // TODO: [P41211196]: Retries, timeouts & and better exception handling in sending server event to
+                    //  components
                     throw new ValidateEventRegistrationException(ex);
                 }
             }
@@ -510,12 +524,13 @@ public class ConfigStoreIPCEventStreamAgent {
      * Abandon tracking for report of configuration validation event. Can be used by the caller in the case of timeouts
      * or other errors.
      *
+     * @param deploymentId  the deployment id which is being validated
      * @param componentName component name to abandon validation for
      * @param reportFuture  tracking future for validation report to abandon
      * @return true if abandon request was successful
      */
-    public boolean discardValidationReportTracker(String componentName,
+    public boolean discardValidationReportTracker(String deploymentId, String componentName,
                                                   CompletableFuture<ConfigurationValidityReport> reportFuture) {
-        return configValidationReportFutures.remove(componentName, reportFuture);
+        return configValidationReportFutures.remove(new Pair<>(componentName, deploymentId), reportFuture);
     }
 }

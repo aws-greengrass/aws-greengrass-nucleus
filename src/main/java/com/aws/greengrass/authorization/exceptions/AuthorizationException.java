@@ -6,7 +6,7 @@
 package com.aws.greengrass.authorization.exceptions;
 
 public class AuthorizationException extends Exception {
-    // GG_NEEDS_REVIEW: TODO: define better exceptions for AuthZ
+    // TODO: [P41179323]: Define better AuthZ exceptions
     static final long serialVersionUID = -3387516993124229948L;
 
     public AuthorizationException(String message) {

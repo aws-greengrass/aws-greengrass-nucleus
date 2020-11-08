@@ -19,6 +19,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
+import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.SerializerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -66,6 +67,8 @@ import javax.inject.Inject;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
+import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_ACCEPTED_TOPIC;
+import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_REJECTED_TOPIC;
 
 @NoArgsConstructor
 public class IotJobsHelper implements InjectionActions {
@@ -120,6 +123,9 @@ public class IotJobsHelper implements InjectionActions {
     private DeploymentStatusKeeper deploymentStatusKeeper;
 
     @Inject
+    private FleetStatusService fleetStatusService;
+
+    @Inject
     private Kernel kernel;
 
     @Inject
@@ -136,6 +142,8 @@ public class IotJobsHelper implements InjectionActions {
 
     @Setter // For tests
     private IotJobsClient iotJobsClient;
+    @Setter // For tests
+    private IotJobsClientWrapper iotJobsClientWrapper;
     private final Consumer<JobExecutionsChangedEvent> eventHandler = event -> {
         /*
          * This message is received when either of these things happen
@@ -193,7 +201,7 @@ public class IotJobsHelper implements InjectionActions {
         try {
             documentString = SerializerFactory.getJsonObjectMapper().writeValueAsString(jobExecutionData.jobDocument);
         } catch (JsonProcessingException e) {
-            // GG_NEEDS_REVIEW: TODO: Handle when job document is incorrect json.
+            // TODO: [P41179444] Handle when job document is incorrect json.
             // This should not happen as we are converting a HashMap
             return;
         }
@@ -238,7 +246,8 @@ public class IotJobsHelper implements InjectionActions {
                   ExecutorService executorService,
                   Kernel kernel,
                   WrapperMqttConnectionFactory wrapperMqttConnectionFactory,
-                  MqttClient mqttClient) {
+                  MqttClient mqttClient,
+                  FleetStatusService fleetStatusService) {
         this.deviceConfiguration = deviceConfiguration;
         this.iotJobsClientFactory = iotJobsClientFactory;
         this.deploymentQueue = deploymentQueue;
@@ -247,6 +256,7 @@ public class IotJobsHelper implements InjectionActions {
         this.kernel = kernel;
         this.wrapperMqttConnectionFactory = wrapperMqttConnectionFactory;
         this.mqttClient = mqttClient;
+        this.fleetStatusService = fleetStatusService;
     }
 
     private static void unwrapExecutionException(ExecutionException e)
@@ -267,14 +277,20 @@ public class IotJobsHelper implements InjectionActions {
         try {
             deviceConfiguration.validate();
         } catch (DeviceConfigurationException e) {
-            // GG_NEEDS_REVIEW: TODO: If the device configurations are updated later, while the kernel is running,
-            //  then device should attempt to connect to AWS Iot cloud again
             logger.atWarn().log("Device not configured to talk to AWS Iot cloud. Device will run in offline mode");
             return;
         }
         mqttClient.addToCallbackEvents(callbacks);
         this.connection = wrapperMqttConnectionFactory.getAwsIotMqttConnection(mqttClient);
+
+        // Here we use two IoT jobs client, so as to be compatible with old MQTT topics for jobs (iotJobsClient),
+        // as well as the new topics (iotJobsClientWrapper) during GG Cloud integration with jobs namespace, while
+        // device SDK is not available. Two follow-ups needed here:
+        // TODO: [P41016163] After GG cloud changes are completed, keep only one client (IotJobsClientWrapper)
+        // GG_NEEDS_REVIEW: TODO: switch back to IotJobsClient after IoT device sdk updated for jobs namespace
         this.iotJobsClient = iotJobsClientFactory.getIotJobsClient(connection);
+        this.iotJobsClientWrapper = iotJobsClientFactory.getIotJobsClientWrapper(connection);
+
         logger.dfltKv("ThingName", (Supplier<String>) () ->
                 Coerce.toString(deviceConfiguration.getThingName()));
 
@@ -283,6 +299,7 @@ public class IotJobsHelper implements InjectionActions {
             logger.atInfo().log("Connection established to IoT cloud");
             deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS,
                     this::deploymentStatusChanged, IotJobsHelper.class.getName());
+            this.fleetStatusService.updateFleetStatusUpdateForAllComponents();
         });
     }
 
@@ -346,10 +363,27 @@ public class IotJobsHelper implements InjectionActions {
 
         iotJobsClient.SubscribeToUpdateJobExecutionRejected(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
                 (response) -> {
-                    logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
-                            .log("Job status updated rejected");
-                    // GG_NEEDS_REVIEW: TODO: Can this be due to duplicate messages being sent for the job?
-                    gotResponse.completeExceptionally(new Exception(response.message));
+                    if (!response.message.startsWith("Namespace id not match for requested")) {
+                        logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+                                .log("Job status updated rejected");
+                        gotResponse.completeExceptionally(new Exception(response.message));
+                    }
+                });
+
+        iotJobsClientWrapper.SubscribeToUpdateJobExecutionAccepted(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
+                (response) -> {
+                    logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+                            .log(UPDATE_DEPLOYMENT_STATUS_ACCEPTED);
+                    gotResponse.complete(null);
+                });
+
+        iotJobsClientWrapper.SubscribeToUpdateJobExecutionRejected(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
+                (response) -> {
+                    if (!response.message.startsWith("Namespace id not match for requested")) {
+                        logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+                                .log("Job status updated rejected");
+                        gotResponse.completeExceptionally(new Exception(response.message));
+                    }
                 });
 
         UpdateJobExecutionRequest updateJobRequest = new UpdateJobExecutionRequest();
@@ -359,6 +393,7 @@ public class IotJobsHelper implements InjectionActions {
         updateJobRequest.thingName = thingName;
         try {
             iotJobsClient.PublishUpdateJobExecution(updateJobRequest, QualityOfService.AT_LEAST_ONCE).get();
+            iotJobsClientWrapper.PublishUpdateJobExecution(updateJobRequest, QualityOfService.AT_LEAST_ONCE).get();
         } catch (ExecutionException e) {
             try {
                 unwrapExecutionException(e);
@@ -379,6 +414,9 @@ public class IotJobsHelper implements InjectionActions {
             String acceptTopicForJobId =
                     UPDATE_SPECIFIC_JOB_ACCEPTED_TOPIC.replace("{thingName}", thingName).replace("{jobId}", jobId);
             connection.unsubscribe(acceptTopicForJobId);
+
+            connection.unsubscribe(String.format(JOB_UPDATE_ACCEPTED_TOPIC, thingName, jobId));
+            connection.unsubscribe(String.format(JOB_UPDATE_REJECTED_TOPIC, thingName, jobId));
         }
     }
 
@@ -394,6 +432,7 @@ public class IotJobsHelper implements InjectionActions {
         //This method is specifically called from an async event notification handler. Async handler cannot block on
         // this future as that will freeze the MQTT connection.
         iotJobsClient.PublishDescribeJobExecution(describeJobExecutionRequest, QualityOfService.AT_LEAST_ONCE);
+        iotJobsClientWrapper.PublishDescribeJobExecution(describeJobExecutionRequest, QualityOfService.AT_LEAST_ONCE);
         logger.atDebug().log("Requesting the next deployment");
     }
 
@@ -442,15 +481,21 @@ public class IotJobsHelper implements InjectionActions {
                         .SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
                                 QualityOfService.AT_LEAST_ONCE, consumerReject);
                 subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+
+                subscribed = iotJobsClientWrapper
+                        .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
+                                QualityOfService.AT_LEAST_ONCE, consumerAccept);
+                subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+                subscribed = iotJobsClientWrapper
+                        .SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
+                                QualityOfService.AT_LEAST_ONCE, consumerReject);
+                subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+
                 logger.atInfo().log("Subscribed to deployment job execution update.");
                 break;
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();
                 if (cause instanceof MqttException || cause instanceof TimeoutException) {
-                    // GG_NEEDS_REVIEW: TODO: If network is not available then it will throw MqttException
-                    // If there is any other problem like thingName is not specified in the request then also
-                    // it throws Mqtt exception. This can be identified based on error code. Currently error code is not
-                    // exposed. Will make required change in CRT package to expose the error code and then update this
                     logger.atWarn().setCause(cause).log(SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE);
                 }
                 if (cause instanceof InterruptedException) {
@@ -493,15 +538,16 @@ public class IotJobsHelper implements InjectionActions {
                     QualityOfService.AT_LEAST_ONCE, eventHandler);
             try {
                 subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+
+                subscribed = iotJobsClientWrapper.SubscribeToJobExecutionsChangedEvents(request,
+                        QualityOfService.AT_LEAST_ONCE, eventHandler);
+                subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+
                 logger.atInfo().log("Subscribed to deployment job event notifications.");
                 break;
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();
                 if (cause instanceof MqttException || cause instanceof TimeoutException) {
-                    // GG_NEEDS_REVIEW: TODO: If network is not available then it will throw MqttException
-                    // If there is any other problem like thingName is not specified in the request then also
-                    // it throws Mqtt exception. This can be identified based on error code. Currently error code is not
-                    // exposed. Will make required change in CRT package to expose the error code and then update this
                     logger.atWarn().setCause(cause).log(SUBSCRIPTION_EVENT_NOTIFICATIONS_RETRY);
                 }
                 if (cause instanceof InterruptedException) {
@@ -557,6 +603,10 @@ public class IotJobsHelper implements InjectionActions {
     public static class IotJobsClientFactory {
         public IotJobsClient getIotJobsClient(MqttClientConnection connection) {
             return new IotJobsClient(connection);
+        }
+
+        public IotJobsClientWrapper getIotJobsClientWrapper(MqttClientConnection connection) {
+            return new IotJobsClientWrapper(connection);
         }
     }
 

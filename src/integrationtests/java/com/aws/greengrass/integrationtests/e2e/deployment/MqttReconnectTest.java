@@ -5,9 +5,9 @@
 
 package com.aws.greengrass.integrationtests.e2e.deployment;
 
-import com.amazonaws.services.evergreen.model.PackageMetaData;
-import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
-import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
+import com.amazonaws.services.evergreen.model.ComponentInfo;
+import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
+import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
@@ -101,12 +101,10 @@ class MqttReconnectTest extends BaseE2ETestCase {
         CountDownLatch connectionInterrupted = new CountDownLatch(1);
 
         // Create Job
-        SetConfigurationRequest setRequest =
-                new SetConfigurationRequest().withTargetName(thingGroupName).withTargetType(THING_GROUP_TARGET_TYPE)
-                        .addPackagesEntry("CustomerApp",
-                                new PackageMetaData().withRootComponent(true).withVersion("1.0.0"));
-        PublishConfigurationResult publishResult = setAndPublishFleetConfiguration(setRequest);
-        String jobId = publishResult.getJobId();
+        CreateDeploymentRequest createDeploymentRequest = new CreateDeploymentRequest()
+                .addComponentsEntry("CustomerApp", new ComponentInfo().withVersion("1.0.0"));
+        CreateDeploymentResult result = draftAndCreateDeployment(createDeploymentRequest);
+        String jobId = result.getJobId();
 
         // Subscribe to persisted deployment status
         Topics deploymentServiceTopics =

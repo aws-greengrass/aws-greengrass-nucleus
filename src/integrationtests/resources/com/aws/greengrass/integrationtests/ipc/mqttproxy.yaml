@@ -16,7 +16,8 @@ services:
                 "aws.greengrass#SubscribeToIoTCore"
               ],
               "resources":[
-                "A/B/C"
+                "A/+/C",
+                "X/Y/#"
               ]
             }
           }

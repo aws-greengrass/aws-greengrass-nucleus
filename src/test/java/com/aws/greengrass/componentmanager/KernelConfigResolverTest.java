@@ -466,7 +466,7 @@ class KernelConfigResolverTest {
 
         ComponentRecipe rootComponentRecipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
                 rootComponentIdentifier.getVersion(), "", "", null, Collections.emptySet(), new HashMap<String, Object>() {{
-            put(LIFECYCLE_RUN_KEY, "java -jar {{artifacts:path}}/test.jar -x arg");
+            put(LIFECYCLE_RUN_KEY, "java -jar {artifacts:path}/test.jar -x arg");
         }}, Collections.emptyList(), Collections.emptyMap(), null);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
@@ -492,7 +492,7 @@ class KernelConfigResolverTest {
         Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
 
         Path jarPath = Paths.get("/packages/artifacts").toAbsolutePath();
-        assertThat("{{artifacts:path}} should be replace by the package's artifact path",
+        assertThat("{artifacts:path} should be replace by the package's artifact path",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
                 equalTo("java -jar " + jarPath + "/test.jar -x arg"));
     }

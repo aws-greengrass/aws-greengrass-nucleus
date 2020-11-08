@@ -94,7 +94,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class IPCCliTest {
 
     private static final int LOCAL_DEPLOYMENT_TIMEOUT_SECONDS = 15;
-    private static final int SERVICE_STATE_CHECK_TIMEOUT_SECONDS = 15;
+    private static final int SERVICE_STATE_CHECK_TIMEOUT_SECONDS = 30;
     private static final int DEFAULT_TIMEOUT_IN_SEC = 5;
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
@@ -116,7 +116,6 @@ class IPCCliTest {
         if (eventStreamRpcConnection != null) {
             eventStreamRpcConnection.disconnect();
         }
-        kernel.shutdown();
         if (kernel != null) {
             kernel.shutdown();
         }
@@ -204,7 +203,6 @@ class IPCCliTest {
         clientConnection.restartComponent(restartRequest, Optional.empty()).getResponse()
                 .get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS);
         assertTrue(serviceLatch.await(SERVICE_STATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-
     }
 
     @Test
@@ -392,5 +390,4 @@ class IPCCliTest {
         }
         return null;
     }
-
 }

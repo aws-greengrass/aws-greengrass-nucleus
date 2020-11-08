@@ -44,7 +44,7 @@ import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE
 public class DeviceConfiguration {
 
     public static final String DEFAULT_NUCLEUS_COMPONENT_NAME = "aws.greengrass.Nucleus";
-    // GG_NEEDS_REVIEW: TODO : Version should come from the installer based on which nucleus version it installed
+    // TODO: [P41179224] Version should come from the installer based on which nucleus version it installed
     public static final String NUCLEUS_COMPONENT_VERSION = "0.0.0";
 
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
@@ -56,6 +56,7 @@ public class DeviceConfiguration {
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
+    public static final String DEVICE_SPOOLER_NAMESPACE = "spooler";
     public static final String RUN_WITH_TOPIC = "runWithDefault";
     public static final String RUN_WITH_DEFAULT_POSIX_USER = "posixUser";
     public static final String RUN_WITH_DEFAULT_POSIX_GROUP = "posixGroup";
@@ -79,6 +80,7 @@ public class DeviceConfiguration {
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
+    private static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
 
     private final Kernel kernel;
 
@@ -99,8 +101,8 @@ public class DeviceConfiguration {
         deTildeValidator = getDeTildeValidator();
         regionValidator = getRegionValidator();
 
-        getComponentStoreMaxSizeBytes().withValue(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
-        getDeploymentPollingFrequencySeconds().withValue(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
+        getComponentStoreMaxSizeBytes().dflt(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
+        getDeploymentPollingFrequencySeconds().dflt(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
     }
 
     /**
@@ -152,7 +154,6 @@ public class DeviceConfiguration {
     private void initializeNucleusComponentConfig() {
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY)
                 .withValue(ComponentType.NUCLEUS.name());
-        // GG_NEEDS_REVIEW: TODO : Take version as an input from the installer script
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY)
                 .withValue(NUCLEUS_COMPONENT_VERSION);
         ArrayList<String> mainDependencies = (ArrayList) kernel.getConfig().getRoot()
@@ -220,8 +221,16 @@ public class DeviceConfiguration {
         return getRunWithTopic().lookup(RUN_WITH_DEFAULT_WINDOWS_USER);
     }
 
+    /**
+     * Get thing name configuration. Also adds the thing name to the env vars if it has changed.
+     *
+     * @return Thing name config topic.
+     */
     public Topic getThingName() {
-        return getTopic(DEVICE_PARAM_THING_NAME).dflt("");
+        Topic thingNameTopic = kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME).dflt("");
+        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, AWS_IOT_THING_NAME_ENV)
+                .withValue(Coerce.toString(thingNameTopic));
+        return thingNameTopic;
     }
 
     public Topic getCertificateFilePath() {
@@ -263,6 +272,10 @@ public class DeviceConfiguration {
         return getTopics(DEVICE_MQTT_NAMESPACE);
     }
 
+    public Topics getSpoolerNamespace() {
+        return getMQTTNamespace().lookupTopics(DEVICE_SPOOLER_NAMESPACE);
+    }
+
     public Topics getNetworkProxyNamespace() {
         return getTopics(DEVICE_NETWORK_PROXY_NAMESPACE);
     }
@@ -299,9 +312,15 @@ public class DeviceConfiguration {
         return getTopic(DEPLOYMENT_POLLING_FREQUENCY_SECONDS);
     }
 
+    /**
+     * Subscribe to all device configuration change.
+     *
+     * @param cc Subscribe handler
+     */
     public void onAnyChange(ChildChanged cc) {
         kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, CONFIGURATION_CONFIG_KEY)
                 .subscribe(cc);
+        kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY).subscribe(cc);
     }
 
     public void onTopicChange(String topicName, Subscriber s) {

@@ -12,6 +12,8 @@ import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentParameter;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
+import com.aws.greengrass.componentmanager.models.Permission;
+import com.aws.greengrass.componentmanager.models.PermissionType;
 import com.aws.greengrass.config.PlatformResolver;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -35,8 +37,27 @@ import javax.annotation.Nonnull;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE) // so that it can't be 'new'
 public final class RecipeLoader {
-    // GG_NEEDS_REVIEW: TODO add logging
+    // GG_NEEDS_REVIEW: TODO:[P41216663]: add logging
     //    private static final Logger logger = LogManager.getLogger(RecipeLoader.class);
+
+    /**
+     * Parse the recipe content to recipe object.
+     * @param recipe recipe content as string
+     * @return recipe object
+     * @throws PackageLoadingException when there are issues parsing the string
+     */
+    public static com.amazon.aws.iot.greengrass.component.common.ComponentRecipe parseRecipe(String recipe)
+            throws PackageLoadingException {
+        try {
+            return SerializerFactory.getRecipeSerializer().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                            .readValue(recipe, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
+        } catch (JsonProcessingException e) {
+            // TODO: [P41216539]: move this to common model
+            throw new PackageLoadingException(
+                    String.format("Failed to parse recipe file content to contract model. Recipe file content: '%s'.",
+                            recipe), e);
+        }
+    }
 
     /**
      * Converts from the recipe file with platform resolving.
@@ -47,19 +68,7 @@ public final class RecipeLoader {
      */
     public static Optional<ComponentRecipe> loadFromFile(String recipeFileContent) throws PackageLoadingException {
 
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe;
-        try {
-            componentRecipe =
-                    SerializerFactory.getRecipeSerializer().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                            .readValue(recipeFileContent,
-                                    com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
-        } catch (JsonProcessingException e) {
-            // GG_NEEDS_REVIEW: TODO move this to common model
-            throw new PackageLoadingException(
-                    String.format("Failed to parse recipe file content to contract model. Recipe file content: '%s'.",
-                            recipeFileContent), e);
-        }
-
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe = parseRecipe(recipeFileContent);
         if (componentRecipe.getManifests() == null || componentRecipe.getManifests().isEmpty()) {
             throw new PackageLoadingException(
                     String.format("Recipe file %s-%s.yaml is missing manifests", componentRecipe.getComponentName(),
@@ -75,7 +84,7 @@ public final class RecipeLoader {
 
         PlatformSpecificManifest platformSpecificManifest = optionalPlatformSpecificManifest.get();
 
-        // GG_NEEDS_REVIEW: TODO delete after migration of global dependencies
+        // TODO: [P41216606]: delete after migration of global dependencies
         Map<String, DependencyProperties> dependencyPropertiesMap = new HashMap<>();
         if (componentRecipe.getComponentDependencies() == null || componentRecipe.getComponentDependencies()
                 .isEmpty()) {
@@ -125,6 +134,17 @@ public final class RecipeLoader {
             @Nonnull com.amazon.aws.iot.greengrass.component.common.ComponentArtifact componentArtifact) {
         return ComponentArtifact.builder().artifactUri(componentArtifact.getUri())
                 .algorithm(componentArtifact.getAlgorithm()).checksum(componentArtifact.getDigest())
-                .unarchive(componentArtifact.getUnarchive()).build();
+                .unarchive(componentArtifact.getUnarchive())
+                .permission(convertPermissionFromFile(componentArtifact.getPermission())).build();
+    }
+
+    private static Permission convertPermissionFromFile(
+            com.amazon.aws.iot.greengrass.component.common.Permission permission) {
+        Permission.PermissionBuilder builder = Permission.builder();
+        if (permission != null) {
+            builder.read(PermissionType.fromString(permission.getRead().name()));
+            builder.execute(PermissionType.fromString(permission.getExecute().name()));
+        }
+        return builder.build();
     }
 }
