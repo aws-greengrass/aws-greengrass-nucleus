@@ -16,6 +16,7 @@ import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.RunWithGenerator;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Optional;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP;
@@ -62,75 +63,89 @@ public class UnixRunWithGenerator implements RunWithGenerator {
             isDefault = true;
         }
 
-            // fallback to nucleus user if we aren't root
-            if (Utils.isEmpty(user)) {
-                logger.atDebug()
-                        .setEventType(EVENT_TYPE)
-                        .log("No default user, check current user");
-                try {
-                    UnixUserAttributes attrs = platform.lookupCurrentUser();
-                    if (attrs.isSuperUser()) {
-                        logger.atDebug()
-                                .setEventType(EVENT_TYPE)
-                                .log("Cannot fallback to super user");
-                    } else {
-                        user = attrs.getPrincipalName();
-
-                        if (!attrs.getPrimaryGID().isPresent()) {
-                            // this should never happen - a user that is running has a group
-                            return Optional.empty();
-                        }
-                        group = Long.toString(attrs.getPrimaryGID().get());
-                        isDefault = false;
-                    }
-                } catch (IOException e) {
-                    logger.atError()
+        // fallback to nucleus user if we aren't root
+        if (Utils.isEmpty(user)) {
+            logger.atDebug()
+                    .setEventType(EVENT_TYPE)
+                    .log("No default user, check current user");
+            try {
+                UnixUserAttributes attrs = platform.lookupCurrentUser();
+                if (attrs.isSuperUser()) {
+                    logger.atDebug()
                             .setEventType(EVENT_TYPE)
-                            .setCause(e)
-                            .log("Could not lookup current user and no default or override is present.");
-                    return Optional.empty();
-                }
-            }
+                            .log("Cannot fallback to super user");
+                } else {
+                    user = attrs.getPrincipalName();
 
-            if (Utils.isEmpty(user)) {
-                logger.atDebug()
-                        .setEventType(EVENT_TYPE)
-                        .log("No user found");
-                return Optional.empty();
-            } else if (Utils.isEmpty(group)) {
-                try {
-                    UnixUserAttributes attrs = platform.lookupUserByIdentifier(user);
                     if (!attrs.getPrimaryGID().isPresent()) {
-                        logger.atWarn()
-                                .setEventType(EVENT_TYPE)
-                                .kv("user", user)
-                                .log("No primary group set for user.");
+                        // this should never happen - a user that is running has a group
                         return Optional.empty();
                     }
                     group = Long.toString(attrs.getPrimaryGID().get());
-                } catch (IOException e) {
-                    logger.atError()
+                    isDefault = false;
+                }
+            } catch (IOException e) {
+                logger.atError()
+                        .setEventType(EVENT_TYPE)
+                        .setCause(e)
+                        .log("Could not lookup current user and no default or override is present.");
+                return Optional.empty();
+            }
+        }
+
+        if (Utils.isEmpty(user)) {
+            logger.atDebug()
+                    .setEventType(EVENT_TYPE)
+                    .log("No user found");
+            return Optional.empty();
+        } else if (Utils.isEmpty(group)) {
+            try {
+                UnixUserAttributes attrs = platform.lookupUserByIdentifier(user);
+                if (!attrs.getPrimaryGID().isPresent()) {
+                    logger.atWarn()
                             .setEventType(EVENT_TYPE)
-                            .setCause(e)
                             .kv("user", user)
-                            .log("Could not lookup user.");
+                            .log("No primary group set for user.");
                     return Optional.empty();
                 }
+                group = Long.toString(attrs.getPrimaryGID().get());
+            } catch (IOException e) {
+                logger.atError()
+                        .setEventType(EVENT_TYPE)
+                        .setCause(e)
+                        .kv("user", user)
+                        .log("Could not lookup user.");
+                return Optional.empty();
             }
-            return Optional.of(RunWith.builder().user(user).group(group).isDefault(isDefault)
-                    // shell cannot be changed from kernel default
-                    .shell(Coerce.toString(deviceConfig.getRunWithDefaultPosixShell())).build());
+        }
+        return Optional.of(RunWith.builder().user(user).group(group).isDefault(isDefault)
+                // shell cannot be changed from kernel default
+                .shell(Coerce.toString(deviceConfig.getRunWithDefaultPosixShell())).build());
     }
 
     @Override
     public void validateDefaultConfiguration(DeviceConfiguration deviceConfig) throws DeviceConfigurationException {
-        // user can be specified by itself if it is a valid user on the system (we can load the primary group)
-        // user can be specified with a separate group
-        // group cannot be specified without user
         String user = Coerce.toString(deviceConfig.getRunWithDefaultPosixUser());
         String group = Coerce.toString(deviceConfig.getRunWithDefaultPosixGroup());
 
-        if (!Utils.isEmpty(user) && Utils.isEmpty(group)) {
+        validateUserGroup(user, group);
+    }
+
+    @Override
+    public void validateDefaultConfiguration(Map<String, Object> proposedDeviceConfig)
+            throws DeviceConfigurationException {
+        String user = Coerce.toString(proposedDeviceConfig.get(RUN_WITH_DEFAULT_POSIX_USER));
+        String group = Coerce.toString(proposedDeviceConfig.get(RUN_WITH_DEFAULT_POSIX_GROUP));
+
+        validateUserGroup(user, group);
+    }
+
+    private void validateUserGroup(String user, String group) throws DeviceConfigurationException {
+        // user can be specified by itself if it is a valid user on the system (we can load the primary group)
+        // user can be specified with a separate group
+        // group cannot be specified without user
+
+        if (Utils.isNotEmpty(user) && Utils.isEmpty(group)) {
             try {
                 platform.lookupUserByIdentifier(user).getPrimaryGID().orElseThrow(
                         () -> new DeviceConfigurationException(RUN_WITH_DEFAULT_POSIX_GROUP + " cannot be empty"));
@@ -139,7 +154,7 @@ public class UnixRunWithGenerator implements RunWithGenerator {
                         "Error while looking up primary group for " + user + ". " + RUN_WITH_DEFAULT_POSIX_GROUP
                                 + " is empty", e);
             }
-        } else if (Utils.isEmpty(user) && !Utils.isEmpty(group)) {
+        } else if (Utils.isEmpty(user) && Utils.isNotEmpty(group)) {
             throw new DeviceConfigurationException(
                     RUN_WITH_DEFAULT_POSIX_USER + " cannot be empty if " + RUN_WITH_DEFAULT_POSIX_GROUP
                             + " is provided");
