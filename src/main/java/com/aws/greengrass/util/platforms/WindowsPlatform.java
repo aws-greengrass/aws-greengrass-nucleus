@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -77,6 +78,12 @@ public class WindowsPlatform extends Platform {
         return new RunWithGenerator() {
             @Override
             public void validateDefaultConfiguration(DeviceConfiguration deviceConfig)
+                    throws DeviceConfigurationException {
+                // do nothing
+            }
+
+            @Override
+            public void validateDefaultConfiguration(Map<String, Object> proposedDeviceConfig)
                     throws DeviceConfigurationException {
                 // do nothing
             }

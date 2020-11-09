@@ -771,7 +771,7 @@ class DeploymentTaskIntegrationTest {
         /*
          * 2nd deployment. Change user
          */
-        countDownLatch = new CountDownLatch(2);
+        countDownLatch = new CountDownLatch(3);
 
         // update component to runas the user running the test
         String doc = Utils.inputStreamToString(DeploymentTaskIntegrationTest.class.getResource(
@@ -790,6 +790,7 @@ class DeploymentTaskIntegrationTest {
 
             countDownLatch.await(10, TimeUnit.SECONDS);
             assertThat(stdouts, hasItem(containsString("stopping app with user nobody")));
+            assertThat(stdouts, hasItem(containsString("installing app with user root")));
             assertThat(stdouts, hasItem(containsString(String.format("starting app with user %s", currentUser))));
         }
     }
