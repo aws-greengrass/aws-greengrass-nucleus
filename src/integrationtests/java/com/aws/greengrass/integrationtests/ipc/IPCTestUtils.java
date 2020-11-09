@@ -37,14 +37,14 @@ import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import java.util.concurrent.TimeoutException;
 
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
@@ -68,9 +68,7 @@ public final class IPCTestUtils {
 
     public static KernelIPCClientConfig getIPCConfigForService(String serviceName, Kernel kernel) throws ServiceLoadException, URISyntaxException {
         Topic kernelUri = kernel.getConfig().getRoot().lookup(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME);
-        URI serverUri = null;
-        serverUri = new URI((String) kernelUri.getOnce());
-
+        URI serverUri = new URI((String) kernelUri.getOnce());
         int port = serverUri.getPort();
         String address = serverUri.getHost();
 
@@ -229,4 +227,28 @@ public final class IPCTestUtils {
             }
         })).getResponse().get(5, TimeUnit.SECONDS);
     }
+
+
+    public static <T> Optional<StreamResponseHandler<T>> getResponseHandler(Consumer<T> eventConsumer, Logger logger){
+
+        return Optional.of(new StreamResponseHandler<T>() {
+
+            @Override
+            public void onStreamEvent(T streamEvent) {
+                eventConsumer.accept(streamEvent);
+            }
+
+            @Override
+            public boolean onStreamError(Throwable error) {
+                logger.atError().log("Received a stream error", error);
+                return false;
+            }
+
+            @Override
+            public void onStreamClosed() {
+
+            }
+        });
+    }
+
 }
