@@ -201,8 +201,9 @@ public class IotJobsHelper implements InjectionActions {
         try {
             documentString = SerializerFactory.getJsonObjectMapper().writeValueAsString(jobExecutionData.jobDocument);
         } catch (JsonProcessingException e) {
-            // TODO: [P41179444] Handle when job document is incorrect json.
             // This should not happen as we are converting a HashMap
+            logger.atError().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).setCause(e)
+                    .log("Failed to serialize job document");
             return;
         }
 
