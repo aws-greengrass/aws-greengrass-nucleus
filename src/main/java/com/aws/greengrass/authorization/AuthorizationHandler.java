@@ -314,8 +314,7 @@ public class AuthorizationHandler  {
         if (Utils.isEmpty(componentName)) {
             throw new AuthorizationException("Component name is not specified: " + componentName);
         }
-        // TODO: [V234938383] solve the issue where the authhandler starts up and loads policies before services
-        //  are registered
+
         if (!componentToOperationsMap.containsKey(componentName)) {
             throw new AuthorizationException("Component not registered: " + componentName);
         }
@@ -349,8 +348,7 @@ public class AuthorizationHandler  {
             throw new AuthorizationException("Malformed policy with invalid/empty operations: "
                     + policy.getPolicyId());
         }
-        // TODO: [V234938383] solve the issue where the authhandler starts up and loads policies before services
-        //  are registered
+
         Set<String> supportedOps = componentToOperationsMap.get(componentName);
         // check if operations are valid and registered.
         if (operations.stream().anyMatch(o -> !supportedOps.contains(o))) {
