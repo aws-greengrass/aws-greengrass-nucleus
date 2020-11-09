@@ -12,6 +12,6 @@
     "action": "NOTIFY_COMPONENTS"
   },
   "configurationValidationPolicy": {
-    "timeout": 60
+    "timeout": 20
   }
 }

@@ -6,6 +6,7 @@
 package com.aws.greengrass.integrationtests.deployment;
 
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
+import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
@@ -694,6 +695,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(
                         new ComponentUpdatePolicy(3, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
+                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
                 .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
@@ -704,6 +706,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK)
                 .componentUpdatePolicy(
                         new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
+                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
                 .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
@@ -713,6 +716,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(
                         new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS))
+                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
                 .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }

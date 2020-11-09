@@ -162,8 +162,8 @@ public class DynamicComponentConfigurationValidator {
     private boolean validateOverIpc(Deployment deployment, Set<ComponentToValidate> componentsToValidate,
                                     CompletableFuture<DeploymentResult> deploymentResultFuture) {
         String deploymentId = deployment.getId();
-        Integer timeOutSec = deployment.getDeploymentDocumentObj().getConfigurationValidationPolicy().getTimeout();
-        Long timeOutMs = Duration.ofSeconds(timeOutSec).toMillis();
+        Integer timeoutSec = deployment.getDeploymentDocumentObj().getConfigurationValidationPolicy().getTimeout();
+        Long timeoutMs = Duration.ofSeconds(timeoutSec).toMillis();
         try {
             String failureMsg = null;
             boolean validationRequested = false;
@@ -194,7 +194,7 @@ public class DynamicComponentConfigurationValidator {
                 try {
                     CompletableFuture.allOf(componentsToValidate.stream().map(ComponentToValidate::getResponse)
                             .collect(Collectors.toSet()).toArray(new CompletableFuture[0]))
-                            .get(timeOutMs, TimeUnit.MILLISECONDS);
+                            .get(timeoutMs, TimeUnit.MILLISECONDS);
 
                     failureMsg = "Components reported that their to-be-deployed configuration is invalid";
                     for (ComponentToValidate componentToValidate : componentsToValidate) {
@@ -226,7 +226,7 @@ public class DynamicComponentConfigurationValidator {
                 try {
                     CompletableFuture.allOf(componentsToValidate.stream().map(ComponentToValidate::getOldResponse)
                             .collect(Collectors.toSet()).toArray(new CompletableFuture[0]))
-                            .get(timeOutMs, TimeUnit.MILLISECONDS);
+                            .get(timeoutMs, TimeUnit.MILLISECONDS);
 
                     failureMsg = "Components reported that their to-be-deployed configuration is invalid";
                     for (ComponentToValidate componentToValidate : componentsToValidate) {
