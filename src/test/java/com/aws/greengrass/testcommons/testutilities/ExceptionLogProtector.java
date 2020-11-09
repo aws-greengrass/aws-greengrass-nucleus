@@ -5,8 +5,6 @@
 
 package com.aws.greengrass.testcommons.testutilities;
 
-import com.aws.greengrass.ipc.IPCService;
-import com.aws.greengrass.ipc.common.ServiceEventHelper;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.util.Utils;
@@ -24,7 +22,6 @@ import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -117,13 +114,6 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         Slf4jLogAdapter.addGlobalListener(getListener(context));
 
         // Default ignores:
-
-        // Ignore IPCService being interrupted while starting which can happen if we call shutdown() too quickly
-        // after launch()
-        ignoreExceptionWithStackTraceContaining(context, InterruptedException.class,
-                IPCService.class.getName() + ".listen");
-        ignoreExceptionWithStackTraceContaining(context, TimeoutException.class, ServiceEventHelper.class.getName());
-        ignoreExceptionWithStackTraceContaining(context, InterruptedException.class, ServiceEventHelper.class.getName());
 
         // Ignore error from MQTT not being configured
         ignoreExceptionWithMessageSubstring(context, "[thingName cannot be empty,"

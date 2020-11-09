@@ -143,7 +143,7 @@ class LifecycleIPCEventStreamAgentTest {
                 lifecycleIPCEventStreamAgent.getSubscribeToComponentUpdateHandler(mockContext);
         SubscribeToComponentUpdatesResponse response = handler.handleRequest(subsRequest);
         assertNotNull(response);
-        CompletableFuture<DeferUpdateRequest> deferFuture = new CompletableFuture<>();
+        CompletableFuture<DeferComponentUpdateRequest> deferFuture = new CompletableFuture<>();
         lifecycleIPCEventStreamAgent.getDeferUpdateFuturesMap().put(new Pair<>(TEST_SERVICE, "A"), deferFuture);
         DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
         deferComponentUpdateRequest.setMessage("Test defer");
@@ -152,11 +152,10 @@ class LifecycleIPCEventStreamAgentTest {
         DeferComponentUpdateResponse response1 = lifecycleIPCEventStreamAgent.getDeferComponentHandler(mockContext)
                 .handleRequest(deferComponentUpdateRequest);
         assertNotNull(response1);
-        DeferUpdateRequest request = deferFuture.get();
-        assertEquals(TEST_SERVICE, request.getComponentName());
+        DeferComponentUpdateRequest request = deferFuture.get();
         assertEquals("A", request.getDeploymentId());
         assertEquals("Test defer", request.getMessage());
-        assertEquals(1000L, request.getRecheckTimeInMs());
+        assertEquals(1000L, request.getRecheckAfterMs());
         assertFalse(lifecycleIPCEventStreamAgent.getDeferUpdateFuturesMap()
                 .containsKey(new Pair<>(TEST_SERVICE, "A")));
     }

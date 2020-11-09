@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment;
 
-import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCAgent;
 import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgent;
 import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.greengrass.config.Topic;
@@ -64,9 +63,6 @@ class DynamicComponentConfigurationValidatorTest {
     private ConfigStoreIPCEventStreamAgent configStoreIPCEventStreamAgent;
 
     @Mock
-    private ConfigStoreIPCAgent configStoreIPCAgent;
-
-    @Mock
     private Kernel kernel;
 
     @Mock
@@ -79,7 +75,7 @@ class DynamicComponentConfigurationValidatorTest {
     @BeforeEach
     void beforeEach() throws Exception {
         lenient().when(kernel.getContext()).thenReturn(context);
-        validator = new DynamicComponentConfigurationValidator(kernel, configStoreIPCEventStreamAgent, configStoreIPCAgent);
+        validator = new DynamicComponentConfigurationValidator(kernel, configStoreIPCEventStreamAgent);
         deploymentResultFuture = new CompletableFuture<>();
     }
 

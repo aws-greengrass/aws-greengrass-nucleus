@@ -5,17 +5,14 @@
 
 package com.aws.greengrass.integrationtests.ipc;
 
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.ipc.IPCEventStreamService;
-import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
 import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
@@ -35,8 +32,6 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
 import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Optional;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
@@ -50,10 +45,8 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
-import static com.aws.greengrass.ipc.IPCService.KERNEL_URI_ENV_VARIABLE_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
@@ -64,17 +57,6 @@ public final class IPCTestUtils {
     public static int DEFAULT_IPC_API_TIMEOUT_SECONDS = 3;
     private IPCTestUtils() {
 
-    }
-
-    public static KernelIPCClientConfig getIPCConfigForService(String serviceName, Kernel kernel) throws ServiceLoadException, URISyntaxException {
-        Topic kernelUri = kernel.getConfig().getRoot().lookup(SETENV_CONFIG_NAMESPACE, KERNEL_URI_ENV_VARIABLE_NAME);
-        URI serverUri = new URI((String) kernelUri.getOnce());
-        int port = serverUri.getPort();
-        String address = serverUri.getHost();
-
-        return KernelIPCClientConfig.builder().hostAddress(address).port(port)
-                .token(Coerce.toString(kernel.locate(serviceName).getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
-                        .getOnce())).build();
     }
 
     public static Kernel prepareKernelFromConfigFile(String configFile, Class testClass, String... serviceNames) throws InterruptedException {
@@ -139,8 +121,8 @@ public final class IPCTestUtils {
     public static EventStreamRPCConnection getEventStreamRpcConnection(Kernel kernel, String serviceName) throws ExecutionException,
             InterruptedException {
         return connectToGGCOverEventStreamIPC(TestUtils.getSocketOptionsForIPC(),
-                        IPCTestUtils.getAuthTokeForService(kernel, serviceName),
-                        kernel);
+                IPCTestUtils.getAuthTokeForService(kernel, serviceName),
+                kernel);
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -194,7 +176,7 @@ public final class IPCTestUtils {
     }
 
     public static void publishToTopicOverIpcAsBinaryMessage(GreengrassCoreIPCClient ipcClient, String topic,
-                                                      String message) throws InterruptedException, ExecutionException, TimeoutException {
+                                                            String message) throws InterruptedException, ExecutionException, TimeoutException {
         PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
         publishToTopicRequest.setTopic(topic);
         PublishMessage publishMessage = new PublishMessage();
@@ -206,7 +188,7 @@ public final class IPCTestUtils {
     }
 
     public static void subscribeToTopicOveripcForBinaryMessages(GreengrassCoreIPCClient ipcClient, String topic,
-                                                    Consumer<byte[]> consumer) throws InterruptedException, ExecutionException, TimeoutException {
+                                                                Consumer<byte[]> consumer) throws InterruptedException, ExecutionException, TimeoutException {
         SubscribeToTopicRequest request = new SubscribeToTopicRequest();
         request.setTopic(topic);
         ipcClient.subscribeToTopic(request, Optional.of(new StreamResponseHandler<SubscriptionResponseMessage>() {
