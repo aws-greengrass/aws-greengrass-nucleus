@@ -182,9 +182,9 @@ public final class Exec implements Closeable {
      */
     @Nullable
     public static Path which(String fn) {  // mirrors shell command
+        // [P41372857]: Add Windows support
         fn = deTilde(fn);
         if (fn.startsWith("/")) {
-            // TODO: [P41214135] sort out windows filename issues, if we ever care
             Path f = Paths.get(fn);
             return Files.isExecutable(f) ? f : null;
         }
