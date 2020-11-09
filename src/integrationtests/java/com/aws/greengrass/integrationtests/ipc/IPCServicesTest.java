@@ -5,18 +5,12 @@
 
 package com.aws.greengrass.integrationtests.ipc;
 
-import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCAgent;
 import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgent;
 import com.aws.greengrass.builtin.services.lifecycle.DeferUpdateRequest;
 import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
-import com.aws.greengrass.ipc.IPCClient;
-import com.aws.greengrass.ipc.IPCClientImpl;
-import com.aws.greengrass.ipc.config.KernelIPCClientConfig;
-import com.aws.greengrass.ipc.services.configstore.ConfigStore;
-import com.aws.greengrass.ipc.services.configstore.ConfigStoreImpl;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -28,7 +22,6 @@ import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,7 +53,6 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -73,12 +65,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getIPCConfigForService;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
@@ -96,14 +86,14 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 class IPCServicesTest {
-    private final static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
-    private final static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
-    private final static Logger logger = LogManager.getLogger(IPCServicesTest.class);
-
+    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
+    private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
+    private static final int DEFAULT_TIMEOUT_IN_SEC = 5;
+    private static Logger logger = LogManager.getLogger(IPCServicesTest.class);
     private static Kernel kernel;
     private static EventStreamRPCConnection clientConnection;
-    private IPCClient client;
     private static SocketOptions socketOptions;
+    private static GreengrassCoreIPCClient greengrassCoreIPCClient;
 
     @BeforeAll
     static void beforeAll() throws InterruptedException, ExecutionException {
@@ -111,10 +101,11 @@ class IPCServicesTest {
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, TEST_SERVICE_NAME);
         socketOptions = TestUtils.getSocketOptionsForIPC();
         clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
+        greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
     }
 
     @AfterAll
-    static void afterAll() throws InterruptedException {
+    static void afterAll() {
         if (clientConnection != null) {
             clientConnection.disconnect();
         }
@@ -134,99 +125,44 @@ class IPCServicesTest {
         ignoreExceptionOfType(context, InterruptedException.class);
     }
 
-    @AfterEach
-    void afterEach() throws IOException {
-        if (client != null) {
-            client.disconnect();
-        }
-    }
-
 
     @Test
     void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed(ExtensionContext context) throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
-        client = new IPCClientImpl(config);
-        ConfigStore c = new ConfigStoreImpl(client);
-
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
         configuration.createLeafChild("abc").withValue("pqr");
         configuration.createLeafChild("DDF").withValue("xyz");
         kernel.getContext().runOnPublishQueueAndWait(() -> {
         });
 
-        Pair<CompletableFuture<Void>, Consumer<List<String>>> pAbc = asyncAssertOnConsumer((a) -> {
-            assertThat(a, is(Collections.singletonList("abc")));
-        });
-        Pair<CompletableFuture<Void>, Consumer<List<String>>> pDdf = asyncAssertOnConsumer((a) -> {
-            assertThat(a, is(Collections.singletonList("DDF")));
+        Pair<CompletableFuture<Void>, Consumer<ConfigurationUpdateEvents>> pAbcNew = asyncAssertOnConsumer((a) -> {
+            assertThat(a.getConfigurationUpdateEvent().getKeyPath(), is(Collections.singletonList("abc")));
         });
 
-        ignoreExceptionOfType(context, TimeoutException.class);
+        Pair<CompletableFuture<Void>, Consumer<ConfigurationUpdateEvents>> pDdfNew = asyncAssertOnConsumer((a) -> {
+            assertThat(a.getConfigurationUpdateEvent().getKeyPath(), is(Collections.singletonList("DDF")));
+        });
 
-        c.subscribeToConfigurationUpdate("ServiceName", Collections.singletonList("abc"), pAbc.getRight());
-        c.subscribeToConfigurationUpdate("ServiceName", Collections.singletonList("DDF"), pDdf.getRight());
+        SubscribeToConfigurationUpdateRequest request1 = new SubscribeToConfigurationUpdateRequest();
+        request1.setComponentName("ServiceName");
+        request1.setKeyPath(Collections.singletonList("abc"));
+        greengrassCoreIPCClient.subscribeToConfigurationUpdate(request1, IPCTestUtils.getResponseHandler(pAbcNew.getRight(), logger))
+                .getResponse().get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS);
+
+        SubscribeToConfigurationUpdateRequest request2 = new SubscribeToConfigurationUpdateRequest();
+        request2.setComponentName("ServiceName");
+        request2.setKeyPath(Collections.singletonList("DDF"));
+        greengrassCoreIPCClient.subscribeToConfigurationUpdate(request2, IPCTestUtils.getResponseHandler(pDdfNew.getRight(), logger))
+                .getResponse().get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS);
+
         configuration.lookup("abc").withValue("ABC");
         configuration.lookup("DDF").withValue("ddf");
-
         try {
-            pAbc.getLeft().get(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS);
-            pDdf.getLeft().get(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS);
+            pAbcNew.getLeft().get(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS);
+            pDdfNew.getLeft().get(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS);
         } finally {
             configuration.remove();
         }
     }
-
-    @Test
-    void GIVEN_ConfigStoreClient_WHEN_subscribe_to_validate_config_THEN_validate_event_can_be_sent_to_client()
-            throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
-        client = new IPCClientImpl(config);
-        ConfigStore c = new ConfigStoreImpl(client);
-
-        CountDownLatch eventReceivedByClient = new CountDownLatch(1);
-        c.subscribeToValidateConfiguration((configMap) -> {
-            assertThat(configMap, IsMapContaining.hasEntry("keyToValidate", "valueToValidate"));
-            eventReceivedByClient.countDown();
-        });
-
-        ConfigStoreIPCAgent agent = kernel.getContext().get(ConfigStoreIPCAgent.class);
-        CompletableFuture<com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport> validateResultFuture =
-                new CompletableFuture<>();
-        try {
-            agent.validateConfiguration("ServiceName",
-                    Collections.singletonMap("keyToValidate", "valueToValidate"),
-                    validateResultFuture);
-            assertTrue(eventReceivedByClient.await(500, TimeUnit.MILLISECONDS));
-        } finally {
-            agent.discardValidationReportTracker("ServiceName", validateResultFuture);
-        }
-    }
-
-    @Test
-    void GIVEN_ConfigStoreClient_WHEN_report_config_validation_status_THEN_inform_validation_requester()
-            throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
-        client = new IPCClientImpl(config);
-        ConfigStore c = new ConfigStoreImpl(client);
-
-        Pair<CompletableFuture<Void>, Consumer<Map<String, Object>>> cb = asyncAssertOnConsumer((configMap) -> {
-            assertThat(configMap, IsMapContaining.hasEntry("keyToValidate", "valueToValidate"));
-        });
-        c.subscribeToValidateConfiguration(cb.getRight());
-
-        CompletableFuture<com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport> responseTracker =
-                new CompletableFuture<>();
-        ConfigStoreIPCAgent agent = kernel.getContext().get(ConfigStoreIPCAgent.class);
-        agent.validateConfiguration("ServiceName",
-                Collections.singletonMap("keyToValidate", "valueToValidate"), responseTracker);
-        cb.getLeft().get(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS);
-
-        c.sendConfigurationValidityReport(com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus.VALID,
-                null);
-        assertEquals(com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus.VALID,
-                responseTracker.get().getStatus());
-    }
-
 
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
@@ -323,8 +259,6 @@ class IPCServicesTest {
                 subscriptionLatch.countDown();
             }
         });
-        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
-
         SubscribeToConfigurationUpdateRequest subscribe = new SubscribeToConfigurationUpdateRequest();
         subscribe.setComponentName("ServiceName");
         subscribe.setKeyPath(Collections.singletonList("SomeKeyToUpdate"));
@@ -382,7 +316,6 @@ class IPCServicesTest {
         Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
         custom.createLeafChild("abc").withValue("ABC");
         custom.createInteriorChild("DDF").createLeafChild("A").withValue("C");
-        GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         GetConfigurationRequest getConfigurationRequest = new GetConfigurationRequest();
         getConfigurationRequest.setComponentName("ServiceName");
         getConfigurationRequest.setKeyPath(Collections.singletonList("abc"));
@@ -406,24 +339,27 @@ class IPCServicesTest {
 
     @Test
     void GIVEN_ConfigStoreClient_WHEN_read_THEN_value_returned() throws Exception {
-        KernelIPCClientConfig config = getIPCConfigForService("ServiceName", kernel);
-        client = new IPCClientImpl(config);
-        ConfigStore c = new ConfigStoreImpl(client);
-
         Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
         custom.createLeafChild("abc").withValue("ABC");
         custom.createInteriorChild("DDF").createLeafChild("A").withValue("C");
 
         try {
-            // Can read individual value
-            assertEquals("ABC", c.getConfiguration("ServiceName", Collections.singletonList("abc")));
+            GetConfigurationRequest getConfigurationRequest = new GetConfigurationRequest();
+            getConfigurationRequest.setComponentName("ServiceName");
+            getConfigurationRequest.setKeyPath(Collections.singletonList("abc"));
+            GetConfigurationResponse getConfigurationResponse = greengrassCoreIPCClient
+                    .getConfiguration(getConfigurationRequest, Optional.empty()).getResponse().get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS);
+            assertEquals("ABC", getConfigurationResponse.getValue().get("abc"));
 
-            // Can read nested values
-            Map<String, Object> val = (Map<String, Object>) c.getConfiguration("ServiceName",
-                    Collections.singletonList("DDF"));
-            assertThat(val, aMapWithSize(1));
-            assertThat(val, IsMapContaining.hasKey("A"));
-            assertThat(val.get("A"), is("C"));
+            getConfigurationRequest = new GetConfigurationRequest();
+            getConfigurationRequest.setComponentName("ServiceName");
+            getConfigurationRequest.setKeyPath(Collections.singletonList("DDF"));
+            getConfigurationResponse = greengrassCoreIPCClient
+                    .getConfiguration(getConfigurationRequest, Optional.empty()).getResponse().get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS);
+            Map<String, Object> value = getConfigurationResponse.getValue();
+            assertThat(value, aMapWithSize(1));
+            assertThat(value, IsMapContaining.hasKey("A"));
+            assertThat(value.get("A"), is("C"));
         } finally {
             custom.remove();
         }
