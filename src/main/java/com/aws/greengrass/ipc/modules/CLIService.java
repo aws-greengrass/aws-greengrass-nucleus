@@ -40,7 +40,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
-import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT;
+import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
 
 @ImplementsService(name = CLIService.CLI_SERVICE, autostart = true)
 public class CLIService extends GreengrassService {
@@ -168,7 +168,7 @@ public class CLIService extends GreengrassService {
 
     private synchronized void generateCliIpcInfo() throws UnauthenticatedException, IOException, InterruptedException {
         // GG_NEEDS_REVIEW: TODO: replace with the new IPC domain socket path
-        if (config.getRoot().find(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT) == null) {
+        if (config.getRoot().find(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH) == null) {
             logger.atWarn().log("Did not find IPC socket URL in the config. Not creating the cli ipc info file");
             return;
         }
@@ -252,7 +252,7 @@ public class CLIService extends GreengrassService {
         Map<String, String> ipcInfo = new HashMap<>();
         ipcInfo.put(CLI_AUTH_TOKEN, cliAuthToken);
         ipcInfo.put(DOMAIN_SOCKET_PATH, Coerce.toString(
-                config.getRoot().find(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT)));
+                config.getRoot().find(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH)));
 
         Path filePath = directory.resolve(clientId);
         Files.write(filePath, OBJECT_MAPPER.writeValueAsString(ipcInfo)
