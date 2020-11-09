@@ -67,6 +67,8 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
+import static com.aws.greengrass.testcommons.testutilities.TestUtils.createServiceStateChangeWaiter;
+import static com.aws.greengrass.testcommons.testutilities.TestUtils.getNucleusConfig;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -93,14 +95,9 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                 DynamicComponentConfigurationValidationTest.class.getResource("onlyMain.yaml").toString());
 
         // launch kernel
-        CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
-                mainRunning.countDown();
-            }
-        });
+        Runnable mainFinished = createServiceStateChangeWaiter(kernel, "main", 10, State.FINISHED);
         kernel.launch();
-        assertTrue(mainRunning.await(10, TimeUnit.SECONDS));
+        mainFinished.run();
 
         // Start a new service
         AtomicBoolean mainRestarted = new AtomicBoolean(false);
@@ -126,7 +123,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                             kernel.getMain().getServiceConfig().lookupTopics(SERVICE_LIFECYCLE_NAMESPACE_TOPIC)
                                     .toPOJO());
                 }});
-                put(DEFAULT_NUCLEUS_COMPONENT_NAME, kernel.findServiceTopic(DEFAULT_NUCLEUS_COMPONENT_NAME).toPOJO());
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig(kernel));
                 put("OldService", new HashMap<String, Object>() {{
                     put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
                         put("ConfigKey1", "ConfigValue1");
@@ -223,6 +220,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                         }});
                         put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
                     }});
+                    put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig(kernel));
                 }});
             }};
             DeploymentResult result =
@@ -305,6 +303,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                         }});
                         put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
                     }});
+                    put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig(kernel));
                 }});
             }};
             DeploymentResult result =

@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment;
 
-import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCAgent;
 import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgent;
 import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.greengrass.config.Node;
@@ -59,9 +58,6 @@ public class DynamicComponentConfigurationValidator {
 
     @Inject
     private ConfigStoreIPCEventStreamAgent configStoreIPCEventStreamAgent;
-
-    @Inject
-    private ConfigStoreIPCAgent configStoreIPCAgent;
 
     /**
      * Dynamically validate proposed configuration for a deployment.
@@ -167,7 +163,6 @@ public class DynamicComponentConfigurationValidator {
         try {
             String failureMsg = null;
             boolean validationRequested = false;
-            boolean validationRequestedFromOldIpc = false;
             boolean valid = true;
             for (ComponentToValidate componentToValidate : componentsToValidate) {
                 try {
@@ -176,11 +171,6 @@ public class DynamicComponentConfigurationValidator {
                                     componentToValidate.configuration,
                                     componentToValidate.response)) {
                         validationRequested = true;
-                    }
-                    if (configStoreIPCAgent
-                            .validateConfiguration(componentToValidate.componentName, componentToValidate.configuration,
-                                    componentToValidate.oldResponse)) {
-                        validationRequestedFromOldIpc = true;
                     }
                     // Do nothing if service has not subscribed for validation
                 } catch (ValidateEventRegistrationException e) {
@@ -221,42 +211,6 @@ public class DynamicComponentConfigurationValidator {
                     valid = false;
                 }
             }
-            // GG_NEEDS_REVIEW: TODO: Remove when all UATs move to new IPC
-            if (validationRequestedFromOldIpc) {
-                try {
-                    CompletableFuture.allOf(componentsToValidate.stream().map(ComponentToValidate::getOldResponse)
-                            .collect(Collectors.toSet()).toArray(new CompletableFuture[0]))
-                            .get(timeoutMs, TimeUnit.MILLISECONDS);
-
-                    failureMsg = "Components reported that their to-be-deployed configuration is invalid";
-                    for (ComponentToValidate componentToValidate : componentsToValidate) {
-
-                        // The aggregate future above has a timeout so at this point we will always have a report
-                        // already received from all components otherwise the aggregate future would have failed,
-                        // so we will no longer be blocked on any of the response futures
-                        com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport oldReport =
-                                componentToValidate.oldResponse.join();
-
-                        if (com.aws.greengrass.ipc.services.configstore.ConfigurationValidityStatus.INVALID
-                                .equals(oldReport.getStatus())) {
-                            failureMsg = String.format("%s { name = %s, message = %s }", failureMsg,
-                                    componentToValidate.componentName, oldReport.getMessage());
-                            logger.atError().kv("component", componentToValidate.componentName)
-                                    .kv("message", oldReport.getMessage())
-                                    .log("Component reported that its to-be-deployed configuration is invalid");
-                            valid = false;
-                        }
-
-                    }
-                } catch (InterruptedException | ExecutionException | TimeoutException | CancellationException
-                        | CompletionException e) {
-                    failureMsg =
-                            "Error while waiting for validation report for one or more components:" + e.getMessage();
-                    logger.atError().setCause(e).log(failureMsg);
-                    valid = false;
-                }
-            }
-            //------------------Remove when all tests moved to new IPC-------------------
             if (!valid) {
                 deploymentResultFuture.complete(
                         new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
@@ -268,11 +222,6 @@ public class DynamicComponentConfigurationValidator {
                 configStoreIPCEventStreamAgent.discardValidationReportTracker(deploymentId, c.componentName,
                         c.response);
                 c.response.cancel(true);
-
-                // GG_NEEDS_REVIEW: TODO: Remove when all tests moved to new IPC
-                configStoreIPCAgent.discardValidationReportTracker(c.componentName, c.oldResponse);
-                c.oldResponse.cancel(true);
-                //------------------Remove when all tests moved to new IPC-------------------
             });
         }
     }
