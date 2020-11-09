@@ -371,34 +371,20 @@ public class GreengrassSetup {
             Platform platform = Platform.getInstance();
             // If not super user and default user option is not provided, the current user will be used
             // as the default user so we do not need to create anything here
-            String user = defaultUser;
             if (platform.lookupCurrentUser().isSuperUser()) {
-                if (Utils.isEmpty(defaultUser) || GGC_USER.equals(defaultUser)) {
-                    try {
-                        platform.lookupUserByName(GGC_USER);
-                        outStream.printf("Got no input for component default user, using %s %n", GGC_USER);
-                    } catch (IOException e) {
-                        outStream.printf("Got no input for component default user, creating %s %n", GGC_USER);
-                        platform.createUser(GGC_USER);
-                        outStream.printf("%s created %n", GGC_USER);
-                    }
-                    user = GGC_USER;
-                    kernelArgs.add(DEFAULT_USER_ARG);
-                    kernelArgs.add(GGC_USER);
-                } else {
-                    // Ensure user exists
-                    try {
-                        platform.lookupUserByName(defaultUser);
-                    } catch (IOException nnf) {
-                        try {
-                            platform.lookupUserByIdentifier(defaultUser);
-                        } catch (IOException inf) {
-                            throw new RuntimeException(
-                                    String.format("The specified component default user %s does not exist",
-                                            defaultUser), inf);
-                        }
-                    }
+                return;
+            }
+            if (Utils.isEmpty(defaultUser) || GGC_USER.equals(defaultUser)) {
+                try {
+                    platform.lookupUserByName(GGC_USER);
+                    outStream.printf("Got no input for component default user, using %s %n", GGC_USER);
+                } catch (IOException e) {
+                    outStream.printf("Got no input for component default user, creating %s %n", GGC_USER);
+                    platform.createUser(GGC_USER);
+                    outStream.printf("%s created %n", GGC_USER);
                 }
+                kernelArgs.add(DEFAULT_USER_ARG);
+                kernelArgs.add(GGC_USER);
                 if (Utils.isEmpty(defaultGroup) || GGC_GROUP.equals(defaultGroup)) {
                     try {
                         platform.lookupGroupByName(GGC_GROUP);
@@ -408,26 +394,13 @@ public class GreengrassSetup {
                         platform.createGroup(GGC_GROUP);
                         outStream.printf("%s created %n", GGC_GROUP);
                     }
-                    platform.addUserToGroup(user, GGC_GROUP);
-                    outStream.printf("Added %s to %s %n", user, GGC_GROUP);
+                    platform.addUserToGroup(GGC_USER, GGC_GROUP);
+                    outStream.printf("Added %s to %s %n", GGC_USER, GGC_GROUP);
                     kernelArgs.add(DEFAULT_GROUP_ARG);
                     kernelArgs.add(GGC_GROUP);
-                } else {
-                    // Ensure group exists
-                    try {
-                        platform.lookupUserByName(defaultGroup);
-                    } catch (IOException nnf) {
-                        try {
-                            platform.lookupUserByIdentifier(defaultGroup);
-                        } catch (IOException inf) {
-                            throw new RuntimeException(
-                                    String.format("The specified component default group %s does not exist",
-                                            defaultGroup), inf);
-                        }
-                    }
                 }
             }
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
             throw new RuntimeException("Error setting up component default user / group", e);
         }
     }

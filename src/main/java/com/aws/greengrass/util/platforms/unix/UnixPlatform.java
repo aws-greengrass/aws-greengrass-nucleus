@@ -326,17 +326,17 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public void createUser(String user) throws IOException, InterruptedException {
-        runCmd("useradd -m " + user, o -> {}, "Failed to create user");
+    public void createUser(String user) throws IOException {
+        runCmd("useradd -r -m " + user, o -> {}, "Failed to create user");
     }
 
     @Override
-    public void createGroup(String group) throws IOException, InterruptedException {
-        runCmd("groupadd " + group, o -> {}, "Failed to create group");
+    public void createGroup(String group) throws IOException {
+        runCmd("groupadd -r " + group, o -> {}, "Failed to create group");
     }
 
     @Override
-    public void addUserToGroup(String user, String group) throws IOException, InterruptedException {
+    public void addUserToGroup(String user, String group) throws IOException {
         runCmd("usermod -a -G " + group + " " + user, o -> {}, "Failed to add user to group");
     }
 
@@ -414,7 +414,7 @@ public class UnixPlatform extends Platform {
     }
 
     protected void runCmd(String cmdStr, Consumer<CharSequence> out, String msg)
-            throws IOException, InterruptedException {
+            throws IOException {
         try (Exec exec = new Exec()) {
             StringBuilder output = new StringBuilder();
             StringBuilder error = new StringBuilder();
@@ -428,9 +428,11 @@ public class UnixPlatform extends Platform {
                     }).exec();
             if (!exit.isPresent() || exit.get() != 0) {
                 throw new IOException(String.format(
-                        String.format("%s - command: %s, output: %s , error: %s ", cmdStr, msg, output.toString(),
+                        String.format("%s - command: %s, output: %s , error: %s ", msg, cmdStr, output.toString(),
                                 error.toString())));
             }
+        } catch (InterruptedException | IOException e) {
+            throw new IOException(String.format("%s , command : %s", msg, cmdStr), e);
         }
     }
 

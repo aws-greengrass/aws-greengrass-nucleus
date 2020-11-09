@@ -65,11 +65,11 @@ public abstract class Platform implements UserPlatform {
 
     public abstract RunWithGenerator getRunWithGenerator();
 
-    public abstract void createUser(String user) throws IOException, InterruptedException;
+    public abstract void createUser(String user) throws IOException;
 
-    public abstract void createGroup(String group) throws IOException, InterruptedException;
+    public abstract void createGroup(String group) throws IOException;
 
-    public abstract void addUserToGroup(String user, String group) throws IOException, InterruptedException;
+    public abstract void addUserToGroup(String user, String group) throws IOException;
 
     /**
      * Set permissions on a path.

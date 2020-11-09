@@ -17,7 +17,7 @@ public class DarwinPlatform extends UnixPlatform {
     private static String ADD_USER_TO_GROUP_CMD_PREFIX = "sudo dscl . -append /Groups/";
 
     @Override
-    public void createUser(String user) throws IOException, InterruptedException {
+    public void createUser(String user) throws IOException {
         AtomicLong uniqueUid = new AtomicLong();
         runCmd(AVAILABLE_UNIQUE_ID_CMD, o -> {
             uniqueUid.set(Long.parseLong(o.toString().replaceAll("\\n", "")) + 1L);
@@ -31,7 +31,7 @@ public class DarwinPlatform extends UnixPlatform {
     }
 
     @Override
-    public void createGroup(String group) throws IOException, InterruptedException {
+    public void createGroup(String group) throws IOException {
         AtomicLong gid = new AtomicLong();
         runCmd(AVAILABLE_GID_CMD, o -> {
             gid.set(Long.parseLong(o.toString().replaceAll("\\n", "")) + 1L);
@@ -42,7 +42,7 @@ public class DarwinPlatform extends UnixPlatform {
     }
 
     @Override
-    public void addUserToGroup(String user, String group) throws IOException, InterruptedException {
+    public void addUserToGroup(String user, String group) throws IOException {
         runCmd(ADD_USER_TO_GROUP_CMD_PREFIX + group + " GroupMembership " + user, o -> {},
                 "Failed to add user to group");
     }
