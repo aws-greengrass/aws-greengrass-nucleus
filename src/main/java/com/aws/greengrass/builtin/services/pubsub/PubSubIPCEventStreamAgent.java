@@ -37,11 +37,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.ipc.common.ExceptionUtil.translateExceptions;
 import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
 
 public class PubSubIPCEventStreamAgent {
     private static final Logger log = LogManager.getLogger(PubSubIPCEventStreamAgent.class);
-    private static final String SERVICE_NAME = "service-name";
+    private static final String COMPONENT_NAME = "componentName";
     private static final ObjectMapper SERIALIZER = new ObjectMapper();
     @Getter(AccessLevel.PACKAGE)
     private final Map<String, Set<Object>> listeners = new ConcurrentHashMap<>();
@@ -56,8 +57,7 @@ public class PubSubIPCEventStreamAgent {
         this.orderedExecutorService = orderedExecutorService;
     }
 
-    public SubscribeToTopicOperationHandler getSubscribeToTopicHandler(
-            OperationContinuationHandlerContext context) {
+    public SubscribeToTopicOperationHandler getSubscribeToTopicHandler(OperationContinuationHandlerContext context) {
         return new SubscribeToTopicOperationHandler(context);
     }
 
@@ -84,9 +84,8 @@ public class PubSubIPCEventStreamAgent {
      * @param serviceName name of the service unsubscribing.
      */
     public void unsubscribe(String topic, Consumer<PublishEvent> cb, String serviceName) {
-        log.atDebug().kv(SERVICE_NAME, serviceName).log("Unsubscribing from topic {}", topic);
-        listeners.computeIfPresent(topic, (s, objects) ->
-                objects.remove(cb) && objects.isEmpty() ? null : objects);
+        log.atDebug().kv(COMPONENT_NAME, serviceName).log("Unsubscribing from topic {}", topic);
+        listeners.computeIfPresent(topic, (s, objects) -> objects.remove(cb) && objects.isEmpty() ? null : objects);
     }
 
     /**
@@ -101,14 +100,12 @@ public class PubSubIPCEventStreamAgent {
         return handlePublishToTopicRequest(topic, serviceName, Optional.empty(), Optional.of(binaryMessage));
     }
 
-    private PublishToTopicResponse handlePublishToTopicRequest(String topic,
-                                                               String serviceName,
+    private PublishToTopicResponse handlePublishToTopicRequest(String topic, String serviceName,
                                                                Optional<Map<String, Object>> jsonMessage,
                                                                Optional<byte[]> binaryMessage) {
         Set<Object> contexts = listeners.get(topic);
         if (contexts == null || contexts.isEmpty()) {
-            log.atDebug().kv(SERVICE_NAME, serviceName)
-                    .log("No one subscribed to topic {}. Returning.", topic);
+            log.atDebug().kv(COMPONENT_NAME, serviceName).log("No one subscribed to topic {}. Returning.", topic);
             // Still technically successful, just no one was subscribed
             return new PublishToTopicResponse();
         }
@@ -121,8 +118,7 @@ public class PubSubIPCEventStreamAgent {
             try {
                 publishedEvent.setPayload(SERIALIZER.writeValueAsBytes(jsonMessage.get()));
             } catch (JsonProcessingException e) {
-                log.atError().cause(e).kv(SERVICE_NAME, serviceName)
-                        .log("Unable to serialize JSON message.");
+                log.atError().cause(e).kv(COMPONENT_NAME, serviceName).log("Unable to serialize JSON message.");
             }
         }
         if (binaryMessage.isPresent()) {
@@ -133,8 +129,7 @@ public class PubSubIPCEventStreamAgent {
         }
 
         contexts.forEach(context -> {
-            log.atDebug().kv(SERVICE_NAME, serviceName)
-                    .log("Sending publish event for topic {}", topic);
+            log.atDebug().kv(COMPONENT_NAME, serviceName).log("Sending publish event for topic {}", topic);
             if (context instanceof StreamEventPublisher) {
                 StreamEventPublisher<SubscriptionResponseMessage> publisher =
                         (StreamEventPublisher<SubscriptionResponseMessage>) context;
@@ -147,10 +142,9 @@ public class PubSubIPCEventStreamAgent {
         return new PublishToTopicResponse();
     }
 
-    private void handleSubscribeToTopicRequest(String topic, String serviceName,
-                                               Object handler) {
+    private void handleSubscribeToTopicRequest(String topic, String serviceName, Object handler) {
         // TODO: [P32540011]: All IPC service requests need input validation
-        log.atInfo().kv(SERVICE_NAME, serviceName).log("Subscribing to topic {}", topic);
+        log.atInfo().kv(COMPONENT_NAME, serviceName).log("Subscribing to topic {}", topic);
         listeners.computeIfAbsent(topic, k -> ConcurrentHashMap.newKeySet()).add(handler);
     }
 
@@ -171,22 +165,24 @@ public class PubSubIPCEventStreamAgent {
         @SuppressWarnings("PMD.PreserveStackTrace")
         @Override
         public PublishToTopicResponse handleRequest(PublishToTopicRequest publishRequest) {
-            try {
-                doAuthorization(this.getOperationModelContext().getOperationName(), serviceName,
-                        publishRequest.getTopic());
-            } catch (AuthorizationException e) {
-                throw new UnauthorizedError(e.getMessage());
-            }
-            publishRequest.getPublishMessage().selfDesignateSetUnionMember();
-            Optional<Map<String, Object>> jsonMessage = Optional.empty();
-            if (publishRequest.getPublishMessage().getJsonMessage() != null) {
-                jsonMessage = Optional.of(publishRequest.getPublishMessage().getJsonMessage().getMessage());
-            }
-            Optional<byte[]> binaryMessage = Optional.empty();
-            if (publishRequest.getPublishMessage().getBinaryMessage() != null) {
-                binaryMessage = Optional.of(publishRequest.getPublishMessage().getBinaryMessage().getMessage());
-            }
-            return handlePublishToTopicRequest(publishRequest.getTopic(), serviceName, jsonMessage, binaryMessage);
+            return translateExceptions(() -> {
+                try {
+                    doAuthorization(this.getOperationModelContext().getOperationName(), serviceName,
+                            publishRequest.getTopic());
+                } catch (AuthorizationException e) {
+                    throw new UnauthorizedError(e.getMessage());
+                }
+                publishRequest.getPublishMessage().selfDesignateSetUnionMember();
+                Optional<Map<String, Object>> jsonMessage = Optional.empty();
+                if (publishRequest.getPublishMessage().getJsonMessage() != null) {
+                    jsonMessage = Optional.of(publishRequest.getPublishMessage().getJsonMessage().getMessage());
+                }
+                Optional<byte[]> binaryMessage = Optional.empty();
+                if (publishRequest.getPublishMessage().getBinaryMessage() != null) {
+                    binaryMessage = Optional.of(publishRequest.getPublishMessage().getBinaryMessage().getMessage());
+                }
+                return handlePublishToTopicRequest(publishRequest.getTopic(), serviceName, jsonMessage, binaryMessage);
+            });
         }
 
 
@@ -209,23 +205,25 @@ public class PubSubIPCEventStreamAgent {
         @Override
         protected void onStreamClosed() {
             if (Utils.isNotEmpty(subscribeTopic) && listeners.containsKey(subscribeTopic)) {
-                listeners.computeIfPresent(subscribeTopic, (s, objects) ->
-                        objects.remove(this) && objects.isEmpty() ? null : objects);
+                listeners.computeIfPresent(subscribeTopic,
+                        (s, objects) -> objects.remove(this) && objects.isEmpty() ? null : objects);
             }
         }
 
         @SuppressWarnings("PMD.PreserveStackTrace")
         @Override
         public SubscribeToTopicResponse handleRequest(SubscribeToTopicRequest subscribeRequest) {
-            try {
-                doAuthorization(this.getOperationModelContext().getOperationName(), serviceName,
-                        subscribeRequest.getTopic());
-            } catch (AuthorizationException e) {
-                throw new UnauthorizedError(e.getMessage());
-            }
-            handleSubscribeToTopicRequest(subscribeRequest.getTopic(), serviceName, this);
-            subscribeTopic = subscribeRequest.getTopic();
-            return new SubscribeToTopicResponse();
+            return translateExceptions(() -> {
+                try {
+                    doAuthorization(this.getOperationModelContext().getOperationName(), serviceName,
+                            subscribeRequest.getTopic());
+                } catch (AuthorizationException e) {
+                    throw new UnauthorizedError(e.getMessage());
+                }
+                handleSubscribeToTopicRequest(subscribeRequest.getTopic(), serviceName, this);
+                subscribeTopic = subscribeRequest.getTopic();
+                return new SubscribeToTopicResponse();
+            });
         }
 
         @Override
@@ -235,12 +233,7 @@ public class PubSubIPCEventStreamAgent {
     }
 
     private void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
-        authorizationHandler.isAuthorized(
-                PUB_SUB_SERVICE_NAME,
-                Permission.builder()
-                        .principal(serviceName)
-                        .operation(opName)
-                        .resource(topic)
-                        .build());
+        authorizationHandler.isAuthorized(PUB_SUB_SERVICE_NAME,
+                Permission.builder().principal(serviceName).operation(opName).resource(topic).build());
     }
 }
