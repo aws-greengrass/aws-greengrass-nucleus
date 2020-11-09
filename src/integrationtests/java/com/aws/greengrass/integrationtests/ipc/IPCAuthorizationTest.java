@@ -48,7 +48,7 @@ class IPCAuthorizationTest {
     static void beforeAll() throws Exception {
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCAuthorizationTest.class, TEST_SERVICE_NAME);
         socketOptions = TestUtils.getSocketOptionsForIPC();
-        clientConnection = getEventStreamRpcConnection(kernel, "main");
+        clientConnection = getEventStreamRpcConnection(kernel, TEST_SERVICE_NAME);
     }
 
     @AfterAll
