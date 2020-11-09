@@ -52,7 +52,8 @@ public class DependencyResolverBenchmark {
         private DeploymentDocument jobDoc = new DeploymentDocument("mockJob1",
                 Arrays.asList(new DeploymentPackageConfiguration("boto3", true, "1.9.128", new HashMap<>()),
                         new DeploymentPackageConfiguration("awscli", true, "1.16.144", new HashMap<>())), "mockGroup1",
-                1L, FailureHandlingPolicy.DO_NOTHING, new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
+                1L, FailureHandlingPolicy.DO_NOTHING, new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS),
+                new ConfigurationValidationPolicy().withTimeout(20));
 
         private DependencyResolver resolver;
         private List<ComponentIdentifier> result;
