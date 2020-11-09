@@ -28,10 +28,13 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
+import org.apache.commons.lang3.SystemUtils;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -71,17 +74,22 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEF
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
+import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
+import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
+import static com.aws.greengrass.testcommons.testutilities.TestUtils.createServiceStateChangeWaiter;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -104,6 +112,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     @BeforeEach
     void before(TestInfo testInfo) {
         kernel = new Kernel();
+        NoOpPathOwnershipHandler.register(kernel);
         deploymentConfigMerger = new DeploymentConfigMerger(kernel);
     }
 
@@ -140,9 +149,15 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 mainRestarted.countDown();
             }
         });
-        deploymentConfigMerger.mergeInNewConfig(testDeployment(),
-                (Map<String, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml")))
-                .get(60, TimeUnit.SECONDS);
+
+
+        Map<String, Object> newConfig =
+                (Map<String, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml"));
+
+        ((Map<String, Object>)newConfig.get(SERVICES_NAMESPACE_TOPIC)).put(DEFAULT_NUCLEUS_COMPONENT_NAME,
+                getNucleusConfig());
+
+        deploymentConfigMerger.mergeInNewConfig(testDeployment(), newConfig).get(60, TimeUnit.SECONDS);
 
         // THEN
         assertTrue(mainRestarted.await(10, TimeUnit.SECONDS));
@@ -170,7 +185,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 safeUpdateRegistered.set(true);
             }
         };
-        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+        try (AutoCloseable l = createCloseableLogListener(listener)) {
             kernel.launch();
             assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
 
@@ -189,13 +204,14 @@ class DeploymentConfigMergingTest extends BaseITCase {
                             put("HELLO", "redefined");
                         }});
                     }});
+                    put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig());
                 }});
             }}).get(60, TimeUnit.SECONDS);
 
             // THEN
-            assertTrue(mainRestarted.await(10, TimeUnit.SECONDS));
+            assertTrue(mainRestarted.await(10, TimeUnit.SECONDS), "main restarted");
             assertEquals("redefined", kernel.findServiceTopic("main").find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
-            assertTrue(safeUpdateRegistered.get());
+            assertTrue(safeUpdateRegistered.get(), "safe update registered");
         }
     }
 
@@ -250,16 +266,11 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }});
         }}).get(60, TimeUnit.SECONDS);
         // THEN
-        assertTrue(newServiceStarted.get());
+        assertTrue(newServiceStarted.get(), "new service started");
     }
 
-    private Map<String, Object> getNucleusConfig() {
-        Optional<GreengrassService> nucleus =
-                kernel.getMain().getDependencies().keySet().stream().filter(s ->
-                        DEFAULT_NUCLEUS_COMPONENT_NAME.equalsIgnoreCase(s.getServiceName()))
-                        .findFirst();
-        assertTrue(nucleus.isPresent(), "no nucleus config available");
-        return nucleus.get().getConfig().toPOJO();
+    Map<String, Object> getNucleusConfig() {
+        return TestUtils.getNucleusConfig(kernel);
     }
 
     @Test
@@ -647,22 +658,12 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         // GIVEN
         kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
-        CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
-            }
-        });
+        Runnable mainRunning = createServiceStateChangeWaiter(kernel, "main",5, State.RUNNING);
         kernel.launch();
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+        mainRunning.run();
 
         // WHEN
-        CountDownLatch mainRestarted = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.FINISHED) && oldState.equals(State.STARTING)) {
-                mainRestarted.countDown();
-            }
-        });
+        Runnable mainRestarted = createServiceStateChangeWaiter(kernel, "main", 10, State.FINISHED, State.STARTING);
         AtomicBoolean safeUpdateSkipped= new AtomicBoolean();
         Consumer<GreengrassLogMessage> listener = (m) -> {
             if ("Deployment is configured to skip safety check, not waiting for safe time to update"
@@ -670,7 +671,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                     safeUpdateSkipped.set(true);
                 }
         };
-        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+        try (AutoCloseable l = createCloseableLogListener(listener)) {
             deploymentConfigMerger.mergeInNewConfig(testDeploymentWithSkipSafetyCheckConfig(), new HashMap<String, Object>() {{
                 put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                     put("main", new HashMap<String, Object>() {{
@@ -678,17 +679,80 @@ class DeploymentConfigMergingTest extends BaseITCase {
                             put("HELLO", "redefined");
                         }});
                     }});
+                    put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig());
                 }});
             }}).get(60, TimeUnit.SECONDS);
 
             // THEN
-            assertTrue(mainRestarted.await(10, TimeUnit.SECONDS));
+            mainRestarted.run();
             assertEquals("redefined", kernel.findServiceTopic("main")
                     .find(SETENV_CONFIG_NAMESPACE, "HELLO").getOnce());
-            assertTrue(safeUpdateSkipped.get());
+            assertTrue(safeUpdateSkipped.get(),"safe updated skipped");
         }
     }
 
+    @Test
+    void GIVEN_kernel_running_service_WHEN_run_with_change_THEN_service_restarts() throws Throwable {
+        assumeCanSudoShell(kernel);
+
+        // GIVEN
+        kernel.parseArgs("-i", getClass().getResource("config_run_with_user.yaml").toString());
+
+        List<String> stdouts = new ArrayList<>();
+        try (AutoCloseable l = createCloseableLogListener((m) -> {
+            Map<String, String> contexts = m.getContexts();
+            String messageOnStdout = contexts.get("stdout");
+            if (messageOnStdout != null
+                    && (messageOnStdout.contains("run as")
+                    || messageOnStdout.contains("install as") )) {
+                stdouts.add(messageOnStdout);
+            }
+        })) {
+            Runnable waitForUserService = createServiceStateChangeWaiter(kernel, "user_service", 10, State.FINISHED );
+            kernel.launch();
+            waitForUserService.run();
+
+            assertThat(stdouts, hasItem(Matchers.containsString("install as nobody")));
+            assertThat(stdouts, hasItem(Matchers.containsString("run as nobody")));
+
+            GreengrassService userService = kernel.locate("user_service");
+
+            // WHEN
+            Runnable serviceRestarts = createServiceStateChangeWaiter(kernel, "user_service", 10, State.NEW,
+                    State.FINISHED);
+            Runnable serviceFinishes = createServiceStateChangeWaiter(kernel, "user_service", 10, State.FINISHED);
+
+            stdouts.clear();
+
+            List<String> serviceList = kernel.getMain().getDependencies().keySet().stream()
+                    .map(GreengrassService::getName).collect(Collectors.toList());
+            deploymentConfigMerger.mergeInNewConfig(testDeployment(), new HashMap<String, Object>() {{
+                put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                    put("main", new HashMap<String, Object>() {{
+                        put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, serviceList);
+                    }});
+
+                    put("user_service", new HashMap<String, Object>() {{
+                        put(RUN_WITH_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                            put("posixUser", SystemUtils.USER_NAME);    // set to current user running test
+                        }});
+                        putAll(userService.getConfig().toPOJO());
+                    }});
+
+                    put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig());
+                }});
+            }}).get(60, TimeUnit.SECONDS);
+
+            // THEN
+            serviceRestarts.run();
+            serviceFinishes.run();
+
+            // Check user
+            for (String s : Arrays.asList("install as %s", "run as %s")) {
+                assertThat(stdouts, hasItem(Matchers.containsString(String.format(s, SystemUtils.USER_NAME))));
+            }
+        }
+    }
     private Deployment testDeployment() {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)

@@ -62,6 +62,8 @@ public class DeviceConfiguration {
     public static final String RUN_WITH_DEFAULT_POSIX_GROUP = "posixGroup";
     public static final String RUN_WITH_DEFAULT_WINDOWS_USER = "windowsUser";
     public static final String RUN_WITH_DEFAULT_POSIX_SHELL = "posixShell";
+    public static final String RUN_WITH_DEFAULT_POSIX_SHELL_VALUE = "sh";
+
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
     public static final String COMPONENT_STORE_MAX_SIZE_BYTES = "componentStoreMaxSizeBytes";
     public static final String DEPLOYMENT_POLLING_FREQUENCY_SECONDS = "deploymentPollingFrequencySeconds";
@@ -214,7 +216,7 @@ public class DeviceConfiguration {
     }
 
     public Topic getRunWithDefaultPosixShell() {
-        return getRunWithTopic().lookup(RUN_WITH_DEFAULT_POSIX_SHELL).dflt("sh");
+        return getRunWithTopic().lookup(RUN_WITH_DEFAULT_POSIX_SHELL).dflt(RUN_WITH_DEFAULT_POSIX_SHELL_VALUE);
     }
 
     public Topic getRunWithDefaultWindowsUser() {

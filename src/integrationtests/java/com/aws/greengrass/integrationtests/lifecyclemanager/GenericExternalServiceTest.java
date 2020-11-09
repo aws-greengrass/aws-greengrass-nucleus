@@ -371,7 +371,6 @@ class GenericExternalServiceTest extends BaseITCase {
             assertThat(Files.getOwner(echoServiceWorkPath).getName(), is(expectedInstallUser));
             assertThat(Files.getOwner(installedFile).getName(), is(expectedInstallUser));
             assertThat(Files.getOwner(runFile).getName(), is(expectedRunUser));
-
         }
     }
 

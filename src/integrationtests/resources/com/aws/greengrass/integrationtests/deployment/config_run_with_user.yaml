@@ -8,21 +8,18 @@ services:
 
   main:
     dependencies:
-      - echo_service
+      - user_service
+      - aws.greengrass.Nucleus
     lifecycle:
       posix:
         run:
           echo "Running main"
-  echo_service:
+  user_service:
     lifecycle:
       install:
         posix: |-
-          rm -f ./install-file
-          rm -f ./run-file
-          touch ./install-file
           echo "install as `id -u -n`"
       run:
         posix: |-
-          touch ./run-file
           echo "run as `id -u -n`"
     version: 1.0.0

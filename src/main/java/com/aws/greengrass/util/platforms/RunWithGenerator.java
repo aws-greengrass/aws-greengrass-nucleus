@@ -10,6 +10,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.RunWith;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -29,8 +30,17 @@ public interface RunWithGenerator {
 
     /**
      * Validate the default device configuration for default RunWith values.
+     *
      * @param deviceConfig a config to validate.
      * @throws DeviceConfigurationException if the configuration is not valid.
      */
     void validateDefaultConfiguration(DeviceConfiguration deviceConfig) throws DeviceConfigurationException;
+
+    /**
+     * Validate the default device configuration for default RunWith values.
+     *
+     * @param proposedDeviceConfig a config map to validate.
+     * @throws DeviceConfigurationException if the configuration is not valid.
+     */
+    void validateDefaultConfiguration(Map<String, Object> proposedDeviceConfig) throws DeviceConfigurationException;
 }

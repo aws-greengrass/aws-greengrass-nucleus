@@ -9,6 +9,7 @@ import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -20,6 +21,8 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.DependencyOrder;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -50,6 +53,11 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRO
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_URL;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_USERNAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PROXY_NAMESPACE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP;
+import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL;
+import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL_VALUE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER;
+import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_TOPIC;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
@@ -72,6 +80,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     @Getter(AccessLevel.PACKAGE)
     private List<BootstrapTaskStatus> bootstrapTaskStatusList = new ArrayList<>();
     private final Kernel kernel;
+    private final Platform platform;
     private int cursor;
 
     /**
@@ -81,8 +90,13 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      */
     @Inject
     public BootstrapManager(Kernel kernel) {
+        this(kernel, Platform.getInstance());
+    }
+
+    BootstrapManager(Kernel kernel, Platform platform) {
         this.kernel = kernel;
         this.cursor = 0;
+        this.platform = platform;
     }
 
     /**
@@ -119,7 +133,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             }
         });
         if (componentsRequiresBootstrapTask.isEmpty()) {
-            return false;
+            return nucleusConfigValidAndNeedsRestart;
         }
         List<String> errors = new ArrayList<>();
         // Figure out the dependency order within the subset of components which require changes
@@ -148,7 +162,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             return false;
         }
 
-        String newNoProxyAddresses = Coerce.toString(newNetworkProxy.get(DEVICE_PARAM_NO_PROXY_ADDRESSES));
+        // deviceconfig defaults to empty string on null for network proxy parameters so we must do the same
+        String newNoProxyAddresses = Coerce.toString(newNetworkProxy.getOrDefault(DEVICE_PARAM_NO_PROXY_ADDRESSES, ""));
         String currentNoProxyAddresses = Coerce.toString(currentDeviceConfiguration.getNoProxyAddresses());
         if (Utils.stringHasChanged(newNoProxyAddresses, currentNoProxyAddresses)) {
             logger.atInfo().kv(DEVICE_PARAM_NO_PROXY_ADDRESSES, newNoProxyAddresses).log(RESTART_REQUIRED_MESSAGE);
@@ -156,21 +171,21 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         }
 
         Map<String, Object> newProxy = (Map<String, Object>) newNetworkProxy.get(DEVICE_PROXY_NAMESPACE);
-        String newProxyUrl = Coerce.toString(newProxy.get(DEVICE_PARAM_PROXY_URL));
+        String newProxyUrl = Coerce.toString(newProxy.getOrDefault(DEVICE_PARAM_PROXY_URL, ""));
         String currentProxyUrl = Coerce.toString(currentDeviceConfiguration.getProxyUrl());
         if (Utils.stringHasChanged(newProxyUrl, currentProxyUrl)) {
             logger.atInfo().kv(DEVICE_PARAM_PROXY_URL, newProxyUrl).log(RESTART_REQUIRED_MESSAGE);
             return true;
         }
 
-        String newProxyUsername = Coerce.toString(newProxy.get(DEVICE_PARAM_PROXY_USERNAME));
+        String newProxyUsername = Coerce.toString(newProxy.getOrDefault(DEVICE_PARAM_PROXY_USERNAME, ""));
         String currentProxyUsername = Coerce.toString(currentDeviceConfiguration.getProxyUsername());
         if (Utils.stringHasChanged(newProxyUsername, currentProxyUsername)) {
             logger.atInfo().kv(DEVICE_PARAM_PROXY_USERNAME, newProxyUsername).log(RESTART_REQUIRED_MESSAGE);
             return true;
         }
 
-        String newProxyPassword = Coerce.toString(newProxy.get(DEVICE_PARAM_PROXY_PASSWORD));
+        String newProxyPassword = Coerce.toString(newProxy.getOrDefault(DEVICE_PARAM_PROXY_PASSWORD, ""));
         String currentProxyPassword = Coerce.toString(currentDeviceConfiguration.getProxyPassword());
         if (Utils.stringHasChanged(newProxyPassword, currentProxyPassword)) {
             logger.atInfo().kv(DEVICE_PARAM_PROXY_PASSWORD, newProxyPassword).log(RESTART_REQUIRED_MESSAGE);
@@ -180,9 +195,64 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         return false;
     }
 
+    private boolean defaultRunWithChanged(Map<String, Object> newNucleusParameters,
+            DeviceConfiguration currentDeviceConfiguration) throws ComponentConfigurationValidationException {
+        Map<String, Object> runWithDefault = (Map<String, Object>)newNucleusParameters.getOrDefault(RUN_WITH_TOPIC,
+                Collections.emptyMap());
+
+        Map<String, Object> currentValues = currentDeviceConfiguration.getRunWithTopic().toPOJO();
+
+        boolean changed = false;
+        if (!Objects.equals(currentValues.get(RUN_WITH_DEFAULT_POSIX_USER),
+                runWithDefault.get(RUN_WITH_DEFAULT_POSIX_USER))) {
+            logger.atInfo().kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_USER,
+                    runWithDefault.get(RUN_WITH_DEFAULT_POSIX_USER))
+                    .log(RESTART_REQUIRED_MESSAGE);
+            changed = true;
+        }
+        if (!Objects.equals(currentValues.get(RUN_WITH_DEFAULT_POSIX_GROUP),
+                runWithDefault.get(RUN_WITH_DEFAULT_POSIX_GROUP))) {
+            logger.atInfo().kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_GROUP,
+                    runWithDefault.get(RUN_WITH_DEFAULT_POSIX_GROUP))
+                    .log(RESTART_REQUIRED_MESSAGE);
+            changed = true;
+        }
+        if (!Objects.equals(currentValues.getOrDefault(RUN_WITH_DEFAULT_POSIX_SHELL,
+                RUN_WITH_DEFAULT_POSIX_SHELL_VALUE),
+                runWithDefault.getOrDefault(RUN_WITH_DEFAULT_POSIX_SHELL, RUN_WITH_DEFAULT_POSIX_SHELL_VALUE))) {
+            logger.atInfo().kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_SHELL,
+                    runWithDefault.get(RUN_WITH_DEFAULT_POSIX_SHELL))
+                    .log(RESTART_REQUIRED_MESSAGE);
+            changed = true;
+        }
+
+        if (changed) {
+            try {
+                platform.getRunWithGenerator().validateDefaultConfiguration(runWithDefault);
+            } catch (DeviceConfigurationException e) {
+                throw new ComponentConfigurationValidationException(e);
+            }
+            try {
+                logger.atInfo().kv("changed", RUN_WITH_TOPIC)
+                        .kv("old", SerializerFactory.getJsonObjectMapper().writeValueAsString(currentValues))
+                        .kv("new", SerializerFactory.getJsonObjectMapper().writeValueAsString(runWithDefault))
+                        .log(RESTART_REQUIRED_MESSAGE);
+            } catch (JsonProcessingException e) {
+                throw new ComponentConfigurationValidationException(e);
+            }
+            return true;
+        }
+        return false;
+    }
+
     private boolean nucleusConfigChangeRequiresRestart(Map<String, Object> newNucleusParameters,
-                                                       DeviceConfiguration currentDeviceConfiguration) {
-        return networkProxyHasChanged(newNucleusParameters, currentDeviceConfiguration);
+                                                       DeviceConfiguration currentDeviceConfiguration)
+            throws ComponentConfigurationValidationException {
+        // validation must not be skipped - otherwise the nucleus will be restarted with invalid config
+        boolean proxyChanged =  networkProxyHasChanged(newNucleusParameters, currentDeviceConfiguration);
+        boolean runWithChanged = defaultRunWithChanged(newNucleusParameters, currentDeviceConfiguration);
+
+        return proxyChanged || runWithChanged;
     }
 
     private boolean nucleusConfigValidAndNeedsRestart(Map<String, Object> deploymentConfig)
@@ -196,16 +266,24 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         for (GreengrassService s : kernel.orderedDependencies()) {
             // For now, only let builtin Greengrass services decide
             if (s.isBuiltin()) {
-                needsRestart = needsRestart || s.restartNucleusOnNucleusConfigChange(proposedNucleusConfig);
+                // Don't short-circuit validation - restartNucleusOnNucleusConfigChange throws
+                // ComponentConfigurationValidationException. Each component should check that the config is valid
+                // before accepting the change and restarting the Nucleus. The exception is handled by the
+                // DeploymentActivatorFactory to reject the deployment.
+                boolean componentChanged = s.restartNucleusOnNucleusConfigChange(proposedNucleusConfig);
+                needsRestart = needsRestart || componentChanged;
             }
         }
+
         return needsRestart;
     }
 
     private Map<String, Object> getProposedNucleusConfig(Map<String, Object> deploymentConfig) {
-        for (Map.Entry<String, Object> serviceConfig : deploymentConfig.entrySet()) {
-            if (serviceConfig instanceof Map) {
-                Map<String, Object> serviceConfigMap = (Map<String, Object>) serviceConfig;
+        Map<String, Object> services = (Map<String, Object>) deploymentConfig.getOrDefault(SERVICES_NAMESPACE_TOPIC,
+                Collections.emptyMap());
+        for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
+            if (serviceConfig.getValue() instanceof Map) {
+                Map<String, Object> serviceConfigMap = (Map<String, Object>) serviceConfig.getValue();
                 String componentType = Coerce.toString(serviceConfigMap.get(SERVICE_TYPE_TOPIC_KEY));
                 Object componentConfiguration = serviceConfigMap.get(KernelConfigResolver.CONFIGURATION_CONFIG_KEY);
                 if (ComponentType.NUCLEUS.name().equals(componentType) && componentConfiguration instanceof Map) {
