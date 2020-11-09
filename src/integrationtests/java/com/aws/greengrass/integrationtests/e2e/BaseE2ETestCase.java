@@ -8,6 +8,7 @@ package com.aws.greengrass.integrationtests.e2e;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
+import com.amazonaws.services.evergreen.model.CancelDeploymentRequest;
 import com.amazonaws.services.evergreen.model.ComponentInfo;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
@@ -133,7 +134,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static Optional<String> tesRolePolicyArn;
     protected static final IotSdkClientFactory.EnvironmentStage envStage = IotSdkClientFactory.EnvironmentStage.GAMMA;
 
-    protected final Set<String> createdIotJobIds = new HashSet<>();
+    protected final Set<CancelDeploymentRequest> createdDeployments = new HashSet<>();
     protected final Set<String> createdThingGroups = new HashSet<>();
     protected DeviceProvisioningHelper.ThingInfo thingInfo;
     protected String thingGroupName;
@@ -397,15 +398,21 @@ public class BaseE2ETestCase implements AutoCloseable {
         CreateDeploymentResult createDeploymentResult = greengrassClient.createDeployment(createDeploymentRequest);
         logger.atInfo().kv("CreateDeploymentResult", createDeploymentResult).log();
 
+        // Keep track of deployments to clean up
+        createdDeployments.add(new CancelDeploymentRequest().withTargetName(createDeploymentRequest.getTargetName())
+                .withTargetType(createDeploymentRequest.getTargetType()));
+
         return createDeploymentResult;
     }
 
     protected void cleanup() {
+        createdDeployments.forEach(greengrassClient::cancelDeployment);
+        createdDeployments.clear();
+
         deviceProvisioningHelper.cleanThing(iotClient, thingInfo, false);
         createdThingGroups.forEach(thingGroup-> IotJobsUtils.cleanThingGroup(iotClient, thingGroupName));
         createdThingGroups.clear();
-        createdIotJobIds.forEach(jobId -> IotJobsUtils.cleanJob(iotClient, jobId));
-        createdIotJobIds.clear();
+
         if (kernel == null || kernel.getNucleusPaths().configPath() == null) {
             return;
         }

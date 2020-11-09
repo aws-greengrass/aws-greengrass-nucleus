@@ -12,22 +12,17 @@ import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.AddThingToThingGroupRequest;
 import software.amazon.awssdk.services.iot.model.CancelJobRequest;
-import software.amazon.awssdk.services.iot.model.CreateJobRequest;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupRequest;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
-import software.amazon.awssdk.services.iot.model.DeleteJobRequest;
 import software.amazon.awssdk.services.iot.model.DeleteRoleAliasRequest;
 import software.amazon.awssdk.services.iot.model.DeleteThingGroupRequest;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
-import software.amazon.awssdk.services.iot.model.TargetSelection;
-import software.amazon.awssdk.services.iot.model.TimeoutConfig;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
@@ -37,13 +32,6 @@ import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.ThingInfo;
 public final class IotJobsUtils {
 
     private IotJobsUtils() {
-    }
-
-    public static void createJobWithId(IotClient client, String document, String jobId, String... targets) {
-        client.createJob(
-                CreateJobRequest.builder().jobId(jobId).targets(targets).targetSelection(TargetSelection.SNAPSHOT)
-                        .document(document).description("E2E Test: " + new Date())
-                        .timeoutConfig(TimeoutConfig.builder().inProgressTimeoutInMinutes(10L).build()).build());
     }
 
     public static void waitForJobExecutionStatusToSatisfy(IotClient client, String jobId, String thingName,
@@ -93,11 +81,6 @@ public final class IotJobsUtils {
 
     public static void cleanThingGroup(IotClient client, String thingGroupName) {
         client.deleteThingGroup(DeleteThingGroupRequest.builder().thingGroupName(thingGroupName).build());
-    }
-
-    public static void cleanJob(IotClient client, String jobId) {
-        cancelJob(client, jobId);
-        client.deleteJob(DeleteJobRequest.builder().jobId(jobId).force(true).build());
     }
 
     public static void cancelJob(IotClient client, String jobId) {
