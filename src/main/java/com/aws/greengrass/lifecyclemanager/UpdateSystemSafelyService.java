@@ -5,11 +5,11 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
-import com.aws.greengrass.builtin.services.lifecycle.DeferUpdateRequest;
 import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
+import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
 
@@ -156,7 +156,7 @@ public class UpdateSystemSafelyService extends GreengrassService {
             preComponentUpdateEvent.setIsGgcRestarting(ggcRestarting);
             String deploymentId = pendingActions.values().stream().map(UpdateAction::getDeploymentId).findFirst().get();
             preComponentUpdateEvent.setDeploymentId(deploymentId);
-            List<Future<DeferUpdateRequest>> deferRequestFutures =
+            List<Future<DeferComponentUpdateRequest>> deferRequestFutures =
                     lifecycleIPCAgent.sendPreComponentUpdateEvent(preComponentUpdateEvent);
 
             long timeToReCheck = getTimeToReCheck(getMaxTimeoutInMillis(), deploymentId, deferRequestFutures);
@@ -191,24 +191,24 @@ public class UpdateSystemSafelyService extends GreengrassService {
     }
 
     private long getTimeToReCheck(long timeout, String deploymentId,
-                                  List<Future<DeferUpdateRequest>> deferRequestFutures)
+                                  List<Future<DeferComponentUpdateRequest>> deferRequestFutures)
             throws InterruptedException {
         final long currentTimeMillis = clock.millis();
         long maxTimeToReCheck = currentTimeMillis;
         while ((clock.millis() - currentTimeMillis) < timeout && !deferRequestFutures.isEmpty()) {
-            Iterator<Future<DeferUpdateRequest>> iterator = deferRequestFutures.iterator();
+            Iterator<Future<DeferComponentUpdateRequest>> iterator = deferRequestFutures.iterator();
             while (iterator.hasNext()) {
-                Future<DeferUpdateRequest> fut = iterator.next();
+                Future<DeferComponentUpdateRequest> fut = iterator.next();
                 if (fut.isDone()) {
                     try {
-                        DeferUpdateRequest deferRequest = fut.get();
+                        DeferComponentUpdateRequest deferRequest = fut.get();
                         if (deploymentId.equals(deferRequest.getDeploymentId())) {
-                            long timeToRecheck = currentTimeMillis + deferRequest.getRecheckTimeInMs();
+                            long timeToRecheck = currentTimeMillis + deferRequest.getRecheckAfterMs();
                             if (timeToRecheck > maxTimeToReCheck) {
                                 maxTimeToReCheck = timeToRecheck;
                                 logger.atInfo().setEventType("service-update-deferred")
                                         .log("deferred for {} millis with message {}",
-                                                deferRequest.getRecheckTimeInMs(),
+                                                deferRequest.getRecheckAfterMs(),
                                                 deferRequest.getMessage());
                             }
                         } else {

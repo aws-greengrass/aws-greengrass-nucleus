@@ -6,7 +6,6 @@
 package com.aws.greengrass.integrationtests.ipc;
 
 import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgent;
-import com.aws.greengrass.builtin.services.lifecycle.DeferUpdateRequest;
 import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -475,7 +474,7 @@ class IPCServicesTest {
                 kernel.getContext().get(LifecycleIPCEventStreamAgent.class);
         PreComponentUpdateEvent event = new PreComponentUpdateEvent();
         event.setDeploymentId("abc");
-        List<Future<DeferUpdateRequest>> futureList =
+        List<Future<DeferComponentUpdateRequest>> futureList =
                 lifecycleIPCEventStreamAgent.sendPreComponentUpdateEvent(event);
         assertEquals(1, futureList.size());
         futureFuture.get(5, TimeUnit.SECONDS).get(5, TimeUnit.SECONDS);
