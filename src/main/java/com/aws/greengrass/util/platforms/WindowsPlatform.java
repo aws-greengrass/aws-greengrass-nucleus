@@ -91,7 +91,7 @@ public class WindowsPlatform extends Platform {
     @Override
     protected void setPermissions(FileSystemPermission permission, Path path,
                                   EnumSet<FileSystemPermission.Option> options) throws IOException {
-        // GG_NEEDS_REVIEW: TODO: Implement using ACL for Windows
+        // [P41372857]: Implement using ACL for Windows
     }
 
     @Override

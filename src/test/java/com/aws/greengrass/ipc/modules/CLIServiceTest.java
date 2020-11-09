@@ -196,7 +196,7 @@ class CLIServiceTest extends GGServiceTestUtil {
     @Test
     void testStartup_group_auth(ExtensionContext context) throws Exception {
         if (Exec.isWindows) {
-            // GG_NEEDS_REVIEW: TODO support group auth on Windows
+            // [P41372857]: Support group auth on Windows
             return;
         }
         ignoreExceptionOfType(context, UserPrincipalNotFoundException.class);

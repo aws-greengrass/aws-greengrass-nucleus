@@ -222,8 +222,8 @@ public class CLIService extends GreengrassService {
         Path authTokenDir = kernel.getNucleusPaths().cliIpcInfoPath();
         revokeOutdatedAuthTokens(authTokenDir);
 
+        // [P41372857]: Support Windows group permissions
         if (Exec.isWindows) {
-            // GG_NEEDS_REVIEW: TODO support windows group permissions
             generateCliIpcInfoForEffectiveUser(authTokenDir);
             return;
         }
