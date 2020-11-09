@@ -575,7 +575,7 @@ public class KernelConfigResolver {
             }
             result = resolvedChildConfig;
         }
-        // TODO: [P41216312]: Support other types than map (like list) for interpolation
+
         return result;
     }
 
