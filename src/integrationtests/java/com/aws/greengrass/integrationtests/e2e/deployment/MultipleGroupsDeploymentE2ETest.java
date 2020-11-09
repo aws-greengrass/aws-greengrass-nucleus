@@ -106,6 +106,7 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
     void GIVEN_deployment_to_2_groups_WHEN_both_deployments_have_same_service_different_version_THEN_second_deployment_fails_due_to_conflict(
             ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, ExecutionException.class);
+//        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
 
         CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest()
                 .withTargetName(thingGroupName)
