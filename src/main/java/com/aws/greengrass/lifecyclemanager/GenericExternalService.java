@@ -116,15 +116,15 @@ public class GenericExternalService extends GreengrassService {
                 return;
             }
 
-            // Reinstall for changes to the install script or if the package version changed
-            if (child.childOf(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC) || child.childOf(VERSION_CONFIG_KEY)) {
+            // Reinstall for changes to the install script or if the package version changed, or runwith
+            if (child.childOf(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC) || child.childOf(VERSION_CONFIG_KEY)
+                    || child.childOf(RUN_WITH_NAMESPACE_TOPIC)) {
                 requestReinstall();
                 return;
             }
 
-            // Restart service for changes to the lifecycle config, environment variables, or runwith
-            if (child.childOf(SERVICE_LIFECYCLE_NAMESPACE_TOPIC) || child.childOf(SETENV_CONFIG_NAMESPACE)
-                    || child.childOf(RUN_WITH_NAMESPACE_TOPIC)) {
+            // Restart service for changes to the lifecycle config or environment variables
+            if (child.childOf(SERVICE_LIFECYCLE_NAMESPACE_TOPIC) || child.childOf(SETENV_CONFIG_NAMESPACE)) {
                 requestRestart();
             }
         });
@@ -239,10 +239,18 @@ public class GenericExternalService extends GreengrassService {
         return bootstrapStepChanged;
     }
 
+    @SuppressWarnings("PMD.NullAssignment")
+    void resetRunWith() {
+        runWith = null;
+    }
+
     @Override
     protected synchronized void install() throws InterruptedException {
         stopAllLifecycleProcesses();
-
+        
+        // reset runWith in case we moved from NEW -> INSTALLED -> change runwith -> NEW
+        resetRunWith();
+        
         if (run(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses).getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in install");
         }
@@ -336,7 +344,6 @@ public class GenericExternalService extends GreengrassService {
         }
     }
 
-    @SuppressWarnings("PMD.NullAssignment")
     @Override
     protected synchronized void shutdown() {
         logger.atInfo().log("Shutdown initiated");
@@ -348,7 +355,7 @@ public class GenericExternalService extends GreengrassService {
             stopAllLifecycleProcesses();
             logger.atInfo().setEventType("generic-service-shutdown").log();
         }
-        runWith = null; // reset runWith - a deployment can change user info
+        resetRunWith(); // reset runWith - a deployment can change user info
     }
 
     private synchronized void stopAllLifecycleProcesses() {

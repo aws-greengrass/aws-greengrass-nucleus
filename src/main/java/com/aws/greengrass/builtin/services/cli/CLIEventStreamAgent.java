@@ -82,8 +82,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.LOCAL_DEPLOYMENT_RESOURCE;
-import static com.aws.greengrass.builtin.services.cli.CLIServiceAgent.PERSISTENT_LOCAL_DEPLOYMENTS;
 import static com.aws.greengrass.componentmanager.ComponentStore.RECIPE_FILE_NAME_FORMAT;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
@@ -97,6 +95,8 @@ import static com.aws.greengrass.ipc.common.IPCErrorStrings.DEPLOYMENTS_QUEUE_NO
 
 @SuppressWarnings("PMD.CouplingBetweenObjects")
 public class CLIEventStreamAgent {
+    public static final String PERSISTENT_LOCAL_DEPLOYMENTS = "LocalDeployments";
+    public static final String LOCAL_DEPLOYMENT_RESOURCE = "LocalDeployment";
     private static final Logger logger = LogManager.getLogger(CLIEventStreamAgent.class);
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().disable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE)
