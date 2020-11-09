@@ -6,13 +6,16 @@
 package com.aws.greengrass.integrationtests;
 
 
+import com.aws.greengrass.componentmanager.plugins.ArtifactDownloader;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -30,6 +33,14 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 public class BaseITCase {
 
     protected Path tempRootDir;
+
+    @BeforeAll
+    static void setupAll() throws NoSuchFieldException, IllegalAccessException {
+        // in integ test, reduce the max retry number of artifact downloading since it's expected to fail.
+        Field artifactDownloaderRetry = ArtifactDownloader.class.getDeclaredField("MAX_RETRY");
+        artifactDownloaderRetry.setAccessible(true);
+        artifactDownloaderRetry.setInt(null, 1);
+    }
 
     @BeforeEach
     void setRootDir() {

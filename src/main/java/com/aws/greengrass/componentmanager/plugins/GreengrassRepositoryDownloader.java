@@ -122,7 +122,31 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         if (localFileName != null) {
             return artifactDir.resolve(localFileName).toFile();
         }
-        return artifactDir.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
+        try {
+            return artifactDir.resolve(getLocalFileNameNoRetry()).toFile();
+        } catch (PackageDownloadException e) {
+            logger.atWarn().log("Error in getting file name from HTTP response,"
+                    + " getting local file name from URI scheme specific part", e);
+            localFileName = artifact.getArtifactUri().getSchemeSpecificPart();
+            return artifactDir.resolve(localFileName).toFile();
+        } catch (RetryableException e) {
+            logger.atWarn().log("Error in getting file name from HTTP response: {},"
+                    + " getting local file name from URI scheme specific part", e.getMessage());
+            return artifactDir.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
+        }
+    }
+
+    @Override
+    public boolean downloadRequired() {
+        try {
+            // Override parent's behavior of checking local file from getLocalFileName()
+            // Since in GreengrassRepositoryDownloader, getLocalFileName() requires calling cloud and may
+            // throw exception.
+            File localFile = getArtifactFile();
+            return !artifactExistsAndChecksum(artifact, localFile.toPath());
+        } catch (PackageDownloadException e) {
+            return true;
+        }
     }
 
     private void retrieveArtifactInfo() throws RetryableException, PackageDownloadException {

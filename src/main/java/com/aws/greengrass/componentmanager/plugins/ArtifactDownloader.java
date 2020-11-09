@@ -37,6 +37,7 @@ public abstract class ArtifactDownloader {
     public static final String COMPONENT_IDENTIFIER_LOG_KEY = "componentIdentifier";
     protected static final String HTTP_RANGE_HEADER_FORMAT = "bytes=%d-%d";
     protected static final String HTTP_RANGE_HEADER_KEY = "Range";
+    private static int MAX_RETRY = 5;
 
     protected final Logger logger = LogManager.getLogger(this.getClass());
     protected final ComponentIdentifier identifier;
@@ -242,25 +243,30 @@ public abstract class ArtifactDownloader {
      * @throws PackageDownloadException if error encountered
      */
     public final Long getDownloadSize() throws PackageDownloadException {
-        return runRetry("get-download-size", this::getDownloadSizeNoRetry);
+        return runRetry("get-download-size", this::getDownloadSizeNoRetry, MAX_RETRY);
     }
 
     protected abstract Long getDownloadSizeNoRetry() throws PackageDownloadException, RetryableException;
 
     protected String getLocalFileName() throws PackageDownloadException {
-        return runRetry("get-local-file-name", this::getLocalFileNameNoRetry);
+        return runRetry("get-local-file-name", this::getLocalFileNameNoRetry, MAX_RETRY);
     }
 
     protected abstract String getLocalFileNameNoRetry() throws PackageDownloadException, RetryableException;
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
-    private <T> T runRetry(String taskDescription, CrashableSupplier<T, Exception> taskToRetry)
+    private <T> T runRetry(String taskDescription, CrashableSupplier<T, Exception> taskToRetry, int maxRetry)
             throws PackageDownloadException {
         int retryInterval = INIT_RETRY_INTERVAL_MILLI;
-        while (true) {
+        int retry = 0;
+        RetryableException retryableException = null;
+        while (retry < maxRetry) {
+            retry++;
             try {
                 return taskToRetry.apply();
             } catch (RetryableException e) {
+                logger.atInfo().kv("exception", e.getMessage()).log("Retry " + taskDescription);
+                retryableException = e;
                 try {
                     Thread.sleep(retryInterval);
                     if (retryInterval < MAX_RETRY_INTERVAL_MILLI) {
@@ -278,6 +284,9 @@ public abstract class ArtifactDownloader {
                 throw new PackageDownloadException("Unexpected error in " + taskDescription, e);
             }
         }
+        throw new PackageDownloadException(
+                String.format("Fail to execute %s after retrying %d times", taskDescription, maxRetry),
+                retryableException);
     }
 
     protected String getErrorString(String reason) {
@@ -293,7 +302,7 @@ public abstract class ArtifactDownloader {
      * @return true if the file exists and has the right checksum
      * @throws PackageDownloadException if No local artifact found and recipe does not have required digest information
      */
-    private static boolean artifactExistsAndChecksum(ComponentArtifact artifact, Path filePath)
+    protected static boolean artifactExistsAndChecksum(ComponentArtifact artifact, Path filePath)
             throws PackageDownloadException {
         // Local recipes don't have digest or algorithm and that's expected, in such case, use the
         // locally present artifact. On the other hand, recipes downloaded from cloud will always
