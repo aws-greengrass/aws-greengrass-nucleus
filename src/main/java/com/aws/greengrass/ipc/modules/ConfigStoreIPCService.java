@@ -9,7 +9,6 @@ import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStream
 import com.aws.greengrass.ipc.Startable;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 
-
 import javax.inject.Inject;
 
 public class ConfigStoreIPCService implements Startable {

@@ -14,10 +14,10 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 
-import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import javax.inject.Inject;
 
 public class PubSubIPCService implements Startable, InjectionActions {
     public static final String PUB_SUB_SERVICE_NAME = "aws.greengrass.ipc.pubsub";
