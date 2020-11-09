@@ -6,7 +6,6 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.builtin.services.lifecycle.DeferUpdateRequest;
-import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCAgent;
 import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
@@ -55,9 +54,6 @@ public class UpdateSystemSafelyService extends GreengrassService {
     private LifecycleIPCEventStreamAgent lifecycleIPCAgent;
 
     @Inject
-    private LifecycleIPCAgent lifecycleAgent;
-
-    @Inject
     private Clock clock;
 
     /**
@@ -104,8 +100,6 @@ public class UpdateSystemSafelyService extends GreengrassService {
         }
         pendingActions.clear();
         lifecycleIPCAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
-        lifecycleAgent.sendPostComponentUpdateEvent(
-                new com.aws.greengrass.ipc.services.lifecycle.PostComponentUpdateEvent());
         runningUpdateActions.set(false);
     }
 
@@ -164,12 +158,6 @@ public class UpdateSystemSafelyService extends GreengrassService {
             preComponentUpdateEvent.setDeploymentId(deploymentId);
             List<Future<DeferUpdateRequest>> deferRequestFutures =
                     lifecycleIPCAgent.sendPreComponentUpdateEvent(preComponentUpdateEvent);
-
-            // GG_NEEDS_REVIEW (Amit): TODO: Remove when move all UATs and integ tests to lifecycle APIs on new IPC
-            com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent preComponentUpdateEventOld =
-                    new com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent();
-            preComponentUpdateEventOld.setGgcRestarting(ggcRestarting);
-            lifecycleAgent.sendPreComponentUpdateEvent(preComponentUpdateEventOld, deferRequestFutures);
 
             long timeToReCheck = getTimeToReCheck(getMaxTimeoutInMillis(), deploymentId, deferRequestFutures);
             if (timeToReCheck > 0) {
