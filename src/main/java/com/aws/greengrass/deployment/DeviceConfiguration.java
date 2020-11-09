@@ -58,7 +58,6 @@ public class DeviceConfiguration {
     public static final String DEVICE_SPOOLER_NAMESPACE = "spooler";
     public static final String RUN_WITH_TOPIC = "runWithDefault";
     public static final String RUN_WITH_DEFAULT_POSIX_USER = "posixUser";
-    public static final String RUN_WITH_DEFAULT_POSIX_GROUP = "posixGroup";
     public static final String RUN_WITH_DEFAULT_WINDOWS_USER = "windowsUser";
     public static final String RUN_WITH_DEFAULT_POSIX_SHELL = "posixShell";
     public static final String RUN_WITH_DEFAULT_POSIX_SHELL_VALUE = "sh";
@@ -208,10 +207,6 @@ public class DeviceConfiguration {
 
     public Topic getRunWithDefaultPosixUser() {
         return getRunWithTopic().lookup(RUN_WITH_DEFAULT_POSIX_USER);
-    }
-
-    public Topic getRunWithDefaultPosixGroup() {
-        return getRunWithTopic().lookup(RUN_WITH_DEFAULT_POSIX_GROUP);
     }
 
     public Topic getRunWithDefaultPosixShell() {

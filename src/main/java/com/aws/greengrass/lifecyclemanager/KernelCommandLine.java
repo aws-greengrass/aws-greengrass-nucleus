@@ -105,18 +105,12 @@ public class KernelCommandLine {
                     break;
                 case "--component-default-user":
                 case "-u":
+                    String user = getArg();
+                    Objects.requireNonNull(user, "-u or --component-default-user requires an argument");
                     if (Exec.isWindows) {
-                        deviceConfiguration.getRunWithDefaultWindowsUser().withValue(getArg());
+                        deviceConfiguration.getRunWithDefaultWindowsUser().withValue(user);
                     } else {
-                        deviceConfiguration.getRunWithDefaultPosixUser().withValue(getArg());
-                    }
-                    break;
-                case "--component-default-group":
-                case "-g":
-                    if (Exec.isWindows) {
-                        logger.atWarn().setEventType("parse-args-error").log("group is not used on Windows");
-                    } else {
-                        deviceConfiguration.getRunWithDefaultPosixGroup().withValue(getArg());
+                        deviceConfiguration.getRunWithDefaultPosixUser().withValue(user);
                     }
                     break;
                 default:

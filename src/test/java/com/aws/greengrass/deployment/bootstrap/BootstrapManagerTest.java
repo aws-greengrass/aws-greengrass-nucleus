@@ -272,8 +272,7 @@ class BootstrapManagerTest {
         when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(service);
 
         Map<String, Object> runWith = new HashMap<String, Object>() {{
-            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo");
-            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP, "bar");
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo:bar");
             put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");
         }};
         when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(runWith);
@@ -304,8 +303,7 @@ class BootstrapManagerTest {
         doReturn(false).when(service).isBootstrapRequired(anyMap());
         when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(service);
         when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(new HashMap<String, Object>() {{
-            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo");
-            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP, "bar");
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo:bar");
             put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");
         }});
 
@@ -318,7 +316,6 @@ class BootstrapManagerTest {
                             put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                                 put(DeviceConfiguration.RUN_WITH_TOPIC, new HashMap<String, Object>() {{
                                     put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "different");
-                                    put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP, "different");
                                     put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "different");
                                 }});
                             }});
@@ -336,8 +333,7 @@ class BootstrapManagerTest {
         when(kernel.getContext()).thenReturn(context);
 
         when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(new HashMap<String, Object>() {{
-                        put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo");
-                        put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP, "bar");
+                        put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo:bar");
                         put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");
                     }});
 
@@ -353,7 +349,6 @@ class BootstrapManagerTest {
                             put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                                 put(DeviceConfiguration.RUN_WITH_TOPIC, new HashMap<String, Object>() {{
                                     put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "different");
-                                    put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP, "different");
                                     put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "different");
                                 }});
                             }});
