@@ -637,6 +637,101 @@ class ConfigurationTest {
         assertEquals(now, config.findNode("nodeToBeMerged", "key3").modtime);
     }
 
+
+    @Test
+    void GIVEN_config_update_WHEN_node_type_change_THEN_expect_merge_correct() throws Exception {
+        // GIVEN
+        // set up initial config and listeners
+        String initConfig = "---\n"
+                + "nodeToBeMerged:\n"
+                + "  key1: val1\n"
+                + "  key3: val2\n"
+                + "  nodeToBeReplaced:\n"
+                + "    subNodeToBeRemoved: val\n"
+                + "    subNodeToBeMerged:\n"
+                + "      subKey1: subVal1\n"
+                + "nodeTypeToBeChanged:\n"
+                + "  key1: val1\n"
+                + "  key3: val2\n";
+
+        String updateConfig = "---\n"
+                + "nodeToBeMerged:\n"
+                + "  key2: val2\n"
+                + "  key3: val2\n"
+                + "  nodeToBeReplaced:\n"
+                + "    subNodeToBeMerged:\n"
+                + "      subKey2: subVal2\n"
+                + "nodeTypeToBeChanged: val\n"
+                + "nodeToBeAdded: val\n";
+
+        String expectedResult = "---\n"
+                + "nodeToBeMerged:\n"
+                + "  key1: val1\n"
+                + "  key2: val2\n"
+                + "  key3: val2\n"
+                + "  nodeToBeReplaced:\n"
+                + "    subNodeToBeMerged:\n"
+                + "      subKey1: subVal1\n"
+                + "      subKey2: subVal2\n"
+                + "nodeTypeToBeChanged: val\n"
+                + "nodeToBeAdded: val\n";
+
+        Map<String, Object> initConfigMap;
+        try (InputStream inputStream = new ByteArrayInputStream(initConfig.getBytes())) {
+            initConfigMap = MAPPER.readValue(inputStream, Map.class);
+        }
+        long then = 10_000;
+        Path tlogPath = tempDir.resolve("t.tlog");
+        ConfigurationWriter.logTransactionsTo(config, tlogPath).flushImmediately(true);
+        config.mergeMap(then, initConfigMap);
+        config.context.waitForPublishQueueToClear();
+
+        // WHEN
+        Map<String, Object> updateConfigMap;
+        try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
+            updateConfigMap = MAPPER.readValue(inputStream, Map.class);
+        }
+
+        long now = System.currentTimeMillis();
+        UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                createNewMap("nodeToBeMerged", new UpdateBehaviorTree(
+                        UpdateBehaviorTree.UpdateBehavior.MERGE,
+                        createNewMap("nodeToBeReplaced", new UpdateBehaviorTree(
+                                UpdateBehaviorTree.UpdateBehavior.REPLACE,
+                                createNewMap("subNodeToBeMerged",
+                                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                                                now)),
+                                now
+                        )), now
+                )), now
+        );
+
+        AtomicBoolean nodeRemoved = new AtomicBoolean(false) ;
+        config.findTopics("nodeTypeToBeChanged").subscribe((what, c) -> {
+            if (WhatHappened.removed == what) {
+                nodeRemoved.set(true);
+            }
+        });
+
+        config.updateMap(updateConfigMap, updateBehavior);
+        config.context.waitForPublishQueueToClear();
+
+        assertTrue(nodeRemoved.get());
+
+        // THEN
+        Map<String, Object> expectedConfig;
+        try (InputStream inputStream = new ByteArrayInputStream(expectedResult.getBytes())) {
+            expectedConfig = MAPPER.readValue(inputStream, Map.class);
+        }
+        assertEquals(expectedConfig, config.toPOJO());
+
+        config = new Configuration(config.context);
+        ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
+        config.context.waitForPublishQueueToClear();
+
+        assertEquals(expectedConfig, config.toPOJO());
+    }
+
     private <T> Map<String, T> createNewMap(String key, T value) {
         Map<String, T> result = new HashMap<>();
         result.put(key, value);

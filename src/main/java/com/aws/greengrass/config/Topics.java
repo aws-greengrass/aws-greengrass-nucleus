@@ -281,28 +281,6 @@ public class Topics extends Node implements Iterable<Node> {
             childMergeBehavior = mergeBehavior;
         }
 
-        switch (childMergeBehavior.getDefaultBehavior()) {
-            case MERGE:
-                mergeChild(key, value, childMergeBehavior);
-                break;
-            case REPLACE:
-                replaceChild(key, value, childMergeBehavior);
-                break;
-            default:
-        }
-    }
-
-    private void mergeChild(CaseInsensitiveString key, Object value,
-                            @NonNull UpdateBehaviorTree mergeBehavior) {
-        if (value instanceof Map) {
-            createInteriorChild(key).updateFromMap((Map) value, mergeBehavior);
-        } else {
-            createLeafChild(key).withNewerValue(mergeBehavior.getTimestampToUse(), value, false, true);
-        }
-    }
-
-    private void replaceChild(CaseInsensitiveString key, Object value,
-                              @Nonnull UpdateBehaviorTree childMergeBehavior) {
         Node existingChild = children.get(key);
         // if new node is a container node
         if (value instanceof Map) {
