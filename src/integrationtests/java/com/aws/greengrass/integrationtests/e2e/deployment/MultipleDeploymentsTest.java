@@ -60,41 +60,6 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
         cleanup();
     }
 
-    // In this test, we bring the device online and connected to IoT Core, and then create 3 deployments in a row.
-    // The device would receive job notifications once for each deployment job in most cases. We are able to verify
-    // deployment service can process the deployments one by one based on the job order from IoT jobs.
-    @Timeout(value = 10, unit = TimeUnit.MINUTES)
-    @Test
-    void GIVEN_online_device_WHEN_create_multiple_deployments_THEN_deployments_execute_successfully_in_order() throws Exception {
-        List<DeploymentJobHelper> helpers = Arrays
-                .asList(new DeploymentJobHelper(1, "GreenSignal"), new DeploymentJobHelper(2, "SomeService"),
-                        new DeploymentJobHelper(3, "CustomerApp"));
-
-        kernel.launch();
-
-        subscribeToLocalDeploymentStatus(kernel, helpers);
-
-        // Create multiple jobs
-        String[] targets = {thingGroupResp.thingGroupArn()};
-        for (DeploymentJobHelper helper : helpers) {
-            // Note: Directly creating IoT jobs here so that we have definitive job IDs to make assertions on job
-            // execution.
-            IotJobsUtils.createJobWithId(iotClient, helper.createIoTJobDocument(), helper.jobId, targets);
-            createdIotJobIds.add(helper.jobId);
-            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
-                    Duration.ofMinutes(1), s -> s.ordinal() >= JobExecutionStatus.QUEUED.ordinal());
-            logger.atWarn().kv("jobId", helper.jobId).log("Created IoT Job");
-        }
-
-        // Wait for all jobs to finish
-        for (DeploymentJobHelper helper : helpers) {
-            assertTrue(helper.jobCompleted.await(5, TimeUnit.MINUTES), "Deployment job timed out: " + helper.jobId);
-
-            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
-                    Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
-        }
-    }
-
     // In this test, we create 3 deployments in a row, and then bring the device online and connected to IoT Core.
     // The device would receive job notifications at least 3 times for the first deployment job. This is expected
     // behavior from IoT jobs. Thus we are able to verify deployment service can handle the duplicate job

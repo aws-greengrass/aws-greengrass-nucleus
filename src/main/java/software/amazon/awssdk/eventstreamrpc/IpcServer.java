@@ -8,10 +8,10 @@ package software.amazon.awssdk.eventstreamrpc;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.eventstream.ServerConnection;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionHandler;
@@ -24,7 +24,7 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.crt.io.TlsContextOptions;
 
 public class IpcServer implements AutoCloseable {
-    private static final Logger LOGGER = LoggerFactory.getLogger(IpcServer.class);
+    private static final Logger LOGGER = Logger.getLogger(IpcServer.class.getName());
 
     private final EventLoopGroup eventLoopGroup;
     private final SocketOptions socketOptions;
@@ -61,10 +61,15 @@ public class IpcServer implements AutoCloseable {
         listener = new ServerListener(hostname, (short) port, socketOptions, tlsContext, serverBootstrap, new ServerListenerHandler() {
                 @Override
                 public ServerConnectionHandler onNewConnection(ServerConnection serverConnection, int errorCode) {
-                    LOGGER.info("New connection code [" + CRT.awsErrorName(errorCode) + "] for " + serverConnection.getResourceLogDescription());
-                    final ServiceOperationMappingContinuationHandler operationHandler =
-                            new ServiceOperationMappingContinuationHandler(serverConnection, eventStreamRPCServiceHandler);
-                    return operationHandler;
+                    try {
+                        LOGGER.info("New connection code [" + CRT.awsErrorName(errorCode) + "] for " + serverConnection.getResourceLogDescription());
+                        final ServiceOperationMappingContinuationHandler operationHandler =
+                                new ServiceOperationMappingContinuationHandler(serverConnection, eventStreamRPCServiceHandler);
+                        return operationHandler;
+                    } catch (Throwable e) {
+                        LOGGER.log(Level.SEVERE, "Throwable caught in new connection: " + e.getMessage());
+                        return null;
+                    }
                 }
 
                 @Override

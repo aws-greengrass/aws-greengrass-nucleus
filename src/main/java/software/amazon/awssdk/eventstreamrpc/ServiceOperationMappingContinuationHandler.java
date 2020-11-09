@@ -11,13 +11,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.crt.eventstream.*;
 
 public class ServiceOperationMappingContinuationHandler extends ServerConnectionHandler {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ServiceOperationMappingContinuationHandler.class);
+    private static final Logger LOGGER = Logger.getLogger(ServiceOperationMappingContinuationHandler.class.getName());
     private final EventStreamRPCServiceHandler serviceHandler;
     private AuthenticationData authenticationData;  //should only be set once after AuthN
 
@@ -32,8 +32,8 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
         if (messageType == MessageType.Ping) {
             int responseMessageFlag = 0;
             MessageType responseMessageType = MessageType.PingResponse;
-
-            connection.sendProtocolMessage(null, null, responseMessageType, responseMessageFlag);
+            connection.sendProtocolMessage(headers.stream().filter(header -> !header.getName().startsWith(":"))
+                    .collect(Collectors.toList()), payload, responseMessageType, responseMessageFlag);
         } else if (messageType == MessageType.Connect) {
             onConnectRequest(headers, payload);
         } else if (messageType != MessageType.PingResponse) {
@@ -80,7 +80,7 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                     throw new IllegalStateException(String.format("%s has null authorization handler!"));
                 }
 
-                LOGGER.trace(String.format("%s running authentication handler", serviceHandler.getServiceName()));
+                LOGGER.finer(String.format("%s running authentication handler", serviceHandler.getServiceName()));
                 authenticationData = authentication.apply(headers, payload);
                 if (authenticationData == null) {
                     throw new IllegalStateException(String.format("%s authentication handler returned null", serviceHandler.getServiceName()));
@@ -101,26 +101,27 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                         throw new RuntimeException("Unknown authorization decision for " + authenticationData.getIdentityLabel());
                 }
             } else { //version mismatch
-                LOGGER.warn(String.format("Client version {%s} mismatches server version {%s}",
+                LOGGER.warning(String.format("Client version {%s} mismatches server version {%s}",
                         versionHeader.isPresent() ? versionHeader.get() : "null",
                         Version.getInstance().getVersionString()));
             }
         } catch (Exception e) {
-            LOGGER.error(String.format("%s occurred while attempting to authN/authZ connect: %s", e.getClass(), e.getMessage()));
+            LOGGER.severe(String.format("%s occurred while attempting to authN/authZ connect: %s", e.getClass(), e.getMessage()));
         } finally {
             final String authLabel =  authenticationData != null ? authenticationData.getIdentityLabel() : "null";
             LOGGER.info("Sending connect response for " + authLabel);
             connection.sendProtocolMessage(null, null, acceptResponseType, responseMessageFlag[0])
                 .whenComplete((res, ex) -> {
+                    //TODO: removing log statements due to known issue of locking up
                     if (ex != null) {
-                        LOGGER.error(String.format("Sending connection response for %s threw exception (%s): %s",
-                           authLabel, ex.getClass().getCanonicalName(), ex.getMessage()));
+                        //LOGGER.severe(String.format("Sending connection response for %s threw exception (%s): %s",
+                        //   authLabel, ex.getClass().getCanonicalName(), ex.getMessage()));
                     }
                     else {
-                        LOGGER.info("Successfully sent connection response for: " + authLabel);
+                        //LOGGER.info("Successfully sent connection response for: " + authLabel);
                     }
                     if (responseMessageFlag[0] != MessageFlags.ConnectionAccepted.getByteValue()) {
-                        LOGGER.info("Closing connection due to connection not being accepted...");
+                        //LOGGER.info("Closing connection due to connection not being accepted...");
                         connection.closeConnection(0);
                     }
                 });
