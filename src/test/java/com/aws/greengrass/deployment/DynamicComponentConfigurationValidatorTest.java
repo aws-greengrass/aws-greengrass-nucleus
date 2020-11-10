@@ -6,7 +6,6 @@
 package com.aws.greengrass.deployment;
 
 import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
-import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCAgent;
 import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgent;
 import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.greengrass.config.Topic;
