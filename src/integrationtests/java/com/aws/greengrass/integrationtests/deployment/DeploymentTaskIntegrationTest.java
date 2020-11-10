@@ -183,7 +183,7 @@ class DeploymentTaskIntegrationTest {
 
     @BeforeEach
     void beforeEach(ExtensionContext context) throws Exception {
-        // This test will not be able to call cloud as it uses all local resources
+        // This test suite will not be able to call cloud as it uses all local resources
         ignoreExceptionOfType(context, PackageDownloadException.class);
         ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
 
