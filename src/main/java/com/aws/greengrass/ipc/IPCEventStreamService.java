@@ -7,6 +7,7 @@ package com.aws.greengrass.ipc;
 
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.ipc.common.DefaultOperationHandler;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -24,7 +25,6 @@ import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
 import software.amazon.awssdk.eventstreamrpc.Authorization;
-import software.amazon.awssdk.eventstreamrpc.DebugLoggingOperationHandler;
 import software.amazon.awssdk.eventstreamrpc.GreengrassEventStreamConnectMessage;
 import software.amazon.awssdk.eventstreamrpc.IpcServer;
 
@@ -98,7 +98,7 @@ public class IPCEventStreamService implements Startable, Closeable {
         try {
             greengrassCoreIPCService.getAllOperations().forEach(operation ->
                     greengrassCoreIPCService.setOperationHandler(operation,
-                    (context) -> new DebugLoggingOperationHandler(GreengrassCoreIPCServiceModel.getInstance()
+                    (context) -> new DefaultOperationHandler(GreengrassCoreIPCServiceModel.getInstance()
                             .getOperationModelContext(operation), context)));
             greengrassCoreIPCService.setAuthenticationHandler((List<Header> headers, byte[] bytes) ->
                     ipcAuthenticationHandler(bytes));
