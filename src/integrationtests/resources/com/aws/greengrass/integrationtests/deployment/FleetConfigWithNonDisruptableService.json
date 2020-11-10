@@ -10,8 +10,5 @@
   "componentUpdatePolicy": {
     "timeout": 60,
     "action": "SKIP_NOTIFY_COMPONENTS"
-  },
-  "configurationValidationPolicy": {
-    "timeout": 60
   }
 }

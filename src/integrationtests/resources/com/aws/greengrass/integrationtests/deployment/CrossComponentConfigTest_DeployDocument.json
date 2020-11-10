@@ -12,8 +12,5 @@
   "ComponentUpdatePolicy": {
     "Timeout": 60,
     "ComponentUpdatePolicyAction": "NOTIFY_COMPONENTS"
-  },
-  "ConfigurationValidationPolicy": {
-    "timeout": 20
   }
 }

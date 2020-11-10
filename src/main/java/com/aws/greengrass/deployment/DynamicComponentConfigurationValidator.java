@@ -52,6 +52,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 public class DynamicComponentConfigurationValidator {
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
     private static final Logger logger = LogManager.getLogger(DynamicComponentConfigurationValidator.class);
+    private static final Integer DEFAULT_TIMEOUT_SEC = 20;
 
     @Inject
     private Kernel kernel;
@@ -159,7 +160,10 @@ public class DynamicComponentConfigurationValidator {
                                     CompletableFuture<DeploymentResult> deploymentResultFuture) {
         String deploymentId = deployment.getId();
         Integer timeoutSec = deployment.getDeploymentDocumentObj().getConfigurationValidationPolicy().getTimeout();
-        Long timeoutMs = Duration.ofSeconds(timeoutSec).toMillis();
+        Long timeoutMs = Duration.ofSeconds(DEFAULT_TIMEOUT_SEC).toMillis();
+        if (timeoutSec != null) {
+            timeoutMs = Duration.ofSeconds(timeoutSec).toMillis();
+        }
         try {
             String failureMsg = null;
             boolean validationRequested = false;

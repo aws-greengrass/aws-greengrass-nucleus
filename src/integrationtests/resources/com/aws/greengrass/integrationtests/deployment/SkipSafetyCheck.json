@@ -11,8 +11,5 @@
   "FailureHandlingPolicy": "DO_NOTHING",
   "ComponentUpdatePolicy": {
     "ComponentUpdatePolicyAction": "SKIP_NOTIFY_COMPONENTS"
-  },
-  "ConfigurationValidationPolicy": {
-    "timeout": 20
   }
 }
