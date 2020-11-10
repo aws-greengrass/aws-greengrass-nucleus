@@ -63,10 +63,12 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
         topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT)
                 .subscribe((why, newv) -> port = Coerce.toInt(newv));
 
-        deviceConfiguration.onTopicChange(IOT_ROLE_ALIAS_TOPIC, (why, newv) -> {
+        deviceConfiguration.getIotRoleAlias().subscribe((why, newv) -> {
             iotRoleAlias = Coerce.toString(newv);
             credentialRequestHandler.setIotCredentialsPath(iotRoleAlias);
         });
+        deviceConfiguration.getThingName()
+                .subscribe((why, newv) -> credentialRequestHandler.setThingName(Coerce.toString(newv)));
 
         this.authZHandler = authZHandler;
         this.credentialRequestHandler = credentialRequestHandler;

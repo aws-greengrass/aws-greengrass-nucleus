@@ -26,7 +26,7 @@ import com.aws.greengrass.componentmanager.plugins.S3Downloader;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
@@ -90,23 +90,21 @@ public class ComponentManager implements InjectionActions {
     /**
      * PackageManager constructor.
      *
-     * @param s3ArtifactsDownloader          s3ArtifactsDownloader
-     * @param greengrassArtifactDownloader   greengrassArtifactDownloader
-     * @param componentServiceHelper         greengrassPackageServiceHelper
-     * @param executorService                executorService
-     * @param componentStore                 componentStore
-     * @param kernel                         kernel
-     * @param unarchiver                     unarchiver
-     * @param deviceConfiguration            deviceConfiguration
-     * @param nucleusPaths                   path library
+     * @param s3ArtifactsDownloader        s3ArtifactsDownloader
+     * @param greengrassArtifactDownloader greengrassArtifactDownloader
+     * @param componentServiceHelper       greengrassPackageServiceHelper
+     * @param executorService              executorService
+     * @param componentStore               componentStore
+     * @param kernel                       kernel
+     * @param unarchiver                   unarchiver
+     * @param deviceConfiguration          deviceConfiguration
+     * @param nucleusPaths                 path library
      */
     @Inject
     public ComponentManager(S3Downloader s3ArtifactsDownloader,
-                            GreengrassRepositoryDownloader greengrassArtifactDownloader,
-                            ComponentServiceHelper componentServiceHelper,
-                            ExecutorService executorService, ComponentStore componentStore, Kernel kernel,
-                            Unarchiver unarchiver, DeviceConfiguration deviceConfiguration,
-                            NucleusPaths nucleusPaths) {
+            GreengrassRepositoryDownloader greengrassArtifactDownloader, ComponentServiceHelper componentServiceHelper,
+            ExecutorService executorService, ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver,
+            DeviceConfiguration deviceConfiguration, NucleusPaths nucleusPaths) {
         this.s3ArtifactsDownloader = s3ArtifactsDownloader;
         this.greengrassArtifactDownloader = greengrassArtifactDownloader;
         this.componentServiceHelper = componentServiceHelper;
@@ -119,24 +117,44 @@ public class ComponentManager implements InjectionActions {
     }
 
     ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements,
-                                              String deploymentConfigurationId) throws PackagingException {
-        // acquire ever possible local best candidate
+            String deploymentConfigurationId) throws PackagingException {
+        logger.atInfo().setEventType("resolve-component-version-start").kv(COMPONENT_STR, componentName)
+                .kv("versionRequirements", versionRequirements).log("Resolving component version starts");
+
+        // Find best local candidate
         Optional<ComponentIdentifier> localCandidateOptional =
-                findLocalBestCandidate(componentName, versionRequirements);
-        logger.atDebug().kv(COMPONENT_STR, componentName).kv("versionRequirements", versionRequirements)
-                .kv("localCandidate", localCandidateOptional.orElse(null)).log("Resolve to local version");
+                findBestCandidateLocally(componentName, versionRequirements);
+
+        if (localCandidateOptional.isPresent()) {
+            logger.atInfo().kv("LocalCandidateId", localCandidateOptional.get())
+                    .log("Found the best local candidate that satisfies the requirement.");
+        } else {
+            logger.atInfo().log("Can't find a local candidate that satisfies the requirement.");
+
+        }
+
         ComponentIdentifier resolvedComponentId;
-        if (versionRequirements.containsKey(Deployment.DeploymentType.LOCAL.toString())) {
-            // keep using local version if the component is meant to be local override
+
+        if (versionRequirements.containsKey(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME)) {
+            // keep using local version if the component requirement is from a local deployment
+            logger.atInfo().log("Requirement comes from a Local Deployment. Use the local candidate as the resolved one"
+                                        + " without negotiating version with cloud.");
             resolvedComponentId = localCandidateOptional.orElseThrow(() -> new NoAvailableComponentVersionException(
                     String.format("Component %s is meant to be a local override, but no version can satisfy %s",
-                            componentName, versionRequirements)));
+                                  componentName, versionRequirements)));
         } else {
             // otherwise try to negotiate with cloud
+            logger.atInfo().setEventType("negotiate-version-with-cloud-start").log("Negotiating version with cloud");
+
             resolvedComponentId =
                     negotiateVersionWithCloud(componentName, versionRequirements, localCandidateOptional.orElse(null),
-                            deploymentConfigurationId);
+                                              deploymentConfigurationId);
+
+            logger.atInfo().setEventType("negotiate-version-with-cloud-end").log("Negotiated version with cloud");
         }
+
+        logger.atInfo().setEventType("resolve-component-version-end").kv("ResolvedComponent", resolvedComponentId)
+                .log("Resolved component version.");
 
         return getComponentMetadata(resolvedComponentId);
     }
@@ -152,8 +170,8 @@ public class ComponentManager implements InjectionActions {
         }
         try {
             String digest = Digest.calculate(recipeContent);
-            kernel.getMain().getRuntimeConfig().lookup(Kernel.SERVICE_DIGEST_TOPIC_KEY,
-                            componentIdentifier.toString()).withValue(digest);
+            kernel.getMain().getRuntimeConfig().lookup(Kernel.SERVICE_DIGEST_TOPIC_KEY, componentIdentifier.toString())
+                    .withValue(digest);
             logger.atDebug().kv(COMPONENT_STR, componentIdentifier).log("Save calculated digest: " + digest);
         } catch (NoSuchAlgorithmException e) {
             // This should never happen as SHA-256 is mandatory for every default JVM provider
@@ -163,8 +181,8 @@ public class ComponentManager implements InjectionActions {
 
     private void removeRecipeDigestIfExists(ComponentIdentifier componentIdentifier) {
         // clean up digest from store
-        Topic digestTopic = kernel.getMain().getRuntimeConfig().find(Kernel.SERVICE_DIGEST_TOPIC_KEY,
-                componentIdentifier.toString());
+        Topic digestTopic = kernel.getMain().getRuntimeConfig()
+                .find(Kernel.SERVICE_DIGEST_TOPIC_KEY, componentIdentifier.toString());
         if (digestTopic != null) {
             digestTopic.remove();
             logger.atInfo().kv(COMPONENT_STR, componentIdentifier).log("Remove digest from store");
@@ -172,24 +190,25 @@ public class ComponentManager implements InjectionActions {
     }
 
     private ComponentIdentifier negotiateVersionWithCloud(String componentName,
-                                                          Map<String, Requirement> versionRequirements,
-                                                          ComponentIdentifier localCandidate,
-                                                          String deploymentConfigurationId) throws PackagingException {
+            Map<String, Requirement> versionRequirements, ComponentIdentifier localCandidate,
+            String deploymentConfigurationId) throws PackagingException {
         ComponentContent componentContent;
 
         try {
             componentContent = componentServiceHelper
                     .resolveComponentVersion(componentName, localCandidate == null ? null : localCandidate.getVersion(),
-                            versionRequirements, deploymentConfigurationId);
+                                             versionRequirements, deploymentConfigurationId);
         } catch (ComponentVersionNegotiationException | NoAvailableComponentVersionException e) {
-            logger.atDebug().kv("componentName", componentName).kv("versionRequirement", versionRequirements)
-                    .kv("localVersion", localCandidate).log("Can't negotiate version with cloud, use local version", e);
+            logger.atInfo().setCause(e).kv("componentName", componentName).kv("versionRequirement", versionRequirements)
+                    .kv("localVersion", localCandidate)
+                    .log("Failed to negotiate version with cloud due to a exception and trying to fall back "
+                                 + "to use the available local version");
             if (localCandidate != null) {
                 return localCandidate;
             }
-            throw new NoAvailableComponentVersionException(
-                    String.format("Can't negotiate component %s version with cloud and no local applicable version "
-                                    + "satisfying %s", componentName, versionRequirements), e);
+            throw new NoAvailableComponentVersionException(String.format(
+                    "Failed to negotiate component '%s' version with cloud and no local applicable version "
+                            + "satisfying requirement '%s'.", componentName, versionRequirements), e);
         }
 
         ComponentIdentifier resolvedComponentId =
@@ -211,17 +230,24 @@ public class ComponentManager implements InjectionActions {
         return resolvedComponentId;
     }
 
-    private Optional<ComponentIdentifier> findLocalBestCandidate(String componentName,
-                                                                 Map<String, Requirement> versionRequirements)
-            throws PackagingException {
+    private Optional<ComponentIdentifier> findBestCandidateLocally(String componentName,
+            Map<String, Requirement> versionRequirements) throws PackagingException {
+        logger.atInfo().kv("ComponentName", componentName).kv("VersionRequirements", versionRequirements)
+                .log("Searching for best candidate locally on the device.");
+
         Requirement req = mergeVersionRequirements(versionRequirements);
 
         Optional<ComponentIdentifier> optionalActiveComponentId = findActiveAndSatisfiedComponent(componentName, req);
 
         // use active one if compatible, otherwise check local available ones
         if (optionalActiveComponentId.isPresent()) {
+            logger.atInfo().kv("ComponentIdentifier", optionalActiveComponentId.get())
+                    .log("Found running component which meets the requirement and use it.");
             return optionalActiveComponentId;
+
         } else {
+            logger.atInfo()
+                    .log("No running component satisfies the requirement. Searching in the local component store.");
             return componentStore.findBestMatchAvailableComponent(componentName, req);
         }
     }
@@ -324,7 +350,7 @@ public class ComponentManager implements InjectionActions {
             if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
                 throw new SizeLimitException(
                         String.format("Disk space critical: %d bytes usable, %d bytes minimum allowed",
-                                usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
+                                      usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
             }
             ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
 
@@ -349,11 +375,11 @@ public class ComponentManager implements InjectionActions {
             if (artifactFile != null) {
                 try {
                     Permissions.setArtifactPermission(artifactFile.toPath(),
-                            artifact.getPermission().toFileSystemPermission());
+                                                      artifact.getPermission().toFileSystemPermission());
                 } catch (IOException e) {
                     throw new PackageDownloadException(
                             String.format("Failed to change permissions of component %s artifact %s",
-                                    componentIdentifier, artifact), e);
+                                          componentIdentifier, artifact), e);
                 }
             }
             Unarchive unarchive = artifact.getUnarchive();
@@ -363,21 +389,21 @@ public class ComponentManager implements InjectionActions {
 
             if (artifactFile != null && !unarchive.equals(Unarchive.NONE)) {
                 try {
-                    Path unarchivePath = nucleusPaths.unarchiveArtifactPath(componentIdentifier,
-                            getFileName(artifactFile));
+                    Path unarchivePath =
+                            nucleusPaths.unarchiveArtifactPath(componentIdentifier, getFileName(artifactFile));
                     unarchiver.unarchive(unarchive, artifactFile, unarchivePath);
                     try {
                         Permissions.setArtifactPermission(unarchivePath,
-                                artifact.getPermission().toFileSystemPermission());
+                                                          artifact.getPermission().toFileSystemPermission());
                     } catch (IOException e) {
                         throw new PackageDownloadException(
                                 String.format("Failed to change permissions of component %s artifact %s",
-                                        componentIdentifier, artifact), e);
+                                              componentIdentifier, artifact), e);
                     }
                 } catch (IOException e) {
                     throw new PackageDownloadException(
                             String.format("Failed to unarchive component %s artifact %s", componentIdentifier,
-                                    artifact), e);
+                                          artifact), e);
                 }
             }
         }
@@ -499,8 +525,7 @@ public class ComponentManager implements InjectionActions {
      * @throws PackagingException if fails to find the target recipe or parse the recipe
      */
     private Optional<ComponentMetadata> findActiveAndSatisfiedPackageMetadata(String componentName,
-                                                                              Requirement requirement)
-            throws PackagingException {
+            Requirement requirement) throws PackagingException {
         Optional<Semver> activeVersionOptional = findActiveVersion(componentName);
 
         if (!activeVersionOptional.isPresent()) {
@@ -525,8 +550,7 @@ public class ComponentManager implements InjectionActions {
      * @throws PackagingException no available version exception
      */
     ComponentMetadata getActiveAndSatisfiedComponentMetadata(String componentName,
-                                                             Map<String, Requirement> requirementMap)
-            throws PackagingException {
+            Map<String, Requirement> requirementMap) throws PackagingException {
         return getActiveAndSatisfiedComponentMetadata(componentName, mergeVersionRequirements(requirementMap));
     }
 
@@ -543,7 +567,7 @@ public class ComponentManager implements InjectionActions {
     }
 
     private Optional<ComponentIdentifier> findActiveAndSatisfiedComponent(String componentName,
-                                                                          Requirement requirement) {
+            Requirement requirement) {
         Optional<Semver> activeVersionOptional = findActiveVersion(componentName);
 
         return activeVersionOptional.filter(requirement::isSatisfiedBy)
