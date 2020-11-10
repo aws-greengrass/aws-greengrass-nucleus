@@ -45,6 +45,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
@@ -190,11 +191,15 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         Map<String, Object> configRemoveDep = new HashMap<String, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put("main", new HashMap<String, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp,
+                            DEFAULT_NUCLEUS_COMPONENT_NAME));
                 }});
                 put(CustomerApp, new HashMap<String, Object>() {{
                     putAll(kernel.findServiceTopic(CustomerApp).toPOJO());
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Collections.emptyList());
+                }});
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                    putAll(kernel.findServiceTopic(DEFAULT_NUCLEUS_COMPONENT_NAME).toPOJO());
                 }});
             }});
         }};
@@ -298,11 +303,15 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         Map<String, Object> configRemoveDep = new HashMap<String, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put("main", new HashMap<String, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp));
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp,
+                            DEFAULT_NUCLEUS_COMPONENT_NAME));
                 }});
                 put(CustomerApp, new HashMap<String, Object>() {{
                     putAll(kernel.findServiceTopic(CustomerApp).toPOJO());
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Collections.emptyList());
+                }});
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                    putAll(kernel.findServiceTopic(DEFAULT_NUCLEUS_COMPONENT_NAME).toPOJO());
                 }});
             }});
         }};

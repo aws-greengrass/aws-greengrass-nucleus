@@ -6,7 +6,6 @@ ComponentVersion: '1.0.0'
 ComponentConfiguration:
   DefaultConfiguration:
     Message: 'World'
-
 Manifests:
   - Platform:
       os: windows

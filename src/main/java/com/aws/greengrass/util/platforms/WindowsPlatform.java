@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -82,6 +83,12 @@ public class WindowsPlatform extends Platform {
             }
 
             @Override
+            public void validateDefaultConfiguration(Map<String, Object> proposedDeviceConfig)
+                    throws DeviceConfigurationException {
+                // do nothing
+            }
+
+            @Override
             public Optional<RunWith> generate(DeviceConfiguration deviceConfig, Topics config) {
                 return Optional.of(RunWith.builder().user(System.getProperty("user.name")).build());
             }
@@ -89,9 +96,24 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
+    public void createUser(String user) throws IOException {
+        // TODO: [P41452086]: Windows support - create user/group, add user to group
+    }
+
+    @Override
+    public void createGroup(String group) throws IOException {
+        // TODO: [P41452086]: Windows support - create user/group, add user to group
+    }
+
+    @Override
+    public void addUserToGroup(String user, String group) throws IOException {
+        // TODO: [P41452086]: Windows support - create user/group, add user to group
+    }
+
+    @Override
     protected void setPermissions(FileSystemPermission permission, Path path,
                                   EnumSet<FileSystemPermission.Option> options) throws IOException {
-        // GG_NEEDS_REVIEW: TODO: Implement using ACL for Windows
+        // [P41372857]: Implement using ACL for Windows
     }
 
     @Override
