@@ -290,7 +290,7 @@ public class Topics extends Node implements Iterable<Node> {
             } else {
                 remove(existingChild);
                 Topics newNode = createInteriorChild(key);
-                for (Watcher watcher: existingChild.watchers) {
+                for (Watcher watcher : existingChild.watchers) {
                     newNode.addWatcher(watcher);
                 }
                 newNode.updateFromMap((Map) value, childMergeBehavior);
@@ -302,7 +302,7 @@ public class Topics extends Node implements Iterable<Node> {
             } else {
                 remove(existingChild);
                 Topic newNode = createLeafChild(key);
-                for (Watcher watcher: existingChild.watchers) {
+                for (Watcher watcher : existingChild.watchers) {
                     newNode.addWatcher(watcher);
                 }
                 newNode.withNewerValue(childMergeBehavior.getTimestampToUse(), value, false, true);
