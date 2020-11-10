@@ -160,6 +160,7 @@ public class DeploymentConfigMerger {
         private Set<String> servicesToAdd;
         private Set<String> servicesToUpdate;
         private Set<String> servicesToRemove;
+        private Set<String> alreadyBrokenServices;
 
         /**
          * Constructs an object based on the current Kernel state and the config to be merged.
@@ -186,6 +187,13 @@ public class DeploymentConfigMerger {
             this.servicesToRemove =
                     runningDeployableServices.stream().filter(serviceName -> !newServiceConfig.containsKey(serviceName))
                             .collect(Collectors.toSet());
+            this.alreadyBrokenServices = runningDeployableServices.stream().filter(name -> {
+                try {
+                    return kernel.locate(name).currentOrReportedStateIs(State.BROKEN);
+                } catch (ServiceLoadException e) {
+                    return false;
+                }
+            }).collect(Collectors.toSet());
         }
 
         /**
@@ -196,7 +204,8 @@ public class DeploymentConfigMerger {
         public AggregateServicesChangeManager createRollbackManager() {
             // For rollback, services the deployment originally intended to add should be removed
             // and services it intended to remove should be added back
-            return new AggregateServicesChangeManager(kernel, servicesToRemove, servicesToUpdate, servicesToAdd);
+            return new AggregateServicesChangeManager(kernel, servicesToRemove, servicesToUpdate, servicesToAdd,
+                    alreadyBrokenServices);
         }
 
         /**
