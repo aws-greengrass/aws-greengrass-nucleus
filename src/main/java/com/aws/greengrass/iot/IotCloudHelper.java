@@ -11,6 +11,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.BaseRetryableAccessor;
 import com.aws.greengrass.util.CrashableSupplier;
+import com.aws.greengrass.util.Utils;
 import lombok.NoArgsConstructor;
 import software.amazon.awssdk.crt.http.HttpClientConnection;
 import software.amazon.awssdk.crt.http.HttpHeader;
@@ -22,9 +23,11 @@ import software.amazon.awssdk.crt.http.HttpStreamResponseHandler;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -39,6 +42,7 @@ public class IotCloudHelper {
     private static final Logger LOGGER = LogManager.getLogger(IotCloudHelper.class);
     private static final String HTTP_HEADER_REQUEST_ID = "x-amzn-RequestId";
     private static final String HTTP_HEADER_ERROR_TYPE = "x-amzn-ErrorType";
+    private static final String HTTP_HEADER_THING_NAME = "x-amzn-iot-thingname";
     // TODO: [P41179510]: User configurable network timeout settings
     // Max wait time for device to receive HTTP response from IOT CLOUD
     private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = Duration.ofSeconds(30).getSeconds();
@@ -49,18 +53,25 @@ public class IotCloudHelper {
      * Sends Http request to Iot Cloud.
      *
      * @param connManager underlying connection manager to use for sending requests
+     * @param thingName   IoT Thing Name
      * @param path        Http url to query
      * @param verb        Http verb for the request
      * @param body        Http body for the request
      * @return Http response corresponding to http request for path
      * @throws AWSIotException when unable to send the request successfully
      */
-    public IotCloudResponse sendHttpRequest(final IotConnectionManager connManager, final String path,
-                                            final String verb, final byte[] body) throws AWSIotException {
-        final HttpHeader[] headers = {new HttpHeader("host", connManager.getHost())};
+    public IotCloudResponse sendHttpRequest(final IotConnectionManager connManager, String thingName,
+                                            final String path, final String verb, final byte[] body)
+            throws AWSIotException {
+        List<HttpHeader> headers = new ArrayList<>();
+        headers.add(new HttpHeader("host", connManager.getHost()));
+        if (Utils.isNotEmpty(thingName)) {
+            headers.add(new HttpHeader(HTTP_HEADER_THING_NAME, thingName));
+        }
 
         final HttpRequestBodyStream httpRequestBodyStream = body == null ? null : createHttpRequestBodyStream(body);
-        final HttpRequest request = new HttpRequest(verb, path, headers, httpRequestBodyStream);
+        final HttpRequest request = new HttpRequest(verb, path, headers.toArray(new HttpHeader[0]),
+                httpRequestBodyStream);
 
         try (HttpClientConnection conn = connManager.getConnection()) {
             BaseRetryableAccessor accessor = new BaseRetryableAccessor();

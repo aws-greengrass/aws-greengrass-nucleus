@@ -55,9 +55,8 @@ class IotCloudHelperTest {
             return mockHttpStream;
         }).when(mockConnection).makeRequest(any(), any());
         IotCloudHelper cloudHelper = new IotCloudHelper();
-        final IotCloudResponse response = cloudHelper.sendHttpRequest(mockConnectionManager,
-                IOT_CREDENTIALS_PATH,
-                CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, null);
+        final IotCloudResponse response = cloudHelper.sendHttpRequest(mockConnectionManager, null,
+                IOT_CREDENTIALS_PATH, CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, null);
         assertArrayEquals(CLOUD_RESPONSE, response.getResponseBody());
         assertEquals(STATUS_CODE, response.getStatusCode());
     }
@@ -78,10 +77,8 @@ class IotCloudHelperTest {
             return mockHttpStream;
         }).when(mockConnection).makeRequest(any(), any());
         IotCloudHelper cloudHelper = new IotCloudHelper();
-        final byte[] creds = cloudHelper.sendHttpRequest(mockConnectionManager,
-                IOT_CREDENTIALS_PATH,
-                CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB,
-                body).getResponseBody();
+        final byte[] creds = cloudHelper.sendHttpRequest(mockConnectionManager, null,
+                IOT_CREDENTIALS_PATH, CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, body).getResponseBody();
         assertArrayEquals(CLOUD_RESPONSE, creds);
     }
 
@@ -103,7 +100,7 @@ class IotCloudHelperTest {
             return mockHttpStream;
         }).when(mockConnection).makeRequest(any(), any());
         IotCloudHelper cloudHelper = new IotCloudHelper();
-        final IotCloudResponse response = cloudHelper.sendHttpRequest(mockConnectionManager, IOT_CREDENTIALS_PATH,
+        final IotCloudResponse response = cloudHelper.sendHttpRequest(mockConnectionManager, null, IOT_CREDENTIALS_PATH,
                 CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, null);
         assertArrayEquals(CLOUD_RESPONSE, response.getResponseBody());
         assertEquals(STATUS_CODE, response.getStatusCode());

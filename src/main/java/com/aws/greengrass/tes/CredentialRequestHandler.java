@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import lombok.Setter;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
@@ -77,6 +78,8 @@ public class CredentialRequestHandler implements HttpHandler {
         cache.expiry = Instant.EPOCH;
         return cache;
     });
+    @Setter
+    private String thingName;
 
     private static class TESCache {
         private byte[] credentials;
@@ -162,7 +165,8 @@ public class CredentialRequestHandler implements HttpHandler {
 
         try {
             final IotCloudResponse cloudResponse = iotCloudHelper
-                    .sendHttpRequest(iotConnectionManager, iotCredentialsPath, IOT_CREDENTIALS_HTTP_VERB, null);
+                    .sendHttpRequest(iotConnectionManager, thingName,
+                            iotCredentialsPath, IOT_CREDENTIALS_HTTP_VERB, null);
             final String credentials = cloudResponse.toString();
             final int cloudResponseCode = cloudResponse.getStatusCode();
             LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath).kv("statusCode", cloudResponseCode)

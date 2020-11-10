@@ -10,7 +10,6 @@ import com.amazonaws.SdkClientException;
 import com.amazonaws.regions.DefaultAwsRegionProviderChain;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.ChildChanged;
-import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.Validator;
@@ -82,7 +81,7 @@ public class DeviceConfiguration {
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
-    private static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
+    public static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
 
     private final Kernel kernel;
 
@@ -323,20 +322,6 @@ public class DeviceConfiguration {
         kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, CONFIGURATION_CONFIG_KEY)
                 .subscribe(cc);
         kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY).subscribe(cc);
-    }
-
-    public void onTopicChange(String topicName, Subscriber s) {
-        getTopic(topicName).subscribe(s);
-    }
-
-    /**
-     * Add a subscriber to device config that's a topics instance.
-     *
-     * @param topicsName topics name to subscribe to
-     * @param cc         handler
-     */
-    public void onTopicsChange(String topicsName, ChildChanged cc) {
-        getTopics(topicsName).subscribe(cc);
     }
 
     /**
