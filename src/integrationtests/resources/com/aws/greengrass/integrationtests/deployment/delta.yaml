@@ -1,9 +1,4 @@
 services:
-  aws.greengrass.Nucleus:
-    parameters:
-      runWithDefault:
-        posixUser: nobody
-
   ticktock:
     lifecycle:
       run: echo tick-tock phase 3
