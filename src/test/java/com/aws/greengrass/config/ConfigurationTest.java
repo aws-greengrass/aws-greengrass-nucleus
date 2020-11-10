@@ -650,7 +650,8 @@ class ConfigurationTest {
                 + "    subNodeToBeRemoved: val\n"
                 + "    subNodeToBeMerged:\n"
                 + "      subKey1: subVal1\n"
-                + "nodeTypeToBeChanged:\n"
+                + "nodeTypeToBeChangedToContainer: val\n"
+                + "nodeTypeToBeChangedToLeaf:\n"
                 + "  key1: val1\n"
                 + "  key3: val2\n";
 
@@ -661,7 +662,9 @@ class ConfigurationTest {
                 + "  nodeToBeReplaced:\n"
                 + "    subNodeToBeMerged:\n"
                 + "      subKey2: subVal2\n"
-                + "nodeTypeToBeChanged: val\n"
+                + "nodeTypeToBeChangedToLeaf: val\n"
+                + "nodeTypeToBeChangedToContainer:\n"
+                + "  key1: val1\n"
                 + "nodeToBeAdded: val\n";
 
         String expectedResult = "---\n"
@@ -673,7 +676,9 @@ class ConfigurationTest {
                 + "    subNodeToBeMerged:\n"
                 + "      subKey1: subVal1\n"
                 + "      subKey2: subVal2\n"
-                + "nodeTypeToBeChanged: val\n"
+                + "nodeTypeToBeChangedToLeaf: val\n"
+                + "nodeTypeToBeChangedToContainer:\n"
+                + "  key1: val1\n"
                 + "nodeToBeAdded: val\n";
 
         Map<String, Object> initConfigMap;
@@ -706,17 +711,27 @@ class ConfigurationTest {
                 )), now
         );
 
-        AtomicBoolean nodeRemoved = new AtomicBoolean(false) ;
-        config.findTopics("nodeTypeToBeChanged").subscribe((what, c) -> {
-            if (WhatHappened.removed == what) {
-                nodeRemoved.set(true);
+        AtomicBoolean nodeChangedToLeaf = new AtomicBoolean(false) ;
+        config.findTopics("nodeTypeToBeChangedToLeaf").subscribe((what, c) -> {
+            if (WhatHappened.changed == what) {
+                assertEquals("val", ((Topic) c).getOnce());
+                nodeChangedToLeaf.set(true);
+            }
+        });
+
+        AtomicBoolean nodeChangedToContainer = new AtomicBoolean(false) ;
+        config.find("nodeTypeToBeChangedToContainer").subscribeGeneric((what, c) -> {
+            if (WhatHappened.childChanged == what) {
+                assertEquals("nodeTypeToBeChangedToContainer.key1", c.getFullName());
+                assertEquals("val1", ((Topic) c).getOnce());
+                nodeChangedToContainer.set(true);
             }
         });
 
         config.updateMap(updateConfigMap, updateBehavior);
         config.context.waitForPublishQueueToClear();
 
-        assertTrue(nodeRemoved.get());
+        assertTrue(nodeChangedToLeaf.get());
 
         // THEN
         Map<String, Object> expectedConfig;

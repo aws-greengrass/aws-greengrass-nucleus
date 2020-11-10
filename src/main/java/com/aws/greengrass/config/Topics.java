@@ -284,18 +284,29 @@ public class Topics extends Node implements Iterable<Node> {
         Node existingChild = children.get(key);
         // if new node is a container node
         if (value instanceof Map) {
-            // if existing child is a leaf node
-            if (existingChild != null && !(existingChild instanceof Topics)) {
+            // if existing child is a container node
+            if (existingChild == null || existingChild instanceof Topics) {
+                createInteriorChild(key).updateFromMap((Map) value, childMergeBehavior);
+            } else {
                 remove(existingChild);
+                Topics newNode = createInteriorChild(key);
+                for (Watcher watcher: existingChild.watchers) {
+                    newNode.addWatcher(watcher);
+                }
+                newNode.updateFromMap((Map) value, childMergeBehavior);
             }
-            createInteriorChild(key).updateFromMap((Map) value, childMergeBehavior);
         // if new node is a leaf node
         } else {
-            // if existing child is a container node
-            if (existingChild != null && !(existingChild instanceof Topic)) {
+            if (existingChild == null || existingChild instanceof Topic) {
+                createLeafChild(key).withNewerValue(childMergeBehavior.getTimestampToUse(), value, false, true);
+            } else {
                 remove(existingChild);
+                Topic newNode = createLeafChild(key);
+                for (Watcher watcher: existingChild.watchers) {
+                    newNode.addWatcher(watcher);
+                }
+                newNode.withNewerValue(childMergeBehavior.getTimestampToUse(), value, false, true);
             }
-            createLeafChild(key).withNewerValue(childMergeBehavior.getTimestampToUse(), value, false, true);
         }
     }
 

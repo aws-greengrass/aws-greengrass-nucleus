@@ -8,7 +8,6 @@ package com.aws.greengrass.builtin.services.configstore;
 import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
-import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UnsupportedInputTypeException;
@@ -387,19 +386,15 @@ public class ConfigStoreIPCEventStreamAgent {
         }
 
         private Optional<Watcher> registerWatcher(Node subscribeTo, String componentName) {
+            ChildChanged watcher =
+                    (whatHappened, node) -> handleConfigNodeUpdate(whatHappened, node, componentName);
+
             if (subscribeTo instanceof Topics) {
-                ChildChanged childChanged =
-                        (whatHappened, node) -> handleConfigNodeUpdate(whatHappened, node, componentName);
-
-                ((Topics) subscribeTo).subscribe(childChanged);
-                return Optional.of(childChanged);
-
+                ((Topics) subscribeTo).subscribe(watcher);
+                return Optional.of(watcher);
             } else if (subscribeTo instanceof Topic) {
-                Subscriber subscriber =
-                        (whatHappened, topic) -> handleConfigNodeUpdate(whatHappened, topic, componentName);
-
-                ((Topic) subscribeTo).subscribe(subscriber);
-                return Optional.of(subscriber);
+                ((Topic) subscribeTo).subscribeGeneric(watcher);
+                return Optional.of(watcher);
             }
             return Optional.empty();
         }
