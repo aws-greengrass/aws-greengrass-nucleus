@@ -1,0 +1,22 @@
+{
+  "DeploymentId": "arn:aws:us-east-1:greengrass:configuration:thinggroup/group1:1",
+  "Packages": [
+    {
+      "Name": "aws.iot.gg.test.integ.ComponentConfigTestService",
+      "ResolvedVersion": "1.0.0",
+      "RootComponent": true,
+      "ConfigurationUpdate": {
+        "MERGE": {
+          "singleLevelKey": "updated value of singleLevelKey",
+          "newSingleLevelKey": "value of newSingleLevelKey"
+        }
+      }
+    }
+  ],
+  "Timestamp": 1592574829000,
+  "FailureHandlingPolicy": "DO_NOTHING",
+  "ComponentUpdatePolicy": {
+    "Timeout": 60,
+    "ComponentUpdatePolicyAction": "NOTIFY_COMPONENTS"
+  }
+}
