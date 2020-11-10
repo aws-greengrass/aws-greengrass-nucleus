@@ -99,9 +99,6 @@ public final class Utils {
      * @return true if the two strings are different
      */
     public static boolean stringHasChanged(String oldValue, String newValue) {
-        if (oldValue == null && newValue == null) {
-            return false;
-        }
         if (Utils.isEmpty(oldValue) && Utils.isEmpty(newValue)) {
             return false;
         }
