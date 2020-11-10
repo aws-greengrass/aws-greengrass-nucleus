@@ -1,12 +1,9 @@
 ---
 RecipeFormatVersion: '2020-01-25'
-ComponentName: BreakingService
+ComponentName: BreakingService2
 ComponentDescription: A service that just can't run
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
-ComponentDependencies:
-  Mosquitto:
-    VersionRequirement: 1.0.0
 Manifests:
   - Platform:
       os: windows

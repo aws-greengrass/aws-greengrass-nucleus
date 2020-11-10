@@ -43,7 +43,7 @@ import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction
 public final class DeploymentDocumentConverter {
     private static final Logger logger = LogManager.getLogger(DeploymentDocumentConverter.class);
 
-    public static final String DEFAULT_GROUP_NAME = "DEFAULT";
+    public static final String LOCAL_DEPLOYMENT_GROUP_NAME = "LOCAL_DEPLOYMENT";
     public static final Integer NO_OP_TIMEOUT = 0;
     private static final  Integer DEFAULT_TIMEOUT_SECOND = 20;
 
@@ -83,10 +83,6 @@ public final class DeploymentDocumentConverter {
         List<DeploymentPackageConfiguration> packageConfigurations =
                 buildDeploymentPackageConfigurations(localOverrideRequest, newRootComponents);
 
-        // set up configurationValidationPolicy
-        ConfigurationValidationPolicy configurationValidationPolicy =
-                new ConfigurationValidationPolicy().withTimeout(DEFAULT_TIMEOUT_SECOND);
-
         return DeploymentDocument.builder().timestamp(localOverrideRequest.getRequestTimestamp())
                 .deploymentId(localOverrideRequest.getRequestId())
                 .deploymentPackageConfigurationList(packageConfigurations)
@@ -94,10 +90,9 @@ public final class DeploymentDocumentConverter {
                 // Currently we always skip safety check for local deployment to not slow down testing for customers
                 // If we make this configurable in local development then we can plug that input in here
                 // NO_OP_TIMEOUT is not used since the policy is SKIP_NOTIFY_COMPONENTS
-                .componentUpdatePolicy(new ComponentUpdatePolicy(NO_OP_TIMEOUT, SKIP_NOTIFY_COMPONENTS))
-                .configurationValidationPolicy(configurationValidationPolicy)
-                .groupName(
-                        StringUtils.isEmpty(localOverrideRequest.getGroupName()) ? DEFAULT_GROUP_NAME
+                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(DEFAULT_TIMEOUT_SECOND))
+                .componentUpdatePolicy(new ComponentUpdatePolicy(NO_OP_TIMEOUT, SKIP_NOTIFY_COMPONENTS)).groupName(
+                        StringUtils.isEmpty(localOverrideRequest.getGroupName()) ? LOCAL_DEPLOYMENT_GROUP_NAME
                                 : localOverrideRequest.getGroupName()).build();
     }
 
