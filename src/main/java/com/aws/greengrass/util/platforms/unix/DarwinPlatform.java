@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class DarwinPlatform extends UnixPlatform {
+    private static String PRIVILEGED_GROUP = "wheel";
+
     private static String CREATE_USER_CMD_PREFIX = "sudo dscl . -create /Users/";
     private static String AVAILABLE_UNIQUE_ID_CMD =
             "dscl . -list /Users UniqueID | awk '{print $2}' | sort -ug | tail -1";
@@ -45,5 +47,10 @@ public class DarwinPlatform extends UnixPlatform {
     public void addUserToGroup(String user, String group) throws IOException {
         runCmd(ADD_USER_TO_GROUP_CMD_PREFIX + group + " GroupMembership " + user, o -> {},
                 "Failed to add user to group");
+    }
+
+    @Override
+    public String getPrivilegedGroup() {
+        return PRIVILEGED_GROUP;
     }
 }

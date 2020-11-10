@@ -371,7 +371,7 @@ public class GreengrassSetup {
             Platform platform = Platform.getInstance();
             // If not super user and default user option is not provided, the current user will be used
             // as the default user so we do not need to create anything here
-            if (platform.lookupCurrentUser().isSuperUser()) {
+            if (!platform.lookupCurrentUser().isSuperUser()) {
                 return;
             }
             if (Utils.isEmpty(defaultUser) || GGC_USER.equals(defaultUser)) {
