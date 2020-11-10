@@ -171,10 +171,10 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
             flush(out);
         }
         long currCount = count.incrementAndGet();
-        if (autoTruncate && currCount > maxCount && currCount > retryCount && !truncateQueued.get()) {
+        if (autoTruncate && currCount > maxCount && currCount > retryCount
+                && truncateQueued.compareAndSet(false, true)) {
             // childChanged runs on publish thread already. can only queue a task without blocking
             context.runOnPublishQueue(this::truncateTlog);
-            truncateQueued.set(true);
             logger.atDebug(TRUNCATE_TLOG_EVENT).log("queued");
         }
     }
