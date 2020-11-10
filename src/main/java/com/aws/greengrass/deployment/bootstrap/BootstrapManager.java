@@ -204,14 +204,14 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
 
         boolean changed = false;
         if (Utils.stringHasChanged(Coerce.toString(currentValues.get(RUN_WITH_DEFAULT_POSIX_USER)),
-                (String) runWithDefault.get(RUN_WITH_DEFAULT_POSIX_USER))) {
+                Coerce.toString(runWithDefault.get(RUN_WITH_DEFAULT_POSIX_USER)))) {
             logger.atInfo().kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_USER,
                     runWithDefault.get(RUN_WITH_DEFAULT_POSIX_USER))
                     .log(RESTART_REQUIRED_MESSAGE);
             changed = true;
         }
         if (Utils.stringHasChanged(Coerce.toString(currentValues.get(RUN_WITH_DEFAULT_POSIX_GROUP)),
-                (String) runWithDefault.get(RUN_WITH_DEFAULT_POSIX_GROUP))) {
+                Coerce.toString(runWithDefault.get(RUN_WITH_DEFAULT_POSIX_GROUP)))) {
             logger.atInfo().kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_GROUP,
                     runWithDefault.get(RUN_WITH_DEFAULT_POSIX_GROUP))
                     .log(RESTART_REQUIRED_MESSAGE);
@@ -219,8 +219,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         }
         if (Utils.stringHasChanged(Coerce.toString(currentValues.getOrDefault(RUN_WITH_DEFAULT_POSIX_SHELL,
                 RUN_WITH_DEFAULT_POSIX_SHELL_VALUE)),
-                (String) runWithDefault.getOrDefault(RUN_WITH_DEFAULT_POSIX_SHELL,
-                        RUN_WITH_DEFAULT_POSIX_SHELL_VALUE))) {
+                Coerce.toString(runWithDefault.getOrDefault(RUN_WITH_DEFAULT_POSIX_SHELL,
+                        RUN_WITH_DEFAULT_POSIX_SHELL_VALUE)))) {
             logger.atInfo().kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_SHELL,
                     runWithDefault.get(RUN_WITH_DEFAULT_POSIX_SHELL))
                     .log(RESTART_REQUIRED_MESSAGE);
