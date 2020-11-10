@@ -8,19 +8,18 @@ package com.aws.greengrass.integrationtests.e2e;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
+import com.amazonaws.services.evergreen.model.CancelDeploymentRequest;
+import com.amazonaws.services.evergreen.model.ComponentInfo;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
-import com.amazonaws.services.evergreen.model.DeleteComponentResult;
+import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
+import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
+import com.amazonaws.services.evergreen.model.DeleteComponentVersionResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
-import com.amazonaws.services.evergreen.model.PackageMetaData;
-import com.amazonaws.services.evergreen.model.PublishConfigurationRequest;
-import com.amazonaws.services.evergreen.model.PublishConfigurationResult;
 import com.amazonaws.services.evergreen.model.ResourceAlreadyExistsException;
-import com.amazonaws.services.evergreen.model.SetConfigurationRequest;
-import com.amazonaws.services.evergreen.model.SetConfigurationResult;
 import com.aws.greengrass.componentmanager.ComponentServiceHelper;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
@@ -135,7 +134,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static Optional<String> tesRolePolicyArn;
     protected static final IotSdkClientFactory.EnvironmentStage envStage = IotSdkClientFactory.EnvironmentStage.GAMMA;
 
-    protected final Set<String> createdIotJobIds = new HashSet<>();
+    protected final Set<CancelDeploymentRequest> createdDeployments = new HashSet<>();
     protected final Set<String> createdThingGroups = new HashSet<>();
     protected DeviceProvisioningHelper.ThingInfo thingInfo;
     protected String thingGroupName;
@@ -210,7 +209,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         try {
             List<ComponentIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInS3));
             for (ComponentIdentifier component : allComponents) {
-                DeleteComponentResult result = ComponentServiceHelper
+                DeleteComponentVersionResult result = ComponentServiceHelper
                         .deleteComponent(greengrassClient, component.getName(), component.getVersion().toString());
                 assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
             }
@@ -372,46 +371,48 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     @SuppressWarnings("PMD.LinguisticNaming")
-    protected PublishConfigurationResult setAndPublishFleetConfiguration(SetConfigurationRequest setRequest) {
+    protected CreateDeploymentResult draftAndCreateDeployment(CreateDeploymentRequest createDeploymentRequest) {
 
         // update package name with random suffix to avoid conflict in cloud
-        Map<String, PackageMetaData> updatedPkgMetadata = new HashMap<>();
-        setRequest.getPackages().forEach((key, val) -> updatedPkgMetadata.put(getTestComponentNameInCloud(key), val));
-        setRequest.setPackages(updatedPkgMetadata);
+        Map<String, ComponentInfo> updatedPkgMetadata = new HashMap<>();
+        createDeploymentRequest.getComponents().forEach((key, val) -> updatedPkgMetadata.put(getTestComponentNameInCloud(key), val));
+        createDeploymentRequest.setComponents(updatedPkgMetadata);
 
         // set default value
-        if (setRequest.getDeploymentPolicies() == null) {
-            setRequest.withDeploymentPolicies(new DeploymentPolicies()
-                    .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
-                    .withComponentUpdatePolicy(
-                            new ComponentUpdatePolicy().withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                                    .withTimeout(120))
-                    .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING));
+        if (createDeploymentRequest.getTargetName() == null) {
+            createDeploymentRequest.withTargetName(thingGroupName);
+        }
+        if (createDeploymentRequest.getTargetType() == null) {
+            createDeploymentRequest.withTargetType(THING_GROUP_TARGET_TYPE);
+        }
+        if (createDeploymentRequest.getDeploymentPolicies() == null) {
+            createDeploymentRequest.withDeploymentPolicies(new DeploymentPolicies()
+                                                      .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
+                                                      .withComponentUpdatePolicy(
+                                                              new ComponentUpdatePolicy().withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
+                                                                      .withTimeout(120))
+                                                      .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING));
         }
 
-        logger.atInfo().kv("setRequest", setRequest).log();
-        SetConfigurationResult setResult = greengrassClient.setConfiguration(setRequest);
-        logger.atInfo().kv("setResult", setResult).log();
+        logger.atInfo().kv("CreateDeploymentRequest", createDeploymentRequest).log();
+        CreateDeploymentResult createDeploymentResult = greengrassClient.createDeployment(createDeploymentRequest);
+        logger.atInfo().kv("CreateDeploymentResult", createDeploymentResult).log();
 
-        PublishConfigurationRequest publishRequest = new PublishConfigurationRequest()
-                .withTargetName(setRequest.getTargetName())
-                .withTargetType(setRequest.getTargetType())
-                .withRevisionId(setResult.getRevisionId());
-        logger.atInfo().kv("publishRequest", publishRequest).log();
-        PublishConfigurationResult publishResult = greengrassClient.publishConfiguration(publishRequest);
-        logger.atInfo().kv("publishResult", publishResult).log();
-        if (setRequest.getTargetType().equals(THING_GROUP_TARGET_TYPE)) {
-            createdIotJobIds.add(publishResult.getJobId());
-        }
-        return publishResult;
+        // Keep track of deployments to clean up
+        createdDeployments.add(new CancelDeploymentRequest().withTargetName(createDeploymentRequest.getTargetName())
+                .withTargetType(createDeploymentRequest.getTargetType()));
+
+        return createDeploymentResult;
     }
 
     protected void cleanup() {
+        createdDeployments.forEach(greengrassClient::cancelDeployment);
+        createdDeployments.clear();
+
         deviceProvisioningHelper.cleanThing(iotClient, thingInfo, false);
         createdThingGroups.forEach(thingGroup-> IotJobsUtils.cleanThingGroup(iotClient, thingGroupName));
         createdThingGroups.clear();
-        createdIotJobIds.forEach(jobId -> IotJobsUtils.cleanJob(iotClient, jobId));
-        createdIotJobIds.clear();
+
         if (kernel == null || kernel.getNucleusPaths().configPath() == null) {
             return;
         }

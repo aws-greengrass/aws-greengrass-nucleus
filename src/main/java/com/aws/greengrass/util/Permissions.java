@@ -12,7 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
 
-import static com.aws.greengrass.util.FileSystemPermission.Option.IgnoreOwner;
+import static com.aws.greengrass.util.FileSystemPermission.Option.SetMode;
 
 public final class Permissions {
     static Platform platform = Platform.getInstance();
@@ -52,7 +52,7 @@ public final class Permissions {
                 permission = permission.toBuilder().ownerWrite(true).build();
             }
             // don't reset the owner when setting permissions
-            platform.setPermissions(permission, p, IgnoreOwner);
+            platform.setPermissions(permission, p, SetMode);
         }
     }
 
@@ -72,6 +72,12 @@ public final class Permissions {
         platform.setPermissions(OWNER_RWX_EVERYONE_RX, p);
     }
 
+    /**
+     * Set permission for service path under the "work" path.
+     *
+     * @param p the path to a service work directory
+     * @throws IOException if permissions cannot be set.
+     */
     public static void setServiceWorkPathPermission(Path p) throws IOException {
         platform.setPermissions(OWNER_RWX_ONLY, p);
     }

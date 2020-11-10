@@ -18,6 +18,7 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelVersion;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import org.junit.jupiter.api.AfterAll;
@@ -99,7 +100,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(kernel.getConfig()).thenReturn(configuration);
         Topics servicesTopics = Topics.of(context, SERVICES_NAMESPACE_TOPIC, null);
         Topic componentTypeTopic = Topic.of(context, SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.name());
-        Topic componentVersionTopic = Topic.of(context, VERSION_CONFIG_KEY, NUCLEUS_COMPONENT_VERSION);
+        Topic componentVersionTopic = Topic.of(context, VERSION_CONFIG_KEY, KernelVersion.KERNEL_VERSION);
         Topic componentStoreSizeLimitTopic = Topic.of(context, COMPONENT_STORE_MAX_SIZE_BYTES, 10_000_000_000L);
         Topic deploymentPollingFrequency = Topic.of(context, SERVICE_TYPE_TOPIC_KEY, 15L);
         Topic mainDependenciesTopic = Topic.of(context, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC,

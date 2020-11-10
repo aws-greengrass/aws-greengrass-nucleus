@@ -771,7 +771,7 @@ class DeploymentTaskIntegrationTest {
         /*
          * 2nd deployment. Change user
          */
-        countDownLatch = new CountDownLatch(2);
+        countDownLatch = new CountDownLatch(3);
 
         // update component to runas the user running the test
         String doc = Utils.inputStreamToString(DeploymentTaskIntegrationTest.class.getResource(
@@ -790,6 +790,7 @@ class DeploymentTaskIntegrationTest {
 
             countDownLatch.await(10, TimeUnit.SECONDS);
             assertThat(stdouts, hasItem(containsString("stopping app with user nobody")));
+            assertThat(stdouts, hasItem(containsString("installing app with user root")));
             assertThat(stdouts, hasItem(containsString(String.format("starting app with user %s", currentUser))));
         }
     }
@@ -898,8 +899,49 @@ class DeploymentTaskIntegrationTest {
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
     }
 
+    /**
+     * This test verifies that if a deployment has a broken service and then a new deployment comes which removes
+     * that one, but fails for a different reason and rolls back, then it is able to roll back successfully.
+     */
     @Test
     @Order(8)
+    void GIVEN_broken_service_WHEN_new_service_breaks_failure_handling_policy_rollback_THEN_services_are_rolled_back(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
+
+        // Deploy a broken config with no rollback
+        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("FailureDoNothingDeployment.json").toURI(),
+                System.currentTimeMillis());
+        resultFuture.get(60, TimeUnit.SECONDS);
+        List<String> services = kernel.orderedDependencies()
+                .stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName)
+                .collect(Collectors.toList());
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "BreakingService",
+                "RedSignal", "GreenSignal", "Mosquitto"));
+
+        // Deploy a new broken config (using a different service) which does rollback
+        preloadLocalStoreContent();
+        resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("Failure2RollbackDeployment.json").toURI(),
+                System.currentTimeMillis());
+        DeploymentResult result = resultFuture.get(60, TimeUnit.SECONDS);
+        services = kernel.orderedDependencies()
+                .stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName)
+                .collect(Collectors.toList());
+
+        // Make sure that it rolls back to the previous state
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "BreakingService",
+                "RedSignal", "GreenSignal", "Mosquitto"));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
+    }
+
+    @Test
+    @Order(99)
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     void GIVEN_deployment_in_progress_WHEN_deployment_task_is_cancelled_THEN_stop_processing() throws Exception {
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
@@ -921,6 +963,8 @@ class DeploymentTaskIntegrationTest {
                                     DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
                                     deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(60).toMillis());
                                     deferComponentUpdateRequest.setMessage("Test");
+                                    deferComponentUpdateRequest.setDeploymentId(streamEvent.getPreUpdateEvent()
+                                            .getDeploymentId());
                                     greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
                                 }
                             }
@@ -945,7 +989,7 @@ class DeploymentTaskIntegrationTest {
         List<String> services = kernel.orderedDependencies()
                 .stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(greengrassService -> greengrassService.getName())
+                .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
         // should contain main, Nucleus, NonDisruptableService 1.0.0
@@ -974,7 +1018,7 @@ class DeploymentTaskIntegrationTest {
             assertTrue(cdlMergeCancelled.await(30, TimeUnit.SECONDS));
 
             services = kernel.orderedDependencies().stream().filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                    .map(greengrassService -> greengrassService.getName()).collect(Collectors.toList());
+                    .map(GreengrassService::getName).collect(Collectors.toList());
 
             // should contain main, Nucleus, NonDisruptableService 1.0.0
             assertEquals(3, services.size());
@@ -987,7 +1031,7 @@ class DeploymentTaskIntegrationTest {
     }
 
     @Test
-    @Order(9)
+    @Order(100)
     void GIVEN_services_running_WHEN_new_deployment_asks_to_skip_safety_check_THEN_deployment_is_successful() throws Exception {
         // The previous test has NonDisruptableService 1.0.0 running in kernel that always returns false when its
         // safety check script is run, this test demonstrates that when a next deployment configured to skip safety
@@ -1000,7 +1044,7 @@ class DeploymentTaskIntegrationTest {
         List<String> services = kernel.orderedDependencies()
                 .stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(greengrassService -> greengrassService.getName())
+                .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
         // should contain main, Nucleus, NonDisruptableService 1.0.1
@@ -1058,7 +1102,7 @@ class DeploymentTaskIntegrationTest {
     private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
         kernel.getContext()
                 .get(DeploymentDirectoryManager.class)
-                .createNewDeploymentDirectoryIfNotExists("testFleetConfigArn" + deploymentCount.getAndIncrement());
+                .createNewDeploymentDirectory("testFleetConfigArn" + deploymentCount.getAndIncrement());
 
         sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
         sampleJobDocument.setTimestamp(timestamp);

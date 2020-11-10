@@ -10,6 +10,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.activator.DeploymentActivator;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
+import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -17,11 +18,11 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.UpdateAction;
 import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Pair;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -60,23 +61,42 @@ public class DeploymentConfigMerger {
     public Future<DeploymentResult> mergeInNewConfig(Deployment deployment,
                                                      Map<String, Object> newConfig) {
         CompletableFuture<DeploymentResult> totallyCompleteFuture = new CompletableFuture<>();
-        DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
+        DeploymentActivator activator;
+        try {
+            activator = kernel.getContext().get(DeploymentActivatorFactory.class).getDeploymentActivator(newConfig);
+        } catch (ServiceUpdateException | ComponentConfigurationValidationException e) {
+            // Failed to pre-process new config, no rollback needed
+            logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
+                    .log("Failed to process new configuration for activation");
+            totallyCompleteFuture
+                    .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
+            return totallyCompleteFuture;
+        }
 
+        boolean ggcRestart = false;
+        if (activator instanceof KernelUpdateActivator) {
+            ggcRestart = true;
+        }
+
+        DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         if (ComponentUpdatePolicyAction.NOTIFY_COMPONENTS
                 .equals(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction())) {
             kernel.getContext().get(UpdateSystemSafelyService.class)
                     .addUpdateAction(deploymentDocument.getDeploymentId(),
-                            new Pair<>(deploymentDocument.getComponentUpdatePolicy().getTimeout(),
-                                    () -> updateActionForDeployment(newConfig, deployment, totallyCompleteFuture)));
+                            new UpdateAction(deploymentDocument.getDeploymentId(),
+                                    ggcRestart, deploymentDocument.getComponentUpdatePolicy().getTimeout(),
+                                    () -> updateActionForDeployment(newConfig, deployment, activator,
+                                            totallyCompleteFuture)));
         } else {
             logger.atInfo().log("Deployment is configured to skip safety check, not waiting for safe time to update");
-            updateActionForDeployment(newConfig, deployment, totallyCompleteFuture);
+            updateActionForDeployment(newConfig, deployment, activator, totallyCompleteFuture);
         }
 
         return totallyCompleteFuture;
     }
 
     private void updateActionForDeployment(Map<String, Object> newConfig, Deployment deployment,
+                                           DeploymentActivator activator,
                                            CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         String deploymentId = deployment.getDeploymentDocumentObj().getDeploymentId();
 
@@ -88,17 +108,6 @@ public class DeploymentConfigMerger {
         }
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
                 .log("Applying deployment changes, deployment cannot be cancelled now");
-        DeploymentActivator activator;
-        try {
-            activator = kernel.getContext().get(DeploymentActivatorFactory.class).getDeploymentActivator(newConfig);
-        } catch (ServiceUpdateException | ComponentConfigurationValidationException e) {
-            // Failed to pre-process new config, no rollback needed
-            logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
-                    .log("Failed to process new configuration for activation");
-            totallyCompleteFuture.complete(new DeploymentResult(
-                    DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
-            return;
-        }
         activator.activate(newConfig, deployment, totallyCompleteFuture);
     }
 
@@ -151,6 +160,7 @@ public class DeploymentConfigMerger {
         private Set<String> servicesToAdd;
         private Set<String> servicesToUpdate;
         private Set<String> servicesToRemove;
+        private Set<String> alreadyBrokenServices;
 
         /**
          * Constructs an object based on the current Kernel state and the config to be merged.
@@ -177,6 +187,13 @@ public class DeploymentConfigMerger {
             this.servicesToRemove =
                     runningDeployableServices.stream().filter(serviceName -> !newServiceConfig.containsKey(serviceName))
                             .collect(Collectors.toSet());
+            this.alreadyBrokenServices = runningDeployableServices.stream().filter(name -> {
+                try {
+                    return kernel.locate(name).currentOrReportedStateIs(State.BROKEN);
+                } catch (ServiceLoadException e) {
+                    return false;
+                }
+            }).collect(Collectors.toSet());
         }
 
         /**
@@ -187,7 +204,8 @@ public class DeploymentConfigMerger {
         public AggregateServicesChangeManager createRollbackManager() {
             // For rollback, services the deployment originally intended to add should be removed
             // and services it intended to remove should be added back
-            return new AggregateServicesChangeManager(kernel, servicesToRemove, servicesToUpdate, servicesToAdd);
+            return new AggregateServicesChangeManager(kernel, servicesToRemove, servicesToUpdate, servicesToAdd,
+                    alreadyBrokenServices);
         }
 
         /**

@@ -5,23 +5,22 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
-import com.aws.greengrass.builtin.services.lifecycle.DeferUpdateRequest;
-import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCAgent;
 import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.dependency.Crashable;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
-import com.aws.greengrass.util.Pair;
+import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
 
 import java.time.Clock;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -48,14 +47,11 @@ public class UpdateSystemSafelyService extends GreengrassService {
     // String identifies the action, the pair consist of timeout and an action. The timeout
     // represents the value in seconds the kernel will wait for components to respond to
     // an precomponent update event
-    private final Map<String, Pair<Integer, Crashable>> pendingActions = new LinkedHashMap<>();
+    private final Map<String, UpdateAction> pendingActions = new LinkedHashMap<>();
     private final AtomicBoolean runningUpdateActions = new AtomicBoolean(false);
 
     @Inject
     private LifecycleIPCEventStreamAgent lifecycleIPCAgent;
-
-    @Inject
-    private LifecycleIPCAgent lifecycleAgent;
 
     @Inject
     private Clock clock;
@@ -73,27 +69,29 @@ public class UpdateSystemSafelyService extends GreengrassService {
     /**
      * Add an update action to be performed when the system is in a "safe" state.
      *
-     * @param tag    used both as a printable description and a de-duplication key.  eg. If
-     *               the action is installing a new config file, the tag should probably be the
-     *               URL of the config.  If a key is duplicated by subsequent actions, they
-     *               are suppressed.
-     * @param pair   Pair of timeout and the action to be performed after the timeout.
+     * @param tag          used both as a printable description and a de-duplication key.  eg. If the action is
+     *                     installing a new config file, the tag should probably be the URL of the config.  If a key is
+     *                     duplicated by subsequent actions, they are suppressed.
+     * @param updateAction Update action to be performed.
      */
-    public synchronized void addUpdateAction(String tag, Pair<Integer, Crashable> pair) {
-        pendingActions.put(tag, pair);
-        logger.atInfo().setEventType("register-service-update-action")
-                .addKeyValue("action", tag).log();
+    public synchronized void addUpdateAction(String tag, UpdateAction updateAction) {
+        pendingActions.put(tag, updateAction);
+        logger.atInfo().setEventType("register-service-update-action").addKeyValue("action", tag).log();
         synchronized (pendingActions) {
             pendingActions.notifyAll();
         }
     }
 
+    public synchronized Set<String> getPendingActions() {
+        return new HashSet<>(pendingActions.keySet());
+    }
+
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     protected synchronized void runUpdateActions() {
         runningUpdateActions.set(true);
-        for (Map.Entry<String, Pair<Integer, Crashable>> todo : pendingActions.entrySet()) {
+        for (Map.Entry<String, UpdateAction> todo : pendingActions.entrySet()) {
             try {
-                todo.getValue().getRight().run();
+                todo.getValue().getAction().run();
                 logger.atDebug().setEventType("service-update-action").addKeyValue("action", todo.getKey()).log();
             } catch (Throwable t) {
                 logger.atError().setEventType("service-update-action-error").addKeyValue("action", todo.getKey())
@@ -102,8 +100,6 @@ public class UpdateSystemSafelyService extends GreengrassService {
         }
         pendingActions.clear();
         lifecycleIPCAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
-        lifecycleAgent.sendPostComponentUpdateEvent(
-                new com.aws.greengrass.ipc.services.lifecycle.PostComponentUpdateEvent());
         runningUpdateActions.set(false);
     }
 
@@ -148,19 +144,22 @@ public class UpdateSystemSafelyService extends GreengrassService {
             logger.atDebug().setEventType("service-update-pending").addKeyValue("numOfUpdates", pendingActions.size())
                     .log();
 
-            // TODO: [P41214442]: set isGgcRestarting to true if the updates involves kernel restart
+            boolean ggcRestarting = false;
+            for (UpdateAction action : pendingActions.values()) {
+                if (action.isGgcRestart()) {
+                    ggcRestarting = true;
+                    break;
+                }
+            }
+
             PreComponentUpdateEvent preComponentUpdateEvent = new PreComponentUpdateEvent();
-            preComponentUpdateEvent.setIsGgcRestarting(false);
-            List<Future<DeferUpdateRequest>> deferRequestFutures =
+            preComponentUpdateEvent.setIsGgcRestarting(ggcRestarting);
+            String deploymentId = pendingActions.values().stream().map(UpdateAction::getDeploymentId).findFirst().get();
+            preComponentUpdateEvent.setDeploymentId(deploymentId);
+            List<Future<DeferComponentUpdateRequest>> deferRequestFutures =
                     lifecycleIPCAgent.sendPreComponentUpdateEvent(preComponentUpdateEvent);
 
-            // GG_NEEDS_REVIEW (Amit): TODO: Remove when move all UATs and integ tests to lifecycle APIs on new IPC
-            com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent preComponentUpdateEventOld =
-                    new com.aws.greengrass.ipc.services.lifecycle.PreComponentUpdateEvent();
-            preComponentUpdateEventOld.setGgcRestarting(false);
-            lifecycleAgent.sendPreComponentUpdateEvent(preComponentUpdateEventOld, deferRequestFutures);
-
-            long timeToReCheck = getTimeToReCheck(getMaxTimeoutInMillis(), deferRequestFutures);
+            long timeToReCheck = getTimeToReCheck(getMaxTimeoutInMillis(), deploymentId, deferRequestFutures);
             if (timeToReCheck > 0) {
                 logger.atDebug().setEventType("service-update-pending").addKeyValue("waitInMS", timeToReCheck).log();
                 Thread.sleep(timeToReCheck);
@@ -186,30 +185,34 @@ public class UpdateSystemSafelyService extends GreengrassService {
      deployments at the same time and pendingActions will have only one action to run at a time.
      */
     private long getMaxTimeoutInMillis() {
-        Optional<Integer> maxTimeoutInSec = pendingActions.values().stream()
-                .map(Pair::getLeft)
-                .max(Integer::compareTo);
+        Optional<Integer> maxTimeoutInSec =
+                pendingActions.values().stream().map(UpdateAction::getTimeout).max(Integer::compareTo);
         return TimeUnit.SECONDS.toMillis(maxTimeoutInSec.get());
     }
 
-    private long getTimeToReCheck(long timeout, List<Future<DeferUpdateRequest>> deferRequestFutures)
+    private long getTimeToReCheck(long timeout, String deploymentId,
+                                  List<Future<DeferComponentUpdateRequest>> deferRequestFutures)
             throws InterruptedException {
         final long currentTimeMillis = clock.millis();
         long maxTimeToReCheck = currentTimeMillis;
         while ((clock.millis() - currentTimeMillis) < timeout && !deferRequestFutures.isEmpty()) {
-            Iterator<Future<DeferUpdateRequest>> iterator = deferRequestFutures.iterator();
+            Iterator<Future<DeferComponentUpdateRequest>> iterator = deferRequestFutures.iterator();
             while (iterator.hasNext()) {
-                Future<DeferUpdateRequest> fut = iterator.next();
+                Future<DeferComponentUpdateRequest> fut = iterator.next();
                 if (fut.isDone()) {
                     try {
-                        DeferUpdateRequest deferRequest = fut.get();
-                        long timeToRecheck = currentTimeMillis + deferRequest.getRecheckTimeInMs();
-                        if (timeToRecheck > maxTimeToReCheck) {
-                            maxTimeToReCheck = timeToRecheck;
-                            logger.atInfo().setEventType("service-update-deferred")
-                                    .log("deferred for {} millis with message {}",
-                                            deferRequest.getRecheckTimeInMs(),
-                                            deferRequest.getMessage());
+                        DeferComponentUpdateRequest deferRequest = fut.get();
+                        if (deploymentId.equals(deferRequest.getDeploymentId())) {
+                            long timeToRecheck = currentTimeMillis + deferRequest.getRecheckAfterMs();
+                            if (timeToRecheck > maxTimeToReCheck) {
+                                maxTimeToReCheck = timeToRecheck;
+                                logger.atInfo().setEventType("service-update-deferred")
+                                        .log("deferred for {} millis with message {}",
+                                                deferRequest.getRecheckAfterMs(),
+                                                deferRequest.getMessage());
+                            }
+                        } else {
+                            logger.atWarn().log("Deferral request is not for the action which is pending");
                         }
                     } catch (ExecutionException e) {
                         logger.error("Failed to process component update request", e);

@@ -76,7 +76,7 @@ class DeploymentTaskTest {
 
     private final DeploymentDocument deploymentDocument =
             DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis())
-                    .groupName(DeploymentDocumentConverter.DEFAULT_GROUP_NAME).build();
+                    .groupName(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME).build();
 
     private final Logger logger = LogManager.getLogger("unit test");
 
