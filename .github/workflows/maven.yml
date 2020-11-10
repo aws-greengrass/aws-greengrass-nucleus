@@ -113,6 +113,7 @@ jobs:
       - run: rm -rf ~/.m2/repository/com/aws/greengrass/nucleus
         continue-on-error: true
         if: always()
+  # TODO: [P41463422]: Move off this workflow in favor of the CI/CD pipeline
   publish:
     needs: build
     runs-on: [self-hosted, Linux, greengrass]
@@ -146,7 +147,7 @@ jobs:
           artifactDirectoryPath: target/artifacts
           endpoint: https://evergreen-gamma.us-east-1.amazonaws.com
           autoBumpVersion: true
-          publishAsPublic: true
+          publishAsPublic: false
           additionalReplacements: '{"stage": "gamma"}'
       - uses: ./.github/actions/aws-greengrass-component-upload-action
         if: ${{ github.event_name == 'push' && contains(github.ref, 'tags') }}
@@ -158,5 +159,5 @@ jobs:
           artifactDirectoryPath: target/artifacts
           endpoint: https://evergreen.us-east-1.amazonaws.com
           autoBumpVersion: true
-          publishAsPublic: true
+          publishAsPublic: false
           additionalReplacements: '{"stage": "prod"}'
