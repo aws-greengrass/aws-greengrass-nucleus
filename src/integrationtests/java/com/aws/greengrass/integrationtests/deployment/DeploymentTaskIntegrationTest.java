@@ -9,6 +9,7 @@ import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
@@ -22,7 +23,6 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
-import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -32,6 +32,7 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
@@ -96,11 +97,11 @@ import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMP
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
-import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
+import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -118,6 +119,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@SuppressWarnings("PMD.ExcessiveClassLength") // This test is essential and verified many details. Could be breakdown.
 class DeploymentTaskIntegrationTest {
 
     private static final String TEST_CUSTOMER_APP_STRING = "Hello Greengrass. This is a test";
@@ -181,7 +183,9 @@ class DeploymentTaskIntegrationTest {
 
     @BeforeEach
     void beforeEach(ExtensionContext context) throws Exception {
+        // This test suite will not be able to call cloud as it uses all local resources
         ignoreExceptionOfType(context, PackageDownloadException.class);
+        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
 
         deploymentServiceTopics = Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null);
         groupToRootComponentsTopics =
@@ -548,6 +552,83 @@ class DeploymentTaskIntegrationTest {
         assertThat(stdout, containsString("Value for /emptyStringKey: ."));
         assertThat(stdout, containsString("Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}."));
         stdouts.clear();
+    }
+
+    @Test
+    @Order(2)
+    void GIVEN_initial_deployment_with_config_update_WHEN_submitted_to_deployment_task_THEN_configs_updates_on_default()
+            throws Exception {
+
+        // Two things are verified in this test
+        // 1. The component's configurations are updated correctly in the kernel's config store
+        // 2. The interpolation is correct by taking the newly updated configuration, that is consistent
+
+        // Set up stdout listener to capture stdout for verify #2 interpolation
+        List<String> stdouts = new CopyOnWriteArrayList<>();
+        Consumer<GreengrassLogMessage> listener = m -> {
+            Map<String, String> contexts = m.getContexts();
+            String messageOnStdout = contexts.get("stdout");
+            if (messageOnStdout != null && messageOnStdout.contains("aws.iot.gg.test.integ.ComponentConfigTestService output")) {
+                stdouts.add(messageOnStdout);
+                countDownLatch.countDown(); // countdown when received output to verify
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+        try {
+
+            /*
+             * Initial deployment with configuration update
+             */
+            countDownLatch = new CountDownLatch(1);
+            Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class
+                            .getResource("ComponentConfigTest_InitialDocumentWithUpdate.json").toURI(),
+                    System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
+
+            // verify config in config store and interpolation result
+            Map<String, Object> resultConfig =
+                    kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                            .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+
+            assertThat(resultConfig, IsMapWithSize.aMapWithSize(9));
+
+            // verify updated values, as specified from ComponentConfigTest_InitialDocumentWithUpdate.json
+            assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("newSingleLevelKey", "value of newSingleLevelKey"));
+
+            // verify default values from the aws.iot.gg.test.integ.ComponentConfigTestService-1.0.0.yaml recipe file
+            assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
+            assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", null));
+            assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", "I will be set to null soon"));
+
+            assertThat(resultConfig, IsMapContaining.hasKey("path"));
+            assertThat((Map<String, String>) resultConfig.get("path"),
+                       IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
+
+            // verify interpolation result
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            String stdout = stdouts.get(0);
+
+            // verify updated value, as specified from ComponentConfigTest_InitialDocumentWithUpdate.json
+            assertThat(stdout, containsString("Value for /singleLevelKey: updated value of singleLevelKey."));
+            assertThat(stdout, containsString("Value for /newSingleLevelKey: value of newSingleLevelKey."));
+
+            // verify default values from the aws.iot.gg.test.integ.ComponentConfigTestService-1.0.0.yaml recipe file
+            assertThat(stdout, containsString("Value for /path/leafKey: default value of /path/leafKey."));
+            assertThat(stdout, containsString("Value for /path: {\"leafKey\":\"default value of /path/leafKey\"}"));
+
+            assertThat(stdout, containsString("Value for /listKey/0: item1."));
+            assertThat(stdout, containsString("Value for /defaultIsNullKey: null"));
+            assertThat(stdout, containsString("Value for /emptyStringKey: ."));
+            stdouts.clear();
+
+        } finally {
+            Slf4jLogAdapter.removeGlobalListener(listener);
+        }
     }
 
     @Test
