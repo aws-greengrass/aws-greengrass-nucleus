@@ -159,6 +159,7 @@ class ComponentServiceHelperTest {
                 .resolveComponentVersion(COMPONENT_A, v1_0_0,
                         Collections.singletonMap("X", Requirement.buildNPM("^1.0")), DEPLOYMENT_CONFIGURATION_ID));
 
-        assertThat(exp.getMessage(), containsString("No applicable version of component A"));
+        assertThat(exp.getMessage(), containsString("No applicable version found in cloud registry for component: 'A'"
+                                                            + " satisfying requirement: '{X=>=1.0.0 <2.0.0}'."));
     }
 }
