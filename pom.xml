@@ -96,7 +96,7 @@
         <dependency>
             <groupId>com.aws.greengrass</groupId>
             <artifactId>logging</artifactId>
-            <version>0.0.0-moveloggingcofig-SNAPSHOT</version>
+            <version>0.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.amazonaws.services</groupId>
