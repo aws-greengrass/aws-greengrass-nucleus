@@ -301,6 +301,16 @@ class AuthorizationHandlerTest {
     }
 
     @Test
+    void GIVEN_AuthZ_handler_WHEN_component_registered_with_bad_operations_THEN_auth_fails() throws Exception {
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
+        Set<String> serviceOps = new HashSet<>(Arrays.asList("badOpA", "badOpB", "badOpC"));
+        authorizationHandler.registerComponent("ServiceA", serviceOps);
+        AuthorizationPolicy policy = getAuthZPolicy();
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.validateOperations("ServiceA",
+                policy));
+    }
+
+    @Test
     void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_auth_lookup_for_star_operation_works() throws Exception {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
