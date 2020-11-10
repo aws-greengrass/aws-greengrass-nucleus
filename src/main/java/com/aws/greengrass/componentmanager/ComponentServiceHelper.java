@@ -91,19 +91,20 @@ public class ComponentServiceHelper {
             result = evgCmsClient.resolveComponentVersions(request);
         } catch (ResourceNotFoundException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
-                    .log("No available version when resolving component");
-            throw new NoAvailableComponentVersionException(
-                    String.format("No applicable version of component %s " + "found in cloud registry satisfying %s",
-                                  componentName, versionRequirements), e);
+                    .log("No applicable version found in cloud registry");
+            throw new NoAvailableComponentVersionException(String.format(
+                    "No applicable version found in cloud registry for component: '%s' satisfying requirement: '%s'.",
+                    componentName, versionRequirements), e);
         } catch (AmazonClientException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
-                    .log("Server error when resolving component");
+                    .log("Failed to get result from Greengrass cloud when resolving component");
             throw new ComponentVersionNegotiationException(
-                    String.format("Component service error when resolving %s", componentName), e);
+                    String.format("Failed to get result from Greengrass cloud when resolving component: '%s'.",
+                                  componentName), e);
         }
 
         Validate.isTrue(result.getComponents() != null && result.getComponents().size() == 1,
-                        "Component service " + "invalid response, it should contain resolved component version");
+                        "Component service returns invalid response. It should have one resolved component version");
         return result.getComponents().get(0);
     }
 

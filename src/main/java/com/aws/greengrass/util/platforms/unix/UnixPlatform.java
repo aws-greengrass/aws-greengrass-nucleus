@@ -44,7 +44,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -253,31 +253,46 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public void killProcessAndChildren(Process process, boolean force, UserDecorator userDecorator)
+    public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
+                                               UserDecorator decorator)
             throws IOException, InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
 
-        logger.atDebug().log("Running pkill to kill child processes of pid {}", pp.getPid());
-        // Use pkill to kill all subprocesses under the main shell
-        String[] cmd = {"pkill", "-" + (force ? SIGKILL : SIGINT), "-P", Integer.toString(pp.getPid())};
-        if (userDecorator != null) {
-            cmd = userDecorator.decorate(cmd);
-        }
-        Process proc = Runtime.getRuntime().exec(cmd);
-        proc.waitFor();
-        if (proc.exitValue() != 0) {
-            logger.atWarn().kv("pid", pp.getPid()).kv("exit-code", proc.exitValue())
-                    .kv(STDOUT, inputStreamToString(proc.getInputStream()))
-                    .kv(STDERR, inputStreamToString(proc.getErrorStream()))
-                    .log("pkill exited non-zero (process not found or other error)");
+        logger.atInfo().log("Killing child processes of pid {}", pp.getPid());
+        Set<Integer> pids = getChildPids(process);
+        logger.atDebug().log("Found children of {}. {}", pp.getPid(), pids);
+        if (additionalPids != null) {
+            pids.addAll(additionalPids);
         }
 
-        // If forcible, then also kill the parent (the shell)
-        if (force) {
-            process.destroy();
-            process.waitFor(2, TimeUnit.SECONDS);
-            process.destroyForcibly();
+        for (Integer pid : pids) {
+            if (!Processes.newPidProcess(pid).isAlive()) {
+                continue;
+            }
+
+            String[] cmd = {"kill", "-" + (force ? SIGKILL : SIGINT), Integer.toString(pid)};
+            if (decorator != null) {
+                cmd = decorator.decorate(cmd);
+            }
+            logger.atDebug().log("Killing pid {} with signal {} using {}", pid, force ? SIGKILL : SIGINT,
+                    String.join(" ", cmd));
+            Process proc = Runtime.getRuntime().exec(cmd);
+            proc.waitFor();
+            if (proc.exitValue() != 0) {
+                logger.atWarn().kv("pid", pp.getPid()).kv("exit-code", proc.exitValue())
+                    .kv(STDOUT, inputStreamToString(proc.getInputStream()))
+                    .kv(STDERR, inputStreamToString(proc.getErrorStream()))
+                        .log("kill exited non-zero (process not found or other error)");
+            }
         }
+
+        if (force) {
+            process.destroyForcibly();
+        } else {
+            process.destroy();
+        }
+
+        return pids;
     }
 
     @Override
@@ -308,6 +323,21 @@ public class UnixPlatform extends Platform {
     @Override
     public UnixRunWithGenerator getRunWithGenerator() {
         return runWithGenerator;
+    }
+
+    @Override
+    public void createUser(String user) throws IOException {
+        runCmd("useradd -r -m " + user, o -> {}, "Failed to create user");
+    }
+
+    @Override
+    public void createGroup(String group) throws IOException {
+        runCmd("groupadd -r " + group, o -> {}, "Failed to create group");
+    }
+
+    @Override
+    public void addUserToGroup(String user, String group) throws IOException {
+        runCmd("usermod -a -G " + group + " " + user, o -> {}, "Failed to add user to group");
     }
 
     @Override
@@ -383,7 +413,30 @@ public class UnixPlatform extends Platform {
         }
     }
 
-    List<Integer> getChildPids(Process process) throws IOException, InterruptedException {
+    protected void runCmd(String cmdStr, Consumer<CharSequence> out, String msg)
+            throws IOException {
+        try (Exec exec = new Exec()) {
+            StringBuilder output = new StringBuilder();
+            StringBuilder error = new StringBuilder();
+            Optional<Integer> exit = exec.withExec(cmdStr.split(" "))
+                    .withShell()
+                    .withOut(o -> {
+                        out.accept(o);
+                        output.append(o);
+                    }).withErr(e -> {
+                        error.append(e);
+                    }).exec();
+            if (!exit.isPresent() || exit.get() != 0) {
+                throw new IOException(String.format(
+                        String.format("%s - command: %s, output: %s , error: %s ", msg, cmdStr, output.toString(),
+                                error.toString())));
+            }
+        } catch (InterruptedException | IOException e) {
+            throw new IOException(String.format("%s , command : %s", msg, cmdStr), e);
+        }
+    }
+
+    Set<Integer> getChildPids(Process process) throws IOException, InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
 
         // Use PS to list process PID and parent PID so that we can identify the process tree
@@ -401,7 +454,7 @@ public class UnixPlatform extends Platform {
              BufferedReader br = new BufferedReader(reader)) {
             Stream<String> lines = br.lines();
             Map<String, String> pidToParent = lines.map(s -> {
-                Matcher matches = PS_PID_PATTERN.matcher(s);
+                Matcher matches = PS_PID_PATTERN.matcher(s.trim());
                 if (matches.matches()) {
                     return new Pair<>(matches.group(1), matches.group(2));
                 }
@@ -411,7 +464,7 @@ public class UnixPlatform extends Platform {
             Map<String, List<String>> parentToChildren = Utils.inverseMap(pidToParent);
             List<String> childProcesses = children(Integer.toString(pp.getPid()), parentToChildren);
 
-            return childProcesses.stream().map(Integer::parseInt).collect(Collectors.toList());
+            return childProcesses.stream().map(Integer::parseInt).collect(Collectors.toSet());
         }
     }
 

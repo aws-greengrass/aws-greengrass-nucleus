@@ -60,8 +60,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS;
-import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.DEFAULT_GROUP_NAME;
+import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 
@@ -231,9 +230,8 @@ public class DeploymentService extends GreengrassService {
     }
 
     private void subscribeToPollingFrequencyAndGet() {
-        deviceConfiguration.onTopicChange(DEPLOYMENT_POLLING_FREQUENCY_SECONDS, (whatHappened, frequency) -> {
-            pollingFrequency.set(getPollingFrequency(frequency));
-        });
+        deviceConfiguration.getDeploymentPollingFrequencySeconds()
+                .subscribe((whatHappened, frequency) -> pollingFrequency.set(getPollingFrequency(frequency)));
     }
 
     private Long getPollingFrequency(Topic pollingFrequencyTopic) {
@@ -458,7 +456,7 @@ public class DeploymentService extends GreengrassService {
                     Map<String, String> rootComponents = new HashMap<>();
                     Set<String> rootComponentsInRequestedGroup = new HashSet<>();
                     config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
-                                        localOverrideRequest.getGroupName() == null ? DEFAULT_GROUP_NAME
+                                        localOverrideRequest.getGroupName() == null ? LOCAL_DEPLOYMENT_GROUP_NAME
                                                 : localOverrideRequest.getGroupName())
                             .forEach(t -> rootComponentsInRequestedGroup.add(t.getName()));
                     if (!Utils.isEmpty(rootComponentsInRequestedGroup)) {
