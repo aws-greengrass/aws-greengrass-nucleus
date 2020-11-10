@@ -94,6 +94,10 @@ class DeploymentConfigMergerTest {
         GreengrassService existingService = createMockEvergreenService("existingService");
         Collection<GreengrassService> orderedDependencies = Arrays.asList(oldService, existingService);
         when(kernel.orderedDependencies()).thenReturn(orderedDependencies);
+        when(kernel.locate("existingService")).thenReturn(existingService);
+        GreengrassService newService = mock(GreengrassService.class);
+        when(kernel.locate("oldService")).thenReturn(newService);
+        when(kernel.locate("newService")).thenReturn(newService);
 
         Map<String, Object> newConfig = new HashMap<>();
         newConfig.put("newService", new Object());
@@ -114,9 +118,6 @@ class DeploymentConfigMergerTest {
         assertEquals(newOrderedSet("existingService"), toRollback.getServicesToUpdate());
 
         // test servicesToTrack()
-        when(kernel.locate("existingService")).thenReturn(existingService);
-        GreengrassService newService = mock(GreengrassService.class);
-        when(kernel.locate("newService")).thenReturn(newService);
         when(newService.shouldAutoStart()).thenReturn(true);
         assertEquals(newOrderedSet(newService, existingService), manager.servicesToTrack());
 
