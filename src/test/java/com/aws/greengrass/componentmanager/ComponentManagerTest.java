@@ -345,7 +345,7 @@ class ComponentManagerTest {
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_2_0_md);
 
         ComponentMetadata componentMetadata = componentManager.resolveComponentVersion(componentA, Collections
-                                                                                               .singletonMap(DeploymentDocumentConverter.DEFAULT_GROUP_NAME, Requirement.buildNPM("^1.0")),
+                                                                                               .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")),
                                                                                        DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentMetadata, is(componentA_1_2_0_md));

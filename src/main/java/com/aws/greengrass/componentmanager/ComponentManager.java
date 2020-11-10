@@ -135,7 +135,7 @@ public class ComponentManager implements InjectionActions {
 
         ComponentIdentifier resolvedComponentId;
 
-        if (versionRequirements.containsKey(DeploymentDocumentConverter.DEFAULT_GROUP_NAME)) {
+        if (versionRequirements.containsKey(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME)) {
             // keep using local version if the component requirement is from a local deployment
             logger.atInfo().log("Requirement comes from a Local Deployment. Use the local candidate as the resolved one"
                                         + " without negotiating version with cloud.");
