@@ -102,10 +102,10 @@ public final class Utils {
         if (oldValue == null && newValue == null) {
             return false;
         }
-        if (oldValue == null && "".equals(newValue)) {
+        if (oldValue == null && Utils.isEmpty(newValue)) {
             return false;
         }
-        if (oldValue != null && oldValue.equals("") && newValue == null) {
+        if (oldValue != null && Utils.isEmpty(oldValue) && newValue == null) {
             return false;
         }
         if ((oldValue == null) != (newValue == null)) {
