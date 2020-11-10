@@ -203,23 +203,24 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         Map<String, Object> currentValues = currentDeviceConfiguration.getRunWithTopic().toPOJO();
 
         boolean changed = false;
-        if (!Objects.equals(currentValues.get(RUN_WITH_DEFAULT_POSIX_USER),
-                runWithDefault.get(RUN_WITH_DEFAULT_POSIX_USER))) {
+        if (Utils.stringHasChanged(Coerce.toString(currentValues.get(RUN_WITH_DEFAULT_POSIX_USER)),
+                Coerce.toString(runWithDefault.get(RUN_WITH_DEFAULT_POSIX_USER)))) {
             logger.atInfo().kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_USER,
                     runWithDefault.get(RUN_WITH_DEFAULT_POSIX_USER))
                     .log(RESTART_REQUIRED_MESSAGE);
             changed = true;
         }
-        if (!Objects.equals(currentValues.get(RUN_WITH_DEFAULT_POSIX_GROUP),
-                runWithDefault.get(RUN_WITH_DEFAULT_POSIX_GROUP))) {
+        if (Utils.stringHasChanged(Coerce.toString(currentValues.get(RUN_WITH_DEFAULT_POSIX_GROUP)),
+                Coerce.toString(runWithDefault.get(RUN_WITH_DEFAULT_POSIX_GROUP)))) {
             logger.atInfo().kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_GROUP,
                     runWithDefault.get(RUN_WITH_DEFAULT_POSIX_GROUP))
                     .log(RESTART_REQUIRED_MESSAGE);
             changed = true;
         }
-        if (!Objects.equals(currentValues.getOrDefault(RUN_WITH_DEFAULT_POSIX_SHELL,
-                RUN_WITH_DEFAULT_POSIX_SHELL_VALUE),
-                runWithDefault.getOrDefault(RUN_WITH_DEFAULT_POSIX_SHELL, RUN_WITH_DEFAULT_POSIX_SHELL_VALUE))) {
+        if (Utils.stringHasChanged(Coerce.toString(currentValues.getOrDefault(RUN_WITH_DEFAULT_POSIX_SHELL,
+                RUN_WITH_DEFAULT_POSIX_SHELL_VALUE)),
+                Coerce.toString(runWithDefault.getOrDefault(RUN_WITH_DEFAULT_POSIX_SHELL,
+                        RUN_WITH_DEFAULT_POSIX_SHELL_VALUE)))) {
             logger.atInfo().kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_SHELL,
                     runWithDefault.get(RUN_WITH_DEFAULT_POSIX_SHELL))
                     .log(RESTART_REQUIRED_MESSAGE);
