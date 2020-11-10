@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -325,6 +326,21 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
+    public void createUser(String user) throws IOException {
+        runCmd("useradd -r -m " + user, o -> {}, "Failed to create user");
+    }
+
+    @Override
+    public void createGroup(String group) throws IOException {
+        runCmd("groupadd -r " + group, o -> {}, "Failed to create group");
+    }
+
+    @Override
+    public void addUserToGroup(String user, String group) throws IOException {
+        runCmd("usermod -a -G " + group + " " + user, o -> {}, "Failed to add user to group");
+    }
+
+    @Override
     public void setPermissions(FileSystemPermission permission, Path path, EnumSet<Option> options)
             throws IOException {
 
@@ -394,6 +410,29 @@ public class UnixPlatform extends Platform {
                     LinkOption.NOFOLLOW_LINKS);
             setModeFunc.apply(view);
             setOwnerFunc.apply(view);
+        }
+    }
+
+    protected void runCmd(String cmdStr, Consumer<CharSequence> out, String msg)
+            throws IOException {
+        try (Exec exec = new Exec()) {
+            StringBuilder output = new StringBuilder();
+            StringBuilder error = new StringBuilder();
+            Optional<Integer> exit = exec.withExec(cmdStr.split(" "))
+                    .withShell()
+                    .withOut(o -> {
+                        out.accept(o);
+                        output.append(o);
+                    }).withErr(e -> {
+                        error.append(e);
+                    }).exec();
+            if (!exit.isPresent() || exit.get() != 0) {
+                throw new IOException(String.format(
+                        String.format("%s - command: %s, output: %s , error: %s ", msg, cmdStr, output.toString(),
+                                error.toString())));
+            }
+        } catch (InterruptedException | IOException e) {
+            throw new IOException(String.format("%s , command : %s", msg, cmdStr), e);
         }
     }
 

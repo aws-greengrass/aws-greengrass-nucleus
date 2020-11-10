@@ -96,6 +96,21 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
+    public void createUser(String user) throws IOException {
+        // TODO: [P41452086]: Windows support - create user/group, add user to group
+    }
+
+    @Override
+    public void createGroup(String group) throws IOException {
+        // TODO: [P41452086]: Windows support - create user/group, add user to group
+    }
+
+    @Override
+    public void addUserToGroup(String user, String group) throws IOException {
+        // TODO: [P41452086]: Windows support - create user/group, add user to group
+    }
+
+    @Override
     protected void setPermissions(FileSystemPermission permission, Path path,
                                   EnumSet<FileSystemPermission.Option> options) throws IOException {
         // [P41372857]: Implement using ACL for Windows
