@@ -38,6 +38,7 @@ import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Permissions;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
+import com.vdurmont.semver4j.SemverException;
 import lombok.Setter;
 
 import java.io.File;
@@ -403,9 +404,14 @@ public class ComponentManager implements InjectionActions {
                 removeVersions.removeAll(versionsToKeep.get(compName));
             }
             for (String compVersion : removeVersions) {
-                ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
-                removeRecipeDigestIfExists(identifier);
-                componentStore.deleteComponent(identifier);
+                try {
+                    ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
+                    removeRecipeDigestIfExists(identifier);
+                    componentStore.deleteComponent(identifier);
+                } catch (SemverException e) {
+                    logger.atDebug().kv("componentName", compName).kv("version", compVersion).log(
+                            "Failed to clean up component: invalid component version");
+                }
             }
         }
         logger.atInfo("cleanup-stale-versions-finish").log();

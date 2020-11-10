@@ -10,8 +10,8 @@ import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.util.Pair;
 import org.junit.jupiter.api.AfterEach;
@@ -19,20 +19,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
-import software.amazon.awssdk.aws.greengrass.model.CreateLocalDeploymentRequest;
-import software.amazon.awssdk.aws.greengrass.model.CreateLocalDeploymentResponse;
 import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
-import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -43,8 +34,6 @@ import static com.aws.greengrass.integrationtests.ipc.IPCPubSubTest.TES_DEFAULT_
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.publishToTopicOverIpcAsBinaryMessage;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.subscribeToTopicOveripcForBinaryMessages;
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.waitForDeploymentToBeSuccessful;
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.waitForServiceToComeInState;
 import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTROL_NAMESPACE_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
@@ -137,28 +126,11 @@ class IPCPubSubRemovalTest extends BaseITCase {
             cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
 
             ignoreExceptionOfType(context, PackageDownloadException.class);
-            // Deployment with updated recipes
-            Path recipesPath = Paths.get(this.getClass().getResource("recipes").toURI());
-            software.amazon.awssdk.aws.greengrass.model.UpdateRecipesAndArtifactsRequest updateRecipesAndArtifactsRequest = new software.amazon.awssdk.aws.greengrass.model.UpdateRecipesAndArtifactsRequest();
-            updateRecipesAndArtifactsRequest.setRecipeDirectoryPath(recipesPath.toString());
-            ipcClient.updateRecipesAndArtifacts(updateRecipesAndArtifactsRequest, Optional.empty());
 
-            Map<String, Object> configUpdate = new HashMap<>();
-            configUpdate.put("MERGE", ImmutableMap.of("accessControl", ""));
-                             Map<String, Map<String, Object>> componentToConfiguration = new HashMap<>();
-            componentToConfiguration.put("SubscribeAndPublish", configUpdate);
-            CreateLocalDeploymentRequest createLocalDeploymentRequest =
-                    new CreateLocalDeploymentRequest();
-            createLocalDeploymentRequest.setRootComponentVersionsToAdd(Collections.singletonMap("SubscribeAndPublish", "1.0.0"));
-            createLocalDeploymentRequest.setComponentToConfiguration(componentToConfiguration);
-
-            CreateLocalDeploymentResponse createLocalDeploymentResponse =
-                    ipcClient.createLocalDeployment(createLocalDeploymentRequest, Optional.empty()).getResponse().get(5,
-                    TimeUnit.SECONDS);
-            String deploymentId1 = createLocalDeploymentResponse.getDeploymentId();
-            waitForServiceToComeInState("SubscribeAndPublish", State.RUNNING, kernel).await(10, TimeUnit.SECONDS);
-            waitForDeploymentToBeSuccessful(deploymentId1, kernel).await(30, TimeUnit.SECONDS);
-
+            // Remove ACL parameter from component SubscribeAndPublish
+            kernel.locate("SubscribeAndPublish").getConfig()
+                    .lookup(PARAMETERS_CONFIG_KEY, "accessControl").withValue("");
+            kernel.getContext().waitForPublishQueueToClear();
 
             assertFalse(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId1));
             // GG_NEEDS_REVIEW: TODO: convert all these integ tests to use only recipe merging instead of loading a kernel config file
@@ -287,14 +259,11 @@ class IPCPubSubRemovalTest extends BaseITCase {
             publishToTopicOverIpcAsBinaryMessage(ipcClient, "a", "some message");
             cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
 
-            CreateLocalDeploymentRequest createLocalDeploymentRequest =
-                    new CreateLocalDeploymentRequest();
-            createLocalDeploymentRequest.setRootComponentsToRemove(Collections.singletonList("SubscribeAndPublish"));
-            CreateLocalDeploymentResponse createLocalDeploymentResponse =
-                    ipcClient.createLocalDeployment(createLocalDeploymentRequest, Optional.empty()).getResponse().get(5, TimeUnit.SECONDS);
-            String deploymentId1 = createLocalDeploymentResponse.getDeploymentId();
-            waitForServiceToComeInState("SubscribeAndPublish", State.RUNNING, kernel).await(10, TimeUnit.SECONDS);
-            waitForDeploymentToBeSuccessful(deploymentId1, kernel).await(30, TimeUnit.SECONDS);
+            // Remove component SubscribeAndPublish
+            GreengrassService subscribeAndPublish = kernel.locate("SubscribeAndPublish");
+            subscribeAndPublish.close().get(1, TimeUnit.MINUTES);
+            subscribeAndPublish.getConfig().remove();
+            kernel.getContext().waitForPublishQueueToClear();
 
             assertFalse(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId1));
             // GG_NEEDS_REVIEW: TODO: convert all these integ tests to use only recipe merging instead of loading a kernel config file

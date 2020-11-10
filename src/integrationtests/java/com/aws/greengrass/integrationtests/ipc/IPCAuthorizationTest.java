@@ -7,11 +7,11 @@ package com.aws.greengrass.integrationtests.ipc;
 
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.ipc.authorization.AuthorizationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,7 +32,6 @@ import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getEventStreamRpcConnection;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.greengrass.ipc.AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY;
-import static com.aws.greengrass.ipc.modules.CLIService.CLI_SERVICE;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -49,7 +48,7 @@ class IPCAuthorizationTest {
     static void beforeAll() throws Exception {
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCAuthorizationTest.class, TEST_SERVICE_NAME);
         socketOptions = TestUtils.getSocketOptionsForIPC();
-        clientConnection = getEventStreamRpcConnection(kernel, CLI_SERVICE);
+        clientConnection = getEventStreamRpcConnection(kernel, TEST_SERVICE_NAME);
     }
 
     @AfterAll

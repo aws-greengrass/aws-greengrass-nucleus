@@ -10,7 +10,6 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
-import com.aws.greengrass.ipc.modules.CLIService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -89,10 +88,9 @@ public class AuthenticationHandler implements InjectionActions {
 
     private void authenticateRequestsForExternalClient(String requestingAuthToken) throws UnauthenticatedException {
         String authenticatedService = doAuthentication(requestingAuthToken);
-        // Making it available only for CLIService right now. If it needs to be extended, requesting service can be
-        // taken as a parameter
-        if (!authenticatedService.equals(CLIService.CLI_SERVICE)) {
-            logger.atError().kv("requestingServiceName", CLIService.CLI_SERVICE)
+        // Making it available only for 1P service right now.
+        if (!authenticatedService.startsWith("aws.greengrass")) {
+            logger.atError().kv("requestingServiceName", authenticatedService)
                     .log("Invalid requesting auth token for service to register/revoke external client token");
             throw new UnauthenticatedException("Invalid requesting auth token for service");
         }
