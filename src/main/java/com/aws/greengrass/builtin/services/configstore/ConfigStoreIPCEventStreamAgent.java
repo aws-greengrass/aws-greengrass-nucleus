@@ -64,7 +64,6 @@ import java.util.function.Consumer;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.ipc.common.ExceptionUtil.translateExceptions;
 
 public class ConfigStoreIPCEventStreamAgent {
@@ -195,7 +194,7 @@ public class ConfigStoreIPCEventStreamAgent {
                     throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
                 }
 
-                Topics configTopics = serviceTopics.findInteriorChild(PARAMETERS_CONFIG_KEY);
+                Topics configTopics = serviceTopics.findInteriorChild(CONFIGURATION_CONFIG_KEY);
                 if (configTopics == null) {
                     throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
                 }
@@ -264,7 +263,7 @@ public class ConfigStoreIPCEventStreamAgent {
                 // The top level key is expected to be same as keyPath[keyPath.length - 1]
                 Object value = request.getValueToMerge().get(keyPath[keyPath.length - 1]);
                 if (value == null) {
-                    throw new InvalidArgumentsError("Top level key in valueToMerge map should be match "
+                    throw new InvalidArgumentsError("Top level key in valueToMerge map should match "
                             + "the last node in keypath ( " + keyPath[keyPath.length - 1] + " )");
                 }
                 Topics serviceTopics = kernel.findServiceTopic(serviceName);
@@ -344,9 +343,9 @@ public class ConfigStoreIPCEventStreamAgent {
 
             Topics serviceTopics = kernel.findServiceTopic(serviceName);
             if (serviceTopics == null) {
-                throw new InvalidArgumentsError("Component config not found for service " + serviceName);
+                throw new InvalidArgumentsError("Component config not found for component " + serviceName);
             }
-            Topics configTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
+            Topics configTopics = serviceTopics.lookupTopics(CONFIGURATION_CONFIG_KEY);
             String[] keyPath = request.getKeyPath().toArray(new String[0]);
             Node node = configTopics.findNode(keyPath);
             if (node != null && !(node instanceof Topic) && !(node instanceof Topics)) {
@@ -394,7 +393,7 @@ public class ConfigStoreIPCEventStreamAgent {
                     throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
                 }
 
-                Topics configurationTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
+                Topics configurationTopics = serviceTopics.lookupTopics(CONFIGURATION_CONFIG_KEY);
                 if (configurationTopics == null) {
                     throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
                 }
@@ -449,7 +448,7 @@ public class ConfigStoreIPCEventStreamAgent {
             // e.g. if the path for changed node is services.<service_name>.configuration.key_1.nested_key_1
             // then the path in update event should be key_1.nested_key_1
             int configurationTopicsIndex =
-                    kernel.findServiceTopic(componentName).lookupTopics(PARAMETERS_CONFIG_KEY).path().length - 1;
+                    kernel.findServiceTopic(componentName).lookupTopics(CONFIGURATION_CONFIG_KEY).path().length - 1;
             String[] keyPath =
                     Arrays.copyOfRange(changedNode.path(), configurationTopicsIndex + 1, changedNode.path().length);
 
