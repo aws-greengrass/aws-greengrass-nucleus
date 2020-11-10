@@ -9,6 +9,7 @@ import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -162,6 +163,7 @@ class PluginComponentTest extends BaseITCase {
     @Test
     void GIVEN_kernel_WHEN_deploy_new_plugin_THEN_plugin_is_loaded_into_JVM(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
+        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
 
         // launch kernel
         kernel.parseArgs();
@@ -189,6 +191,7 @@ class PluginComponentTest extends BaseITCase {
             throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         ignoreExceptionOfType(context, IOException.class);
+        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
 
         Kernel kernelSpy = spy(kernel.parseArgs());
         setupPackageStoreAndConfigWithDigest();

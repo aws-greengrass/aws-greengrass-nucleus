@@ -25,6 +25,7 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -71,6 +72,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERS
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -144,14 +146,15 @@ class ComponentManagerTest {
 
     @BeforeEach
     void beforeEach() throws Exception {
-        lenient().when(artifactDownloader.downloadRequired(any(),any(), any())).thenReturn(true);
-        lenient().when(s3Downloader.downloadRequired(any(),any(), any())).thenReturn(true);
+        lenient().when(artifactDownloader.downloadRequired(any(), any(), any())).thenReturn(true);
+        lenient().when(s3Downloader.downloadRequired(any(), any(), any())).thenReturn(true);
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         Topic maxSizeTopic = Topic.of(context, COMPONENT_STORE_MAX_SIZE_BYTES, COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         lenient().when(deviceConfiguration.getComponentStoreMaxSizeBytes()).thenReturn(maxSizeTopic);
         lenient().when(componentStore.getUsableSpace()).thenReturn(100_000_000L);
-        componentManager = new ComponentManager(s3Downloader, artifactDownloader, packageServiceHelper,
-                executor, componentStore, kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
+        componentManager =
+                new ComponentManager(s3Downloader, artifactDownloader, packageServiceHelper, executor, componentStore,
+                                     kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
     }
 
     @AfterEach
@@ -179,9 +182,9 @@ class ComponentManagerTest {
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
-        componentManager.prepareArtifacts(pkgId,
-                Arrays.asList(ComponentArtifact.builder().artifactUri(new URI("greengrass:binary1")).build(),
-                        ComponentArtifact.builder().artifactUri(new URI("greengrass:binary2")).build()));
+        componentManager.prepareArtifacts(pkgId, Arrays.asList(
+                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary1")).build(),
+                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary2")).build()));
 
         ArgumentCaptor<ComponentArtifact> artifactArgumentCaptor = ArgumentCaptor.forClass(ComponentArtifact.class);
         verify(artifactDownloader, times(2)).downloadToPath(eq(pkgId), artifactArgumentCaptor.capture(), eq(tempDir));
@@ -200,10 +203,9 @@ class ComponentManagerTest {
         when(artifactDownloader.getArtifactFile(any(), any(), any())).thenReturn(new File("binary1"));
 
         componentManager.prepareArtifacts(pkgId, Arrays.asList(
-                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary1"))
-                        .unarchive(Unarchive.ZIP).build(),
-                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary2"))
-                        .unarchive(Unarchive.NONE).build()));
+                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary1")).unarchive(Unarchive.ZIP).build(),
+                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary2")).unarchive(Unarchive.NONE)
+                        .build()));
 
         ArgumentCaptor<File> fileCaptor = ArgumentCaptor.forClass(File.class);
         verify(mockUnarchiver).unarchive(any(), fileCaptor.capture(), any());
@@ -216,9 +218,8 @@ class ComponentManagerTest {
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
-        componentManager.prepareArtifacts(pkgId,
-                Collections.singletonList(ComponentArtifact.builder()
-                        .artifactUri(new URI("s3://bucket/path/to/key")).build()));
+        componentManager.prepareArtifacts(pkgId, Collections
+                .singletonList(ComponentArtifact.builder().artifactUri(new URI("s3://bucket/path/to/key")).build()));
 
         ArgumentCaptor<ComponentArtifact> artifactArgumentCaptor = ArgumentCaptor.forClass(ComponentArtifact.class);
         verify(s3Downloader, times(1)).downloadToPath(eq(pkgId), artifactArgumentCaptor.capture(), eq(tempDir));
@@ -234,8 +235,13 @@ class ComponentManagerTest {
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
 
         Exception exception = assertThrows(PackageLoadingException.class, () -> componentManager.prepareArtifacts(pkgId,
-                Collections.singletonList(
-                        ComponentArtifact.builder().artifactUri(new URI("docker:image1")).build())));
+                                                                                                                  Collections
+                                                                                                                          .singletonList(
+                                                                                                                                  ComponentArtifact
+                                                                                                                                          .builder()
+                                                                                                                                          .artifactUri(
+                                                                                                                                                  new URI("docker:image1"))
+                                                                                                                                          .build())));
         assertThat(exception.getMessage(), is("artifact URI scheme DOCKER is not supported yet"));
     }
 
@@ -246,7 +252,13 @@ class ComponentManagerTest {
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         Exception exception = assertThrows(PackageLoadingException.class, () -> componentManager.prepareArtifacts(pkgId,
-                Collections.singletonList(ComponentArtifact.builder().artifactUri(new URI("binary1")).build())));
+                                                                                                                  Collections
+                                                                                                                          .singletonList(
+                                                                                                                                  ComponentArtifact
+                                                                                                                                          .builder()
+                                                                                                                                          .artifactUri(
+                                                                                                                                                  new URI("binary1"))
+                                                                                                                                          .build())));
         assertThat(exception.getMessage(), is("artifact URI scheme null is not supported yet"));
     }
 
@@ -332,9 +344,9 @@ class ComponentManagerTest {
                 .thenReturn(Optional.of(componentA_1_2_0));
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_2_0_md);
 
-        ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("LOCAL", Requirement.buildNPM("^1.0")),
-                        DEPLOYMENT_CONFIGURATION_ID);
+        ComponentMetadata componentMetadata = componentManager.resolveComponentVersion(componentA, Collections
+                                                                                               .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")),
+                                                                                       DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentMetadata, is(componentA_1_2_0_md));
         verify(componentStore).findBestMatchAvailableComponent(componentA, Requirement.buildNPM("^1.0"));
@@ -354,18 +366,14 @@ class ComponentManagerTest {
 
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe oldRecipe =
                 com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
-                        .componentName("SampleComponent")
-                        .componentVersion(new Semver("1.0.0"))
-                        .componentType(ComponentType.PLUGIN)
-                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                        .componentName("SampleComponent").componentVersion(new Semver("1.0.0"))
+                        .componentType(ComponentType.PLUGIN).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
                         .build();
 
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe newRecipe =
                 com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
-                        .componentName("SampleComponent2")
-                        .componentVersion(new Semver("2.0.0"))
-                        .componentType(ComponentType.PLUGIN)
-                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                        .componentName("SampleComponent2").componentVersion(new Semver("2.0.0"))
+                        .componentType(ComponentType.PLUGIN).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
                         .build();
 
         GreengrassService mockKernelService = mock(GreengrassService.class);
@@ -388,11 +396,11 @@ class ComponentManagerTest {
 
         ComponentMetadata componentMetadata = componentManager
                 .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
-                        DEPLOYMENT_CONFIGURATION_ID);
+                                         DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
-        verify(packageServiceHelper).resolveComponentVersion(componentA, v1_0_0,
-                Collections.singletonMap("X", Requirement.buildNPM("^1.0")), DEPLOYMENT_CONFIGURATION_ID);
+        verify(packageServiceHelper).resolveComponentVersion(componentA, v1_0_0, Collections
+                .singletonMap("X", Requirement.buildNPM("^1.0")), DEPLOYMENT_CONFIGURATION_ID);
         verify(componentStore).findComponentRecipeContent(componentA_1_0_0);
         verify(componentStore).savePackageRecipe(componentA_1_0_0, mapper.writeValueAsString(newRecipe));
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
@@ -401,8 +409,9 @@ class ComponentManagerTest {
     }
 
     @Test
-    void GIVEN_component_is_builtin_service_WHEN_cloud_service_exception_THEN_resolve_to_local_version()
-            throws Exception {
+    void GIVEN_component_is_builtin_service_WHEN_cloud_service_exception_THEN_resolve_to_local_version(
+            ExtensionContext context) throws Exception {
+
         ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
         ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
 
@@ -420,9 +429,11 @@ class ComponentManagerTest {
                 .thenThrow(ComponentVersionNegotiationException.class);
         when(componentStore.getPackageMetadata(any())).thenThrow(PackagingException.class);
 
+        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
+
         ComponentMetadata componentMetadata = componentManager
                 .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
-                        DEPLOYMENT_CONFIGURATION_ID);
+                                         DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
         verify(componentStore, never()).findComponentRecipeContent(any());
@@ -453,8 +464,8 @@ class ComponentManagerTest {
     }
 
     @Test
-    void GIVEN_component_WHEN_component_store_full_and_prepare_components_THEN_throws_exception(ExtensionContext context)
-            throws Exception {
+    void GIVEN_component_WHEN_component_store_full_and_prepare_components_THEN_throws_exception(
+            ExtensionContext context) throws Exception {
         // mock get recipe
         ComponentIdentifier pkgId = new ComponentIdentifier("SimpleApp", new Semver("1.0.0"));
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
@@ -502,8 +513,7 @@ class ComponentManagerTest {
         when(kernel.getMain()).thenReturn(mockKernelService);
         when(mockKernelService.getRuntimeConfig()).thenReturn(runtimeTopics);
         ArgumentCaptor<String> identifierCaptor = ArgumentCaptor.forClass(String.class);
-        when(runtimeTopics.find(any(), identifierCaptor.capture()))
-                .thenReturn(digestTopic);
+        when(runtimeTopics.find(any(), identifierCaptor.capture())).thenReturn(digestTopic);
 
         // mock local artifacts with version 1, 2, 3 and another component
         String anotherCompName = "SimpleApp";
@@ -516,17 +526,16 @@ class ComponentManagerTest {
         componentManager.cleanupStaleVersions();
 
         // THEN
-        verify(componentStore, times(1)).deleteComponent(
-                new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("3.0.0")));
-        verify(componentStore, times(1)).deleteComponent(
-                new ComponentIdentifier(anotherCompName, new Semver("1.0.0")));
-        verify(componentStore, times(1)).deleteComponent(
-                new ComponentIdentifier(anotherCompName, new Semver("2.0.0")));
+        verify(componentStore, times(1))
+                .deleteComponent(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("3.0.0")));
+        verify(componentStore, times(1)).deleteComponent(new ComponentIdentifier(anotherCompName, new Semver("1.0.0")));
+        verify(componentStore, times(1)).deleteComponent(new ComponentIdentifier(anotherCompName, new Semver("2.0.0")));
 
         // verify digest was cleaned up
         verify(digestTopic, times(3)).remove();
-        assertThat(identifierCaptor.getAllValues(), containsInAnyOrder(MONITORING_SERVICE_PKG_NAME + "-v3.0.0",
-                anotherCompName + "-v1.0.0", anotherCompName + "-v2.0.0"));
+        assertThat(identifierCaptor.getAllValues(),
+                   containsInAnyOrder(MONITORING_SERVICE_PKG_NAME + "-v3.0.0", anotherCompName + "-v1.0.0",
+                                      anotherCompName + "-v2.0.0"));
     }
 
     private GreengrassService getMockGreengrassService(String serviceName) {
