@@ -6,6 +6,7 @@
 package com.aws.greengrass.integrationtests.deployment;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
+import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
@@ -66,6 +67,8 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
     @BeforeEach
     void before(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
+        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
+
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
         kernel.parseArgs("-i",
@@ -100,7 +103,6 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
 
     @Test
     void GIVEN_device_deployment_not_started_WHEN_new_deployment_THEN_first_deployment_cancelled() throws Exception {
-
         CountDownLatch cdlDeployNonDisruptable = new CountDownLatch(1);
         CountDownLatch cdlDeployRedSignal = new CountDownLatch(1);
         CountDownLatch cdlRedeployNonDisruptable = new CountDownLatch(1);
