@@ -9,6 +9,7 @@ import com.amazonaws.services.evergreen.model.ComponentInfo;
 import com.amazonaws.services.evergreen.model.ConfigurationUpdate;
 import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
 import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
+import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentService;
@@ -106,6 +107,9 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
     void GIVEN_deployment_to_2_groups_WHEN_both_deployments_have_same_service_different_version_THEN_second_deployment_fails_due_to_conflict(
             ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, ExecutionException.class);
+
+        ignoreExceptionOfType(context,
+                              NoAvailableComponentVersionException.class); // Expect this to happen due to conflict
 
         CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest()
                 .withTargetName(thingGroupName)
