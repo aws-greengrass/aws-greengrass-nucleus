@@ -35,6 +35,12 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTR
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.AUTHZ_TES_OPERATION;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
+import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_TOPIC;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC;
+import static com.aws.greengrass.ipc.modules.MqttProxyIPCService.MQTT_PROXY_SERVICE_NAME;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_IOT_CORE;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE;
 
 /**
  * Main module which is responsible for handling AuthZ for Greengrass. This only manages
@@ -76,6 +82,11 @@ public class AuthorizationHandler  {
 
         // Adding TES component and operation before it's default policies are fetched
         componentToOperationsMap.put(TOKEN_EXCHANGE_SERVICE_TOPICS, new HashSet<>(Arrays.asList(AUTHZ_TES_OPERATION)));
+        componentToOperationsMap.put(PUB_SUB_SERVICE_NAME, new HashSet<>(Arrays.asList(PUBLISH_TO_TOPIC,
+                SUBSCRIBE_TO_TOPIC)));
+        componentToOperationsMap.put(MQTT_PROXY_SERVICE_NAME, new HashSet<>(Arrays.asList(PUBLISH_TO_IOT_CORE,
+                SUBSCRIBE_TO_IOT_CORE)));
+
         //Load default policies
         componentNameToPolicies.putAll(getDefaultPolicies());
 
