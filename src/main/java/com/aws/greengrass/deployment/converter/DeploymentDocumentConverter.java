@@ -39,13 +39,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
+import static com.aws.greengrass.deployment.DynamicComponentConfigurationValidator.DEFAULT_TIMEOUT_SECOND;
 
 public final class DeploymentDocumentConverter {
     private static final Logger logger = LogManager.getLogger(DeploymentDocumentConverter.class);
 
     public static final String LOCAL_DEPLOYMENT_GROUP_NAME = "LOCAL_DEPLOYMENT";
     public static final Integer NO_OP_TIMEOUT = 0;
-    private static final  Integer DEFAULT_TIMEOUT_SECOND = 20;
 
     public static final String ANY_VERSION = "*";
 
