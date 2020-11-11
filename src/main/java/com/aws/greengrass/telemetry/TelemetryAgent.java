@@ -96,8 +96,8 @@ public class TelemetryAgent extends GreengrassService {
     public TelemetryAgent(Topics topics, MqttClient mqttClient, DeviceConfiguration deviceConfiguration,
                           MetricsAggregator ma, SystemMetricsEmitter sme, KernelMetricsEmitter kme,
                           ScheduledExecutorService ses) {
-        this(topics, mqttClient, deviceConfiguration, ma, sme, kme, ses, DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC,
-                DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC);
+        this(topics, mqttClient, deviceConfiguration, ma, sme, kme, ses,
+                DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC, DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC);
     }
 
     /**
@@ -123,10 +123,10 @@ public class TelemetryAgent extends GreengrassService {
         this.ses = ses;
         this.metricsAggregator = ma;
         this.thingName = Coerce.toString(deviceConfiguration.getThingName());
-        this.periodicAggregateMetricsIntervalSec = TestFeatureParameters.retrieveWithDefault(Integer.class,
-                TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC, periodicAggregateMetricsIntervalSec);
-        this.periodicPublishMetricsIntervalSec = TestFeatureParameters.retrieveWithDefault(Integer.class,
-                TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC, periodicPublishMetricsIntervalSec);
+        this.periodicAggregateMetricsIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC, periodicAggregateMetricsIntervalSec).intValue();
+        this.periodicPublishMetricsIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC, periodicPublishMetricsIntervalSec).intValue();
         periodicMetricsEmitters.add(sme);
         periodicMetricsEmitters.add(kme);
         getPeriodicAggregateTimeTopic();
@@ -263,12 +263,7 @@ public class TelemetryAgent extends GreengrassService {
                     if (newPeriodicAggregateMetricsIntervalSec < DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC) {
                         return;
                     }
-                    periodicAggregateMetricsIntervalSec = newPeriodicAggregateMetricsIntervalSec;
-                    synchronized (periodicAggregateMetricsInProgressLock) {
-                        if (periodicAggregateMetricsFuture != null) {
-                            schedulePeriodicAggregateMetrics(true);
-                        }
-                    }
+                    setPeriodicAggregateMetricsIntervalAndSchedule(newPeriodicAggregateMetricsIntervalSec);
                 });
         config.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC)
@@ -278,20 +273,43 @@ public class TelemetryAgent extends GreengrassService {
                     if (newPeriodicPublishMetricsIntervalSec < DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC) {
                         return;
                     }
-                    periodicPublishMetricsIntervalSec = newPeriodicPublishMetricsIntervalSec;
-                    synchronized (periodicPublishMetricsInProgressLock) {
-                        if (periodicPublishMetricsFuture != null) {
-                            schedulePeriodicPublishMetrics(true);
-                        }
-                    }
+                    setPeriodicPublishMetricsIntervalAndScheduleTask(newPeriodicPublishMetricsIntervalSec);
                 });
-        config.lookup(DeviceConfiguration.DEVICE_PARAM_THING_NAME)
-                .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
         updateThingNameAndPublishTopic(thingName);
         schedulePeriodicAggregateMetrics(false);
         schedulePeriodicPublishMetrics(false);
         mqttClient.addToCallbackEvents(callbacks);
+        TestFeatureParameters.registerHandlerCallback(this.getName(), this::handleTestFeatureParametersHandlerChange);
         super.startup();
+    }
+
+    @SuppressWarnings("PMD.UnusedFormalParameter")
+    private void handleTestFeatureParametersHandlerChange(Boolean isDefault) {
+        setPeriodicAggregateMetricsIntervalAndSchedule(this.periodicAggregateMetricsIntervalSec);
+        setPeriodicPublishMetricsIntervalAndScheduleTask(this.periodicAggregateMetricsIntervalSec);
+    }
+
+    private synchronized void setPeriodicPublishMetricsIntervalAndScheduleTask(int defaultValue) {
+        this.periodicPublishMetricsIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC, defaultValue)
+                .intValue();
+        synchronized (periodicPublishMetricsInProgressLock) {
+            if (periodicPublishMetricsFuture != null) {
+                schedulePeriodicPublishMetrics(true);
+            }
+        }
+    }
+
+    private synchronized void setPeriodicAggregateMetricsIntervalAndSchedule(int defaultValue) {
+        this.periodicAggregateMetricsIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC, defaultValue)
+                .intValue();
+
+        synchronized (periodicAggregateMetricsInProgressLock) {
+            if (periodicAggregateMetricsFuture != null) {
+                schedulePeriodicAggregateMetrics(true);
+            }
+        }
     }
 
     @Override
@@ -301,5 +319,6 @@ public class TelemetryAgent extends GreengrassService {
         }
         cancelJob(periodicAggregateMetricsFuture, periodicAggregateMetricsInProgressLock, true);
         cancelJob(periodicPublishMetricsFuture, periodicPublishMetricsInProgressLock, true);
+        TestFeatureParameters.unRegisterHandlerCallback(this.getName());
     }
 }

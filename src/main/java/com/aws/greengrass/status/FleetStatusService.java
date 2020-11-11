@@ -59,11 +59,11 @@ public class FleetStatusService extends GreengrassService {
     public static final String FLEET_STATUS_SERVICE_TOPICS = "FleetStatusService";
     public static final String DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC =
             "$aws/things/{thingName}/greengrassv2/health/json";
+    public static final String FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC = "fssPeriodicUpdateIntervalSec";
+    public static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 86_400;
     static final String FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC = "periodicUpdateIntervalSec";
-    static final String FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC = "fssPeriodicUpdateIntervalSec";
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
-    static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 86_400;
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
 
     private String updateTopic;
@@ -137,8 +137,8 @@ public class FleetStatusService extends GreengrassService {
         this.kernel = kernel;
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
         this.architecture = System.getProperty("os.arch");
-        this.periodicUpdateIntervalSec = TestFeatureParameters.retrieveWithDefault(Integer.class,
-                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, periodicUpdateIntervalSec);
+        this.periodicUpdateIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, periodicUpdateIntervalSec).intValue();
 
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
         this.platform = PlatformResolver.CURRENT_PLATFORM.getOs().getName();
@@ -155,7 +155,8 @@ public class FleetStatusService extends GreengrassService {
                     if (newPeriodicUpdateIntervalSec < DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC) {
                         return;
                     }
-                    this.periodicUpdateIntervalSec = newPeriodicUpdateIntervalSec;
+                    this.periodicUpdateIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                            FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, newPeriodicUpdateIntervalSec).intValue();
                     if (periodicUpdateFuture != null) {
                         schedulePeriodicFleetStatusDataUpdate(false);
                     }
@@ -172,6 +173,17 @@ public class FleetStatusService extends GreengrassService {
         schedulePeriodicFleetStatusDataUpdate(false);
 
         this.mqttClient.addToCallbackEvents(callbacks);
+
+        TestFeatureParameters.registerHandlerCallback(this.getName(), this::handleTestFeatureParametersHandlerChange);
+    }
+
+    @SuppressWarnings("PMD.UnusedFormalParameter")
+    private void handleTestFeatureParametersHandlerChange(Boolean isDefault) {
+        this.periodicUpdateIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, this.periodicUpdateIntervalSec).intValue();
+        if (periodicUpdateFuture != null) {
+            schedulePeriodicFleetStatusDataUpdate(false);
+        }
     }
 
     private void updateThingNameAndPublishTopic(String newThingName) {
@@ -438,6 +450,7 @@ public class FleetStatusService extends GreengrassService {
         if (!this.periodicUpdateFuture.isCancelled()) {
             this.periodicUpdateFuture.cancel(true);
         }
+        TestFeatureParameters.unRegisterHandlerCallback(this.getName());
     }
 
     /**
