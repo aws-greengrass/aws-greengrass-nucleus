@@ -62,9 +62,8 @@ public class LifecycleIPCEventStreamAgent {
     // deferUpdateFuturesMap maps the context of a component to the future created for the component.
     // This map is from service name and deployment id to the Futures. Only one (latest) Future per service is
     // maintained.
-    //TODO: [P41211652]: Remove the DeferUpdateRequest when we remove the LifecycleIPCAgent.
     @Getter(AccessLevel.PACKAGE)
-    private final Map<Pair<String, String>, CompletableFuture<DeferUpdateRequest>> deferUpdateFuturesMap =
+    private final Map<Pair<String, String>, CompletableFuture<DeferComponentUpdateRequest>> deferUpdateFuturesMap =
             new ConcurrentHashMap<>();
 
     private static final Logger log = LogManager.getLogger(LifecycleIPCEventStreamAgent.class);
@@ -205,14 +204,12 @@ public class LifecycleIPCEventStreamAgent {
                     throw new InvalidArgumentsError("Cannot defer the update, the deployment ID provided was null");
                 }
 
-                CompletableFuture<DeferUpdateRequest> deferComponentUpdateRequestFuture =
+                CompletableFuture<DeferComponentUpdateRequest> deferComponentUpdateRequestFuture =
                         deferUpdateFuturesMap.remove(new Pair<>(serviceName, request.getDeploymentId()));
                 if (deferComponentUpdateRequestFuture == null) {
                     throw new ServiceError("Time limit to respond to PreComponentUpdateEvent exceeded");
                 } else {
-                    deferComponentUpdateRequestFuture.complete(
-                            new DeferUpdateRequest(serviceName, request.getMessage(), request.getDeploymentId(),
-                                    request.getRecheckAfterMs()));
+                    deferComponentUpdateRequestFuture.complete(request);
                 }
                 logger.atInfo().log("Exiting defer request handler");
                 return new DeferComponentUpdateResponse();
@@ -231,9 +228,9 @@ public class LifecycleIPCEventStreamAgent {
      * @param preComponentUpdateEvent event sent to subscribed components
      */
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    public List<Future<DeferUpdateRequest>> sendPreComponentUpdateEvent(
+    public List<Future<DeferComponentUpdateRequest>> sendPreComponentUpdateEvent(
             PreComponentUpdateEvent preComponentUpdateEvent) {
-        List<Future<DeferUpdateRequest>> deferUpdateFutures = new ArrayList<>();
+        List<Future<DeferComponentUpdateRequest>> deferUpdateFutures = new ArrayList<>();
         discardDeferComponentUpdateFutures();
         for (Map.Entry<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>> entry : componentUpdateListeners
                 .entrySet()) {
@@ -243,7 +240,7 @@ public class LifecycleIPCEventStreamAgent {
                 ComponentUpdatePolicyEvents componentUpdatePolicyEvents = new ComponentUpdatePolicyEvents();
                 componentUpdatePolicyEvents.setPreUpdateEvent(preComponentUpdateEvent);
 
-                CompletableFuture<DeferUpdateRequest> deferUpdateFuture = new CompletableFuture<>();
+                CompletableFuture<DeferComponentUpdateRequest> deferUpdateFuture = new CompletableFuture<>();
                 // If there are multiple pre component events sent to same service, we will store the latest future
                 // As the update should be waiting for the latest one to complete.
                 Pair<String, String> serviceAndDeployment =
