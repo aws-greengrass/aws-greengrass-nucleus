@@ -57,7 +57,6 @@ public class GreengrassService implements InjectionActions {
     public static final String SETENV_CONFIG_NAMESPACE = "setenv";
     public static final String RUN_WITH_NAMESPACE_TOPIC = "runWith";
     public static final String POSIX_USER_KEY = "posixUser";
-    public static final String POSIX_GROUP_KEY = "posixGroup";
     public static final String CURRENT_STATE_METRIC_NAME = "currentState";
 
     @Getter

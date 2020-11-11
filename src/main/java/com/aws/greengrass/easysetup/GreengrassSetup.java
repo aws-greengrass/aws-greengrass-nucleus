@@ -12,6 +12,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.tes.TokenExchangeService;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
@@ -62,8 +63,15 @@ public class GreengrassSetup {
             + "\t\t\t\t\tCorresponding Iot environment stage will be used.\n"
             + "\t--setup-system-service, -ss\tY/N Indicate if you want to setup Greengrass as a system service\n"
             + "\t--component-default-user, -u\tName of the default user that will be used to run component services\n"
-            + "\t--component-default-group, -g\tName of the default group that will be used to run component services."
-            + "\n\t\t\t\t\tIf not specified the primary group of the default user will be used.\n";
+            + (Exec.isWindows ? "" : "\t\t\t\t\tYou can use the following formats. If specifying a UID or GID, you must"
+            + " specify it as a positive integer.\n"
+            + "\t\t\t\t\tuser\n"
+            + "\t\t\t\t\tuser:group\n"
+            + "\t\t\t\t\tuid\n"
+            + "\t\t\t\t\tuid:gid\n"
+            + "\t\t\t\t\tuser:gid\n"
+            + "\t\t\t\t\tuid:group\n"
+            + "\n\t\t\t\t\tIf a group is not specified the primary group of the user will be used.\n");
 
     private static final String SHOW_VERSION_RESPONSE = "AWS Greengrass v%s";
 
@@ -77,9 +85,6 @@ public class GreengrassSetup {
 
     private static final String DEFAULT_USER_ARG = "--component-default-user";
     private static final String DEFAULT_USER_ARG_SHORT = "-u";
-
-    private static final String DEFAULT_GROUP_ARG = "--component-default-group";
-    private static final String DEFAULT_GROUP_ARG_SHORT = "-g";
 
     private static final String THING_NAME_ARG = "--thing-name";
     private static final String THING_NAME_ARG_SHORT = "-tn";
@@ -124,6 +129,7 @@ public class GreengrassSetup {
 
     private static final String GGC_USER = "ggc_user";
     private static final String GGC_GROUP = "ggc_group";
+
     private static final Logger logger = LogManager.getLogger(GreengrassSetup.class);
     private final String[] setupArgs;
     private final List<String> kernelArgs = new ArrayList<>();
@@ -142,11 +148,11 @@ public class GreengrassSetup {
     private String awsRegion = AWS_REGION_DEFAULT;
     private String environmentStage = ENV_STAGE_DEFAULT;
     private String defaultUser;
-    private String defaultGroup;
     private boolean needProvisioning = NEED_PROVISIONING_DEFAULT;
     private boolean setupSystemService = SETUP_SYSTEM_SERVICE_ARG_DEFAULT;
     private boolean kernelStart = KERNEL_START_ARG_DEFAULT;
     private boolean deployDevTools = DEPLOY_DEV_TOOLS_ARG_DEFAULT;
+    private final Platform platform;
 
     /**
      * Constructor to create an instance using CLI args.
@@ -159,6 +165,7 @@ public class GreengrassSetup {
         this.setupArgs = setupArgs;
         this.outStream = outStream;
         this.errStream = errStream;
+        this.platform = Platform.getInstance();
     }
 
     /**
@@ -167,14 +174,16 @@ public class GreengrassSetup {
      * @param outStream                writer to use to send text response to user
      * @param errStream                writer to use to send error response to user
      * @param deviceProvisioningHelper Prebuilt DeviceProvisioningHelper instance
+     * @param platform                 a platform to use
      * @param setupArgs                CLI args for setup script
      */
     GreengrassSetup(PrintStream outStream, PrintStream errStream, DeviceProvisioningHelper deviceProvisioningHelper,
-                    String... setupArgs) {
+            Platform platform, String... setupArgs) {
         this.setupArgs = setupArgs;
         this.outStream = outStream;
         this.errStream = errStream;
         this.deviceProvisioningHelper = deviceProvisioningHelper;
+        this.platform = platform;
     }
 
     /**
@@ -212,7 +221,7 @@ public class GreengrassSetup {
 
         setComponentDefaultUserAndGroup();
 
-        Kernel kernel = getKernel();
+        Kernel kernel = getKernel().parseArgs(kernelArgs.toArray(new String[]{}));
 
         //initialize the device provisioning helper
         this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, environmentStage, this.outStream);
@@ -303,15 +312,13 @@ public class GreengrassSetup {
                     break;
                 case DEFAULT_USER_ARG:
                 case DEFAULT_USER_ARG_SHORT:
-                    kernelArgs.add(arg);
+                    String argument = arg;
+                    kernelArgs.add(argument);
                     this.defaultUser = Coerce.toString(getArg());
+                    if (Utils.isEmpty(defaultUser)) {
+                        throw new RuntimeException(String.format("No user specified with %s", argument));
+                    }
                     kernelArgs.add(defaultUser);
-                    break;
-                case DEFAULT_GROUP_ARG:
-                case DEFAULT_GROUP_ARG_SHORT:
-                    kernelArgs.add(arg);
-                    this.defaultGroup = Coerce.toString(getArg());
-                    kernelArgs.add(defaultGroup);
                     break;
                 case DEPLOY_DEV_TOOLS_ARG:
                 case DEPLOY_DEV_TOOLS_ARG_SHORT:
@@ -367,37 +374,46 @@ public class GreengrassSetup {
 
     @SuppressWarnings("PMD.PreserveStackTrace")
     private void setComponentDefaultUserAndGroup() {
+        if (Exec.isWindows) {
+            outStream.println("Default user is only supported on Linux platforms");
+            return;
+        }
+
         try {
-            Platform platform = Platform.getInstance();
-            // If not super user and default user option is not provided, the current user will be used
-            // as the default user so we do not need to create anything here
-            if (!platform.lookupCurrentUser().isSuperUser()) {
+            boolean noDefaultSet = Utils.isEmpty(defaultUser);
+
+            // if no arg, then don't set anything for now - if not super user, we can't create anyway
+            if (noDefaultSet || !platform.lookupCurrentUser().isSuperUser()) {
                 return;
             }
-            if (Utils.isEmpty(defaultUser) || GGC_USER.equals(defaultUser)) {
+            String[] userGroup = defaultUser.split(":", 2);
+            if (Utils.isEmpty(userGroup[0])) {
+                throw new RuntimeException("No user specified");
+            }
+
+            boolean setGGCUser = GGC_USER.equals(userGroup[0]);
+            boolean setGGCGroup = false;
+            if (userGroup.length > 1) {
+                setGGCGroup = GGC_GROUP.equals(userGroup[1]);
+            }
+            if (setGGCUser) {
                 try {
                     platform.lookupUserByName(GGC_USER);
-                    outStream.printf("Got no input for component default user, using %s %n", GGC_USER);
                 } catch (IOException e) {
-                    outStream.printf("Got no input for component default user, creating %s %n", GGC_USER);
+                    outStream.printf("Creating user %s %n", GGC_USER);
                     platform.createUser(GGC_USER);
                     outStream.printf("%s created %n", GGC_USER);
                 }
-                kernelArgs.add(DEFAULT_USER_ARG);
-                kernelArgs.add(GGC_USER);
-                if (Utils.isEmpty(defaultGroup) || GGC_GROUP.equals(defaultGroup)) {
+                if (setGGCGroup) {
                     try {
                         platform.lookupGroupByName(GGC_GROUP);
-                        outStream.printf("Got no input for component default user, using %s %n", GGC_GROUP);
                     } catch (IOException e) {
-                        outStream.printf("Got no input for component default group, creating %s %n", GGC_GROUP);
+                        outStream.printf("Creating group %s %n", GGC_GROUP);
                         platform.createGroup(GGC_GROUP);
                         outStream.printf("%s created %n", GGC_GROUP);
                     }
                     platform.addUserToGroup(GGC_USER, GGC_GROUP);
                     outStream.printf("Added %s to %s %n", GGC_USER, GGC_GROUP);
-                    kernelArgs.add(DEFAULT_GROUP_ARG);
-                    kernelArgs.add(GGC_GROUP);
                 }
             }
         } catch (IOException e) {
@@ -406,7 +422,7 @@ public class GreengrassSetup {
     }
 
     Kernel getKernel() {
-        return new Kernel().parseArgs(kernelArgs.toArray(new String[]{}));
+        return new Kernel();
     }
 
 }
