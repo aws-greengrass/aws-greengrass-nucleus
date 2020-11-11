@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.deployment;
 
+import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgent;
 import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.greengrass.config.Topic;
@@ -316,6 +317,8 @@ class DynamicComponentConfigurationValidatorTest {
         doc.setDeploymentId("test_deployment_id");
         doc.setTimestamp(DEFAULT_DEPLOYMENT_TIMESTAMP);
         Deployment deployment = new Deployment();
+        ConfigurationValidationPolicy configurationValidationPolicy = new ConfigurationValidationPolicy().withTimeout(20);
+        doc.setConfigurationValidationPolicy(configurationValidationPolicy);
         deployment.setDeploymentDocumentObj(doc);
         return deployment;
     }

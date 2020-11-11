@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.deployment.model;
 
+import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -57,6 +58,10 @@ public class DeploymentDocument {
     @JsonProperty("ComponentUpdatePolicy")
     @Builder.Default
     private ComponentUpdatePolicy componentUpdatePolicy = new ComponentUpdatePolicy();
+
+    @JsonProperty("ConfigurationValidationPolicy")
+    @Builder.Default
+    private ConfigurationValidationPolicy configurationValidationPolicy = new ConfigurationValidationPolicy();
 
     /**
      * Get a list of root component names from the deploymentPackageConfigurationList.
