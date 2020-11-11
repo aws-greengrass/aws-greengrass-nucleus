@@ -151,7 +151,7 @@ class LogManagerHelperTest {
         assertEquals(LogFormat.TEXT, LogManager.getRootLogConfiguration().getFormat());
         assertEquals(10, LogManager.getRootLogConfiguration().getFileSizeKB());
         assertEquals(1026, LogManager.getRootLogConfiguration().getTotalLogStoreSizeKB());
-        assertEquals("/tmp/test/logs", LogManager.getRootLogConfiguration().getStoreDirectory().toAbsolutePath().toString());
+        assertEquals("/tmp/test", LogManager.getRootLogConfiguration().getStoreDirectory().toAbsolutePath().toString());
 
         assertEquals(Level.TRACE, LogManager.getTelemetryConfig().getLevel());
         assertEquals(LogStore.FILE, LogManager.getTelemetryConfig().getStore());
@@ -185,7 +185,7 @@ class LogManagerHelperTest {
         assertEquals(Level.INFO, LogManager.getRootLogConfiguration().getLevel());
         assertEquals("greengrass", LogManager.getRootLogConfiguration().getFileName());
         assertEquals(LogStore.CONSOLE, LogManager.getRootLogConfiguration().getStore());
-        assertEquals(LogFormat.JSON, LogManager.getRootLogConfiguration().getFormat());
+        assertEquals(LogFormat.TEXT, LogManager.getRootLogConfiguration().getFormat());
         assertEquals(1024, LogManager.getRootLogConfiguration().getFileSizeKB());
         assertEquals(10240, LogManager.getRootLogConfiguration().getTotalLogStoreSizeKB());
 
