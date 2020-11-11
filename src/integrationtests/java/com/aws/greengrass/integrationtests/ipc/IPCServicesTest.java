@@ -297,9 +297,8 @@ class IPCServicesTest {
         Map<String, Object> map = new HashMap<>();
         map.put("SomeKeyToUpdate", "SomeValueToUpdate");
         UpdateConfigurationRequest updateConfigurationRequest = new UpdateConfigurationRequest();
-        updateConfigurationRequest.setComponentName("ServiceName");
-        updateConfigurationRequest.setKeyPath(Collections.singletonList("SomeKeyToUpdate"));
-        updateConfigurationRequest.setNewValue(map);
+        updateConfigurationRequest.setKeyPath(Collections.EMPTY_LIST);
+        updateConfigurationRequest.setValueToMerge(map);
         updateConfigurationRequest.setTimestamp(Instant.now());
         greengrassCoreIPCClient.updateConfiguration(updateConfigurationRequest, Optional.empty()).getResponse().get(50, TimeUnit.SECONDS);
         assertTrue(configUpdated.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));

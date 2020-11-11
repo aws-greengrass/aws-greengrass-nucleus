@@ -34,12 +34,6 @@ public class UpdateConfigurationRequest implements EventStreamJsonMessage {
       serialize = true,
       deserialize = true
   )
-  private Optional<String> componentName;
-
-  @Expose(
-      serialize = true,
-      deserialize = true
-  )
   private Optional<List<String>> keyPath;
 
   @Expose(
@@ -52,31 +46,12 @@ public class UpdateConfigurationRequest implements EventStreamJsonMessage {
       serialize = true,
       deserialize = true
   )
-  private Optional<Map<String, Object>> newValue;
-
-  @Expose(
-      serialize = true,
-      deserialize = true
-  )
-  private Optional<Map<String, Object>> oldValue;
+  private Optional<Map<String, Object>> valueToMerge;
 
   public UpdateConfigurationRequest() {
-    this.componentName = Optional.empty();
     this.keyPath = Optional.empty();
     this.timestamp = Optional.empty();
-    this.newValue = Optional.empty();
-    this.oldValue = Optional.empty();
-  }
-
-  public String getComponentName() {
-    if (componentName.isPresent()) {
-      return componentName.get();
-    }
-    return null;
-  }
-
-  public void setComponentName(final String componentName) {
-    this.componentName = Optional.ofNullable(componentName);
+    this.valueToMerge = Optional.empty();
   }
 
   public List<String> getKeyPath() {
@@ -87,7 +62,7 @@ public class UpdateConfigurationRequest implements EventStreamJsonMessage {
   }
 
   public void setKeyPath(final List<String> keyPath) {
-    this.keyPath = Optional.of(keyPath);
+    this.keyPath = Optional.ofNullable(keyPath);
   }
 
   public Instant getTimestamp() {
@@ -101,26 +76,15 @@ public class UpdateConfigurationRequest implements EventStreamJsonMessage {
     this.timestamp = Optional.of(timestamp);
   }
 
-  public Map<String, Object> getNewValue() {
-    if (newValue.isPresent()) {
-      return newValue.get();
+  public Map<String, Object> getValueToMerge() {
+    if (valueToMerge.isPresent()) {
+      return valueToMerge.get();
     }
     return null;
   }
 
-  public void setNewValue(final Map<String, Object> newValue) {
-    this.newValue = Optional.of(newValue);
-  }
-
-  public Map<String, Object> getOldValue() {
-    if (oldValue.isPresent()) {
-      return oldValue.get();
-    }
-    return null;
-  }
-
-  public void setOldValue(final Map<String, Object> oldValue) {
-    this.oldValue = Optional.ofNullable(oldValue);
+  public void setValueToMerge(final Map<String, Object> valueToMerge) {
+    this.valueToMerge = Optional.of(valueToMerge);
   }
 
   @Override
@@ -135,16 +99,14 @@ public class UpdateConfigurationRequest implements EventStreamJsonMessage {
     if (this == rhs) return true;
     final UpdateConfigurationRequest other = (UpdateConfigurationRequest)rhs;
     boolean isEquals = true;
-    isEquals = isEquals && this.componentName.equals(other.componentName);
     isEquals = isEquals && this.keyPath.equals(other.keyPath);
     isEquals = isEquals && this.timestamp.equals(other.timestamp);
-    isEquals = isEquals && this.newValue.equals(other.newValue);
-    isEquals = isEquals && this.oldValue.equals(other.oldValue);
+    isEquals = isEquals && this.valueToMerge.equals(other.valueToMerge);
     return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(componentName, keyPath, timestamp, newValue, oldValue);
+    return Objects.hash(keyPath, timestamp, valueToMerge);
   }
 }

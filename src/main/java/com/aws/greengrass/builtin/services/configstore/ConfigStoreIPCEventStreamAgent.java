@@ -10,7 +10,7 @@ import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.config.UnsupportedInputTypeException;
+import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.config.Watcher;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -50,6 +50,7 @@ import software.amazon.awssdk.eventstreamrpc.StreamEventPublisher;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +62,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.ipc.common.ExceptionUtil.translateExceptions;
 
 public class ConfigStoreIPCEventStreamAgent {
@@ -192,7 +193,7 @@ public class ConfigStoreIPCEventStreamAgent {
                     throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
                 }
 
-                Topics configTopics = serviceTopics.findInteriorChild(PARAMETERS_CONFIG_KEY);
+                Topics configTopics = serviceTopics.findInteriorChild(CONFIGURATION_CONFIG_KEY);
                 if (configTopics == null) {
                     throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
                 }
@@ -255,60 +256,46 @@ public class ConfigStoreIPCEventStreamAgent {
         public UpdateConfigurationResponse handleRequest(UpdateConfigurationRequest request) {
             return translateExceptions(() -> {
                 logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC config update request");
-                if (Utils.isEmpty(request.getKeyPath())) {
-                    throw new InvalidArgumentsError("Key is required");
+                validateRequest(request);
+
+                String[] keyPath = new String[0];
+                // Keypath is expected to denote the container node
+                if (request.getKeyPath() != null) {
+                    keyPath = request.getKeyPath().toArray(new String[0]);
                 }
 
-                if (request.getComponentName() != null && !serviceName.equals(request.getComponentName())) {
-                    throw new InvalidArgumentsError("Cross component updates are not allowed");
-                }
+                Object value = request.getValueToMerge();
 
                 Topics serviceTopics = kernel.findServiceTopic(serviceName);
-                if (serviceTopics == null) {
-                    throw new InvalidArgumentsError("Service config not found");
-                }
-                Topics configTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
-                String[] keyPath = request.getKeyPath().toArray(new String[0]);
+                Topics configTopics = serviceTopics.lookupTopics(CONFIGURATION_CONFIG_KEY);
                 Node node = configTopics.findNode(keyPath);
+                long updateTime = request.getTimestamp().toEpochMilli();
                 if (node == null) {
+                    // Newly created node uses the current timestamp
+                    Topics topics = configTopics.lookupTopics(keyPath);
+                    updateTime = topics.getModtime();
+                    topics.updateFromMap((Map) value,
+                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                                    updateTime));
+                } else if (node instanceof Topic) {
+                    Topic topic = (Topic)node;
                     try {
-                        configTopics.lookup(keyPath)
-                                .withValueChecked(request.getNewValue().get(keyPath[keyPath.length - 1]));
-                    } catch (UnsupportedInputTypeException e) {
+                        topic.parent.updateFromMap(Collections.singletonMap(topic.getName(), value),
+                                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                                        updateTime));
+                    } catch (IllegalArgumentException e) {
                         throw new InvalidArgumentsError(e.getMessage());
                     }
-                    return new UpdateConfigurationResponse();
+                } else {
+                    Topics topics = (Topics)node;
+                    topics.updateFromMap((Map)value,
+                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, updateTime));
                 }
-                // TODO :[P41210581]: UpdateConfiguration API should support updating nested configuration
-                if (node instanceof Topics) {
-                    throw new InvalidArgumentsError("Cannot update a non-leaf config node");
-                }
-                if (!(node instanceof Topic)) {
-                    logger.atError().kv(SERVICE_NAME, serviceName)
-                            .log("Somehow Node has an unknown type {}", node.getClass());
-                    throw new InvalidArgumentsError("Node has an unknown type");
-                }
-                Topic topic = (Topic) node;
-
-                // Perform compare and swap if the customer has specified current value to compare
-                if (request.getOldValue() != null && request.getOldValue().get(topic.getName()) != null && !request
-                        .getOldValue().get(topic.getName()).equals(topic.getOnce())) {
+                Node updatedNode = configTopics.findNode(keyPath);
+                if (updateTime < updatedNode.getModtime()) {
                     throw new FailedUpdateConditionCheckError(
-                            "Current value for config is different from the current value needed for the update");
+                            "Proposed timestamp is older than the config's latest modified timestamp");
                 }
-
-                try {
-                    Topic updatedNode = topic.withValueChecked(request.getTimestamp().toEpochMilli(),
-                            request.getNewValue().get(topic.getName()));
-                    if (request.getTimestamp().toEpochMilli() != updatedNode.getModtime() && !request.getNewValue()
-                            .equals(updatedNode.getOnce())) {
-                        throw new FailedUpdateConditionCheckError(
-                                "Proposed timestamp is older than the config's latest modified timestamp");
-                    }
-                } catch (UnsupportedInputTypeException e) {
-                    throw new InvalidArgumentsError(e.getMessage());
-                }
-
                 return new UpdateConfigurationResponse();
             });
         }
@@ -316,6 +303,33 @@ public class ConfigStoreIPCEventStreamAgent {
         @Override
         public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
 
+        }
+
+        private void validateRequest(UpdateConfigurationRequest request) {
+            if (request.getTimestamp() == null) {
+                throw new InvalidArgumentsError("Timestamp is required");
+            }
+            if (request.getValueToMerge() == null) {
+                throw new InvalidArgumentsError("ValueToMerge is required");
+            }
+
+            Topics serviceTopics = kernel.findServiceTopic(serviceName);
+            if (serviceTopics == null) {
+                throw new InvalidArgumentsError("Component config not found for component " + serviceName);
+            }
+            Topics configTopics = serviceTopics.lookupTopics(CONFIGURATION_CONFIG_KEY);
+            String[] keyPath = new String[0];
+            if (request.getKeyPath() != null) {
+                keyPath = request.getKeyPath().toArray(new String[0]);
+            }
+            Node node = configTopics.findNode(keyPath);
+            if (node != null && !(node instanceof Topic) && !(node instanceof Topics)) {
+                logger.atError().kv(SERVICE_NAME, serviceName)
+                        .log("Somehow Node has an unknown type {}", node.getClass());
+                throw new InvalidArgumentsError("Node corresponding to keypath "
+                        + request.getKeyPath().toString() + " has an unknown type");
+
+            }
         }
     }
 
@@ -354,7 +368,7 @@ public class ConfigStoreIPCEventStreamAgent {
                     throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
                 }
 
-                Topics configurationTopics = serviceTopics.lookupTopics(PARAMETERS_CONFIG_KEY);
+                Topics configurationTopics = serviceTopics.lookupTopics(CONFIGURATION_CONFIG_KEY);
                 if (configurationTopics == null) {
                     throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
                 }
@@ -409,7 +423,7 @@ public class ConfigStoreIPCEventStreamAgent {
             // e.g. if the path for changed node is services.<service_name>.configuration.key_1.nested_key_1
             // then the path in update event should be key_1.nested_key_1
             int configurationTopicsIndex =
-                    kernel.findServiceTopic(componentName).lookupTopics(PARAMETERS_CONFIG_KEY).path().length - 1;
+                    kernel.findServiceTopic(componentName).lookupTopics(CONFIGURATION_CONFIG_KEY).path().length - 1;
             String[] keyPath =
                     Arrays.copyOfRange(changedNode.path(), configurationTopicsIndex + 1, changedNode.path().length);
 
