@@ -36,9 +36,42 @@ public abstract class EventStreamRPCServiceModel {
 
     static {
         GsonBuilder builder = new GsonBuilder();
+        builder.registerTypeAdapterFactory(new ForceNullsForMapTypeAdapterFactory());
         builder.registerTypeAdapterFactory(OptionalTypeAdapter.FACTORY);
         builder.registerTypeAdapter(byte[].class, new Base64BlobSerializerDeserializer());
         GSON = builder.create();
+    }
+
+    private static class ForceNullsForMapTypeAdapterFactory implements TypeAdapterFactory {
+
+        public final <T> TypeAdapter<T> create(Gson gson, TypeToken<T> type) {
+            if (Map.class.isAssignableFrom(type.getRawType())) {
+                final TypeAdapter<T> delegate = gson.getDelegateAdapter(this, type);
+                return createCustomTypeAdapter(delegate);
+            }
+
+            return null;
+        }
+
+        private <T> TypeAdapter<T> createCustomTypeAdapter(TypeAdapter<T> delegate) {
+            return new TypeAdapter<T>() {
+                @Override
+                public void write(JsonWriter out, T value) throws IOException {
+                    final boolean serializeNulls = out.getSerializeNulls();
+                    try {
+                        out.setSerializeNulls(true);
+                        delegate.write(out, value);
+                    } finally {
+                        out.setSerializeNulls(serializeNulls);
+                    }
+                }
+
+                @Override
+                public T read(JsonReader in) throws IOException {
+                    return delegate.read(in);
+                }
+            };
+        }
     }
 
     private static class OptionalTypeAdapter<E> extends TypeAdapter<Optional<E>> {
@@ -84,9 +117,9 @@ public abstract class EventStreamRPCServiceModel {
     /**
      * Used to compare two members of a blob shape for equality. Array equals nesting
      * inside of an Optional doesn't work
-     * 
+     *
      * Note: Generated code for equals method of Smithy shapes relies on this
-     * 
+     *
      * @param lhs
      * @param rhs
      * @return
