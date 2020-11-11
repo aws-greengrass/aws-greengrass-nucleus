@@ -8,7 +8,6 @@ package com.aws.greengrass.integrationtests.ipc;
 import com.aws.greengrass.authorization.AuthorizationModule;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
