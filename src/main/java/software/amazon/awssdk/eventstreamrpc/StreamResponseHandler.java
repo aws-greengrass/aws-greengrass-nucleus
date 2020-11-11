@@ -5,8 +5,6 @@
 
 package software.amazon.awssdk.eventstreamrpc;
 
-import java.util.concurrent.CompletableFuture;
-
 /**
  * Operation response handler is needed to invoke an operation that has a streaming
  * response element to it.
