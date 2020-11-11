@@ -269,28 +269,30 @@ public class ConfigStoreIPCEventStreamAgent {
                 Topics serviceTopics = kernel.findServiceTopic(serviceName);
                 Topics configTopics = serviceTopics.lookupTopics(CONFIGURATION_CONFIG_KEY);
                 Node node = configTopics.findNode(keyPath);
-
+                long updateTime = request.getTimestamp().toEpochMilli();
                 if (node == null) {
-                    configTopics.lookupTopics(keyPath)
-                            .updateFromMap((Map) value, new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
-                                    request.getTimestamp().toEpochMilli()));
+                    // Newly created node uses the current timestamp
+                    Topics topics = configTopics.lookupTopics(keyPath);
+                    updateTime = topics.getModtime();
+                    topics.updateFromMap((Map) value,
+                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                                    updateTime));
                 } else if (node instanceof Topic) {
                     Topic topic = (Topic)node;
                     try {
                         topic.parent.updateFromMap(Collections.singletonMap(topic.getName(), value),
                                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
-                                        request.getTimestamp().toEpochMilli()));
+                                        updateTime));
                     } catch (IllegalArgumentException e) {
                         throw new InvalidArgumentsError(e.getMessage());
                     }
                 } else {
                     Topics topics = (Topics)node;
                     topics.updateFromMap((Map)value,
-                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, request
-                            .getTimestamp().toEpochMilli()));
+                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, updateTime));
                 }
                 Node updatedNode = configTopics.findNode(keyPath);
-                if (request.getTimestamp().toEpochMilli() < updatedNode.getModtime()) {
+                if (updateTime < updatedNode.getModtime()) {
                     throw new FailedUpdateConditionCheckError(
                             "Proposed timestamp is older than the config's latest modified timestamp");
                 }
