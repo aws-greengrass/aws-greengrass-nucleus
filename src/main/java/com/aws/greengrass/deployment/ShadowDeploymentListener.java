@@ -142,14 +142,13 @@ public class ShadowDeploymentListener implements InjectionActions {
                 if (cause instanceof MqttException || cause instanceof TimeoutException) {
                     logger.atWarn().setCause(cause).log("Caught exception while subscribing to shadow topics, "
                             + "will retry shortly");
-                    continue;
-                }
-                if (cause instanceof InterruptedException) {
+                } else if (cause instanceof InterruptedException) {
                     logger.atWarn().log("Interrupted while subscribing to shadow topics");
                     return;
+                } else {
+                    logger.atError().setCause(e)
+                            .log("Caught exception while subscribing to shadow topics, will retry shortly");
                 }
-                logger.atError().setCause(e).log("Caught exception while subscribing to shadow topics, "
-                        + "will retry shortly");
             } catch (TimeoutException e) {
                 logger.atWarn().setCause(e).log("Subscribe to shadow topics timed out, will retry shortly");
             } catch (InterruptedException e) {
