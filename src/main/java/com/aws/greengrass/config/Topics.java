@@ -227,8 +227,11 @@ public class Topics extends Node implements Iterable<Node> {
      * @return Node instance found after traversing the given path
      */
     public Node findNode(String... path) {
-        int limit = path.length - 1;
         Topics n = this;
+        if (path.length == 0) {
+            return n;
+        }
+        int limit = path.length - 1;
         for (int i = 0; i < limit && n != null; i++) {
             n = n.findInteriorChild(path[i]);
         }
