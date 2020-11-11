@@ -219,7 +219,7 @@ class DeviceProvisioningHelperTest {
 
     @Test
     void GIVEN_iam_client_factory_WHEN_test_get_iam_client_THEN_client_is_built_with_appropriate_configuration() {
-        assertNotNull(IamSdkClientFactory.getIamClient());
+        assertNotNull(IamSdkClientFactory.getIamClient(TEST_REGION));
     }
 
     @Test

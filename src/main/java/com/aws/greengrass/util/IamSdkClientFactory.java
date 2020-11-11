@@ -40,12 +40,12 @@ public final class IamSdkClientFactory {
 
     /**
      * Build IamClient.
-     *
+     * @param awsRegion aws region
      * @return IamClient instance
      */
-    public static IamClient getIamClient() {
-        // TODO: [P41214188] Add partition support
-        return IamClient.builder().region(Region.AWS_GLOBAL).httpClient(ProxyUtils.getSdkHttpClient())
+    public static IamClient getIamClient(String awsRegion) {
+        Region globalRegionByPartition = RegionUtils.getGlobalRegion(awsRegion);
+        return IamClient.builder().region(globalRegionByPartition).httpClient(ProxyUtils.getSdkHttpClient())
                 .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build()).build();
     }
 }
