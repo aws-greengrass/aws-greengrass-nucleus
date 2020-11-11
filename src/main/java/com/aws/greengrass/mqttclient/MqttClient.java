@@ -273,42 +273,36 @@ public class MqttClient implements Closeable {
     @SuppressWarnings("PMD.CloseResource")
     public synchronized void subscribe(SubscribeRequest request)
             throws ExecutionException, InterruptedException, TimeoutException {
-        try {
-            AwsIotMqttClient connection = null;
-            // Use the write scope when identifying the subscriptionTopics that exist
-            try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
-                // TODO: [P41214973] Handle subscriptions with differing QoS (Upgrade 0->1->2)
+        AwsIotMqttClient connection = null;
+        // Use the write scope when identifying the subscriptionTopics that exist
+        try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
+            // TODO: [P41214973] Handle subscriptions with differing QoS (Upgrade 0->1->2)
 
-                // If none of our existing subscriptions include (through wildcards) the new topic, then
-                // go ahead and subscribe to it
-                Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> existingConnection =
-                        findExistingSubscriberForTopic(request.getTopic());
-                if (existingConnection.isPresent()) {
-                    subscriptions.put(request, existingConnection.get().getValue());
-                } else {
-                    connection = getConnection(true);
-                    subscriptions.put(request, connection);
-                }
+            // If none of our existing subscriptions include (through wildcards) the new topic, then
+            // go ahead and subscribe to it
+            Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> existingConnection =
+                    findExistingSubscriberForTopic(request.getTopic());
+            if (existingConnection.isPresent()) {
+                subscriptions.put(request, existingConnection.get().getValue());
+            } else {
+                connection = getConnection(true);
+                subscriptions.put(request, connection);
             }
+        }
 
-            try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
-                // Connection isn't null, so we should subscribe to the topic
-                if (connection != null) {
-                    AwsIotMqttClient finalConnection = connection;
-                    connection.subscribe(request.getTopic(), request.getQos()).whenComplete((i, t) -> {
-                        if (t == null) {
-                            subscriptionTopics.put(new MqttTopic(request.getTopic()), finalConnection);
-                        } else {
-                            subscriptions.remove(request);
-                            logger.atError().kv(TOPIC_KEY, request.getTopic()).log("Error subscribing", t);
-                        }
-                    }).get(connection.getTimeout(), TimeUnit.MILLISECONDS);
-                }
+        try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
+            // Connection isn't null, so we should subscribe to the topic
+            if (connection != null) {
+                AwsIotMqttClient finalConnection = connection;
+                connection.subscribe(request.getTopic(), request.getQos()).whenComplete((i, t) -> {
+                    if (t == null) {
+                        subscriptionTopics.put(new MqttTopic(request.getTopic()), finalConnection);
+                    } else {
+                        subscriptions.remove(request);
+                        logger.atError().kv(TOPIC_KEY, request.getTopic()).log("Error subscribing", t);
+                    }
+                }).get(connection.getTimeout(), TimeUnit.MILLISECONDS);
             }
-        } catch (ExecutionException e) {
-            // If subscribing failed, then clean up the failed subscription callback
-            subscriptions.remove(request);
-            throw e;
         }
     }
 
