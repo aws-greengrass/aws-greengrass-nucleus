@@ -53,7 +53,6 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRO
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_URL;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_USERNAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PROXY_NAMESPACE;
-import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP;
 import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL;
 import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL_VALUE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER;
@@ -207,13 +206,6 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                 Coerce.toString(runWithDefault.get(RUN_WITH_DEFAULT_POSIX_USER)))) {
             logger.atInfo().kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_USER,
                     runWithDefault.get(RUN_WITH_DEFAULT_POSIX_USER))
-                    .log(RESTART_REQUIRED_MESSAGE);
-            changed = true;
-        }
-        if (Utils.stringHasChanged(Coerce.toString(currentValues.get(RUN_WITH_DEFAULT_POSIX_GROUP)),
-                Coerce.toString(runWithDefault.get(RUN_WITH_DEFAULT_POSIX_GROUP)))) {
-            logger.atInfo().kv(RUN_WITH_TOPIC + "." + RUN_WITH_DEFAULT_POSIX_GROUP,
-                    runWithDefault.get(RUN_WITH_DEFAULT_POSIX_GROUP))
                     .log(RESTART_REQUIRED_MESSAGE);
             changed = true;
         }

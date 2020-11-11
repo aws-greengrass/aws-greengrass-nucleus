@@ -12,6 +12,7 @@ import com.aws.greengrass.lifecyclemanager.RunWith;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.RunWithGenerator;
 
@@ -19,9 +20,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP;
 import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_GROUP_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 
@@ -45,12 +44,25 @@ public class UnixRunWithGenerator implements RunWithGenerator {
         this.platform = platform;
     }
 
+    private Pair<String, String> extractUserGroup(String user) {
+        String group = null;
+        if (user != null) {
+            int colonIndex = user.indexOf(':');
+            if (colonIndex > 0) {
+                group = user.substring(colonIndex + 1);
+                user = user.substring(0, colonIndex);
+            }
+        }
+        return new Pair<>(user, group);
+    }
+
     @SuppressWarnings({"PMD.NullAssignment","PMD.AvoidDeeplyNestedIfStmts"})
     @Override
     public Optional<RunWith> generate(DeviceConfiguration deviceConfig, Topics config) {
         // check component user, then default user, then nucleus user (if non root)
         String user = Coerce.toString(config.find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
-        String group = Coerce.toString(config.find(RUN_WITH_NAMESPACE_TOPIC, POSIX_GROUP_KEY));
+        String group = null;
+
         boolean isDefault = false;
 
         if (Utils.isEmpty(user)) {
@@ -59,7 +71,6 @@ public class UnixRunWithGenerator implements RunWithGenerator {
                     .log("No component user, check default");
 
             user = Coerce.toString(deviceConfig.getRunWithDefaultPosixUser());
-            group = Coerce.toString(deviceConfig.getRunWithDefaultPosixGroup());
             isDefault = true;
         }
 
@@ -91,6 +102,10 @@ public class UnixRunWithGenerator implements RunWithGenerator {
                         .log("Could not lookup current user and no default or override is present.");
                 return Optional.empty();
             }
+        } else {
+            Pair<String, String> userGroup = extractUserGroup(user);
+            user = userGroup.getLeft();
+            group = userGroup.getRight();
         }
 
         if (Utils.isEmpty(user)) {
@@ -125,19 +140,17 @@ public class UnixRunWithGenerator implements RunWithGenerator {
 
     @Override
     public void validateDefaultConfiguration(DeviceConfiguration deviceConfig) throws DeviceConfigurationException {
-        String user = Coerce.toString(deviceConfig.getRunWithDefaultPosixUser());
-        String group = Coerce.toString(deviceConfig.getRunWithDefaultPosixGroup());
-
-        validateUserGroup(user, group);
+        Pair<String, String> userGroup =
+                extractUserGroup(Coerce.toString(deviceConfig.getRunWithDefaultPosixUser()));
+        validateUserGroup(userGroup.getLeft(), userGroup.getRight());
     }
 
     @Override
     public void validateDefaultConfiguration(Map<String, Object> proposedDeviceConfig)
             throws DeviceConfigurationException {
-        String user = Coerce.toString(proposedDeviceConfig.get(RUN_WITH_DEFAULT_POSIX_USER));
-        String group = Coerce.toString(proposedDeviceConfig.get(RUN_WITH_DEFAULT_POSIX_GROUP));
-
-        validateUserGroup(user, group);
+        Pair<String, String> userGroup =
+                extractUserGroup(Coerce.toString(proposedDeviceConfig.get(RUN_WITH_DEFAULT_POSIX_USER)));
+        validateUserGroup(userGroup.getLeft(), userGroup.getRight());
     }
 
     private void validateUserGroup(String user, String group) throws DeviceConfigurationException {
@@ -148,16 +161,15 @@ public class UnixRunWithGenerator implements RunWithGenerator {
         if (Utils.isNotEmpty(user) && Utils.isEmpty(group)) {
             try {
                 platform.lookupUserByIdentifier(user).getPrimaryGID().orElseThrow(
-                        () -> new DeviceConfigurationException(RUN_WITH_DEFAULT_POSIX_GROUP + " cannot be empty"));
+                        () -> new DeviceConfigurationException(String.format("%s requires a group when no primary "
+                                + "group exists for the user: '%s'", RUN_WITH_DEFAULT_POSIX_USER, user)));
             } catch (IOException e) {
-                throw new DeviceConfigurationException(
-                        "Error while looking up primary group for " + user + ". " + RUN_WITH_DEFAULT_POSIX_GROUP
-                                + " is empty", e);
+                throw new DeviceConfigurationException(String.format("Error while looking up primary group for %s. No"
+                        + " group specified for the user: '%s'", user, RUN_WITH_DEFAULT_POSIX_USER), e);
             }
         } else if (Utils.isEmpty(user) && Utils.isNotEmpty(group)) {
-            throw new DeviceConfigurationException(
-                    RUN_WITH_DEFAULT_POSIX_USER + " cannot be empty if " + RUN_WITH_DEFAULT_POSIX_GROUP
-                            + " is provided");
+            throw new DeviceConfigurationException(String.format("%s requires a user if a group is specified: '%s'",
+                    RUN_WITH_DEFAULT_POSIX_USER, group));
         }
     }
 }

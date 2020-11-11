@@ -108,7 +108,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.io.FileMatchers.anExistingDirectory;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -873,6 +875,30 @@ class DeploymentTaskIntegrationTest {
             assertThat(stdouts, hasItem(containsString("stopping app with user nobody")));
             assertThat(stdouts, hasItem(containsString("installing app with user root")));
             assertThat(stdouts, hasItem(containsString(String.format("starting app with user %s", currentUser))));
+        }
+
+
+        /*
+         * 3rd deployment. Set posixUser to null and use default
+         */
+        countDownLatch = new CountDownLatch(3);
+
+        // update component to runas the user running the test
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentRemovingUser.json").toURI(),
+                    System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
+            String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
+                    .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
+
+            assertThat(user, is(nullValue()));
+
+            // "nobody" is the default user
+            countDownLatch.await(10, TimeUnit.SECONDS);
+            assertThat(stdouts, hasItem(containsString(String.format("stopping app with user %s", currentUser))));
+            assertThat(stdouts, hasItem(containsString("installing app with user root")));
+            assertThat(stdouts, hasItem(containsString("starting app with user nobody")));
         }
     }
 

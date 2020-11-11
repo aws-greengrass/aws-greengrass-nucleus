@@ -55,7 +55,6 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_GROUP_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -121,6 +120,9 @@ class KernelConfigResolverTest {
     private Topics alreadyRunningServiceConfig;
     @Mock
     private Topic alreadyRunningServiceParameterConfig;
+    @Mock
+    private Topics alreadyRunningServiceRunWithConfig;
+
     private Path path;
     private Configuration config;
 
@@ -161,7 +163,7 @@ class KernelConfigResolverTest {
                 .rootComponent(true)
                 .resolvedVersion("=1.2")
                 .configuration(Collections.emptyMap())
-                .runWith(RunWith.builder().posixUser("foo").posixGroup("bar").build())
+                .runWith(RunWith.builder().posixUser("foo:bar").build())
                 .build();
 
         DeploymentPackageConfiguration dependencyPackageDeploymentConfig =  DeploymentPackageConfiguration.builder()
@@ -204,8 +206,7 @@ class KernelConfigResolverTest {
         Map<String, Object> serviceA = (Map<String, Object>)servicesConfig.get(TEST_INPUT_PACKAGE_A);
         assertThat("Service A must contain runWith", serviceA, hasKey(RUN_WITH_NAMESPACE_TOPIC));
         Map<String, Object> runWith = (Map<String, Object>)serviceA.get(RUN_WITH_NAMESPACE_TOPIC);
-        assertThat("Service A must set posix user", runWith, hasEntry(POSIX_USER_KEY, "foo"));
-        assertThat("Service A must set posix group", runWith, hasEntry(POSIX_GROUP_KEY, "bar"));
+        assertThat("Service A must set posix user", runWith, hasEntry(POSIX_USER_KEY, "foo:bar"));
 
         Map<String, Object> serviceB = (Map<String, Object>)servicesConfig.get(TEST_INPUT_PACKAGE_B);
         assertThat("Service B must not have runWith", serviceB, not(hasKey(RUN_WITH_NAMESPACE_TOPIC)));
@@ -409,10 +410,10 @@ class KernelConfigResolverTest {
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2", Collections.emptyMap());
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .deploymentPackageConfigurationList(
-                                                                Arrays.asList(rootPackageDeploymentConfig))
-                                                        .timestamp(10_000L)
-                                                        .build();
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
         when(nucleusPaths.unarchiveArtifactPath(rootComponentIdentifier)).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
@@ -429,7 +430,10 @@ class KernelConfigResolverTest {
         when(alreadyRunningServiceConfig.find(KernelConfigResolver.PARAMETERS_CONFIG_KEY,
                 "PackageA_Param_2")).thenReturn(null);
         when(alreadyRunningService.isBuiltin()).thenReturn(true);
-
+        when(alreadyRunningServiceConfig.findTopics(RUN_WITH_NAMESPACE_TOPIC)).thenReturn(alreadyRunningServiceRunWithConfig);
+        when(alreadyRunningServiceRunWithConfig.toPOJO()).thenReturn(new HashMap<String, Object>() {{
+            put("posixUser", "foo:bar");
+        }});
         // WHEN
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths);
         Map<String, Object> resolvedConfig =
@@ -454,6 +458,66 @@ class KernelConfigResolverTest {
         assertThat("If no parameter value was set in current/previous deployment, the default value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
                 equalTo("echo running service in Package PackageA with param PackageA_Param_2_default_value"));
+
+        assertThat(getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig), hasKey(RUN_WITH_NAMESPACE_TOPIC));
+        assertThat((Map<String,
+                        Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig).get(RUN_WITH_NAMESPACE_TOPIC),
+                hasEntry(POSIX_USER_KEY, "foo:bar"));
+    }
+
+    @Test
+    void GIVEN_deployment_removing_run_with_posix_user_WHEN_previous_deployment_had_params_THEN_remove_run_with_posix_user()
+            throws Exception {
+        // GIVEN
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2.0"));
+        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
+
+        ComponentRecipe rootComponentRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2.0", Collections.emptyMap(),
+                getSimpleParameterMap(TEST_INPUT_PACKAGE_A), TEST_INPUT_PACKAGE_A);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =
+                DeploymentPackageConfiguration.builder().packageName(TEST_INPUT_PACKAGE_A)
+                        .rootComponent(true)
+                        .resolvedVersion("=1.2")
+                        .configuration(Collections.emptyMap())
+                        .runWith(RunWith.builder().posixUser(null).build())
+                        .build();
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
+
+        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
+        when(nucleusPaths.unarchiveArtifactPath(rootComponentIdentifier)).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
+        when(kernel.getMain()).thenReturn(mainService);
+        when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
+        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningServiceConfig);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(
+                Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
+        when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
+        when(alreadyRunningService.isBuiltin()).thenReturn(true);
+        when(alreadyRunningServiceConfig.findTopics(RUN_WITH_NAMESPACE_TOPIC)).thenReturn(alreadyRunningServiceRunWithConfig);
+        when(alreadyRunningServiceRunWithConfig.toPOJO()).thenReturn(new HashMap<String, Object>() {{
+            put("posixUser", "foo:bar");
+        }});
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths);
+        Map<String, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        // service config
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+        assertThat("Must contain main service", servicesConfig, hasKey("main"));
+        assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
+
+        assertThat(getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig), hasKey(RUN_WITH_NAMESPACE_TOPIC));
+        assertThat((Map<String, Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
+                .get(RUN_WITH_NAMESPACE_TOPIC), not(hasKey(POSIX_USER_KEY)));
     }
 
     @Test
