@@ -13,7 +13,9 @@ import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFacto
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.Pair;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,6 +27,9 @@ import java.nio.file.Path;
 import javax.inject.Inject;
 
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
+    @SuppressFBWarnings({"MS_SHOULD_BE_FINAL"})
+    protected static int MAX_RETRY = 5;
+
     private static final String HTTP_HEADER_CONTENT_DISPOSITION = "Content-Disposition";
 
     private final AWSEvergreen evgCmsClient;
@@ -41,7 +46,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     // TODO: avoid calling cloud to get artifact file name.
     @Override
-    protected String getArtifactFilenameNoRetry() throws PackageDownloadException, RetryableException {
+    protected String getArtifactFilename() throws PackageDownloadException {
         if (artifactFilename != null) {
             return artifactFilename;
         }
@@ -50,7 +55,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     }
 
     @Override
-    protected Long getDownloadSizeNoRetry() throws PackageDownloadException, RetryableException {
+    public Long getDownloadSize() throws PackageDownloadException {
         if (artifactSize != null) {
             return artifactSize;
         }
@@ -60,51 +65,48 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     @Override
     public Pair<InputStream, Runnable> readWithRange(long start, long end)
-            throws PackageDownloadException, RetryableException {
+            throws PackageDownloadException {
         URL url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
 
-        // establish http connection
-        HttpURLConnection httpConn = null;
-        int responseCode;
-        try {
-            httpConn = connect(url);
-            httpConn.setRequestProperty(HTTP_RANGE_HEADER_KEY, String.format(HTTP_RANGE_HEADER_FORMAT, start, end));
-            responseCode = httpConn.getResponseCode();
-        } catch (IOException e) {
-            if (httpConn != null) {
-                httpConn.disconnect();
-            }
-            throw new RetryableException("error establish connect", e);
-        }
+        return runWithRetry("establish HTTP connection", () -> {
+            HttpURLConnection httpConn = null;
+            InputStream inputStreamResult = null;
 
-        // get http response code
-        try {
-            if (responseCode == HttpURLConnection.HTTP_PARTIAL) {
-                return new Pair<>(httpConn.getInputStream(), httpConn::disconnect);
-            } else if (responseCode == HttpURLConnection.HTTP_OK) {
-                // 200 means server doesn't recognize the Range header and returns all contents.
-                // try to discard the offset number of bytes.
-                InputStream inputStream = httpConn.getInputStream();
-                long byteSkipped = inputStream.skip(start);
+            try {
+                // establish http connection
+                httpConn = connect(url);
+                httpConn.setRequestProperty(HTTP_RANGE_HEADER_KEY,
+                        String.format(HTTP_RANGE_HEADER_FORMAT, start, end));
+                int responseCode = httpConn.getResponseCode();
 
-                // If number of bytes skipped is less than declared, throw error.
-                if (byteSkipped != start) {
-                    httpConn.disconnect();
-                    throw new RetryableException("Unable to get partial content");
+                // check response code
+                if (responseCode == HttpURLConnection.HTTP_PARTIAL) {
+                    inputStreamResult = httpConn.getInputStream();
+                } else if (responseCode == HttpURLConnection.HTTP_OK) {
+                    // 200 means server doesn't recognize the Range header and returns all contents.
+                    // try to discard the offset number of bytes.
+                    InputStream inputStream = httpConn.getInputStream();
+                    long byteSkipped = inputStream.skip(start);
+
+                    // If number of bytes skipped is less than declared, throw error.
+                    if (byteSkipped != start) {
+                        throw new IOException("Unable to get partial content");
+                    }
+                    inputStreamResult = inputStream;
+                } else if (responseCode == HttpURLConnection.HTTP_CLIENT_TIMEOUT) {
+                    throw new IOException("HTTP Error: " + responseCode);
+                } else {
+                    throw new PackageDownloadException(getErrorString("Unable to download greengrass artifact. "
+                            + "HTTP Error: " + responseCode));
                 }
-                return new Pair<>(inputStream, httpConn::disconnect);
-            } else if (responseCode == HttpURLConnection.HTTP_CLIENT_TIMEOUT) {
-                httpConn.disconnect();
-                throw new RetryableException("HTTP Error: " + responseCode);
-            } else {
-                httpConn.disconnect();
-                throw new PackageDownloadException("Unable to download greengrass artifact. HTTP Error: "
-                        + responseCode);
+                return new Pair<InputStream, Runnable>(inputStreamResult, httpConn::disconnect);
+            } finally {
+                // if no input stream result is provided, disconnect http connection
+                if (inputStreamResult == null) {
+                    httpConn.disconnect();
+                }
             }
-        } catch (IOException ioException) {
-            httpConn.disconnect();
-            throw new RetryableException("Unable to get http input stream", ioException);
-        }
+        });
     }
 
     // TODO: remove this overriding function once GGRepositoryDownloader doesn't need to call cloud to get
@@ -119,16 +121,12 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             return artifactDir.resolve(artifactFilename).toFile();
         }
         try {
-            return artifactDir.resolve(getArtifactFilenameNoRetry()).toFile();
+            return artifactDir.resolve(getArtifactFilename()).toFile();
         } catch (PackageDownloadException e) {
             logger.atWarn().log("Error in getting file name from HTTP response,"
                     + " getting local file name from URI scheme specific part", e);
             artifactFilename = artifact.getArtifactUri().getSchemeSpecificPart();
             return artifactDir.resolve(artifactFilename).toFile();
-        } catch (RetryableException e) {
-            logger.atWarn().log("Error in getting file name from HTTP response: {},"
-                    + " getting local file name from URI scheme specific part", e.getMessage());
-            return artifactDir.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
         }
     }
 
@@ -147,40 +145,79 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         }
     }
 
-    private void retrieveArtifactInfo() throws RetryableException, PackageDownloadException {
+    private void retrieveArtifactInfo() throws PackageDownloadException {
         if (artifactSize != null && artifactFilename != null) {
             return;
         }
         URL url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
 
-        HttpURLConnection httpConn = null;
-        try {
-            httpConn = connect(url);
-            int responseCode = httpConn.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                long length = httpConn.getContentLengthLong();
-                if (length == -1) {
-                    throw new PackageDownloadException("Failed to get download size");
+        runWithRetry("get-artifact-info", () -> {
+            HttpURLConnection httpConn = null;
+            try {
+                httpConn = connect(url);
+                int responseCode = httpConn.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    long length = httpConn.getContentLengthLong();
+                    if (length == -1) {
+                        throw new PackageDownloadException("Failed to get download size");
+                    }
+                    // GG_NEEDS_REVIEW: TODO can we simplify getting filename without network request
+                    String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
+                    this.artifactSize = length;
+                    this.artifactFilename = extractFilename(url, disposition);
+                } else {
+                    throw new PackageDownloadException("Failed to check greengrass artifact. HTTP response: "
+                            + responseCode);
                 }
-                // GG_NEEDS_REVIEW: TODO can we simplify getting filename without network request
-                String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
-                this.artifactSize = length;
-                this.artifactFilename = extractFilename(url, disposition);
-            } else {
-                throw new PackageDownloadException("Failed to check greengrass artifact. HTTP response: "
-                        + responseCode);
+            } finally {
+                if (httpConn != null) {
+                    httpConn.disconnect();
+                }
             }
-        } catch (IOException e) {
-            throw new RetryableException("Failed to check greengrass artifact.", e);
-        } finally {
-            if (httpConn != null) {
-                httpConn.disconnect();
+            return null;
+        });
+    }
+
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    protected <T> T runWithRetry(String taskDescription, CrashableSupplier<T, Exception> taskToRetry)
+            throws PackageDownloadException {
+        int retryInterval = INIT_RETRY_INTERVAL_MILLI;
+        int retry = 0;
+        IOException retryableException = null;
+        while (retry < MAX_RETRY) {
+            retry++;
+            try {
+                return taskToRetry.apply();
+            } catch (IOException e) {
+                logger.atInfo().kv("exception", e.getMessage()).log("Retry " + taskDescription);
+                retryableException = e;
+                if (retry >= MAX_RETRY) {
+                    break;
+                }
+                try {
+                    Thread.sleep(retryInterval);
+                    if (retryInterval < MAX_RETRY_INTERVAL_MILLI) {
+                        retryInterval = retryInterval * 2;
+                    } else {
+                        retryInterval = MAX_RETRY_INTERVAL_MILLI;
+                    }
+                } catch (InterruptedException ie) {
+                    logger.atInfo().log("Interrupted while waiting to retry " + taskDescription);
+                    return null;
+                }
+            } catch (PackageDownloadException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new PackageDownloadException("Unexpected error in " + taskDescription, e);
             }
         }
+        throw new PackageDownloadException(
+                String.format("Fail to execute %s after retrying %d times", taskDescription, MAX_RETRY),
+                retryableException);
     }
 
     private URL getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
-            throws RetryableException, PackageDownloadException {
+            throws PackageDownloadException {
         GetComponentVersionArtifactRequest getComponentArtifactRequest =
                 new GetComponentVersionArtifactRequest().withArtifactName(artifactName)
                         .withComponentName(componentIdentifier.getName())
@@ -192,16 +229,12 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     evgCmsClient.getComponentVersionArtifact(getComponentArtifactRequest);
             preSignedUrl = getComponentArtifactResult.getPreSignedUrl();
         } catch (AmazonClientException ace) {
-            String errorMsg = getErrorString("error in get artifact download URL");
-            if (ace.isRetryable()) {
-                throw new RetryableException(errorMsg, ace);
-            }
-            throw new PackageDownloadException(errorMsg, ace);
+            throw new PackageDownloadException(getErrorString("error in get artifact download URL"), ace);
         }
         try {
             return new URL(preSignedUrl);
         } catch (MalformedURLException e) {
-            throw new PackageDownloadException("Malformed artifact URL", e);
+            throw new PackageDownloadException(getErrorString("Malformed artifact URL"), e);
         }
     }
 

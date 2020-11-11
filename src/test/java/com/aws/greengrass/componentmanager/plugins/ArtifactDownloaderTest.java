@@ -71,20 +71,20 @@ public class ArtifactDownloaderTest {
         }
 
         @Override
-        protected String getArtifactFilenameNoRetry() throws PackageDownloadException, RetryableException {
+        protected String getArtifactFilename() throws PackageDownloadException {
             return localFileName;
         }
 
         @Override
         protected Pair<InputStream, Runnable> readWithRange(long start, long end)
-                throws PackageDownloadException, RetryableException {
+                throws PackageDownloadException {
             return new Pair<>(
                     new ByteArrayInputStream(Arrays.copyOfRange(input.getBytes(), (int) start, (int) end +1))
                     , () -> cleanupCalled.set(true));
         }
 
         @Override
-        public Long getDownloadSizeNoRetry() throws PackageDownloadException, RetryableException {
+        public Long getDownloadSize() throws PackageDownloadException {
             return (long) input.length();
         }
     }
@@ -156,30 +156,6 @@ public class ArtifactDownloaderTest {
         assertThat(Files.readAllBytes(file.toPath()), equalTo(content.getBytes()));
         Object newInode = Files.getAttribute(localPartialFile.toPath(), "unix:ino");
         assertThat(newInode, equalTo(inode));
-    }
-
-    @Test
-    void GIVEN_read_stream_WHEN_throw_RetryableException_THEN_retry(ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, ArtifactDownloader.RetryableException.class);
-        String content = "Sample artifact content";
-        String checksum = Base64.getEncoder()
-                .encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
-        ComponentArtifact artifact = createTestArtifact("SHA-256", checksum);
-
-        MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content));
-        AtomicInteger invocationTimes = new AtomicInteger(0);
-        doAnswer(invocationOnMock -> {
-            invocationTimes.incrementAndGet();
-            if (invocationTimes.get() == 1) {
-                throw new ArtifactDownloader.RetryableException("IOException");
-            }
-            return invocationOnMock.callRealMethod();
-        }).when(downloader).readWithRange(anyLong(), anyLong());
-
-        File file = downloader.downloadToPath();
-        assertThat(invocationTimes.get(), equalTo(2));
-        verify(downloader, times(2)).readWithRange(0, content.length() - 1);
-        assertThat(Files.readAllBytes(file.toPath()), equalTo(content.getBytes()));
     }
 
     @Test
@@ -256,25 +232,6 @@ public class ArtifactDownloaderTest {
         Files.write(downloader.getArtifactFile().toPath(), "Sample local artifact content".getBytes());
 
         assertThat(downloader.downloadRequired(), is(false));
-    }
-
-    @Test
-    void GIVEN_getDownloadSize_WHEN_throw_retryableError_THEN_should_retry() throws Exception {
-        String content = "Sample artifact content";
-        ComponentArtifact artifact = createTestArtifact("SHA-256", null);
-        MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content));
-
-        AtomicInteger invocationCount = new AtomicInteger(0);
-        doAnswer(invocationOnMock -> {
-            invocationCount.incrementAndGet();
-            if (invocationCount.get() == 1) {
-                throw new ArtifactDownloader.RetryableException("exception");
-            }
-            return (long) 100;
-        }).when(downloader).getDownloadSizeNoRetry();
-
-        assertThat(downloader.getDownloadSize(), is((long) 100));
-        verify(downloader, times(2)).getDownloadSizeNoRetry();
     }
 
     private ComponentIdentifier createTestIdentifier() {

@@ -10,6 +10,7 @@ import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactRequest
 import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactResult;
 import com.aws.greengrass.componentmanager.ComponentTestResourceHelper;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
+import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -33,12 +34,15 @@ import java.util.Arrays;
 import java.util.Base64;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -93,7 +97,7 @@ class GreengrassRepositoryDownloaderTest {
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
         when(connection.getContentLengthLong()).thenReturn(Files.size(mockArtifactPath));
         when(connection.getHeaderField("Content-Disposition")).thenReturn("filename=artifact.txt");
-        assertThat(downloader.getArtifactFilenameNoRetry(), is("artifact.txt"));
+        assertThat(downloader.getArtifactFilename(), is("artifact.txt"));
 
         // mock requests to return partial stream
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_PARTIAL);
@@ -116,7 +120,8 @@ class GreengrassRepositoryDownloaderTest {
     }
 
     @Test
-    void GIVEN_http_connection_error_WHEN_attempt_download_THEN_throw_retryable_exception() throws Exception {
+    void GIVEN_http_connection_error_WHEN_attempt_download_THEN_retry_called() throws Exception {
+        GreengrassRepositoryDownloader.MAX_RETRY = 2;
         GetComponentVersionArtifactResult result =
                 new GetComponentVersionArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
         when(client.getComponentVersionArtifact(any())).thenReturn(result);
@@ -126,7 +131,33 @@ class GreengrassRepositoryDownloaderTest {
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenThrow(IOException.class);
 
-        assertThrows(ArtifactDownloader.RetryableException.class, () -> downloader.readWithRange(0, 100));
+        PackageDownloadException e = assertThrows(PackageDownloadException.class, () -> downloader.readWithRange(0, 100));
+
+        // assert retry called
+        verify(connection, times(2)).getResponseCode();
+        verify(connection, times(2)).disconnect();
+        assertThat(e.getLocalizedMessage(),
+                containsStringIgnoringCase("Fail to execute establish HTTP connection after retrying 2 times"));
+    }
+
+    @Test
+    void GIVEN_http_connection_bad_request_WHEN_attempt_download_THEN_download_error_thrown() throws Exception {
+        GetComponentVersionArtifactResult result =
+                new GetComponentVersionArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
+        when(client.getComponentVersionArtifact(any())).thenReturn(result);
+        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
+        GreengrassRepositoryDownloader downloader = spy(new GreengrassRepositoryDownloader(clientFactory,
+                pkgId, ComponentArtifact.builder().artifactUri(new URI("greengrass:binary")).build(), null));
+        doReturn(connection).when(downloader).connect(any());
+        when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_BAD_REQUEST);
+
+        PackageDownloadException e = assertThrows(PackageDownloadException.class, () -> downloader.readWithRange(0, 100));
+
+        // assert retry called
+        verify(connection, times(1)).getResponseCode();
+        verify(connection, times(1)).disconnect();
+        assertThat(e.getLocalizedMessage(),
+                containsStringIgnoringCase("HTTP Error: " + HttpURLConnection.HTTP_BAD_REQUEST));
     }
 
     @Test

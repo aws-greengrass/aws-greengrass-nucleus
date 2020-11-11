@@ -12,7 +12,6 @@ import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 
@@ -28,16 +27,15 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 
 public abstract class ArtifactDownloader {
+    protected static final int MAX_RETRY_INTERVAL_MILLI = 30_000;
+    protected static final int INIT_RETRY_INTERVAL_MILLI = 1000;
     private static final int DOWNLOAD_BUFFER_SIZE = 1024;
-    private static final int MAX_RETRY_INTERVAL_MILLI = 30_000;
-    private static final int INIT_RETRY_INTERVAL_MILLI = 1000;
     static final String ARTIFACT_DOWNLOAD_EXCEPTION_FMT =
             "Failed to download artifact %s for component %s-%s, reason: ";
     public static final String ARTIFACT_URI_LOG_KEY = "artifactUri";
     public static final String COMPONENT_IDENTIFIER_LOG_KEY = "componentIdentifier";
     protected static final String HTTP_RANGE_HEADER_FORMAT = "bytes=%d-%d";
     protected static final String HTTP_RANGE_HEADER_KEY = "Range";
-    private static int MAX_RETRY = 5;
 
     protected final Logger logger = LogManager.getLogger(this.getClass());
     protected final ComponentIdentifier identifier;
@@ -169,7 +167,7 @@ public abstract class ArtifactDownloader {
                 if (offset >= rangeEnd) {
                     break;
                 }
-            } catch (IOException | RetryableException e) {
+            } catch (IOException e) {
                 logger.atWarn().setCause(e).log("Error in downloading artifact, wait to retry.");
                 // backoff sleep retry
                 try {
@@ -210,7 +208,7 @@ public abstract class ArtifactDownloader {
      * @throws PackageDownloadException PackageDownloadException
      */
     protected abstract Pair<InputStream, Runnable> readWithRange(long start, long end)
-            throws RetryableException, PackageDownloadException;
+            throws PackageDownloadException;
 
     /**
      * Checks whether it is necessary to download the artifact or the existing file suffices.
@@ -246,57 +244,15 @@ public abstract class ArtifactDownloader {
      * @throws InvalidArtifactUriException if provided info results in invalid URI
      * @throws PackageDownloadException if error encountered
      */
-    public final Long getDownloadSize() throws PackageDownloadException {
-        return runWithRetry("get-download-size", this::getDownloadSizeNoRetry, MAX_RETRY);
-    }
+    public abstract Long getDownloadSize() throws PackageDownloadException;
 
-    protected abstract Long getDownloadSizeNoRetry() throws PackageDownloadException, RetryableException;
-
-    protected String getArtifactFilename() throws PackageDownloadException {
-        return runWithRetry("get-artifact-file-name", this::getArtifactFilenameNoRetry, MAX_RETRY);
-    }
-
-    protected abstract String getArtifactFilenameNoRetry() throws PackageDownloadException, RetryableException;
-
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
-    private <T> T runWithRetry(String taskDescription, CrashableSupplier<T, Exception> taskToRetry, int maxRetry)
-            throws PackageDownloadException {
-        int retryInterval = INIT_RETRY_INTERVAL_MILLI;
-        int retry = 0;
-        RetryableException retryableException = null;
-        while (retry < maxRetry) {
-            retry++;
-            try {
-                return taskToRetry.apply();
-            } catch (RetryableException e) {
-                logger.atInfo().kv("exception", e.getMessage()).log("Retry " + taskDescription);
-                retryableException = e;
-                try {
-                    Thread.sleep(retryInterval);
-                    if (retryInterval < MAX_RETRY_INTERVAL_MILLI) {
-                        retryInterval = retryInterval * 2;
-                    } else {
-                        retryInterval = MAX_RETRY_INTERVAL_MILLI;
-                    }
-                } catch (InterruptedException ie) {
-                    logger.atInfo().log("Interrupted while waiting to retry " + taskDescription);
-                    return null;
-                }
-            } catch (PackageDownloadException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new PackageDownloadException("Unexpected error in " + taskDescription, e);
-            }
-        }
-        throw new PackageDownloadException(
-                String.format("Fail to execute %s after retrying %d times", taskDescription, maxRetry),
-                retryableException);
-    }
+    protected abstract String getArtifactFilename() throws PackageDownloadException;
 
     protected String getErrorString(String reason) {
         return String.format(ARTIFACT_DOWNLOAD_EXCEPTION_FMT, artifact.getArtifactUri(),
                 identifier.getName(), identifier.getVersion().toString()) + reason;
     }
+
 
     /**
      * Checks the given artifact file exists at given path and has the right checksum.
@@ -342,18 +298,6 @@ public abstract class ArtifactDownloader {
 
     private static boolean recipeHasDigest(ComponentArtifact artifact) {
         return !Utils.isEmpty(artifact.getAlgorithm()) && !Utils.isEmpty(artifact.getChecksum());
-    }
-
-    protected static class RetryableException extends Exception {
-        static final long serialVersionUID = -3387516993124229948L;
-
-        public RetryableException(String message) {
-            super(message);
-        }
-
-        public RetryableException(String message, Throwable cause) {
-            super(message, cause);
-        }
     }
 }
 

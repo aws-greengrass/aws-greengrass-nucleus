@@ -49,11 +49,11 @@ public class S3Downloader extends ArtifactDownloader {
         super(identifier, artifact, artifactDir);
         this.s3ClientFactory = clientFactory;
         this.s3Client = clientFactory.getS3Client();
-        this.s3ObjectPath = getS3PathForURI(artifact.getArtifactUri(), identifier);
+        this.s3ObjectPath = getS3PathForURI(artifact.getArtifactUri());
     }
 
     @Override
-    protected String getArtifactFilenameNoRetry() {
+    protected String getArtifactFilename() {
         String objectKey = s3ObjectPath.key;
         String[] pathStrings = objectKey.split("/");
         return pathStrings[pathStrings.length - 1];
@@ -62,7 +62,7 @@ public class S3Downloader extends ArtifactDownloader {
     @SuppressWarnings("PMD.CloseResource")
     @Override
     protected Pair<InputStream, Runnable> readWithRange(long start, long end)
-            throws PackageDownloadException, RetryableException {
+            throws PackageDownloadException {
         String bucket = s3ObjectPath.bucket;
         String key = s3ObjectPath.key;
         try {
@@ -73,16 +73,13 @@ public class S3Downloader extends ArtifactDownloader {
             return new Pair<>(regionClient.getObject(getObjectRequest), () -> {});
         } catch (SdkClientException | S3Exception e) {
             String errorMsg = getErrorString("Failed to get artifact object from S3");
-            if (e.retryable()) {
-                throw new RetryableException(errorMsg, e);
-            }
             throw new PackageDownloadException(errorMsg, e);
         }
     }
 
     @SuppressWarnings("PMD.CloseResource")
     @Override
-    protected Long getDownloadSizeNoRetry() throws RetryableException, PackageDownloadException {
+    public Long getDownloadSize() throws PackageDownloadException {
         logger.atInfo().setEventType("get-download-size-from-s3").log();
         // Parse artifact path
         String key = s3ObjectPath.key;
@@ -93,13 +90,7 @@ public class S3Downloader extends ArtifactDownloader {
             HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
             return headObjectResponse.contentLength();
         } catch (SdkClientException | S3Exception e) {
-            String errMsg = String.format(ARTIFACT_DOWNLOAD_EXCEPTION_FMT, artifact.getArtifactUri(),
-                    identifier.getName(), identifier.getVersion().toString(),
-                    "Failed to head artifact object from S3");
-            if (e.retryable()) {
-                throw new RetryableException(errMsg, e);
-            }
-            throw new PackageDownloadException(errMsg, e);
+            throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
         }
     }
 
@@ -120,14 +111,13 @@ public class S3Downloader extends ArtifactDownloader {
         return s3ClientFactory.getClientForRegion(Utils.isEmpty(region) ? Region.US_EAST_1 : Region.of(region));
     }
 
-    private S3ObjectPath getS3PathForURI(URI artifactURI, ComponentIdentifier componentIdentifier)
+    private S3ObjectPath getS3PathForURI(URI artifactURI)
             throws InvalidArtifactUriException {
         Matcher s3PathMatcher = S3_PATH_REGEX.matcher(artifactURI.toString());
         if (!s3PathMatcher.matches()) {
             // Bad URI
             throw new InvalidArtifactUriException(
-                    String.format(ARTIFACT_DOWNLOAD_EXCEPTION_FMT, artifactURI, componentIdentifier.getName(),
-                            componentIdentifier.getVersion().toString(), "Invalid artifact URI"));
+                    getErrorString("Invalid artifact URI " + artifactURI.toString()));
         }
 
         // Parse artifact path

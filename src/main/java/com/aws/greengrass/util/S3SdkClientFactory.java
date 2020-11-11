@@ -8,6 +8,8 @@ package com.aws.greengrass.util;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.tes.LazyCredentialProvider;
 import lombok.Getter;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -45,7 +47,10 @@ public class S3SdkClientFactory {
         this.s3Client =
                 S3Client.builder().httpClient(ProxyUtils.getSdkHttpClient())
                         .serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
-                        .credentialsProvider(credentialsProvider).region(region).build();
+                        .credentialsProvider(credentialsProvider).region(region)
+                        .overrideConfiguration(ClientOverrideConfiguration.builder()
+                                .retryPolicy(RetryMode.STANDARD).build())
+                        .build();
     }
 
     /**
