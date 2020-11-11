@@ -78,13 +78,13 @@ class IPCPubSubRemovalTest extends BaseITCase {
             Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
                 assertEquals("some message", new String(m, StandardCharsets.UTF_8));
             });
-            subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight());//this should succeed
+            subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight());
             publishToTopicOverIpcAsBinaryMessage(ipcClient, "a", "some message");
             cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
 
             Topics serviceTopic = kernel.findServiceTopic("DoAll1");
             Topics parameters = serviceTopic.findTopics(PARAMETERS_CONFIG_KEY);
-            Topic acl = parameters.find(ACCESS_CONTROL_NAMESPACE_TOPIC);
+            Topics acl = parameters.findTopics(ACCESS_CONTROL_NAMESPACE_TOPIC);
             if (acl != null) {
                 acl.remove();
             }

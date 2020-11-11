@@ -39,7 +39,7 @@ import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE
  * Main module which is responsible for handling AuthZ for Greengrass. This only manages
  * the AuthZ configuration and performs lookups based on the config. Config is just a copy of
  * customer config and this module does not try to optimize storage. For instance,
- * if customer specifies same policies twice, we treat and store them separately. Components are
+ * if customer specifies same policy twice, we treat and store them separately. Components are
  * identified by their service identifiers (component names) and operation/resources are assumed to be
  * opaque strings. They are not treated as confidential and it should be the responsibility
  * of the caller to use proxy identifiers for confidential data. Implementation optimizes for fast lookups
@@ -113,7 +113,7 @@ public class AuthorizationHandler  {
                     Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
                             .parseAllAuthorizationPolicies(kernel);
 
-                    //Load default policies
+                    // Load default policies
                     reloadedPolicies.putAll(getDefaultPolicies());
 
                     try (LockScope scope = LockScope.lock(rwLock.writeLock())) {
@@ -255,7 +255,7 @@ public class AuthorizationHandler  {
         try {
             isComponentRegistered(componentName);
         } catch (AuthorizationException e) {
-            logger.atError("load-authorization-config-invalid-component", e)
+            logger.atError("load-authorization-config-invalid-component").setCause(e)
                     .log("Component {} is invalid or not registered with the AuthorizationHandler",
                             componentName);
             return;
@@ -264,7 +264,7 @@ public class AuthorizationHandler  {
         try {
             validatePolicyId(policies);
         } catch (AuthorizationException e) {
-            logger.atError("load-authorization-config-invalid-policy", e)
+            logger.atError("load-authorization-config-invalid-policy").setCause(e)
                     .log("Component {} contains an invalid policy", componentName);
             return;
         }
@@ -274,7 +274,7 @@ public class AuthorizationHandler  {
             try {
                 validatePrincipals(policy);
             } catch (AuthorizationException e) {
-                logger.atError("load-authorization-config-invalid-principal", e)
+                logger.atError("load-authorization-config-invalid-principal").setCause(e)
                         .log("Component {} contains an invalid principal in policy {}", componentName,
                                 policy.getPolicyId());
                 continue;
@@ -282,7 +282,7 @@ public class AuthorizationHandler  {
             try {
                 validateOperations(componentName, policy);
             } catch (AuthorizationException e) {
-                logger.atError("load-authorization-config-invalid-operation", e)
+                logger.atError("load-authorization-config-invalid-operation").setCause(e)
                         .log("Component {} contains an invalid operation in policy {}", componentName,
                                 policy.getPolicyId());
             }
@@ -294,8 +294,10 @@ public class AuthorizationHandler  {
         for (AuthorizationPolicy policy : policies) {
             try {
                 addPermission(componentName, policy.getPrincipals(), policy.getOperations(), policy.getResources());
+                logger.atInfo("load-authorization-config")
+                        .log("loaded authorization config for {} as policy {}", componentName, policy);
             } catch (AuthorizationException e) {
-                logger.atError("load-authorization-config-add-permission-error", e)
+                logger.atError("load-authorization-config-add-permission-error").setCause(e)
                         .log("Error while loading policy {} for component {}", policy.getPolicyId(),
                                 componentName);
             }

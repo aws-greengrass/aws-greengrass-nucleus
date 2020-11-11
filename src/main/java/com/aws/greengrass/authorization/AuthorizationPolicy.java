@@ -5,14 +5,21 @@
 
 package com.aws.greengrass.authorization;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.NonNull;
-import lombok.Value;
 
 import java.util.Set;
 
-@Value
-@Builder
+/**
+ * Class that holds full access control policy which translates to {@link Permission}.
+ */
+@Builder(toBuilder = true)
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class AuthorizationPolicy implements Comparable<AuthorizationPolicy> {
     @NonNull String policyId;
     String policyDescription;
@@ -20,27 +27,14 @@ public class AuthorizationPolicy implements Comparable<AuthorizationPolicy> {
     @NonNull Set<String> operations;
     Set<String> resources;
 
-    enum PolicyComponentTypes {
-        POLICY_DESCRIPTION("policyDescription"),
-        PRINCIPALS("principals"),
-        OPERATIONS("operations"),
-        RESOURCES("resources"),
-        UNKNOWN("unknown");
-
-        private final String name;
-
-        PolicyComponentTypes(String s) {
-            name = s;
-        }
-
-        @Override
-        public String toString() {
-            return this.name;
-        }
-    }
-
     @Override
     public int compareTo(AuthorizationPolicy other) {
         return this.policyId.compareTo(other.policyId);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("policyId: %s, policyDescription: %s, principals: %s, operations: %s, resources: %s",
+                policyId, policyDescription, principals, operations, resources);
     }
 }
