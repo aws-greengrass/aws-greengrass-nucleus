@@ -154,9 +154,8 @@ public class DeviceConfiguration {
      * Get the logging configuration.
      * @return  Configuration for logger.
      */
-    public Topics getLoggingConfigurationTopic() {
-        return kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, this.nucleusComponentName,
-                CONFIGURATION_CONFIG_KEY, NUCLEUS_CONFIG_LOGGING_TOPICS);
+    public Topics getLoggingConfigurationTopics() {
+        return getTopics(NUCLEUS_CONFIG_LOGGING_TOPICS);
     }
 
     /**
@@ -193,7 +192,7 @@ public class DeviceConfiguration {
      * Handles subscribing and reconfiguring logger based on the correct topic.
      */
     private void handleLoggingConfig() {
-        loggingTopics = getLoggingConfigurationTopic();
+        loggingTopics = getLoggingConfigurationTopics();
         loggingTopics.subscribe(this::handleLoggingConfigurationChanges);
     }
 
