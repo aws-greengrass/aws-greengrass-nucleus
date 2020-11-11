@@ -10,12 +10,12 @@ import com.amazonaws.SdkClientException;
 import com.amazonaws.regions.DefaultAwsRegionProviderChain;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.ChildChanged;
-import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.Validator;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelVersion;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
@@ -45,7 +45,6 @@ public class DeviceConfiguration {
 
     public static final String DEFAULT_NUCLEUS_COMPONENT_NAME = "aws.greengrass.Nucleus";
     // TODO: [P41179224] Version should come from the installer based on which nucleus version it installed
-    public static final String NUCLEUS_COMPONENT_VERSION = "0.0.0";
 
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
     public static final String DEVICE_PARAM_IOT_DATA_ENDPOINT = "iotDataEndpoint";
@@ -62,6 +61,8 @@ public class DeviceConfiguration {
     public static final String RUN_WITH_DEFAULT_POSIX_GROUP = "posixGroup";
     public static final String RUN_WITH_DEFAULT_WINDOWS_USER = "windowsUser";
     public static final String RUN_WITH_DEFAULT_POSIX_SHELL = "posixShell";
+    public static final String RUN_WITH_DEFAULT_POSIX_SHELL_VALUE = "sh";
+
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
     public static final String COMPONENT_STORE_MAX_SIZE_BYTES = "componentStoreMaxSizeBytes";
     public static final String DEPLOYMENT_POLLING_FREQUENCY_SECONDS = "deploymentPollingFrequencySeconds";
@@ -80,7 +81,7 @@ public class DeviceConfiguration {
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
-    private static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
+    public static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
 
     private final Kernel kernel;
 
@@ -155,7 +156,7 @@ public class DeviceConfiguration {
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY)
                 .withValue(ComponentType.NUCLEUS.name());
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY)
-                .withValue(NUCLEUS_COMPONENT_VERSION);
+                .withValue(KernelVersion.KERNEL_VERSION);
         ArrayList<String> mainDependencies = (ArrayList) kernel.getConfig().getRoot()
                 .findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
                         SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
@@ -214,7 +215,7 @@ public class DeviceConfiguration {
     }
 
     public Topic getRunWithDefaultPosixShell() {
-        return getRunWithTopic().lookup(RUN_WITH_DEFAULT_POSIX_SHELL).dflt("sh");
+        return getRunWithTopic().lookup(RUN_WITH_DEFAULT_POSIX_SHELL).dflt(RUN_WITH_DEFAULT_POSIX_SHELL_VALUE);
     }
 
     public Topic getRunWithDefaultWindowsUser() {
@@ -321,20 +322,6 @@ public class DeviceConfiguration {
         kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, CONFIGURATION_CONFIG_KEY)
                 .subscribe(cc);
         kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY).subscribe(cc);
-    }
-
-    public void onTopicChange(String topicName, Subscriber s) {
-        getTopic(topicName).subscribe(s);
-    }
-
-    /**
-     * Add a subscriber to device config that's a topics instance.
-     *
-     * @param topicsName topics name to subscribe to
-     * @param cc         handler
-     */
-    public void onTopicsChange(String topicsName, ChildChanged cc) {
-        getTopics(topicsName).subscribe(cc);
     }
 
     /**
