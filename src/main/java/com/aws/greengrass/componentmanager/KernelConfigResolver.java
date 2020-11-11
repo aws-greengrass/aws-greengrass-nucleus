@@ -18,6 +18,7 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
+import com.aws.greengrass.deployment.model.RunWith;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -52,7 +53,6 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_GROUP_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -257,12 +257,7 @@ public class KernelConfigResolver {
                 optionalConfigUpdate = Optional.of(op);
             }
 
-            if (packageConfiguration.getRunWith() != null) {
-                Map<String, String> runWith = new HashMap<>(2);
-                runWith.put(POSIX_USER_KEY, packageConfiguration.getRunWith().getPosixUser());
-                runWith.put(POSIX_GROUP_KEY, packageConfiguration.getRunWith().getPosixGroup());
-                resolvedServiceConfig.put(RUN_WITH_NAMESPACE_TOPIC, runWith);
-            }
+            updateRunWith(packageConfiguration.getRunWith(), resolvedServiceConfig, componentIdentifier.getName());
         }
 
         Map<String, Object> resolvedConfiguration = resolveConfigurationToApply(optionalConfigUpdate.orElse(null),
@@ -274,6 +269,26 @@ public class KernelConfigResolver {
 
         return resolvedServiceConfig;
     }
+
+    private void updateRunWith(RunWith runWith, Map<String, Object> resolvedServiceConfig, String componentName) {
+        Topics serviceTopics = kernel.findServiceTopic(componentName);
+        Map<String, Object> runWithConfig = new HashMap<>();
+        if (serviceTopics != null) {
+            Topics runWithTopics = serviceTopics.findTopics(RUN_WITH_NAMESPACE_TOPIC);
+            if (runWithTopics != null) {
+                runWithConfig = runWithTopics.toPOJO();
+            }
+        }
+        if (runWith != null && runWith.hasPosixUserValue()) {
+            if (Utils.isEmpty(runWith.getPosixUser())) {
+                runWithConfig.remove(POSIX_USER_KEY);
+            } else {
+                runWithConfig.put(POSIX_USER_KEY, runWith.getPosixUser());
+            }
+        }
+        resolvedServiceConfig.put(RUN_WITH_NAMESPACE_TOPIC, runWithConfig);
+    }
+
 
     /**
      * Resolve configurations to apply for a component. It resolves based on current running config, default config, and

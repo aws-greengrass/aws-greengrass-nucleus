@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -105,18 +106,12 @@ public class KernelCommandLine {
                     break;
                 case "--component-default-user":
                 case "-u":
+                    String user = getArg();
+                    Objects.requireNonNull(user, "-u or --component-default-user requires an argument");
                     if (Exec.isWindows) {
-                        deviceConfiguration.getRunWithDefaultWindowsUser().withValue(getArg());
+                        deviceConfiguration.getRunWithDefaultWindowsUser().withValue(user);
                     } else {
-                        deviceConfiguration.getRunWithDefaultPosixUser().withValue(getArg());
-                    }
-                    break;
-                case "--component-default-group":
-                case "-g":
-                    if (Exec.isWindows) {
-                        logger.atWarn().setEventType("parse-args-error").log("group is not used on Windows");
-                    } else {
-                        deviceConfiguration.getRunWithDefaultPosixGroup().withValue(getArg());
+                        deviceConfiguration.getRunWithDefaultPosixUser().withValue(user);
                     }
                     break;
                 default:
@@ -152,7 +147,15 @@ public class KernelCommandLine {
             TelemetryConfig.getInstance().setRoot(Paths.get(deTilde(ROOT_DIR_PREFIX)));
             LogManager.setRoot(Paths.get(deTilde(ROOT_DIR_PREFIX)));
             nucleusPaths.setTelemetryPath(TelemetryConfig.getInstance().getStoreDirectory());
-            nucleusPaths.setLoggerPath(LogManager.getRootLogConfiguration().getStoreDirectory());
+            String storeDirectory = LogManager.getRootLogConfiguration().getStoreDirectory().toAbsolutePath()
+                    .toString();
+            Topic outputDirectoryTopic = deviceConfiguration.getLoggingConfigurationTopics()
+                    .lookup("outputDirectory");
+            String outputDirectory = Coerce.toString(outputDirectoryTopic);
+            if (Utils.isNotEmpty(outputDirectory)) {
+                storeDirectory = deTilde(outputDirectory);
+            }
+            nucleusPaths.setLoggerPath(Paths.get(storeDirectory));
             nucleusPaths.initPaths(Paths.get(rootAbsolutePath).toAbsolutePath(),
                     Paths.get(deTilde(workPathName)).toAbsolutePath(),
                     Paths.get(deTilde(packageStorePathName)).toAbsolutePath(),
