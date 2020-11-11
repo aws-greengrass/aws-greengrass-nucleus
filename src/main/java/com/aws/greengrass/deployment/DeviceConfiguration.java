@@ -205,6 +205,7 @@ public class DeviceConfiguration {
         LoggerConfiguration configuration;
         try {
             configuration = fromPojo(loggingTopics.toPOJO());
+            LogManager.setEffectiveConfig(configuration);
         } catch (IllegalArgumentException e) {
             logger.atError().kv("logging-config", loggingTopics).cause(e).log("Unable to parse logging config.");
             return;
