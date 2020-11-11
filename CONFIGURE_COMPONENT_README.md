@@ -121,6 +121,13 @@ At every level,
 2. If a key doesn't exist, then key-value pair that is merging in will be added. Note a key that is not existed in the default value,
 could also be added.
 
+#### 2.3.3 MERGE - The change between a 'leaf' node and a 'container node'
+1. If a config node has children, it's a 'container' node.
+1. If a config node has value while not having children, it's a 'leaf' node.
+1. If during a MERGE, a node type changed between 'leaf' and 'container', the old node will be removed and new node will be created.
+ Subscribers of the old node will be copied over to new node.
+ Node subscribers will be notified of 'removed' event, and parent node subscribers will be notified of 'childRemoved' event.
+
 ##### MERGE doesn't support Array/List append or insertion at index operations!!
 Similar to removal, list append and insertion index require handling addtional complexity of array index changing, elements
 shifting, and other indeterministic results.

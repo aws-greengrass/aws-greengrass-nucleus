@@ -90,14 +90,16 @@ public final class Utils {
     }
 
     /**
-     * Returns true if the two strings are different, including null.
+     * Returns true if the two strings are different, including <code>null</code>.
+     *
+     * <p>A change from <code>null</code> to <code>""</code>, or vice versa, is not considered a change.</p>
      *
      * @param oldValue first string
      * @param newValue second string
-     * @return true if the two strings are not equal
+     * @return true if the two strings are different
      */
     public static boolean stringHasChanged(String oldValue, String newValue) {
-        if (oldValue == null && newValue == null) {
+        if (Utils.isEmpty(oldValue) && Utils.isEmpty(newValue)) {
             return false;
         }
         if ((oldValue == null) != (newValue == null)) {
