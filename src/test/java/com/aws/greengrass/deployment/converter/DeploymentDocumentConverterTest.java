@@ -87,7 +87,7 @@ class DeploymentDocumentConverterTest {
         runWithInfo.setPosixUser("foo:bar");
         componentToRunWithInfo.put(NEW_ROOT_COMPONENT, runWithInfo);
         runWithInfo = new RunWithInfo();
-        runWithInfo.setPosixUser("xxx:yyy");
+        runWithInfo.setPosixUser("1234");
         componentToRunWithInfo.put(DEPENDENCY_COMPONENT, runWithInfo);
         // Existing: ROOT_COMPONENT_TO_REMOVE_1-1.0.0, ROOT_COMPONENT_TO_REMOVE_2-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
         // To Remove: ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2
@@ -140,7 +140,7 @@ class DeploymentDocumentConverterTest {
 
         assertThat(DependencyComponentConfig.getResolvedVersion(), is("*"));
         assertThat(DependencyComponentConfig.getConfiguration(), is(componentNameToConfig.get(DEPENDENCY_COMPONENT)));
-        assertEquals(DependencyComponentConfig.getRunWith().getPosixUser(), "xxx:yyy");
+        assertEquals(DependencyComponentConfig.getRunWith().getPosixUser(), "1234");
     }
 
     // Existing: ROOT_COMPONENT_TO_REMOVE_1-1.0.0, ROOT_COMPONENT_TO_REMOVE_2-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
