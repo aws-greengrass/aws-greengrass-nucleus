@@ -129,7 +129,7 @@ public final class IotSdkClientFactory {
         }
 
         if (stage != EnvironmentStage.PROD) {
-            String endpoint = RegionUtils.getIotControlPlaneEndpoint(awsRegion, stage);
+            String endpoint = RegionUtils.getIotCoreControlPlaneEndpoint(awsRegion, stage);
             iotClientBuilder.endpointOverride(new URI(endpoint));
         }
 

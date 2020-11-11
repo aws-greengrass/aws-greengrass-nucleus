@@ -163,7 +163,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static final AWSEvergreen greengrassClient = AWSEvergreenClientBuilder.standard()
                                                                              .withEndpointConfiguration(
                                                                                      new AwsClientBuilder.EndpointConfiguration(
-                                                                                             RegionUtils.getEvergreenEndpoint(GAMMA_REGION.toString(), envStage),
+                                                                                             RegionUtils.getGreengrassControlPlaneEndpoint(GAMMA_REGION.toString(), envStage),
                                                                                              GAMMA_REGION.toString()))
                                                                              .build();
     protected static final IamClient iamClient = IamSdkClientFactory.getIamClient(GAMMA_REGION.toString());

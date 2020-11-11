@@ -145,7 +145,7 @@ public class DeviceProvisioningHelper {
         this.iamClient = IamSdkClientFactory.getIamClient(awsRegion);
         this.greengrassClient = AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
                 new AwsClientBuilder.EndpointConfiguration(
-                        RegionUtils.getEvergreenEndpoint(awsRegion, this.envStage), awsRegion)).build();
+                        RegionUtils.getGreengrassControlPlaneEndpoint(awsRegion, this.envStage), awsRegion)).build();
     }
 
     /**

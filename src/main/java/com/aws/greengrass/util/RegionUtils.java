@@ -11,14 +11,15 @@ import software.amazon.awssdk.utils.ImmutableMap;
 import java.util.Map;
 
 public final class RegionUtils {
-    private static final String DEFAULT_IOT_CONTROL_PLANE_ENDPOINT_FORMAT = "https://%s.%s.iot.%s";
+    private static final String IOT_CORE_CONTROL_PLANE_ENDPOINT_FORMAT = "https://%s.%s.iot.%s";
     private static final Map<IotSdkClientFactory.EnvironmentStage, String>
-            DEFAULT_GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
+            GREENGRASS_DATA_PLANE_STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
             IotSdkClientFactory.EnvironmentStage.PROD, "greengrass-ats.iot.%s.%s:8443/greengrass",
             IotSdkClientFactory.EnvironmentStage.GAMMA, "greengrass-ats.gamma.%s.iot.%s:8443/greengrass",
             IotSdkClientFactory.EnvironmentStage.BETA, "greengrass-ats.beta.%s.iot.%s:8443/greengrass"
     );
-    private static final Map<IotSdkClientFactory.EnvironmentStage, String> STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
+    private static final Map<IotSdkClientFactory.EnvironmentStage, String>
+            GREENGRASS_CONTROL_PLANE_STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
             IotSdkClientFactory.EnvironmentStage.PROD, "evergreen.%s.%s",
             IotSdkClientFactory.EnvironmentStage.GAMMA, "evergreen-gamma.%s.%s",
             IotSdkClientFactory.EnvironmentStage.BETA, "evergreen-beta.%s.%s"
@@ -28,38 +29,39 @@ public final class RegionUtils {
     }
 
     /**
-     * Get Evergreen Endpoint by region and stage.
+     * Get Greengrass Control Plane Endpoint by region and stage.
      * @param awsRegion aws region
      * @param stage environment stage
      * @return Evergreen Endpoint
      */
-    public static String getEvergreenEndpoint(String awsRegion, IotSdkClientFactory.EnvironmentStage stage) {
+    public static String getGreengrassControlPlaneEndpoint(String awsRegion,
+                                                           IotSdkClientFactory.EnvironmentStage stage) {
         String dnsSuffix = Region.of(awsRegion).metadata().partition().dnsSuffix();
-        return String.format(STAGE_TO_ENDPOINT_FORMAT.get(stage), awsRegion, dnsSuffix);
+        return String.format(GREENGRASS_CONTROL_PLANE_STAGE_TO_ENDPOINT_FORMAT.get(stage), awsRegion, dnsSuffix);
     }
 
     /**
-     * Get Greengrass ServiceEndpoint by region and stage.
+     * Get Greengrass Data Plane Endpoint by region and stage.
      * @param awsRegion aws region
      * @param stage environment stage
      * @return Greengrass ServiceEndpoint
      */
-    public static String getGreengrassServiceEndpoint(String awsRegion,
-                                                      IotSdkClientFactory.EnvironmentStage stage) {
+    public static String getGreengrassDataPlaneEndpoint(String awsRegion,
+                                                        IotSdkClientFactory.EnvironmentStage stage) {
         String dnsSuffix = Region.of(awsRegion).metadata().partition().dnsSuffix();
-        return String.format(DEFAULT_GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT.get(stage), awsRegion, dnsSuffix);
+        return String.format(GREENGRASS_DATA_PLANE_STAGE_TO_ENDPOINT_FORMAT.get(stage), awsRegion, dnsSuffix);
     }
 
     /**
-     * Get Iot Control Plane Endpoint by region and stage.
+     * Get Iot Core Control Plane Endpoint by region and stage.
      * @param awsRegion aws region
      * @param stage environment stage
      * @return Iot Control Plane Endpoint
      */
-    public static String getIotControlPlaneEndpoint(Region awsRegion,
-                                                    IotSdkClientFactory.EnvironmentStage stage) {
+    public static String getIotCoreControlPlaneEndpoint(Region awsRegion,
+                                                        IotSdkClientFactory.EnvironmentStage stage) {
         String dnsSuffix = awsRegion.metadata().partition().dnsSuffix();
-        return String.format(DEFAULT_IOT_CONTROL_PLANE_ENDPOINT_FORMAT, stage.value, awsRegion, dnsSuffix);
+        return String.format(IOT_CORE_CONTROL_PLANE_ENDPOINT_FORMAT, stage.value, awsRegion, dnsSuffix);
     }
 
     /**
