@@ -22,6 +22,7 @@ import com.aws.greengrass.util.CommitableFile;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory.EnvironmentStage;
+import com.aws.greengrass.util.RegionUtils;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import lombok.AllArgsConstructor;
@@ -114,21 +115,12 @@ public class DeviceProvisioningHelper {
     private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
     private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
 
-    public static final Map<EnvironmentStage, String> GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
-            EnvironmentStage.PROD, "greengrass-ats.iot.%s.amazonaws.com:8443/greengrass",
-            EnvironmentStage.GAMMA, "greengrass-ats.gamma.%s.iot.amazonaws.com:8443/greengrass",
-            EnvironmentStage.BETA, "greengrass-ats.beta.%s.iot.amazonaws.com:8443/greengrass"
-    );
     private final Map<EnvironmentStage, String> tesServiceEndpoints = ImmutableMap.of(
             EnvironmentStage.PROD, "credentials.iot.amazonaws.com",
             EnvironmentStage.GAMMA, "credentials.iot.test.amazonaws.com",
             EnvironmentStage.BETA, "credentials.iot.test.amazonaws.com"
     );
-    private static final Map<IotSdkClientFactory.EnvironmentStage, String> STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
-            IotSdkClientFactory.EnvironmentStage.PROD, "evergreen.%s.amazonaws.com",
-            IotSdkClientFactory.EnvironmentStage.GAMMA, "evergreen-gamma.%s.amazonaws.com",
-            IotSdkClientFactory.EnvironmentStage.BETA, "evergreen-beta.%s.amazonaws.com"
-    );
+
     private final PrintStream outStream;
     private final IotClient iotClient;
     private final IamClient iamClient;
@@ -150,11 +142,10 @@ public class DeviceProvisioningHelper {
         this.envStage = StringUtils.isEmpty(environmentStage) ? EnvironmentStage.PROD
                 : EnvironmentStage.fromString(environmentStage);
         this.iotClient = IotSdkClientFactory.getIotClient(awsRegion, envStage);
-        this.iamClient = IamSdkClientFactory.getIamClient();
+        this.iamClient = IamSdkClientFactory.getIamClient(awsRegion);
         this.greengrassClient = AWSEvergreenClientBuilder.standard().withEndpointConfiguration(
                 new AwsClientBuilder.EndpointConfiguration(
-                        String.format(STAGE_TO_ENDPOINT_FORMAT.get(envStage), awsRegion), awsRegion)).build();
-
+                        RegionUtils.getGreengrassControlPlaneEndpoint(awsRegion, this.envStage), awsRegion)).build();
     }
 
     /**
