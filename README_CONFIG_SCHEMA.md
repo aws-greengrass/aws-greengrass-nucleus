@@ -168,6 +168,13 @@ services:
       privateKeyPath: "root/privKey.key"
       rootCaPath: "root/rootCA.pem"
       iotRoleAlias: "tes_alias"
+      logging:
+        level: INFO
+        fileSizeKB: 1024
+        totalLogsSizeKB: 10240
+        format: TEXT
+        outputDirectory: /path/to/logs/directory
+        outputType: FILE
 ```
 
 
