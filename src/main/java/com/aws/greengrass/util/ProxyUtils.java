@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 
 public final class ProxyUtils {
 
@@ -160,24 +161,23 @@ public final class ProxyUtils {
      * @param deviceConfiguration contains user specified system proxy values
      * @return httpProxyOptions containing user proxy settings, if specified. If not, httpProxyOptions is null.
      */
+    @Nullable
     public static HttpProxyOptions getHttpProxyOptions(DeviceConfiguration deviceConfiguration) {
-        HttpProxyOptions httpProxyOptions = null;
-
         String proxyUrl = deviceConfiguration.getProxyUrl();
-        String proxyUsername = getProxyUsername(deviceConfiguration.getProxyUrl(),
-                deviceConfiguration.getProxyUsername());
+        if (Utils.isEmpty(proxyUrl)) {
+            return null;
+        }
 
-        if (Utils.isNotEmpty(proxyUrl)) {
-            httpProxyOptions = new HttpProxyOptions();
-            httpProxyOptions.setHost(ProxyUtils.getHostFromProxyUrl(proxyUrl));
-            httpProxyOptions.setPort(ProxyUtils.getPortFromProxyUrl(proxyUrl));
+        HttpProxyOptions httpProxyOptions = new HttpProxyOptions();
+        httpProxyOptions.setHost(ProxyUtils.getHostFromProxyUrl(proxyUrl));
+        httpProxyOptions.setPort(ProxyUtils.getPortFromProxyUrl(proxyUrl));
 
-            if (Utils.isNotEmpty(proxyUsername)) {
-                httpProxyOptions.setAuthorizationType(HttpProxyOptions.HttpProxyAuthorizationType.Basic);
-                httpProxyOptions.setAuthorizationUsername(proxyUsername);
-                httpProxyOptions.setAuthorizationPassword(getProxyPassword(deviceConfiguration.getProxyUrl(),
-                        deviceConfiguration.getProxyPassword()));
-            }
+        String proxyUsername = getProxyUsername(proxyUrl, deviceConfiguration.getProxyUsername());
+        if (Utils.isNotEmpty(proxyUsername)) {
+            httpProxyOptions.setAuthorizationType(HttpProxyOptions.HttpProxyAuthorizationType.Basic);
+            httpProxyOptions.setAuthorizationUsername(proxyUsername);
+            httpProxyOptions
+                    .setAuthorizationPassword(getProxyPassword(proxyUrl, deviceConfiguration.getProxyPassword()));
         }
 
         return httpProxyOptions;

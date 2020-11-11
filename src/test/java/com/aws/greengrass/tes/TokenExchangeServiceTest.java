@@ -47,6 +47,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.GGC_VERSION_ENV;
 import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.greengrass.deployment.DeviceConfiguration.NUCLEUS_CONFIG_LOGGING_TOPICS;
 import static com.aws.greengrass.deployment.DeviceConfiguration.SYSTEM_NAMESPACE_KEY;
@@ -110,6 +111,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         Topic deploymentPollingFrequency = Topic.of(context, SERVICE_TYPE_TOPIC_KEY, 15L);
         Topic mainDependenciesTopic = Topic.of(context, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC,
                 DEFAULT_NUCLEUS_COMPONENT_NAME);
+        Topic thingNameEnv = Topic.of(context, AWS_IOT_THING_NAME_ENV, "abc");
+        Topic ggcVersionVnv = Topic.of(context, GGC_VERSION_ENV, "0.0.0");
         Topics root = mock(Topics.class);
         when(root.findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
                 SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)).thenReturn(new ArrayList<String>());
@@ -128,7 +131,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(configuration.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME)).thenReturn(thingName);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))
                 .thenReturn(mainDependenciesTopic);
-        when(configuration.lookup(SETENV_CONFIG_NAMESPACE, AWS_IOT_THING_NAME_ENV)).thenReturn(thingName);
+        when(configuration.lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV)).thenReturn(ggcVersionVnv);
+        when(configuration.lookup(SETENV_CONFIG_NAMESPACE, AWS_IOT_THING_NAME_ENV)).thenReturn(thingNameEnv);
     }
 
     @AfterEach
