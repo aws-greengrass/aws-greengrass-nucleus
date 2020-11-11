@@ -4,12 +4,10 @@ ComponentName: aws.greengrass.Nucleus
 ComponentType: aws.greengrass.nucleus
 ComponentDescription: Core functionality for device side orchestration of deployments and lifecycle management for execution of Greengrass components and applications.
 ComponentPublisher: AWS
-ComponentVersion: '0.0.0'
+ComponentVersion: '1.0.0'
 ComponentConfiguration:
   DefaultConfiguration:
     jvmOptions: -Xms512m -Xmx512m
-    # TODO : Remove the ones without default, need to know how to declare a config
-    #   without default but required
     iotDataEndpoint: ""
     iotCredEndpoint: ""
     privateKeyPath: ""

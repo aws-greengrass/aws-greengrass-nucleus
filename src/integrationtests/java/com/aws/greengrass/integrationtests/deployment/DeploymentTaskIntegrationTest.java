@@ -9,6 +9,7 @@ import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
@@ -22,7 +23,6 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
-import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -32,6 +32,7 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
@@ -96,18 +97,20 @@ import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMP
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
-import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
+import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.io.FileMatchers.anExistingDirectory;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -118,6 +121,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@SuppressWarnings("PMD.ExcessiveClassLength") // This test is essential and verified many details. Could be breakdown.
 class DeploymentTaskIntegrationTest {
 
     private static final String TEST_CUSTOMER_APP_STRING = "Hello Greengrass. This is a test";
@@ -181,7 +185,9 @@ class DeploymentTaskIntegrationTest {
 
     @BeforeEach
     void beforeEach(ExtensionContext context) throws Exception {
+        // This test suite will not be able to call cloud as it uses all local resources
         ignoreExceptionOfType(context, PackageDownloadException.class);
+        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
 
         deploymentServiceTopics = Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null);
         groupToRootComponentsTopics =
@@ -552,6 +558,83 @@ class DeploymentTaskIntegrationTest {
 
     @Test
     @Order(2)
+    void GIVEN_initial_deployment_with_config_update_WHEN_submitted_to_deployment_task_THEN_configs_updates_on_default()
+            throws Exception {
+
+        // Two things are verified in this test
+        // 1. The component's configurations are updated correctly in the kernel's config store
+        // 2. The interpolation is correct by taking the newly updated configuration, that is consistent
+
+        // Set up stdout listener to capture stdout for verify #2 interpolation
+        List<String> stdouts = new CopyOnWriteArrayList<>();
+        Consumer<GreengrassLogMessage> listener = m -> {
+            Map<String, String> contexts = m.getContexts();
+            String messageOnStdout = contexts.get("stdout");
+            if (messageOnStdout != null && messageOnStdout.contains("aws.iot.gg.test.integ.ComponentConfigTestService output")) {
+                stdouts.add(messageOnStdout);
+                countDownLatch.countDown(); // countdown when received output to verify
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+        try {
+
+            /*
+             * Initial deployment with configuration update
+             */
+            countDownLatch = new CountDownLatch(1);
+            Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class
+                            .getResource("ComponentConfigTest_InitialDocumentWithUpdate.json").toURI(),
+                    System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
+
+            // verify config in config store and interpolation result
+            Map<String, Object> resultConfig =
+                    kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                            .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+
+            assertThat(resultConfig, IsMapWithSize.aMapWithSize(9));
+
+            // verify updated values, as specified from ComponentConfigTest_InitialDocumentWithUpdate.json
+            assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
+            assertThat(resultConfig, IsMapContaining.hasEntry("newSingleLevelKey", "value of newSingleLevelKey"));
+
+            // verify default values from the aws.iot.gg.test.integ.ComponentConfigTestService-1.0.0.yaml recipe file
+            assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
+            assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
+            assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", null));
+            assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", "I will be set to null soon"));
+
+            assertThat(resultConfig, IsMapContaining.hasKey("path"));
+            assertThat((Map<String, String>) resultConfig.get("path"),
+                       IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
+
+            // verify interpolation result
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            String stdout = stdouts.get(0);
+
+            // verify updated value, as specified from ComponentConfigTest_InitialDocumentWithUpdate.json
+            assertThat(stdout, containsString("Value for /singleLevelKey: updated value of singleLevelKey."));
+            assertThat(stdout, containsString("Value for /newSingleLevelKey: value of newSingleLevelKey."));
+
+            // verify default values from the aws.iot.gg.test.integ.ComponentConfigTestService-1.0.0.yaml recipe file
+            assertThat(stdout, containsString("Value for /path/leafKey: default value of /path/leafKey."));
+            assertThat(stdout, containsString("Value for /path: {\"leafKey\":\"default value of /path/leafKey\"}"));
+
+            assertThat(stdout, containsString("Value for /listKey/0: item1."));
+            assertThat(stdout, containsString("Value for /defaultIsNullKey: null"));
+            assertThat(stdout, containsString("Value for /emptyStringKey: ."));
+            stdouts.clear();
+
+        } finally {
+            Slf4jLogAdapter.removeGlobalListener(listener);
+        }
+    }
+
+    @Test
+    @Order(2)
     void GIVEN_a_deployment_with_dependency_has_config_WHEN_submitted_THEN_dependency_configs_are_interpolated()
             throws Exception {
         // Set up stdout listener to capture stdout for verify #2 interpolation
@@ -771,7 +854,7 @@ class DeploymentTaskIntegrationTest {
         /*
          * 2nd deployment. Change user
          */
-        countDownLatch = new CountDownLatch(2);
+        countDownLatch = new CountDownLatch(3);
 
         // update component to runas the user running the test
         String doc = Utils.inputStreamToString(DeploymentTaskIntegrationTest.class.getResource(
@@ -790,7 +873,32 @@ class DeploymentTaskIntegrationTest {
 
             countDownLatch.await(10, TimeUnit.SECONDS);
             assertThat(stdouts, hasItem(containsString("stopping app with user nobody")));
+            assertThat(stdouts, hasItem(containsString("installing app with user root")));
             assertThat(stdouts, hasItem(containsString(String.format("starting app with user %s", currentUser))));
+        }
+
+
+        /*
+         * 3rd deployment. Set posixUser to null and use default
+         */
+        countDownLatch = new CountDownLatch(3);
+
+        // update component to runas the user running the test
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentRemovingUser.json").toURI(),
+                    System.currentTimeMillis());
+            resultFuture.get(10, TimeUnit.SECONDS);
+            String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
+                    .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
+
+            assertThat(user, is(nullValue()));
+
+            // "nobody" is the default user
+            countDownLatch.await(10, TimeUnit.SECONDS);
+            assertThat(stdouts, hasItem(containsString(String.format("stopping app with user %s", currentUser))));
+            assertThat(stdouts, hasItem(containsString("installing app with user root")));
+            assertThat(stdouts, hasItem(containsString("starting app with user nobody")));
         }
     }
 
@@ -898,8 +1006,49 @@ class DeploymentTaskIntegrationTest {
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
     }
 
+    /**
+     * This test verifies that if a deployment has a broken service and then a new deployment comes which removes
+     * that one, but fails for a different reason and rolls back, then it is able to roll back successfully.
+     */
     @Test
     @Order(8)
+    void GIVEN_broken_service_WHEN_new_service_breaks_failure_handling_policy_rollback_THEN_services_are_rolled_back(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
+
+        // Deploy a broken config with no rollback
+        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("FailureDoNothingDeployment.json").toURI(),
+                System.currentTimeMillis());
+        resultFuture.get(60, TimeUnit.SECONDS);
+        List<String> services = kernel.orderedDependencies()
+                .stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName)
+                .collect(Collectors.toList());
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "BreakingService",
+                "RedSignal", "GreenSignal", "Mosquitto"));
+
+        // Deploy a new broken config (using a different service) which does rollback
+        preloadLocalStoreContent();
+        resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("Failure2RollbackDeployment.json").toURI(),
+                System.currentTimeMillis());
+        DeploymentResult result = resultFuture.get(60, TimeUnit.SECONDS);
+        services = kernel.orderedDependencies()
+                .stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName)
+                .collect(Collectors.toList());
+
+        // Make sure that it rolls back to the previous state
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "BreakingService",
+                "RedSignal", "GreenSignal", "Mosquitto"));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
+    }
+
+    @Test
+    @Order(99)
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     void GIVEN_deployment_in_progress_WHEN_deployment_task_is_cancelled_THEN_stop_processing() throws Exception {
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
@@ -947,7 +1096,7 @@ class DeploymentTaskIntegrationTest {
         List<String> services = kernel.orderedDependencies()
                 .stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(greengrassService -> greengrassService.getName())
+                .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
         // should contain main, Nucleus, NonDisruptableService 1.0.0
@@ -976,7 +1125,7 @@ class DeploymentTaskIntegrationTest {
             assertTrue(cdlMergeCancelled.await(30, TimeUnit.SECONDS));
 
             services = kernel.orderedDependencies().stream().filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                    .map(greengrassService -> greengrassService.getName()).collect(Collectors.toList());
+                    .map(GreengrassService::getName).collect(Collectors.toList());
 
             // should contain main, Nucleus, NonDisruptableService 1.0.0
             assertEquals(3, services.size());
@@ -989,7 +1138,7 @@ class DeploymentTaskIntegrationTest {
     }
 
     @Test
-    @Order(9)
+    @Order(100)
     void GIVEN_services_running_WHEN_new_deployment_asks_to_skip_safety_check_THEN_deployment_is_successful() throws Exception {
         // The previous test has NonDisruptableService 1.0.0 running in kernel that always returns false when its
         // safety check script is run, this test demonstrates that when a next deployment configured to skip safety
@@ -1002,7 +1151,7 @@ class DeploymentTaskIntegrationTest {
         List<String> services = kernel.orderedDependencies()
                 .stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(greengrassService -> greengrassService.getName())
+                .map(GreengrassService::getName)
                 .collect(Collectors.toList());
 
         // should contain main, Nucleus, NonDisruptableService 1.0.1

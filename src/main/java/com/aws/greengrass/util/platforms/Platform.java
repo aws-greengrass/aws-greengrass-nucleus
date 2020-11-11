@@ -11,6 +11,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.FileSystemPermission.Option;
+import com.aws.greengrass.util.platforms.unix.DarwinPlatform;
 import com.aws.greengrass.util.platforms.unix.QNXPlatform;
 import com.aws.greengrass.util.platforms.unix.UnixPlatform;
 
@@ -18,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Set;
 
 public abstract class Platform implements UserPlatform {
     public static final Logger logger = LogManager.getLogger(Platform.class);
@@ -37,6 +39,9 @@ public abstract class Platform implements UserPlatform {
             INSTANCE = new WindowsPlatform();
         } else if (PlatformResolver.RANKS.get().containsKey("qnx")) {
             INSTANCE = new QNXPlatform();
+        } else if (PlatformResolver.RANKS.get().containsKey("macos") || PlatformResolver.RANKS.get()
+                .containsKey("darwin")) {
+            INSTANCE = new DarwinPlatform();
         } else {
             INSTANCE = new UnixPlatform();
         }
@@ -44,7 +49,8 @@ public abstract class Platform implements UserPlatform {
         return INSTANCE;
     }
 
-    public abstract void killProcessAndChildren(Process process, boolean force, UserDecorator userDecorator)
+    public abstract Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
+                                                        UserDecorator decorator)
             throws IOException, InterruptedException;
 
     public abstract ShellDecorator getShellDecorator();
@@ -58,6 +64,12 @@ public abstract class Platform implements UserPlatform {
     public abstract String getPrivilegedUser();
 
     public abstract RunWithGenerator getRunWithGenerator();
+
+    public abstract void createUser(String user) throws IOException;
+
+    public abstract void createGroup(String group) throws IOException;
+
+    public abstract void addUserToGroup(String user, String group) throws IOException;
 
     /**
      * Set permissions on a path.

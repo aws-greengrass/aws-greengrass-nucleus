@@ -48,6 +48,25 @@ public class Topic extends Node {
     }
 
     /**
+     * Subscribe to a topic and invoke the subscriber right away on the same thread for a new subscriber.
+     * <p>
+     * This is the preferred way to get a value from a configuration. Instead of {@code setValue(configValue.getOnce())}
+     * use {@code configValue.get((nv,ov)->setValue(nv)) }
+     * This way, every change to the config file will get forwarded to the object.
+     *</p>
+     *
+     * @param c subscribe change to this node or subNode
+     * @return this topic
+     */
+    public Topic subscribeGeneric(ChildChanged c) {
+        if (addWatcher(c)) {
+            // invoke the new subscriber right away
+            c.childChanged(WhatHappened.initialized, this);
+        }
+        return this;
+    }
+
+    /**
      * Add a validator to the topic and immediately validate the current value.
      *
      * @param validator validator
@@ -221,6 +240,9 @@ public class Topic extends Node {
         for (Watcher s : watchers) {
             if (s instanceof Subscriber) {
                 ((Subscriber) s).published(what, this);
+            }
+            if (s instanceof ChildChanged) {
+                ((ChildChanged) s).childChanged(what, this);
             }
         }
 

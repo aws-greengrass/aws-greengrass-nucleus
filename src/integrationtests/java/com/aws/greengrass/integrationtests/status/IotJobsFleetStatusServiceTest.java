@@ -8,11 +8,13 @@ package com.aws.greengrass.integrationtests.status;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.IotJobsClientWrapper;
 import com.aws.greengrass.deployment.IotJobsHelper;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -94,6 +96,8 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     private MqttClient mqttClient;
     @Mock
     private IotJobsClient mockIotJobsClient;
+    @Mock
+    private IotJobsClientWrapper mockIotJobsClientWrapper;
     @Captor
     private ArgumentCaptor<PublishRequest> captor;
 
@@ -105,6 +109,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             InterruptedException {
         ignoreExceptionOfType(context, TLSAuthException.class);
         ignoreExceptionOfType(context, PackageDownloadException.class);
+        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
 
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
@@ -119,11 +124,16 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             jobResponseConsumer.accept(mockJobExecutionResponse);
             return cf;
         });
+        when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
+                any(QualityOfService.class))).thenAnswer(invocationOnMock -> {
+            verify(mockIotJobsClientWrapper, atLeastOnce()).SubscribeToUpdateJobExecutionAccepted(any(),
+                    eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
+            return cf;
+        });
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
         kernel.parseArgs("-i", IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml").toString());
         kernel.getContext().put(MqttClient.class, mqttClient);
-        kernel.getContext().put(IotJobsClient.class, mockIotJobsClient);
 
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)
@@ -136,6 +146,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
                 deploymentService = (DeploymentService) service;
                 IotJobsHelper iotJobsHelper = deploymentService.getContext().get(IotJobsHelper.class);
                 iotJobsHelper.setIotJobsClient(mockIotJobsClient);
+                iotJobsHelper.setIotJobsClientWrapper(mockIotJobsClientWrapper);
             }
             componentNamesToCheck.add(service.getName());
         });
@@ -159,7 +170,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_jobs_deployment_WHEN_deployment_finishes_THEN_status_is_uploaded_to_cloud() throws Exception {
+    void GIVEN_jobs_deployment_WHEN_deployment_finishes_THEN_status_is_uploaded_to_cloud(ExtensionContext context) throws Exception {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
