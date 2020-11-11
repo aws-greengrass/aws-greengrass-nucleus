@@ -37,8 +37,6 @@ public final class IotSdkClientFactory {
             Arrays.asList(ThrottlingException.class, InternalException.class, InternalFailureException.class,
                     LimitExceededException.class));
 
-    private static final String IOT_CONTROL_PLANE_ENDPOINT_FORMAT = "https://%s.%s.iot.amazonaws.com";
-
     private IotSdkClientFactory() {
     }
 
@@ -131,7 +129,7 @@ public final class IotSdkClientFactory {
         }
 
         if (stage != EnvironmentStage.PROD) {
-            String endpoint = String.format(IOT_CONTROL_PLANE_ENDPOINT_FORMAT, stage.value, awsRegion);
+            String endpoint = RegionUtils.getIotCoreControlPlaneEndpoint(awsRegion, stage);
             iotClientBuilder.endpointOverride(new URI(endpoint));
         }
 
