@@ -128,6 +128,7 @@ class LogManagerHelperTest {
         NucleusPaths nucleusPaths = mock(NucleusPaths.class);
         Topics rootConfigTopics = mock(Topics.class);
         when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString())).thenReturn(new ArrayList<>());
+        when(configuration.lookup(anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.getRoot()).thenReturn(rootConfigTopics);
@@ -167,6 +168,7 @@ class LogManagerHelperTest {
         NucleusPaths nucleusPaths = mock(NucleusPaths.class);
         Topics rootConfigTopics = mock(Topics.class);
         when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString())).thenReturn(new ArrayList<>());
+        when(configuration.lookup(anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.getRoot()).thenReturn(rootConfigTopics);

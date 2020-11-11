@@ -54,7 +54,6 @@ import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE
 public class DeviceConfiguration {
 
     public static final String DEFAULT_NUCLEUS_COMPONENT_NAME = "aws.greengrass.Nucleus";
-    // TODO: [P41179224] Version should come from the installer based on which nucleus version it installed
 
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
     public static final String DEVICE_PARAM_IOT_DATA_ENDPOINT = "iotDataEndpoint";
@@ -92,6 +91,7 @@ public class DeviceConfiguration {
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
     public static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
+    public static final String GGC_VERSION_ENV = "GGC_VERSION";
 
     private final Kernel kernel;
 
@@ -117,6 +117,9 @@ public class DeviceConfiguration {
 
         getComponentStoreMaxSizeBytes().dflt(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         getDeploymentPollingFrequencySeconds().dflt(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
+
+        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV)
+                .withValue(KernelVersion.KERNEL_VERSION);
     }
 
     /**
