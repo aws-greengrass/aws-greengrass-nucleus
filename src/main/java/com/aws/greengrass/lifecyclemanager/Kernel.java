@@ -36,6 +36,7 @@ import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.ProxyUtils;
+import com.aws.greengrass.util.RegionUtils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -71,7 +72,6 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
-import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -555,7 +555,7 @@ public class Kernel {
         }
 
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
-        String endpoint = String.format(GREENGRASS_SERVICE_STAGE_TO_ENDPOINT_FORMAT.get(stage), region);
+        String endpoint = RegionUtils.getGreengrassDataPlaneEndpoint(region, stage);
         logger.atInfo().log("Configured to use Greengrass endpoint: {}", endpoint);
         context.put(CONTEXT_COMPONENT_SERVICE_ENDPOINT, endpoint);
     }
