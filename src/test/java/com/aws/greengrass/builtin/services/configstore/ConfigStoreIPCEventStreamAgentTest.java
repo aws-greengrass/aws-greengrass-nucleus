@@ -239,7 +239,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         UpdateConfigurationRequest request = new UpdateConfigurationRequest();
-        request.setKeyPath(Collections.singletonList(TEST_CONFIG_KEY_2));
+        request.setKeyPath(Collections.EMPTY_LIST);
         request.setValueToMerge(Collections.singletonMap(TEST_CONFIG_KEY_2, 30));
         request.setTimestamp(Instant.now());
         UpdateConfigurationResponse response = agent.getUpdateConfigurationHandler(mockContext).handleRequest(request);
@@ -254,7 +254,6 @@ class ConfigStoreIPCEventStreamAgentTest {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         UpdateConfigurationRequest request = new UpdateConfigurationRequest();
-        request.setKeyPath(Collections.singletonList("NewKey"));
         request.setValueToMerge(Collections.singletonMap("NewKey", "SomeValue"));
         request.setTimestamp(Instant.now());
         UpdateConfigurationResponse response = agent.getUpdateConfigurationHandler(mockContext).handleRequest(request);
@@ -292,8 +291,7 @@ class ConfigStoreIPCEventStreamAgentTest {
 
         UpdateConfigurationRequest request = new UpdateConfigurationRequest();
         request.setKeyPath(Arrays.asList("SomeContainerKey"));
-        request.setValueToMerge(Collections.singletonMap("SomeContainerKey", Collections.singletonMap("SomeLeafKey",
-                "SomeOtherValue")));
+        request.setValueToMerge(Collections.singletonMap("SomeLeafKey", "SomeOtherValue"));
         request.setTimestamp(Instant.now());
         agent.getUpdateConfigurationHandler(mockContext).handleRequest(request);
         Topics updateTopics = componentAConfiguration.findTopics(PARAMETERS_CONFIG_KEY, "SomeContainerKey");
@@ -310,7 +308,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
 
         UpdateConfigurationRequest request = new UpdateConfigurationRequest();
-        request.setKeyPath(Arrays.asList("SomeContainerKey", "SomeLeafKey"));
+        request.setKeyPath(Arrays.asList("SomeContainerKey"));
         request.setValueToMerge(Collections.singletonMap("SomeLeafKey", Collections.singletonMap("newKey",
                 "SomeOtherValue")));
         request.setTimestamp(Instant.now());
@@ -333,7 +331,6 @@ class ConfigStoreIPCEventStreamAgentTest {
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
 
         UpdateConfigurationRequest request = new UpdateConfigurationRequest();
-        request.setKeyPath(Arrays.asList("SomeContainerKey"));
         request.setValueToMerge(Collections.singletonMap("SomeContainerKey", "SomeOtherValue"));
         request.setTimestamp(Instant.now());
         agent.getUpdateConfigurationHandler(mockContext).handleRequest(request);

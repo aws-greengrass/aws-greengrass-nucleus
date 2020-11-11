@@ -10,7 +10,6 @@ import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.config.UnsupportedInputTypeException;
 import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.config.Watcher;
 import com.aws.greengrass.config.WhatHappened;
@@ -259,62 +258,36 @@ public class ConfigStoreIPCEventStreamAgent {
                 logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC config update request");
                 validateRequest(request);
 
-                String[] keyPath = request.getKeyPath().toArray(new String[0]);
-                // The top level key is expected to be same as keyPath[keyPath.length - 1]
-                Object value = request.getValueToMerge().get(keyPath[keyPath.length - 1]);
-                if (value == null) {
-                    throw new InvalidArgumentsError("Top level key in valueToMerge map should match "
-                            + "the last node in keypath ( " + keyPath[keyPath.length - 1] + " )");
+                String[] keyPath = new String[0];
+                // Keypath is expected to denote the container node
+                if (request.getKeyPath() != null) {
+                    keyPath = request.getKeyPath().toArray(new String[0]);
                 }
+
+                Object value = request.getValueToMerge();
+
                 Topics serviceTopics = kernel.findServiceTopic(serviceName);
                 Topics configTopics = serviceTopics.lookupTopics(CONFIGURATION_CONFIG_KEY);
                 Node node = configTopics.findNode(keyPath);
-                if (node == null) {
-                    if (value instanceof Map) {
-                        configTopics.lookupTopics(keyPath).updateFromMap((Map)value,
-                                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
-                                request.getTimestamp().toEpochMilli()));
-                    } else {
-                        try {
-                            configTopics.lookup(keyPath)
-                                    .withValueChecked(request.getTimestamp().toEpochMilli(), value);
-                        } catch (UnsupportedInputTypeException e) {
-                            throw new InvalidArgumentsError(e.getMessage());
-                        }
-                    }
-                } else if (node instanceof Topic) {
-                    if (value instanceof Map) {
-                        Topic topic = (Topic)node;
-                        try {
-                            topic.parent.updateFromMap(Collections.singletonMap(topic.getName(), value),
-                                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
-                                            request.getTimestamp().toEpochMilli()));
-                        } catch (IllegalArgumentException e) {
-                            throw new InvalidArgumentsError(e.getMessage());
-                        }
-                    } else {
-                        try {
-                            configTopics.lookup(keyPath).withValueChecked(request.getTimestamp().toEpochMilli(), value);
 
-                        } catch (UnsupportedInputTypeException e) {
-                            throw new InvalidArgumentsError(e.getMessage());
-                        }
+                if (node == null) {
+                    configTopics.lookupTopics(keyPath)
+                            .updateFromMap((Map) value, new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                                    request.getTimestamp().toEpochMilli()));
+                } else if (node instanceof Topic) {
+                    Topic topic = (Topic)node;
+                    try {
+                        topic.parent.updateFromMap(Collections.singletonMap(topic.getName(), value),
+                                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                                        request.getTimestamp().toEpochMilli()));
+                    } catch (IllegalArgumentException e) {
+                        throw new InvalidArgumentsError(e.getMessage());
                     }
                 } else {
                     Topics topics = (Topics)node;
-                    if (value instanceof Map) {
-                        topics.updateFromMap((Map)value,
-                                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, request
-                                .getTimestamp().toEpochMilli()));
-                    } else {
-                        try {
-                            topics.parent.updateFromMap(Collections.singletonMap(topics.getName(), value),
-                                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, request
-                                    .getTimestamp().toEpochMilli()));
-                        } catch (IllegalArgumentException e) {
-                            throw new InvalidArgumentsError(e.getMessage());
-                        }
-                    }
+                    topics.updateFromMap((Map)value,
+                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, request
+                            .getTimestamp().toEpochMilli()));
                 }
                 Node updatedNode = configTopics.findNode(keyPath);
                 if (request.getTimestamp().toEpochMilli() < updatedNode.getModtime()) {
@@ -331,9 +304,6 @@ public class ConfigStoreIPCEventStreamAgent {
         }
 
         private void validateRequest(UpdateConfigurationRequest request) {
-            if (Utils.isEmpty(request.getKeyPath())) {
-                throw new InvalidArgumentsError("Keypath is required");
-            }
             if (request.getTimestamp() == null) {
                 throw new InvalidArgumentsError("Timestamp is required");
             }
@@ -346,7 +316,10 @@ public class ConfigStoreIPCEventStreamAgent {
                 throw new InvalidArgumentsError("Component config not found for component " + serviceName);
             }
             Topics configTopics = serviceTopics.lookupTopics(CONFIGURATION_CONFIG_KEY);
-            String[] keyPath = request.getKeyPath().toArray(new String[0]);
+            String[] keyPath = new String[0];
+            if (request.getKeyPath() != null) {
+                keyPath = request.getKeyPath().toArray(new String[0]);
+            }
             Node node = configTopics.findNode(keyPath);
             if (node != null && !(node instanceof Topic) && !(node instanceof Topics)) {
                 logger.atError().kv(SERVICE_NAME, serviceName)
