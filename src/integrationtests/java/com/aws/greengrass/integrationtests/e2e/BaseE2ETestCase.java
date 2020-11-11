@@ -40,6 +40,7 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.RegionUtils;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -66,7 +67,6 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
-import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.File;
 import java.io.IOException;
@@ -97,13 +97,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @ExtendWith(GGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
-    private static final Map<IotSdkClientFactory.EnvironmentStage, String> STAGE_TO_ENDPOINT_FORMAT =
-            ImmutableMap.of(
-            IotSdkClientFactory.EnvironmentStage.PROD, "evergreen.%s.amazonaws.com",
-            IotSdkClientFactory.EnvironmentStage.GAMMA, "evergreen-gamma.%s.amazonaws.com",
-            IotSdkClientFactory.EnvironmentStage.BETA, "evergreen-beta.%s.amazonaws.com"
-    );
-
     protected static final Region GAMMA_REGION = Region.US_EAST_1;
     protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
     protected static final String THING_TARGET_TYPE = "thing";
@@ -170,10 +163,10 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static final AWSEvergreen greengrassClient = AWSEvergreenClientBuilder.standard()
                                                                              .withEndpointConfiguration(
                                                                                      new AwsClientBuilder.EndpointConfiguration(
-                                                                                             String.format(STAGE_TO_ENDPOINT_FORMAT.get(envStage), GAMMA_REGION.toString()),
+                                                                                             RegionUtils.getGreengrassControlPlaneEndpoint(GAMMA_REGION.toString(), envStage),
                                                                                              GAMMA_REGION.toString()))
                                                                              .build();
-    protected static final IamClient iamClient = IamSdkClientFactory.getIamClient();
+    protected static final IamClient iamClient = IamSdkClientFactory.getIamClient(GAMMA_REGION.toString());
     protected static final S3Client s3Client = S3Client.builder().region(GAMMA_REGION).build();
 
     private static final ComponentIdentifier[] componentsWithArtifactsInS3 =
