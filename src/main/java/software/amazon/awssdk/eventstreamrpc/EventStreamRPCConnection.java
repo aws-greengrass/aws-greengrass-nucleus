@@ -194,7 +194,7 @@ public class EventStreamRPCConnection implements AutoCloseable {
      */
     public CompletableFuture<Void> sendPing(Optional<MessageAmendInfo> pingData) {
         final ClientConnection connection = this.connection.get();
-        if (connection != null && connection.isClosed()) {
+        if (connection != null && !connection.isOpen()) {
             if (pingData.isPresent()) {
                 return connection.sendProtocolMessage(pingData.get().getHeaders(), pingData.get().getPayload(),
                         MessageType.Ping, 0);
@@ -213,7 +213,7 @@ public class EventStreamRPCConnection implements AutoCloseable {
      */
     public CompletableFuture<Void> sendPingResponse(Optional<MessageAmendInfo> pingResponseData) {
         final ClientConnection connection = this.connection.get();
-        if (connection != null && connection.isClosed()) {
+        if (connection != null && !connection.isOpen()) {
             if (pingResponseData.isPresent()) {
                 return connection.sendProtocolMessage(pingResponseData.get().getHeaders(), pingResponseData.get().getPayload(),
                         MessageType.Ping, 0);
