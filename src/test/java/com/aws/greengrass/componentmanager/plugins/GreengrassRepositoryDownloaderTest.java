@@ -93,7 +93,7 @@ class GreengrassRepositoryDownloaderTest {
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
         when(connection.getContentLengthLong()).thenReturn(Files.size(mockArtifactPath));
         when(connection.getHeaderField("Content-Disposition")).thenReturn("filename=artifact.txt");
-        assertThat(downloader.getLocalFileNameNoRetry(), is("artifact.txt"));
+        assertThat(downloader.getArtifactFilenameNoRetry(), is("artifact.txt"));
 
         // mock requests to return partial stream
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_PARTIAL);

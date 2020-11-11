@@ -9,13 +9,17 @@ import com.aws.greengrass.componentmanager.exceptions.ArtifactChecksumMismatchEx
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Pair;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -31,6 +35,7 @@ import java.util.Base64;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,6 +50,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith({MockitoExtension.class, GGExtension.class})
 public class ArtifactDownloaderTest {
 
     private static final String LOCAL_FILE_NAME = "artifact.txt";
@@ -65,7 +71,7 @@ public class ArtifactDownloaderTest {
         }
 
         @Override
-        protected String getLocalFileNameNoRetry() throws PackageDownloadException, RetryableException {
+        protected String getArtifactFilenameNoRetry() throws PackageDownloadException, RetryableException {
             return localFileName;
         }
 
@@ -153,7 +159,8 @@ public class ArtifactDownloaderTest {
     }
 
     @Test
-    void GIVEN_read_stream_WHEN_throw_RetryableException_THEN_retry() throws Exception {
+    void GIVEN_read_stream_WHEN_throw_RetryableException_THEN_retry(ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, ArtifactDownloader.RetryableException.class);
         String content = "Sample artifact content";
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
@@ -176,7 +183,8 @@ public class ArtifactDownloaderTest {
     }
 
     @Test
-    void GIVEN_read_from_returned_stream_WHEN_throw_IOException_THEN_retry() throws Exception {
+    void GIVEN_read_from_returned_stream_WHEN_throw_IOException_THEN_retry(ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, IOException.class);
         String content = "Sample artifact content";
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));

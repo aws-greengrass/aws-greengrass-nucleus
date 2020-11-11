@@ -53,7 +53,7 @@ public class S3Downloader extends ArtifactDownloader {
     }
 
     @Override
-    protected String getLocalFileNameNoRetry() {
+    protected String getArtifactFilenameNoRetry() {
         String objectKey = s3ObjectPath.key;
         String[] pathStrings = objectKey.split("/");
         return pathStrings[pathStrings.length - 1];
@@ -69,9 +69,8 @@ public class S3Downloader extends ArtifactDownloader {
             S3Client regionClient = getRegionClientForBucket(bucket);
             GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucket).key(key)
                     .range(String.format(HTTP_RANGE_HEADER_FORMAT, start, end)).build();
-            logger.info("getObjectRequest", getObjectRequest);
-            return new Pair<>(regionClient.getObject(getObjectRequest), () -> {
-            });
+            logger.debug("Getting s3 object request: {}", getObjectRequest.toString());
+            return new Pair<>(regionClient.getObject(getObjectRequest), () -> {});
         } catch (SdkClientException | S3Exception e) {
             String errorMsg = getErrorString("Failed to get artifact object from S3");
             if (e.retryable()) {

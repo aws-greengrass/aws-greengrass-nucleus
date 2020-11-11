@@ -66,7 +66,7 @@ public abstract class ArtifactDownloader {
         try {
             if (artifact.getAlgorithm() == null) {
                 throw new ArtifactChecksumMismatchException(
-                        getErrorString("Algorithm missing in downloading."));
+                        getErrorString("Algorithm missing from artifact."));
             }
             messageDigest = MessageDigest.getInstance(artifact.getAlgorithm());
         } catch (NoSuchAlgorithmException e) {
@@ -74,19 +74,21 @@ public abstract class ArtifactDownloader {
                     getErrorString("Algorithm requested for artifact checksum is not supported"), e);
         }
 
-        Path saveToPath = artifactDir.resolve(getLocalFileName());
+        Path saveToPath = artifactDir.resolve(getArtifactFilename());
         long artifactSize = getDownloadSize();
         long offset = 0;
 
+        // If there are partially downloaded artifact existing on device
         if (Files.exists(saveToPath)) {
             offset = Files.size(saveToPath);
             if (offset > artifactSize) {
-                // shouldn't happen, since corrupted files are deleted every time.
-                logger.atWarn().log("existing file corrupted. Removing and retry download.");
+                // Existing file is corrupted, it's larger than defined in artifact.
+                // Normally shouldn't happen, corrupted files are deleted every time.
+                logger.atError().log("existing file corrupted. Removing and retry download.");
                 Files.deleteIfExists(saveToPath);
                 offset = 0;
             } else {
-                // assume the file is from last download and try to continue download from this point.
+                // Updating checksum digest with the bytes in existing file.
                 try (InputStream existingArtifact = Files.newInputStream(saveToPath)) {
                     byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
                     int readBytes = existingArtifact.read(buffer);
@@ -96,25 +98,27 @@ public abstract class ArtifactDownloader {
                     }
                 }
 
+                // If existing file is same size as defined in artifact, check checksum.
                 if (offset == artifactSize) {
-                    // shouldn't happen, since ComponentManager already had downloadRequired() check.
                     String digest = Base64.getEncoder().encodeToString(messageDigest.digest());
                     if (digest.equals(artifact.getChecksum())) {
                         logger.atDebug().log("Artifacts already downloaded");
                         return saveToPath.toFile();
                     }
 
-                    // shouldn't happen, since corrupted files are deleted every time.
-                    logger.atWarn().log("existing file corrupted. Removing and retry download.");
+                    // Normally shouldn't happen, corrupted files are deleted every time.
+                    logger.atError().log("existing file corrupted. Removing and retry download.");
                     Files.deleteIfExists(saveToPath);
                     offset = 0;
                     messageDigest.reset();
                 } else {
-                    logger.atInfo().log("Existing partially downloaded file has size {}", offset);
+                    logger.atInfo().log("Found existing partially downloaded file with size {},"
+                            + "will continue downloading", offset);
                 }
             }
         }
 
+        // resume downloading from the offset, and append to existing file
         try (OutputStream artifactFile = Files.newOutputStream(saveToPath,
                 StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE)) {
             downloadToFile(artifactFile, offset, artifactSize, messageDigest);
@@ -157,7 +161,7 @@ public abstract class ArtifactDownloader {
                         throw new PackageDownloadException(
                                 getErrorString("Fail to write to file"), e);
                     }
-                    // reset retryInterval
+                    // reset retryInterval if download succeeded
                     retryInteraval = INIT_RETRY_INTERVAL_MILLI;
 
                     readBytes = artifactInputStream.read(buffer);
@@ -216,7 +220,7 @@ public abstract class ArtifactDownloader {
      */
     public boolean downloadRequired() {
         try {
-            String filename = getLocalFileName();
+            String filename = getArtifactFilename();
             return !artifactExistsAndChecksum(artifact, artifactDir.resolve(filename));
         } catch (PackageDownloadException e) {
             logger.atWarn().setCause(e).log();
@@ -232,7 +236,7 @@ public abstract class ArtifactDownloader {
      * @throws PackageDownloadException if error encountered
      */
     public File getArtifactFile() throws PackageDownloadException {
-        return artifactDir.resolve(getLocalFileName()).toFile();
+        return artifactDir.resolve(getArtifactFilename()).toFile();
     }
 
     /**
@@ -243,19 +247,19 @@ public abstract class ArtifactDownloader {
      * @throws PackageDownloadException if error encountered
      */
     public final Long getDownloadSize() throws PackageDownloadException {
-        return runRetry("get-download-size", this::getDownloadSizeNoRetry, MAX_RETRY);
+        return runWithRetry("get-download-size", this::getDownloadSizeNoRetry, MAX_RETRY);
     }
 
     protected abstract Long getDownloadSizeNoRetry() throws PackageDownloadException, RetryableException;
 
-    protected String getLocalFileName() throws PackageDownloadException {
-        return runRetry("get-local-file-name", this::getLocalFileNameNoRetry, MAX_RETRY);
+    protected String getArtifactFilename() throws PackageDownloadException {
+        return runWithRetry("get-artifact-file-name", this::getArtifactFilenameNoRetry, MAX_RETRY);
     }
 
-    protected abstract String getLocalFileNameNoRetry() throws PackageDownloadException, RetryableException;
+    protected abstract String getArtifactFilenameNoRetry() throws PackageDownloadException, RetryableException;
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
-    private <T> T runRetry(String taskDescription, CrashableSupplier<T, Exception> taskToRetry, int maxRetry)
+    private <T> T runWithRetry(String taskDescription, CrashableSupplier<T, Exception> taskToRetry, int maxRetry)
             throws PackageDownloadException {
         int retryInterval = INIT_RETRY_INTERVAL_MILLI;
         int retry = 0;

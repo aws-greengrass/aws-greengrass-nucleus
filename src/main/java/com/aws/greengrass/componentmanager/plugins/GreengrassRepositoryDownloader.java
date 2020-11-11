@@ -29,7 +29,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     private final AWSEvergreen evgCmsClient;
     private Long artifactSize = null;
-    private String localFileName = null;
+    private String artifactFilename = null;
 
     @Inject
     protected GreengrassRepositoryDownloader(GreengrassComponentServiceClientFactory clientFactory,
@@ -39,13 +39,14 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         this.evgCmsClient = clientFactory.getCmsClient();
     }
 
+    // TODO: avoid calling cloud to get artifact file name.
     @Override
-    protected String getLocalFileNameNoRetry() throws PackageDownloadException, RetryableException {
-        if (localFileName != null) {
-            return localFileName;
+    protected String getArtifactFilenameNoRetry() throws PackageDownloadException, RetryableException {
+        if (artifactFilename != null) {
+            return artifactFilename;
         }
         retrieveArtifactInfo();
-        return this.localFileName;
+        return this.artifactFilename;
     }
 
     @Override
@@ -62,6 +63,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             throws PackageDownloadException, RetryableException {
         URL url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
 
+        // establish http connection
         HttpURLConnection httpConn = null;
         int responseCode;
         try {
@@ -75,60 +77,54 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             throw new RetryableException("error establish connect", e);
         }
 
-        if (responseCode == HttpURLConnection.HTTP_PARTIAL) {
-            try {
+        // get http response code
+        try {
+            if (responseCode == HttpURLConnection.HTTP_PARTIAL) {
                 return new Pair<>(httpConn.getInputStream(), httpConn::disconnect);
-            } catch (IOException e) {
-                throw new RetryableException("Unable to get HTTP inputStream", e);
-            }
-        } else if (responseCode == HttpURLConnection.HTTP_OK) {
-            // 200 means http connect returns all contents.
-            InputStream inputStream;
-            try {
-                inputStream = httpConn.getInputStream();
-            } catch (IOException e) {
-                throw new RetryableException("Unable to get HTTP inputStream", e);
-            }
+            } else if (responseCode == HttpURLConnection.HTTP_OK) {
+                // 200 means server doesn't recognize the Range header and returns all contents.
+                // try to discard the offset number of bytes.
+                InputStream inputStream = httpConn.getInputStream();
+                long byteSkipped = inputStream.skip(start);
 
-            // try to discard the offset number of bytes
-            long byteSkipped;
-            try {
-                byteSkipped = inputStream.skip(start);
-            } catch (IOException e) {
+                // If number of bytes skipped is less than declared, throw error.
+                if (byteSkipped != start) {
+                    httpConn.disconnect();
+                    throw new RetryableException("Unable to get partial content");
+                }
+                return new Pair<>(inputStream, httpConn::disconnect);
+            } else if (responseCode == HttpURLConnection.HTTP_CLIENT_TIMEOUT) {
                 httpConn.disconnect();
-                throw new RetryableException("Unable to get partial content", e);
-            }
-            // it's possible that the number of bytes skipped is less than declared.
-            if (byteSkipped != start) {
+                throw new RetryableException("HTTP Error: " + responseCode);
+            } else {
                 httpConn.disconnect();
-                throw new RetryableException("Unable to get partial content");
+                throw new PackageDownloadException("Unable to download greengrass artifact. HTTP Error: "
+                        + responseCode);
             }
-            return new Pair<>(inputStream, httpConn::disconnect);
-        } else if (responseCode == HttpURLConnection.HTTP_CLIENT_TIMEOUT) {
+        } catch (IOException ioException) {
             httpConn.disconnect();
-            throw new RetryableException("HTTP Error: " + responseCode);
-        } else {
-            httpConn.disconnect();
-            throw new PackageDownloadException("Unable to download greengrass artifact. HTTP Error: " + responseCode);
+            throw new RetryableException("Unable to get http input stream", ioException);
         }
     }
 
+    // TODO: remove this overriding function once GGRepositoryDownloader doesn't need to call cloud to get
+    // artifact file name.
     @Override
     public File getArtifactFile() {
         // GG_NEEDS_REVIEW: TODO : In the download from cloud step we rely on the content-disposition header to get the
         //  file name and that's the accurate name, but here we're only using the scheme specific part
         //  of the URI when we don't find the file in cloud, we need to follow up on what is the
         //  right way to get file name
-        if (localFileName != null) {
-            return artifactDir.resolve(localFileName).toFile();
+        if (artifactFilename != null) {
+            return artifactDir.resolve(artifactFilename).toFile();
         }
         try {
-            return artifactDir.resolve(getLocalFileNameNoRetry()).toFile();
+            return artifactDir.resolve(getArtifactFilenameNoRetry()).toFile();
         } catch (PackageDownloadException e) {
             logger.atWarn().log("Error in getting file name from HTTP response,"
                     + " getting local file name from URI scheme specific part", e);
-            localFileName = artifact.getArtifactUri().getSchemeSpecificPart();
-            return artifactDir.resolve(localFileName).toFile();
+            artifactFilename = artifact.getArtifactUri().getSchemeSpecificPart();
+            return artifactDir.resolve(artifactFilename).toFile();
         } catch (RetryableException e) {
             logger.atWarn().log("Error in getting file name from HTTP response: {},"
                     + " getting local file name from URI scheme specific part", e.getMessage());
@@ -136,11 +132,13 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         }
     }
 
+    // TODO: remove this overriding function once GGRepositoryDownloader doesn't need to call cloud to get
+    // artifact file name.
     @Override
     public boolean downloadRequired() {
         try {
-            // Override parent's behavior of checking local file from getLocalFileName()
-            // Since in GreengrassRepositoryDownloader, getLocalFileName() requires calling cloud and may
+            // Override parent's behavior of checking local file from getArtifactFileName()
+            // In GreengrassRepositoryDownloader, getArtifactFileName() requires calling cloud and may
             // throw exception.
             File localFile = getArtifactFile();
             return !artifactExistsAndChecksum(artifact, localFile.toPath());
@@ -150,7 +148,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     }
 
     private void retrieveArtifactInfo() throws RetryableException, PackageDownloadException {
-        if (artifactSize != null && localFileName != null) {
+        if (artifactSize != null && artifactFilename != null) {
             return;
         }
         URL url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
@@ -167,7 +165,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                 // GG_NEEDS_REVIEW: TODO can we simplify getting filename without network request
                 String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
                 this.artifactSize = length;
-                this.localFileName = extractFilename(url, disposition);
+                this.artifactFilename = extractFilename(url, disposition);
             } else {
                 throw new PackageDownloadException("Failed to check greengrass artifact. HTTP response: "
                         + responseCode);
