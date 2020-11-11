@@ -20,10 +20,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.util.Optional;
 
-import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_GROUP;
 import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL;
 import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_GROUP_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -61,10 +59,8 @@ public class UnixRunWithGeneratorTest {
 
     @Test
     public void GIVEN_component_run_with_uid_gid_WHEN_generate_THEN_use_component() {
-        doReturn(Topic.of(context, POSIX_USER_KEY, "123"))
+        doReturn(Topic.of(context, POSIX_USER_KEY, "123:456"))
                 .when(config).find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY);
-        doReturn(Topic.of(context, POSIX_GROUP_KEY, "456"))
-                .when(config).find(RUN_WITH_NAMESPACE_TOPIC, POSIX_GROUP_KEY);
         Optional<RunWith> result = generator.generate(deviceConfig, config);
         assertThat("RunWith must be generated", result.isPresent(), is(true));
         assertThat("user", result.get().getUser(), is("123"));
@@ -74,10 +70,8 @@ public class UnixRunWithGeneratorTest {
 
     @Test
     public void GIVEN_component_run_with_user_group_WHEN_generate_THEN_use_component() {
-        doReturn(Topic.of(context, POSIX_USER_KEY, "foo"))
+        doReturn(Topic.of(context, POSIX_USER_KEY, "foo:bar"))
                 .when(config).find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY);
-        doReturn(Topic.of(context, POSIX_GROUP_KEY, "bar"))
-                .when(config).find(RUN_WITH_NAMESPACE_TOPIC, POSIX_GROUP_KEY);
         Optional<RunWith> result = generator.generate(deviceConfig, config);
         assertThat("RunWith must be generated", result.isPresent(), is(true));
         assertThat("user", result.get().getUser(), is("foo"));
@@ -130,10 +124,8 @@ public class UnixRunWithGeneratorTest {
 
     @Test
     public void GIVEN_default_run_with_user_group_WHEN_generate_THEN_use_default() throws IOException {
-        doReturn(Topic.of(context, RUN_WITH_DEFAULT_POSIX_USER, "foo"))
+        doReturn(Topic.of(context, RUN_WITH_DEFAULT_POSIX_USER, "foo:bar"))
                 .when(deviceConfig).getRunWithDefaultPosixUser();
-        doReturn(Topic.of(context, RUN_WITH_DEFAULT_POSIX_GROUP, "bar"))
-                .when(deviceConfig).getRunWithDefaultPosixGroup();
         doReturn(Topic.of(context,  RUN_WITH_DEFAULT_POSIX_SHELL, "/foo/bar"))
                 .when(deviceConfig).getRunWithDefaultPosixShell();
 
