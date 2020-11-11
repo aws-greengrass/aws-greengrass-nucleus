@@ -35,6 +35,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     private final Path tlogOutputPath;
     private final Configuration conf;
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicBoolean truncateQueued = new AtomicBoolean();
     private final AtomicLong count = new AtomicLong(0);  // entries written so far
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need for flush immediately to be sync")
     private boolean flushImmediately;
@@ -170,9 +171,11 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
             flush(out);
         }
         long currCount = count.incrementAndGet();
-        if (autoTruncate && currCount > maxCount && currCount > retryCount) {
+        if (autoTruncate && currCount > maxCount && currCount > retryCount
+                && truncateQueued.compareAndSet(false, true)) {
             // childChanged runs on publish thread already. can only queue a task without blocking
             context.runOnPublishQueue(this::truncateTlog);
+            logger.atDebug(TRUNCATE_TLOG_EVENT).log("queued");
         }
     }
 
@@ -197,6 +200,8 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
      * Discard current tlog. Start a new tlog with the current kernel configs.
      */
     private synchronized void truncateTlog() {
+        logger.atDebug(TRUNCATE_TLOG_EVENT).log("started");
+        truncateQueued.set(false);
         Path oldTlogPath = tlogOutputPath.resolveSibling(tlogOutputPath.getFileName() + ".old");
         // close existing writer
         flush(out);
@@ -217,7 +222,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
                 return;
             }
             setTruncateRetryCount();
-            logger.atWarn(TRUNCATE_TLOG_EVENT, e).log("recovered and will retry later");
+            logger.atWarn(TRUNCATE_TLOG_EVENT).log("recovered and will retry later");
             return;
         }
         logger.atDebug(TRUNCATE_TLOG_EVENT).log("existing tlog renamed to " + oldTlogPath);
@@ -235,7 +240,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
                 return;
             }
             setTruncateRetryCount();
-            logger.atWarn(TRUNCATE_TLOG_EVENT, e).log("recovered and will retry later");
+            logger.atWarn(TRUNCATE_TLOG_EVENT).log("recovered and will retry later");
             return;
         }
         logger.atDebug(TRUNCATE_TLOG_EVENT).log("current effective config written to " + tlogOutputPath);
