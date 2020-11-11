@@ -73,7 +73,7 @@ public abstract class EventStreamRPCServiceModel {
             };
         }
     }
-
+    
     private static class OptionalTypeAdapter<E> extends TypeAdapter<Optional<E>> {
         public static final TypeAdapterFactory FACTORY = new TypeAdapterFactory() {
             @Override
@@ -117,9 +117,9 @@ public abstract class EventStreamRPCServiceModel {
     /**
      * Used to compare two members of a blob shape for equality. Array equals nesting
      * inside of an Optional doesn't work
-     *
+     * 
      * Note: Generated code for equals method of Smithy shapes relies on this
-     *
+     * 
      * @param lhs
      * @param rhs
      * @return

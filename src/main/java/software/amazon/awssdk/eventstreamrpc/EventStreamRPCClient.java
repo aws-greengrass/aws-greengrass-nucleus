@@ -100,6 +100,7 @@ public class EventStreamRPCClient {
                     if (messageFlags == MessageFlags.TerminateStream.getByteValue()) {
                         try {
                             this.close();
+                            //is this call needed?
                             handleClose(initialResponseReceived, responseFuture, streamResponseHandler);
                         } catch (Exception e) {
                             LOGGER.warning(String.format("Exception thrown closing stream on application error received %s: %s",
@@ -134,6 +135,12 @@ public class EventStreamRPCClient {
                     }
                 }
             }
+            
+            @Override
+            protected void onContinuationClosed() {
+                super.onContinuationClosed();
+                handleClose(initialResponseReceived, responseFuture, streamResponseHandler);
+            }
         });
         isContinuationClosed.compareAndSet(false, true);
 
@@ -153,8 +160,9 @@ public class EventStreamRPCClient {
     }
 
     /**
-     * @param continuation
-     * @return
+     * Sends an empty close message on the open stream. 
+     * @param continuation continuation to send the close message on
+     * @return CompletableFuture indicating flush of the close message.
      */
     private CompletableFuture<Void> sendClose(final ClientConnectionContinuation continuation, final AtomicBoolean isClosed) {
         if (isClosed.compareAndSet(false, true)) {
@@ -166,7 +174,6 @@ public class EventStreamRPCClient {
         }
     }
 
-
     private <RespType extends EventStreamJsonMessage, StrRespType extends EventStreamJsonMessage>
             void handleClose(boolean isInitial, CompletableFuture<RespType> responseFuture,
              final Optional<StreamResponseHandler<StrRespType>> streamResponseHandler) {
@@ -174,7 +181,7 @@ public class EventStreamRPCClient {
             //response future should have completed because either an error has already been thrown using it,
             //or the data has already come back. This combination is a problem state that suggests we're closing
             //before having any server response
-            responseFuture.completeExceptionally(new RuntimeException("Closed recieved before any service operation response!"));
+            responseFuture.completeExceptionally(new RuntimeException("Closed received before any service operation response!"));
         }
         else if (streamResponseHandler.isPresent()) {
             //The only valid way to respond to a close after request-response is via stream handler.
