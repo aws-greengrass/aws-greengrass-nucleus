@@ -64,7 +64,7 @@ class IPCPubSubRemovalTest extends BaseITCase {
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
         ignoreExceptionUltimateCauseWithMessage(context, "Channel not found for given connection context");
 
-        kernel = prepareKernelFromConfigFile("pubsub.yaml", IPCPubSubTest.class, "SubscribeAndPublish");
+        kernel = prepareKernelFromConfigFile("pubsub.yaml", IPCPubSubTest.class, "aws.greengrass.ipc.pubsub");
     }
 
     @Test

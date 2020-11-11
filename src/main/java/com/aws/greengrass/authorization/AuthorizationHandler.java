@@ -79,9 +79,9 @@ public class AuthorizationHandler  {
         // Adding TES component and operation before it's default policies are fetched
         componentToOperationsMap.put(TOKEN_EXCHANGE_SERVICE_TOPICS, new HashSet<>(Arrays.asList(AUTHZ_TES_OPERATION)));
         componentToOperationsMap.put(PUB_SUB_SERVICE_NAME, new HashSet<>(Arrays.asList(PUBLISH_TO_TOPIC,
-                SUBSCRIBE_TO_TOPIC)));
+                SUBSCRIBE_TO_TOPIC, ANY_REGEX)));
         componentToOperationsMap.put(MQTT_PROXY_SERVICE_NAME, new HashSet<>(Arrays.asList(PUBLISH_TO_IOT_CORE,
-                SUBSCRIBE_TO_IOT_CORE)));
+                SUBSCRIBE_TO_IOT_CORE, ANY_REGEX)));
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
