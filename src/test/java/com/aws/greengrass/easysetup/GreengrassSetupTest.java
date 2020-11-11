@@ -26,6 +26,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -70,12 +71,11 @@ class GreengrassSetupTest {
     }
 
     @Test
-    void GIVEN_no_default_user_WHEN_script_is_used_THEN_default_user_created() throws Exception {
+    void GIVEN_no_default_user_WHEN_script_is_used_THEN_no_user_created() throws Exception {
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, "--config",
                         "mock_config_path", "--root", "mock_root");
 
-        when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
         GreengrassSetup greengrassSetupSpy = spy(greengrassSetup);
         doReturn(kernel).when(greengrassSetupSpy).getKernel();
         doReturn(kernel).when(kernel).parseArgs(any());
@@ -83,7 +83,11 @@ class GreengrassSetupTest {
         greengrassSetupSpy.performSetup();
         ArgumentCaptor<String> args = ArgumentCaptor.forClass(String.class);
         verify(kernel).parseArgs(args.capture());
-        assertThat(args.getAllValues(), hasItems("--component-default-user", "ggc_user:ggc_group"));
+
+        verify(platform, times(0)).createUser(eq("ggc_user"));
+        verify(platform, times(0)).createGroup(eq("ggc_group"));
+
+        assertThat(args.getAllValues(), not(hasItems("--component-default-user", "ggc_user:ggc_group")));
     }
 
     @Test
@@ -247,7 +251,6 @@ class GreengrassSetupTest {
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, "--config",
                         "mock_config_path", "--root", "mock_root", "--start", "false");
 
-        when(platform.lookupCurrentUser().isSuperUser()).thenReturn(false);
         GreengrassSetup greengrassSetupSpy = spy(greengrassSetup);
         doReturn(kernel).when(greengrassSetupSpy).getKernel();
         doReturn(kernel).when(kernel).parseArgs(any());

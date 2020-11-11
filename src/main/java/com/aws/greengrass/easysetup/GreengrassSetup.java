@@ -129,7 +129,6 @@ public class GreengrassSetup {
 
     private static final String GGC_USER = "ggc_user";
     private static final String GGC_GROUP = "ggc_group";
-    private static final String DEFAULT_POSIX_USER = String.format("%s:%s", GGC_USER, GGC_GROUP);
 
     private static final Logger logger = LogManager.getLogger(GreengrassSetup.class);
     private final String[] setupArgs;
@@ -381,27 +380,21 @@ public class GreengrassSetup {
         }
 
         try {
-
-
             boolean noDefaultSet = Utils.isEmpty(defaultUser);
-            // If not super user and default user option is not provided, the current user will be used
-            // as the default user so we do not need to create anything here
-            if (!platform.lookupCurrentUser().isSuperUser() && noDefaultSet) {
+
+            // if no arg, then don't set anything for now - if not super user, we can't create anyway
+            if (noDefaultSet || !platform.lookupCurrentUser().isSuperUser()) {
                 return;
             }
-            boolean setGGCUser = noDefaultSet;
-            boolean setGGCGroup = noDefaultSet;
-            if (noDefaultSet) {
-                outStream.printf("No input for component default user, using %s:%s %n", GGC_USER, GGC_GROUP);
-            } else {
-                String[] userGroup = defaultUser.split(":", 2);
-                setGGCUser = GGC_USER.equals(userGroup[0]);
-                if (userGroup.length > 1) {
-                    setGGCGroup = GGC_GROUP.equals(userGroup[1]);
-                }
-                if (Utils.isEmpty(userGroup[0])) {
-                    throw new RuntimeException("No user specified");
-                }
+            String[] userGroup = defaultUser.split(":", 2);
+            if (Utils.isEmpty(userGroup[0])) {
+                throw new RuntimeException("No user specified");
+            }
+
+            boolean setGGCUser = GGC_USER.equals(userGroup[0]);
+            boolean setGGCGroup = false;
+            if (userGroup.length > 1) {
+                setGGCGroup = GGC_GROUP.equals(userGroup[1]);
             }
             if (setGGCUser) {
                 try {
@@ -422,10 +415,6 @@ public class GreengrassSetup {
                     platform.addUserToGroup(GGC_USER, GGC_GROUP);
                     outStream.printf("Added %s to %s %n", GGC_USER, GGC_GROUP);
                 }
-            }
-            if (noDefaultSet) {
-                kernelArgs.add(DEFAULT_USER_ARG);
-                kernelArgs.add(DEFAULT_POSIX_USER);
             }
         } catch (IOException e) {
             throw new RuntimeException("Error setting up component default user / group", e);
