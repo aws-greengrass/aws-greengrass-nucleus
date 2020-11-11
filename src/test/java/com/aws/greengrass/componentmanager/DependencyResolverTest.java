@@ -6,6 +6,7 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
+import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
@@ -74,6 +75,8 @@ class DependencyResolverTest {
     private Context context;
     private final ComponentUpdatePolicy componentUpdatePolicy =
             new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS);
+    private final ConfigurationValidationPolicy configurationValidationPolicy =
+            new ConfigurationValidationPolicy().withTimeout(20);
 
     @BeforeEach
     void setupTopics() {
@@ -129,7 +132,7 @@ class DependencyResolverTest {
         DeploymentDocument doc = new DeploymentDocument("mockJob1", Collections
                 .singletonList(
                         new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue(), new HashMap<>())),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
+                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
@@ -199,7 +202,7 @@ class DependencyResolverTest {
         DeploymentDocument doc = new DeploymentDocument("mockJob1",
                 Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue(), new HashMap<>()),
                         new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue(), new HashMap<>())),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
+                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
@@ -284,7 +287,7 @@ class DependencyResolverTest {
         DeploymentDocument doc = new DeploymentDocument("mockJob1",
                 Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue(), new HashMap<>()),
                         new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue(), new HashMap<>())),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
+                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
@@ -358,7 +361,7 @@ class DependencyResolverTest {
         DeploymentDocument doc = new DeploymentDocument("mockJob1",
                 Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue(), new HashMap<>()),
                         new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue(), new HashMap<>())),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy);
+                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));

@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
+import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
@@ -303,6 +304,7 @@ class PluginComponentTest extends BaseITCase {
         return DeploymentDocument.builder().timestamp(timestamp).deploymentId(deploymentId)
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS)).groupName("ANY")
+                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
                 .deploymentPackageConfigurationList(
                         Arrays.asList(DeploymentPackageConfiguration.builder()
                                 .packageName(componentName)

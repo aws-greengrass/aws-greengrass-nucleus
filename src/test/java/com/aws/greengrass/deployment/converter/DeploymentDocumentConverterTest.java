@@ -14,6 +14,7 @@ import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.amazonaws.arn.Arn;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
+import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
@@ -218,6 +219,7 @@ class DeploymentDocumentConverterTest {
                     put("pkgA", new PackageInfo(true, "1.0.0", configMapA));
                     put("pkgB", new PackageInfo(false, "1.1.0", configMapB));
                 }}).componentUpdatePolicy(new ComponentUpdatePolicy().withAction("NOTIFY_COMPONENTS").withTimeout(60))
+                        .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
                         .configurationArn(configurationArn).build();
 
         DeploymentDocument doc = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
@@ -249,6 +251,7 @@ class DeploymentDocumentConverterTest {
                     put("pkgA", new PackageInfo(true, "1.0.0", configMapA));
                     put("pkgB", new PackageInfo(false, "1.1.0", configMapB));
                 }}).componentUpdatePolicy(new ComponentUpdatePolicy().withAction("NOTIFY_COMPONENTS").withTimeout(60))
+                        .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
                         .configurationArn(configurationArn).build();
 
         DeploymentDocument doc = DeploymentDocumentConverter.convertFromFleetConfiguration(config);

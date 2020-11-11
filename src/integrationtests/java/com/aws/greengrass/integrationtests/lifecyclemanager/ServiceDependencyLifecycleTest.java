@@ -6,6 +6,7 @@
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
+import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.Crashable;
 import com.aws.greengrass.dependency.State;
@@ -433,6 +434,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
 
     private Deployment createMockDeployment(DeploymentDocument doc) {
         when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
+        when(doc.getConfigurationValidationPolicy()).thenReturn(new ConfigurationValidationPolicy().withTimeout(20));
         Deployment deployment = mock(Deployment.class);
         doReturn(doc).when(deployment).getDeploymentDocumentObj();
         return deployment;
