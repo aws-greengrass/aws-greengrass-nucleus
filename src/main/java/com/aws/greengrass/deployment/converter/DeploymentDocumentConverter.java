@@ -24,6 +24,7 @@ import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.deployment.model.PackageInfo;
+import com.aws.greengrass.deployment.model.RunWith;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.SerializerFactory;
@@ -200,6 +201,17 @@ public final class DeploymentDocumentConverter {
             pkg.setResolvedVersion(version);
             pkg.setRootComponent(true);
         });
+
+        if (localOverrideRequest.getComponentToRunWithInfo() != null) {
+            localOverrideRequest.getComponentToRunWithInfo().forEach((componentName, runWithInfo) -> {
+                if (runWithInfo != null) {
+                    packageConfigurations.computeIfAbsent(componentName, DeploymentPackageConfiguration::new);
+                    RunWith runWith = RunWith.builder().posixUser(runWithInfo.getPosixUser()).build();
+                    packageConfigurations.get(componentName).setRunWith(runWith);
+                }
+
+            });
+        }
         return new ArrayList<>(packageConfigurations.values());
     }
 
