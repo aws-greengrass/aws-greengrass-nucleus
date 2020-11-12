@@ -53,7 +53,6 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import software.amazon.awssdk.iot.iotshadow.IotShadowClient;
-import software.amazon.awssdk.iot.iotshadow.model.GetNamedShadowSubscriptionRequest;
 import software.amazon.awssdk.iot.iotshadow.model.UpdateNamedShadowSubscriptionRequest;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
@@ -150,7 +149,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             try {
                 logger.info("Got shadow update: {}", new ObjectMapper().writeValueAsString(response));
             } catch (JsonProcessingException e) {
-                logger.error("failed to deserialize shadow update response", e);
+                // ignore
             }
             if (response.state.reported == null) {
                 return;
