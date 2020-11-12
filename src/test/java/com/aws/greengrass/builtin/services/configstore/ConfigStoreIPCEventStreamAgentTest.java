@@ -11,6 +11,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Coerce;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,7 +51,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -101,12 +102,12 @@ class ConfigStoreIPCEventStreamAgentTest {
     public void setup() {
         configuration = new Configuration(new Context());
         Topics root = configuration.getRoot();
-        root.lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_1)
+        root.lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, CONFIGURATION_CONFIG_KEY, TEST_CONFIG_KEY_1)
                 .withNewerValue(100, TEST_CONFIG_KEY_1_INITIAL_VALUE);
-        root.lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_2)
+        root.lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, CONFIGURATION_CONFIG_KEY, TEST_CONFIG_KEY_2)
                 .withNewerValue(100, TEST_CONFIG_KEY_2_INITIAL_VALUE);
         root.lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B);
-        root.lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B, PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_3)
+        root.lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B, CONFIGURATION_CONFIG_KEY, TEST_CONFIG_KEY_3)
                 .withNewerValue(100, TEST_CONFIG_KEY_3_INITIAL_VALUE);
         configuration.context.waitForPublishQueueToClear();
         lenient().when(kernel.getConfig()).thenReturn(configuration);
@@ -153,7 +154,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
-        componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerKey", "SomeLeafKey").withValue("SomeValue");
+        componentAConfiguration.lookup(CONFIGURATION_CONFIG_KEY, "SomeContainerKey", "SomeLeafKey").withValue("SomeValue");
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         GetConfigurationRequest request = new GetConfigurationRequest();
         request.setComponentName(TEST_COMPONENT_A);
@@ -167,7 +168,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
-        componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerKey", "SomeLeafKey").withValue("SomeValue");
+        componentAConfiguration.lookup(CONFIGURATION_CONFIG_KEY, "SomeContainerKey", "SomeLeafKey").withValue("SomeValue");
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         GetConfigurationRequest request = new GetConfigurationRequest();
         request.setComponentName(TEST_COMPONENT_A);
@@ -183,7 +184,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
-        componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "Level1ContainerKey", "Level2ContainerKey", "SomeLeafKey")
+        componentAConfiguration.lookup(CONFIGURATION_CONFIG_KEY, "Level1ContainerKey", "Level2ContainerKey", "SomeLeafKey")
                 .withValue("SomeValue");
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         GetConfigurationRequest request = new GetConfigurationRequest();
@@ -238,14 +239,13 @@ class ConfigStoreIPCEventStreamAgentTest {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         UpdateConfigurationRequest request = new UpdateConfigurationRequest();
-        request.setComponentName(TEST_COMPONENT_A);
-        request.setKeyPath(Collections.singletonList(TEST_CONFIG_KEY_2));
-        request.setNewValue(Collections.singletonMap(TEST_CONFIG_KEY_2, 30));
+        request.setKeyPath(Collections.EMPTY_LIST);
+        request.setValueToMerge(Collections.singletonMap(TEST_CONFIG_KEY_2, 30));
         request.setTimestamp(Instant.now());
         UpdateConfigurationResponse response = agent.getUpdateConfigurationHandler(mockContext).handleRequest(request);
         assertNotNull(response);
         assertEquals(30,
-                kernel.findServiceTopic(TEST_COMPONENT_A).find(PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_2).getOnce());
+                kernel.findServiceTopic(TEST_COMPONENT_A).find(CONFIGURATION_CONFIG_KEY, TEST_CONFIG_KEY_2).getOnce());
     }
 
     @Test
@@ -254,51 +254,14 @@ class ConfigStoreIPCEventStreamAgentTest {
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
                 .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
         UpdateConfigurationRequest request = new UpdateConfigurationRequest();
-        request.setComponentName(TEST_COMPONENT_A);
-        request.setKeyPath(Collections.singletonList("NewKey"));
-        request.setNewValue(Collections.singletonMap("NewKey", "SomeValue"));
+        request.setValueToMerge(Collections.singletonMap("NewKey", "SomeValue"));
         request.setTimestamp(Instant.now());
         UpdateConfigurationResponse response = agent.getUpdateConfigurationHandler(mockContext).handleRequest(request);
         assertNotNull(response);
 
-        Topic newConfigKeyTopic = kernel.findServiceTopic(TEST_COMPONENT_A).find(PARAMETERS_CONFIG_KEY, "NewKey");
+        Topic newConfigKeyTopic = kernel.findServiceTopic(TEST_COMPONENT_A).find(CONFIGURATION_CONFIG_KEY, "NewKey");
         assertNotNull(newConfigKeyTopic);
         assertEquals("SomeValue", newConfigKeyTopic.getOnce());
-    }
-
-    @Test
-    void GIVEN_update_config_request_WHEN_current_value_in_request_matches_current_value_for_node_THEN_update() {
-        when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
-        when(kernel.findServiceTopic(TEST_COMPONENT_A))
-                .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
-        UpdateConfigurationRequest request = new UpdateConfigurationRequest();
-        request.setComponentName(TEST_COMPONENT_A);
-        request.setKeyPath(Collections.singletonList(TEST_CONFIG_KEY_1));
-        request.setNewValue(Collections.singletonMap(TEST_CONFIG_KEY_1, 30));
-        request.setTimestamp(Instant.now());
-        request.setOldValue(Collections.singletonMap(TEST_CONFIG_KEY_1, TEST_CONFIG_KEY_1_INITIAL_VALUE));
-        UpdateConfigurationResponse response = agent.getUpdateConfigurationHandler(mockContext).handleRequest(request);
-        assertNotNull(response);
-
-        assertEquals(30,
-                kernel.findServiceTopic(TEST_COMPONENT_A).find(PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_1).getOnce());
-    }
-
-    @Test
-    void GIVEN_update_config_request_WHEN_current_value_in_request_does_not_match_current_value_for_node_THEN_fail() {
-        when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
-        when(kernel.findServiceTopic(TEST_COMPONENT_A))
-                .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A));
-        UpdateConfigurationRequest request = new UpdateConfigurationRequest();
-        request.setComponentName(TEST_COMPONENT_A);
-        request.setKeyPath(Collections.singletonList(TEST_CONFIG_KEY_1));
-        request.setNewValue(Collections.singletonMap(TEST_CONFIG_KEY_1, 30));
-        request.setTimestamp(Instant.now());
-        request.setOldValue(Collections.singletonMap(TEST_CONFIG_KEY_1, 100));
-        FailedUpdateConditionCheckError error = assertThrows(FailedUpdateConditionCheckError.class, () ->
-                agent.getUpdateConfigurationHandler(mockContext).handleRequest(request));
-        assertEquals("Current value for config is different from the current value needed for the update",
-                error.getMessage());
     }
 
     @Test
@@ -307,11 +270,10 @@ class ConfigStoreIPCEventStreamAgentTest {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
-        long actualModTime = componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_1).getModtime();
+        long actualModTime = componentAConfiguration.lookup(CONFIGURATION_CONFIG_KEY, TEST_CONFIG_KEY_1).getModtime();
         UpdateConfigurationRequest request = new UpdateConfigurationRequest();
-        request.setComponentName(TEST_COMPONENT_A);
         request.setKeyPath(Collections.singletonList(TEST_CONFIG_KEY_1));
-        request.setNewValue(Collections.singletonMap(TEST_CONFIG_KEY_1, 30));
+        request.setValueToMerge(Collections.singletonMap(TEST_CONFIG_KEY_1, 30));
         request.setTimestamp(Instant.ofEpochMilli(actualModTime - 10));
         FailedUpdateConditionCheckError error = assertThrows(FailedUpdateConditionCheckError.class, () ->
                 agent.getUpdateConfigurationHandler(mockContext).handleRequest(request));
@@ -320,39 +282,80 @@ class ConfigStoreIPCEventStreamAgentTest {
     }
 
     @Test
-    void GIVEN_update_config_request_WHEN_requested_node_is_container_THEN_fail() {
+    void GIVEN_update_config_request_WHEN_requested_node_does_not_exist_THEN_update_is_successful() {
         when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
-        componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerKey", "SomeLeafKey").withValue("SomeValue");
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
 
         UpdateConfigurationRequest request = new UpdateConfigurationRequest();
-        request.setComponentName(TEST_COMPONENT_A);
-        request.setKeyPath(Collections.singletonList("SomeContainerKey"));
-        request.setNewValue(Collections.singletonMap("SomeContainerKey", "SomeOtherValue"));
+        request.setKeyPath(Arrays.asList("SomeContainerKey"));
+        request.setValueToMerge(Collections.singletonMap("SomeLeafKey", "SomeOtherValue"));
         request.setTimestamp(Instant.now());
-
-        InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class, () ->
-                agent.getUpdateConfigurationHandler(mockContext).handleRequest(request));
-        assertEquals("Cannot update a non-leaf config node",
-                error.getMessage());
+        agent.getUpdateConfigurationHandler(mockContext).handleRequest(request);
+        Topics updateTopics = componentAConfiguration.findTopics(CONFIGURATION_CONFIG_KEY, "SomeContainerKey");
+        assertNotNull(updateTopics);
+        assertEquals("SomeOtherValue", Coerce.toString(((Topic)updateTopics.getChild("SomeLeafKey")).getOnce()));
     }
 
     @Test
-    void GIVEN_update_config_request_WHEN_requested_component_is_not_self_THEN_fail() {
-        when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_B);
+    void GIVEN_update_config_request_WHEN_requested_node_is_container_THEN_update_is_successful() {
+        when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
+        Topics componentAConfiguration =
+                configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
+        componentAConfiguration.lookup(CONFIGURATION_CONFIG_KEY, "SomeContainerKey", "SomeLeafKey").withValue("SomeValue");
+        when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
 
         UpdateConfigurationRequest request = new UpdateConfigurationRequest();
-        request.setComponentName(TEST_COMPONENT_A);
-        request.setKeyPath(Collections.singletonList(TEST_CONFIG_KEY_1));
-        request.setNewValue(Collections.singletonMap(TEST_CONFIG_KEY_1, 20));
+        request.setKeyPath(Arrays.asList("SomeContainerKey"));
+        request.setValueToMerge(Collections.singletonMap("SomeLeafKey", "SomeOtherValue"));
+        request.setTimestamp(Instant.now());
+        agent.getUpdateConfigurationHandler(mockContext).handleRequest(request);
+        Topics updateTopics = componentAConfiguration.findTopics(CONFIGURATION_CONFIG_KEY, "SomeContainerKey");
+        assertNotNull(updateTopics);
+        assertEquals("SomeOtherValue", Coerce.toString(((Topic)updateTopics.getChild("SomeLeafKey")).getOnce()));
+    }
+
+    @Test
+    void GIVEN_update_config_request_WHEN_requested_node_is_leaf_THEN_update_to_convert_to_container_is_successful() {
+        when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
+        Topics componentAConfiguration =
+                configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
+        componentAConfiguration.lookup(CONFIGURATION_CONFIG_KEY, "SomeContainerKey", "SomeLeafKey").withValue("SomeValue");
+        when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
+
+        UpdateConfigurationRequest request = new UpdateConfigurationRequest();
+        request.setKeyPath(Arrays.asList("SomeContainerKey"));
+        request.setValueToMerge(Collections.singletonMap("SomeLeafKey", Collections.singletonMap("newKey",
+                "SomeOtherValue")));
         request.setTimestamp(Instant.now());
 
-        InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class, () ->
-                agent.getUpdateConfigurationHandler(mockContext).handleRequest(request));
-        assertEquals("Cross component updates are not allowed",
-                error.getMessage());
+        agent.getUpdateConfigurationHandler(mockContext).handleRequest(request);
+
+        Topics updateTopics = componentAConfiguration.findTopics(CONFIGURATION_CONFIG_KEY, "SomeContainerKey");
+        assertNotNull(updateTopics);
+        Topics convertedNode = (Topics)updateTopics.getChild("SomeLeafKey");
+        assertEquals("SomeOtherValue",
+                Coerce.toString(((Topic)convertedNode.getChild("newKey")).getOnce()));
+    }
+
+    @Test
+    void GIVEN_update_config_request_WHEN_requested_node_is_container_THEN_update_to_convert_to_leaf_is_successful() {
+        when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
+        Topics componentAConfiguration =
+                configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
+        componentAConfiguration.lookup(CONFIGURATION_CONFIG_KEY, "SomeContainerKey", "SomeLeafKey").withValue("SomeValue");
+        when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
+
+        UpdateConfigurationRequest request = new UpdateConfigurationRequest();
+        request.setValueToMerge(Collections.singletonMap("SomeContainerKey", "SomeOtherValue"));
+        request.setTimestamp(Instant.now());
+        agent.getUpdateConfigurationHandler(mockContext).handleRequest(request);
+
+        Topic updateTopic = componentAConfiguration.find(CONFIGURATION_CONFIG_KEY, "SomeContainerKey");
+        assertNotNull(updateTopic);
+        assertEquals("SomeOtherValue",
+                Coerce.toString(updateTopic.getOnce()));
     }
 
     @Test
@@ -368,7 +371,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         assertNotNull(response);
 
         configuration.getRoot()
-                .lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_1)
+                .lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, CONFIGURATION_CONFIG_KEY, TEST_CONFIG_KEY_1)
                 .withValue(25);
 
         verify(mockServerConnectionContinuation, timeout(10000))
@@ -399,7 +402,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         assertNotNull(response);
 
         configuration.getRoot()
-                .lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, PARAMETERS_CONFIG_KEY, TEST_CONFIG_KEY_1)
+                .lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, CONFIGURATION_CONFIG_KEY, TEST_CONFIG_KEY_1)
                 .withValue(25);
 
         verify(mockServerConnectionContinuation, timeout(10000))
@@ -421,7 +424,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_B);
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
-        componentAConfiguration.lookup(PARAMETERS_CONFIG_KEY, "SomeContainerNode", "SomeLeafNode").withValue("SomeValue");
+        componentAConfiguration.lookup(CONFIGURATION_CONFIG_KEY, "SomeContainerNode", "SomeLeafNode").withValue("SomeValue");
         configuration.context.waitForPublishQueueToClear();
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         when(mockServerConnectionContinuation.sendMessage(anyList(), byteArrayCaptor.capture(), any(MessageType.class), anyInt()))
@@ -433,7 +436,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         assertNotNull(response);
 
         configuration.getRoot()
-                .lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, PARAMETERS_CONFIG_KEY, "SomeContainerNode",
+                .lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, CONFIGURATION_CONFIG_KEY, "SomeContainerNode",
                         "SomeLeafNode").withValue("SomeNewValue");
 
         verify(mockServerConnectionContinuation, timeout(10000))
@@ -456,7 +459,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         componentAConfiguration
-                .lookup(PARAMETERS_CONFIG_KEY, "Level1ContainerNode", "Level2ContainerNode", "SomeLeafNode")
+                .lookup(CONFIGURATION_CONFIG_KEY, "Level1ContainerNode", "Level2ContainerNode", "SomeLeafNode")
                 .withValue("SomeValue");
         configuration.context.waitForPublishQueueToClear();
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
@@ -469,7 +472,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         assertNotNull(response);
 
         configuration.getRoot()
-                .lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, PARAMETERS_CONFIG_KEY, "Level1ContainerNode",
+                .lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, CONFIGURATION_CONFIG_KEY, "Level1ContainerNode",
                         "Level2ContainerNode", "SomeLeafNode").withValue("SomeNewValue");
 
         verify(mockServerConnectionContinuation, timeout(10000))
