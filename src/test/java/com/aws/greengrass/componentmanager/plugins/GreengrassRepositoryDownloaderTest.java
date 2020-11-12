@@ -8,6 +8,7 @@ package com.aws.greengrass.componentmanager.plugins;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactRequest;
 import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactResult;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.ComponentTestResourceHelper;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
@@ -53,6 +54,9 @@ class GreengrassRepositoryDownloaderTest {
     @Mock
     private GreengrassComponentServiceClientFactory clientFactory;
 
+    @Mock
+    private ComponentStore componentStore;
+
     private GreengrassRepositoryDownloader downloader;
 
     @Captor
@@ -61,7 +65,7 @@ class GreengrassRepositoryDownloaderTest {
     @BeforeEach
     void beforeEach() {
         when(clientFactory.getCmsClient()).thenReturn(client);
-        this.downloader = Mockito.spy(new GreengrassRepositoryDownloader(clientFactory));
+        this.downloader = Mockito.spy(new GreengrassRepositoryDownloader(clientFactory, componentStore));
     }
 
     @Test
@@ -80,7 +84,7 @@ class GreengrassRepositoryDownloaderTest {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
-        Path artifactFilePath = saveToPath.resolve("artifact.txt");
+        Path artifactFilePath = saveToPath.resolve("artifactName");
         Files.createDirectories(saveToPath);
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
@@ -91,7 +95,7 @@ class GreengrassRepositoryDownloaderTest {
 
         GetComponentVersionArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
         assertEquals("CoolService", generatedRequest.getComponentName());
-        assertEquals("1.0.0", generatedRequest.getComponentVersion());
+        assertEquals("1.0.0", generatedRequest.getComponentVersionDeprecated());
         assertNull(generatedRequest.getScope());
         assertEquals("artifactName", generatedRequest.getArtifactName());
 
@@ -117,19 +121,16 @@ class GreengrassRepositoryDownloaderTest {
     }
 
     @Test
-    void GIVEN_filename_in_disposition_WHEN_attempt_resolve_filename_THEN_parse_filename() throws Exception {
-        String filename = downloader.extractFilename(new URL("https://www.amazon.com/artifact.txt"),
-                "attachment; " + "filename=\"filename.jpg\"");
-
-        assertThat(filename, is("filename.jpg"));
-    }
-
-    @Test
-    void GIVEN_filename_in_url_WHEN_attempt_resolve_filename_THEN_parse_filename() throws Exception {
-        String filename =
-                downloader.extractFilename(new URL("https://www.amazon.com/artifact.txt?key=value"), "attachment");
-
-        assertThat(filename, is("artifact.txt"));
+    void GIVEN_filename_in_uri_WHEN_attempt_resolve_filename_THEN_parse_filename() {
+        String filename = downloader.getFilename(ComponentArtifact.builder().artifactUri(
+                URI.create("greengrass:abcd.jj")).build());
+        assertThat(filename, is("abcd.jj"));
+        filename = downloader.getFilename(ComponentArtifact.builder().artifactUri(
+                URI.create("greengrass:abcd")).build());
+        assertThat(filename, is("abcd"));
+        filename = downloader.getFilename(ComponentArtifact.builder().artifactUri(
+                URI.create("greengrass:jkdfjk/kdjfkdj/abcd.jj")).build());
+        assertThat(filename, is("abcd.jj"));
     }
 
 }

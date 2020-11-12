@@ -18,6 +18,8 @@ public class ComponentIdentifier implements Comparable<ComponentIdentifier> {
     String name;
     Semver version;
 
+    String arn;
+
     @Override
     public String toString() {
         return String.format("%s-v%s", name, version);
