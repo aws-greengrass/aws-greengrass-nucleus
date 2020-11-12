@@ -5,8 +5,6 @@
 
 package com.aws.greengrass.componentmanager.converter;
 
-import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
-import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -58,13 +56,6 @@ class RecipeLoaderTest {
         assertThat(artifact.getArtifactUri().toString(), is("s3://some-bucket/hello_world.py"));
         assertThat(artifact.getChecksum(), is("d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"));
         assertThat(artifact.getAlgorithm(), is("SHA-256"));
-        assertThat(recipe.getDependencies().size(), is(2));
-        assertThat(recipe.getDependencies(),
-                hasEntry("BarService", new DependencyProperties("^1.1", DependencyType.SOFT)));
-
-        assertThat(recipe.getDependencies(),
-                hasEntry("BazService", new DependencyProperties("^2.0", DependencyType.HARD)));
-
     }
 
     @Test
@@ -98,13 +89,6 @@ class RecipeLoaderTest {
         assertThat(artifact.getArtifactUri().toString(), is("s3://some-bucket/hello_world.py"));
         assertThat(artifact.getChecksum(), is("d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"));
         assertThat(artifact.getAlgorithm(), is("SHA-256"));
-        assertThat(recipe.getDependencies().size(), is(2));
-        assertThat(recipe.getDependencies(),
-                hasEntry("BarService", new DependencyProperties("^1.1", DependencyType.SOFT)));
-
-        assertThat(recipe.getDependencies(),
-                hasEntry("BazService", new DependencyProperties("^2.0", DependencyType.HARD)));
-
     }
 
     @Test
