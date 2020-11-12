@@ -210,8 +210,16 @@ public class KernelAlternatives {
      * @throws IOException if file or directory changes fail
      */
     public void activationSucceeds() throws IOException {
-        Utils.deleteFileRecursively(Files.readSymbolicLink(oldDir).toFile());
+        Path launchDirToCleanUp = Files.readSymbolicLink(oldDir);
+        // Failure point 2.1 => current + old
+        // As deployment reporting isn't complete, Nucleus restarts into activation mode
         Files.delete(oldDir);
+        // Failure point 2.2 => current (+ artifacts not cleaned up).
+        // as if deployment didn't happen, Nucleus restarts into default mode
+        // Processing the same deployment multiple times, should be idempotent. artifacts can be cleaned up next time.
+        Utils.deleteFileRecursively(launchDirToCleanUp.toFile());
+        // Failure point 2.3 => current. as if deployment didn't happen, Nucleus restarts into default mode
+        // Processing the same deployment multiple times should be idempotent
     }
 
     /**
@@ -224,10 +232,16 @@ public class KernelAlternatives {
             logger.atWarn().log("Cannot find the old launch directory to rollback to.");
             return;
         }
+        // Failure point 3.1 => current + old. Depending on which stage triggers rollback,
+        // Nucleus restarts into previous state, default or bootstrap or activation mode
         setupLinkToDirectory(brokenDir, Files.readSymbolicLink(currentDir).toAbsolutePath());
+        // Failure point 3.2 => current(outdated) + old + broken. Addressed by loader
         Files.delete(currentDir);
+        // Failure point 3.3 => old + broken. Addressed by loader
         setupLinkToDirectory(currentDir, Files.readSymbolicLink(oldDir).toAbsolutePath());
+        // Failure point 3.4 => current(updated) + old + broken. Addressed by loader
         Files.delete(oldDir);
+        // Failure point 3.5 => since setup completes, Nucleus restarts into rollback mode
     }
 
     /**
@@ -239,8 +253,13 @@ public class KernelAlternatives {
         if (!Files.exists(brokenDir)) {
             return;
         }
+        // Failure point 4.1 => current + broken.
+        // As deployment reporting isn't complete, Nucleus restarts into rollback mode
         Utils.deleteFileRecursively(Files.readSymbolicLink(brokenDir).toFile());
+        // Failure point 4.2 => current + broken(bad link).
+        // As deployment reporting isn't complete, Nucleus restarts into rollback mode. bad link shouldn't matter.
         Files.delete(brokenDir);
+        // Failure point 4.3 => current. as if deployment didn't happen, Nucleus restarts into default mode
     }
 
     /**
@@ -256,11 +275,17 @@ public class KernelAlternatives {
         copyFolderRecursively(existingLaunchDir, newLaunchDir, REPLACE_EXISTING, NOFOLLOW_LINKS, COPY_ATTRIBUTES);
 
         cleanupLaunchDirectories();
+        // Failure point 1.1 => as if deployment didn't happen, Nucleus restarts into default mode
         setupLinkToDirectory(newDir, newLaunchDir);
+        // Failure point 1.2 => new + current(outdated), addressed by loader
         setupLinkToDirectory(oldDir, existingLaunchDir);
+        // Failure point 1.3 => new + current(outdated) + old, addressed by loader
         Files.delete(currentDir);
+        // Failure point 1.4 => new + old, addressed by loader
         setupLinkToDirectory(currentDir, newLaunchDir);
+        // Failure point 1.5 => new + old + current(updated), addressed by loader
         Files.delete(newDir);
+        // Failure point 1.6 => since setup completes, Nucleus restarts into bootstrap mode
         logger.atInfo().log("Finish setup of launch directory for new Kernel");
     }
 

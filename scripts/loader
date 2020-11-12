@@ -44,15 +44,18 @@ flip_link() {
 }
 
 # Determine Kernel stage and proper config files based on launch directory
-if is_directory_link "${GG_ROOT}/alts/new" && is_directory_link "${LAUNCH_DIR}"; then
-  if ! is_directory_link "${GG_ROOT}/alts/old"; then
+if is_directory_link "${GG_ROOT}/alts/new"; then
+  if ! is_directory_link "${GG_ROOT}/alts/old" && is_directory_link "${LAUNCH_DIR}"; then
+    # Address 1.2
     flip_link "${LAUNCH_DIR}" "${GG_ROOT}/alts/old"
   fi
+  # Address 1.2 1.3 1.4 1.5
   flip_link "${GG_ROOT}/alts/new" "${LAUNCH_DIR}"
 fi
 
 if is_directory_link "${GG_ROOT}/alts/broken"; then
   if is_directory_link "${GG_ROOT}/alts/old"; then
+    # Address 3.2 3.3 3.4
     flip_link "${GG_ROOT}/alts/old" "${LAUNCH_DIR}"
   fi
   CONFIG_FILE="$GG_ROOT/deployments/ongoing/rollback_snapshot.tlog"
