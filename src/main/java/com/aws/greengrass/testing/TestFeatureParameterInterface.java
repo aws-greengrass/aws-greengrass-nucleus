@@ -9,8 +9,7 @@ package com.aws.greengrass.testing;
  * Interface to allow alternative implementation of
  * {@link TestFeatureParameters#retrieveWithDefault(Class, String, Object)}.
  */
-/*PackagePrivate*/
-interface TestFeatureParameterInterface {
+public interface TestFeatureParameterInterface {
     /**
      * Retrieve either the provided production value of a parameter, or, under test conditions, an alternative value
      * specific for the test being undertaken.
