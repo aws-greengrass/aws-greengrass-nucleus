@@ -57,7 +57,7 @@ services:
           policyId3:
             policyDescription: access to pubsub topics
             operations:
-              - 'aws.greengrass#PublishToTopic'
+              - 'aws.greengrass#SubscribeToTopic'
             resources:
               - /topic/1/#
               - /longer/topic/example/

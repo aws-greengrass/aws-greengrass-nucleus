@@ -35,6 +35,7 @@ import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.publishToTopi
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.subscribeToTopicOveripcForBinaryMessages;
 import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTROL_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
@@ -127,8 +128,9 @@ class IPCPubSubRemovalTest extends BaseITCase {
             ignoreExceptionOfType(context, PackageDownloadException.class);
 
             // Remove ACL parameter from component SubscribeAndPublish
-            kernel.locate("SubscribeAndPublish").getConfig()
-                    .lookup(PARAMETERS_CONFIG_KEY, "accessControl").withValue("");
+            Topics aclNode = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
+                    "SubscribeAndPublish", PARAMETERS_CONFIG_KEY);
+            aclNode.remove(aclNode.lookupTopics("accessControl"));
             kernel.getContext().waitForPublishQueueToClear();
 
             assertFalse(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId1));

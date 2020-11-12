@@ -6,7 +6,6 @@
 package com.aws.greengrass.authorization;
 
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -80,8 +79,8 @@ public class AuthorizationHandler  {
             this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), false);
         }
 
-        //Subscribe to future auth config updates
-        this.kernel.getConfig().getRoot().subscribe(
+        // Subscribe to future auth config updates
+        this.kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).subscribe(
                 (why, newv) -> {
                     if (newv == null) {
                         return;
@@ -91,20 +90,17 @@ public class AuthorizationHandler  {
                     //If there is a childRemoved event, it could be the component is removed, or either the
                     //'accessControl' Topic or/the 'parameters' Topics that has bubbled up, so we need to handle and
                     //filter out all other WhatHappeneds
-                    if (WhatHappened.childChanged.equals(why)) {
-                        if (!newv.childOf(PARAMETERS_CONFIG_KEY) || !newv.getName()
-                                .equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                    if (WhatHappened.childRemoved.equals(why) || WhatHappened.removed.equals(why)) {
+                        // Either a service or a parameter block or acl subkey
+                        if (!newv.parent.getName().equals(SERVICES_NAMESPACE_TOPIC)
+                                && !newv.getName().equals(PARAMETERS_CONFIG_KEY)
+                                && !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)
+                                && !newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
                             return;
                         }
-                        if (!(newv instanceof Topic)) {
-                            logger.atError("update-authorization-formatting-error")
-                                    .addKeyValue("InvalidNodeName", newv.getFullName())
-                                    .log("Incorrect formatting while updating the authorization ACL.");
-                            return;
-                        }
-                    } else if (WhatHappened.childRemoved.equals(why) && !newv.parent.getName()
-                            .equals(SERVICES_NAMESPACE_TOPIC) && !newv.getName().equals(PARAMETERS_CONFIG_KEY) && !newv
-                            .getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                    } else if (!newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC)
+                            && !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                        // for all other WhatHappened cases we only care about access control change
                         return;
                     }
 
