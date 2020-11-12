@@ -107,11 +107,11 @@ public class GenericExternalService extends GreengrassService {
         c.subscribe((what, child) -> {
             // When the service is removed via a deployment this topic itself will be removed
             // When first initialized, the child will be null
-            if (WhatHappened.removed.equals(what) || child == null || WhatHappened.timestampUpdated.equals(what)) {
+            if (WhatHappened.removed.equals(what) || child == null
+                    || WhatHappened.timestampUpdated.equals(what)  || WhatHappened.interiorAdded.equals(what)) {
                 return;
             }
 
-            logger.atInfo("service-config-change").kv("configNode", child.getFullName()).log();
             if (child.childOf(Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC)) {
                 return;
             }
@@ -119,12 +119,16 @@ public class GenericExternalService extends GreengrassService {
             // Reinstall for changes to the install script or if the package version changed, or runwith
             if (child.childOf(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC) || child.childOf(VERSION_CONFIG_KEY)
                     || child.childOf(RUN_WITH_NAMESPACE_TOPIC)) {
+                logger.atInfo("service-config-change").kv("configNode", child.getFullName())
+                        .log("Requesting reinstallation for component");
                 requestReinstall();
                 return;
             }
 
             // Restart service for changes to the lifecycle config or environment variables
             if (child.childOf(SERVICE_LIFECYCLE_NAMESPACE_TOPIC) || child.childOf(SETENV_CONFIG_NAMESPACE)) {
+                logger.atInfo("service-config-change").kv("configNode", child.getFullName())
+                        .log("Requesting restart for component");
                 requestRestart();
             }
         });
@@ -247,10 +251,10 @@ public class GenericExternalService extends GreengrassService {
     @Override
     protected synchronized void install() throws InterruptedException {
         stopAllLifecycleProcesses();
-        
+
         // reset runWith in case we moved from NEW -> INSTALLED -> change runwith -> NEW
         resetRunWith();
-        
+
         if (run(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses).getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in install");
         }

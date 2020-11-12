@@ -81,6 +81,7 @@ public class IPCMqttProxyTest {
     @BeforeEach
     void beforeEach() throws Exception {
         mqttClient = mock(MqttClient.class);
+        when(mqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
 
         kernel = new Kernel();
@@ -115,10 +116,6 @@ public class IPCMqttProxyTest {
 
     @Test
     void GIVEN_MqttProxyEventStreamClient_WHEN_called_publish_THEN_message_published() throws Exception {
-        CompletableFuture<Integer> completableFuture = new CompletableFuture<>();
-        completableFuture.complete(0);
-        when(mqttClient.publish(any())).thenReturn(completableFuture);
-
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
         publishToIoTCoreRequest.setPayload(TEST_PAYLOAD);
