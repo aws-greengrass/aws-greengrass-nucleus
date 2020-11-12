@@ -135,13 +135,13 @@ public class ComponentManager implements InjectionActions {
 
         ComponentIdentifier resolvedComponentId;
 
-        if (versionRequirements.containsKey(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME)) {
-            // keep using local version if the component requirement is from a local deployment
-            logger.atInfo().log("Requirement comes from a Local Deployment. Use the local candidate as the resolved one"
-                                        + " without negotiating version with cloud.");
-            resolvedComponentId = localCandidateOptional.orElseThrow(() -> new NoAvailableComponentVersionException(
-                    String.format("Component %s is meant to be a local override, but no version can satisfy %s",
-                                  componentName, versionRequirements)));
+        if (versionRequirements.containsKey(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME)
+                && localCandidateOptional.isPresent()) {
+            // If local group has a requirement and a satisfying local version presents, use it and don't negotiate with
+            // cloud.
+            logger.atInfo().log("Local group has a requirement and found satisfying local candidate. Using the local"
+                                        + " candidate as the resolved version without negotiating with cloud.");
+            resolvedComponentId = localCandidateOptional.get();
         } else {
             // otherwise try to negotiate with cloud
             logger.atInfo().setEventType("negotiate-version-with-cloud-start").log("Negotiating version with cloud");
