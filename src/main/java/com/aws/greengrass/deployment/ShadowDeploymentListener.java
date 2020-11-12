@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
@@ -32,6 +33,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -60,7 +62,6 @@ public class ShadowDeploymentListener implements InjectionActions {
     public static final String CONFIGURATION_ARN_LOG_KEY_NAME = "CONFIGURATION_ARN";
     public static final String DESIRED_STATUS_KEY = "desiredStatus";
     public static final String FLEET_CONFIG_KEY = "fleetConfig";
-    public static final String ARN_KEY = "configurationArn";
     public static final String GGC_VERSION_KEY = "ggcVersion";
     public static final String DESIRED_STATUS_CANCELED = "CANCELED";
     public static final String DEPLOYMENT_SHADOW_NAME = "AWSManagedGreengrassV2Deployment";
@@ -195,6 +196,7 @@ public class ShadowDeploymentListener implements InjectionActions {
             iotShadowClient.PublishUpdateNamedShadow(updateNamedShadowRequest, QualityOfService.AT_LEAST_ONCE)
                     .get(TIMEOUT_FOR_PUBLISHING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
             logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
+                    .kv(STATUS_KEY, shadowState.reported.get(STATUS_KEY))
                     .log("Updated reported state for deployment");
             return true;
         } catch (InterruptedException e) {
@@ -231,8 +233,17 @@ public class ShadowDeploymentListener implements InjectionActions {
             logger.debug("Empty desired state, no device deployments created yet");
             return;
         }
-        Map<String, Object> fleetConfig = (Map<String, Object>) desired.get(FLEET_CONFIG_KEY);
-        String configurationArn = (String) fleetConfig.get(ARN_KEY);
+        String fleetConfigStr = (String) desired.get(FLEET_CONFIG_KEY);
+        FleetConfiguration fleetConfig;
+        try {
+            fleetConfig = SerializerFactory.getJsonObjectMapper().readValue(fleetConfigStr, FleetConfiguration.class);
+        } catch (JsonProcessingException e) {
+            logger.atError().log("failed to process shadow update", e);
+            return;
+        }
+        String configurationArn = fleetConfig.getConfigurationArn();
+        boolean cancelDeployment = DESIRED_STATUS_CANCELED.equals(desired.get(DESIRED_STATUS_KEY));
+
         synchronized (ShadowDeploymentListener.class) {
             if (lastVersion != null && lastVersion > version) {
                 logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
@@ -240,7 +251,7 @@ public class ShadowDeploymentListener implements InjectionActions {
                         .log("Old deployment notification, Ignoring...");
                 return;
             }
-            if (lastConfigurationArn != null && lastConfigurationArn.equals(configurationArn)) {
+            if (lastConfigurationArn != null && lastConfigurationArn.equals(configurationArn) && !cancelDeployment) {
                 logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
                         .log("Duplicate deployment notification, Ignoring...");
                 return;
@@ -249,21 +260,15 @@ public class ShadowDeploymentListener implements InjectionActions {
             lastVersion = version;
         }
 
-        String configurationString;
-        try {
-            configurationString = SerializerFactory.getJsonObjectMapper().writeValueAsString(fleetConfig);
-        } catch (JsonProcessingException e) {
-            logger.atError("Unable to process shadow update", e);
-            return;
-        }
-
         Deployment deployment;
-        if (DESIRED_STATUS_CANCELED.equals(desired.get(DESIRED_STATUS_KEY))) {
-            deployment = new Deployment(DeploymentType.SHADOW, configurationArn, true);
+        if (cancelDeployment) {
+            deployment = new Deployment(DeploymentType.SHADOW, UUID.randomUUID().toString(), true);
         } else {
-            deployment = new Deployment(configurationString, DeploymentType.SHADOW, configurationArn);
+            deployment = new Deployment(fleetConfigStr, DeploymentType.SHADOW, configurationArn);
         }
-        deploymentQueue.offer(deployment);
+        if (deploymentQueue.offer(deployment)) {
+            logger.atInfo().kv("ID", deployment.getId()).log("Added shadow deployment job");
+        }
     }
 
 
