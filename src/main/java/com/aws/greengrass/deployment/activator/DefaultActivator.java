@@ -74,9 +74,9 @@ public class DefaultActivator extends DeploymentActivator {
         // when deployment adds a new dependency (component B) to component A
         // the config for component B has to be merged in before externalDependenciesTopic of component A trigger
         // executing mergeMap using publish thread ensures this
-        kernel.getContext().runOnPublishQueueAndWait(() -> {
-            kernel.getConfig().updateMap(newConfig, createDeploymentMergeBehavior(deploymentDocument.getTimestamp()));
-        });
+        kernel.getContext().runOnPublishQueueAndWait(() ->
+                kernel.getConfig().updateMap(newConfig,
+                        createDeploymentMergeBehavior(deploymentDocument.getTimestamp(), newConfig)));
 
         // wait until topic listeners finished processing mergeMap changes.
         Throwable setDesiredStateFailureCause = kernel.getContext().runOnPublishQueueAndWait(() -> {
@@ -176,7 +176,7 @@ public class DefaultActivator extends DeploymentActivator {
                 deploymentFailureCause));
     }
 
-    private UpdateBehaviorTree createDeploymentMergeBehavior(long deploymentTimestamp) {
+    private UpdateBehaviorTree createDeploymentMergeBehavior(long deploymentTimestamp, Map<String, Object> newConfig) {
         // root: MERGE
         //   services: MERGE
         //     *: REPLACE
@@ -199,6 +199,16 @@ public class DefaultActivator extends DeploymentActivator {
         servicesMergeBehavior.getChildOverride().put(UpdateBehaviorTree.WILDCARD, insideServiceMergeBehavior);
         servicesMergeBehavior.getChildOverride().put(AUTHENTICATION_TOKEN_LOOKUP_KEY,
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now));
+
+        // Set merge mode for all builtin services
+        kernel.orderedDependencies().stream()
+                .filter(GreengrassService::isBuiltin)
+                // If the builtin service is somehow in the new config, then keep the default behavior of
+                // replacing the existing values
+                .filter(s -> !((Map) newConfig.get(SERVICES_NAMESPACE_TOPIC)).containsKey(s.getServiceName()))
+                .forEach(s -> servicesMergeBehavior.getChildOverride()
+                        .put(s.getServiceName(), new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now)));
+
         insideServiceMergeBehavior.getChildOverride().put(
                 GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
         insideServiceMergeBehavior.getChildOverride().put(

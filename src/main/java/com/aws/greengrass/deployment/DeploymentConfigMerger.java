@@ -248,7 +248,7 @@ public class DeploymentConfigMerger {
                 try {
                     GreengrassService eg = kernel.locate(serviceName);
 
-                    // If the service is an autostart service, then do not close it and do not
+                    // If the service is builtin, then do not close it and do not
                     // remove it from the config
                     if (eg.isBuiltin()) {
                         return false;
