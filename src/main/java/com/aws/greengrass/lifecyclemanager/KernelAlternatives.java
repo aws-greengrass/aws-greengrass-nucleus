@@ -115,11 +115,11 @@ public class KernelAlternatives {
     }
 
     public boolean isLaunchDirSetup() {
-        return validateLaunchDirSetup(currentDir);
+        return Files.isSymbolicLink(currentDir) && validateLaunchDirSetup(currentDir);
     }
 
     private boolean validateLaunchDirSetup(Path path) {
-        return path.toFile().exists() && getLoaderPathFromLaunchDir(path).toFile().exists();
+        return Files.exists(getLoaderPathFromLaunchDir(path));
     }
 
     /**
@@ -140,7 +140,7 @@ public class KernelAlternatives {
             logger.atWarn().log(e.getMessage());
             if (validateLaunchDirSetup(initialLaunchDir)) {
                 setupLinkToDirectory(currentDir, initialLaunchDir);
-                logger.atDebug().log("Found previous launch directory setup");
+                logger.atDebug().kv("directory", initialLaunchDir).log("Found previous launch directory setup");
             }
             return;
         }
@@ -255,7 +255,7 @@ public class KernelAlternatives {
         Path existingLaunchDir = Files.readSymbolicLink(currentDir).toAbsolutePath();
         copyFolderRecursively(existingLaunchDir, newLaunchDir, REPLACE_EXISTING, NOFOLLOW_LINKS, COPY_ATTRIBUTES);
 
-        cleanup();
+        cleanupLaunchDirectories();
         setupLinkToDirectory(newDir, newLaunchDir);
         setupLinkToDirectory(oldDir, existingLaunchDir);
         Files.delete(currentDir);
@@ -276,18 +276,18 @@ public class KernelAlternatives {
         Files.createSymbolicLink(link, directory);
     }
 
-    private void cleanup() {
+    private void cleanupLaunchDirectories() {
+        cleanupLaunchDirectory(brokenDir);
+        cleanupLaunchDirectory(oldDir);
+        cleanupLaunchDirectory(newDir);
+    }
+
+    private void cleanupLaunchDirectory(Path directory) {
         try {
-            Files.deleteIfExists(brokenDir);
-        } catch (IOException ignore) {
-        }
-        try {
-            Files.deleteIfExists(oldDir);
-        } catch (IOException ignore) {
-        }
-        try {
-            Files.deleteIfExists(newDir);
-        } catch (IOException ignore) {
+            Files.deleteIfExists(directory);
+        } catch (IOException e) {
+            logger.atWarn().kv("directory", directory).log(
+                    "Failed to clean up launch directory from previous deployments", e);
         }
     }
 }

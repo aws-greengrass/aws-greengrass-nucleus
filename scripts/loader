@@ -3,7 +3,7 @@
 PWD=$(dirname "$0")
 
 # Assuming loader is launched from "$GG_ROOT/alts/current/distro/bin/loader"
-GG_ROOT=$(cd "$PWD/../../../.."; pwd)
+GG_ROOT=$(cd $PWD/../../../..; pwd)
 
 echo "Greengrass root: "${GG_ROOT}
 
@@ -24,7 +24,7 @@ launch_kernel() {
     JVM_OPTIONS=$(cat "$LAUNCH_DIR/launch.params")
   fi
 
-  JVM_OPTIONS="$JVM_OPTIONS -Droot=\"$GG_ROOT\""
+  JVM_OPTIONS="$JVM_OPTIONS -Droot=$GG_ROOT"
   OPTIONS="--setup-system-service false"
   if [ ! -z ${CONFIG_FILE} ]; then
     OPTIONS="$OPTIONS --config $CONFIG_FILE"
@@ -45,7 +45,7 @@ flip_link() {
 
 # Determine Kernel stage and proper config files based on launch directory
 if is_directory_link "${GG_ROOT}/alts/new" && is_directory_link "${LAUNCH_DIR}"; then
-  if !is_directory_link "${GG_ROOT}/alts/old"; then
+  if ! is_directory_link "${GG_ROOT}/alts/old"; then
     flip_link "${LAUNCH_DIR}" "${GG_ROOT}/alts/old"
   fi
   flip_link "${GG_ROOT}/alts/new" "${LAUNCH_DIR}"
