@@ -12,14 +12,16 @@ import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
 import com.aws.greengrass.config.Node;
-import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.EncryptionUtils;
+import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.ProxyUtils;
+import com.aws.greengrass.util.RegionUtils;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
 import lombok.Getter;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
@@ -51,7 +53,6 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROO
 @SuppressWarnings("PMD.ConfusingTernary")
 public class GreengrassComponentServiceClientFactory {
 
-    public static final String CONTEXT_COMPONENT_SERVICE_ENDPOINT = "greengrassServiceEndpoint";
     private static final Logger logger = LogManager.getLogger(GreengrassComponentServiceClientFactory.class);
 
     private AWSEvergreen cmsClient;
@@ -59,17 +60,15 @@ public class GreengrassComponentServiceClientFactory {
     /**
      * Constructor with custom endpoint/region configuration.
      *
-     * @param context Context object
      * @param deviceConfiguration       Device configuration
      */
     @Inject
-    public GreengrassComponentServiceClientFactory(Context context, DeviceConfiguration deviceConfiguration) {
-        configureClient((String) context.getvIfExists(CONTEXT_COMPONENT_SERVICE_ENDPOINT).get(), deviceConfiguration);
+    public GreengrassComponentServiceClientFactory(DeviceConfiguration deviceConfiguration) {
+        configureClient(deviceConfiguration);
         deviceConfiguration.onAnyChange((what, node) -> {
             if (validString(node, DEVICE_PARAM_AWS_REGION) || validPath(node, DEVICE_PARAM_ROOT_CA_PATH) || validPath(
                     node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validPath(node, DEVICE_PARAM_PRIVATE_KEY_PATH)) {
-                configureClient((String) context.getvIfExists(CONTEXT_COMPONENT_SERVICE_ENDPOINT).get(),
-                        deviceConfiguration);
+                configureClient(deviceConfiguration);
             }
         });
     }
@@ -82,7 +81,7 @@ public class GreengrassComponentServiceClientFactory {
         return validString(node, key) && Files.exists(Paths.get(key));
     }
 
-    private void configureClient(String greengrassServiceEndpoint, DeviceConfiguration deviceConfiguration) {
+    private void configureClient(DeviceConfiguration deviceConfiguration) {
         ClientConfiguration clientConfiguration = ProxyUtils.getClientConfiguration();
         try {
             configureClientMutualTLS(clientConfiguration, deviceConfiguration);
@@ -98,6 +97,7 @@ public class GreengrassComponentServiceClientFactory {
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
 
         if (!Utils.isEmpty(region)) {
+            String greengrassServiceEndpoint = getGreengrassServiceEndpoint(deviceConfiguration);
             if (!Utils.isEmpty(greengrassServiceEndpoint)) {
                 // Region and endpoint are both required when updating endpoint config
                 logger.atInfo("initialize-greengrass-client").addKeyValue("service-endpoint", greengrassServiceEndpoint)
@@ -113,6 +113,18 @@ public class GreengrassComponentServiceClientFactory {
         }
 
         this.cmsClient = clientBuilder.build();
+    }
+
+    private String getGreengrassServiceEndpoint(DeviceConfiguration deviceConfiguration) {
+        IotSdkClientFactory.EnvironmentStage stage;
+        try {
+            stage = IotSdkClientFactory.EnvironmentStage
+                    .fromString(Coerce.toString(deviceConfiguration.getEnvironmentStage()));
+        } catch (InvalidEnvironmentStageException e) {
+            logger.atError().setCause(e).log("Caught exception while parsing kernel args");
+            throw new RuntimeException(e);
+        }
+        return RegionUtils.getGreengrassDataPlaneEndpoint(Coerce.toString(deviceConfiguration.getAWSRegion()), stage);
     }
 
     private void configureClientMutualTLS(ClientConfiguration clientConfiguration,

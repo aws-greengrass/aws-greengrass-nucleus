@@ -8,6 +8,18 @@ ComponentVersion: '1.0.0'
 ComponentConfiguration:
   DefaultConfiguration:
     jvmOptions: -Xms512m -Xmx512m
+    iotDataEndpoint: ""
+    iotCredEndpoint: ""
+    privateKeyPath: ""
+    certificateFilePath: ""
+    rootCaPath: ""
+    awsRegion: ""
+    iotRoleAlias: ""
+    mqtt: {}
+    networkProxy: {}
+    runWithDefault: {}
+    deploymentPollingFrequency: 15L
+    componentStoreMaxSizeBytes: 10_000_000_000L
 Manifests:
   - Platform:
       os: darwin
