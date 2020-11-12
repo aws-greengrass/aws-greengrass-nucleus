@@ -64,6 +64,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.ipc.common.ExceptionUtil.translateExceptions;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTROL_NAMESPACE_TOPIC;
 
 public class ConfigStoreIPCEventStreamAgent {
     private static final Logger logger = LogManager.getLogger(ConfigStoreIPCEventStreamAgent.class);
@@ -234,6 +235,8 @@ public class ConfigStoreIPCEventStreamAgent {
 
     class UpdateConfigurationOperationHandler extends GeneratedAbstractUpdateConfigurationOperationHandler {
         private final String serviceName;
+        // Top level configuration fields which cannot be updated using this API
+        private final List<String> restrictedConfigurationFields = Arrays.asList(ACCESS_CONTROL_NAMESPACE_TOPIC);
 
         protected UpdateConfigurationOperationHandler(OperationContinuationHandlerContext context) {
             super(context);
@@ -312,23 +315,28 @@ public class ConfigStoreIPCEventStreamAgent {
             if (request.getValueToMerge() == null) {
                 throw new InvalidArgumentsError("ValueToMerge is required");
             }
+            String[] keyPath = new String[0];
+            if (request.getKeyPath() != null) {
+                keyPath = request.getKeyPath().toArray(new String[0]);
+            }
+            if (keyPath.length == 0 && request.getValueToMerge().keySet().stream()
+                    .filter(key -> restrictedConfigurationFields.contains(key)).findAny().isPresent()
+            || keyPath.length != 0 && restrictedConfigurationFields.contains(request.getKeyPath().get(0))) {
+                throw new InvalidArgumentsError("Config update is not allowed for following fields "
+                        + restrictedConfigurationFields);
+            }
 
             Topics serviceTopics = kernel.findServiceTopic(serviceName);
             if (serviceTopics == null) {
                 throw new InvalidArgumentsError("Component config not found for component " + serviceName);
             }
             Topics configTopics = serviceTopics.lookupTopics(CONFIGURATION_CONFIG_KEY);
-            String[] keyPath = new String[0];
-            if (request.getKeyPath() != null) {
-                keyPath = request.getKeyPath().toArray(new String[0]);
-            }
             Node node = configTopics.findNode(keyPath);
             if (node != null && !(node instanceof Topic) && !(node instanceof Topics)) {
                 logger.atError().kv(SERVICE_NAME, serviceName)
                         .log("Somehow Node has an unknown type {}", node.getClass());
                 throw new InvalidArgumentsError("Node corresponding to keypath "
                         + request.getKeyPath().toString() + " has an unknown type");
-
             }
         }
     }
