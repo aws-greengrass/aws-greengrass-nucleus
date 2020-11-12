@@ -24,6 +24,7 @@ import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.deployment.model.PackageInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.aws.greengrass.model.RunWithInfo;
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.nio.file.Files;
@@ -81,7 +82,13 @@ class DeploymentDocumentConverterTest {
         componentNameToConfig.put(DEPENDENCY_COMPONENT, new HashMap<>());
         componentNameToConfig.get(DEPENDENCY_COMPONENT).put("K3", "V3");
 
-
+        Map<String, RunWithInfo> componentToRunWithInfo = new HashMap<>();
+        RunWithInfo runWithInfo = new RunWithInfo();
+        runWithInfo.setPosixUser("foo:bar");
+        componentToRunWithInfo.put(NEW_ROOT_COMPONENT, runWithInfo);
+        runWithInfo = new RunWithInfo();
+        runWithInfo.setPosixUser("1234");
+        componentToRunWithInfo.put(DEPENDENCY_COMPONENT, runWithInfo);
         // Existing: ROOT_COMPONENT_TO_REMOVE_1-1.0.0, ROOT_COMPONENT_TO_REMOVE_2-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
         // To Remove: ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2
         // To Add: NEW_ROOT_COMPONENT-2.0.0
@@ -91,7 +98,8 @@ class DeploymentDocumentConverterTest {
                 LocalOverrideRequest.builder().requestId(REQUEST_ID).requestTimestamp(REQUEST_TIMESTAMP)
                         .componentsToMerge(ROOT_COMPONENTS_TO_MERGE)
                         .componentsToRemove(Arrays.asList(ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2))
-                        .componentNameToConfig(componentNameToConfig).build();
+                        .componentNameToConfig(componentNameToConfig)
+                        .componentToRunWithInfo(componentToRunWithInfo).build();
 
         DeploymentDocument deploymentDocument = DeploymentDocumentConverter
                 .convertFromLocalOverrideRequestAndRoot(testRequest, CURRENT_ROOT_COMPONENTS);
@@ -123,6 +131,7 @@ class DeploymentDocumentConverterTest {
 
         assertThat(newRootComponentConfig.getResolvedVersion(), is("2.0.0"));
         assertEquals(newRootComponentConfig.getConfiguration().size(), 0);
+        assertEquals(newRootComponentConfig.getRunWith().getPosixUser(), "foo:bar");
 
 
         DeploymentPackageConfiguration DependencyComponentConfig =
@@ -131,6 +140,7 @@ class DeploymentDocumentConverterTest {
 
         assertThat(DependencyComponentConfig.getResolvedVersion(), is("*"));
         assertThat(DependencyComponentConfig.getConfiguration(), is(componentNameToConfig.get(DEPENDENCY_COMPONENT)));
+        assertEquals(DependencyComponentConfig.getRunWith().getPosixUser(), "1234");
     }
 
     // Existing: ROOT_COMPONENT_TO_REMOVE_1-1.0.0, ROOT_COMPONENT_TO_REMOVE_2-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
@@ -139,7 +149,7 @@ class DeploymentDocumentConverterTest {
     // To Update: EXISTING_ROOT_COMPONENT-1.0.0 -> 2.0.0
     // Result roots: NEW_ROOT_COMPONENT-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
     @Test
-    void GIVEN_Full_Local_Override_Request_confi_update_And_Current_Root_WHEN_convert_THEN_Return_expected_Deployment_Document()
+    void GIVEN_Full_Local_Override_Request_config_update_And_Current_Root_WHEN_convert_THEN_Return_expected_Deployment_Document()
             throws Exception {
         String dependencyUpdateConfigString =
                 "{ \"MERGE\": { \"Company\": { \"Office\": { \"temperature\": 22 } }, \"path1\": { \"Object2\": { \"key2\": \"val2\" } } }, \"RESET\": [ \"/secret/first\" ] }";

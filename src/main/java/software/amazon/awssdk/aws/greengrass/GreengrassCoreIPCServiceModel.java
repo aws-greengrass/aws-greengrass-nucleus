@@ -63,6 +63,7 @@ import software.amazon.awssdk.aws.greengrass.model.RequestStatus;
 import software.amazon.awssdk.aws.greengrass.model.ResourceNotFoundError;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentRequest;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentResponse;
+import software.amazon.awssdk.aws.greengrass.model.RunWithInfo;
 import software.amazon.awssdk.aws.greengrass.model.SecretValue;
 import software.amazon.awssdk.aws.greengrass.model.SendConfigurationValidityReportRequest;
 import software.amazon.awssdk.aws.greengrass.model.SendConfigurationValidityReportResponse;
@@ -318,6 +319,7 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OBJECT_MODEL_MAP.put(LifecycleState.APPLICATION_MODEL_TYPE, LifecycleState.class);
     SERVICE_OBJECT_MODEL_MAP.put(PreComponentUpdateEvent.APPLICATION_MODEL_TYPE, PreComponentUpdateEvent.class);
     SERVICE_OBJECT_MODEL_MAP.put(PostComponentUpdateEvent.APPLICATION_MODEL_TYPE, PostComponentUpdateEvent.class);
+    SERVICE_OBJECT_MODEL_MAP.put(RunWithInfo.APPLICATION_MODEL_TYPE, RunWithInfo.class);
   }
 
   private GreengrassCoreIPCServiceModel() {

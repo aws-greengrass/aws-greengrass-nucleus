@@ -53,11 +53,18 @@ public class CreateLocalDeploymentRequest implements EventStreamJsonMessage {
   )
   private Optional<Map<String, Map<String, Object>>> componentToConfiguration;
 
+  @Expose(
+      serialize = true,
+      deserialize = true
+  )
+  private Optional<Map<String, RunWithInfo>> componentToRunWithInfo;
+
   public CreateLocalDeploymentRequest() {
     this.groupName = Optional.empty();
     this.rootComponentVersionsToAdd = Optional.empty();
     this.rootComponentsToRemove = Optional.empty();
     this.componentToConfiguration = Optional.empty();
+    this.componentToRunWithInfo = Optional.empty();
   }
 
   public String getGroupName() {
@@ -105,6 +112,17 @@ public class CreateLocalDeploymentRequest implements EventStreamJsonMessage {
     this.componentToConfiguration = Optional.ofNullable(componentToConfiguration);
   }
 
+  public Map<String, RunWithInfo> getComponentToRunWithInfo() {
+    if (componentToRunWithInfo.isPresent()) {
+      return componentToRunWithInfo.get();
+    }
+    return null;
+  }
+
+  public void setComponentToRunWithInfo(final Map<String, RunWithInfo> componentToRunWithInfo) {
+    this.componentToRunWithInfo = Optional.ofNullable(componentToRunWithInfo);
+  }
+
   @Override
   public String getApplicationModelType() {
     return APPLICATION_MODEL_TYPE;
@@ -121,11 +139,12 @@ public class CreateLocalDeploymentRequest implements EventStreamJsonMessage {
     isEquals = isEquals && this.rootComponentVersionsToAdd.equals(other.rootComponentVersionsToAdd);
     isEquals = isEquals && this.rootComponentsToRemove.equals(other.rootComponentsToRemove);
     isEquals = isEquals && this.componentToConfiguration.equals(other.componentToConfiguration);
+    isEquals = isEquals && this.componentToRunWithInfo.equals(other.componentToRunWithInfo);
     return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(groupName, rootComponentVersionsToAdd, rootComponentsToRemove, componentToConfiguration);
+    return Objects.hash(groupName, rootComponentVersionsToAdd, rootComponentsToRemove, componentToConfiguration, componentToRunWithInfo);
   }
 }

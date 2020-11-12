@@ -14,6 +14,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import software.amazon.awssdk.aws.greengrass.model.RunWithInfo;
 
 import java.util.List;
 import java.util.Map;
@@ -34,4 +35,6 @@ public class LocalOverrideRequest {
     Map<String, Map<String, Object>> componentNameToConfig;
 
     Map<String, ConfigurationUpdateOperation> configurationUpdate;
+
+    Map<String, RunWithInfo> componentToRunWithInfo;
 }
