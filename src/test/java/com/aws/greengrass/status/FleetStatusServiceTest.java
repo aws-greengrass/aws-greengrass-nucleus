@@ -205,6 +205,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(JobStatus.SUCCEEDED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
         assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
         assertServiceIsRootOrNot(fleetStatusDetails.getComponentStatusDetails().get(0));
         serviceNamesToCheck.remove(fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
@@ -280,6 +281,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(JobStatus.SUCCEEDED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
@@ -494,6 +496,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(JobStatus.SUCCEEDED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
 
         fleetStatusDetails.getComponentStatusDetails().forEach(System.out::println);
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
