@@ -6,7 +6,7 @@ Manifests:
   - Platform:
       os: all
     Artifacts:
-      - URI: greengrass:zip.zip
+      - URI: s3://mock-bucket/zip.zip
         Unarchive: ZIP
         Permission:
           Read: ALL

@@ -101,7 +101,6 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_K
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
-import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -196,7 +195,7 @@ class DeploymentTaskIntegrationTest {
         // pre-load contents to package store
         preloadLocalStoreContent();
 
-        assumeCanSudoShell(kernel);
+//        assumeCanSudoShell(kernel);
 
     }
 
