@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTROL_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -249,6 +250,31 @@ class ConfigStoreIPCEventStreamAgentTest {
     }
 
     @Test
+    void GIVEN_agent_running_WHEN_update_config_request_for_ACL_THEN_update_fails() {
+        when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
+        UpdateConfigurationRequest request = new UpdateConfigurationRequest();
+        request.setKeyPath(Collections.EMPTY_LIST);
+        request.setValueToMerge(Collections.singletonMap(ACCESS_CONTROL_NAMESPACE_TOPIC, Collections.singletonMap(
+                "aws.greengrass.ipc.pubsub", "policy")));
+        request.setTimestamp(Instant.now());
+        Exception e = assertThrows(InvalidArgumentsError.class,
+                () -> agent.getUpdateConfigurationHandler(mockContext).handleRequest(request));
+        assertTrue(e.getMessage().contains("Config update is not allowed for following fields"));
+    }
+
+    @Test
+    void GIVEN_agent_running_WHEN_update_config_request_for_ACL_nested_node_THEN_update_fails() {
+        when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
+        UpdateConfigurationRequest request = new UpdateConfigurationRequest();
+        request.setKeyPath(Arrays.asList(ACCESS_CONTROL_NAMESPACE_TOPIC));
+        request.setValueToMerge(Collections.singletonMap("aws.greengrass.ipc.pubsub", "policy"));
+        request.setTimestamp(Instant.now());
+        Exception e = assertThrows(InvalidArgumentsError.class,
+                () -> agent.getUpdateConfigurationHandler(mockContext).handleRequest(request));
+        assertTrue(e.getMessage().contains("Config update is not allowed for following fields"));
+    }
+
+    @Test
     void GIVEN_update_config_request_WHEN_update_key_does_not_exist_THEN_create_key() {
         when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
         when(kernel.findServiceTopic(TEST_COMPONENT_A))
@@ -272,7 +298,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
         long actualModTime = componentAConfiguration.lookup(CONFIGURATION_CONFIG_KEY, TEST_CONFIG_KEY_1).getModtime();
         UpdateConfigurationRequest request = new UpdateConfigurationRequest();
-        request.setKeyPath(Collections.singletonList(TEST_CONFIG_KEY_1));
+        request.setKeyPath(Collections.EMPTY_LIST);
         request.setValueToMerge(Collections.singletonMap(TEST_CONFIG_KEY_1, 30));
         request.setTimestamp(Instant.ofEpochMilli(actualModTime - 10));
         FailedUpdateConditionCheckError error = assertThrows(FailedUpdateConditionCheckError.class, () ->
