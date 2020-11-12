@@ -37,6 +37,7 @@ import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RegionUtils;
+import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -554,10 +555,14 @@ public class Kernel {
             throw new RuntimeException(e);
         }
 
-        String region = Coerce.toString(deviceConfiguration.getAWSRegion());
-        String endpoint = RegionUtils.getGreengrassDataPlaneEndpoint(region, stage);
-        logger.atInfo().log("Configured to use Greengrass endpoint: {}", endpoint);
-        context.put(CONTEXT_COMPONENT_SERVICE_ENDPOINT, endpoint);
+        deviceConfiguration.getAWSRegion().subscribe((what, node) -> {
+            String region = Coerce.toString(node);
+            if (Utils.isNotEmpty(region)) {
+                String endpoint = RegionUtils.getGreengrassDataPlaneEndpoint(region, stage);
+                logger.atInfo().log("Configured to use Greengrass endpoint: {}", endpoint);
+                context.put(CONTEXT_COMPONENT_SERVICE_ENDPOINT, endpoint);
+            }
+        });
     }
 
     /*
