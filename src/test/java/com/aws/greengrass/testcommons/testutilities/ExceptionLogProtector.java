@@ -120,6 +120,7 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
                 + " certificateFilePath cannot be empty, privateKeyPath cannot be empty, rootCaPath cannot be empty,");
         // Ignore error from MQTT during shutdown
         ignoreExceptionUltimateCauseWithMessageSubstring(context, "MQTT operation interrupted by connection shutdown");
+        ignoreExceptionUltimateCauseWithMessageSubstring(context, "Connection has started destroying process");
 
         // Ignore error from AWS ERROR
         ignoreExceptionWithMessageSubstring(context, "AWS_ERROR_INVALID_ARGUMENT(33), An invalid argument");
