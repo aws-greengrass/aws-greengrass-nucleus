@@ -31,10 +31,4 @@ public class AuthorizationPolicy implements Comparable<AuthorizationPolicy> {
     public int compareTo(AuthorizationPolicy other) {
         return this.policyId.compareTo(other.policyId);
     }
-
-    @Override
-    public String toString() {
-        return String.format("policyId: %s, policyDescription: %s, principals: %s, operations: %s, resources: %s",
-                policyId, policyDescription, principals, operations, resources);
-    }
 }

@@ -45,7 +45,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class AuthorizationPolicyParserTest {
 
-    private final static String SECRET_SERVICE = "aws.greengrass.secretsManager";
+    private final static String TEST_COMPONENT = "testComponent";
     private final AuthorizationPolicyParser policyParser = new AuthorizationPolicyParser();
 
     @Mock
@@ -107,7 +107,7 @@ class AuthorizationPolicyParserTest {
         assertThat(policy3.getPrincipals(), containsInAnyOrder("ServiceName"));
         assertThat(policy3.getResources(), containsInAnyOrder("/topic/1/#", "/longer/topic/example/", "*"));
 
-        AuthorizationPolicy secretPolicy = authorizationPolicyMap.get(SECRET_SERVICE).get(0);
+        AuthorizationPolicy secretPolicy = authorizationPolicyMap.get(TEST_COMPONENT).get(0);
         assertThat(secretPolicy.getPolicyId(), equalTo("policyId3"));
         assertThat(secretPolicy.getPolicyDescription(), equalTo("access to secrets"));
         assertThat(secretPolicy.getOperations(), containsInAnyOrder("getsecret"));

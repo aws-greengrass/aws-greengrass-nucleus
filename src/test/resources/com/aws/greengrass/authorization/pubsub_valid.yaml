@@ -25,7 +25,7 @@ services:
               - publish
             resources:
               - /publishOnlyTopic
-        aws.greengrass.secretsManager:
+        testComponent:
           policyId3:
             policyDescription: access to secrets
             operations:
