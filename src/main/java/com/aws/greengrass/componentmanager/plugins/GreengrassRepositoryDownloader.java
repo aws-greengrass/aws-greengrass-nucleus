@@ -68,7 +68,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             throws PackageDownloadException {
         URL url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
 
-        return runWithRetry("establish HTTP connection", () -> {
+        return runWithRetry("establish HTTP connection", MAX_RETRY, () -> {
             HttpURLConnection httpConn = null;
             InputStream inputStreamResult = null;
 
@@ -151,7 +151,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         }
         URL url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
 
-        runWithRetry("get-artifact-info", () -> {
+        runWithRetry("get-artifact-info", MAX_RETRY, () -> {
             HttpURLConnection httpConn = null;
             try {
                 httpConn = connect(url);
@@ -179,19 +179,19 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
-    protected <T> T runWithRetry(String taskDescription, CrashableSupplier<T, Exception> taskToRetry)
+    protected <T> T runWithRetry(String taskDescription, int maxRetry, CrashableSupplier<T, Exception> taskToRetry)
             throws PackageDownloadException {
         int retryInterval = INIT_RETRY_INTERVAL_MILLI;
         int retry = 0;
         IOException retryableException = null;
-        while (retry < MAX_RETRY) {
+        while (retry < maxRetry) {
             retry++;
             try {
                 return taskToRetry.apply();
             } catch (IOException e) {
                 logger.atInfo().kv("exception", e.getMessage()).log("Retry " + taskDescription);
                 retryableException = e;
-                if (retry >= MAX_RETRY) {
+                if (retry >= maxRetry) {
                     break;
                 }
                 try {
@@ -212,7 +212,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             }
         }
         throw new PackageDownloadException(
-                String.format("Fail to execute %s after retrying %d times", taskDescription, MAX_RETRY),
+                String.format("Fail to execute %s after retrying %d times", taskDescription, maxRetry),
                 retryableException);
     }
 

@@ -224,6 +224,22 @@ public class ArtifactDownloaderTest {
     }
 
     @Test
+    void GIVEN_checksum_match_WHEN_download_required_THEN_return_false() throws Exception {
+        String content = "Sample artifact content";
+        String checksum = Base64.getEncoder()
+                .encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
+        ComponentArtifact artifact = ComponentArtifact.builder()
+                .algorithm("SHA-256").checksum(checksum)
+                .artifactUri(new URI("s3://eg-artifacts/ComponentWithS3Artifacts-1.0.0/artifact.txt")).build();
+
+        MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content);
+
+        File file = downloader.getArtifactFile();
+        Files.write(file.toPath(), content.getBytes());
+        assertThat(downloader.downloadRequired(), is(false));
+    }
+
+    @Test
     void GIVEN_artifact_checksum_missing_WHEN_local_artifact_exist_THEN_use_local() throws Exception {
         String content = "Sample artifact content";
         ComponentArtifact artifact = createTestArtifact("SHA-256", null);

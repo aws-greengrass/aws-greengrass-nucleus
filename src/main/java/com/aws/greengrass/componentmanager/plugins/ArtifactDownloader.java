@@ -78,51 +78,19 @@ public abstract class ArtifactDownloader {
 
         // If there are partially downloaded artifact existing on device
         if (Files.exists(saveToPath)) {
-            offset = Files.size(saveToPath);
-            if (offset > artifactSize) {
+            if (Files.size(saveToPath) > artifactSize) {
                 // Existing file is corrupted, it's larger than defined in artifact.
                 // Normally shouldn't happen, corrupted files are deleted every time.
-                logger.atError().log("existing file corrupted. Removing and retry download.");
+                logger.atError().log("existing file corrupted. Expected size: {}, Actual size: {}."
+                        + " Removing and retry download.", artifactSize, Files.size(saveToPath));
                 Files.deleteIfExists(saveToPath);
-                offset = 0;
             } else {
-                // Updating checksum digest with the bytes in existing file.
-                try (InputStream existingArtifact = Files.newInputStream(saveToPath)) {
-                    byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
-                    int readBytes = existingArtifact.read(buffer);
-                    while (readBytes > -1) {
-                        messageDigest.update(buffer, 0, readBytes);
-                        readBytes = existingArtifact.read(buffer);
-                    }
-                }
-
-                // If existing file is same size as defined in artifact, check checksum.
-                if (offset == artifactSize) {
-                    String digest = Base64.getEncoder().encodeToString(messageDigest.digest());
-                    if (digest.equals(artifact.getChecksum())) {
-                        logger.atDebug().log("Artifacts already downloaded");
-                        return saveToPath.toFile();
-                    }
-
-                    // Normally shouldn't happen, corrupted files are deleted every time.
-                    logger.atError().log("existing file corrupted. Removing and retry download.");
-                    Files.deleteIfExists(saveToPath);
-                    offset = 0;
-                    messageDigest.reset();
-                } else {
-                    logger.atInfo().log("Found existing partially downloaded file with size {},"
-                            + "will continue downloading", offset);
-                }
+                offset = Files.size(saveToPath);
+                updateDigestFromFile(saveToPath, messageDigest);
             }
         }
 
-        // resume downloading from the offset, and append to existing file
-        try (OutputStream artifactFile = Files.newOutputStream(saveToPath,
-                StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE)) {
-            downloadToFile(artifactFile, offset, artifactSize, messageDigest);
-        } catch (IOException e) {
-            throw new PackageDownloadException(getErrorString("Unable to write to open file stream"), e);
-        }
+        downloadToFile(saveToPath, offset, artifactSize, messageDigest);
 
         String digest = Base64.getEncoder().encodeToString(messageDigest.digest());
         if (!digest.equals(artifact.getChecksum())) {
@@ -135,65 +103,73 @@ public abstract class ArtifactDownloader {
         return saveToPath.toFile();
     }
 
-    private void downloadToFile(OutputStream artifactFile, long rangeStart, long rangeEnd, MessageDigest messageDigest)
+    private void downloadToFile(Path saveToPath, long rangeStart, long rangeEnd, MessageDigest messageDigest)
             throws PackageDownloadException {
-        InputStream artifactInputStream = null;
-        Runnable cleanupRunnable = null;
-        long offset = rangeStart;
-        int retryInteraval = INIT_RETRY_INTERVAL_MILLI;
-        while (true) {
-            try {
-                Pair<InputStream, Runnable> readInput = readWithRange(offset, rangeEnd - 1);
-                artifactInputStream = readInput.getLeft();
-                cleanupRunnable = readInput.getRight();
-
-                byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
-                int readBytes = artifactInputStream.read(buffer);
-                while (readBytes > -1) {
-                    offset += readBytes;
-                    // Compute digest as well as write to the file path
-                    messageDigest.update(buffer, 0, readBytes);
-                    try {
-                        artifactFile.write(buffer, 0, readBytes);
-                    } catch (IOException e) {
-                        throw new PackageDownloadException(
-                                getErrorString("Fail to write to file"), e);
-                    }
-                    // reset retryInterval if download succeeded
-                    retryInteraval = INIT_RETRY_INTERVAL_MILLI;
-
-                    readBytes = artifactInputStream.read(buffer);
-                }
-                if (offset >= rangeEnd) {
-                    break;
-                }
-            } catch (IOException e) {
-                logger.atWarn().setCause(e).log("Error in downloading artifact, wait to retry.");
-                // backoff sleep retry
+        if (rangeStart >= rangeEnd) {
+            return;
+        }
+        try (OutputStream artifactFile = Files.newOutputStream(saveToPath,
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE)) {
+            InputStream artifactInputStream = null;
+            Runnable cleanupRunnable = null;
+            long offset = rangeStart;
+            int retryInteraval = INIT_RETRY_INTERVAL_MILLI;
+            while (true) {
                 try {
-                    Thread.sleep(retryInteraval);
-                    if (retryInteraval < MAX_RETRY_INTERVAL_MILLI) {
-                        retryInteraval = retryInteraval * 2;
-                    } else {
-                        retryInteraval = MAX_RETRY_INTERVAL_MILLI;
+                    Pair<InputStream, Runnable> readInput = readWithRange(offset, rangeEnd - 1);
+                    artifactInputStream = readInput.getLeft();
+                    cleanupRunnable = readInput.getRight();
+
+                    byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
+                    int readBytes = artifactInputStream.read(buffer);
+                    while (readBytes > -1) {
+                        offset += readBytes;
+                        // Compute digest as well as write to the file path
+                        messageDigest.update(buffer, 0, readBytes);
+                        try {
+                            artifactFile.write(buffer, 0, readBytes);
+                        } catch (IOException e) {
+                            throw new PackageDownloadException(
+                                    getErrorString("Fail to write to file"), e);
+                        }
+                        // reset retryInterval if download succeeded
+                        retryInteraval = INIT_RETRY_INTERVAL_MILLI;
+
+                        readBytes = artifactInputStream.read(buffer);
                     }
-                } catch (InterruptedException ie) {
-                    logger.atInfo().log("Interrupted while waiting to retry download");
-                    return;
-                }
-                continue;
-            } finally {
-                if (artifactInputStream != null) {
+                    if (offset >= rangeEnd) {
+                        break;
+                    }
+                } catch (IOException e) {
+                    logger.atWarn().setCause(e).log("Error in downloading artifact, wait to retry.");
+                    // backoff sleep retry
                     try {
-                        artifactInputStream.close();
-                    } catch (IOException e) {
-                        logger.atWarn().setCause(e).log("Unable to close artifact download stream.");
+                        Thread.sleep(retryInteraval);
+                        if (retryInteraval < MAX_RETRY_INTERVAL_MILLI) {
+                            retryInteraval = retryInteraval * 2;
+                        } else {
+                            retryInteraval = MAX_RETRY_INTERVAL_MILLI;
+                        }
+                    } catch (InterruptedException ie) {
+                        logger.atInfo().log("Interrupted while waiting to retry download");
+                        return;
                     }
-                }
-                if (cleanupRunnable != null) {
-                    cleanupRunnable.run();
+                    continue;
+                } finally {
+                    if (artifactInputStream != null) {
+                        try {
+                            artifactInputStream.close();
+                        } catch (IOException e) {
+                            logger.atWarn().setCause(e).log("Unable to close artifact download stream.");
+                        }
+                    }
+                    if (cleanupRunnable != null) {
+                        cleanupRunnable.run();
+                    }
                 }
             }
+        } catch (IOException e) {
+            throw new PackageDownloadException(getErrorString("Unable to write to open file stream"), e);
         }
     }
 
@@ -279,22 +255,27 @@ public abstract class ArtifactDownloader {
         }
 
         // If the file already exists and has the right content, skip download
-        try (InputStream existingArtifact = Files.newInputStream(filePath)) {
+        try {
             MessageDigest messageDigest = MessageDigest.getInstance(artifact.getAlgorithm());
-            byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
-            int readBytes = existingArtifact.read(buffer);
-            while (readBytes > -1) {
-                messageDigest.update(buffer, 0, readBytes);
-                readBytes = existingArtifact.read(buffer);
-            }
+            updateDigestFromFile(filePath, messageDigest);
             String digest = Base64.getEncoder().encodeToString(messageDigest.digest());
             return digest.equals(artifact.getChecksum());
-
         } catch (IOException | NoSuchAlgorithmException e) {
-            // If error in checking the existing content, attempt fresh download
             return false;
         }
     }
+
+    private static void updateDigestFromFile(Path filePath, MessageDigest digest) throws IOException {
+        try (InputStream existingArtifact = Files.newInputStream(filePath)) {
+            byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
+            int readBytes = existingArtifact.read(buffer);
+            while (readBytes > -1) {
+                digest.update(buffer, 0, readBytes);
+                readBytes = existingArtifact.read(buffer);
+            }
+        }
+    }
+
 
     private static boolean recipeHasDigest(ComponentArtifact artifact) {
         return !Utils.isEmpty(artifact.getAlgorithm()) && !Utils.isEmpty(artifact.getChecksum());
