@@ -92,7 +92,7 @@ class IPCPubSubTest {
             "          \"policyId4\":{\n" +
             "            \"policyDescription\":\"access to pubsub topics for ServiceName\",\n" +
             "            \"operations\":[\n" +
-            "              \"publish\"\n" +
+            "              \"aws.greengrass#PublishToTopic\"\n" +
             "            ],\n" +
             "            \"resources\":[\n" +
             "              \"/topic/1/#\",\n" +

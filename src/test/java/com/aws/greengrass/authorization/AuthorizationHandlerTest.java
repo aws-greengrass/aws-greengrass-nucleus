@@ -301,6 +301,16 @@ class AuthorizationHandlerTest {
     }
 
     @Test
+    void GIVEN_AuthZ_handler_WHEN_component_registered_with_bad_operations_THEN_auth_fails() throws Exception {
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
+        Set<String> serviceOps = new HashSet<>(Arrays.asList("badOpA", "badOpB", "badOpC"));
+        authorizationHandler.registerComponent("ServiceA", serviceOps);
+        AuthorizationPolicy policy = getAuthZPolicy();
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.validateOperations("ServiceA",
+                policy));
+    }
+
+    @Test
     void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_auth_lookup_for_star_operation_works() throws Exception {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
@@ -411,7 +421,7 @@ class AuthorizationHandlerTest {
 
     @Test
     void GIVEN_authZ_handler_WHEN_loaded_incorrect_config_THEN_load_fails(ExtensionContext context)
-            throws InterruptedException {
+            throws InterruptedException, AuthorizationException {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
 
         ignoreExceptionOfType(context, AuthorizationException.class);
@@ -429,16 +439,14 @@ class AuthorizationHandlerTest {
                 Collections.singletonList(getAuthZPolicy()), false);
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
-        // GG_NEEDS_REVIEW: TODO:Add component registration logic back in along with this assertion:
-        // https://issues-iad.amazon.com/issues/V234938383
-//        setupLogListener("load-authorization-config-invalid-component");
-//        authorizationHandler.loadAuthorizationPolicies(
-//                "ServiceA",
-//                Collections.singletonList(getAuthZPolicy()), false);
-//        assertTrue(logReceived.await(5, TimeUnit.SECONDS));
-//
+        setupLogListener("load-authorization-config-invalid-component");
+        authorizationHandler.loadAuthorizationPolicies(
+                "ServiceA",
+                Collections.singletonList(getAuthZPolicy()), false);
+        assertTrue(logReceived.await(5, TimeUnit.SECONDS));
+
 //        // register the component
-//        authorizationHandler.registerComponent("ServiceA", new HashSet(Arrays.asList("Op")));
+        authorizationHandler.registerComponent("ServiceA", new HashSet(Arrays.asList("Op")));
 
         // Empty principal should fail to load now
         setupLogListener("load-authorization-config-invalid-principal");
@@ -455,15 +463,6 @@ class AuthorizationHandlerTest {
                 "ServiceA",
                 Collections.singletonList(getAuthZPolicy()), false);
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
-
-        // Now let the mock return mock topics
-        //when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
-        // Ops which are not registered should fail to load
-        // GG_NEEDS_REVIEW: TODO:Add component registration logic back in along with this assertion :
-        // https://issues-iad.amazon.com/issues/V234938383
-        //exception = assertThrows(AuthorizationException.class, () -> authorizationHandler.loadAuthorizationPolicies("ServiceA",
-        //Collections.singletonList(getAuthZPolicy())));
-        //assertTrue(exception.getMessage().contains("Operation not registered"));
 
         // Empty operations should fail to load
         setupLogListener("load-authorization-config-invalid-operation");
