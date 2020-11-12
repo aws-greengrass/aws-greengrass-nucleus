@@ -9,6 +9,7 @@ import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
@@ -28,6 +29,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
@@ -94,6 +96,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -151,6 +154,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
         });
 
+        Topics t = kernel.findServiceTopic(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
+        assertNotNull(t, "FSS Topics should not be null before merging");
 
         Map<String, Object> newConfig =
                 (Map<String, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml"));
@@ -159,6 +164,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 getNucleusConfig());
 
         deploymentConfigMerger.mergeInNewConfig(testDeployment(), newConfig).get(60, TimeUnit.SECONDS);
+
+        t = kernel.findServiceTopic(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
+        assertNotNull(t, "FSS Topics should not be null after merging");
 
         // THEN
         assertTrue(mainRestarted.await(10, TimeUnit.SECONDS));
