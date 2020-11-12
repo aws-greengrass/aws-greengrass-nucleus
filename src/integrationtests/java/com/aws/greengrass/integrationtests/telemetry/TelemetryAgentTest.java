@@ -9,8 +9,6 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.telemetry.MetricsPayload;
@@ -65,7 +63,6 @@ class TelemetryAgentTest extends BaseITCase {
     @Captor
     private ArgumentCaptor<PublishRequest> captor;
     private TelemetryAgent ta;
-    Logger logger = LogManager.getLogger("rtew");
     @Mock
     private TestFeatureParameterInterface DEFAULT_HANDLER;
 
@@ -101,10 +98,6 @@ class TelemetryAgentTest extends BaseITCase {
             if (service.getName().equals(TELEMETRY_AGENT_SERVICE_TOPICS)) {
                 if (service.getState().equals(State.RUNNING)) {
                     ta = (TelemetryAgent) service;
-                    ta.setPeriodicPublishMetricsIntervalSec(publishInterval);
-                    ta.setPeriodicAggregateMetricsIntervalSec(aggregateInterval);
-                    ta.schedulePeriodicAggregateMetrics(true);
-                    ta.schedulePeriodicPublishMetrics(true);
                     telemetryRunning.countDown();
                 }
             }
@@ -122,11 +115,6 @@ class TelemetryAgentTest extends BaseITCase {
                 TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC)) > lastAgg);
         assertNotNull(ta.getPeriodicPublishMetricsFuture(), "periodic publish future is not scheduled.");
         long delay = ta.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
-        if (delay > publishInterval) {
-            logger.atInfo().log("****************");
-            logger.atInfo().log(delay);
-            logger.atInfo().log("****************");
-        }
         assertTrue(delay <= publishInterval);
         // telemetry logs are always written to ~root/telemetry
         assertEquals(kernel.getNucleusPaths().rootPath().resolve("telemetry"),

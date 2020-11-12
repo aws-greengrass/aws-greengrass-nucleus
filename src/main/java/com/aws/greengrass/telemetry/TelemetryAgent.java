@@ -142,7 +142,7 @@ public class TelemetryAgent extends GreengrassService {
      *
      * @param isReconfigured will be true if aggregation interval is reconfigured
      */
-    public void schedulePeriodicAggregateMetrics(boolean isReconfigured) {
+    void schedulePeriodicAggregateMetrics(boolean isReconfigured) {
         for (PeriodicMetricsEmitter emitter : periodicMetricsEmitters) {
             cancelJob(emitter.future, periodicAggregateMetricsInProgressLock, false);
         }
@@ -179,7 +179,7 @@ public class TelemetryAgent extends GreengrassService {
      * @param isReconfigured will be true if the publish interval is reconfigured or when
      *                                          the mqtt connection is resumed.
      */
-    public void schedulePeriodicPublishMetrics(boolean isReconfigured) {
+    void schedulePeriodicPublishMetrics(boolean isReconfigured) {
         // If we missed to publish the metrics due to connection loss or if the publish interval is reconfigured,
         // cancel the previously scheduled job.
         cancelJob(periodicPublishMetricsFuture, periodicPublishMetricsInProgressLock, false);
