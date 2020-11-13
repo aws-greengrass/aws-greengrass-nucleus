@@ -29,11 +29,28 @@ public final class Digest {
      */
     public static String calculate(String utfInput) throws NoSuchAlgorithmException {
         if (Utils.isEmpty(utfInput)) {
-            throw new IllegalArgumentException("Invalid input to calculate digest");
+            throw new IllegalArgumentException("Input is blank for calculating digest");
         }
         MessageDigest messageDigest = MessageDigest.getInstance(DIGEST_ALGO);
         return Base64.getEncoder().encodeToString(messageDigest.digest(utfInput.getBytes(StandardCharsets.UTF_8)));
     }
+
+    /**
+     * Calculate digest for a UTF_8 encoded string input.
+     * @param utfInput String to calculate digest for
+     * @return the base64 encoded digest value for the string
+     * @throws NoSuchAlgorithmException when no implementation for message digest is available
+     * @throws IllegalArgumentException if input is invalid
+     */
+    public static String calculateWithUrlEncoderNoPadding(String utfInput) throws NoSuchAlgorithmException {
+        if (Utils.isEmpty(utfInput)) {
+            throw new IllegalArgumentException("Input is blank for calculating digest");
+        }
+        MessageDigest messageDigest = MessageDigest.getInstance(DIGEST_ALGO);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(messageDigest.digest
+                (utfInput.getBytes(StandardCharsets.UTF_8)));
+    }
+
 
     /**
      * Compare two utf8 encoded digest strings.

@@ -159,7 +159,7 @@ public class ComponentManager implements InjectionActions {
         return getComponentMetadata(resolvedComponentId);
     }
 
-    private void storeRecipeDigestSecurely(ComponentIdentifier componentIdentifier, String recipeContent)
+    private void storeRecipeDigestSecurelyForPlugin(ComponentIdentifier componentIdentifier, String recipeContent)
             throws PackageLoadingException {
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe =
                 RecipeLoader.parseRecipe(recipeContent);
@@ -214,8 +214,11 @@ public class ComponentManager implements InjectionActions {
         ComponentIdentifier resolvedComponentId =
                 new ComponentIdentifier(componentContent.getName(), new Semver(componentContent.getVersion()));
         String downloadedRecipeContent = StandardCharsets.UTF_8.decode(componentContent.getRecipe()).toString();
-        // Save the recipe digest in a secure place, before persisting recipe
-        storeRecipeDigestSecurely(resolvedComponentId, downloadedRecipeContent);
+
+        // Save the recipe digest for plugin in a secure place, before persisting recipe
+        storeRecipeDigestSecurelyForPlugin(resolvedComponentId, downloadedRecipeContent);
+
+        // Save the recipe
         boolean saveContent = true;
         Optional<String> recipeContentOnDevice = componentStore.findComponentRecipeContent(resolvedComponentId);
 
@@ -226,6 +229,9 @@ public class ComponentManager implements InjectionActions {
         if (saveContent) {
             componentStore.savePackageRecipe(resolvedComponentId, downloadedRecipeContent);
         }
+
+        // Save the arn to the recipe meta data file
+        componentStore.saveRecipeMetadata(resolvedComponentId, componentContent.getArn());
 
         return resolvedComponentId;
     }
@@ -325,7 +331,7 @@ public class ComponentManager implements InjectionActions {
         }
         String downloadRecipeContent = componentServiceHelper.downloadPackageRecipeAsString(componentIdentifier);
         // Save the recipe digest in a secure place, before persisting recipe
-        storeRecipeDigestSecurely(componentIdentifier, downloadRecipeContent);
+        storeRecipeDigestSecurelyForPlugin(componentIdentifier, downloadRecipeContent);
         componentStore.savePackageRecipe(componentIdentifier, downloadRecipeContent);
         logger.atDebug().kv("pkgId", componentIdentifier).log("Downloaded from component service");
         return componentStore.getPackageRecipe(componentIdentifier);

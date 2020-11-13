@@ -48,8 +48,38 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     @Override
     public boolean downloadRequired(ComponentIdentifier componentIdentifier, ComponentArtifact artifact,
                                     Path saveToPath) throws PackageDownloadException {
-        String filename = getFilename(artifact);
-        return !artifactExistsAndChecksum(artifact, saveToPath.resolve(filename));
+        // GG_NEEDS_REVIEW: TODO can we simplify getting filename without network request
+        try {
+            String preSignedUrl =
+                    getArtifactDownloadURL(componentIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
+            URL url = new URL(preSignedUrl);
+            HttpURLConnection httpConn = connect(url);
+            try {
+                int responseCode = httpConn.getResponseCode();
+
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
+                    String filename = extractFilename(url, disposition);
+                    return !artifactExistsAndChecksum(artifact, saveToPath.resolve(filename));
+                }
+            } finally {
+                if (httpConn != null) {
+                    httpConn.disconnect();
+                }
+            }
+        } catch (IOException e) {
+            throw new PackageDownloadException("Failed to check greengrass artifact", e);
+        } catch (PackageDownloadException e) {
+            if (!saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile().exists()) {
+                throw e;
+            }
+            logger.atInfo("download-required-from-greengrass-repo")
+                    .addKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, componentIdentifier)
+                    .addKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
+                    .log("Failed to download artifact, but found it locally, using that version", e);
+            return false;
+        }
+        return true;
     }
 
     @Override
@@ -70,6 +100,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
                 if (responseCode == HttpURLConnection.HTTP_OK) {
                     String filename = getFilename(artifact);
+
+                    artifact.setFileName(filename);
 
                     try (InputStream inputStream = httpConn.getInputStream()) {
                         if (artifactExistsAndChecksum(artifact, saveToPath.resolve(filename))) {
@@ -129,18 +161,22 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     @Override
     public File getArtifactFile(Path artifactDir, ComponentArtifact artifact, ComponentIdentifier componentIdentifier) {
-        return artifactDir.resolve(getFilename(artifact)).toFile();
+        return artifactDir.resolve(artifact.getFileName()).toFile();
     }
 
     HttpURLConnection connect(URL url) throws IOException {
         return (HttpURLConnection) url.openConnection();
     }
 
-    String getArtifactDownloadURL(String componentVersionArn, String artifactName)
+    String getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws PackageDownloadException {
+
+        // validate the arn exists
+        String arn = componentStore.getComponentArn(componentIdentifier);
+
         GetComponentVersionArtifactRequest getComponentArtifactRequest =
                 new GetComponentVersionArtifactRequest().withArtifactName(artifactName)
-                        .withComponentVersionArn(componentVersionArn);
+                        .withComponentVersionArn(arn);
 
         try {
             GetComponentVersionArtifactResult getComponentArtifactResult =
@@ -149,7 +185,23 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         } catch (AmazonClientException e) {
             // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions
             throw new PackageDownloadException(
-                    String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, componentVersionArn), e);
+                    String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, componentIdentifier.getArn()), e);
         }
+    }
+
+    static String extractFilename(URL preSignedUrl, String contentDisposition) {
+        if (contentDisposition != null) {
+            String filenameKey = "filename=";
+            int index = contentDisposition.indexOf(filenameKey);
+            if (index > 0) {
+                //extract filename from content, remove double quotes
+                return contentDisposition.substring(index + filenameKey.length()).replaceAll("^\"|\"$", "");
+            }
+        }
+        //extract filename from URL
+        //URL can contain parameters, such as /filename.txt?sessionId=value
+        //extract 'filename.txt' from it
+        String[] pathStrings = preSignedUrl.getPath().split("/");
+        return pathStrings[pathStrings.length - 1];
     }
 }
