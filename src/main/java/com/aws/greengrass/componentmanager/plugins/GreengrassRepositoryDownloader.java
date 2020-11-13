@@ -157,6 +157,9 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     @Override
     public File getArtifactFile(Path artifactDir, ComponentArtifact artifact, ComponentIdentifier componentIdentifier) {
+        if (artifact.getFileName() != null) {
+            return artifactDir.resolve(artifact.getFileName()).toFile();
+        }
         // TODO remove after data plane switching to new GCS API
         try {
             String preSignedUrl =
