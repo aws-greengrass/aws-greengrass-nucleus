@@ -5,9 +5,14 @@
 
 package com.aws.greengrass.easysetup;
 
+import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.platforms.Platform;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -22,16 +27,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.util.stream.Stream;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,7 +49,12 @@ class GreengrassSetupTest {
     private DeviceProvisioningHelper deviceProvisioningHelper;
     @Mock
     private Kernel kernel;
-
+    @Mock
+    private Context context;
+    @Mock
+    private DeviceConfiguration deviceConfiguration;
+    @Mock
+    private Topic runWithDefaultPosixUserTopic;
     @Mock
     private DeviceProvisioningHelper.ThingInfo thingInfo;
 
@@ -51,15 +63,33 @@ class GreengrassSetupTest {
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private Platform platform;
 
+    static Stream<Arguments> invalidUsers() {
+        return Stream.of(Arguments.arguments(":foo"), Arguments.arguments(":"));
+    }
+
+    @BeforeEach
+    void setup() {
+        lenient().doReturn(context).when(kernel).getContext();
+        lenient().doReturn(deviceConfiguration).when(context).get(DeviceConfiguration.class);
+        lenient().doReturn(runWithDefaultPosixUserTopic).when(deviceConfiguration).getRunWithDefaultPosixUser();
+        lenient().doReturn("").when(runWithDefaultPosixUserTopic).getOnce();
+        lenient().doReturn(runWithDefaultPosixUserTopic).when(runWithDefaultPosixUserTopic).withValue(anyString());
+    }
+
+    @AfterEach
+    void cleanup() throws IOException {
+        context.close();
+    }
+
     @Test
     void GIVEN_setup_script_WHEN_script_is_used_THEN_setup_actions_are_performed() throws Exception {
         when(deviceProvisioningHelper.createThing(any(), any())).thenReturn(thingInfo);
         greengrassSetup =
-                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform,
-                        "--config", "mock_config_path",
-                        "--root", "mock_root", "--thing-name", "mock_thing_name", "--thing-group-name",
-                        "mock_thing_group_name", "--tes-role-name", "mock_tes_role_name", "--tes-role-alias-name",
-                        "mock_tes_role_alias_name", "--provision", "y", "--aws-region", "us-east-1");
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
+                        "--thing-group-name", "mock_thing_group_name", "--tes-role-name", "mock_tes_role_name",
+                        "--tes-role-alias-name", "mock_tes_role_alias_name", "--provision", "y", "--aws-region",
+                        "us-east-1", "-ss", "false");
         greengrassSetup.parseArgs();
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
@@ -71,40 +101,80 @@ class GreengrassSetupTest {
     }
 
     @Test
-    void GIVEN_no_default_user_WHEN_script_is_used_THEN_no_user_created() throws Exception {
+    void GIVEN_no_default_user_WHEN_script_is_used_THEN_default_user_created_and_added_to_config() throws Exception {
         greengrassSetup =
-                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, "--config",
-                        "mock_config_path", "--root", "mock_root");
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--aws-region", "us-east-1", "-ss", "false");
 
-        GreengrassSetup greengrassSetupSpy = spy(greengrassSetup);
-        doReturn(kernel).when(greengrassSetupSpy).getKernel();
+        when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
+        when(platform.lookupUserByName(any())).thenThrow(IOException.class);
+        when(platform.lookupGroupByName(any())).thenThrow(IOException.class);
         doReturn(kernel).when(kernel).parseArgs(any());
-        greengrassSetupSpy.parseArgs();
-        greengrassSetupSpy.performSetup();
-        ArgumentCaptor<String> args = ArgumentCaptor.forClass(String.class);
-        verify(kernel).parseArgs(args.capture());
+        greengrassSetup.parseArgs();
+        greengrassSetup.performSetup();
+        verify(platform).createUser(eq("ggc_user"));
+        verify(platform).createGroup(eq("ggc_group"));
+        verify(deviceConfiguration).getRunWithDefaultPosixUser();
+        ArgumentCaptor<String> deviceConfigArg = ArgumentCaptor.forClass(String.class);
+        verify(runWithDefaultPosixUserTopic).withValue(deviceConfigArg.capture());
+        assertThat(deviceConfigArg.getAllValues(), hasItems("ggc_user:ggc_group"));
+    }
 
+    @Test
+    void GIVEN_no_default_user_arg_but_user_present_in_config_WHEN_script_is_used_THEN_user_from_config_used()
+            throws Exception {
+        greengrassSetup =
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--aws-region", "us-east-1", "-ss", "false");
+
+        when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
+        doReturn(kernel).when(kernel).parseArgs(any());
+        doReturn("existingUser").when(runWithDefaultPosixUserTopic).getOnce();
+        greengrassSetup.parseArgs();
+        greengrassSetup.performSetup();
+        verify(deviceConfiguration).getRunWithDefaultPosixUser();
+        verify(runWithDefaultPosixUserTopic).getOnce();
+        verify(runWithDefaultPosixUserTopic, times(0)).withValue(anyString());
         verify(platform, times(0)).createUser(eq("ggc_user"));
         verify(platform, times(0)).createGroup(eq("ggc_group"));
+    }
 
-        assertThat(args.getAllValues(), not(hasItems("--component-default-user", "ggc_user:ggc_group")));
+    @Test
+    void GIVEN_default_user_arg_and_user_present_in_config_WHEN_script_is_used_THEN_default_user_arg_used()
+            throws Exception {
+        greengrassSetup =
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--aws-region", "us-east-1", "-ss", "false",
+                        "--component-default-user", "uid:gid");
+
+        when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
+        doReturn(kernel).when(kernel).parseArgs(any());
+        greengrassSetup.parseArgs();
+        greengrassSetup.performSetup();
+        ArgumentCaptor<String> args = ArgumentCaptor.forClass(String.class);
+        verify(kernel).parseArgs(args.capture());
+        assertThat(args.getAllValues(), hasItems("--component-default-user", "uid:gid"));
+        verify(deviceConfiguration).getRunWithDefaultPosixUser();
+        verify(runWithDefaultPosixUserTopic).getOnce();
+        verify(runWithDefaultPosixUserTopic, timeout(0)).withValue(anyString());
+        verify(platform, times(0)).createUser(eq("ggc_user"));
+        verify(platform, times(0)).createGroup(eq("ggc_group"));
     }
 
     @Test
     void GIVEN_default_user_WHEN_script_is_used_THEN_default_user_created() throws Exception {
         greengrassSetup =
-                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, "--config",
-                        "mock_config_path", "--root", "mock_root", "--component-default-user", "ggc_user:ggc_group");
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--component-default-user", "ggc_user:ggc_group",
+                        "--aws-region", "us-east-1", "-ss", "false");
 
         when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
         when(platform.lookupUserByName(any())).thenThrow(IOException.class);
         when(platform.lookupGroupByName(any())).thenThrow(IOException.class);
-        GreengrassSetup greengrassSetupSpy = spy(greengrassSetup);
-        doReturn(kernel).when(greengrassSetupSpy).getKernel();
         doReturn(kernel).when(kernel).parseArgs(any());
         doReturn(kernel).when(kernel).launch();
-        greengrassSetupSpy.parseArgs();
-        greengrassSetupSpy.performSetup();
+        greengrassSetup.parseArgs();
+        greengrassSetup.performSetup();
         ArgumentCaptor<String> args = ArgumentCaptor.forClass(String.class);
         verify(kernel).parseArgs(args.capture());
         assertThat(args.getAllValues(), hasItems("--component-default-user", "ggc_user:ggc_group"));
@@ -116,16 +186,15 @@ class GreengrassSetupTest {
     @Test
     void GIVEN_existing_default_user_WHEN_script_is_used_THEN_default_user_not_created() throws Exception {
         greengrassSetup =
-                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, "--config",
-                        "mock_config_path", "--root", "mock_root", "--component-default-user", "ggc_user:ggc_group");
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--component-default-user", "ggc_user:ggc_group",
+                        "--aws-region", "us-east-1", "-ss", "false");
 
         when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
-        GreengrassSetup greengrassSetupSpy = spy(greengrassSetup);
-        doReturn(kernel).when(greengrassSetupSpy).getKernel();
         doReturn(kernel).when(kernel).parseArgs(any());
         doReturn(kernel).when(kernel).launch();
-        greengrassSetupSpy.parseArgs();
-        greengrassSetupSpy.performSetup();
+        greengrassSetup.parseArgs();
+        greengrassSetup.performSetup();
         ArgumentCaptor<String> args = ArgumentCaptor.forClass(String.class);
         verify(kernel).parseArgs(args.capture());
         assertThat(args.getAllValues(), hasItems("--component-default-user", "ggc_user:ggc_group"));
@@ -135,18 +204,18 @@ class GreengrassSetupTest {
     }
 
     @Test
-    void GIVEN_existing_non_default_user_WHEN_script_is_used_THEN_user_not_created_and_passed_to_kernel() throws Exception {
+    void GIVEN_existing_non_default_user_WHEN_script_is_used_THEN_user_not_created_and_passed_to_kernel()
+            throws Exception {
         greengrassSetup =
-                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, "--config",
-                        "mock_config_path", "--root", "mock_root", "--component-default-user", "foo:bar");
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--component-default-user", "foo:bar",
+                        "--aws-region", "us-east-1", "-ss", "false");
 
         when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
-        GreengrassSetup greengrassSetupSpy = spy(greengrassSetup);
-        doReturn(kernel).when(greengrassSetupSpy).getKernel();
         doReturn(kernel).when(kernel).parseArgs(any());
         doReturn(kernel).when(kernel).launch();
-        greengrassSetupSpy.parseArgs();
-        greengrassSetupSpy.performSetup();
+        greengrassSetup.parseArgs();
+        greengrassSetup.performSetup();
         ArgumentCaptor<String> args = ArgumentCaptor.forClass(String.class);
         verify(kernel).parseArgs(args.capture());
         assertThat(args.getAllValues(), hasItems("--component-default-user", "foo:bar"));
@@ -158,16 +227,15 @@ class GreengrassSetupTest {
     @Test
     void GIVEN_existing_non_default_user_no_group_WHEN_script_is_used_THEN_user_passed_to_kernel() throws Exception {
         greengrassSetup =
-                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, "--config",
-                        "mock_config_path", "--root", "mock_root", "--component-default-user", "foo");
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--component-default-user", "foo", "--aws-region",
+                        "us-east-1", "-ss", "false");
 
         when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
-        GreengrassSetup greengrassSetupSpy = spy(greengrassSetup);
-        doReturn(kernel).when(greengrassSetupSpy).getKernel();
         doReturn(kernel).when(kernel).parseArgs(any());
         doReturn(kernel).when(kernel).launch();
-        greengrassSetupSpy.parseArgs();
-        greengrassSetupSpy.performSetup();
+        greengrassSetup.parseArgs();
+        greengrassSetup.performSetup();
         ArgumentCaptor<String> args = ArgumentCaptor.forClass(String.class);
         verify(kernel).parseArgs(args.capture());
         assertThat(args.getAllValues(), hasItems("--component-default-user", "foo"));
@@ -178,36 +246,68 @@ class GreengrassSetupTest {
 
     @ParameterizedTest
     @MethodSource("invalidUsers")
-    void GIVEN_invalid_user_WHEN_script_is_used_THEN_error(String user) throws Exception {
-        greengrassSetup =
-                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, "--config",
-                        "mock_config_path", "--root", "mock_root", "--component-default-user", user);
+    void GIVEN_invalid_user_WHEN_script_is_used_THEN_error(String user, ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, IOException.class);
+        greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, new Kernel(),
+                "--config", "mock_config_path", "--root", "mock_root", "--component-default-user", user, "--aws-region",
+                "us-east-1", "-ss", "false");
+        Exception e = assertThrows(RuntimeException.class, () -> {
+            greengrassSetup.parseArgs();
+            greengrassSetup.performSetup();
+        });
+        assertThat(e.getMessage(), containsString(
+                String.format("Error while looking up primary group for %s. No " + "group specified for the user",
+                        user)));
+    }
 
-        GreengrassSetup greengrassSetupSpy = spy(greengrassSetup);
+    @Test
+    void GIVEN_blank_user_WHEN_script_is_used_THEN_error() throws Exception {
+        greengrassSetup =
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--component-default-user", "", "--aws-region",
+                        "us-east-1", "-ss", "false");
 
         Exception e = assertThrows(RuntimeException.class, () -> {
-            greengrassSetupSpy.parseArgs();
+            greengrassSetup.parseArgs();
             when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
-            greengrassSetupSpy.performSetup();
+            greengrassSetup.performSetup();
         });
         assertThat(e.getMessage(), containsString("No user specified"));
     }
 
-    static Stream<Arguments> invalidUsers() {
-        return Stream.of(
-                Arguments.arguments(":foo"),
-                Arguments.arguments(":"),
-                Arguments.arguments("")
-        );
+    @Test
+    void GIVEN_setup_script_WHEN_no_region_provided_THEN_fail(ExtensionContext context) throws Exception {
+        GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper,
+                platform, kernel, "-i",
+                "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
+                "-ss", "false");
+        Topic regionTopic = Topic.of(new Context(), DeviceConfiguration.DEVICE_PARAM_AWS_REGION, null);
+        lenient().doReturn(regionTopic).when(deviceConfiguration).getAWSRegion();
+        greengrassSetup.parseArgs();
+        assertThrows(RuntimeException.class,
+                () -> greengrassSetup.performSetup());
     }
 
     @Test
-    void GIVEN_setup_script_WHEN_no_tes_role_args_not_provided_THEN_tes_setup_with_efault() throws Exception {
+    void GIVEN_setup_script_WHEN_no_region_arg_provided_but_region_in_config_THEN_proceed(ExtensionContext context) throws Exception {
+        GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper,
+                platform, kernel, "-i",
+                "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
+                "-ss", "false");
+        Topic regionTopic = Topic.of(new Context(), DeviceConfiguration.DEVICE_PARAM_AWS_REGION, "us-east-1");
+        lenient().doReturn(regionTopic).when(deviceConfiguration).getAWSRegion();
+        greengrassSetup.parseArgs();
+        greengrassSetup.performSetup();
+        verify(kernel).launch();
+    }
+
+    @Test
+    void GIVEN_setup_script_WHEN_no_tes_role_args_provided_THEN_tes_setup_with_default() throws Exception {
         when(deviceProvisioningHelper.createThing(any(), any())).thenReturn(thingInfo);
         greengrassSetup =
-                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform,
-                        "--config", "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
-                        "--provision", "y", "--aws-region", "us-east-1");
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name", "--provision",
+                        "y", "--aws-region", "us-east-1", "-ss", "false");
         greengrassSetup.parseArgs();
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
@@ -221,11 +321,10 @@ class GreengrassSetupTest {
     void GIVEN_setup_script_WHEN_script_is_used_with_short_arg_notations_THEN_setup_actions_are_performed()
             throws Exception {
         when(deviceProvisioningHelper.createThing(any(), any())).thenReturn(thingInfo);
-        greengrassSetup =
-                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, "-i",
-                        "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-tgn",
-                        "mock_thing_group_name", "-trn", "mock_tes_role_name", "-tra", "mock_tes_role_alias_name",
-                        "-p", "y", "-ar", "us-east-1");
+        greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "-i",
+                "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-tgn", "mock_thing_group_name",
+                "-trn", "mock_tes_role_name", "-tra", "mock_tes_role_alias_name", "-p", "y", "-ar", "us-east-1", "-ss",
+                "false");
         greengrassSetup.parseArgs();
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
@@ -240,22 +339,20 @@ class GreengrassSetupTest {
     void GIVEN_setup_script_WHEN_script_is_used_with_unknown_args_THEN_script_fails(ExtensionContext context) {
         ignoreExceptionUltimateCauseWithMessage(context, "Undefined command line argument: -x");
         assertThrows(RuntimeException.class,
-                () -> new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform,
-                        "-i", "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-x",
-                        "mock_wrong_arg_value", "-trn", "mock_tes_role_name").parseArgs());
+                () -> new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "-i",
+                        "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-x", "mock_wrong_arg_value",
+                        "-trn", "mock_tes_role_name", "-ar", "us-east-1", "-ss", "false").parseArgs());
     }
 
     @Test
     void GIVEN_setup_script_WHEN_dry_run_THEN_kernel_not_launched() throws Exception {
         greengrassSetup =
-                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, "--config",
-                        "mock_config_path", "--root", "mock_root", "--start", "false");
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--start", "false", "-ar", "us-east-1", "-ss",
+                        "false");
 
-        GreengrassSetup greengrassSetupSpy = spy(greengrassSetup);
-        doReturn(kernel).when(greengrassSetupSpy).getKernel();
-        doReturn(kernel).when(kernel).parseArgs(any());
-        greengrassSetupSpy.parseArgs();
-        greengrassSetupSpy.performSetup();
+        greengrassSetup.parseArgs();
+        greengrassSetup.performSetup();
         verify(kernel, times(0)).launch();
     }
 }
