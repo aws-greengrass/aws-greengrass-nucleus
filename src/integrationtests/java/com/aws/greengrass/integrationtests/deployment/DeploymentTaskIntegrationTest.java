@@ -195,7 +195,7 @@ class DeploymentTaskIntegrationTest {
         // pre-load contents to package store
         preloadLocalStoreContent();
 
-//        assumeCanSudoShell(kernel);
+        assumeCanSudoShell(kernel);
 
     }
 
