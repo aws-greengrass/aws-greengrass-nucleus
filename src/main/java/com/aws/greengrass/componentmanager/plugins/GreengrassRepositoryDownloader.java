@@ -157,7 +157,33 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     @Override
     public File getArtifactFile(Path artifactDir, ComponentArtifact artifact, ComponentIdentifier componentIdentifier) {
-        return artifactDir.resolve(artifact.getFileName()).toFile();
+        if (artifact.getFileName() != null) {
+            return artifactDir.resolve(artifact.getFileName()).toFile();
+        }
+        // TODO remove after data plane switching to new GCS API
+        try {
+            String preSignedUrl =
+                    getArtifactDownloadURL(componentIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
+            URL url = new URL(preSignedUrl);
+            HttpURLConnection httpConn = connect(url);
+            try {
+                int responseCode = httpConn.getResponseCode();
+
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
+                    String filename = extractFilename(url, disposition);
+                    return artifactDir.resolve(filename).toFile();
+                } else {
+                    throw new RuntimeException("Received non 200 status code when calling the pre signed url.");
+                }
+            } finally {
+                httpConn.disconnect();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed when making http connection to the pre signed url.", e);
+        } catch (PackageDownloadException e) {
+            throw new RuntimeException("Failed to get presigned url for artifact", e);
+        }
     }
 
     HttpURLConnection connect(URL url) throws IOException {
