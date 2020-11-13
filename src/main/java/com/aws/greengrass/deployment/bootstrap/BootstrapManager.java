@@ -18,6 +18,8 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.CommitableReader;
+import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.DependencyOrder;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
@@ -29,8 +31,6 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -357,13 +357,12 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      * @throws IOException on I/O error
      */
     public void persistBootstrapTaskList(Path persistedTaskFilePath) throws IOException {
-        // TODO: [P41179497] add file validation
         Objects.requireNonNull(persistedTaskFilePath);
         logger.atInfo().kv("filePath", persistedTaskFilePath).log("Saving bootstrap task list to file");
         Files.deleteIfExists(persistedTaskFilePath);
         Files.createFile(persistedTaskFilePath);
 
-        try (OutputStream out = Files.newOutputStream(persistedTaskFilePath)) {
+        try (CommitableWriter out = CommitableWriter.commitOnClose(persistedTaskFilePath)) {
             SerializerFactory.getJsonObjectMapper().writeValue(out, bootstrapTaskStatusList);
         }
         logger.atInfo().kv("filePath", persistedTaskFilePath).log("Bootstrap task list is saved to file");
@@ -376,15 +375,16 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      * @throws IOException on I/O error
      * @throws ClassNotFoundException deserialization of the file content fails
      */
+    @SuppressWarnings("PMD.PreserveStackTrace")
     public void loadBootstrapTaskList(Path persistedTaskFilePath) throws IOException {
-        // TODO: [P41179497] add file validation
         Objects.requireNonNull(persistedTaskFilePath);
 
-        try (InputStream input = Files.newInputStream(persistedTaskFilePath)) {
+        CommitableReader.of(persistedTaskFilePath).read(in -> {
             bootstrapTaskStatusList.clear();
             bootstrapTaskStatusList.addAll(SerializerFactory.getJsonObjectMapper()
-                    .readValue(input, new TypeReference<List<BootstrapTaskStatus>>(){}));
-        }
+                    .readValue(in, new TypeReference<List<BootstrapTaskStatus>>(){}));
+            return null;
+        });
     }
 
     /**
@@ -444,7 +444,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     @Override
     public boolean hasNext() {
         while (cursor < bootstrapTaskStatusList.size()) {
-            if (!DONE.equals(bootstrapTaskStatusList.get(cursor).getStatus())) {
+            BootstrapTaskStatus next = bootstrapTaskStatusList.get(cursor);
+            if (!DONE.equals(next.getStatus()) || BootstrapSuccessCode.isErrorCode(next.getExitCode())) {
                 return true;
             }
             cursor++;

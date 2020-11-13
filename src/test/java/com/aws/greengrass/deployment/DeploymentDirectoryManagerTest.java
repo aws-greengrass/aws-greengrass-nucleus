@@ -9,10 +9,14 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.NucleusPaths;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.io.JsonEOFException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -26,6 +30,7 @@ import static com.aws.greengrass.deployment.DeploymentDirectoryManager.DEPLOYMEN
 import static com.aws.greengrass.deployment.DeploymentDirectoryManager.ROLLBACK_SNAPSHOT_FILE;
 import static com.aws.greengrass.deployment.DeploymentDirectoryManager.TARGET_CONFIG_FILE;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.io.FileMatchers.anExistingDirectory;
@@ -121,15 +126,37 @@ class DeploymentDirectoryManagerTest {
     }
 
     @Test
-    void GIVEN_deployment_WHEN_write_to_file_and_read_THEN_restore_deployment() throws Exception {
+    void GIVEN_deployment_WHEN_write_to_file_and_read_THEN_restore_deployment(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, JsonParseException.class);
+        ignoreExceptionOfType(context, JsonEOFException.class);
+
         Path actual1 = createNewDeploymentDir(mockArn);
         DeploymentDocument document = mock(DeploymentDocument.class);
         doReturn("mockId").when(document).getDeploymentId();
         Deployment expected = new Deployment(document, Deployment.DeploymentType.IOT_JOBS, "mockId", DEFAULT);
         deploymentDirectoryManager.writeDeploymentMetadata(expected);
-        assertThat(actual1.resolve(DEPLOYMENT_METADATA_FILE).toFile(), anExistingFile());
+        Path metadataFile = actual1.resolve(DEPLOYMENT_METADATA_FILE);
+        assertThat(metadataFile.toFile(), anExistingFile());
         Deployment actual = deploymentDirectoryManager.readDeploymentMetadata();
         assertEquals(expected, actual);
+
+        try (CommitableWriter writer = CommitableWriter.commitOnClose(metadataFile)) {
+            writer.write("{\"corrupted\"");
+        }
+        assertThat(actual1.resolve(DEPLOYMENT_METADATA_FILE + "~").toFile(), anExistingFile());
+        assertThat(actual1.resolve(DEPLOYMENT_METADATA_FILE + "+").toFile(), not(anExistingFile()));
+        Deployment backup = deploymentDirectoryManager.readDeploymentMetadata();
+        assertEquals(expected, backup);
+        assertThat(actual1.resolve(DEPLOYMENT_METADATA_FILE + "~").toFile(), not(anExistingFile()));
+        assertThat(actual1.resolve(DEPLOYMENT_METADATA_FILE + "+").toFile(), not(anExistingFile()));
+
+        try (CommitableWriter writer = CommitableWriter.commitOnClose(metadataFile)) {
+            writer.write("again failure to write");
+        }
+        Deployment backupAgain = deploymentDirectoryManager.readDeploymentMetadata();
+        assertEquals(expected, backupAgain);
+        assertThat(actual1.resolve(DEPLOYMENT_METADATA_FILE + "~").toFile(), not(anExistingFile()));
+        assertThat(actual1.resolve(DEPLOYMENT_METADATA_FILE + "+").toFile(), not(anExistingFile()));
     }
 
     @Test

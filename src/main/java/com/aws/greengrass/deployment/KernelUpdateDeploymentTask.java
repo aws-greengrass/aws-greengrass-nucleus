@@ -79,6 +79,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
             logger.atError("deployment-errored", e).log();
             if (KERNEL_ACTIVATION.equals(stage)) {
                 try {
+                    deployment.setDeploymentStage(KERNEL_ROLLBACK);
                     saveDeploymentStatusDetails(e.getMessage());
                     // Rollback workflow. Flip symlinks and restart kernel
                     kernelAlts.prepareRollback();

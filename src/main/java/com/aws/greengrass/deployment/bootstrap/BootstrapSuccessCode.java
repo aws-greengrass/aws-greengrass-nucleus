@@ -12,4 +12,8 @@ public final class BootstrapSuccessCode {
 
     private BootstrapSuccessCode() {
     }
+
+    public static boolean isErrorCode(int code) {
+        return code != NO_OP && code != REQUEST_REBOOT && code != REQUEST_RESTART;
+    }
 }
