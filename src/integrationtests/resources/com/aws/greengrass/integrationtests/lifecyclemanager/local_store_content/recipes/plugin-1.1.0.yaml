@@ -9,4 +9,4 @@ Manifests:
   - Platform:
       os: all
     Artifacts:
-      - URI: greengrass:plugin.jar
+      - URI: s3://mock-bucket/plugin.jar
