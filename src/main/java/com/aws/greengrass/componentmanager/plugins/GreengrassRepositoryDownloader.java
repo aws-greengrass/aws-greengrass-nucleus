@@ -150,6 +150,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         if (artifactSize != null && artifactFilename != null) {
             return;
         }
+      
+        // TODO remove after data plane switching to new GCS API
         URL url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
 
         runWithRetry("get-artifact-info", MAX_RETRY, () -> {
