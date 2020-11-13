@@ -85,8 +85,7 @@ public final class RecipeLoader {
         PlatformSpecificManifest platformSpecificManifest = optionalPlatformSpecificManifest.get();
 
         Map<String, DependencyProperties> dependencyPropertiesMap = new HashMap<>();
-        if (componentRecipe.getComponentDependencies() != null && !componentRecipe.getComponentDependencies()
-                .isEmpty()) {
+        if (componentRecipe.getComponentDependencies() != null) {
             dependencyPropertiesMap.putAll(componentRecipe.getComponentDependencies());
         }
 

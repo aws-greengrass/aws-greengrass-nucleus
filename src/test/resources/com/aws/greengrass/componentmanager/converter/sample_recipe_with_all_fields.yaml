@@ -19,9 +19,9 @@ Manifests:
       - URI: s3//some-bucket/hello-world2.py
         Digest: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
         Algorithm: SHA-256
-    Dependencies:
-      BarService:
-        VersionRequirement: ^1.1
-        DependencyType: SOFT
-      BazService:
-        VersionRequirement: ^2.0
+ComponentDependencies:
+  BarService:
+    VersionRequirement: ^1.1
+    DependencyType: SOFT
+  BazService:
+    VersionRequirement: ^2.0
