@@ -20,11 +20,11 @@ Manifests:
       run: |-
         powershell -command "& { echo \"Hello Greengrass. {configuration:/sampleText}\" }"
     Artifacts:
-      - URI: greengrass:customerApp
+      - URI: s3://mock-bucket/customerApp
   - Platform:
       os: all
     Lifecycle:
       run: |-
         echo "Hello Greengrass. {configuration:/sampleText}"
     Artifacts:
-      - URI: greengrass:customerApp
+      - URI: s3://mock-bucket/customerApp

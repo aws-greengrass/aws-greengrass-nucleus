@@ -15,4 +15,4 @@ Manifests:
       run:
         echo "Hello From Simple App. {configuration:/sampleText}"
     Artifacts:
-      - URI: greengrass:simpleApp.txt
+      - URI: s3://mock-bucket/simpleApp.txt

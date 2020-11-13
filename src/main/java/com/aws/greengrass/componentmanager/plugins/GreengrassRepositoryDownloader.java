@@ -97,6 +97,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
                     String filename = extractFilename(url, disposition);
 
+                    artifact.setFileName(filename);
+
                     try (InputStream inputStream = httpConn.getInputStream()) {
                         if (artifactExistsAndChecksum(artifact, saveToPath.resolve(filename))) {
                             logger.atDebug().addKeyValue("artifact", artifact.getArtifactUri())
@@ -155,11 +157,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     @Override
     public File getArtifactFile(Path artifactDir, ComponentArtifact artifact, ComponentIdentifier componentIdentifier) {
-        // GG_NEEDS_REVIEW: TODO : In the download from cloud step we rely on the content-disposition header to get the
-        //  file name and that's the accurate name, but here we're only using the scheme specific part
-        //  of the URI when we don't find the file in cloud, we need to follow up on what is the
-        //  right way to get file name
-        return artifactDir.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
+        return artifactDir.resolve(artifact.getFileName()).toFile();
     }
 
     HttpURLConnection connect(URL url) throws IOException {
