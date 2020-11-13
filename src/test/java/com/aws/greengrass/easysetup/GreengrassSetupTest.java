@@ -8,6 +8,7 @@ package com.aws.greengrass.easysetup;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.platforms.Platform;
@@ -271,11 +272,28 @@ class GreengrassSetupTest {
 
     @Test
     void GIVEN_setup_script_WHEN_no_region_provided_THEN_fail(ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseWithMessage(context, "Required input for awsRegion not provided");
+        GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper,
+                platform, kernel, "-i",
+                "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
+                "-ss", "false");
+        Topic regionTopic = Topic.of(new Context(), DeviceConfiguration.DEVICE_PARAM_AWS_REGION, null);
+        lenient().doReturn(regionTopic).when(deviceConfiguration).getAWSRegion();
+        greengrassSetup.parseArgs();
         assertThrows(RuntimeException.class,
-                () -> new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "-i",
-                        "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
-                        "-ss", "false").parseArgs());
+                () -> greengrassSetup.performSetup());
+    }
+
+    @Test
+    void GIVEN_setup_script_WHEN_no_region_arg_provided_but_region_in_config_THEN_proceed(ExtensionContext context) throws Exception {
+        GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper,
+                platform, kernel, "-i",
+                "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
+                "-ss", "false");
+        Topic regionTopic = Topic.of(new Context(), DeviceConfiguration.DEVICE_PARAM_AWS_REGION, "us-east-1");
+        lenient().doReturn(regionTopic).when(deviceConfiguration).getAWSRegion();
+        greengrassSetup.parseArgs();
+        greengrassSetup.performSetup();
+        verify(kernel).launch();
     }
 
     @Test

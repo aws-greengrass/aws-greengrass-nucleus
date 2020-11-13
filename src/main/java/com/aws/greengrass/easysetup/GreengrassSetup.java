@@ -84,7 +84,7 @@ public class GreengrassSetup {
             + "Core software sets\n"
             + "\t\t\t\t\titself up as a system service that runs when this device boots. The system service name is "
             + "greengrass.\n"
-            + "\t\t\t\t\tDefaults to true.\n"
+            + "\t\t\t\t\tDefaults to false.\n"
             + "\t--component-default-user, -u\t(Optional) The name of ID of the system user and group that the AWS "
             + "IoT Greengrass Core\n"
             + "\t\t\t\t\tsoftware uses to run components. This argument accepts the user and group separated by a\n"
@@ -150,7 +150,7 @@ public class GreengrassSetup {
 
     private static final String SETUP_SYSTEM_SERVICE_ARG = "--setup-system-service";
     private static final String SETUP_SYSTEM_SERVICE_ARG_SHORT = "-ss";
-    private static final boolean SETUP_SYSTEM_SERVICE_ARG_DEFAULT = true;
+    private static final boolean SETUP_SYSTEM_SERVICE_ARG_DEFAULT = false;
 
     private static final String KERNEL_START_ARG = "--start";
     private static final String KERNEL_START_ARG_SHORT = "-s";
@@ -253,28 +253,34 @@ public class GreengrassSetup {
         // Describe usage of the command
         if (showHelp) {
             outStream.println(SHOW_HELP_RESPONSE);
-            System.exit(0);
+            return;
         }
         if (showVersion) {
             outStream.println(String.format(SHOW_VERSION_RESPONSE, KERNEL_VERSION));
-            System.exit(0);
+            return;
+        }
+
+        kernel.parseArgs(kernelArgs.toArray(new String[]{}));
+
+        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+
+        if (Utils.isEmpty(awsRegion)) {
+            awsRegion = Coerce.toString(deviceConfiguration.getAWSRegion());
         }
         if (Utils.isEmpty(awsRegion)) {
-            throw new RuntimeException("Required input for awsRegion not provided");
+            throw new RuntimeException("Required input for aws region not provided");
         }
         if (Region.of(awsRegion) == null) {
             throw new RuntimeException(String.format("%s is invalid AWS region", awsRegion));
         }
+
+        // Attempt this only after config file and kernel args have been parsed
+        setComponentDefaultUserAndGroup(deviceConfiguration);
         try {
             IotSdkClientFactory.EnvironmentStage.fromString(environmentStage);
         } catch (InvalidEnvironmentStageException e) {
             throw new RuntimeException(e);
         }
-
-        kernel.parseArgs(kernelArgs.toArray(new String[]{}));
-
-        // Attempt this only after config file and kernel args have been parsed
-        setComponentDefaultUserAndGroup();
 
         //initialize the device provisioning helper
         this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, environmentStage, this.outStream);
@@ -417,7 +423,7 @@ public class GreengrassSetup {
     }
 
     @SuppressWarnings("PMD.PreserveStackTrace")
-    private void setComponentDefaultUserAndGroup() {
+    private void setComponentDefaultUserAndGroup(DeviceConfiguration deviceConfiguration) {
         if (Exec.isWindows) {
             outStream.println("Default user is only supported on Linux platforms");
             return;
@@ -429,7 +435,7 @@ public class GreengrassSetup {
             }
 
             // If user was given as cli input it has been added to the config by now.
-            Topic defaultUserTopic = kernel.getContext().get(DeviceConfiguration.class).getRunWithDefaultPosixUser();
+            Topic defaultUserTopic = deviceConfiguration.getRunWithDefaultPosixUser();
             defaultUser = Coerce.toString(defaultUserTopic);
             boolean noDefaultSet = Utils.isEmpty(defaultUser);
 

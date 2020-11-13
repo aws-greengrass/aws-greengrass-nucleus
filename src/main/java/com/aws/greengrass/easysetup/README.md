@@ -47,7 +47,7 @@ OPTIONS
                                 Defaults to GreengrassV2TokenExchangeRoleAlias.
 --setup-system-service, -ss     (Optional) Specify true or false. If this argument is true, then the AWS IoT Greengrass Core software
                                 sets itself up as a system service that runs when this device boots. The system service name is
-                                greengrass. Defaults to true.
+                                greengrass. Defaults to false.
 --component-default-user, -u    (Optional) The name of ID of the system user and group that the AWS IoT Greengrass Core software uses
                                 to run components. This argument accepts the user and group separated by a colon, where the group is
                                 optional. For example, you can specify ggc_user:ggc_group or ggc_user.
