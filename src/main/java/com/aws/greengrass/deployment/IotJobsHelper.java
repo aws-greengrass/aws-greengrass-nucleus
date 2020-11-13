@@ -166,6 +166,7 @@ public class IotJobsHelper implements InjectionActions {
         }
         if (jobs.isEmpty()) {
             logger.atInfo().log("Received empty jobs in notification ");
+            unprocessedJobs.set(0);
             evaluateCancellationAndCancelDeploymentIfNeeded();
             return;
         }
