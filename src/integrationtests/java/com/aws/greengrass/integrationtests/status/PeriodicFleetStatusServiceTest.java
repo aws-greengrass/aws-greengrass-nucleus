@@ -99,7 +99,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         // set required instances from context
         deviceConfiguration =
                 new DeviceConfiguration(kernel, "ThingName", "dataEndpoint", "credEndpoint", "privKeyFilePath",
-                        "certFilePath", "caFilePath", "awsRegion", "roleAliasName");
+                        "certFilePath", "caFilePath", "us-east-1", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
         kernel.launch();
         assertTrue(deploymentServiceRunning.await(10, TimeUnit.SECONDS));

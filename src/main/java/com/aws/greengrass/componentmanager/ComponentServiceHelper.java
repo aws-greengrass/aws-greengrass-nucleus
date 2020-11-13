@@ -48,11 +48,11 @@ public class ComponentServiceHelper {
     // Service logger instance
     protected static final Logger logger = LogManager.getLogger(ComponentServiceHelper.class);
 
-    private final AWSEvergreen evgCmsClient;
+    private final GreengrassComponentServiceClientFactory clientFactory;
 
     @Inject
     public ComponentServiceHelper(GreengrassComponentServiceClientFactory clientFactory) {
-        this.evgCmsClient = clientFactory.getCmsClient();
+        this.clientFactory = clientFactory;
     }
 
     /**
@@ -88,7 +88,7 @@ public class ComponentServiceHelper {
 
         ResolveComponentVersionsResult result;
         try {
-            result = evgCmsClient.resolveComponentVersions(request);
+            result = clientFactory.getCmsClient().resolveComponentVersions(request);
         } catch (ResourceNotFoundException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
                     .log("No applicable version found in cloud registry");
@@ -129,7 +129,7 @@ public class ComponentServiceHelper {
     private GetComponentVersionResult download(GetComponentVersionRequest r, ComponentIdentifier id)
             throws PackageDownloadException {
         try {
-            return evgCmsClient.getComponentVersion(r);
+            return clientFactory.getCmsClient().getComponentVersion(r);
         } catch (AmazonClientException e) {
             // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions
             String errorMsg = String.format(PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT, id);

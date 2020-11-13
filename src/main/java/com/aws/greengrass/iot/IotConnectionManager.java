@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.iot;
 
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.AWSIotException;
 import com.aws.greengrass.logging.api.Logger;
@@ -30,13 +31,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.mqttclient.MqttClient.EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS;
 
 public class IotConnectionManager implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(IotConnectionManager.class);
     // Max wait time for device to establish mTLS connection with IOT core
     private static final long TIMEOUT_FOR_CONNECTION_SETUP_SECONDS = Duration.ofMinutes(1).getSeconds();
-    private final HttpClientConnectionManager connManager;
+    private HttpClientConnectionManager connManager;
 
     private final EventLoopGroup eventLoopGroup;
     private final HostResolver resolver;
@@ -55,6 +63,7 @@ public class IotConnectionManager implements Closeable {
         clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
         try {
             this.connManager = initConnectionManager(deviceConfiguration);
+            reconfigureOnConfigChange(deviceConfiguration);
         } catch (RuntimeException e) {
             // If we couldn't initialize the connection manager, then make sure to shutdown
             // everything which was started up
@@ -63,6 +72,17 @@ public class IotConnectionManager implements Closeable {
             eventLoopGroup.close();
             throw e;
         }
+    }
+
+    private void reconfigureOnConfigChange(DeviceConfiguration deviceConfiguration) {
+        deviceConfiguration.onAnyChange((what, node) -> {
+            if (WhatHappened.childChanged.equals(what) && node != null && (node.childOf(DEVICE_MQTT_NAMESPACE) || node
+                    .childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT) || node
+                    .childOf(DEVICE_PARAM_PRIVATE_KEY_PATH) || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node
+                    .childOf(DEVICE_PARAM_ROOT_CA_PATH) || node.childOf(DEVICE_PARAM_AWS_REGION))) {
+                this.connManager = initConnectionManager(deviceConfiguration);
+            }
+        });
     }
 
     private HttpClientConnectionManager initConnectionManager(DeviceConfiguration deviceConfiguration) {

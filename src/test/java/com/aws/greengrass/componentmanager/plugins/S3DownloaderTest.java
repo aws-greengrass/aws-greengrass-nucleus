@@ -77,7 +77,7 @@ class S3DownloaderTest {
 
     @BeforeEach
     void setup() {
-        when(s3SdkClientFactory.getS3Client()).thenReturn(s3Client);
+        lenient().when(s3SdkClientFactory.getS3Client()).thenReturn(s3Client);
         lenient().when(s3SdkClientFactory.getClientForRegion(any())).thenReturn(s3Client);
         lenient().when(s3Client.getBucketLocation(any(GetBucketLocationRequest.class)))
                 .thenReturn(mock(GetBucketLocationResponse.class));

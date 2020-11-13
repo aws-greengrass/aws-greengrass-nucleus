@@ -6,7 +6,6 @@
 package com.aws.greengrass.componentmanager.plugins;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactRequest;
 import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactResult;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
@@ -32,12 +31,12 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     public static final String ARTIFACT_URI_LOG_KEY = "artifactUri";
     public static final String COMPONENT_IDENTIFIER_LOG_KEY = "componentIdentifier";
 
-    private final AWSEvergreen evgCmsClient;
+    private final GreengrassComponentServiceClientFactory clientFactory;
 
     @Inject
     public GreengrassRepositoryDownloader(GreengrassComponentServiceClientFactory clientFactory) {
         super();
-        this.evgCmsClient = clientFactory.getCmsClient();
+        this.clientFactory = clientFactory;
     }
 
     @Override
@@ -199,7 +198,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
         try {
             GetComponentVersionArtifactResult getComponentArtifactResult =
-                    evgCmsClient.getComponentVersionArtifact(getComponentArtifactRequest);
+                    clientFactory.getCmsClient().getComponentVersionArtifact(getComponentArtifactRequest);
             return getComponentArtifactResult.getPreSignedUrl();
         } catch (AmazonClientException ace) {
             // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions

@@ -38,6 +38,7 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -60,7 +61,7 @@ class GreengrassRepositoryDownloaderTest {
 
     @BeforeEach
     void beforeEach() {
-        when(clientFactory.getCmsClient()).thenReturn(client);
+        lenient().when(clientFactory.getCmsClient()).thenReturn(client);
         this.downloader = Mockito.spy(new GreengrassRepositoryDownloader(clientFactory));
     }
 

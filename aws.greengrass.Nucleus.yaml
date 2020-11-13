@@ -19,7 +19,7 @@ ComponentConfiguration:
     networkProxy: {}
     runWithDefault: {}
     deploymentPollingFrequency: 15L
-    componentStoreMaxSize: 10_000_000_000L
+    componentStoreMaxSizeBytes: 10_000_000_000L
 Manifests:
   - Platform:
       os: darwin
