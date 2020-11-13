@@ -12,6 +12,7 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -51,8 +52,11 @@ import java.util.function.Function;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
@@ -179,6 +183,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
         map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
         map.put(DEPLOYMENT_TYPE_KEY_NAME, IOT_JOBS);
+        Map<String, String> statusDetails = new HashMap<>();
+        statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, DeploymentResult.DeploymentStatus.SUCCESSFUL.toString());
+        map.put(DEPLOYMENT_STATUS_DETAILS_KEY_NAME, statusDetails);
         consumerArgumentCaptor.getValue().apply(map);
 
         // Update the state of an EG service.
@@ -205,6 +212,10 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(JobStatus.SUCCEEDED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL.toString(),
+                fleetStatusDetails.getDeploymentInformation().getStatusDetails().getDetailedStatus());
+        assertNull(fleetStatusDetails.getDeploymentInformation().getStatusDetails().getFailureCause());
         assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
         assertServiceIsRootOrNot(fleetStatusDetails.getComponentStatusDetails().get(0));
         serviceNamesToCheck.remove(fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
@@ -265,8 +276,13 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         addGlobalStateChangeListenerArgumentCaptor.getValue()
                 .globalServiceStateChanged(mockGreengrassService1, State.INSTALLED, State.BROKEN);
 
-        // Update the job status for an ongoing deployment to SUCCEEDED.
-        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
+        // Update the job status for service broken after deployment
+        String failureCauseMessage = "Service in broken state after deployment";
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.FAILED.toString());
+        Map<String, String> statusDetails = new HashMap<>();
+        statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED.toString());
+        statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, failureCauseMessage);
+        map.put(DEPLOYMENT_STATUS_DETAILS_KEY_NAME, statusDetails);
         consumerArgumentCaptor.getValue().apply(map);
 
         // Verify that an MQTT message with the components' status is uploaded.
@@ -280,6 +296,11 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(JobStatus.FAILED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED.toString(),
+                fleetStatusDetails.getDeploymentInformation().getStatusDetails().getDetailedStatus());
+        assertEquals(failureCauseMessage,
+                fleetStatusDetails.getDeploymentInformation().getStatusDetails().getFailureCause());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
@@ -481,6 +502,10 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 mockGreengrassService1), Instant.MIN);
 
         map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
+        Map<String, String> statusDetails = new HashMap<>();
+        statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, DeploymentResult.DeploymentStatus.SUCCESSFUL.toString());
+        map.put(DEPLOYMENT_STATUS_DETAILS_KEY_NAME, statusDetails);
+
         consumerArgumentCaptor.getValue().apply(map);
 
         // Verify that an MQTT message with the components' status is uploaded.
@@ -494,6 +519,10 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(JobStatus.SUCCEEDED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL.toString(),
+                fleetStatusDetails.getDeploymentInformation().getStatusDetails().getDetailedStatus());
+        assertNull(fleetStatusDetails.getDeploymentInformation().getStatusDetails().getFailureCause());
 
         fleetStatusDetails.getComponentStatusDetails().forEach(System.out::println);
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
