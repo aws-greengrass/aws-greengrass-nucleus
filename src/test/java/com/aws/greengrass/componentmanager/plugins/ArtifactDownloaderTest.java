@@ -38,7 +38,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -159,7 +158,7 @@ public class ArtifactDownloaderTest {
 
     @EnabledOnOs({OS.LINUX, OS.MAC})
     @Test
-    void GIVEN_existing_artifact_corrupt_WHEN_download_THEN_resume() throws Exception {
+    void GIVEN_existing_artifact_corrupt_WHEN_download_THEN_retry() throws Exception {
         String content = "Sample artifact content";
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
@@ -169,15 +168,12 @@ public class ArtifactDownloaderTest {
 
         File localPartialFile = downloader.getArtifactFile();
         Files.write(localPartialFile.toPath(), "Foo".getBytes());
-        Object inode = Files.getAttribute(localPartialFile.toPath(), "unix:ino");
 
         File file = downloader.downloadToPath();
 
         assertThat(Files.readAllBytes(file.toPath()), equalTo(content.getBytes()));
-
-        // assert the existing corrupted file was replaced.
-        Object newInode = Files.getAttribute(localPartialFile.toPath(), "unix:ino");
-        assertNotEquals(inode, newInode);
+        verify(downloader).download(eq((long) 3), eq((long) content.length() - 1), any());
+        verify(downloader).download(eq((long) 0), eq((long) content.length() - 1), any());
     }
 
     @SuppressWarnings("PMD.CloseResource")
