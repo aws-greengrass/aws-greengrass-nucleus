@@ -180,10 +180,11 @@ public class Kernel {
                 } catch (ServiceUpdateException | IOException e) {
                     logger.atError().log("Deployment bootstrap failed", e);
                     try {
-                        kernelAlts.prepareRollback();
                         Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
+                        deployment.setDeploymentStage(DeploymentStage.KERNEL_ROLLBACK);
                         deployment.setStageDetails(e.getMessage());
                         deploymentDirectoryManager.writeDeploymentMetadata(deployment);
+                        kernelAlts.prepareRollback();
                     } catch (IOException ioException) {
                         logger.atError().setCause(ioException).log("Something went wrong while preparing for rollback");
                     }
