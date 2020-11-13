@@ -22,7 +22,7 @@ Manifests:
       Mosquitto:
         VersionRequirement: 1.0.0
     Artifacts:
-      - URI: greengrass:customerApp
+      - URI: s3://mock-bucket/customerApp
   - Platform:
       os: all
     Parameters:
@@ -36,4 +36,4 @@ Manifests:
       Mosquitto:
         VersionRequirement: 1.0.0
     Artifacts:
-      - URI: greengrass:customerApp
+      - URI: s3://mock-bucket/customerApp
