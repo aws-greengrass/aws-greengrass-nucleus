@@ -9,19 +9,14 @@ import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.util.Coerce;
 import com.vdurmont.semver4j.Semver;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
+import lombok.AllArgsConstructor;
+import lombok.Value;
 
-
-@Data
-@Builder
-@RequiredArgsConstructor
+@Value
+@AllArgsConstructor
 public class ComponentIdentifier implements Comparable<ComponentIdentifier> {
-    @NonNull String name;
-    @NonNull Semver version;
-    String arn; // AWS Resource Name for the component and version
+    String name;
+    Semver version;
 
     @Override
     public String toString() {

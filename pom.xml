@@ -122,7 +122,7 @@
             <artifactId>aws-java-sdk-core</artifactId>
             <groupId>com.amazonaws</groupId>
             <optional>false</optional>
-            <version>1.11.766</version>
+            <version>1.11.873</version>
             <exclusions>
                 <exclusion>
                     <groupId>commons-logging</groupId>

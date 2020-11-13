@@ -16,7 +16,7 @@ import java.util.Base64;
 public final class Digest {
     // Every implementation of the Java platform is required to support SHA-256.
     public static final String DIGEST_ALGO = "SHA-256";
-    
+
     private Digest() {
     }
 
@@ -47,10 +47,9 @@ public final class Digest {
             throw new IllegalArgumentException("Input is blank for calculating digest");
         }
         MessageDigest messageDigest = MessageDigest.getInstance(DIGEST_ALGO);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(messageDigest.digest
-                (utfInput.getBytes(StandardCharsets.UTF_8)));
+        return Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(messageDigest.digest(utfInput.getBytes(StandardCharsets.UTF_8)));
     }
-
 
     /**
      * Compare two utf8 encoded digest strings.

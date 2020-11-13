@@ -38,8 +38,14 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private final AWSEvergreen evgCmsClient;
     private final ComponentStore componentStore;
 
+    /**
+     * Constructor for GreengrassRepositoryDownloader.
+     * @param clientFactory clientFactory
+     * @param componentStore componentStore
+     */
     @Inject
-    public GreengrassRepositoryDownloader(GreengrassComponentServiceClientFactory clientFactory, ComponentStore componentStore) {
+    public GreengrassRepositoryDownloader(GreengrassComponentServiceClientFactory clientFactory,
+            ComponentStore componentStore) {
         super();
         this.evgCmsClient = clientFactory.getCmsClient();
         this.componentStore = componentStore;
@@ -185,7 +191,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         } catch (AmazonClientException e) {
             // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions
             throw new PackageDownloadException(
-                    String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, componentIdentifier.getArn()), e);
+                    String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, arn), e);
         }
     }
 

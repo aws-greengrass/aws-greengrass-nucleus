@@ -27,7 +27,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -36,7 +35,8 @@ import java.util.Base64;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
@@ -94,9 +94,7 @@ class GreengrassRepositoryDownloaderTest {
                         .checksum(checksum).algorithm(SHA256).build(), saveToPath);
 
         GetComponentVersionArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
-        assertEquals("CoolService", generatedRequest.getComponentName());
-        assertEquals("1.0.0", generatedRequest.getComponentVersionDeprecated());
-        assertNull(generatedRequest.getScope());
+        assertEquals("CoolService", generatedRequest.getComponentVersionArn());
         assertEquals("artifactName", generatedRequest.getArtifactName());
 
         byte[] originalFile = Files.readAllBytes(mockArtifactPath);

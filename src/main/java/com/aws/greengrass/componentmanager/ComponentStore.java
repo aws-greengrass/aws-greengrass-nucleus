@@ -413,33 +413,39 @@ public class ComponentStore {
         }
     }
 
+    /**
+     * Saves recipe metadata to file.
+     *
+     * @param componentIdentifier component id
+     * @param arn                 arn
+     */
     public void saveRecipeMetadata(ComponentIdentifier componentIdentifier, String arn) {
         File metadataFile = resolveRecipeMetaDataFile(componentIdentifier);
 
         try {
             SerializerFactory.getJsonObjectMapper().writeValue(metadataFile, new RecipeMetadataJson(arn));
         } catch (IOException e) {
-            e.printStackTrace();
+            //TODO
         }
     }
 
     /**
      * Reads the component arn from the component recipe metadata file.
      *
-     * @param componentIdentifier
+     * @param componentIdentifier component id
      */
     public String getComponentArn(ComponentIdentifier componentIdentifier) {
         File metadataFile = resolveRecipeMetaDataFile(componentIdentifier);
 
-        RecipeMetadataJson recipeMetadataJson = null;
+        RecipeMetadataJson recipeMetadataJson;
         try {
             recipeMetadataJson =
                     SerializerFactory.getJsonObjectMapper().readValue(metadataFile, RecipeMetadataJson.class);
+            return recipeMetadataJson.getComponentArn();
         } catch (IOException e) {
-            e.printStackTrace();
+            //TODO
         }
-
-        return recipeMetadataJson.getComponentArn();
+        return null;
     }
 
     private File resolveRecipeMetaDataFile(ComponentIdentifier componentIdentifier) {
@@ -447,13 +453,12 @@ public class ComponentStore {
         try {
             fileNameSaveEcodedHash = Digest.calculateWithUrlEncoderNoPadding(componentIdentifier.getName());
         } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
+            //TODO
         }
 
         String recipeMetaDataFileName = String.format("%s@%s.metadata.json", fileNameSaveEcodedHash,
                                                       componentIdentifier.getVersion().getValue());
 
-        File metadataFile = nucleusPaths.recipePath().resolve(recipeMetaDataFileName).toFile();
-        return metadataFile;
+        return nucleusPaths.recipePath().resolve(recipeMetaDataFileName).toFile();
     }
 }

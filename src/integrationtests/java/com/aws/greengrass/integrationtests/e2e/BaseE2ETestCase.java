@@ -13,14 +13,13 @@ import com.amazonaws.services.evergreen.model.ComponentInfo;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
-import com.amazonaws.services.evergreen.model.CreateComponentResult;
+import com.amazonaws.services.evergreen.model.CreateComponentVersionDeprecatedResult;
 import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
 import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
 import com.amazonaws.services.evergreen.model.DeleteComponentVersionDeprecatedResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.ResourceAlreadyExistsException;
-import com.aws.greengrass.componentmanager.ComponentServiceHelper;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
@@ -28,6 +27,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.easysetup.DeviceProvisioningHelper;
+import com.aws.greengrass.integrationtests.e2e.helper.ComponentServiceTestHelper;
 import com.aws.greengrass.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -202,7 +202,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         try {
             List<ComponentIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInS3));
             for (ComponentIdentifier component : allComponents) {
-                DeleteComponentVersionDeprecatedResult result = ComponentServiceHelper
+                DeleteComponentVersionDeprecatedResult result = ComponentServiceTestHelper
                         .deleteComponent(greengrassClient, component.getName(), component.getVersion().toString());
                 assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
             }
@@ -304,8 +304,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));
 
-        CreateComponentResult createComponentResult =
-                ComponentServiceHelper.createComponent(greengrassClient, testRecipePath);
+        CreateComponentVersionDeprecatedResult createComponentResult = ComponentServiceTestHelper.createComponent(greengrassClient, testRecipePath);
         assertEquals(pkgIdCloud.getName(), createComponentResult.getName(), createComponentResult.toString());
         assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getVersion());
     }
