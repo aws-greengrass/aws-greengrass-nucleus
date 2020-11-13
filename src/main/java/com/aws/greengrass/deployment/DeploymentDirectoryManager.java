@@ -10,6 +10,8 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.CommitableReader;
+import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
@@ -17,10 +19,9 @@ import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
@@ -140,7 +141,7 @@ public class DeploymentDirectoryManager {
     }
 
     private void writeDeploymentMetadata(Path filePath, Deployment deployment) throws IOException {
-        try (OutputStream out = Files.newOutputStream(filePath)) {
+        try (CommitableWriter out = CommitableWriter.commitOnClose(filePath)) {
             SerializerFactory.getJsonObjectMapper().writeValue(out, deployment);
         }
     }
@@ -152,6 +153,7 @@ public class DeploymentDirectoryManager {
      * @throws IOException on I/O error
      * @throws ClassNotFoundException when deserialization fails
      */
+    @SuppressWarnings("PMD.PreserveStackTrace")
     public Deployment readDeploymentMetadata() throws IOException {
         if (!Files.isSymbolicLink(ongoingDir)) {
             throw new IOException("Deployment details can not be loaded from file " + ongoingDir);
@@ -159,9 +161,14 @@ public class DeploymentDirectoryManager {
 
         Path filePath = getDeploymentMetadataFilePath();
         logger.atInfo().kv(FILE_LOG_KEY, filePath).log("Load deployment metadata");
-        try (InputStream in = Files.newInputStream(filePath)) {
-            return SerializerFactory.getJsonObjectMapper().readValue(in, Deployment.class);
-        }
+        AtomicReference<Deployment> deploymentAtomicReference = new AtomicReference<>();
+        CommitableReader.of(filePath).read(in -> {
+            Deployment deployment = SerializerFactory.getJsonObjectMapper().readValue(in, Deployment.class);
+            deploymentAtomicReference.set(deployment);
+            return null;
+        });
+
+        return deploymentAtomicReference.get();
     }
 
     /**
