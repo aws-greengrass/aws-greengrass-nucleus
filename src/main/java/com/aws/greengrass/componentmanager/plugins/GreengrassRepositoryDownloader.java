@@ -23,8 +23,6 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Objects;
 import javax.inject.Inject;
 
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
@@ -53,7 +51,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     @Override
     public boolean downloadRequired(ComponentIdentifier componentIdentifier, ComponentArtifact artifact,
-                                    Path saveToPath) throws PackageDownloadException {
+            Path saveToPath) throws PackageDownloadException {
         // GG_NEEDS_REVIEW: TODO can we simplify getting filename without network request
         try {
             String preSignedUrl =
@@ -105,7 +103,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                 int responseCode = httpConn.getResponseCode();
 
                 if (responseCode == HttpURLConnection.HTTP_OK) {
-                    String filename = getFilename(artifact);
+                    String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
+                    String filename = extractFilename(url, disposition);
 
                     artifact.setFileName(filename);
 
@@ -115,25 +114,30 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                                     .log("Artifact already exists, skipping download");
                         } else {
                             checkIntegrityAndSaveToStore(inputStream, artifact, componentIdentifier,
-                                    saveToPath.resolve(filename));
+                                                         saveToPath.resolve(filename));
                         }
                     }
                     return saveToPath.resolve(filename).toFile();
                 }
                 // TODO: [P41214764]: Handle all status codes in downloading greengrass: artifacts
             } finally {
-                httpConn.disconnect();
+                if (httpConn != null) {
+                    httpConn.disconnect();
+                }
             }
         } catch (PackageDownloadException e) {
-            if (!saveToPath.resolve(getFilename(artifact)).toFile().exists()) {
+            if (!saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile().exists()) {
                 throw e;
             }
             logger.atInfo("download-artifact-from-greengrass-repo")
                     .addKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, componentIdentifier)
                     .addKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
                     .log("Failed to download artifact, but found it locally, using that version", e);
-            return saveToPath.resolve(getFilename(artifact)).toFile();
-
+            // GG_NEEDS_REVIEW: TODO : In the download from cloud step we rely on the content-disposition header
+            // to get the file name and that's the accurate name, but here we're only using the scheme specific part
+            //  of the URI when we don't find the file in cloud, we need to follow up on what is the
+            //  right way to get file name
+            return saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
         }
         return null;
     }
@@ -160,14 +164,35 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         }
     }
 
-    String getFilename(ComponentArtifact artifact) {
-        String ssp = artifact.getArtifactUri().getSchemeSpecificPart();
-        return Objects.toString(Paths.get(ssp).getFileName());
-    }
-
     @Override
     public File getArtifactFile(Path artifactDir, ComponentArtifact artifact, ComponentIdentifier componentIdentifier) {
-        return artifactDir.resolve(artifact.getFileName()).toFile();
+        if (artifact.getFileName() != null) {
+            return artifactDir.resolve(artifact.getFileName()).toFile();
+        }
+        // TODO remove after data plane switching to new GCS API
+        try {
+            String preSignedUrl =
+                    getArtifactDownloadURL(componentIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
+            URL url = new URL(preSignedUrl);
+            HttpURLConnection httpConn = connect(url);
+            try {
+                int responseCode = httpConn.getResponseCode();
+
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
+                    String filename = extractFilename(url, disposition);
+                    return artifactDir.resolve(filename).toFile();
+                } else {
+                    throw new RuntimeException("Received non 200 status code when calling the pre signed url.");
+                }
+            } finally {
+                httpConn.disconnect();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed when making http connection to the pre signed url.", e);
+        } catch (PackageDownloadException e) {
+            throw new RuntimeException("Failed to get presigned url for artifact", e);
+        }
     }
 
     HttpURLConnection connect(URL url) throws IOException {
@@ -176,9 +201,11 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     String getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws PackageDownloadException {
-
         // validate the arn exists
         String arn = componentStore.getComponentArn(componentIdentifier);
+        if (arn == null) {
+            logger.atError().log("Failed to get arn22.");
+        }
 
         GetComponentVersionArtifactRequest getComponentArtifactRequest =
                 new GetComponentVersionArtifactRequest().withArtifactName(artifactName)

@@ -289,7 +289,7 @@ public class ComponentStore {
             @NonNull Requirement requirement) throws PackageLoadingException {
         File[] recipeFiles = getAllRecipeFiles();
 
-        if (recipeFiles == null || recipeFiles.length == 0) {
+        if (recipeFiles.length == 0) {
             return Optional.empty();
         }
 
@@ -319,7 +319,7 @@ public class ComponentStore {
 
     private File[] getAllRecipeFiles() {
         return Arrays.stream(nucleusPaths.recipePath().toFile().listFiles())
-                .filter(file -> !file.getName().endsWith(".yaml"))  // recipe files ends with yaml right now
+                .filter(file -> file.getName().endsWith(".yaml"))  // recipe files ends with yaml right now
                 // TODO do we support JSON by reInvent?
                 .toArray(File[]::new);
     }
@@ -444,6 +444,7 @@ public class ComponentStore {
             return recipeMetadataJson.getComponentArn();
         } catch (IOException e) {
             //TODO
+            logger.atError().cause(e).log();
         }
         return null;
     }

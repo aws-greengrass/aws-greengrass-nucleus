@@ -8,6 +8,7 @@ package com.aws.greengrass.componentmanager.persistence;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
@@ -18,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 @JsonDeserialize
 @Data
 @RequiredArgsConstructor
+@NoArgsConstructor
 public class RecipeMetadataJson {
     @NonNull String componentArn;
 }

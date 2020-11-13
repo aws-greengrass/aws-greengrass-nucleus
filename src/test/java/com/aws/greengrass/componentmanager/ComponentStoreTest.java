@@ -11,9 +11,12 @@ import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
+import com.aws.greengrass.componentmanager.persistence.RecipeMetadataJson;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.SerializerFactory;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
@@ -395,6 +398,12 @@ class ComponentStoreTest {
         Path expectedArtifactPath = artifactDirectory.resolve(MONITORING_SERVICE_PKG_ID.getName())
                                                      .resolve(MONITORING_SERVICE_PKG_ID.getVersion().getValue());
         assertThat(artifactPath.toAbsolutePath(), is(equalTo(expectedArtifactPath)));
+    }
+
+    @Test
+    void getComponentArn() throws JsonProcessingException {
+        SerializerFactory.getJsonObjectMapper().readValue("{\"componentArn\":\"arn:aws:greengrass:us-east-1:698947471564:components:TestDependOnPublic_2b70fdea-aedc-44d7-906f-6f55232835f4:versions:1.0.0\"}",
+                                                          RecipeMetadataJson.class);
     }
 
     private static Map<String, String> getExpectedDependencies(Requirement versionRequirement) {
