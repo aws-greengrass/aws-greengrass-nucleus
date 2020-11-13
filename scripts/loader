@@ -46,18 +46,16 @@ flip_link() {
 # Determine Kernel stage and proper config files based on launch directory
 if is_directory_link "${GG_ROOT}/alts/new"; then
   if ! is_directory_link "${GG_ROOT}/alts/old" && is_directory_link "${LAUNCH_DIR}"; then
-    # Address 1.2
     flip_link "${LAUNCH_DIR}" "${GG_ROOT}/alts/old"
   fi
-  # Address 1.2 1.3 1.4 1.5
   flip_link "${GG_ROOT}/alts/new" "${LAUNCH_DIR}"
 fi
 
 if is_directory_link "${GG_ROOT}/alts/broken"; then
   if is_directory_link "${GG_ROOT}/alts/old"; then
-    # Address 3.2 3.3 3.4
     flip_link "${GG_ROOT}/alts/old" "${LAUNCH_DIR}"
   fi
+  # During deployment. Previous working kernel will be launched.
   CONFIG_FILE="$GG_ROOT/deployments/ongoing/rollback_snapshot.tlog"
 fi
 
@@ -92,14 +90,9 @@ while [ $j -le 3 ]; do
 done
 
 # when reaching here, kernel has restarted 3 times and fails. Keep the current status and flip symlink.
-# 1. If old+current: Kernel update failed. flip current to broken, old to current
 if is_directory_link "${GG_ROOT}/alts/old" && is_directory_link "${LAUNCH_DIR}"; then
   flip_link "${LAUNCH_DIR}" "${GG_ROOT}/alts/broken"
   flip_link "${GG_ROOT}/alts/old" "${LAUNCH_DIR}"
 fi
-
-# 2. If current+broken: rollback failed and kernel crashed. TODO: start with empty config?
-
-# 3. If current: no rollback option. TODO: Restart previous Kernel?
 
 exit ${kernel_exit_code}
