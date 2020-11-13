@@ -13,11 +13,11 @@ Manifests:
       run: |-
         powershell -command echo {configuration:/Message}; sleep -m 100
     Artifacts:
-      - URI: greengrass:run.sh
+      - URI: s3://mock-bucket/run.sh
   - Platform:
       os: all
     Lifecycle:
       run: |-
         sh {artifacts:path}/run.sh; echo {configuration:/Message}; sleep 100
     Artifacts:
-      - URI: greengrass:run.sh
+      - URI: s3://mock-bucket/run.sh
