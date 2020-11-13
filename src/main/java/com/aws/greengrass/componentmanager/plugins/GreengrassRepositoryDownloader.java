@@ -6,7 +6,6 @@
 package com.aws.greengrass.componentmanager.plugins;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactRequest;
 import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactResult;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
@@ -28,7 +27,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     private static final String HTTP_HEADER_CONTENT_DISPOSITION = "Content-Disposition";
 
-    private final AWSEvergreen evgCmsClient;
+    private final GreengrassComponentServiceClientFactory clientFactory;
     private Long artifactSize = null;
     private String artifactFilename = null;
 
@@ -37,7 +36,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                                           ComponentIdentifier identifier, ComponentArtifact artifact,
                                           Path artifactDir) {
         super(identifier, artifact, artifactDir);
-        this.evgCmsClient = clientFactory.getCmsClient();
+        this.clientFactory = clientFactory;
     }
 
     // TODO: avoid calling cloud to get artifact file name.
@@ -196,7 +195,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         String preSignedUrl;
         try {
             GetComponentVersionArtifactResult getComponentArtifactResult =
-                    evgCmsClient.getComponentVersionArtifact(getComponentArtifactRequest);
+                    clientFactory.getCmsClient().getComponentVersionArtifact(getComponentArtifactRequest);
             preSignedUrl = getComponentArtifactResult.getPreSignedUrl();
         } catch (AmazonClientException ace) {
             throw new PackageDownloadException(getErrorString("error in get artifact download URL"), ace);

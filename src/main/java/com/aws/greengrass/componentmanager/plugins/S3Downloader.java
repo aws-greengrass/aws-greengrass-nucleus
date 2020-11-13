@@ -34,7 +34,6 @@ import java.util.regex.Pattern;
 public class S3Downloader extends ArtifactDownloader {
     private static final Pattern S3_PATH_REGEX = Pattern.compile("s3:\\/\\/([^\\/]+)\\/(.*)");
     protected static final String REGION_EXPECTING_STRING = "expecting '";
-    private final S3Client s3Client;
     private final S3SdkClientFactory s3ClientFactory;
     private final S3ObjectPath s3ObjectPath;
 
@@ -48,7 +47,6 @@ public class S3Downloader extends ArtifactDownloader {
             throws InvalidArtifactUriException {
         super(identifier, artifact, artifactDir);
         this.s3ClientFactory = clientFactory;
-        this.s3Client = clientFactory.getS3Client();
         this.s3ObjectPath = getS3PathForURI(artifact.getArtifactUri());
     }
 
@@ -102,7 +100,8 @@ public class S3Downloader extends ArtifactDownloader {
         GetBucketLocationRequest getBucketLocationRequest = GetBucketLocationRequest.builder().bucket(bucket).build();
         String region = null;
         try {
-            region = s3Client.getBucketLocation(getBucketLocationRequest).locationConstraintAsString();
+            region = s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
+                    .locationConstraintAsString();
         } catch (S3Exception e) {
             String message = e.getMessage();
             if (message.contains(REGION_EXPECTING_STRING)) {

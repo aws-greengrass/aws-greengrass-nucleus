@@ -25,7 +25,7 @@ import javax.inject.Inject;
 @Getter
 public class S3SdkClientFactory {
     private static final Map<Region, S3Client> clientCache = new ConcurrentHashMap<>();
-    private final S3Client s3Client;
+    private S3Client s3Client;
     private final LazyCredentialProvider credentialsProvider;
 
     /**
@@ -38,19 +38,20 @@ public class S3SdkClientFactory {
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public S3SdkClientFactory(DeviceConfiguration deviceConfiguration, LazyCredentialProvider credentialsProvider) {
         this.credentialsProvider = credentialsProvider;
-        Region region;
-        try {
-            region = new DefaultAwsRegionProviderChain().getRegion();
-        } catch (RuntimeException ignored) {
-            region = Region.of(Coerce.toString(deviceConfiguration.getAWSRegion()));
-        }
-        this.s3Client =
-                S3Client.builder().httpClient(ProxyUtils.getSdkHttpClient())
-                        .serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
-                        .credentialsProvider(credentialsProvider).region(region)
-                        .overrideConfiguration(ClientOverrideConfiguration.builder()
-                                .retryPolicy(RetryMode.STANDARD).build())
-                        .build();
+        deviceConfiguration.getAWSRegion().subscribe((what, node) -> {
+            Region region;
+            try {
+                region = new DefaultAwsRegionProviderChain().getRegion();
+            } catch (RuntimeException ignored) {
+                region = Region.of(Coerce.toString(node));
+            }
+            this.s3Client =
+                    S3Client.builder().httpClient(ProxyUtils.getSdkHttpClient())
+                            .serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
+                            .overrideConfiguration(ClientOverrideConfiguration.builder()
+                                    .retryPolicy(RetryMode.STANDARD).build())
+                            .credentialsProvider(credentialsProvider).region(region).build();
+        });
     }
 
     /**
