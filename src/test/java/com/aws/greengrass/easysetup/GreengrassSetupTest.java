@@ -8,10 +8,10 @@ package com.aws.greengrass.easysetup;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.platforms.Platform;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,7 +38,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -50,6 +49,8 @@ class GreengrassSetupTest {
     private DeviceProvisioningHelper deviceProvisioningHelper;
     @Mock
     private Kernel kernel;
+    @Mock
+    private Context context;
     @Mock
     private DeviceConfiguration deviceConfiguration;
     @Mock
@@ -67,13 +68,17 @@ class GreengrassSetupTest {
     }
 
     @BeforeEach
-    public void setup() {
-        Context mockContext = mock(Context.class);
-        lenient().doReturn(mockContext).when(kernel).getContext();
-        lenient().doReturn(deviceConfiguration).when(mockContext).get(DeviceConfiguration.class);
+    void setup() {
+        lenient().doReturn(context).when(kernel).getContext();
+        lenient().doReturn(deviceConfiguration).when(context).get(DeviceConfiguration.class);
         lenient().doReturn(runWithDefaultPosixUserTopic).when(deviceConfiguration).getRunWithDefaultPosixUser();
         lenient().doReturn("").when(runWithDefaultPosixUserTopic).getOnce();
         lenient().doReturn(runWithDefaultPosixUserTopic).when(runWithDefaultPosixUserTopic).withValue(anyString());
+    }
+
+    @AfterEach
+    void cleanup() throws IOException {
+        context.close();
     }
 
     @Test
