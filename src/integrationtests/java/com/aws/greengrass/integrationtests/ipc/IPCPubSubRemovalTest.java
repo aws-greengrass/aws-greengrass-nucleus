@@ -8,6 +8,7 @@ package com.aws.greengrass.integrationtests.ipc;
 import com.aws.greengrass.authorization.AuthorizationModule;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -23,6 +24,7 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -84,9 +86,10 @@ class IPCPubSubRemovalTest extends BaseITCase {
 
             Topics serviceTopic = kernel.findServiceTopic("DoAll1");
             Topics parameters = serviceTopic.findTopics(PARAMETERS_CONFIG_KEY);
-            Topics acl = parameters.findTopics(ACCESS_CONTROL_NAMESPACE_TOPIC);
+            Topic acl = parameters.find(ACCESS_CONTROL_NAMESPACE_TOPIC, "aws.greengrass.ipc.pubsub",
+                    "policyId5", "operations");
             if (acl != null) {
-                acl.remove();
+                acl.withValue(Collections.emptyList());
             }
             //Block until events are completed
             kernel.getContext().runOnPublishQueueAndWait(() -> {
@@ -100,6 +103,27 @@ class IPCPubSubRemovalTest extends BaseITCase {
             assertTrue(executionException.getCause() instanceof UnauthorizedError);
 
             ExecutionException executionException1 = assertThrows(ExecutionException.class,
+                    () -> publishToTopicOverIpcAsBinaryMessage(ipcClient, "a", "some message"));
+            assertTrue(executionException1.getCause() instanceof UnauthorizedError);
+
+            serviceTopic = kernel.findServiceTopic("DoAll1");
+            parameters = serviceTopic.findTopics(PARAMETERS_CONFIG_KEY);
+            Topics aclTopics = parameters.findTopics(ACCESS_CONTROL_NAMESPACE_TOPIC);
+            if (aclTopics != null) {
+                aclTopics.remove();
+            }
+            //Block until events are completed
+            kernel.getContext().runOnPublishQueueAndWait(() -> {
+            });
+
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+
+            //Now the authorization policies should have been removed and these should fail
+            executionException = assertThrows(ExecutionException.class,
+                    () -> subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight()));
+            assertTrue(executionException.getCause() instanceof UnauthorizedError);
+
+            executionException1 = assertThrows(ExecutionException.class,
                     () -> publishToTopicOverIpcAsBinaryMessage(ipcClient, "a", "some message"));
             assertTrue(executionException1.getCause() instanceof UnauthorizedError);
         }

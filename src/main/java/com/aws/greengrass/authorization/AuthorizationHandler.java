@@ -36,6 +36,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTR
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.AUTHZ_TES_OPERATION;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_SECRET_VALUE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_TOPIC;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE;
@@ -54,6 +55,7 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUB
 @Singleton
 public class AuthorizationHandler  {
     public static final String ANY_REGEX = "*";
+    public static final String SECRETS_MANAGER_SERVICE_NAME = "aws.greengrass.SecretManager";
     private static final Logger logger = LogManager.getLogger(AuthorizationHandler.class);
     private final ConcurrentHashMap<String, Set<String>> componentToOperationsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<AuthorizationPolicy>>
@@ -81,6 +83,8 @@ public class AuthorizationHandler  {
                 SUBSCRIBE_TO_TOPIC, ANY_REGEX)));
         componentToOperationsMap.put(MQTT_PROXY_SERVICE_NAME, new HashSet<>(Arrays.asList(PUBLISH_TO_IOT_CORE,
                 SUBSCRIBE_TO_IOT_CORE, ANY_REGEX)));
+        componentToOperationsMap.put(SECRETS_MANAGER_SERVICE_NAME, new HashSet<>(Arrays.asList(GET_SECRET_VALUE,
+                ANY_REGEX)));
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
