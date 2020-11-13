@@ -65,8 +65,8 @@ public final class CommitableFile extends FileOutputStream implements Commitable
      * @throws IOException if unable to create/delete the files.
      */
     public static CommitableFile of(Path path, boolean commitOnClose) throws IOException {
-        Path n = path.resolveSibling(path.getFileName() + "+");
-        Path b = path.resolveSibling(path.getFileName() + "~");
+        Path n = getNewFile(path);
+        Path b = getBackupFile(path);
         Files.deleteIfExists(n);
         try {
             return new CommitableFile(n, b, path, commitOnClose);
@@ -77,6 +77,14 @@ public final class CommitableFile extends FileOutputStream implements Commitable
             }
             return new CommitableFile(n, b, path, commitOnClose);
         }
+    }
+
+    public static Path getNewFile(Path path) {
+        return path.resolveSibling(path.getFileName() + "+");
+    }
+
+    public static Path getBackupFile(Path path) {
+        return path.resolveSibling(path.getFileName() + "~");
     }
 
     @Override
@@ -127,7 +135,7 @@ public final class CommitableFile extends FileOutputStream implements Commitable
         }
     }
 
-    private void move(Path from, Path to) {
+    static void move(Path from, Path to) {
         try {
             if (Files.exists(from)) {
                 Files.move(from, to, ATOMIC_MOVE);
