@@ -8,7 +8,10 @@ package com.aws.greengrass.testing;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Some functionality is enabled only for integration testing. Such functionality is subject to change between
@@ -16,11 +19,12 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class TestFeatureParameters {
     private static final Logger LOGGER = LogManager.getLogger(TestFeatureParameters.class);
+    private static final Map<String, Consumer<Boolean>> handlerRegistrationCallbacks = new ConcurrentHashMap<>();
 
     /**
      * Default implementation when not overridden.
      */
-    /*PackagePrivate*/ static TestFeatureParameterInterface DEFAULT_HANDLER = new TestFeatureParameterInterface() {
+    public static final TestFeatureParameterInterface DEFAULT_HANDLER = new TestFeatureParameterInterface() {
 
         /**
          * {@inheritDoc}
@@ -78,7 +82,7 @@ public final class TestFeatureParameters {
      * @return previous handler
      */
     @SuppressWarnings("PMD.CompareObjectsWithEquals") // intentional reference equals
-    /*PackagePrivate*/ static TestFeatureParameterInterface internalEnableTestingFeatureParameters(
+    public static TestFeatureParameterInterface internalEnableTestingFeatureParameters(
             TestFeatureParameterInterface newHandler) {
         if (newHandler == DEFAULT_HANDLER) {
             LOGGER.info("Testing Feature Parameters has been disabled.");
@@ -86,7 +90,9 @@ public final class TestFeatureParameters {
             LOGGER.warn("Testing Feature Parameters has been enabled. This operation is not supported in "
                     + "a production environment.");
         }
-        return TestFeatureParameters.handler.getAndSet(newHandler);
+        TestFeatureParameterInterface olderHandler = TestFeatureParameters.handler.getAndSet(newHandler);
+        handlerRegistrationCallbacks.values().forEach(callback -> callback.accept(newHandler != DEFAULT_HANDLER));
+        return olderHandler;
     }
 
     /**
@@ -94,8 +100,24 @@ public final class TestFeatureParameters {
      *
      * @return previous handler
      */
-    /*PackagePrivate*/ static TestFeatureParameterInterface internalDisableTestingFeatureParameters() {
+    public static TestFeatureParameterInterface internalDisableTestingFeatureParameters() {
         return internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
     }
 
+    /**
+     * Register a callback to notify when the handler is set.
+     * @param serviceName   Name of the service requesting a callback.
+     * @param callback      The callback function.
+     */
+    public static void registerHandlerCallback(String serviceName, Consumer<Boolean> callback) {
+        handlerRegistrationCallbacks.put(serviceName, callback);
+    }
+
+    /**
+     * Unregister a service from getting handler set notification.
+     * @param serviceName   Name of the service unregistering.
+     */
+    public static void unRegisterHandlerCallback(String serviceName) {
+        handlerRegistrationCallbacks.remove(serviceName);
+    }
 }
