@@ -16,24 +16,53 @@ Check the build logs to see where the jar lives
 ## Using the script
 OPTIONS
 ```
---config, -i                    Path to the configuration file to start Greengrass Nucleus with
---root, -r                      Path to the directory to use as the root for Greengrass
---thing-name, -tn               Desired thing name to register the device with in AWS IoT cloud
---thing-group-name, -tgn        Desired thing group to add the IoT Thing into
-—-tes-role-name, -trn           Name of the IAM role to use for TokenExchangeService for the device to talk
-                                to AWS services, the default is GreengrassV2TokenExchangeRole.
-                                If the role does not exist in your account it will be created with a default policy
-                                called GreengrassV2TokenExchangeRoleAccess, by default it DOES NOT have access
-                                to your S3 buckets where you will host your private component artifacts, so you need
-                                to add your component artifact S3 buckets/objects to that role in your AWS account.
---tes-role-alias-name, -tra     Name of the RoleAlias to attach to the IAM role for TES in the AWS
-                                IoT cloud, if the role alias does not exist then it will be created in your AWS account
---provision, -p                 Y/N Indicate if you want to register the device as an AWS IoT thing
---aws-region, -ar               AWS region where the resources should be looked for/created
---setup-system-nucleus, -ss     Y/N Indicate if you want to setup Greengrass as a system service
---component-default-user, -u    Name of the default user that will be used to run component
---component-default-group, -g   Name of the default group that will be used to run component
---deploy-dev-tools, -d          Y/N Indicate if you want to deploy Greengrass CLI and the HttpDebugView components
+--help, -h                      (Optional) Show this help information and then exit.
+--version, -v                   (Optional) Show the version of the AWS IoT Greengrass Core software and then exit.
+--aws-region, -ar               The AWS Region to use. The AWS IoT Greengrass Core software uses this Region to retrieve or
+                                create the AWS resources that it requires.
+--root, -r                      (Optional) The path to the folder to use as the root for the AWS IoT Greengrass Core software. 
+                                Defaults to ~/.greengrass.
+--config, -i                    (Optional) The path to the configuration file with which to run the AWS IoT Greengrass Core
+                                software. Defaults to config/config.yaml in the root folder.
+--provision, -p                 (Optional) Specify true or false. If this argument is true, then the AWS IoT Greengrass Core
+                                software registers this device as an AWS IoT thing and provisions the AWS resources that
+                                the software requires. The software provisions an AWS IoT thing, (optional) an AWS IoT
+                                thing group, an IAM role, and an AWS IoT role alias. Defaults to false.
+--thing-name, -tn               (Optional) The name of the AWS IoT thing as which to register this core device. If the thing
+                                with this name doesn't exist in your AWS account, then the AWS IoT Greengrass Core software
+                                create it. Defaults to GreengrassV2IotThing_ plus a random UUID.
+--thing-group-name, -tgn        (Optional) The name of the AWS IoT thing group to which to add this core device's AWS IoT
+                                thing. If a deployment targets this thing group, this core device receives that deployment
+                                when it connects to AWS IoT Greengrass. If the thing group with this name doesn't exist in your
+                                AWS account, then the AWS IoT Greengrass Core software creates it. Defaults to no thing group.
+—-tes-role-name, -trn           (Optional) The name of the IAM role to use to acquire AWS credentials that let the device interact
+                                with AWS services. If the role with this name doesn't exist in your AWS account, then the AWS IoT
+                                Greengrass Core software creates it with the GreengrassV2TokenExchangeRoleAccess policy. This role
+                                DOES NOT have access to your S3 buckets where you host component artifacts. This means that you
+                                must add permissions to your artifacts' S3 buckets and objects when you create a component.
+                                Defaults to GreengrassV2TokenExchangeRole.
+--tes-role-alias-name, -tra     (Optional) The name of the AWS IoT role alias that points to the IAM role that provides AWS
+                                credentials for this device. If the role alias with this name doesn't exist in your AWS account,
+                                then the AWS IoT Greengrass Core software creates it and points it to the IAM role that you specify.
+                                Defaults to GreengrassV2TokenExchangeRoleAlias.
+--setup-system-service, -ss     (Optional) Specify true or false. If this argument is true, then the AWS IoT Greengrass Core software
+                                sets itself up as a system service that runs when this device boots. The system service name is
+                                greengrass. Defaults to false.
+--component-default-user, -u    (Optional) The name of ID of the system user and group that the AWS IoT Greengrass Core software uses
+                                to run components. This argument accepts the user and group separated by a colon, where the group is
+                                optional. For example, you can specify ggc_user:ggc_group or ggc_user.
+                                * If you run as root, this defaults to the user and group that the config file defines. If the
+                                config file doesn't define a user and group, then this defaults to ggc_user:ggc_group. 
+                                If ggc_user or ggc_group don't exist, then the  software creates them.
+                                * If you run as a non-root user, the AWS IoT Greengrass Core software uses that user run components.
+                                * If you don't specify a group, the AWS IoT Greengrass Core software uses the primary group of the system user.
+--deploy-dev-tools, -d          (Optional) Specify true or false. If this argument is true, then the AWS IoT Greengrass Core software
+                                retrieves and deploys the Greengrass CLI and HTTP debug view components. Specify true to set up this
+                                core device for local development. Specify false to set up this core device in a production environment.
+                                Defaults to false.
+--start, -s                     (Optional) Specify true or false. If this argument is true, then the AWS IoT Greengrass Core software runs
+                                setup steps, (optional) provisions resources, and starts the software. If this argument is false, the software
+                                only runs setup steps and (optional) provisions resources. Defaults to true.
 ```
 
 ## Set up steps with Greengrass zip file

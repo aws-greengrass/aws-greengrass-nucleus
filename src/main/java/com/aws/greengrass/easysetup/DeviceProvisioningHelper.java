@@ -460,7 +460,7 @@ public class DeviceProvisioningHelper {
                         .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(60))
                         .withComponentUpdatePolicy(
                                 new ComponentUpdatePolicy().withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                                        .withTimeout(60)).withFailureHandlingPolicy(FailureHandlingPolicy.ROLLBACK));
+                                        .withTimeout(60)).withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING));
 
         if (Utils.isNotEmpty(thingGroupName)) {
             outStream.println("Creating a deployment for Greengrass first party components to the thing group");
