@@ -6,8 +6,8 @@ Manifests:
   - Platform:
       os: all
     Artifacts:
-      - URI: greengrass:script.sh
+      - URI: s3://mock-bucket/script.sh
         Permission:
           Read: ALL
           Execute: OWNER
-      - URI: greengrass:empty.txt
+      - URI: s3://mock-bucket/empty.txt

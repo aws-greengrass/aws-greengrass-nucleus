@@ -116,7 +116,6 @@ class ComponentManagerIntegTest extends BaseITCase {
         nucleusPaths.setComponentStorePath(tempRootDir);
         ComponentStore store = new ComponentStore(nucleusPaths);
         kernel.getContext().put(ComponentStore.class, store);
-
         File scriptFile = store.resolveArtifactDirectoryPath(ident).resolve("script.sh").toFile();
         File emptyFile = store.resolveArtifactDirectoryPath(ident).resolve("empty.txt").toFile();
         ArtifactDownloader mockDownloader = mock(ArtifactDownloader.class);

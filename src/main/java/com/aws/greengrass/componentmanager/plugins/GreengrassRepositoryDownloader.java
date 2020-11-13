@@ -162,10 +162,15 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     if (length == -1) {
                         throw new PackageDownloadException("Failed to get download size");
                     }
-                    // GG_NEEDS_REVIEW: TODO can we simplify getting filename without network request
                     String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
+                    String filename = extractFilename(url, disposition);
+
+                    artifact.setFileName(filename);
+
+                    // GG_NEEDS_REVIEW: TODO can we simplify getting filename without network request
                     this.artifactSize = length;
-                    this.artifactFilename = extractFilename(url, disposition);
+                    this.artifactFilename = filename;
+                    artifact.setFileName(filename);
                 } else {
                     throw new PackageDownloadException("Failed to check greengrass artifact. HTTP response: "
                             + responseCode);
@@ -178,7 +183,6 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             return null;
         });
     }
-
 
     private URL getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws PackageDownloadException {

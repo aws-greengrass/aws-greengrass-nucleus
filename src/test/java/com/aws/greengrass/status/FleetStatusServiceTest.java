@@ -12,6 +12,7 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -51,18 +52,20 @@ import java.util.function.Function;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
-import static com.aws.greengrass.status.FleetStatusService.DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC;
+import static com.aws.greengrass.status.FleetStatusService.DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC;
 import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC;
 import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC;
 import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_SEQUENCE_NUMBER_TOPIC;
-import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_SERVICE_PUBLISH_TOPICS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -120,9 +123,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(config.lookup(FLEET_STATUS_SEQUENCE_NUMBER_TOPIC)).thenReturn(sequenceNumberTopic);
         Topic lastPeriodicUpdateTime = Topic.of(context, FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC, Instant.now().toEpochMilli());
         lenient().when(config.lookup(FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC)).thenReturn(lastPeriodicUpdateTime);
-        Topic fleetStatusServicePublishTopic = Topic.of(context, FLEET_STATUS_SERVICE_PUBLISH_TOPICS, DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC);
-        when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_SERVICE_PUBLISH_TOPICS))
-                .thenReturn(fleetStatusServicePublishTopic);
     }
 
     @AfterEach
@@ -183,6 +183,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
         map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
         map.put(DEPLOYMENT_TYPE_KEY_NAME, IOT_JOBS);
+        Map<String, String> statusDetails = new HashMap<>();
+        statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, DeploymentResult.DeploymentStatus.SUCCESSFUL.toString());
+        map.put(DEPLOYMENT_STATUS_DETAILS_KEY_NAME, statusDetails);
         consumerArgumentCaptor.getValue().apply(map);
 
         // Update the state of an EG service.
@@ -209,6 +212,10 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(JobStatus.SUCCEEDED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL.toString(),
+                fleetStatusDetails.getDeploymentInformation().getStatusDetails().getDetailedStatus());
+        assertNull(fleetStatusDetails.getDeploymentInformation().getStatusDetails().getFailureCause());
         assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
         assertServiceIsRootOrNot(fleetStatusDetails.getComponentStatusDetails().get(0));
         serviceNamesToCheck.remove(fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
@@ -269,8 +276,13 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         addGlobalStateChangeListenerArgumentCaptor.getValue()
                 .globalServiceStateChanged(mockGreengrassService1, State.INSTALLED, State.BROKEN);
 
-        // Update the job status for an ongoing deployment to SUCCEEDED.
-        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
+        // Update the job status for service broken after deployment
+        String failureCauseMessage = "Service in broken state after deployment";
+        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.FAILED.toString());
+        Map<String, String> statusDetails = new HashMap<>();
+        statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED.toString());
+        statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, failureCauseMessage);
+        map.put(DEPLOYMENT_STATUS_DETAILS_KEY_NAME, statusDetails);
         consumerArgumentCaptor.getValue().apply(map);
 
         // Verify that an MQTT message with the components' status is uploaded.
@@ -284,6 +296,11 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(JobStatus.FAILED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED.toString(),
+                fleetStatusDetails.getDeploymentInformation().getStatusDetails().getDetailedStatus());
+        assertEquals(failureCauseMessage,
+                fleetStatusDetails.getDeploymentInformation().getStatusDetails().getFailureCause());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
@@ -391,7 +408,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         // Create the fleet status service instance
         fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, 3);
         fleetStatusService.startup();
 
         TimeUnit.SECONDS.sleep(5);
@@ -412,6 +429,37 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentStatusDetails().get(0).getState());
         assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentStatusDetails().get(0).getFleetConfigArns());
+    }
+
+    @Test
+    void GIVEN_periodic_update_less_than_default_WHEN_config_read_THEN_sets_publish_interval_to_default()
+            throws InterruptedException {
+        // Set up all the topics
+        Topic periodicUpdateIntervalMsTopic = Topic.of(context, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC, "3");
+        Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
+        Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
+                true);
+        groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
+        groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService2"), groupsTopics2);
+        lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
+
+        // Set up all the mocks
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
+        when(config.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC))
+                .thenReturn(periodicUpdateIntervalMsTopic);
+        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
+
+        // Create the fleet status service instance
+        fleetStatusService = new FleetStatusService(config, mockMqttClient,
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
+        fleetStatusService.startup();
+
+        assertEquals(DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC, fleetStatusService.getPeriodicUpdateIntervalSec());
     }
 
     @Test
@@ -454,6 +502,10 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 mockGreengrassService1), Instant.MIN);
 
         map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
+        Map<String, String> statusDetails = new HashMap<>();
+        statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, DeploymentResult.DeploymentStatus.SUCCESSFUL.toString());
+        map.put(DEPLOYMENT_STATUS_DETAILS_KEY_NAME, statusDetails);
+
         consumerArgumentCaptor.getValue().apply(map);
 
         // Verify that an MQTT message with the components' status is uploaded.
@@ -467,6 +519,10 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(JobStatus.SUCCEEDED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL.toString(),
+                fleetStatusDetails.getDeploymentInformation().getStatusDetails().getDetailedStatus());
+        assertNull(fleetStatusDetails.getDeploymentInformation().getStatusDetails().getFailureCause());
 
         fleetStatusDetails.getComponentStatusDetails().forEach(System.out::println);
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
@@ -681,7 +737,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         // Create the fleet status service instance
         fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, 3);
         fleetStatusService.startup();
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
 

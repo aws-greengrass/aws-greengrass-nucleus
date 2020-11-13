@@ -19,9 +19,12 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.MqttChunkedPayloadPublisher;
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.lang3.RandomUtils;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
@@ -43,7 +46,10 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
@@ -56,11 +62,11 @@ public class FleetStatusService extends GreengrassService {
     public static final String FLEET_STATUS_SERVICE_TOPICS = "FleetStatusService";
     public static final String DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC =
             "$aws/things/{thingName}/greengrassv2/health/json";
-    static final String FLEET_STATUS_SERVICE_PUBLISH_TOPICS = "fleetStatusServicePublishTopic";
+    public static final String FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC = "fssPeriodicUpdateIntervalSec";
+    public static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 86_400;
     static final String FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC = "periodicUpdateIntervalSec";
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
-    private static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 86_400;
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
 
     private String updateTopic;
@@ -80,8 +86,9 @@ public class FleetStatusService extends GreengrassService {
     private final ConcurrentHashMap<GreengrassService, Instant> allServiceNamesMap = new ConcurrentHashMap<>();
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
     private final Object periodicUpdateInProgressLock = new Object();
+    @Setter // Needed for integration tests.
+    @Getter(AccessLevel.PACKAGE) // Needed for unit tests.
     private int periodicUpdateIntervalSec;
-    private String fleetStatusServicePublishTopic = DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC;
     private ScheduledFuture<?> periodicUpdateFuture;
 
     @Getter
@@ -110,6 +117,22 @@ public class FleetStatusService extends GreengrassService {
     @Inject
     public FleetStatusService(Topics topics, MqttClient mqttClient, DeploymentStatusKeeper deploymentStatusKeeper,
                               Kernel kernel, DeviceConfiguration deviceConfiguration) {
+        this(topics, mqttClient, deploymentStatusKeeper, kernel, deviceConfiguration,
+                DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC);
+    }
+
+    /**
+     * Constructor for FleetStatusService.
+     *
+     * @param topics                        root Configuration topic for this service
+     * @param mqttClient                    {@link MqttClient}
+     * @param deploymentStatusKeeper        {@link DeploymentStatusKeeper}
+     * @param kernel                        {@link Kernel}
+     * @param deviceConfiguration           {@link DeviceConfiguration}
+     * @param periodicUpdateIntervalSec     interval for cadence based status update.
+     */
+    public FleetStatusService(Topics topics, MqttClient mqttClient, DeploymentStatusKeeper deploymentStatusKeeper,
+                              Kernel kernel, DeviceConfiguration deviceConfiguration, int periodicUpdateIntervalSec) {
         super(topics);
 
         this.mqttClient = mqttClient;
@@ -117,6 +140,9 @@ public class FleetStatusService extends GreengrassService {
         this.kernel = kernel;
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
         this.architecture = System.getProperty("os.arch");
+        this.periodicUpdateIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, periodicUpdateIntervalSec).intValue();
+
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
         this.platform = PlatformResolver.CURRENT_PLATFORM.getOs().getName();
 
@@ -127,15 +153,17 @@ public class FleetStatusService extends GreengrassService {
         topics.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
-                    periodicUpdateIntervalSec = Coerce.toInt(newv);
+                    int newPeriodicUpdateIntervalSec = Coerce.toInt(newv);
+                    // Do not update the scheduled interval if it is less than the default.
+                    if (newPeriodicUpdateIntervalSec < DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC) {
+                        return;
+                    }
+                    this.periodicUpdateIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                            FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, newPeriodicUpdateIntervalSec).intValue();
                     if (periodicUpdateFuture != null) {
                         schedulePeriodicFleetStatusDataUpdate(false);
                     }
                 });
-
-        topics.lookup(PARAMETERS_CONFIG_KEY, FLEET_STATUS_SERVICE_PUBLISH_TOPICS)
-                .dflt(DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC)
-                .subscribe((why, newv) -> fleetStatusServicePublishTopic = Coerce.toString(newv));
 
         topics.getContext().addGlobalStateChangeListener(this::handleServiceStateChange);
 
@@ -148,17 +176,34 @@ public class FleetStatusService extends GreengrassService {
         schedulePeriodicFleetStatusDataUpdate(false);
 
         this.mqttClient.addToCallbackEvents(callbacks);
+
+        TestFeatureParameters.registerHandlerCallback(this.getName(), this::handleTestFeatureParametersHandlerChange);
+    }
+
+    @SuppressWarnings("PMD.UnusedFormalParameter")
+    private void handleTestFeatureParametersHandlerChange(Boolean isDefault) {
+        this.periodicUpdateIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, this.periodicUpdateIntervalSec).intValue();
+        if (periodicUpdateFuture != null) {
+            schedulePeriodicFleetStatusDataUpdate(false);
+        }
     }
 
     private void updateThingNameAndPublishTopic(String newThingName) {
         if (newThingName != null) {
             thingName = newThingName;
-            updateTopic = fleetStatusServicePublishTopic.replace("{thingName}", thingName);
+            updateTopic = DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC.replace("{thingName}", thingName);
             this.publisher.setUpdateTopic(updateTopic);
         }
     }
 
-    private void schedulePeriodicFleetStatusDataUpdate(boolean isDuringConnectionResumed) {
+    /**
+     * Schedule cadence based periodic updates for fleet status.
+     *
+     * @param isDuringConnectionResumed boolean to indicate if the cadence based update is being rescheduled after
+     *                                  connection resumed.
+     */
+    public void schedulePeriodicFleetStatusDataUpdate(boolean isDuringConnectionResumed) {
         // If the last periodic update was missed, update the fleet status service for all running services.
         // Else update only the statuses of the services whose status changed (if any) and if the method is called
         // due to a MQTT connection resumption.
@@ -176,7 +221,7 @@ public class FleetStatusService extends GreengrassService {
         // Only trigger the event based updates on MQTT connection resumed. Else it will be triggered when the
         // service starts up as well, which is not needed.
         if (isDuringConnectionResumed) {
-            updateEventTriggeredFleetStatusData();
+            updateEventTriggeredFleetStatusData(null);
         }
 
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it,
@@ -196,7 +241,7 @@ public class FleetStatusService extends GreengrassService {
 
         // if there is no ongoing deployment and we encounter a BROKEN component, update the fleet status as UNHEALTHY.
         if (!isDeploymentInProgress.get() && newState.equals(State.BROKEN)) {
-            uploadFleetStatusServiceData(updatedGreengrassServiceSet, OverallStatus.UNHEALTHY);
+            uploadFleetStatusServiceData(updatedGreengrassServiceSet, OverallStatus.UNHEALTHY, null);
         }
     }
 
@@ -229,7 +274,7 @@ public class FleetStatusService extends GreengrassService {
             greengrassServiceSet.add(greengrassService);
             overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), greengrassService));
         });
-        uploadFleetStatusServiceData(greengrassServiceSet, overAllStatus.get());
+        uploadFleetStatusServiceData(greengrassServiceSet, overAllStatus.get(), null);
     }
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
@@ -244,13 +289,16 @@ public class FleetStatusService extends GreengrassService {
             logger.atDebug().log("Updating Fleet Status service for deployment with ID: {}",
                     deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME));
             isDeploymentInProgress.set(false);
-            updateEventTriggeredFleetStatusData();
+            DeploymentInformation deploymentInformation = getDeploymentInformation(deploymentDetails);
+            updateEventTriggeredFleetStatusData(deploymentInformation);
         }
         // TODO: [P41214799] Handle local deployment update for FSS
         return true;
     }
 
-    private void updateEventTriggeredFleetStatusData() {
+
+
+    private void updateEventTriggeredFleetStatusData(DeploymentInformation deploymentInformation) {
         if (!isConnected.get()) {
             logger.atDebug().log("Not updating FSS data on event triggered since MQTT connection is interrupted.");
             return;
@@ -281,12 +329,13 @@ public class FleetStatusService extends GreengrassService {
         });
         removedDependenciesSet.forEach(allServiceNamesMap::remove);
         removedDependenciesSet.clear();
-        uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get());
+        uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(), deploymentInformation);
         isEventTriggeredUpdateInProgress.set(false);
     }
 
     private void uploadFleetStatusServiceData(Set<GreengrassService> greengrassServiceSet,
-                                              OverallStatus overAllStatus) {
+                                              OverallStatus overAllStatus,
+                                              DeploymentInformation deploymentInformation) {
         if (!isConnected.get()) {
             logger.atDebug().log("Not updating fleet status data since MQTT connection is interrupted.");
             return;
@@ -369,6 +418,7 @@ public class FleetStatusService extends GreengrassService {
                 .thing(thingName)
                 .ggcVersion(KERNEL_VERSION)
                 .sequenceNumber(sequenceNumber)
+                .deploymentInformation(deploymentInformation)
                 .build();
         publisher.publish(fleetStatusDetails, components);
         logger.atInfo().event("fss-status-update-published").log("Status update published to FSS");
@@ -395,6 +445,20 @@ public class FleetStatusService extends GreengrassService {
         return OverallStatus.HEALTHY;
     }
 
+    private DeploymentInformation getDeploymentInformation(Map<String, Object> deploymentDetails) {
+        DeploymentInformation deploymentInformation = DeploymentInformation.builder()
+                .status((String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME))
+                .fleetConfigurationArnForStatus((String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME)).build();
+        if (deploymentDetails.containsKey(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)) {
+            Map<String, String> statusDetailsMap =
+                    (Map<String, String>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
+            StatusDetails statusDetails = StatusDetails.builder()
+                    .detailedStatus(statusDetailsMap.get(DEPLOYMENT_DETAILED_STATUS_KEY))
+                    .failureCause(statusDetailsMap.get(DEPLOYMENT_FAILURE_CAUSE_KEY)).build();
+            deploymentInformation.setStatusDetails(statusDetails);
+        }
+        return deploymentInformation;
+    }
 
     @Override
     @SuppressWarnings("PMD.UselessOverridingMethod")
@@ -408,6 +472,7 @@ public class FleetStatusService extends GreengrassService {
         if (!this.periodicUpdateFuture.isCancelled()) {
             this.periodicUpdateFuture.cancel(true);
         }
+        TestFeatureParameters.unRegisterHandlerCallback(this.getName());
     }
 
     /**
