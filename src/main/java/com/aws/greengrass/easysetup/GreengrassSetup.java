@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.easysetup;
 
+import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
@@ -35,43 +37,77 @@ import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
  * Easy setup for getting started with Greengrass kernel on a device.
  */
 public class GreengrassSetup {
-    // GG_REL_BLOCKER: TODO: [P41215451]: Review with tech writer prior to launch (including TES)
     private static final String SHOW_HELP_RESPONSE = "DESCRIPTION\n"
-            + "\tInstall Greengrass kernel on your device, register the device as IoT thing,\n"
-            + "\tcreate certificates and attach role for TES to them, install the Greengrass\n"
-            + "\tdevice CLI. Please set the AWS credentials in the environment variables\n"
+            + "\tInstall the Greengrass Nucleus, (optional) install local development tools, and (optional)\n"
+            + "\tregister your device as an AWS IoT thing. This creates device certificates, attaches a role\n"
+            + "\tto use the AWS IoT credentials provider, and creates a role that provides AWS credentials.\n"
             + "\n"
             + "OPTIONS\n"
-            + "\t--config, -i\t\t\tPath to the configuration file to start Greengrass kernel with\n"
-            + "\t--root, -r\t\t\tPath to the directory to use as the root for Greengrass\n"
-            + "\t--thing-name, -tn\t\tDesired thing name to register the device with in AWS IoT cloud\n"
-            + "\t--thing-group-name, -tgn\tDesired thing group to add the IoT Thing into\n"
-            + "\t—tes-role-name, -trn\t\tName of the IAM role to use for "
-            + TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS
-            + "\n\t\t\t\t\tdevice to talk to AWS services, the default is GreengrassV2TokenExchangeRole.\n"
-            + "\t\t\t\t\tIf the role does not exist in your account it will be created with a default policy\n"
-            + "\t\t\t\t\tcalled GreengrassV2TokenExchangeRoleAccess, by default it DOES NOT have access\n"
-            + "\t\t\t\t\tto your S3 buckets where you will host your private component artifacts, so you need\n"
-            + "\t\t\t\t\tto add your component artifact S3 buckets/objects to that role in your AWS account.\n"
-            + "\t--tes-role-alias-name, -tra\tName of the RoleAlias to attach to the IAM role for\n"
-            + "\t\t\t\t\t"
-            + TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS
-            + "in the AWS IoT cloud if the role\n"
-            + "\t\t\t\t\talias does not exist then it will be created in your AWS account\n"
-            + "\t--provision, -p\t\t\t/N Indicate if you want to register the device as an AWS IoT thing\n"
-            + "\t--aws-region, -ar\t\tAWS region where the resources should be looked for/created\n"
-            + "\t\t\t\t\tCorresponding Iot environment stage will be used.\n"
-            + "\t--setup-system-service, -ss\tY/N Indicate if you want to setup Greengrass as a system service\n"
-            + "\t--component-default-user, -u\tName of the default user that will be used to run component services\n"
-            + (Exec.isWindows ? "" : "\t\t\t\t\tYou can use the following formats. If specifying a UID or GID, you must"
-            + " specify it as a positive integer.\n"
-            + "\t\t\t\t\tuser\n"
-            + "\t\t\t\t\tuser:group\n"
-            + "\t\t\t\t\tuid\n"
-            + "\t\t\t\t\tuid:gid\n"
-            + "\t\t\t\t\tuser:gid\n"
-            + "\t\t\t\t\tuid:group\n"
-            + "\n\t\t\t\t\tIf a group is not specified the primary group of the user will be used.\n");
+            + "\t--help, -h\t\t\t(Optional) Show this help information and then exit.\n"
+            + "\t--version\t\t\t(Optional) Show the version of the AWS IoT Greengrass Core software, and then exit.\n"
+            + "\t--aws-region, -ar\t\t\tThe AWS Region to use. The AWS IoT Greengrass Core software uses this Region\n"
+            + "\t\t\t\t\t to retrieve or create the AWS resources that it requires\n"
+            + "\t--root, -r\t\t\t(Optional) The path to the folder to use as the root for the AWS IoT Greengrass Core\n"
+            + "\t\t\t\t\tsoftware. Defaults to ~/.greengrass.\n"
+            + "\t--config, -i\t\t\t(Optional) The path to the configuration file that you use to run the AWS IoT "
+            + "Greengrass Core\n"
+            + "\t\t\t\t\tsoftware. Defaults to ~/.greengrass.\n"
+            + "\t--provision, -p\t\t\t(Optional) Specify true or false. If true, the AWS IoT Greengrass Core software"
+            + " registers this\n"
+            + "\t\t\t\t\tdevice as an AWS IoT thing, and provisions the AWS resources that the software requires. The\n"
+            + "\t\t\t\t\tsoftware provisions an AWS IoT thing, (optional) an AWS IoT thing group, an IAM role, and an\n"
+            + "\t\t\t\t\tAWS IoT role alias. Defaults to false.\n"
+            + "\t--thing-name, -tn\t\t(Optional) The name of the AWS IoT thing that you register as this core device."
+            + " If the thing with\n"
+            + "\t\t\t\t\tthis name doesn't exist in your AWS account, the AWS IoT Greengrass Core software creates it."
+            + "\n\t\t\t\t\tDefaults to GreengrassV2IotThing_ plus a random UUID.\n"
+            + "\t--thing-group-name, -tgn\t(Optional) The name of the AWS IoT thing group where you add this core "
+            + "device's AWS IoT thing. \n"
+            + "\t\t\t\t\tIf a deployment targets this thing group, this core device receives that deployment when it\n"
+            + "\t\t\t\t\tconnects to AWS IoT Greengrass. If the thing group with this name doesn't exist in your AWS\n"
+            + "\t\t\t\t\taccount, the AWS IoT Greengrass Core software creates it. Defaults to no thing group.\n"
+            + "\t—tes-role-name, -trn\t\t(Optional) The name of the IAM role to use to acquire AWS credentials that "
+            + "let the device\n"
+            + "\t\t\t\t\tinteract with AWS services. If the role with this name doesn't exist in your AWS account, "
+            + "the AWS\n"
+            + "\t\t\t\t\tIoT Greengrass Core software creates it with the GreengrassV2TokenExchangeRoleAccess policy.\n"
+            + "\t\t\t\t\tThis role doesn't have access to your S3 buckets where you host component artifacts. So, you\n"
+            + "\t\t\t\t\tmust add permissions to your artifacts' S3 buckets and objects when you create a component.\n"
+            + "\t\t\t\t\tDefaults to GreengrassV2TokenExchangeRole.\n"
+            + "\t--tes-role-alias-name, -tra\t(Optional) The name of the AWS IoT role alias that points to the IAM "
+            + "role that provides AWS\n"
+            + "\t\t\t\t\tcredentials for this device. If the role alias with this name doesn't exist in your AWS "
+            + "account, the\n"
+            + "\t\t\t\t\tAWS IoT Greengrass Core software creates it and points it to the IAM role that you specify.\n"
+            + "\t\t\t\t\tDefaults to GreengrassV2TokenExchangeRoleAlias.\n"
+            + "\t--setup-system-service, -ss\t(Optional) Specify true or false. If true, then the AWS IoT Greengrass "
+            + "Core software sets\n"
+            + "\t\t\t\t\titself up as a system service that runs when this device boots. The system service name is "
+            + "greengrass.\n"
+            + "\t\t\t\t\tDefaults to false.\n"
+            + "\t--component-default-user, -u\t(Optional) The name of ID of the system user and group that the AWS "
+            + "IoT Greengrass Core\n"
+            + "\t\t\t\t\tsoftware uses to run components. This argument accepts the user and group separated by a\n"
+            + "\t\t\t\t\tcolon, where the group is optional. For example, you can specify ggc_user:ggc_group or\n"
+            + "\t\t\t\t\tggc_user.\n\n"
+            + "\t\t\t\t\t* If you run as root, this defaults to the user and group that the config file defines. If "
+            + "the config \n"
+            + "\t\t\t\t\tfile doesn't define a user and group, this defaults to ggc_user:ggc_group. If ggc_user or\n"
+            + "\t\t\t\t\tggc_group don't exist, the software creates them.\n\n"
+            + "\t\t\t\t\t* If you run as a non-root user, the AWS IoT Greengrass Core software uses that user to run "
+            + "components.\n\n"
+            + "\t\t\t\t\t* If you don't specify a group, the AWS IoT Greengrass Core software uses the primary group \n"
+            + "\t\t\t\t\tof the system user\n"
+            + "\n\t--deploy-dev-tools, -d\t\t(Optional) Specify true or false. If true, the AWS IoT Greengrass Core "
+            + "software retrieves and\n"
+            + "\t\t\t\t\tdeploys the Greengrass CLI and HTTP debug view components. Specify true to set up this core\n"
+            + "\t\t\t\t\tdevice for local development. Specify false to set up this core device in a production\n"
+            + "\t\t\t\t\tenvironment. Defaults to false.\n"
+            + "\n\t--start, -s\t\t\t(Optional) Specify true or false. If true, the AWS IoT Greengrass Core software "
+            + "runs setup steps,\n"
+            + "\t\t\t\t\t(optional) provisions resources, and starts the software. If false, the software runs only "
+            + "setup\n"
+            + "\t\t\t\t\tsteps and (optional) provisions resources. Defaults to true.\n";
 
     private static final String SHOW_VERSION_RESPONSE = "AWS Greengrass v%s";
 
@@ -107,7 +143,6 @@ public class GreengrassSetup {
 
     private static final String AWS_REGION_ARG = "--aws-region";
     private static final String AWS_REGION_ARG_SHORT = "-ar";
-    private static final String AWS_REGION_DEFAULT = "us-east-1";
 
     private static final String ENV_STAGE_ARG = "--env-stage";
     private static final String ENV_STAGE_ARG_SHORT = "-es";
@@ -126,9 +161,11 @@ public class GreengrassSetup {
     private static final boolean DEPLOY_DEV_TOOLS_ARG_DEFAULT = false;
 
     private static final String VERSION_ARG = "--version";
+    private static final String VERSION_ARG_SHORT = "-v";
 
     private static final String GGC_USER = "ggc_user";
     private static final String GGC_GROUP = "ggc_group";
+    private static final String DEFAULT_POSIX_USER = String.format("%s:%s", GGC_USER, GGC_GROUP);
 
     private static final Logger logger = LogManager.getLogger(GreengrassSetup.class);
     private final String[] setupArgs;
@@ -145,7 +182,7 @@ public class GreengrassSetup {
     private String thingGroupName;
     private String tesRoleName = TES_ROLE_NAME_DEFAULT;
     private String tesRoleAliasName = TES_ROLE_ALIAS_NAME_DEFAULT;
-    private String awsRegion = AWS_REGION_DEFAULT;
+    private String awsRegion;
     private String environmentStage = ENV_STAGE_DEFAULT;
     private String defaultUser;
     private boolean needProvisioning = NEED_PROVISIONING_DEFAULT;
@@ -153,6 +190,7 @@ public class GreengrassSetup {
     private boolean kernelStart = KERNEL_START_ARG_DEFAULT;
     private boolean deployDevTools = DEPLOY_DEV_TOOLS_ARG_DEFAULT;
     private final Platform platform;
+    private final Kernel kernel;
 
     /**
      * Constructor to create an instance using CLI args.
@@ -166,6 +204,7 @@ public class GreengrassSetup {
         this.outStream = outStream;
         this.errStream = errStream;
         this.platform = Platform.getInstance();
+        this.kernel = new Kernel();
     }
 
     /**
@@ -175,14 +214,16 @@ public class GreengrassSetup {
      * @param errStream                writer to use to send error response to user
      * @param deviceProvisioningHelper Prebuilt DeviceProvisioningHelper instance
      * @param platform                 a platform to use
+     * @param kernel                   a kernel instance
      * @param setupArgs                CLI args for setup script
      */
     GreengrassSetup(PrintStream outStream, PrintStream errStream, DeviceProvisioningHelper deviceProvisioningHelper,
-            Platform platform, String... setupArgs) {
+            Platform platform, Kernel kernel, String... setupArgs) {
         this.setupArgs = setupArgs;
         this.outStream = outStream;
         this.errStream = errStream;
         this.deviceProvisioningHelper = deviceProvisioningHelper;
+        this.kernel = kernel;
         this.platform = platform;
     }
 
@@ -219,9 +260,27 @@ public class GreengrassSetup {
             return;
         }
 
-        setComponentDefaultUserAndGroup();
+        kernel.parseArgs(kernelArgs.toArray(new String[]{}));
 
-        Kernel kernel = getKernel().parseArgs(kernelArgs.toArray(new String[]{}));
+        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+
+        if (Utils.isEmpty(awsRegion)) {
+            awsRegion = Coerce.toString(deviceConfiguration.getAWSRegion());
+        }
+        if (Utils.isEmpty(awsRegion)) {
+            throw new RuntimeException("Required input for aws region not provided");
+        }
+        if (Region.of(awsRegion) == null) {
+            throw new RuntimeException(String.format("%s is invalid AWS region", awsRegion));
+        }
+
+        // Attempt this only after config file and kernel args have been parsed
+        setComponentDefaultUserAndGroup(deviceConfiguration);
+        try {
+            IotSdkClientFactory.EnvironmentStage.fromString(environmentStage);
+        } catch (InvalidEnvironmentStageException e) {
+            throw new RuntimeException(e);
+        }
 
         //initialize the device provisioning helper
         this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, environmentStage, this.outStream);
@@ -260,6 +319,7 @@ public class GreengrassSetup {
                     this.showHelp = true;
                     break loop;
                 case VERSION_ARG:
+                case VERSION_ARG_SHORT:
                     this.showVersion = true;
                     break loop;
                 case KERNEL_CONFIG_ARG:
@@ -331,16 +391,6 @@ public class GreengrassSetup {
                     throw rte;
             }
         }
-
-        if (Region.of(awsRegion) == null) {
-            throw new RuntimeException(String.format("%s is invalid AWS region", awsRegion));
-        }
-
-        try {
-            IotSdkClientFactory.EnvironmentStage.fromString(environmentStage);
-        } catch (InvalidEnvironmentStageException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     @SuppressWarnings("PMD.NullAssignment")
@@ -373,28 +423,35 @@ public class GreengrassSetup {
     }
 
     @SuppressWarnings("PMD.PreserveStackTrace")
-    private void setComponentDefaultUserAndGroup() {
+    private void setComponentDefaultUserAndGroup(DeviceConfiguration deviceConfiguration) {
         if (Exec.isWindows) {
             outStream.println("Default user is only supported on Linux platforms");
             return;
         }
-
         try {
-            boolean noDefaultSet = Utils.isEmpty(defaultUser);
-
-            // if no arg, then don't set anything for now - if not super user, we can't create anyway
-            if (noDefaultSet || !platform.lookupCurrentUser().isSuperUser()) {
+            // If not super user we cannot create anything
+            if (!platform.lookupCurrentUser().isSuperUser()) {
                 return;
             }
-            String[] userGroup = defaultUser.split(":", 2);
-            if (Utils.isEmpty(userGroup[0])) {
-                throw new RuntimeException("No user specified");
-            }
 
-            boolean setGGCUser = GGC_USER.equals(userGroup[0]);
-            boolean setGGCGroup = false;
-            if (userGroup.length > 1) {
-                setGGCGroup = GGC_GROUP.equals(userGroup[1]);
+            // If user was given as cli input it has been added to the config by now.
+            Topic defaultUserTopic = deviceConfiguration.getRunWithDefaultPosixUser();
+            defaultUser = Coerce.toString(defaultUserTopic);
+            boolean noDefaultSet = Utils.isEmpty(defaultUser);
+
+            boolean setGGCUser = noDefaultSet;
+            boolean setGGCGroup = noDefaultSet;
+            if (noDefaultSet) {
+                outStream.printf("No input for component default user, using %s:%s %n", GGC_USER, GGC_GROUP);
+            } else {
+                String[] userGroup = defaultUser.split(":", 2);
+                setGGCUser = GGC_USER.equals(userGroup[0]);
+                if (userGroup.length > 1) {
+                    setGGCGroup = GGC_GROUP.equals(userGroup[1]);
+                }
+                if (Utils.isEmpty(userGroup[0])) {
+                    throw new RuntimeException("No user specified");
+                }
             }
             if (setGGCUser) {
                 try {
@@ -416,13 +473,12 @@ public class GreengrassSetup {
                     outStream.printf("Added %s to %s %n", GGC_USER, GGC_GROUP);
                 }
             }
+            if (noDefaultSet) {
+                defaultUserTopic.withValue(DEFAULT_POSIX_USER);
+            }
         } catch (IOException e) {
             throw new RuntimeException("Error setting up component default user / group", e);
         }
-    }
-
-    Kernel getKernel() {
-        return new Kernel();
     }
 
 }
