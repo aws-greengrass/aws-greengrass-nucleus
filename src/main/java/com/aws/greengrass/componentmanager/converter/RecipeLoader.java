@@ -84,12 +84,8 @@ public final class RecipeLoader {
 
         PlatformSpecificManifest platformSpecificManifest = optionalPlatformSpecificManifest.get();
 
-        // TODO: [P41216606]: delete after migration of global dependencies
         Map<String, DependencyProperties> dependencyPropertiesMap = new HashMap<>();
-        if (componentRecipe.getComponentDependencies() == null || componentRecipe.getComponentDependencies()
-                .isEmpty()) {
-            dependencyPropertiesMap.putAll(platformSpecificManifest.getDependencies());
-        } else {
+        if (componentRecipe.getComponentDependencies() != null) {
             dependencyPropertiesMap.putAll(componentRecipe.getComponentDependencies());
         }
 
