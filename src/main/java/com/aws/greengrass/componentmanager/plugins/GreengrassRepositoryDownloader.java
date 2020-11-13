@@ -41,7 +41,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     // TODO: avoid calling cloud to get artifact file name.
     @Override
-    protected String getArtifactFilename() throws PackageDownloadException {
+    protected String getArtifactFilename() throws PackageDownloadException, InterruptedException {
         if (artifactFilename != null) {
             return artifactFilename;
         }
@@ -50,7 +50,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     }
 
     @Override
-    public Long getDownloadSize() throws PackageDownloadException {
+    public Long getDownloadSize() throws PackageDownloadException, InterruptedException {
         if (artifactSize != null) {
             return artifactSize;
         }
@@ -61,7 +61,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     @Override
     protected long download(long rangeStart, long rangeEnd, MessageDigest messageDigest)
-            throws PackageDownloadException {
+            throws PackageDownloadException, InterruptedException {
         URL url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
 
         return runWithRetry("establish HTTP connection", MAX_RETRY, () -> {
@@ -112,7 +112,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     // TODO: remove this overriding function once GGRepositoryDownloader doesn't need to call cloud to get
     // artifact file name.
     @Override
-    public File getArtifactFile() {
+    public File getArtifactFile() throws InterruptedException {
         // GG_NEEDS_REVIEW: TODO : In the download from cloud step we rely on the content-disposition header to get the
         //  file name and that's the accurate name, but here we're only using the scheme specific part
         //  of the URI when we don't find the file in cloud, we need to follow up on what is the
@@ -133,7 +133,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     // TODO: remove this overriding function once GGRepositoryDownloader doesn't need to call cloud to get
     // artifact file name.
     @Override
-    public boolean downloadRequired() {
+    public boolean downloadRequired() throws InterruptedException {
         try {
             // Override parent's behavior of checking local file from getArtifactFileName()
             // In GreengrassRepositoryDownloader, getArtifactFileName() requires calling cloud and may
@@ -145,7 +145,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         }
     }
 
-    private void retrieveArtifactInfo() throws PackageDownloadException {
+    private void retrieveArtifactInfo() throws PackageDownloadException, InterruptedException {
         if (artifactSize != null && artifactFilename != null) {
             return;
         }

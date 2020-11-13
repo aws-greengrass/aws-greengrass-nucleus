@@ -6,7 +6,6 @@
 package com.aws.greengrass.componentmanager.plugins;
 
 import com.aws.greengrass.componentmanager.exceptions.ArtifactChecksumMismatchException;
-import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -65,10 +64,11 @@ public abstract class ArtifactDownloader {
      *
      * @return file handle of the downloaded file
      * @throws IOException if I/O error occurred in network/disk
+     * @throws InterruptedException if interrupted in downloading
      * @throws PackageDownloadException if error occurred in download process
      * @throws ArtifactChecksumMismatchException if given artifact checksum algorithm isn't supported.
      */
-    public final File downloadToPath() throws PackageDownloadException, IOException {
+    public final File downloadToPath() throws PackageDownloadException, IOException, InterruptedException {
         MessageDigest messageDigest;
         try {
             if (artifact.getAlgorithm() == null) {
@@ -165,15 +165,15 @@ public abstract class ArtifactDownloader {
      * @throws PackageDownloadException PackageDownloadException
      */
     protected abstract long download(long rangeStart, long rangeEnd, MessageDigest messageDigest)
-            throws PackageDownloadException;
+            throws PackageDownloadException, InterruptedException;
 
     /**
      * Checks whether it is necessary to download the artifact or the existing file suffices.
      *
      * @return true if download is necessary
-     * @throws InvalidArtifactUriException if given artifact URI has error
+     * @throws InterruptedException if interrupted in downloading
      */
-    public boolean downloadRequired() {
+    public boolean downloadRequired() throws InterruptedException {
         try {
             String filename = getArtifactFilename();
             return !artifactExistsAndChecksum(artifact, artifactDir.resolve(filename));
@@ -187,10 +187,10 @@ public abstract class ArtifactDownloader {
      * Get the artifact file.
      *
      * @return artifact file that was either downloaded or had been locally present
-     * @throws InvalidArtifactUriException if provided info results in invalid URI
+     * @throws InterruptedException if interrupted in downloading
      * @throws PackageDownloadException if error encountered
      */
-    public File getArtifactFile() throws PackageDownloadException {
+    public File getArtifactFile() throws PackageDownloadException, InterruptedException {
         return artifactDir.resolve(getArtifactFilename()).toFile();
     }
 
@@ -198,12 +198,12 @@ public abstract class ArtifactDownloader {
      * Get the download size of the artifact file.
      *
      * @return size of the artifact in bytes
-     * @throws InvalidArtifactUriException if provided info results in invalid URI
+     * @throws InterruptedException if interrupted in downloading
      * @throws PackageDownloadException if error encountered
      */
-    public abstract Long getDownloadSize() throws PackageDownloadException;
+    public abstract Long getDownloadSize() throws PackageDownloadException, InterruptedException;
 
-    protected abstract String getArtifactFilename() throws PackageDownloadException;
+    protected abstract String getArtifactFilename() throws PackageDownloadException, InterruptedException;
 
     protected String getErrorString(String reason) {
         return String.format(ARTIFACT_DOWNLOAD_EXCEPTION_FMT, artifact.getArtifactUri(),
@@ -248,7 +248,7 @@ public abstract class ArtifactDownloader {
 
     protected <T> T runWithRetry(String taskDescription, int maxRetry,
                                  CrashableSupplier<T, Exception> taskToRetry)
-            throws PackageDownloadException {
+            throws PackageDownloadException, InterruptedException {
         return runWithRetry(taskDescription, maxRetry, Collections.singletonList(IOException.class), taskToRetry);
     }
 
@@ -256,7 +256,7 @@ public abstract class ArtifactDownloader {
             "PMD.AvoidInstanceofChecksInCatchClause", "PMD.PreserveStackTrace"})
     protected <T> T runWithRetry(String taskDescription, int maxRetry, List<Class> retryableExceptions,
                                  CrashableSupplier<T, Exception> taskToRetry)
-            throws PackageDownloadException {
+            throws PackageDownloadException, InterruptedException {
         int retryInterval = INIT_RETRY_INTERVAL_MILLI;
         int retry = 0;
         Exception lastRetryableException = null;

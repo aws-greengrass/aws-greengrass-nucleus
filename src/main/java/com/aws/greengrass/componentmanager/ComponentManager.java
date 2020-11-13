@@ -286,7 +286,8 @@ public class ComponentManager implements InjectionActions {
     }
 
     private void preparePackage(ComponentIdentifier componentIdentifier)
-            throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException {
+            throws PackageLoadingException, PackageDownloadException,
+                    InvalidArtifactUriException, InterruptedException {
         logger.atInfo().setEventType("prepare-package-start").kv(PACKAGE_IDENTIFIER, componentIdentifier).log();
         try {
             ComponentRecipe pkg = findRecipeDownloadIfNotExisted(componentIdentifier);
@@ -326,7 +327,8 @@ public class ComponentManager implements InjectionActions {
     }
 
     void prepareArtifacts(ComponentIdentifier componentIdentifier, List<ComponentArtifact> artifacts)
-            throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException {
+            throws PackageLoadingException, PackageDownloadException,
+            InvalidArtifactUriException, InterruptedException {
         if (artifacts == null) {
             logger.atWarn().kv(PACKAGE_IDENTIFIER, componentIdentifier)
                     .log("Artifact list was null, expected non-null and non-empty");

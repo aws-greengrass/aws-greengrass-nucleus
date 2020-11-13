@@ -60,7 +60,7 @@ public class S3Downloader extends ArtifactDownloader {
     @SuppressWarnings("PMD.CloseResource")
     @Override
     protected long download(long rangeStart, long rangeEnd, MessageDigest messageDigest)
-            throws PackageDownloadException {
+            throws PackageDownloadException, InterruptedException {
         String bucket = s3ObjectPath.bucket;
         String key = s3ObjectPath.key;
 
