@@ -203,7 +203,6 @@ public class ArtifactDownloaderTest {
         assertThat(invocationTimes.get(), equalTo(3));
         verify(downloader, times(2))
                 .download(eq((long)0), eq((long)content.length() - 1), any());
-        verify(mockBrokenInputStream, times(2)).close();
         assertThat(Files.readAllBytes(file.toPath()), equalTo(content.getBytes()));
     }
 

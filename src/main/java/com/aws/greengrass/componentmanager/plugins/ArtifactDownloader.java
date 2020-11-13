@@ -99,7 +99,7 @@ public abstract class ArtifactDownloader {
             }
         }
 
-        return runWithRetry("download-artifact", 3,
+        return runWithRetry("download-artifact", MAX_RETRY,
                 Collections.singletonList(ArtifactChecksumMismatchException.class),
                 () -> {
                     while (offset.get() < artifactSize) {
@@ -129,7 +129,7 @@ public abstract class ArtifactDownloader {
      * @param messageDigest messageDigest to update.
      * @return number of bytes downloaded.
      */
-    protected long download(InputStream inputStream, MessageDigest messageDigest) {
+    protected long download(InputStream inputStream, MessageDigest messageDigest) throws PackageDownloadException {
         long totalReadBytes = 0;
         try (OutputStream artifactFile = Files.newOutputStream(saveToPath,
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE)) {
@@ -137,20 +137,21 @@ public abstract class ArtifactDownloader {
             int readBytes = inputStream.read(buffer);
             while (readBytes > -1) {
                 // Compute digest as well as write to the file path
-                artifactFile.write(buffer, 0, readBytes);
+                try {
+                    artifactFile.write(buffer, 0, readBytes);
+                } catch (IOException e) {
+                    throw new PackageDownloadException(getErrorString("Error writing artifact."), e);
+                }
+
                 messageDigest.update(buffer, 0, readBytes);
                 totalReadBytes += readBytes;
                 readBytes = inputStream.read(buffer);
             }
             return totalReadBytes;
         } catch (IOException e) {
+            logger.atWarn().setCause(e).log("Unable to read from input stream. "
+                    + "Return the actual number of bytes read.");
             return totalReadBytes;
-        } finally {
-            try {
-                inputStream.close();
-            } catch (IOException e) {
-                logger.atWarn().setCause(e).log("Fail to close input stream.");
-            }
         }
     }
 
@@ -246,12 +247,13 @@ public abstract class ArtifactDownloader {
     }
 
     protected <T> T runWithRetry(String taskDescription, int maxRetry,
-                                 CrashableSupplier<T, Exception> taskToRetry) throws PackageDownloadException {
+                                 CrashableSupplier<T, Exception> taskToRetry)
+            throws PackageDownloadException {
         return runWithRetry(taskDescription, maxRetry, Collections.singletonList(IOException.class), taskToRetry);
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException",
-            "PMD.AvoidRethrowingException", "PMD.AvoidInstanceofChecksInCatchClause"})
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException",
+            "PMD.AvoidInstanceofChecksInCatchClause", "PMD.PreserveStackTrace"})
     protected <T> T runWithRetry(String taskDescription, int maxRetry, List<Class> retryableExceptions,
                                  CrashableSupplier<T, Exception> taskToRetry)
             throws PackageDownloadException {
@@ -291,8 +293,9 @@ public abstract class ArtifactDownloader {
                         retryInterval = MAX_RETRY_INTERVAL_MILLI;
                     }
                 } catch (InterruptedException ie) {
-                    logger.atInfo().log("Interrupted while waiting to retry " + taskDescription);
-                    return null;
+                    String errMsg = "Interrupted while waiting to retry " + taskDescription;
+                    logger.atInfo().setCause(ie).log(errMsg);
+                    throw new PackageDownloadException(getErrorString(errMsg));
                 }
             }
         }
