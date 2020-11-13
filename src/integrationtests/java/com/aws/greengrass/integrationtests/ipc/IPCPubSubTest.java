@@ -34,6 +34,9 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -43,9 +46,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.JSON_MESSAGE_KEY;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.publishToTopicOverIpcAsBinaryMessage;
+import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.publishToTopicOverIpcAsJsonMessage;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.subscribeToTopicOveripcForBinaryMessages;
+import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.subscribeToTopicOveripcForJsonMessages;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTROL_NAMESPACE_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -129,6 +135,62 @@ class IPCPubSubTest {
             });
             subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight());
             publishToTopicOverIpcAsBinaryMessage(ipcClient, "a", "some message");
+            cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    void GIVEN_pubsubclient_WHEN_subscribe_and_publish_json_message_is_authorized_THEN_succeeds() throws Exception {
+        try(EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
+                "SubscribeAndPublish")) {
+            GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
+
+            Pair<CompletableFuture<Void>, Consumer<Map<String, Object>>> cb = asyncAssertOnConsumer((m) -> {
+                assertEquals(30, m.get(JSON_MESSAGE_KEY));
+            });
+            subscribeToTopicOveripcForJsonMessages(ipcClient, "a", cb.getRight());
+            publishToTopicOverIpcAsJsonMessage(ipcClient, "a", 30);
+            cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    void GIVEN_pubsubclient_WHEN_subscribe_and_publish_json_message_with_nested_values_THEN_succeeds() throws Exception {
+        try(EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
+                "SubscribeAndPublish")) {
+            GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
+
+            Pair<CompletableFuture<Void>, Consumer<Map<String, Object>>> cb = asyncAssertOnConsumer((m) -> {
+                Map<String, Object> jsonMap = (Map)m.get(JSON_MESSAGE_KEY);
+                assertEquals("test", jsonMap.get("string"));
+                assertTrue(jsonMap.get("integer") instanceof Integer);
+                assertEquals(50, jsonMap.get("integer"));
+                assertTrue(jsonMap.get("double") instanceof Double);
+                assertEquals(50.0, jsonMap.get("double"));
+                assertTrue((boolean)jsonMap.get("boolean"));
+            });
+            subscribeToTopicOveripcForJsonMessages(ipcClient, "a", cb.getRight());
+            Map<String, Object> jsonMessage = new HashMap<>();
+            jsonMessage.put("string", "test");
+            jsonMessage.put("integer", 50);
+            jsonMessage.put("double", 50.0);
+            jsonMessage.put("boolean", true);
+            publishToTopicOverIpcAsJsonMessage(ipcClient, "a", jsonMessage);
+            cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    void GIVEN_pubsubclient_WHEN_subscribe_and_publish_json_message_with_double_integer_THEN_succeeds() throws Exception {
+        try(EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
+                "SubscribeAndPublish")) {
+            GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
+
+            Pair<CompletableFuture<Void>, Consumer<Map<String, Object>>> cb = asyncAssertOnConsumer((m) -> {
+                assertEquals(50, ((Map)m.get(JSON_MESSAGE_KEY)).get("frequency"));
+            });
+            subscribeToTopicOveripcForJsonMessages(ipcClient, "a", cb.getRight());
+            publishToTopicOverIpcAsJsonMessage(ipcClient, "a", Collections.singletonMap("frequency", 50));
             cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
         }
     }

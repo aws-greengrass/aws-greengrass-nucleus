@@ -10,6 +10,7 @@ import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
+import software.amazon.awssdk.aws.greengrass.model.JsonMessage;
 import software.amazon.awssdk.eventstreamrpc.model.*;
 import software.amazon.awssdk.eventstreamrpc.model.UnsupportedOperationException;
 
@@ -39,6 +40,7 @@ public abstract class EventStreamRPCServiceModel {
         builder.registerTypeAdapterFactory(new ForceNullsForMapTypeAdapterFactory());
         builder.registerTypeAdapterFactory(OptionalTypeAdapter.FACTORY);
         builder.registerTypeAdapter(byte[].class, new Base64BlobSerializerDeserializer());
+        builder.registerTypeAdapter(JsonMessage.class, new JsonMessageSerializerDeserializer());
         GSON = builder.create();
     }
 
@@ -181,6 +183,45 @@ public abstract class EventStreamRPCServiceModel {
         @Override
         public JsonElement serialize(byte[] src, Type typeOfSrc, JsonSerializationContext context) {
             return new JsonPrimitive(BASE_64_ENCODER.encodeToString(src));
+        }
+    }
+
+    private static class JsonMessageSerializerDeserializer implements JsonSerializer<JsonMessage>,
+            JsonDeserializer<JsonMessage> {
+
+        @Override
+        public JsonMessage deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+            Map<String, Object> messageMap = GSON.fromJson(json, Map.class);
+            traverseMapAndFixNumbers(messageMap, json);
+            JsonMessage jsonMessage = new JsonMessage();
+            jsonMessage.setMessage(messageMap);
+            return jsonMessage;
+        }
+
+        private void traverseMapAndFixNumbers(Map<String, Object> map, JsonElement jsonElement) {
+            map.forEach((key, value) -> {
+                if (value instanceof Map) {
+                    traverseMapAndFixNumbers((Map)value, jsonElement.getAsJsonObject().get(key));
+                } else {
+                    if (Number.class.isAssignableFrom(value.getClass())) {
+                        String numberString = jsonElement.getAsJsonObject().get(key).toString();
+                        if (!numberString.contains(".")) {
+                            long t = Long.parseLong(numberString);
+                            if (t==(int)t) {
+                                map.put(key, new Integer(numberString));
+                            } else {
+                                map.put(key, new Long(numberString));
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        @Override
+        public JsonElement serialize(JsonMessage jsonMessage, Type type, JsonSerializationContext jsonSerializationContext) {
+            JsonObject object = new JsonParser().parse(GSON.toJson(jsonMessage.getMessage())).getAsJsonObject();
+            return getStaticGson().fromJson(object.toString(), JsonElement.class);
         }
     }
 

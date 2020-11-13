@@ -248,7 +248,6 @@ public abstract class OperationContinuationHandler
     final protected void onContinuationMessage(List<Header> list, byte[] bytes, MessageType messageType, int i) {
         LOGGER.debug("Continuation native id: " + continuation.getNativeHandle());
         final EventStreamRPCServiceModel serviceModel = getOperationModelContext().getServiceModel();
-
         try {
             if (initialRequest != null) {
                 //TODO: FIX empty close messages arrive here and throw exception

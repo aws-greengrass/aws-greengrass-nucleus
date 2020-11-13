@@ -20,6 +20,7 @@ import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
+import software.amazon.awssdk.aws.greengrass.model.JsonMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicRequest;
@@ -32,14 +33,16 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
 import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
-import java.util.Optional;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
@@ -54,6 +57,7 @@ public final class IPCTestUtils {
     private static final Logger logger = LogManager.getLogger(IPCTestUtils.class);
 
     public static String TEST_SERVICE_NAME = "ServiceName";
+    public static String JSON_MESSAGE_KEY = "message";
     public static int DEFAULT_IPC_API_TIMEOUT_SECONDS = 3;
     private IPCTestUtils() {
 
@@ -187,6 +191,19 @@ public final class IPCTestUtils {
         ipcClient.publishToTopic(publishToTopicRequest, Optional.empty()).getResponse().get(5, TimeUnit.SECONDS);
     }
 
+    public static void publishToTopicOverIpcAsJsonMessage(GreengrassCoreIPCClient ipcClient, String topic,
+                                                            Object message) throws InterruptedException,
+            ExecutionException, TimeoutException {
+        PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
+        publishToTopicRequest.setTopic(topic);
+        PublishMessage publishMessage = new PublishMessage();
+        JsonMessage json = new JsonMessage();
+        json.setMessage(Collections.singletonMap(JSON_MESSAGE_KEY, message));
+        publishMessage.setJsonMessage(json);
+        publishToTopicRequest.setPublishMessage(publishMessage);
+        ipcClient.publishToTopic(publishToTopicRequest, Optional.empty()).getResponse().get(5, TimeUnit.SECONDS);
+    }
+
     public static void subscribeToTopicOveripcForBinaryMessages(GreengrassCoreIPCClient ipcClient, String topic,
                                                                 Consumer<byte[]> consumer) throws InterruptedException, ExecutionException, TimeoutException {
         SubscribeToTopicRequest request = new SubscribeToTopicRequest();
@@ -195,6 +212,30 @@ public final class IPCTestUtils {
             @Override
             public void onStreamEvent(SubscriptionResponseMessage streamEvent) {
                 consumer.accept(streamEvent.getBinaryMessage().getMessage());
+            }
+
+            @Override
+            public boolean onStreamError(Throwable error) {
+                logger.atError().setCause(error).log("Caught error while subscribing to a topic");
+                return false;
+            }
+
+            @Override
+            public void onStreamClosed() {
+
+            }
+        })).getResponse().get(5, TimeUnit.SECONDS);
+    }
+
+    public static void subscribeToTopicOveripcForJsonMessages(GreengrassCoreIPCClient ipcClient, String topic,
+                                                                Consumer<Map<String, Object>> consumer) throws InterruptedException,
+            ExecutionException, TimeoutException {
+        SubscribeToTopicRequest request = new SubscribeToTopicRequest();
+        request.setTopic(topic);
+        ipcClient.subscribeToTopic(request, Optional.of(new StreamResponseHandler<SubscriptionResponseMessage>() {
+            @Override
+            public void onStreamEvent(SubscriptionResponseMessage streamEvent) {
+                consumer.accept(streamEvent.getJsonMessage().getMessage());
             }
 
             @Override
