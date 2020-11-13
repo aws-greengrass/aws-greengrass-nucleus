@@ -34,6 +34,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Digest;
@@ -68,8 +69,12 @@ import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -80,10 +85,13 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
+@SuppressWarnings("PMD.CouplingBetweenObjects")
 class PluginComponentTest extends BaseITCase {
     private static final String componentName = "plugin";
+    private static final String brokenComponentName = "brokenPlugin";
     private Kernel kernel;
     private final ComponentIdentifier componentId = new ComponentIdentifier(componentName, new Semver("1.0.0"));
+    private final ComponentIdentifier brokenComponentId = new ComponentIdentifier(brokenComponentName, new Semver("1.0.0"));
 
     @BeforeEach
     void beforeEach() {
@@ -159,8 +167,6 @@ class PluginComponentTest extends BaseITCase {
                 eg.getClass().getName());
     }
 
-
-
     @Test
     void GIVEN_kernel_WHEN_deploy_new_plugin_THEN_plugin_is_loaded_into_JVM(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
@@ -176,7 +182,7 @@ class PluginComponentTest extends BaseITCase {
                 () -> Class.forName("com.aws.greengrass.integrationtests.kernel" + ".resource.PluginDependency"));
 
         submitSampleJobDocument(getPluginDeploymentDocument(System.currentTimeMillis(), "1.0.0",
-                "f7fe5b16-574a-11ea-82b4-0242ac130004"), kernel).get(30, TimeUnit.SECONDS);
+                "f7fe5b16-574a-11ea-82b4-0242ac130004", FailureHandlingPolicy.DO_NOTHING, componentName), kernel).get(30, TimeUnit.SECONDS);
 
         GreengrassService eg = kernel.locate(componentName);
         assertEquals("com.aws.greengrass.integrationtests.lifecyclemanager.resource.APluginService",
@@ -185,6 +191,28 @@ class PluginComponentTest extends BaseITCase {
                 Coerce.toString(eg.getServiceConfig().findLeafChild(VERSION_CONFIG_KEY)));
         kernel.getContext().get(EZPlugins.class)
                 .forName("com.aws.greengrass.integrationtests.lifecyclemanager.resource.PluginDependency");
+    }
+
+    @Test
+    void GIVEN_kernel_WHEN_deploy_new_plugin_broken_THEN_rollback_succeeds(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, PackageDownloadException.class);
+        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
+        ignoreExceptionOfType(context, ServiceLoadException.class);
+
+        // launch kernel
+        kernel.parseArgs();
+        setupPackageStoreAndConfigWithDigest();
+        launchAndWait();
+
+        String id = "f7fe5b16-574a-11ea-82b4-0242ac130004";
+        kernel.getContext().get(DeploymentDirectoryManager.class).createNewDeploymentDirectory(id);
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE,
+                submitSampleJobDocument(getPluginDeploymentDocument(System.currentTimeMillis(), "1.0.0",
+                id, FailureHandlingPolicy.ROLLBACK, brokenComponentName),
+                kernel).get(30, TimeUnit.SECONDS).getDeploymentStatus());
+
+        assertNull(kernel.findServiceTopic(brokenComponentName), "Broken component shouldn't exist in the config");
+        assertThat(kernel.getMain().getDependencies(), not(hasKey(brokenComponentName)));
     }
 
     @Test
@@ -214,7 +242,8 @@ class PluginComponentTest extends BaseITCase {
                 () -> Class.forName("com.aws.greengrass.integrationtests.lifecyclemanager.resource.PluginDependency"));
 
         // First deployment to add plugin-1.0.0 to kernel
-        submitSampleJobDocument(getPluginDeploymentDocument(System.currentTimeMillis(), "1.0.0", deploymentId),
+        submitSampleJobDocument(getPluginDeploymentDocument(System.currentTimeMillis(), "1.0.0", deploymentId,
+                FailureHandlingPolicy.DO_NOTHING, componentName),
                 kernelSpy).get(30, TimeUnit.SECONDS);
 
         GreengrassService eg = kernelSpy.locate(componentName);
@@ -235,7 +264,8 @@ class PluginComponentTest extends BaseITCase {
         doNothing().when(kernelSpy).shutdown(anyInt(), eq(REQUEST_RESTART));
         // Second deployment to add plugin-1.1.0 to kernel which should enter kernel restart workflow
         assertThrows(TimeoutException.class, () -> submitSampleJobDocument(
-                getPluginDeploymentDocument(System.currentTimeMillis(), "1.1.0", deploymentId2), kernelSpy)
+                getPluginDeploymentDocument(System.currentTimeMillis(), "1.1.0", deploymentId2,
+                        FailureHandlingPolicy.DO_NOTHING, componentName), kernelSpy)
                 .get(10, TimeUnit.SECONDS));
         verify(kernelSpy).shutdown(eq(30), eq(REQUEST_RESTART));
     }
@@ -257,10 +287,10 @@ class PluginComponentTest extends BaseITCase {
         Path artifact1_1_0 = e2ETestComponentStore
                 .resolveArtifactDirectoryPath(new ComponentIdentifier(componentName, new Semver("1.1.0")))
                 .resolve(componentName + JAR_FILE_EXTENSION);
-
         Path artifactPath1_0_0 = e2ETestComponentStore.resolveArtifactDirectoryPath(componentId)
                 .resolve(componentName + JAR_FILE_EXTENSION);
-
+        Path brokenArtifactPath1_0_0 = e2ETestComponentStore.resolveArtifactDirectoryPath(brokenComponentId)
+                .resolve(brokenComponentName + JAR_FILE_EXTENSION);
 
         // set the artifact dir as writable so we can copy
         Platform.getInstance().setPermissions(FileSystemPermission.builder()
@@ -272,9 +302,8 @@ class PluginComponentTest extends BaseITCase {
 
         FileUtils.copyFile(jarFilePath.toFile(), artifact1_1_0.toFile());
         // Rename artifact for plugin-1.0.0
-
-
         FileUtils.copyFile(jarFilePath.toFile(), artifactPath1_0_0.toFile());
+        FileUtils.copyFile(jarFilePath.toFile(), brokenArtifactPath1_0_0.toFile());
     }
 
     private void setDigestInConfig() throws IOException, URISyntaxException {
@@ -300,9 +329,10 @@ class PluginComponentTest extends BaseITCase {
         }
     }
 
-    private DeploymentDocument getPluginDeploymentDocument(Long timestamp, String version, String deploymentId) {
+    private DeploymentDocument getPluginDeploymentDocument(Long timestamp, String version, String deploymentId,
+                                                           FailureHandlingPolicy onFailure, String componentName) {
         return DeploymentDocument.builder().timestamp(timestamp).deploymentId(deploymentId)
-                .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
+                .failureHandlingPolicy(onFailure)
                 .componentUpdatePolicy(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS)).groupName("ANY")
                 .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
                 .deploymentPackageConfigurationList(

@@ -258,8 +258,8 @@ public class DeploymentConfigMerger {
                 } catch (ServiceLoadException e) {
                     logger.atError(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).addKeyValue("serviceName", serviceName)
                             .log("Could not locate Greengrass service to close service");
-                    // No need to handle the error when trying to stop a non-existing service.
-                    return false;
+                    // Even though we couldn't find it, we might still need to drop it from the context, so return true
+                    return true;
                 }
                 return true;
             }).collect(Collectors.toSet());
