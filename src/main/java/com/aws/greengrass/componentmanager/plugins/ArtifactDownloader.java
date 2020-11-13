@@ -12,8 +12,9 @@ import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.Utils;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,8 +26,14 @@ import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class ArtifactDownloader {
+    @SuppressFBWarnings({"MS_SHOULD_BE_FINAL"})
+    protected static int MAX_RETRY = 5;
+
     protected static final int MAX_RETRY_INTERVAL_MILLI = 30_000;
     protected static final int INIT_RETRY_INTERVAL_MILLI = 1000;
     private static final int DOWNLOAD_BUFFER_SIZE = 1024;
@@ -41,6 +48,8 @@ public abstract class ArtifactDownloader {
     protected final ComponentIdentifier identifier;
     protected final ComponentArtifact artifact;
     protected final Path artifactDir;
+
+    private Path saveToPath;
 
     protected ArtifactDownloader(ComponentIdentifier identifier, ComponentArtifact artifact,
                               Path artifactDir) {
@@ -57,7 +66,7 @@ public abstract class ArtifactDownloader {
      * @return file handle of the downloaded file
      * @throws IOException if I/O error occurred in network/disk
      * @throws PackageDownloadException if error occurred in download process
-     * @throws InvalidArtifactUriException if given artifact URI has error
+     * @throws ArtifactChecksumMismatchException if given artifact checksum algorithm isn't supported.
      */
     public final File downloadToPath() throws PackageDownloadException, IOException {
         MessageDigest messageDigest;
@@ -72,9 +81,9 @@ public abstract class ArtifactDownloader {
                     getErrorString("Algorithm requested for artifact checksum is not supported"), e);
         }
 
-        Path saveToPath = artifactDir.resolve(getArtifactFilename());
+        saveToPath = artifactDir.resolve(getArtifactFilename());
         long artifactSize = getDownloadSize();
-        long offset = 0;
+        final AtomicLong offset = new AtomicLong(0);
 
         // If there are partially downloaded artifact existing on device
         if (Files.exists(saveToPath)) {
@@ -85,105 +94,76 @@ public abstract class ArtifactDownloader {
                         + " Removing and retry download.", artifactSize, Files.size(saveToPath));
                 Files.deleteIfExists(saveToPath);
             } else {
-                offset = Files.size(saveToPath);
+                offset.set(Files.size(saveToPath));
                 updateDigestFromFile(saveToPath, messageDigest);
             }
         }
 
-        downloadToFile(saveToPath, offset, artifactSize, messageDigest);
+        return runWithRetry("download-artifact", 3,
+                Collections.singletonList(ArtifactChecksumMismatchException.class),
+                () -> {
+                    while (offset.get() < artifactSize) {
+                        long downloadedBytes = download(offset.get(), artifactSize - 1, messageDigest);
+                        offset.addAndGet(downloadedBytes);
+                    }
 
-        String digest = Base64.getEncoder().encodeToString(messageDigest.digest());
-        if (!digest.equals(artifact.getChecksum())) {
-            // Handle failure in integrity check, delete bad file then throw
-            Files.deleteIfExists(saveToPath);
-            throw new ArtifactChecksumMismatchException(
-                    getErrorString("Integrity check for downloaded artifact failed"));
-        }
-        logger.atDebug().setEventType("download-artifact").log("Passed integrity check");
-        return saveToPath.toFile();
+                    String digest = Base64.getEncoder().encodeToString(messageDigest.digest());
+                    if (!digest.equals(artifact.getChecksum())) {
+                        // Handle failure in integrity check, delete bad file then throw
+                        Files.deleteIfExists(saveToPath);
+                        offset.set(0);
+                        messageDigest.reset();
+                        throw new ArtifactChecksumMismatchException("Integrity check for downloaded artifact failed. "
+                                + "Probably due to file corruption.");
+                    }
+                    logger.atDebug().setEventType("download-artifact").log("Passed integrity check");
+                    return saveToPath.toFile();
+                });
     }
 
-    private void downloadToFile(Path saveToPath, long rangeStart, long rangeEnd, MessageDigest messageDigest)
-            throws PackageDownloadException {
-        if (rangeStart >= rangeEnd) {
-            return;
-        }
+    /**
+     * Internal helper method to download from input stream.
+     * If IOException is thrown during the process, the method will return actual number of bytes downloaded.
+     * Supposed to be invoked in `protected abstract long download(long rangeStart, long rangeEnd)`
+     * @param inputStream inputStream to download from.
+     * @param messageDigest messageDigest to update.
+     * @return number of bytes downloaded.
+     */
+    protected long download(InputStream inputStream, MessageDigest messageDigest) {
+        long totalReadBytes = 0;
         try (OutputStream artifactFile = Files.newOutputStream(saveToPath,
-                StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE)) {
-            InputStream artifactInputStream = null;
-            Runnable cleanupRunnable = null;
-            long offset = rangeStart;
-            int retryInteraval = INIT_RETRY_INTERVAL_MILLI;
-            while (true) {
-                try {
-                    Pair<InputStream, Runnable> readInput = readWithRange(offset, rangeEnd - 1);
-                    artifactInputStream = readInput.getLeft();
-                    cleanupRunnable = readInput.getRight();
-
-                    byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
-                    int readBytes = artifactInputStream.read(buffer);
-                    while (readBytes > -1) {
-                        offset += readBytes;
-                        // Compute digest as well as write to the file path
-                        messageDigest.update(buffer, 0, readBytes);
-                        try {
-                            artifactFile.write(buffer, 0, readBytes);
-                        } catch (IOException e) {
-                            throw new PackageDownloadException(
-                                    getErrorString("Fail to write to file"), e);
-                        }
-                        // reset retryInterval if download succeeded
-                        retryInteraval = INIT_RETRY_INTERVAL_MILLI;
-
-                        readBytes = artifactInputStream.read(buffer);
-                    }
-                    if (offset >= rangeEnd) {
-                        break;
-                    }
-                } catch (IOException e) {
-                    logger.atWarn().setCause(e).log("Error in downloading artifact, wait to retry.");
-                    // backoff sleep retry
-                    try {
-                        Thread.sleep(retryInteraval);
-                        if (retryInteraval < MAX_RETRY_INTERVAL_MILLI) {
-                            retryInteraval = retryInteraval * 2;
-                        } else {
-                            retryInteraval = MAX_RETRY_INTERVAL_MILLI;
-                        }
-                    } catch (InterruptedException ie) {
-                        logger.atInfo().log("Interrupted while waiting to retry download");
-                        return;
-                    }
-                    continue;
-                } finally {
-                    if (artifactInputStream != null) {
-                        try {
-                            artifactInputStream.close();
-                        } catch (IOException e) {
-                            logger.atWarn().setCause(e).log("Unable to close artifact download stream.");
-                        }
-                    }
-                    if (cleanupRunnable != null) {
-                        cleanupRunnable.run();
-                    }
-                }
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE)) {
+            byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
+            int readBytes = inputStream.read(buffer);
+            while (readBytes > -1) {
+                // Compute digest as well as write to the file path
+                artifactFile.write(buffer, 0, readBytes);
+                messageDigest.update(buffer, 0, readBytes);
+                totalReadBytes += readBytes;
+                readBytes = inputStream.read(buffer);
             }
+            return totalReadBytes;
         } catch (IOException e) {
-            throw new PackageDownloadException(getErrorString("Unable to write to open file stream"), e);
+            return totalReadBytes;
+        } finally {
+            try {
+                inputStream.close();
+            } catch (IOException e) {
+                logger.atWarn().setCause(e).log("Fail to close input stream.");
+            }
         }
     }
 
     /**
-     * Read the partial data given range.
+     * Internal method invoked in downloadToFile().
      *
-     * @param start                                         Range start index. INCLUSIVE.
-     * @param end                                           Range end index. INCLUSIVE.
-     * @return {@literal Pair<InputStream, Runnable>}     Runnable is the cleanup task to run
-     *                                                      after finishing reading from inputStream.
-     * @throws IOException IOException                      ArtifactDownloader will retry on IOException.
+     * @param rangeStart    Range start index. INCLUSIVE.
+     * @param rangeEnd      Range end index. INCLUSIVE.
+     * @param messageDigest messageDigest to update.
+     * @return  number of bytes downloaded.
      * @throws PackageDownloadException PackageDownloadException
      */
-    protected abstract Pair<InputStream, Runnable> readWithRange(long start, long end)
+    protected abstract long download(long rangeStart, long rangeEnd, MessageDigest messageDigest)
             throws PackageDownloadException;
 
     /**
@@ -263,6 +243,62 @@ public abstract class ArtifactDownloader {
         } catch (IOException | NoSuchAlgorithmException e) {
             return false;
         }
+    }
+
+    protected <T> T runWithRetry(String taskDescription, int maxRetry,
+                                 CrashableSupplier<T, Exception> taskToRetry) throws PackageDownloadException {
+        return runWithRetry(taskDescription, maxRetry, Collections.singletonList(IOException.class), taskToRetry);
+    }
+
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException",
+            "PMD.AvoidRethrowingException", "PMD.AvoidInstanceofChecksInCatchClause"})
+    protected <T> T runWithRetry(String taskDescription, int maxRetry, List<Class> retryableExceptions,
+                                 CrashableSupplier<T, Exception> taskToRetry)
+            throws PackageDownloadException {
+        int retryInterval = INIT_RETRY_INTERVAL_MILLI;
+        int retry = 0;
+        Exception lastRetryableException = null;
+        while (retry < maxRetry) {
+            retry++;
+            try {
+                return taskToRetry.apply();
+            } catch (Exception e) {
+                logger.atWarn().kv("exception", e.getMessage()).log("Retry " + taskDescription);
+                if (retry >= maxRetry) {
+                    break;
+                }
+                boolean retryable = false;
+                for (Class retryableException : retryableExceptions) {
+                    if (retryableException.isInstance(e)) {
+                        lastRetryableException = e;
+                        logger.atWarn().kv("exception", e.getMessage()).log("Retry " + taskDescription);
+                        retryable = true;
+                    }
+                }
+
+                if (!retryable) {
+                    if (e instanceof PackageDownloadException) {
+                        throw (PackageDownloadException) e;
+                    }
+                    throw new PackageDownloadException("Unexpected error in " + taskDescription, e);
+                }
+
+                try {
+                    Thread.sleep(retryInterval);
+                    if (retryInterval < MAX_RETRY_INTERVAL_MILLI) {
+                        retryInterval = retryInterval * 2;
+                    } else {
+                        retryInterval = MAX_RETRY_INTERVAL_MILLI;
+                    }
+                } catch (InterruptedException ie) {
+                    logger.atInfo().log("Interrupted while waiting to retry " + taskDescription);
+                    return null;
+                }
+            }
+        }
+        throw new PackageDownloadException(
+                String.format("Fail to execute %s after retrying %d times", taskDescription, maxRetry),
+                lastRetryableException);
     }
 
     private static void updateDigestFromFile(Path filePath, MessageDigest digest) throws IOException {

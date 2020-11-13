@@ -13,9 +13,6 @@ import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFacto
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.util.CrashableSupplier;
-import com.aws.greengrass.util.Pair;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,11 +21,10 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import javax.inject.Inject;
 
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
-    @SuppressFBWarnings({"MS_SHOULD_BE_FINAL"})
-    protected static int MAX_RETRY = 5;
 
     private static final String HTTP_HEADER_CONTENT_DISPOSITION = "Content-Disposition";
 
@@ -63,46 +59,51 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         return artifactSize;
     }
 
+
     @Override
-    public Pair<InputStream, Runnable> readWithRange(long start, long end)
+    protected long download(long rangeStart, long rangeEnd, MessageDigest messageDigest)
             throws PackageDownloadException {
         URL url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
 
         return runWithRetry("establish HTTP connection", MAX_RETRY, () -> {
             HttpURLConnection httpConn = null;
-            InputStream inputStreamResult = null;
-
             try {
                 // establish http connection
                 httpConn = connect(url);
                 httpConn.setRequestProperty(HTTP_RANGE_HEADER_KEY,
-                        String.format(HTTP_RANGE_HEADER_FORMAT, start, end));
+                        String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd));
                 int responseCode = httpConn.getResponseCode();
 
                 // check response code
                 if (responseCode == HttpURLConnection.HTTP_PARTIAL) {
-                    inputStreamResult = httpConn.getInputStream();
+                    return download(httpConn.getInputStream(), messageDigest);
                 } else if (responseCode == HttpURLConnection.HTTP_OK) {
+                    if (httpConn.getContentLengthLong() < rangeEnd) {
+                        String errMsg = String.format("Artifact size mismatch."
+                               + "Expected artifact size %d. HTTP contentLength %d",
+                               rangeEnd, httpConn.getContentLengthLong());
+                        throw new PackageDownloadException(errMsg);
+                    }
                     // 200 means server doesn't recognize the Range header and returns all contents.
                     // try to discard the offset number of bytes.
                     InputStream inputStream = httpConn.getInputStream();
-                    long byteSkipped = inputStream.skip(start);
+                    long byteSkipped = inputStream.skip(rangeStart);
 
                     // If number of bytes skipped is less than declared, throw error.
-                    if (byteSkipped != start) {
-                        throw new IOException("Unable to get partial content");
+                    if (byteSkipped != rangeStart) {
+                        logger.atWarn().log("HTTP Error: " + responseCode);
+                        return (long) 0;
                     }
-                    inputStreamResult = inputStream;
+                    return download(inputStream, messageDigest);
                 } else if (responseCode == HttpURLConnection.HTTP_CLIENT_TIMEOUT) {
-                    throw new IOException("HTTP Error: " + responseCode);
+                    logger.atWarn().log("Unable to download greengrass artifact. HTTP Error: " + responseCode);
+                    return (long) 0;
                 } else {
                     throw new PackageDownloadException(getErrorString("Unable to download greengrass artifact. "
                             + "HTTP Error: " + responseCode));
                 }
-                return new Pair<InputStream, Runnable>(inputStreamResult, httpConn::disconnect);
             } finally {
-                // if no input stream result is provided, disconnect http connection
-                if (inputStreamResult == null) {
+                if (httpConn != null) {
                     httpConn.disconnect();
                 }
             }
@@ -178,43 +179,6 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         });
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
-    protected <T> T runWithRetry(String taskDescription, int maxRetry, CrashableSupplier<T, Exception> taskToRetry)
-            throws PackageDownloadException {
-        int retryInterval = INIT_RETRY_INTERVAL_MILLI;
-        int retry = 0;
-        IOException retryableException = null;
-        while (retry < maxRetry) {
-            retry++;
-            try {
-                return taskToRetry.apply();
-            } catch (IOException e) {
-                logger.atInfo().kv("exception", e.getMessage()).log("Retry " + taskDescription);
-                retryableException = e;
-                if (retry >= maxRetry) {
-                    break;
-                }
-                try {
-                    Thread.sleep(retryInterval);
-                    if (retryInterval < MAX_RETRY_INTERVAL_MILLI) {
-                        retryInterval = retryInterval * 2;
-                    } else {
-                        retryInterval = MAX_RETRY_INTERVAL_MILLI;
-                    }
-                } catch (InterruptedException ie) {
-                    logger.atInfo().log("Interrupted while waiting to retry " + taskDescription);
-                    return null;
-                }
-            } catch (PackageDownloadException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new PackageDownloadException("Unexpected error in " + taskDescription, e);
-            }
-        }
-        throw new PackageDownloadException(
-                String.format("Fail to execute %s after retrying %d times", taskDescription, maxRetry),
-                retryableException);
-    }
 
     private URL getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws PackageDownloadException {

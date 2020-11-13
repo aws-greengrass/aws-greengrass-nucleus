@@ -9,7 +9,6 @@ import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriExceptio
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.S3SdkClientFactory;
 import com.aws.greengrass.util.Utils;
 import lombok.AllArgsConstructor;
@@ -25,6 +24,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -61,20 +61,24 @@ public class S3Downloader extends ArtifactDownloader {
 
     @SuppressWarnings("PMD.CloseResource")
     @Override
-    protected Pair<InputStream, Runnable> readWithRange(long start, long end)
+    protected long download(long rangeStart, long rangeEnd, MessageDigest messageDigest)
             throws PackageDownloadException {
         String bucket = s3ObjectPath.bucket;
         String key = s3ObjectPath.key;
-        try {
-            S3Client regionClient = getRegionClientForBucket(bucket);
-            GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucket).key(key)
-                    .range(String.format(HTTP_RANGE_HEADER_FORMAT, start, end)).build();
-            logger.debug("Getting s3 object request: {}", getObjectRequest.toString());
-            return new Pair<>(regionClient.getObject(getObjectRequest), () -> {});
-        } catch (SdkClientException | S3Exception e) {
-            String errorMsg = getErrorString("Failed to get artifact object from S3");
-            throw new PackageDownloadException(errorMsg, e);
-        }
+
+        S3Client regionClient = getRegionClientForBucket(bucket);
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucket).key(key)
+                .range(String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd)).build();
+        logger.debug("Getting s3 object request: {}", getObjectRequest.toString());
+
+        return runWithRetry("download-S3-artifact", MAX_RETRY,() -> {
+            try (InputStream inputStream = regionClient.getObject(getObjectRequest)) {
+                return download(inputStream, messageDigest);
+            } catch (SdkClientException | S3Exception e) {
+                String errorMsg = getErrorString("Failed to get artifact object from S3");
+                throw new PackageDownloadException(errorMsg, e);
+            }
+        });
     }
 
     @SuppressWarnings("PMD.CloseResource")

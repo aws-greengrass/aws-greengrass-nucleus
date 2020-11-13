@@ -10,7 +10,6 @@ import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.aws.greengrass.util.Pair;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +31,6 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
@@ -40,15 +38,15 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class ArtifactDownloaderTest {
@@ -63,7 +61,7 @@ public class ArtifactDownloaderTest {
     static class MockDownloader extends ArtifactDownloader {
         final String localFileName = LOCAL_FILE_NAME;
         final String input;
-        final AtomicBoolean cleanupCalled = new AtomicBoolean(false);
+        InputStream overridingInputStream = null;
 
         MockDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir, String inputContent) {
             super(identifier, artifact, artifactDir);
@@ -76,11 +74,14 @@ public class ArtifactDownloaderTest {
         }
 
         @Override
-        protected Pair<InputStream, Runnable> readWithRange(long start, long end)
+        protected long download(long start, long end, MessageDigest digest)
                 throws PackageDownloadException {
-            return new Pair<>(
-                    new ByteArrayInputStream(Arrays.copyOfRange(input.getBytes(), (int) start, (int) end +1))
-                    , () -> cleanupCalled.set(true));
+            if (overridingInputStream != null) {
+                return super.download(overridingInputStream, digest);
+            }
+            return super.download(new ByteArrayInputStream(
+                    Arrays.copyOfRange(input.getBytes(), (int) start, (int) end + 1)),
+                    digest);
         }
 
         @Override
@@ -113,7 +114,6 @@ public class ArtifactDownloaderTest {
         assertThat(Files.readAllBytes(file.toPath()), equalTo(content.getBytes()));
         assertThat(file.toPath(), equalTo(artifactDir.resolve(LOCAL_FILE_NAME)));
         assertThat(downloader.getArtifactFile().toPath(), equalTo(artifactDir.resolve(LOCAL_FILE_NAME)));
-        assertThat(downloader.cleanupCalled.get(), is(true));
         assertThat(downloader.downloadRequired(), is(false));
     }
 
@@ -123,8 +123,7 @@ public class ArtifactDownloaderTest {
         ComponentArtifact artifact = createTestArtifact("SHA-256", "invalidChecksum");
 
         MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content);
-        assertThrows(ArtifactChecksumMismatchException.class, downloader::downloadToPath);
-        assertThat(downloader.cleanupCalled.get(), is(true));
+        assertThrows(PackageDownloadException.class, downloader::downloadToPath);
     }
 
     @Test
@@ -158,6 +157,30 @@ public class ArtifactDownloaderTest {
         assertThat(newInode, equalTo(inode));
     }
 
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    @Test
+    void GIVEN_existing_artifact_corrupt_WHEN_download_THEN_resume() throws Exception {
+        String content = "Sample artifact content";
+        String checksum = Base64.getEncoder()
+                .encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
+        ComponentArtifact artifact = createTestArtifact("SHA-256", checksum);
+
+        MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content));
+
+        File localPartialFile = downloader.getArtifactFile();
+        Files.write(localPartialFile.toPath(), "Foo".getBytes());
+        Object inode = Files.getAttribute(localPartialFile.toPath(), "unix:ino");
+
+        File file = downloader.downloadToPath();
+
+        assertThat(Files.readAllBytes(file.toPath()), equalTo(content.getBytes()));
+
+        // assert the existing corrupted file was replaced.
+        Object newInode = Files.getAttribute(localPartialFile.toPath(), "unix:ino");
+        assertNotEquals(inode, newInode);
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
     @Test
     void GIVEN_read_from_returned_stream_WHEN_throw_IOException_THEN_retry(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, IOException.class);
@@ -166,22 +189,25 @@ public class ArtifactDownloaderTest {
                 .encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
         ComponentArtifact artifact = createTestArtifact("SHA-256", checksum);
 
-        InputStream mockBrokenInputStream = mock(InputStream.class);
-        when(mockBrokenInputStream.read(any())).thenThrow(new IOException());
-        MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content));
+        InputStream mockBrokenInputStream = spy(new ByteArrayInputStream(content.getBytes()));
         AtomicInteger invocationTimes = new AtomicInteger(0);
         doAnswer(invocationOnMock -> {
             invocationTimes.incrementAndGet();
             if (invocationTimes.get() == 1) {
-                return new Pair<InputStream, Runnable>(mockBrokenInputStream, () -> {});
+                throw new IOException();
             }
             return invocationOnMock.callRealMethod();
-        }).when(downloader).readWithRange(anyLong(), anyLong());
+        }).when(mockBrokenInputStream).read(any());
+
+        MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content));
+        downloader.overridingInputStream = mockBrokenInputStream;
 
         File file = downloader.downloadToPath();
-        assertThat(invocationTimes.get(), equalTo(2));
-        verify(downloader, times(2)).readWithRange(0, content.length() - 1);
-        verify(mockBrokenInputStream).close();
+        // one fail read, one successful read, and one read that returns -1
+        assertThat(invocationTimes.get(), equalTo(3));
+        verify(downloader, times(2))
+                .download(eq((long)0), eq((long)content.length() - 1), any());
+        verify(mockBrokenInputStream, times(2)).close();
         assertThat(Files.readAllBytes(file.toPath()), equalTo(content.getBytes()));
     }
 
@@ -197,19 +223,21 @@ public class ArtifactDownloaderTest {
         doAnswer(invocationOnMock -> {
             invocationTimes.incrementAndGet();
             if (invocationTimes.get() == 1) {
-                return invocationOnMock.getMethod().invoke(downloader, 0, 5);
+                return invocationOnMock.getMethod().invoke(downloader, 0, 5, invocationOnMock.getArgument(2));
             }
             return invocationOnMock.callRealMethod();
-        }).when(downloader).readWithRange(anyLong(), anyLong());
+        }).when(downloader).download(anyLong(), anyLong(), any());
 
         File file = downloader.downloadToPath();
-        verify(downloader, times(1)).readWithRange(0, content.length() - 1);
-        verify(downloader, times(1)).readWithRange(6, content.length() - 1);
+        verify(downloader, times(1))
+                .download(eq((long) 0), eq((long)content.length() - 1), any());
+        verify(downloader, times(1))
+                .download(eq((long)6), eq((long)content.length() - 1), any());
         assertThat(Files.readAllBytes(file.toPath()), equalTo(content.getBytes()));
     }
 
     @Test
-    void GIVEN_read_stream_WHEN_throw_PkgDownloadException_THEN_fail() throws Exception {
+    void GIVEN_download_WHEN_throw_PkgDownloadException_THEN_fail() throws Exception {
         String content = "Sample artifact content";
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
@@ -218,7 +246,7 @@ public class ArtifactDownloaderTest {
         MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content));
         doAnswer(invocationOnMock -> {
             throw new PackageDownloadException("Fail to download");
-        }).when(downloader).readWithRange(anyLong(), anyLong());
+        }).when(downloader).download(anyLong(), anyLong(), any());
 
         assertThrows(PackageDownloadException.class, downloader::downloadToPath);
     }

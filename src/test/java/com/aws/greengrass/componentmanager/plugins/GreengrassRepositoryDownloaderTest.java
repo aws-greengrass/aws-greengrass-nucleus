@@ -131,7 +131,8 @@ class GreengrassRepositoryDownloaderTest {
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenThrow(IOException.class);
 
-        PackageDownloadException e = assertThrows(PackageDownloadException.class, () -> downloader.readWithRange(0, 100));
+        PackageDownloadException e = assertThrows(PackageDownloadException.class,
+                () -> downloader.download(0, 100, MessageDigest.getInstance("SHA-256")));
 
         // assert retry called
         verify(connection, times(2)).getResponseCode();
@@ -151,7 +152,8 @@ class GreengrassRepositoryDownloaderTest {
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_BAD_REQUEST);
 
-        PackageDownloadException e = assertThrows(PackageDownloadException.class, () -> downloader.readWithRange(0, 100));
+        PackageDownloadException e = assertThrows(PackageDownloadException.class,
+                () -> downloader.download(0, 100, MessageDigest.getInstance("SHA-256")));
 
         // assert retry called
         verify(connection, times(1)).getResponseCode();
