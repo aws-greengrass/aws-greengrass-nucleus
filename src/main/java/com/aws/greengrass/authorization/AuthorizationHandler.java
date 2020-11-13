@@ -306,7 +306,7 @@ public class AuthorizationHandler  {
         for (AuthorizationPolicy policy : policies) {
             try {
                 addPermission(componentName, policy.getPrincipals(), policy.getOperations(), policy.getResources());
-                logger.atInfo("load-authorization-config")
+                logger.atDebug("load-authorization-config")
                         .log("loaded authorization config for {} as policy {}", componentName, policy);
             } catch (AuthorizationException e) {
                 logger.atError("load-authorization-config-add-permission-error").setCause(e)
@@ -316,7 +316,7 @@ public class AuthorizationHandler  {
         }
 
         this.componentToAuthZConfig.put(componentName, policies);
-        logger.atInfo("load-authorization-config-success")
+        logger.atDebug("load-authorization-config-success")
                 .log("Successfully loaded authorization config for {}", componentName);
 
     }
