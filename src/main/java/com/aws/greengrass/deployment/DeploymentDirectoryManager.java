@@ -34,6 +34,7 @@ public class DeploymentDirectoryManager {
     static final String TARGET_CONFIG_FILE = "target_config.tlog";
     static final String BOOTSTRAP_TASK_FILE = "bootstrap_task.json";
     static final String DEPLOYMENT_METADATA_FILE = "deployment_metadata.json";
+    static final String CONFIG_SNAPSHOT_ERROR = "config_snapshot_error";
 
     private static final String LINK_LOG_KEY = "link";
     private static final String FILE_LOG_KEY = "file";
