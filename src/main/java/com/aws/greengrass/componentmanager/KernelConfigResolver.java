@@ -258,6 +258,9 @@ public class KernelConfigResolver {
             }
 
             updateRunWith(packageConfiguration.getRunWith(), resolvedServiceConfig, componentIdentifier.getName());
+        } else {
+            // make sure existing run with is merged
+            updateRunWith(null, resolvedServiceConfig, componentIdentifier.getName());
         }
 
         Map<String, Object> resolvedConfiguration = resolveConfigurationToApply(optionalConfigUpdate.orElse(null),
@@ -273,10 +276,12 @@ public class KernelConfigResolver {
     private void updateRunWith(RunWith runWith, Map<String, Object> resolvedServiceConfig, String componentName) {
         Topics serviceTopics = kernel.findServiceTopic(componentName);
         Map<String, Object> runWithConfig = new HashMap<>();
+        boolean hasExisting = false;
         if (serviceTopics != null) {
             Topics runWithTopics = serviceTopics.findTopics(RUN_WITH_NAMESPACE_TOPIC);
             if (runWithTopics != null) {
                 runWithConfig = runWithTopics.toPOJO();
+                hasExisting = true;
             }
         }
         if (runWith != null && runWith.hasPosixUserValue()) {
@@ -286,7 +291,9 @@ public class KernelConfigResolver {
                 runWithConfig.put(POSIX_USER_KEY, runWith.getPosixUser());
             }
         }
-        resolvedServiceConfig.put(RUN_WITH_NAMESPACE_TOPIC, runWithConfig);
+        if (!runWithConfig.isEmpty() || hasExisting) {
+            resolvedServiceConfig.put(RUN_WITH_NAMESPACE_TOPIC, runWithConfig);
+        }
     }
 
 

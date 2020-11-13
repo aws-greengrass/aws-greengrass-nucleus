@@ -9,7 +9,3 @@ services:
     lifecycle:
       install:
         all: echo All installed
-  TelemetryAgent:
-    parameters:
-      periodicAggregateMetricsIntervalSec: 2
-      periodicPublishMetricsIntervalSec: 4

@@ -66,7 +66,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         CompletableFuture cf = new CompletableFuture();
         cf.complete(null);
         kernel = new Kernel();
-        kernel.parseArgs("-i", IotJobsFleetStatusServiceTest.class.getResource("smallPeriodicIntervalConfig.yaml").toString());
+        kernel.parseArgs("-i", IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml").toString());
         kernel.getContext().put(MqttClient.class, mqttClient);
 
         when(mqttClient.publish(any(PublishRequest.class))).thenAnswer(i -> {
@@ -83,9 +83,13 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         });
 
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)
-                    && newState.equals(State.RUNNING)) {
-                fssRunning.countDown();
+            if (service.getName().equals(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)) {
+                if (newState.equals(State.RUNNING)) {
+                    fssRunning.countDown();
+                }
+                FleetStatusService fleetStatusService = (FleetStatusService) service;
+                fleetStatusService.setPeriodicUpdateIntervalSec(10);
+                fleetStatusService.schedulePeriodicFleetStatusDataUpdate(false);
             }
             if (service.getName().equals(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)
                     && newState.equals(State.RUNNING)) {
@@ -95,7 +99,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         // set required instances from context
         deviceConfiguration =
                 new DeviceConfiguration(kernel, "ThingName", "dataEndpoint", "credEndpoint", "privKeyFilePath",
-                        "certFilePath", "caFilePath", "awsRegion", "roleAliasName");
+                        "certFilePath", "caFilePath", "us-east-1", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
         kernel.launch();
         assertTrue(deploymentServiceRunning.await(10, TimeUnit.SECONDS));
