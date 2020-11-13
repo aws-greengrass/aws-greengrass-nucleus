@@ -218,7 +218,6 @@ class KernelConfigResolverTest {
                 dependencyListContains("main", "IpcService" + ":" + DependencyType.HARD, servicesConfig));
         assertThat("New service must depend on dependency service",
                 dependencyListContains(TEST_INPUT_PACKAGE_A, TEST_INPUT_PACKAGE_B, servicesConfig));
-
     }
 
     @Test
@@ -642,6 +641,9 @@ class KernelConfigResolverTest {
         assertThat("has running and no update configuration, the running value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
                 equalTo("echo running service in Component PackageA with param valueB"));
+
+        assertThat("no runwith is present", getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig), 
+                not(hasKey(RUN_WITH_NAMESPACE_TOPIC)));
     }
 
     @SuppressWarnings("PMD.UnusedPrivateMethod")
@@ -844,6 +846,89 @@ class KernelConfigResolverTest {
         assertThat("service cannot reference the configuration of non dependency service",
                 getValueForLifecycleKey(TEST_NAMESPACE, TEST_INPUT_PACKAGE_C, servicesConfig),
                 equalTo("Component PackageC with param {PackageB:configuration:/startup/paramB} cross component PackageB artifact dir {PackageB:artifacts:path}"));
+    }
+
+    @Test
+    void GIVEN_deployment_for_package_WHEN_run_with_not_specified_on_non_root_component_THEN_existing_run_with_used()
+            throws Exception {
+        // GIVEN
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2.0", Semver.SemverType.NPM));
+        ComponentIdentifier dependencyComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_B, new Semver("2.3.0", Semver.SemverType.NPM));
+        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier,
+                dependencyComponentIdentifier);
+
+        ComponentRecipe rootComponentRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2.0",
+                Collections.singletonMap(TEST_INPUT_PACKAGE_B,
+                        DependencyProperties.builder().versionRequirement("2.3").build()), Collections.emptyMap(),
+                TEST_INPUT_PACKAGE_A);
+        ComponentRecipe dependencyComponentRecipe =
+                getPackage(TEST_INPUT_PACKAGE_B, "2.3.0", Collections.emptyMap(), Collections.emptyMap(),
+                        TEST_INPUT_PACKAGE_B);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion("=1.2")
+                .configuration(Collections.emptyMap())
+                .build();
+
+        DeploymentPackageConfiguration dependencyPackageDeploymentConfig =  DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_B)
+                .rootComponent(false)
+                .resolvedVersion("=2.3")
+                .configuration(Collections.emptyMap())
+                .build();
+
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig,
+                                dependencyPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
+
+        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
+        when(componentStore.getPackageRecipe(dependencyComponentIdentifier)).thenReturn(dependencyComponentRecipe);
+        when(nucleusPaths.unarchiveArtifactPath(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
+        when(kernel.getMain()).thenReturn(mainService);
+        when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
+        when(mainService.getName()).thenReturn("main");
+
+        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(null); // no config for service a
+
+        // existing config for non root service b
+        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_B)).thenReturn(alreadyRunningServiceConfig);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(
+                Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
+        when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_B); // not a root component
+        when(alreadyRunningService.isBuiltin()).thenReturn(true);
+        when(alreadyRunningServiceConfig.findTopics(RUN_WITH_NAMESPACE_TOPIC)).thenReturn(alreadyRunningServiceRunWithConfig);
+        when(alreadyRunningServiceRunWithConfig.toPOJO()).thenReturn(new HashMap<String, Object>() {{
+            put("posixUser", "foo:bar");
+        }});
+        when(alreadyRunningService.isBuiltin()).thenReturn(true);
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths);
+        Map<String, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        // service config
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+        assertThat("Must contain main service", servicesConfig, hasKey("main"));
+        assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
+        assertThat("Must contain dependency service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_B));
+
+        Map<String, Object> serviceA = (Map<String, Object>)servicesConfig.get(TEST_INPUT_PACKAGE_A);
+        assertThat("Service A must not have runWith", serviceA, not(hasKey(RUN_WITH_NAMESPACE_TOPIC)));
+
+        Map<String, Object> serviceB = (Map<String, Object>)servicesConfig.get(TEST_INPUT_PACKAGE_B);
+        assertThat("Service B must contain runWith", serviceB, hasKey(RUN_WITH_NAMESPACE_TOPIC));
+        Map<String, Object> runWith = (Map<String, Object>)serviceB.get(RUN_WITH_NAMESPACE_TOPIC);
+        assertThat("Service B must set posix user", runWith, hasEntry(POSIX_USER_KEY, "foo:bar"));
     }
 
     private Map<String, Object> serviceConfigurationProperlyResolved(DeploymentDocument deploymentDocument,
