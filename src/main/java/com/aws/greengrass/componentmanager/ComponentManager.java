@@ -277,6 +277,8 @@ public class ComponentManager implements InjectionActions {
         return executorService.submit(() -> {
             for (ComponentIdentifier componentIdentifier : pkgIds) {
                 if (Thread.currentThread().isInterrupted()) {
+                    logger.atInfo().log("Interrupted while preparing artifact for component {}.",
+                            componentIdentifier.getName());
                     return null;
                 }
                 try {

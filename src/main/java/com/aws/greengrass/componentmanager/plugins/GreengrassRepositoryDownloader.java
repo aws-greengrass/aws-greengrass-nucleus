@@ -21,7 +21,6 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.security.MessageDigest;
-import javax.inject.Inject;
 
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
@@ -31,7 +30,6 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private Long artifactSize = null;
     private String artifactFilename = null;
 
-    @Inject
     protected GreengrassRepositoryDownloader(GreengrassComponentServiceClientFactory clientFactory,
                                           ComponentIdentifier identifier, ComponentArtifact artifact,
                                           Path artifactDir) {
@@ -150,8 +148,6 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     }
                     String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
                     String filename = extractFilename(url, disposition);
-
-                    artifact.setFileName(filename);
 
                     // GG_NEEDS_REVIEW: TODO can we simplify getting filename without network request
                     this.artifactSize = length;
