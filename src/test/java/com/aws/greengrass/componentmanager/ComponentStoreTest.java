@@ -401,9 +401,10 @@ class ComponentStoreTest {
     }
 
     @Test
-    void getComponentArn() throws JsonProcessingException {
+    void GIVEN_a_valid_metadata_file_WHEN_get_THEN_return() throws JsonProcessingException {
         SerializerFactory.getJsonObjectMapper().readValue("{\"componentArn\":\"arn:aws:greengrass:us-east-1:698947471564:components:TestDependOnPublic_2b70fdea-aedc-44d7-906f-6f55232835f4:versions:1.0.0\"}",
                                                           RecipeMetadataJson.class);
+        assertThat("hey",SerializerFactory.getJsonObjectMapper() != null);
     }
 
     private static Map<String, String> getExpectedDependencies(Requirement versionRequirement) {

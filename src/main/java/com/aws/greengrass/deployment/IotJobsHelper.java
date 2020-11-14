@@ -317,7 +317,7 @@ public class IotJobsHelper implements InjectionActions {
         } catch (ExecutionException e) {
             if (e.getCause() instanceof MqttException) {
                 //caused due to connectivity issue
-                logger.atWarn().setCause(e).kv(STATUS_LOG_KEY_NAME, status)
+                logger.atError().setCause(e).kv(STATUS_LOG_KEY_NAME, status)
                         .log(UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG);
                 return false;
             }
@@ -330,7 +330,7 @@ public class IotJobsHelper implements InjectionActions {
             // assuming this is due to network issue
             logger.info(UPDATE_DEPLOYMENT_STATUS_TIMEOUT_ERROR_LOG);
         } catch (InterruptedException e) {
-            logger.atWarn().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+            logger.atError().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
                     .log("Got interrupted while updating the job status");
         }
         return false;
