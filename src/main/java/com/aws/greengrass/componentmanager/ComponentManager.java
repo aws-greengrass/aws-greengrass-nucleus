@@ -279,7 +279,13 @@ public class ComponentManager implements InjectionActions {
                 if (Thread.currentThread().isInterrupted()) {
                     return null;
                 }
-                preparePackage(componentIdentifier);
+                try {
+                    preparePackage(componentIdentifier);
+                } catch (InterruptedException ie) {
+                    logger.atInfo().log("Interrupted while preparing artifact for component {}.",
+                            componentIdentifier.getName());
+                    return null;
+                }
             }
             return null;
         });

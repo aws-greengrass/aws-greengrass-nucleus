@@ -67,7 +67,9 @@ public class S3Downloader extends ArtifactDownloader {
         S3Client regionClient = getRegionClientForBucket(bucket);
         GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucket).key(key)
                 .range(String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd)).build();
-        logger.debug("Getting s3 object request: {}", getObjectRequest.toString());
+        logger.atDebug().kv("bucket", getObjectRequest.bucket())
+                .kv("s3-key", getObjectRequest.key())
+                .kv("range", getObjectRequest.range()).log("Getting s3 object request");
 
         return runWithRetry("download-S3-artifact", MAX_RETRY,() -> {
             try (InputStream inputStream = regionClient.getObject(getObjectRequest)) {

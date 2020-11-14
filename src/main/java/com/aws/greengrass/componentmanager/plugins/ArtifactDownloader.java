@@ -43,7 +43,7 @@ public abstract class ArtifactDownloader {
     protected static final String HTTP_RANGE_HEADER_FORMAT = "bytes=%d-%d";
     protected static final String HTTP_RANGE_HEADER_KEY = "Range";
 
-    protected final Logger logger = LogManager.getLogger(this.getClass());
+    protected final Logger logger;
     protected final ComponentIdentifier identifier;
     protected final ComponentArtifact artifact;
     protected final Path artifactDir;
@@ -55,6 +55,7 @@ public abstract class ArtifactDownloader {
         this.identifier = identifier;
         this.artifact = artifact;
         this.artifactDir = artifactDir;
+        this.logger = LogManager.getLogger(this.getClass()).createChild();
         this.logger.addDefaultKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
                 .addDefaultKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, identifier.getName());
     }
@@ -91,7 +92,7 @@ public abstract class ArtifactDownloader {
                 // Existing file is corrupted, it's larger than defined in artifact.
                 // Normally shouldn't happen, corrupted files are deleted every time.
                 logger.atError().log("existing file corrupted. Expected size: {}, Actual size: {}."
-                        + " Removing and retry download.", artifactSize, Files.size(saveToPath));
+                        + " Removing and retrying download.", artifactSize, Files.size(saveToPath));
                 Files.deleteIfExists(saveToPath);
             } else {
                 offset.set(Files.size(saveToPath));
@@ -178,7 +179,7 @@ public abstract class ArtifactDownloader {
             String filename = getArtifactFilename();
             return !artifactExistsAndChecksum(artifact, artifactDir.resolve(filename));
         } catch (PackageDownloadException e) {
-            logger.atWarn().setCause(e).log();
+            logger.atWarn().setCause(e).log("Error in getting artifact file name.");
             return true;
         }
     }
@@ -285,17 +286,11 @@ public abstract class ArtifactDownloader {
                     throw new PackageDownloadException("Unexpected error in " + taskDescription, e);
                 }
 
-                try {
-                    Thread.sleep(retryInterval);
-                    if (retryInterval < MAX_RETRY_INTERVAL_MILLI) {
-                        retryInterval = retryInterval * 2;
-                    } else {
-                        retryInterval = MAX_RETRY_INTERVAL_MILLI;
-                    }
-                } catch (InterruptedException ie) {
-                    String errMsg = "Interrupted while waiting to retry " + taskDescription;
-                    logger.atInfo().setCause(ie).log(errMsg);
-                    throw new PackageDownloadException(getErrorString(errMsg));
+                Thread.sleep(retryInterval);
+                if (retryInterval < MAX_RETRY_INTERVAL_MILLI) {
+                    retryInterval = retryInterval * 2;
+                } else {
+                    retryInterval = MAX_RETRY_INTERVAL_MILLI;
                 }
             }
         }
