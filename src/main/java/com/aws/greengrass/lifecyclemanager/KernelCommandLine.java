@@ -9,7 +9,6 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
@@ -17,7 +16,6 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
-import com.aws.greengrass.util.platforms.Platform;
 import lombok.AccessLevel;
 import lombok.Getter;
 
@@ -120,13 +118,6 @@ public class KernelCommandLine {
                     logger.atError().setEventType("parse-args-error").setCause(rte).log();
                     throw rte;
             }
-        }
-        try {
-            Platform.getInstance().getRunWithGenerator().validateDefaultConfiguration(deviceConfiguration);
-        } catch (DeviceConfigurationException e) {
-            RuntimeException rte = new RuntimeException(e);
-            logger.atError().setEventType("parse-args-error").setCause(rte).log();
-            throw rte;
         }
 
         if (Utils.isEmpty(rootAbsolutePath)) {
