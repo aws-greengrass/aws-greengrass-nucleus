@@ -13,6 +13,7 @@ import com.aws.greengrass.componentmanager.ComponentTestResourceHelper;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeEach;
@@ -89,12 +90,15 @@ class GreengrassRepositoryDownloaderTest {
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
 
+        String componentVersionArn = "arn";
+        when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(componentVersionArn));
+
         downloader.downloadToPath(
                 pkgId, ComponentArtifact.builder().artifactUri(new URI("greengrass:artifactName"))
                         .checksum(checksum).algorithm(SHA256).build(), saveToPath);
 
         GetComponentVersionArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
-        assertEquals("CoolService", generatedRequest.getComponentVersionArn());
+        assertEquals(componentVersionArn, generatedRequest.getComponentVersionArn());
         assertEquals("artifactName", generatedRequest.getArtifactName());
 
         byte[] originalFile = Files.readAllBytes(mockArtifactPath);
@@ -113,6 +117,10 @@ class GreengrassRepositoryDownloaderTest {
         when(connection.getResponseCode()).thenThrow(IOException.class);
 
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
+
+        String componentVersionArn = "arn";
+        when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(componentVersionArn));
+
         assertThrows(IOException.class, () -> downloader
                 .downloadToPath(pkgId,
                         ComponentArtifact.builder().artifactUri(new URI("greengrass:binary")).build(),null));

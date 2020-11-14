@@ -70,6 +70,8 @@ class ComponentStoreTest {
             new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, MONITORING_SERVICE_PKG_VERSION);
     private static final String MONITORING_SERVICE_PKG_ARTIFACT_NAME = "monitor_artifact_100.txt";
     public static final String MONITORING_SERVICE_PKG_RECIPE_FILE_NAME = "MonitoringService-1.0.0.yaml";
+    public static final String MONITORING_SERVICE_PKG_RECIPE_METADATA_FILE_NAME =
+            "MonitoringService@1.0.0.metadata.json";
 
     private static Path RECIPE_RESOURCE_PATH;
     private static Path ARTIFACT_RESOURCE_PATH;
@@ -331,16 +333,24 @@ class ComponentStoreTest {
     void GIVEN_recipe_and_artifact_exists_WHEN_delete_package_THEN_both_deleted() throws Exception {
         preloadRecipeFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
         preloadArtifactFileFromTestResouce(MONITORING_SERVICE_PKG_ID, MONITORING_SERVICE_PKG_ARTIFACT_NAME);
-        Path expectedRecipePath = recipeDirectory.resolve(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
-        Path expectedArtifactPath = componentStore.resolveArtifactDirectoryPath(MONITORING_SERVICE_PKG_ID)
-                .resolve(MONITORING_SERVICE_PKG_ARTIFACT_NAME);
-        assertTrue(Files.exists(expectedRecipePath));
-        assertTrue(Files.exists(expectedArtifactPath));
-        componentStore.deleteComponent(MONITORING_SERVICE_PKG_ID);
-        assertFalse(Files.exists(expectedRecipePath));
-        assertFalse(Files.exists(expectedArtifactPath));
-    }
+        preloadRecipeMetadataFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_METADATA_FILE_NAME);
 
+        File expectedRecipeFile = recipeDirectory.resolve(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME).toFile();
+        File expectedArtifactFile = componentStore.resolveArtifactDirectoryPath(MONITORING_SERVICE_PKG_ID)
+                .resolve(MONITORING_SERVICE_PKG_ARTIFACT_NAME).toFile();
+        File expectedRecipeMetadataFile =
+                getExpectedRecipeMetadataFile(MONITORING_SERVICE_PKG_NAME, MONITORING_SERVICE_PKG_VERSION.getValue());
+
+        assertThat(expectedRecipeFile, anExistingFile());
+        assertThat(expectedArtifactFile, anExistingFile());
+        assertThat(expectedRecipeMetadataFile, anExistingFile());
+
+        componentStore.deleteComponent(MONITORING_SERVICE_PKG_ID);
+
+        assertThat(expectedRecipeFile, not(anExistingFile()));
+        assertThat(expectedArtifactFile, not(anExistingFile()));
+        assertThat(expectedRecipeMetadataFile, not(anExistingFile()));
+    }
 
     @Test
     void GIVEN_artifacts_WHEN_list_by_artifact_THEN_result_is_correct() throws Exception {

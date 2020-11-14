@@ -19,6 +19,7 @@ import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
+import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.componentmanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.greengrass.componentmanager.plugins.S3Downloader;
 import com.aws.greengrass.config.Topic;
@@ -96,6 +97,7 @@ import static org.mockito.Mockito.when;
 class ComponentManagerTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final String TEST_ARN = "testArn";
     private static Path RECIPE_RESOURCE_PATH;
 
     static {
@@ -373,7 +375,7 @@ class ComponentManagerTest {
                         .build();
 
         ComponentContent componentContent = new ComponentContent().withName(componentA).withVersion(v1_0_0.getValue())
-                .withRecipe(ByteBuffer.wrap(MAPPER.writeValueAsBytes(recipeContent)));
+                .withRecipe(ByteBuffer.wrap(MAPPER.writeValueAsBytes(recipeContent))).withArn(TEST_ARN);
 
         when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any(), anyString()))
                 .thenReturn(componentContent);
@@ -396,6 +398,7 @@ class ComponentManagerTest {
         verify(componentStore).findComponentRecipeContent(componentA_1_0_0);
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
         verify(componentStore).savePackageRecipe(componentA_1_0_0, MAPPER.writeValueAsString(recipeContent));
+        verify(componentStore).saveRecipeMetadata(componentA_1_0_0, new RecipeMetadata(TEST_ARN));
     }
 
     @Test
@@ -430,7 +433,7 @@ class ComponentManagerTest {
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());
 
         ComponentContent componentContent = new ComponentContent().withName(componentA).withVersion(v1_0_0.getValue())
-                .withRecipe(ByteBuffer.wrap(MAPPER.writeValueAsBytes(newRecipe)));
+                .withRecipe(ByteBuffer.wrap(MAPPER.writeValueAsBytes(newRecipe))).withArn(TEST_ARN);
         when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any(), anyString()))
                 .thenReturn(componentContent);
         when(componentStore.findComponentRecipeContent(any()))
@@ -447,6 +450,7 @@ class ComponentManagerTest {
         verify(componentStore).findComponentRecipeContent(componentA_1_0_0);
         verify(componentStore).savePackageRecipe(componentA_1_0_0, MAPPER.writeValueAsString(newRecipe));
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
+        verify(componentStore).saveRecipeMetadata(componentA_1_0_0, new RecipeMetadata(TEST_ARN));
         String recipeString = new String(componentContent.getRecipe().array(), StandardCharsets.UTF_8);
         verify(digestTopic).withValue(Digest.calculate(recipeString));
     }

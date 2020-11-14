@@ -183,6 +183,12 @@ public class ComponentStore {
         } catch (IOException e) {
             exception = e;
         }
+        // delete recipeMetadata
+        try {
+            Files.deleteIfExists(resolveRecipeMetaDataFile(compId).toPath());
+        } catch (IOException e) {
+            exception = e;
+        }
         // delete artifacts
         try {
             Path artifactDirPath = resolveArtifactDirectoryPath(compId);

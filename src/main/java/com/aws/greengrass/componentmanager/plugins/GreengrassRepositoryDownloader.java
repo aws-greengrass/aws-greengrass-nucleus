@@ -39,7 +39,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     /**
      * Constructor for GreengrassRepositoryDownloader.
-     * @param clientFactory clientFactory
+     *
+     * @param clientFactory  clientFactory
      * @param componentStore componentStore
      */
     @Inject
@@ -200,20 +201,20 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         return (HttpURLConnection) url.openConnection();
     }
 
-    String getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
+    private String getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws PackageDownloadException {
-        // validate the arn exists
         String arn;
         try {
-            arn = componentStore.getRecipeMetadata(componentIdentifier).getComponentArn();
+            arn = componentStore.getRecipeMetadata(componentIdentifier).getComponentVersionArn();
         } catch (PackageLoadingException e) {
-            // TODO log
-            throw new PackageDownloadException("msgTodo", e);
+            throw new PackageDownloadException(
+                    "Failed to get component version arn from component store. The arn is required for getting artifact"
+                            + " from greengrass cloud.",
+                    e);
         }
 
         GetComponentVersionArtifactRequest getComponentArtifactRequest =
-                new GetComponentVersionArtifactRequest().withArtifactName(artifactName)
-                        .withComponentVersionArn(arn);
+                new GetComponentVersionArtifactRequest().withArtifactName(artifactName).withComponentVersionArn(arn);
 
         try {
             GetComponentVersionArtifactResult getComponentArtifactResult =
@@ -221,8 +222,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             return getComponentArtifactResult.getPreSignedUrl();
         } catch (AmazonClientException e) {
             // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions
-            throw new PackageDownloadException(
-                    String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, arn), e);
+            throw new PackageDownloadException(String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, arn),
+                                               e);
         }
     }
 
