@@ -12,7 +12,7 @@ import com.aws.greengrass.componentmanager.exceptions.UnexpectedPackagingExcepti
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
-import com.aws.greengrass.componentmanager.persistence.RecipeMetadataJson;
+import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.constants.FileSuffix;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -22,6 +22,8 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.SerializerFactory;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -318,9 +320,11 @@ public class ComponentStore {
     }
 
     private File[] getAllRecipeFiles() {
+        // Ideally we want to identify recipes by a suffix like *.recipe.yaml or *.recipe.json
+        // TODO review note: Should we consider a separate folder so that we don't have to worry about this?
         return Arrays.stream(nucleusPaths.recipePath().toFile().listFiles())
-                .filter(file -> file.getName().endsWith(".yaml"))  // recipe files ends with yaml right now
-                // TODO do we support JSON by reInvent?
+                .filter(file -> file.getName().endsWith(".yaml")).filter(file -> file.getName().endsWith(".json"))
+                .filter(file -> !file.getName().endsWith("metadata.json"))  // exclude metadata files
                 .toArray(File[]::new);
     }
 
@@ -414,51 +418,98 @@ public class ComponentStore {
     }
 
     /**
-     * Saves recipe metadata to file.
+     * Saves recipe metadata to file. Overrides if the target file exists.
      *
      * @param componentIdentifier component id
-     * @param arn                 arn
+     * @param recipeMetadata      metadata for the recipe
      */
-    public void saveRecipeMetadata(ComponentIdentifier componentIdentifier, String arn) {
+    public void saveRecipeMetadata(ComponentIdentifier componentIdentifier, RecipeMetadata recipeMetadata)
+            throws PackageLoadingException {
         File metadataFile = resolveRecipeMetaDataFile(componentIdentifier);
 
         try {
-            SerializerFactory.getJsonObjectMapper().writeValue(metadataFile, new RecipeMetadataJson(arn));
+            SerializerFactory.getFailSafeJsonObjectMapper().writeValue(metadataFile, recipeMetadata);
         } catch (IOException e) {
-            //TODO
+            logger.atError().cause(e).kv("RecipeMetadataFilePath", metadataFile.getAbsolutePath())
+                    .log("Failed to write recipe metadata file");
+
+            throw new PackageLoadingException(
+                    String.format("Failed to write recipe metadata to file: '%s'.", metadataFile.getAbsolutePath()), e);
         }
     }
 
     /**
-     * Reads the component arn from the component recipe metadata file.
+     * Reads component recipe metadata file.
      *
      * @param componentIdentifier component id
      */
-    public String getComponentArn(ComponentIdentifier componentIdentifier) {
+    public RecipeMetadata getRecipeMetadata(ComponentIdentifier componentIdentifier) throws PackageLoadingException {
         File metadataFile = resolveRecipeMetaDataFile(componentIdentifier);
 
-        RecipeMetadataJson recipeMetadataJson;
-        try {
-            recipeMetadataJson =
-                    SerializerFactory.getJsonObjectMapper().readValue(metadataFile, RecipeMetadataJson.class);
-            return recipeMetadataJson.getComponentArn();
-        } catch (IOException e) {
-            //TODO
-            logger.atError().cause(e).log();
+        if (!metadataFile.exists() || !metadataFile.isFile()) {
+            // log error because this is not expected to happen in any normal case
+            logger.atError().kv("RecipeMetadataFilePath", metadataFile.getAbsolutePath())
+                    .log("Failed to get recipe metadata because the file doesn't not exit or it is a folder");
+
+            throw new PackageLoadingException(String.format(
+                    "Failed to get recipe metadata because the file doesn't not exit or it is a folder. "
+                            + "RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()));
         }
-        return null;
+
+        try {
+            return SerializerFactory.getFailSafeJsonObjectMapper().readValue(metadataFile, RecipeMetadata.class);
+
+            // exception handling is intentionally heavy so that to deal with file corruption
+            // TODO review note: I struggled btw having the below or removing it. Tried to remove it and feel a single
+            // catch on IOException and saying file is corrupted is a little thin.
+            // Furthermore, we should do the similar to recipe file! That's a lot more important.
+        } catch (JsonParseException e) {
+            // log error because this is not expected to happen in any normal case
+            logger.atError().cause(e).kv("RecipeMetadataFilePath", metadataFile.getAbsolutePath())
+                    .log("Failed to get recipe metadata because the recipe metadata file should be a json "
+                                 + "but is corrupted");
+
+            throw new PackageLoadingException(String.format(
+                    "Failed to get recipe metadata because the recipe metadata file should be a json but is corrupted."
+                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e);
+
+        } catch (JsonMappingException e) {
+            // log error because this is not expected to happen in any normal case
+            logger.atError().cause(e).kv("RecipeMetadataFilePath", metadataFile.getAbsolutePath())
+                    .log("Failed to get recipe metadata because the recipe metadata file json has wrong structure");
+
+
+            throw new PackageLoadingException(String.format(
+                    "Failed to get recipe metadata because the recipe metadata file json has wrong structure."
+                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e);
+
+        } catch (IOException e) {
+            // log error because this is not expected to happen in any normal case
+            logger.atError().cause(e).kv("RecipeMetadataFilePath", metadataFile.getAbsolutePath())
+                    .log("Failed to get recipe metadata because the file can't be read due to low-level I/O error");
+
+
+            throw new PackageLoadingException(String.format(
+                    "Failed to get recipe metadata because the file can't be read due to low-level I/O error."
+                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e);
+        }
     }
 
     private File resolveRecipeMetaDataFile(ComponentIdentifier componentIdentifier) {
-        String fileNameSaveEcodedHash = null;
+        String hashOfComponentName = null;
         try {
-            fileNameSaveEcodedHash = Digest.calculateWithUrlEncoderNoPadding(componentIdentifier.getName());
+            // calculate a hash for component name so that it is safe to be in a file name cross platform
+            // padding is removed to avoid confusion
+            hashOfComponentName = Digest.calculateWithUrlEncoderNoPadding(componentIdentifier.getName());
         } catch (NoSuchAlgorithmException e) {
             //TODO
         }
 
-        String recipeMetaDataFileName = String.format("%s@%s.metadata.json", fileNameSaveEcodedHash,
-                                                      componentIdentifier.getVersion().getValue());
+        // @ is used as delimiter between component name hash and semver
+        // .metadata is to indicate it contains metadata info
+        // .json at the end is to indicate the file cotnent type is a json
+        String recipeMetaDataFileName =
+                String.format("%s@%s.metadata.json", hashOfComponentName, componentIdentifier.getVersion().getValue());
 
         return nucleusPaths.recipePath().resolve(recipeMetaDataFileName).toFile();
     }

@@ -12,6 +12,7 @@ import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactResult;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.logging.api.Logger;
@@ -202,9 +203,12 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     String getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws PackageDownloadException {
         // validate the arn exists
-        String arn = componentStore.getComponentArn(componentIdentifier);
-        if (arn == null) {
-            logger.atError().log("Failed to get arn22.");
+        String arn;
+        try {
+            arn = componentStore.getRecipeMetadata(componentIdentifier).getComponentArn();
+        } catch (PackageLoadingException e) {
+            // TODO log
+            throw new PackageDownloadException("msgTodo", e);
         }
 
         GetComponentVersionArtifactRequest getComponentArtifactRequest =

@@ -306,7 +306,7 @@ public final class DeploymentDocumentConverter {
         Map mapToMerge = null;
         if (configurationUpdate.getMerge() != null) {
             mapToMerge =
-                    SerializerFactory.getJsonObjectMapper().convertValue(configurationUpdate.getMerge(), Map.class);
+                    SerializerFactory.getFailSafeJsonObjectMapper().convertValue(configurationUpdate.getMerge(), Map.class);
         }
 
         return new ConfigurationUpdateOperation(mapToMerge, configurationUpdate.getReset());

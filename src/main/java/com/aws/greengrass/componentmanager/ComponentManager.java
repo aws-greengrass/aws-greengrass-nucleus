@@ -20,6 +20,7 @@ import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
+import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.plugins.GreengrassRepositoryDownloader;
 import com.aws.greengrass.componentmanager.plugins.S3Downloader;
@@ -232,7 +233,7 @@ public class ComponentManager implements InjectionActions {
 
         // Save the arn to the recipe meta data file
         logger.atInfo().kv("Arn", componentContent.getArn()).log("Ethan");
-        componentStore.saveRecipeMetadata(resolvedComponentId, componentContent.getArn());
+        componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(componentContent.getArn()));
 
         return resolvedComponentId;
     }

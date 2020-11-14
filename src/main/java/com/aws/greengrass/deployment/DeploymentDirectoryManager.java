@@ -141,7 +141,7 @@ public class DeploymentDirectoryManager {
 
     private void writeDeploymentMetadata(Path filePath, Deployment deployment) throws IOException {
         try (OutputStream out = Files.newOutputStream(filePath)) {
-            SerializerFactory.getJsonObjectMapper().writeValue(out, deployment);
+            SerializerFactory.getFailSafeJsonObjectMapper().writeValue(out, deployment);
         }
     }
 
@@ -160,7 +160,7 @@ public class DeploymentDirectoryManager {
         Path filePath = getDeploymentMetadataFilePath();
         logger.atInfo().kv(FILE_LOG_KEY, filePath).log("Load deployment metadata");
         try (InputStream in = Files.newInputStream(filePath)) {
-            return SerializerFactory.getJsonObjectMapper().readValue(in, Deployment.class);
+            return SerializerFactory.getFailSafeJsonObjectMapper().readValue(in, Deployment.class);
         }
     }
 

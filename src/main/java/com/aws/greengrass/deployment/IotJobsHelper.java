@@ -199,7 +199,7 @@ public class IotJobsHelper implements InjectionActions {
 
         String documentString;
         try {
-            documentString = SerializerFactory.getJsonObjectMapper().writeValueAsString(jobExecutionData.jobDocument);
+            documentString = SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(jobExecutionData.jobDocument);
         } catch (JsonProcessingException e) {
             // This should not happen as we are converting a HashMap
             logger.atError().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).setCause(e)
