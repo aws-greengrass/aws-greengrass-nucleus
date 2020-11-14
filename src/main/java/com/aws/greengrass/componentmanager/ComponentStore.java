@@ -185,7 +185,7 @@ public class ComponentStore {
         }
         // delete recipeMetadata
         try {
-            Files.deleteIfExists(resolveRecipeMetaDataFile(compId).toPath());
+            Files.deleteIfExists(resolveRecipeMetadataFile(compId).toPath());
         } catch (IOException e) {
             exception = e;
         }
@@ -431,7 +431,7 @@ public class ComponentStore {
      */
     public void saveRecipeMetadata(ComponentIdentifier componentIdentifier, RecipeMetadata recipeMetadata)
             throws PackageLoadingException {
-        File metadataFile = resolveRecipeMetaDataFile(componentIdentifier);
+        File metadataFile = resolveRecipeMetadataFile(componentIdentifier);
 
         try {
             SerializerFactory.getFailSafeJsonObjectMapper().writeValue(metadataFile, recipeMetadata);
@@ -450,7 +450,7 @@ public class ComponentStore {
      * @param componentIdentifier component id
      */
     public RecipeMetadata getRecipeMetadata(ComponentIdentifier componentIdentifier) throws PackageLoadingException {
-        File metadataFile = resolveRecipeMetaDataFile(componentIdentifier);
+        File metadataFile = resolveRecipeMetadataFile(componentIdentifier);
 
         if (!metadataFile.exists() || !metadataFile.isFile()) {
             // log error because this is not expected to happen in any normal case
@@ -501,7 +501,7 @@ public class ComponentStore {
         }
     }
 
-    private File resolveRecipeMetaDataFile(ComponentIdentifier componentIdentifier) {
+    private File resolveRecipeMetadataFile(ComponentIdentifier componentIdentifier) {
         String hashOfComponentName = null;
         try {
             // calculate a hash for component name so that it is safe to be in a file name cross platform
