@@ -202,15 +202,41 @@ public class MqttClient implements Closeable {
         this.deviceConfiguration = deviceConfiguration;
         this.ses = ses;
 
+        mqttTopics = this.deviceConfiguration.getMQTTNamespace();
+        this.builderProvider = builderProvider;
+
+        eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
+        hostResolver = new HostResolver(eventLoopGroup);
+        clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
+        spool = new Spool(deviceConfiguration);
+        callbackEventManager.addToCallbackEvents(onConnect, callbacks);
+
+        // Call getters for all of these topics prior to subscribing to changes so that these namespaces
+        // are created and fully updated so that our reconnection doesn't get triggered falsely
+        deviceConfiguration.getRootCAFilePath();
+        deviceConfiguration.getCertificateFilePath();
+        deviceConfiguration.getPrivateKeyFilePath();
+        deviceConfiguration.getSpoolerNamespace();
+        deviceConfiguration.getAWSRegion();
+
         // If anything in the device configuration changes, then we wil need to reconnect to the cloud
         // using the new settings. We do this by calling reconnect() on all of our connections
         this.deviceConfiguration.onAnyChange((what, node) -> {
+            if (connections.isEmpty()) {
+                return;
+            }
             if (WhatHappened.childChanged.equals(what) && node != null) {
                 // List of configuration nodes that we need to reconfigure for if they change
                 if (!(node.childOf(DEVICE_MQTT_NAMESPACE) || node.childOf(DEVICE_PARAM_THING_NAME) || node
                         .childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT) || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH) || node
                         .childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH) || node
                         .childOf(DEVICE_PARAM_AWS_REGION))) {
+                    return;
+                }
+
+                // Only reconnect when the region changed if the proxy exists
+                if (node.childOf(DEVICE_PARAM_AWS_REGION)
+                        && ProxyUtils.getHttpProxyOptions(deviceConfiguration) == null) {
                     return;
                 }
 
@@ -241,14 +267,6 @@ public class MqttClient implements Closeable {
                 }
             }
         });
-        mqttTopics = this.deviceConfiguration.getMQTTNamespace();
-        this.builderProvider = builderProvider;
-
-        eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
-        hostResolver = new HostResolver(eventLoopGroup);
-        clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
-        spool = new Spool(deviceConfiguration);
-        callbackEventManager.addToCallbackEvents(onConnect, callbacks);
     }
 
     // constructor specific for unit test with spooler
@@ -397,9 +415,7 @@ public class MqttClient implements Closeable {
 
     private synchronized void spoolMessage()  {
         if (spoolingFuture.get() == null || spoolingFuture.get().isCancelled()) {
-            spoolingFuture.set(ses.scheduleWithFixedDelay(() -> {
-                spoolTask();
-            }, 0, 5, TimeUnit.SECONDS));
+            spoolingFuture.set(ses.scheduleWithFixedDelay(this::spoolTask, 0, 5, TimeUnit.SECONDS));
         }
     }
 
