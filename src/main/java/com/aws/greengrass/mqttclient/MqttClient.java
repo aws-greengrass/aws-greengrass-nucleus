@@ -38,7 +38,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -117,12 +116,7 @@ public class MqttClient implements Closeable {
         }
     };
 
-    private final CallbackEventManager.OnConnectCallback onConnect = new CallbackEventManager.OnConnectCallback() {
-        @Override
-        public void onConnect(boolean curSessionPresent) {
-            callbacks.onConnectionResumed(curSessionPresent);
-        }
-    };
+    private final CallbackEventManager.OnConnectCallback onConnect = callbacks::onConnectionResumed;
 
     //
     // TODO: [P41214930] Handle timeouts and retries
@@ -131,13 +125,12 @@ public class MqttClient implements Closeable {
     /**
      * Constructor for injection.
      * @param deviceConfiguration device configuration
-     * @param executorService     executor service
      * @param ses                 scheduled executor service
      */
     @Inject
-    public MqttClient(DeviceConfiguration deviceConfiguration, ExecutorService executorService,
+    public MqttClient(DeviceConfiguration deviceConfiguration,
                       ScheduledExecutorService ses) {
-        this(deviceConfiguration, null, executorService, ses);
+        this(deviceConfiguration, null, ses);
 
         HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
 
@@ -197,7 +190,6 @@ public class MqttClient implements Closeable {
 
     protected MqttClient(DeviceConfiguration deviceConfiguration,
                          Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
-                         ExecutorService executorService,
                          ScheduledExecutorService ses) {
         this.deviceConfiguration = deviceConfiguration;
         this.ses = ses;
@@ -240,8 +232,13 @@ public class MqttClient implements Closeable {
                     return;
                 }
 
+                logger.atInfo().kv("modifiedNode", node.getFullName())
+                        .kv("changeType", what)
+                        .log("Reconfiguring MQTT clients");
+
                 // Reconnect in separate thread to not block publish thread
-                Future<?> oldFuture = reconfigureFuture.getAndSet(executorService.submit(() -> {
+                // Schedule the reconnection for slightly in the future to de-dupe multiple changes
+                Future<?> oldFuture = reconfigureFuture.getAndSet(ses.schedule(() -> {
                     // Continually try to reconnect until all the connections are reconnected
                     Set<AwsIotMqttClient> brokenConnections = new CopyOnWriteArraySet<>(connections);
                     do {
@@ -259,7 +256,7 @@ public class MqttClient implements Closeable {
                             }
                         }
                     } while (!brokenConnections.isEmpty());
-                }));
+                }, 2, TimeUnit.SECONDS));
 
                 // If a reconfiguration task already existed, then kill it and create a new one
                 if (oldFuture != null) {
