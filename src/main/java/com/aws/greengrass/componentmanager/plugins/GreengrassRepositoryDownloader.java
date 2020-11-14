@@ -64,13 +64,16 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         } catch (IOException e) {
             throw new PackageDownloadException("Failed to check greengrass artifact", e);
         } catch (PackageDownloadException e) {
-            if (!saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile().exists()) {
+            File localArtifactFile = saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
+            if (!localArtifactFile.exists()) {
                 throw e;
             }
             logger.atInfo("download-required-from-greengrass-repo")
                     .addKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, componentIdentifier)
                     .addKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
                     .log("Failed to download artifact, but found it locally, using that version", e);
+
+            artifact.setFileName(localArtifactFile.getName());
             return false;
         }
         return true;
