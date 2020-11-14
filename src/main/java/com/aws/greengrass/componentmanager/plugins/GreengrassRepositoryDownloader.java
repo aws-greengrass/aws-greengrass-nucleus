@@ -12,203 +12,184 @@ import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFacto
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.logging.impl.LogManager;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Path;
-import javax.inject.Inject;
+import java.security.MessageDigest;
 
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
-    private static final Logger logger = LogManager.getLogger(GreengrassRepositoryDownloader.class);
+
     private static final String HTTP_HEADER_CONTENT_DISPOSITION = "Content-Disposition";
-    private static final String ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT =
-            "Failed to download artifact %s for package %s-%s";
-    public static final String ARTIFACT_URI_LOG_KEY = "artifactUri";
-    public static final String COMPONENT_IDENTIFIER_LOG_KEY = "componentIdentifier";
 
     private final GreengrassComponentServiceClientFactory clientFactory;
+    private Long artifactSize = null;
+    private String artifactFilename = null;
 
-    @Inject
-    public GreengrassRepositoryDownloader(GreengrassComponentServiceClientFactory clientFactory) {
-        super();
+    protected GreengrassRepositoryDownloader(GreengrassComponentServiceClientFactory clientFactory,
+                                          ComponentIdentifier identifier, ComponentArtifact artifact,
+                                          Path artifactDir) {
+        super(identifier, artifact, artifactDir);
         this.clientFactory = clientFactory;
     }
 
+    // TODO: avoid calling cloud to get artifact file name.
     @Override
-    public boolean downloadRequired(ComponentIdentifier componentIdentifier, ComponentArtifact artifact,
-                                    Path saveToPath) throws PackageDownloadException {
-        // GG_NEEDS_REVIEW: TODO can we simplify getting filename without network request
-        try {
-            String preSignedUrl =
-                    getArtifactDownloadURL(componentIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
-            URL url = new URL(preSignedUrl);
-            HttpURLConnection httpConn = connect(url);
+    protected String getArtifactFilename() throws PackageDownloadException, InterruptedException {
+        if (artifactFilename != null) {
+            return artifactFilename;
+        }
+        retrieveArtifactInfo();
+        return this.artifactFilename;
+    }
+
+    @Override
+    public Long getDownloadSize() throws PackageDownloadException, InterruptedException {
+        if (artifactSize != null) {
+            return artifactSize;
+        }
+        retrieveArtifactInfo();
+        return artifactSize;
+    }
+
+
+    @Override
+    protected long download(long rangeStart, long rangeEnd, MessageDigest messageDigest)
+            throws PackageDownloadException, InterruptedException {
+        URL url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
+
+        return runWithRetry("establish HTTP connection", MAX_RETRY, () -> {
+            HttpURLConnection httpConn = null;
             try {
+                // establish http connection
+                httpConn = connect(url);
+                httpConn.setRequestProperty(HTTP_RANGE_HEADER_KEY,
+                        String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd));
                 int responseCode = httpConn.getResponseCode();
 
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
-                    String filename = extractFilename(url, disposition);
-                    return !artifactExistsAndChecksum(artifact, saveToPath.resolve(filename));
+                // check response code
+                if (responseCode == HttpURLConnection.HTTP_PARTIAL) {
+                    return download(httpConn.getInputStream(), messageDigest);
+                } else if (responseCode == HttpURLConnection.HTTP_OK) {
+                    if (httpConn.getContentLengthLong() < rangeEnd) {
+                        String errMsg = String.format("Artifact size mismatch."
+                               + "Expected artifact size %d. HTTP contentLength %d",
+                               rangeEnd, httpConn.getContentLengthLong());
+                        throw new PackageDownloadException(errMsg);
+                    }
+                    // 200 means server doesn't recognize the Range header and returns all contents.
+                    // try to discard the offset number of bytes.
+                    InputStream inputStream = httpConn.getInputStream();
+                    long byteSkipped = inputStream.skip(rangeStart);
+
+                    // If number of bytes skipped is less than declared, throw error.
+                    if (byteSkipped != rangeStart) {
+                        logger.atWarn().log("HTTP Error: " + responseCode);
+                        return (long) 0;
+                    }
+                    return download(inputStream, messageDigest);
+                } else if (responseCode == HttpURLConnection.HTTP_CLIENT_TIMEOUT) {
+                    logger.atWarn().log("Unable to download greengrass artifact. HTTP Error: " + responseCode);
+                    return (long) 0;
+                } else {
+                    throw new PackageDownloadException(getErrorString("Unable to download greengrass artifact. "
+                            + "HTTP Error: " + responseCode));
                 }
             } finally {
                 if (httpConn != null) {
                     httpConn.disconnect();
                 }
             }
-        } catch (IOException e) {
-            throw new PackageDownloadException("Failed to check greengrass artifact", e);
+        });
+    }
+
+    // TODO: remove this overriding function once GGRepositoryDownloader doesn't need to call cloud to get
+    // artifact file name.
+    @Override
+    public boolean downloadRequired() throws PackageDownloadException, InterruptedException {
+        try {
+            // Override parent's behavior of checking local file from getArtifactFileName()
+            // In GreengrassRepositoryDownloader, getArtifactFileName() requires calling cloud and may
+            // throw exception.
+            File localFile = getArtifactFile();
+            return !artifactExistsAndChecksum(artifact, localFile.toPath());
         } catch (PackageDownloadException e) {
-            File localArtifactFile = saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
+            artifactFilename = artifact.getArtifactUri().getSchemeSpecificPart();
+            File localArtifactFile = artifactDir.resolve(artifactFilename).toFile();
             if (!localArtifactFile.exists()) {
                 throw e;
             }
-            logger.atInfo("download-required-from-greengrass-repo")
-                    .addKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, componentIdentifier)
-                    .addKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
-                    .log("Failed to download artifact, but found it locally, using that version", e);
-
-            artifact.setFileName(localArtifactFile.getName());
-            return false;
+            artifact.setFileName(artifactFilename);
+            return !artifactExistsAndChecksum(artifact, localArtifactFile.toPath());
         }
-        return true;
     }
 
-    @Override
-    public File downloadToPath(ComponentIdentifier componentIdentifier, ComponentArtifact artifact, Path saveToPath)
-            throws IOException, PackageDownloadException {
-        logger.atInfo().setEventType("download-artifact-from-greengrass-repo")
-                .addKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, componentIdentifier)
-                .addKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri().toString()).log();
+    private void retrieveArtifactInfo() throws PackageDownloadException, InterruptedException {
+        if (artifactSize != null && artifactFilename != null) {
+            return;
+        }
+      
+        // TODO remove after data plane switching to new GCS API
+        URL url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
 
-        try {
-            String preSignedUrl =
-                    getArtifactDownloadURL(componentIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
-            URL url = new URL(preSignedUrl);
-            HttpURLConnection httpConn = connect(url);
-
+        runWithRetry("get-artifact-info", MAX_RETRY, () -> {
+            HttpURLConnection httpConn = null;
             try {
+                httpConn = connect(url);
                 int responseCode = httpConn.getResponseCode();
-
                 if (responseCode == HttpURLConnection.HTTP_OK) {
+                    long length = httpConn.getContentLengthLong();
+                    if (length == -1) {
+                        throw new PackageDownloadException("Failed to get download size");
+                    }
                     String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
                     String filename = extractFilename(url, disposition);
 
+                    // GG_NEEDS_REVIEW: TODO can we simplify getting filename without network request
+                    this.artifactSize = length;
+                    this.artifactFilename = filename;
                     artifact.setFileName(filename);
-
-                    try (InputStream inputStream = httpConn.getInputStream()) {
-                        if (artifactExistsAndChecksum(artifact, saveToPath.resolve(filename))) {
-                            logger.atDebug().addKeyValue("artifact", artifact.getArtifactUri())
-                                    .log("Artifact already exists, skipping download");
-                        } else {
-                            checkIntegrityAndSaveToStore(inputStream, artifact, componentIdentifier,
-                                    saveToPath.resolve(filename));
-                        }
-                    }
-                    return saveToPath.resolve(filename).toFile();
+                } else {
+                    throw new PackageDownloadException("Failed to check greengrass artifact. HTTP response: "
+                            + responseCode);
                 }
-                // TODO: [P41214764]: Handle all status codes in downloading greengrass: artifacts
             } finally {
                 if (httpConn != null) {
                     httpConn.disconnect();
                 }
             }
-        } catch (PackageDownloadException e) {
-            if (!saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile().exists()) {
-                throw e;
-            }
-            logger.atInfo("download-artifact-from-greengrass-repo")
-                    .addKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, componentIdentifier)
-                    .addKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
-                    .log("Failed to download artifact, but found it locally, using that version", e);
-            // GG_NEEDS_REVIEW: TODO : In the download from cloud step we rely on the content-disposition header
-            // to get the file name and that's the accurate name, but here we're only using the scheme specific part
-            //  of the URI when we don't find the file in cloud, we need to follow up on what is the
-            //  right way to get file name
-            return saveToPath.resolve(artifact.getArtifactUri().getSchemeSpecificPart()).toFile();
-        }
-        return null;
+            return null;
+        });
     }
 
-    @Override
-    public long getDownloadSize(ComponentIdentifier componentIdentifier, ComponentArtifact artifact, Path saveToPath)
-            throws PackageDownloadException {
-        logger.atInfo().setEventType("get-download-size-from-greengrass-repo")
-                .addKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, componentIdentifier)
-                .addKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri().toString()).log();
-
-        try {
-            String preSignedUrl =
-                    getArtifactDownloadURL(componentIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
-            URL url = new URL(preSignedUrl);
-            HttpURLConnection conn = connect(url);
-            long length = conn.getContentLengthLong();
-            if (length == -1) {
-                throw new PackageDownloadException("Failed to get download size");
-            }
-            return length;
-        } catch (IOException e) {
-            throw new PackageDownloadException("Failed to get download size", e);
-        }
-    }
-
-    @Override
-    public File getArtifactFile(Path artifactDir, ComponentArtifact artifact, ComponentIdentifier componentIdentifier) {
-        if (artifact.getFileName() != null) {
-            return artifactDir.resolve(artifact.getFileName()).toFile();
-        }
-        // TODO remove after data plane switching to new GCS API
-        try {
-            String preSignedUrl =
-                    getArtifactDownloadURL(componentIdentifier, artifact.getArtifactUri().getSchemeSpecificPart());
-            URL url = new URL(preSignedUrl);
-            HttpURLConnection httpConn = connect(url);
-            try {
-                int responseCode = httpConn.getResponseCode();
-
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    String disposition = httpConn.getHeaderField(HTTP_HEADER_CONTENT_DISPOSITION);
-                    String filename = extractFilename(url, disposition);
-                    return artifactDir.resolve(filename).toFile();
-                } else {
-                    throw new RuntimeException("Received non 200 status code when calling the pre signed url.");
-                }
-            } finally {
-                httpConn.disconnect();
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Failed when making http connection to the pre signed url.", e);
-        } catch (PackageDownloadException e) {
-            throw new RuntimeException("Failed to get presigned url for artifact", e);
-        }
-    }
-
-    HttpURLConnection connect(URL url) throws IOException {
-        return (HttpURLConnection) url.openConnection();
-    }
-
-    String getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
+    private URL getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws PackageDownloadException {
         GetComponentVersionArtifactRequest getComponentArtifactRequest =
                 new GetComponentVersionArtifactRequest().withArtifactName(artifactName)
                         .withComponentName(componentIdentifier.getName())
                         .withComponentVersion(componentIdentifier.getVersion().toString());
 
+        String preSignedUrl;
         try {
             GetComponentVersionArtifactResult getComponentArtifactResult =
                     clientFactory.getCmsClient().getComponentVersionArtifact(getComponentArtifactRequest);
-            return getComponentArtifactResult.getPreSignedUrl();
+            preSignedUrl = getComponentArtifactResult.getPreSignedUrl();
         } catch (AmazonClientException ace) {
-            // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions
-            throw new PackageDownloadException(
-                    String.format(ARTIFACT_DOWNLOAD_EXCEPTION_PMS_FMT, artifactName, componentIdentifier.getName(),
-                            componentIdentifier.getVersion().toString()), ace);
+            throw new PackageDownloadException(getErrorString("error in get artifact download URL"), ace);
         }
+        try {
+            return new URL(preSignedUrl);
+        } catch (MalformedURLException e) {
+            throw new PackageDownloadException(getErrorString("Malformed artifact URL"), e);
+        }
+    }
+
+    HttpURLConnection connect(URL url) throws IOException {
+        return (HttpURLConnection) url.openConnection();
     }
 
     static String extractFilename(URL preSignedUrl, String contentDisposition) {
