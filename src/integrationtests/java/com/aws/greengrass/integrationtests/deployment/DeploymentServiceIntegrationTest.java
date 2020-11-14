@@ -102,7 +102,7 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_device_deployment_not_started_WHEN_new_deployment_THEN_first_deployment_cancelled() throws Exception {
+    void GIVEN_device_deployment_not_started_WHEN_new_deployment_THEN_first_deployment_cancelled(ExtensionContext context) throws Exception {
         CountDownLatch cdlDeployNonDisruptable = new CountDownLatch(1);
         CountDownLatch cdlDeployRedSignal = new CountDownLatch(1);
         CountDownLatch cdlRedeployNonDisruptable = new CountDownLatch(1);

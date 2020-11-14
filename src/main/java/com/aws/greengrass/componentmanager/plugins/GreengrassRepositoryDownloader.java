@@ -112,28 +112,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     // TODO: remove this overriding function once GGRepositoryDownloader doesn't need to call cloud to get
     // artifact file name.
     @Override
-    public File getArtifactFile() throws InterruptedException {
-        // GG_NEEDS_REVIEW: TODO : In the download from cloud step we rely on the content-disposition header to get the
-        //  file name and that's the accurate name, but here we're only using the scheme specific part
-        //  of the URI when we don't find the file in cloud, we need to follow up on what is the
-        //  right way to get file name
-        if (artifactFilename != null) {
-            return artifactDir.resolve(artifactFilename).toFile();
-        }
-        try {
-            return artifactDir.resolve(getArtifactFilename()).toFile();
-        } catch (PackageDownloadException e) {
-            logger.atWarn().log("Error in getting file name from HTTP response,"
-                    + " getting local file name from URI scheme specific part", e);
-            artifactFilename = artifact.getArtifactUri().getSchemeSpecificPart();
-            return artifactDir.resolve(artifactFilename).toFile();
-        }
-    }
-
-    // TODO: remove this overriding function once GGRepositoryDownloader doesn't need to call cloud to get
-    // artifact file name.
-    @Override
-    public boolean downloadRequired() throws InterruptedException {
+    public boolean downloadRequired() throws PackageDownloadException, InterruptedException {
         try {
             // Override parent's behavior of checking local file from getArtifactFileName()
             // In GreengrassRepositoryDownloader, getArtifactFileName() requires calling cloud and may
@@ -141,7 +120,13 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             File localFile = getArtifactFile();
             return !artifactExistsAndChecksum(artifact, localFile.toPath());
         } catch (PackageDownloadException e) {
-            return true;
+            artifactFilename = artifact.getArtifactUri().getSchemeSpecificPart();
+            File localArtifactFile = artifactDir.resolve(artifactFilename).toFile();
+            if (!localArtifactFile.exists()) {
+                throw e;
+            }
+            artifact.setFileName(artifactFilename);
+            return !artifactExistsAndChecksum(artifact, localArtifactFile.toPath());
         }
     }
 

@@ -173,8 +173,9 @@ public abstract class ArtifactDownloader {
      *
      * @return true if download is necessary
      * @throws InterruptedException if interrupted in downloading
+     * @throws PackageDownloadException if error encountered
      */
-    public boolean downloadRequired() throws InterruptedException {
+    public boolean downloadRequired() throws PackageDownloadException, InterruptedException {
         try {
             String filename = getArtifactFilename();
             return !artifactExistsAndChecksum(artifact, artifactDir.resolve(filename));
