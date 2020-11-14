@@ -10,12 +10,12 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.ProxyUtils;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
+import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
@@ -46,7 +46,6 @@ class AwsIotMqttClient implements Closeable {
     private final Provider<AwsIotMqttConnectionBuilder> builderProvider;
     @Getter
     private final String clientId;
-    @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
     private MqttClientConnection connection;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
     private final CallbackEventManager callbackEventManager;
@@ -100,20 +99,26 @@ class AwsIotMqttClient implements Closeable {
     CompletableFuture<Integer> subscribe(String topic, QualityOfService qos) {
         return connect().thenCompose((b) -> {
             logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name()).log("Subscribing to topic");
-            return connection.subscribe(topic, qos).thenApply((i) -> {
-                subscriptionTopics.put(topic, qos);
-                return i;
-            });
+            synchronized (this) {
+                throwIfNotConnected();
+                return connection.subscribe(topic, qos).thenApply((i) -> {
+                    subscriptionTopics.put(topic, qos);
+                    return i;
+                });
+            }
         });
     }
 
     CompletableFuture<Integer> unsubscribe(String topic) {
         return connect().thenCompose((b) -> {
             logger.atDebug().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
-            return connection.unsubscribe(topic).thenApply((i) -> {
-                subscriptionTopics.remove(topic);
-                return i;
-            });
+            synchronized (this) {
+                throwIfNotConnected();
+                return connection.unsubscribe(topic).thenApply((i) -> {
+                    subscriptionTopics.remove(topic);
+                    return i;
+                });
+            }
         });
     }
 
@@ -121,8 +126,17 @@ class AwsIotMqttClient implements Closeable {
         return connect().thenCompose((b) -> {
             logger.atTrace().kv(TOPIC_KEY, message.getTopic()).kv(QOS_KEY, qos.name()).kv("retain", retain)
                     .log("Publishing message");
-            return connection.publish(message, qos, retain);
+            synchronized (this) {
+                throwIfNotConnected();
+                return connection.publish(message, qos, retain);
+            }
         });
+    }
+
+    private void throwIfNotConnected() {
+        if (!connected()) {
+            throw new MqttException("Client is not connected");
+        }
     }
 
     void reconnect() throws TimeoutException, ExecutionException, InterruptedException {
@@ -195,7 +209,7 @@ class AwsIotMqttClient implements Closeable {
         return subscriptionTopics.size();
     }
 
-    boolean connected() {
+    synchronized boolean connected() {
         return connection != null && currentlyConnected.get();
     }
 
