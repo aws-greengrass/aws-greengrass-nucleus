@@ -12,15 +12,14 @@ import com.amazonaws.services.evergreen.model.ComponentContent;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
-import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.exceptions.SizeLimitException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
-import com.aws.greengrass.componentmanager.plugins.GreengrassRepositoryDownloader;
-import com.aws.greengrass.componentmanager.plugins.S3Downloader;
+import com.aws.greengrass.componentmanager.plugins.ArtifactDownloader;
+import com.aws.greengrass.componentmanager.plugins.ArtifactDownloaderFactory;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -57,7 +56,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -123,9 +121,10 @@ class ComponentManagerTest {
     private ComponentManager componentManager;
 
     @Mock
-    private GreengrassRepositoryDownloader artifactDownloader;
+    private ArtifactDownloader artifactDownloader;
+
     @Mock
-    private S3Downloader s3Downloader;
+    private ArtifactDownloaderFactory artifactDownloaderFactory;
 
     @Mock
     private ComponentServiceHelper componentManagementServiceHelper;
@@ -147,14 +146,15 @@ class ComponentManagerTest {
 
     @BeforeEach
     void beforeEach() throws Exception {
-        lenient().when(artifactDownloader.downloadRequired(any(), any(), any())).thenReturn(true);
-        lenient().when(s3Downloader.downloadRequired(any(), any(), any())).thenReturn(true);
+        lenient().when(artifactDownloader.downloadRequired()).thenReturn(true);
+        lenient().when(artifactDownloaderFactory.getArtifactDownloader(any(), any(), any()))
+                .thenReturn(artifactDownloader);
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         Topic maxSizeTopic = Topic.of(context, COMPONENT_STORE_MAX_SIZE_BYTES, COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         lenient().when(deviceConfiguration.getComponentStoreMaxSizeBytes()).thenReturn(maxSizeTopic);
         lenient().when(componentStore.getUsableSpace()).thenReturn(100_000_000L);
         componentManager =
-                new ComponentManager(s3Downloader, artifactDownloader, componentManagementServiceHelper, executor, componentStore,
+                new ComponentManager(artifactDownloaderFactory, componentManagementServiceHelper, executor, componentStore,
                                      kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
     }
 
@@ -174,25 +174,7 @@ class ComponentManagerTest {
 
         componentManager.prepareArtifacts(pkgId, Collections.emptyList());
 
-        verify(artifactDownloader, never()).downloadToPath(any(), any(), any());
-    }
-
-    @Test
-    void GIVEN_artifact_from_gg_repo_WHEN_attempt_download_artifact_THEN_invoke_gg_downloader() throws Exception {
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
-
-        when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
-
-        componentManager.prepareArtifacts(pkgId, Arrays.asList(
-                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary1")).build(),
-                ComponentArtifact.builder().artifactUri(new URI("greengrass:binary2")).build()));
-
-        ArgumentCaptor<ComponentArtifact> artifactArgumentCaptor = ArgumentCaptor.forClass(ComponentArtifact.class);
-        verify(artifactDownloader, times(2)).downloadToPath(eq(pkgId), artifactArgumentCaptor.capture(), eq(tempDir));
-        List<ComponentArtifact> artifactsList = artifactArgumentCaptor.getAllValues();
-        assertThat(artifactsList.size(), is(2));
-        assertThat(artifactsList.get(0).getArtifactUri().getSchemeSpecificPart(), is("binary1"));
-        assertThat(artifactsList.get(1).getArtifactUri().getSchemeSpecificPart(), is("binary2"));
+        verify(artifactDownloader, never()).downloadToPath();
     }
 
     @Test
@@ -200,8 +182,8 @@ class ComponentManagerTest {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
 
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
-        when(artifactDownloader.downloadToPath(any(), any(), any())).thenReturn(new File("binary1"));
-        when(artifactDownloader.getArtifactFile(any(), any(), any())).thenReturn(new File("binary1"));
+        when(artifactDownloader.downloadToPath()).thenReturn(new File("binary1"));
+        when(artifactDownloader.getArtifactFile()).thenReturn(new File("binary1"));
 
         componentManager.prepareArtifacts(pkgId, Arrays.asList(
                 ComponentArtifact.builder().artifactUri(new URI("greengrass:binary1")).unarchive(Unarchive.ZIP).build(),
@@ -211,56 +193,6 @@ class ComponentManagerTest {
         ArgumentCaptor<File> fileCaptor = ArgumentCaptor.forClass(File.class);
         verify(mockUnarchiver).unarchive(any(), fileCaptor.capture(), any());
         assertEquals("binary1", fileCaptor.getValue().getName());
-    }
-
-    @Test
-    void GIVEN_artifact_from_s3_WHEN_attempt_download_THEN_invoke_s3_downloader() throws Exception {
-        ComponentIdentifier pkgId = new ComponentIdentifier("SomeServiceWithArtifactsInS3", new Semver("1.0.0"));
-
-        when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
-
-        componentManager.prepareArtifacts(pkgId, Collections
-                .singletonList(ComponentArtifact.builder().artifactUri(new URI("s3://bucket/path/to/key")).build()));
-
-        ArgumentCaptor<ComponentArtifact> artifactArgumentCaptor = ArgumentCaptor.forClass(ComponentArtifact.class);
-        verify(s3Downloader, times(1)).downloadToPath(eq(pkgId), artifactArgumentCaptor.capture(), eq(tempDir));
-        List<ComponentArtifact> artifactsList = artifactArgumentCaptor.getAllValues();
-        assertThat(artifactsList.size(), is(1));
-        assertThat(artifactsList.get(0).getArtifactUri().getSchemeSpecificPart(), is("//bucket/path/to/key"));
-    }
-
-    @Test
-    void GIVEN_artifact_provider_not_supported_WHEN_attempt_download_THEN_throw_package_exception()
-            throws PackageLoadingException {
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
-        when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
-
-        Exception exception = assertThrows(PackageLoadingException.class, () -> componentManager.prepareArtifacts(pkgId,
-                                                                                                                  Collections
-                                                                                                                          .singletonList(
-                                                                                                                                  ComponentArtifact
-                                                                                                                                          .builder()
-                                                                                                                                          .artifactUri(
-                                                                                                                                                  new URI("docker:image1"))
-                                                                                                                                          .build())));
-        assertThat(exception.getMessage(), is("artifact URI scheme DOCKER is not supported yet"));
-    }
-
-    @Test
-    void GIVEN_artifact_url_no_scheme_WHEN_attempt_download_THEN_throw_package_exception()
-            throws PackageLoadingException {
-        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0" + ".0"));
-
-        when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
-        Exception exception = assertThrows(PackageLoadingException.class, () -> componentManager.prepareArtifacts(pkgId,
-                                                                                                                  Collections
-                                                                                                                          .singletonList(
-                                                                                                                                  ComponentArtifact
-                                                                                                                                          .builder()
-                                                                                                                                          .artifactUri(
-                                                                                                                                                  new URI("binary1"))
-                                                                                                                                          .build())));
-        assertThat(exception.getMessage(), is("artifact URI scheme null is not supported yet"));
     }
 
     @Test
@@ -503,7 +435,7 @@ class ComponentManagerTest {
         ignoreExceptionUltimateCauseOfType(context, SizeLimitException.class);
         Future<Void> future = componentManager.preparePackages(Collections.singletonList(pkgId));
         assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
-        verify(artifactDownloader, never()).downloadToPath(any(), any(), any());
+        verify(artifactDownloader, never()).downloadToPath();
     }
 
     @Test
@@ -521,12 +453,12 @@ class ComponentManagerTest {
 
         // mock very large component store size
         when(componentStore.getContentSize()).thenReturn(TEN_TERA_BYTES);
-        when(artifactDownloader.getDownloadSize(any(), any(), any())).thenReturn(TEN_BYTES);
+        when(artifactDownloader.getDownloadSize()).thenReturn(TEN_BYTES);
 
         ignoreExceptionUltimateCauseOfType(context, SizeLimitException.class);
         Future<Void> future = componentManager.preparePackages(Collections.singletonList(pkgId));
         assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
-        verify(artifactDownloader, never()).downloadToPath(any(), any(), any());
+        verify(artifactDownloader, never()).downloadToPath();
     }
 
     @Test
