@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -44,6 +45,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class AuthorizationPolicyParserTest {
 
+    private final static String TEST_COMPONENT = "testComponent";
     private final AuthorizationPolicyParser policyParser = new AuthorizationPolicyParser();
 
     @Mock
@@ -77,24 +79,40 @@ class AuthorizationPolicyParserTest {
         readConfig("pubsub_valid.yaml");
         Map<String, List<AuthorizationPolicy>> authorizationPolicyMap = policyParser
                 .parseAllAuthorizationPolicies(kernel);
-        assertThat(authorizationPolicyMap.size(), equalTo(1));
-        assertThat(authorizationPolicyMap.get(PUB_SUB_SERVICE_NAME).size(), equalTo(2));
+        // We have total of 2 destination components
+        assertThat(authorizationPolicyMap.size(), equalTo(2));
+        // pub sub has total 3 policies
+        assertThat(authorizationPolicyMap.get(PUB_SUB_SERVICE_NAME).size(), equalTo(3));
 
         Collections.sort(authorizationPolicyMap.get(PUB_SUB_SERVICE_NAME));
 
+        AuthorizationPolicy policy1 = authorizationPolicyMap.get(PUB_SUB_SERVICE_NAME).get(0);
+        assertThat(policy1.getPolicyId(), equalTo("policyId1"));
+        assertThat(policy1.getPolicyDescription(), equalTo("access to pubsub topics 1"));
+        assertThat(policy1.getOperations(), containsInAnyOrder("publish", "subscribe"));
+        assertThat(policy1.getPrincipals(), containsInAnyOrder("mqtt"));
+        assertThat(policy1.getResources(), containsInAnyOrder("/topic/1/#", "/longer/topic/example/"));
+
         AuthorizationPolicy policy2 = authorizationPolicyMap.get(PUB_SUB_SERVICE_NAME).get(1);
         assertThat(policy2.getPolicyId(), equalTo("policyId2"));
-        assertThat(policy2.getPolicyDescription(), equalTo("access to pubsub topics"));
-        assertThat(policy2.getOperations(), containsInAnyOrder("publish", "subscribe"));
+        assertThat(policy2.getPolicyDescription(), equalTo("access to pubsub topics 2"));
+        assertThat(policy2.getOperations(), containsInAnyOrder("publish"));
         assertThat(policy2.getPrincipals(), containsInAnyOrder("mqtt"));
-        assertThat(policy2.getResources(), containsInAnyOrder("/topic/1/#", "/longer/topic/example/"));
+        assertThat(policy2.getResources(), containsInAnyOrder("/publishOnlyTopic"));
 
-        AuthorizationPolicy policy = authorizationPolicyMap.get(PUB_SUB_SERVICE_NAME).get(0);
-        assertThat(policy.getPolicyId(), equalTo("policyId1"));
-        assertThat(policy.getPolicyDescription(), equalTo("access to pubsub topics"));
-        assertThat(policy.getOperations(), containsInAnyOrder("publish", "subscribe"));
-        assertThat(policy.getPrincipals(), containsInAnyOrder("ServiceName"));
-        assertThat(policy.getResources(), containsInAnyOrder("/topic/1/#", "/longer/topic/example/", "*"));
+        AuthorizationPolicy policy3 = authorizationPolicyMap.get(PUB_SUB_SERVICE_NAME).get(2);
+        assertThat(policy3.getPolicyId(), equalTo("policyId4"));
+        assertThat(policy3.getPolicyDescription(), equalTo("access to pubsub topics 4"));
+        assertThat(policy3.getOperations(), containsInAnyOrder("publish", "subscribe"));
+        assertThat(policy3.getPrincipals(), containsInAnyOrder("ServiceName"));
+        assertThat(policy3.getResources(), containsInAnyOrder("/topic/1/#", "/longer/topic/example/", "*"));
+
+        AuthorizationPolicy secretPolicy = authorizationPolicyMap.get(TEST_COMPONENT).get(0);
+        assertThat(secretPolicy.getPolicyId(), equalTo("policyId3"));
+        assertThat(secretPolicy.getPolicyDescription(), equalTo("access to secrets"));
+        assertThat(secretPolicy.getOperations(), containsInAnyOrder("getsecret"));
+        assertThat(secretPolicy.getPrincipals(), containsInAnyOrder("mqtt"));
+        assertThat(secretPolicy.getResources(), containsInAnyOrder("secret1"));
     }
 
     @Test
@@ -125,7 +143,7 @@ class AuthorizationPolicyParserTest {
     }
 
     @Test
-    void GIVEN_invalid_pubsub_yaml_file_without_operations_WHEN_auth_parsing_THEN_fail(ExtensionContext context) throws Throwable {
+    void GIVEN_invalid_pubsub_yaml_file_without_operations_WHEN_auth_parsing_THEN_fail() throws Throwable {
 
         readConfig("pubsub_invalid_no_operations.yaml");
         try {
@@ -144,12 +162,14 @@ class AuthorizationPolicyParserTest {
     }
 
     @Test
-    void GIVEN_invalid_pubsub_yaml_file_with_invalid_fields_WHEN_auth_parsing_THEN_fail() throws Throwable {
+    void GIVEN_invalid_pubsub_yaml_file_with_invalid_fields_WHEN_auth_parsing_THEN_fail(ExtensionContext context)
+            throws Throwable {
+        ignoreExceptionOfType(context, IllegalArgumentException.class);
         readConfig("pubsub_invalid_fields.yaml");
         try {
             logReceived = new CountDownLatch(1);
             logListener = m -> {
-                if ("load-authorization-config-unknown-policy-key".equals(m.getEventType())) {
+                if ("load-authorization-config-deserialization-error".equals(m.getEventType())) {
                     logReceived.countDown();
                 }
             };

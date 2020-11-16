@@ -7,7 +7,8 @@ package com.aws.greengrass.integrationtests.ipc;
 
 import com.aws.greengrass.authorization.AuthorizationModule;
 import com.aws.greengrass.authorization.Permission;
-import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -16,6 +17,8 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Pair;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
@@ -34,6 +37,7 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -63,17 +67,17 @@ import static org.junit.jupiter.api.Assertions.fail;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class IPCPubSubTest {
     private static final Logger logger = LogManager.getLogger(IPCPubSubTest.class);
-
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static int TIMEOUT_FOR_PUBSUB_SECONDS = 2;
     private static Kernel kernel;
     public static Permission TES_DEFAULT_POLICY =
             Permission.builder().principal("*").operation("getCredentials").resource(null).build();
-    private static final String newACl =
+    private static final String newAclStr =
             "{  \n" +
-            "   \"aws.greengrass.ipc.pubsub\":[\n" +
+            "   \"aws.greengrass.ipc.pubsub\":\n" +
             "        {\n" +
             "          \"policyId10\":{\n" +
-            "            \"policyDescription\":\"access to pubsub topics for ServiceName\",\n" +
+            "            \"policyDescription\":\"all access to pubsub topics for ServiceName\",\n" +
             "            \"operations\":[\n" +
             "              \"*\"\n" +
             "            ],\n" +
@@ -82,15 +86,13 @@ class IPCPubSubTest {
             "            ]\n" +
             "          }\n" +
             "        }\n" +
-            "    ]\n" +
             "}";
-
-    private static final String oldACl =
+    private static final String oldAclStr =
             "{  \n" +
-            "   \"aws.greengrass.ipc.pubsub\":[\n" +
+            "   \"aws.greengrass.ipc.pubsub\":\n" +
             "        {\n" +
             "          \"policyId4\":{\n" +
-            "            \"policyDescription\":\"access to pubsub topics for ServiceName\",\n" +
+            "            \"policyDescription\":\"publish access to pubsub topics for ServiceName\",\n" +
             "            \"operations\":[\n" +
             "              \"aws.greengrass#PublishToTopic\"\n" +
             "            ],\n" +
@@ -101,7 +103,6 @@ class IPCPubSubTest {
             "            ]\n" +
             "          }\n" +
             "        }\n" +
-            "    ]\n" +
             "}";
 
     @BeforeAll
@@ -132,7 +133,6 @@ class IPCPubSubTest {
             cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
         }
     }
-
 
 
     @Test
@@ -179,8 +179,10 @@ class IPCPubSubTest {
                     () -> subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight()));
             assertTrue(executionException.getCause() instanceof UnauthorizedError);
 
-            Topic aclTopic = kernel.findServiceTopic("OnlyPublish").find(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
-            aclTopic.withNewerValue(System.currentTimeMillis(), newACl);
+            Topics aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+            Map<String, Object> newAcl = OBJECT_MAPPER.readValue(newAclStr, new TypeReference<Map<String, Object>>(){});
+            aclTopic.updateFromMap(newAcl,
+                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
             //Block until events are completed
             kernel.getContext().runOnPublishQueueAndWait(() -> {
             });
@@ -192,8 +194,10 @@ class IPCPubSubTest {
 
             cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
 
-            aclTopic = kernel.findServiceTopic("OnlyPublish").find(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
-            aclTopic.withNewerValue(System.currentTimeMillis(), oldACl);
+            aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+            Map<String, Object> oldAcl = OBJECT_MAPPER.readValue(oldAclStr, new TypeReference<Map<String, Object>>(){});
+            aclTopic.updateFromMap(oldAcl,
+                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
             //Block until events are completed
             kernel.getContext().runOnPublishQueueAndWait(() -> {
             });
@@ -330,8 +334,10 @@ class IPCPubSubTest {
                     unauthorizedError.getMessage());
 
         }
-        Topic aclTopic = kernel.findServiceTopic("OnlyPublish").find(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
-        aclTopic.withNewerValue(System.currentTimeMillis(), newACl);
+        Topics aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+        Map<String, Object> newAcl = OBJECT_MAPPER.readValue(newAclStr, new TypeReference<Map<String, Object>>(){});
+        aclTopic.updateFromMap(newAcl,
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
         //Block until events are completed
         kernel.getContext().runOnPublishQueueAndWait(() -> { });
         assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
@@ -352,8 +358,10 @@ class IPCPubSubTest {
             assertTrue(subscriptionLatch.await(10, TimeUnit.SECONDS));
         }
 
-        aclTopic = kernel.findServiceTopic("OnlyPublish").find(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
-        aclTopic.withNewerValue(System.currentTimeMillis(), oldACl);
+        aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+        Map<String, Object> oldAcl = OBJECT_MAPPER.readValue(oldAclStr, new TypeReference<Map<String, Object>>(){});
+        aclTopic.updateFromMap(oldAcl,
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
         //Block until events are completed
         kernel.getContext().runOnPublishQueueAndWait(() -> {
         });

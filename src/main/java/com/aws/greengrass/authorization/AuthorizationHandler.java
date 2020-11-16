@@ -6,7 +6,6 @@
 package com.aws.greengrass.authorization;
 
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -37,6 +36,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTR
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.AUTHZ_TES_OPERATION;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_SECRET_VALUE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_TOPIC;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE;
@@ -46,7 +46,7 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUB
  * Main module which is responsible for handling AuthZ for Greengrass. This only manages
  * the AuthZ configuration and performs lookups based on the config. Config is just a copy of
  * customer config and this module does not try to optimize storage. For instance,
- * if customer specifies same policies twice, we treat and store them separately. Components are
+ * if customer specifies same policy twice, we treat and store them separately. Components are
  * identified by their service identifiers (component names) and operation/resources are assumed to be
  * opaque strings. They are not treated as confidential and it should be the responsibility
  * of the caller to use proxy identifiers for confidential data. Implementation optimizes for fast lookups
@@ -55,6 +55,7 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUB
 @Singleton
 public class AuthorizationHandler  {
     public static final String ANY_REGEX = "*";
+    public static final String SECRETS_MANAGER_SERVICE_NAME = "aws.greengrass.SecretManager";
     private static final Logger logger = LogManager.getLogger(AuthorizationHandler.class);
     private final ConcurrentHashMap<String, Set<String>> componentToOperationsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<AuthorizationPolicy>>
@@ -82,6 +83,8 @@ public class AuthorizationHandler  {
                 SUBSCRIBE_TO_TOPIC, ANY_REGEX)));
         componentToOperationsMap.put(MQTT_PROXY_SERVICE_NAME, new HashSet<>(Arrays.asList(PUBLISH_TO_IOT_CORE,
                 SUBSCRIBE_TO_IOT_CORE, ANY_REGEX)));
+        componentToOperationsMap.put(SECRETS_MANAGER_SERVICE_NAME, new HashSet<>(Arrays.asList(GET_SECRET_VALUE,
+                ANY_REGEX)));
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
@@ -92,8 +95,8 @@ public class AuthorizationHandler  {
             this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), false);
         }
 
-        //Subscribe to future auth config updates
-        this.kernel.getConfig().getRoot().subscribe(
+        // Subscribe to future auth config updates
+        this.kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).subscribe(
                 (why, newv) -> {
                     if (newv == null) {
                         return;
@@ -103,20 +106,17 @@ public class AuthorizationHandler  {
                     //If there is a childRemoved event, it could be the component is removed, or either the
                     //'accessControl' Topic or/the 'parameters' Topics that has bubbled up, so we need to handle and
                     //filter out all other WhatHappeneds
-                    if (WhatHappened.childChanged.equals(why)) {
-                        if (!newv.childOf(PARAMETERS_CONFIG_KEY) || !newv.getName()
-                                .equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                    if (WhatHappened.childRemoved.equals(why) || WhatHappened.removed.equals(why)) {
+                        // Either a service or a parameter block or acl subkey
+                        if (!newv.parent.getName().equals(SERVICES_NAMESPACE_TOPIC)
+                                && !newv.getName().equals(PARAMETERS_CONFIG_KEY)
+                                && !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)
+                                && !newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
                             return;
                         }
-                        if (!(newv instanceof Topic)) {
-                            logger.atError("update-authorization-formatting-error")
-                                    .addKeyValue("InvalidNodeName", newv.getFullName())
-                                    .log("Incorrect formatting while updating the authorization ACL.");
-                            return;
-                        }
-                    } else if (WhatHappened.childRemoved.equals(why) && !newv.parent.getName()
-                            .equals(SERVICES_NAMESPACE_TOPIC) && !newv.getName().equals(PARAMETERS_CONFIG_KEY) && !newv
-                            .getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                    } else if (!newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC)
+                            && !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                        // for all other WhatHappened cases we only care about access control change
                         return;
                     }
 
@@ -125,7 +125,7 @@ public class AuthorizationHandler  {
                     Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
                             .parseAllAuthorizationPolicies(kernel);
 
-                    //Load default policies
+                    // Load default policies
                     reloadedPolicies.putAll(getDefaultPolicies());
 
                     try (LockScope scope = LockScope.lock(rwLock.writeLock())) {
@@ -267,7 +267,7 @@ public class AuthorizationHandler  {
         try {
             isComponentRegistered(componentName);
         } catch (AuthorizationException e) {
-            logger.atError("load-authorization-config-invalid-component", e)
+            logger.atError("load-authorization-config-invalid-component").setCause(e)
                     .log("Component {} is invalid or not registered with the AuthorizationHandler",
                             componentName);
             return;
@@ -276,7 +276,7 @@ public class AuthorizationHandler  {
         try {
             validatePolicyId(policies);
         } catch (AuthorizationException e) {
-            logger.atError("load-authorization-config-invalid-policy", e)
+            logger.atError("load-authorization-config-invalid-policy").setCause(e)
                     .log("Component {} contains an invalid policy", componentName);
             return;
         }
@@ -286,7 +286,7 @@ public class AuthorizationHandler  {
             try {
                 validatePrincipals(policy);
             } catch (AuthorizationException e) {
-                logger.atError("load-authorization-config-invalid-principal", e)
+                logger.atError("load-authorization-config-invalid-principal").setCause(e)
                         .log("Component {} contains an invalid principal in policy {}", componentName,
                                 policy.getPolicyId());
                 continue;
@@ -294,7 +294,7 @@ public class AuthorizationHandler  {
             try {
                 validateOperations(componentName, policy);
             } catch (AuthorizationException e) {
-                logger.atError("load-authorization-config-invalid-operation", e)
+                logger.atError("load-authorization-config-invalid-operation").setCause(e)
                         .log("Component {} contains an invalid operation in policy {}", componentName,
                                 policy.getPolicyId());
             }
@@ -306,15 +306,17 @@ public class AuthorizationHandler  {
         for (AuthorizationPolicy policy : policies) {
             try {
                 addPermission(componentName, policy.getPrincipals(), policy.getOperations(), policy.getResources());
+                logger.atDebug("load-authorization-config")
+                        .log("loaded authorization config for {} as policy {}", componentName, policy);
             } catch (AuthorizationException e) {
-                logger.atError("load-authorization-config-add-permission-error", e)
+                logger.atError("load-authorization-config-add-permission-error").setCause(e)
                         .log("Error while loading policy {} for component {}", policy.getPolicyId(),
                                 componentName);
             }
         }
 
         this.componentToAuthZConfig.put(componentName, policies);
-        logger.atInfo("load-authorization-config-success")
+        logger.atDebug("load-authorization-config-success")
                 .log("Successfully loaded authorization config for {}", componentName);
 
     }

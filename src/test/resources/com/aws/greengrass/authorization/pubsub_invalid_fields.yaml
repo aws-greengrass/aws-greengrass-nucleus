@@ -9,8 +9,15 @@ services:
   mqtt:
     parameters:
       accessControl:
-        '{"aws.greengrass.ipc.pubsub":[{"policyId2":{"policyDescription":"access to pubsub topics","operations":["publish","subscribe"],"resources":["/topic/1/#","/longer/topic/example/"]}}]}'
-
+        aws.greengrass.ipc.pubsub:
+          policyId2:
+            policyDescription: access to pubsub topics
+            operations:
+              - publish
+              - subscribe
+            resources:
+              - /topic/1/#
+              - /longer/topic/example/
 
   ServiceName:
     lifecycle:
@@ -21,5 +28,12 @@ services:
           sleep 100
     parameters:
       accessControl:
-        '{"aws.greengrass.ipc.pubsub":[{"policyId1":{"policyTypeInvalid":"access to pubsub topics","operations":["publish","subscribe"],"resources":["/topic/1/#","/longer/topic/example/","*"]}}]}'
-
+        aws.greengrass.ipc.pubsub:
+          policyId1:
+            policyTypeInvalid: access to pubsub topics
+            operations:
+              - publish
+              - subscribe
+            resources:
+              - /topic/1/#
+              - /longer/topic/example/

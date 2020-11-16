@@ -11,23 +11,16 @@ services:
   PublishNotSubscribe:
     parameters:
       accessControl:
-        '{
-          "aws.greengrass.ipc.pubsub":[
-          {
-            "policyId1":{
-              "policyDescription":"access to pubsub topics for mqtt",
-              "operations":[
-                "aws.greengrass#PublishToTopic"
-              ],
-              "resources":[
-                "/topic/1/#",
-                "/longer/topic/example/",
-                "*"
-              ]
-            }
-          }
-          ]
-        }'
+        aws.greengrass.ipc.pubsub:
+          policyId1:
+            policyDescription: access to pubsub topics for mqtt
+            operations:
+              - 'aws.greengrass#PublishToTopic'
+            resources:
+              - /topic/1/#
+              - /longer/topic/example/
+              - '*'
+
   SubscribeAndPublish:
     dependencies:
       - PublishNotSubscribe
@@ -43,21 +36,14 @@ services:
           sleep 1
     parameters:
       accessControl:
-        '{
-          "aws.greengrass.ipc.pubsub":[
-          {
-            "policyId2":{
-              "policyDescription":"access to pubsub topics for ServiceName",
-              "operations":[
-                "*"
-              ],
-              "resources":[
-                "*"
-              ]
-            }
-          }
-          ]
-        }'
+        aws.greengrass.ipc.pubsub:
+          policyId2:
+            policyDescription: access to pubsub topics for ServiceName
+            operations:
+              - '*'
+            resources:
+              - '*'
+
   SubscribeNotPublish:
     lifecycle:
       run:
@@ -67,23 +53,16 @@ services:
           sleep 1
     parameters:
       accessControl:
-        '{
-           "aws.greengrass.ipc.pubsub":[
-           {
-             "policyId3":{
-               "policyDescription":"access to pubsub topics",
-               "operations":[
-                 "aws.greengrass#SubscribeToTopic"
-               ],
-               "resources":[
-                 "/topic/1/#",
-                 "/longer/topic/example/",
-                 "*"
-               ]
-             }
-           }
-           ]
-         }'
+        aws.greengrass.ipc.pubsub:
+          policyId3:
+            policyDescription: access to pubsub topics
+            operations:
+              - 'aws.greengrass#SubscribeToTopic'
+            resources:
+              - /topic/1/#
+              - /longer/topic/example/
+              - '*'
+
   OnlyPublish:
     lifecycle:
       run:
@@ -93,23 +72,15 @@ services:
           sleep 1
     parameters:
       accessControl:
-        '{
-             "aws.greengrass.ipc.pubsub":[
-             {
-               "policyId4":{
-                 "policyDescription":"access to pubsub topics",
-                 "operations":[
-                   "aws.greengrass#PublishToTopic"
-                 ],
-                 "resources":[
-                   "/topic/1/#",
-                   "/longer/topic/example/",
-                   "*"
-                 ]
-               }
-             }
-             ]
-           }'
+        aws.greengrass.ipc.pubsub:
+          policyId4:
+            policyDescription: access to pubsub topics
+            operations:
+              - 'aws.greengrass#PublishToTopic'
+            resources:
+              - /topic/1/#
+              - /longer/topic/example/
+              - '*'
   DoAll1:
     lifecycle:
       run:
@@ -119,21 +90,14 @@ services:
           sleep 1
     parameters:
       accessControl:
-        '{
-            "aws.greengrass.ipc.pubsub":[
-            {
-              "policyId5":{
-                "policyDescription":"access to pubsub topics for ServiceName",
-                "operations":[
-                  "*"
-                ],
-                "resources":[
-                  "*"
-                ]
-              }
-            }
-            ]
-          }'
+        aws.greengrass.ipc.pubsub:
+          policyId5:
+            policyDescription: access to pubsub topics for doall
+            operations:
+              - '*'
+            resources:
+              - '*'
+
   DoAll2:
     lifecycle:
       run:
@@ -143,18 +107,10 @@ services:
           sleep 1
     parameters:
       accessControl:
-        '{
-              "aws.greengrass.ipc.pubsub":[
-              {
-                "policyId6":{
-                  "policyDescription":"access to pubsub topics for ServiceName",
-                  "operations":[
-                    "*"
-                  ],
-                  "resources":[
-                    "*"
-                  ]
-                }
-              }
-              ]
-            }'
+        aws.greengrass.ipc.pubsub:
+          policyId6:
+            policyDescription: access to pubsub topics for doall2
+            operations:
+              - '*'
+            resources:
+              - '*'
