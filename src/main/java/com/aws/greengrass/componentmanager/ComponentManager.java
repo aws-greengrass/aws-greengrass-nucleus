@@ -7,7 +7,7 @@ package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
-import com.amazonaws.services.evergreen.model.ComponentContent;
+import com.amazonaws.services.evergreen.model.ResolvedComponentVersion;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
@@ -141,8 +141,7 @@ public class ComponentManager implements InjectionActions {
             logger.atInfo().setEventType("negotiate-version-with-cloud-start").log("Negotiating version with cloud");
 
             resolvedComponentId =
-                    negotiateVersionWithCloud(componentName, versionRequirements, localCandidateOptional.orElse(null),
-                                              deploymentConfigurationId);
+                    negotiateVersionWithCloud(componentName, versionRequirements, localCandidateOptional.orElse(null));
 
             logger.atInfo().setEventType("negotiate-version-with-cloud-end").log("Negotiated version with cloud");
         }
@@ -184,14 +183,14 @@ public class ComponentManager implements InjectionActions {
     }
 
     private ComponentIdentifier negotiateVersionWithCloud(String componentName,
-            Map<String, Requirement> versionRequirements, ComponentIdentifier localCandidate,
-            String deploymentConfigurationId) throws PackagingException {
-        ComponentContent componentContent;
+            Map<String, Requirement> versionRequirements, ComponentIdentifier localCandidate)
+            throws PackagingException {
+        ResolvedComponentVersion resolvedComponentVersion;
 
         try {
-            componentContent = greengrassComponentServiceHelper
+            resolvedComponentVersion = greengrassComponentServiceHelper
                     .resolveComponentVersion(componentName, localCandidate == null ? null : localCandidate.getVersion(),
-                                             versionRequirements, deploymentConfigurationId);
+                                             versionRequirements);
         } catch (ComponentVersionNegotiationException | NoAvailableComponentVersionException e) {
             logger.atInfo().setCause(e).kv("componentName", componentName).kv("versionRequirement", versionRequirements)
                     .kv("localVersion", localCandidate)
@@ -205,9 +204,10 @@ public class ComponentManager implements InjectionActions {
                             + "satisfying requirement '%s'.", componentName, versionRequirements), e);
         }
 
-        ComponentIdentifier resolvedComponentId =
-                new ComponentIdentifier(componentContent.getName(), new Semver(componentContent.getVersion()));
-        String downloadedRecipeContent = StandardCharsets.UTF_8.decode(componentContent.getRecipe()).toString();
+        ComponentIdentifier resolvedComponentId = new ComponentIdentifier(resolvedComponentVersion.getName(),
+                                                                          new Semver(resolvedComponentVersion
+                                                                                             .getVersion()));
+        String downloadedRecipeContent = StandardCharsets.UTF_8.decode(resolvedComponentVersion.getRecipe()).toString();
 
         // Save the recipe digest in a secure place, before persisting recipe
         storeRecipeDigestSecurelyForPlugin(resolvedComponentId, downloadedRecipeContent);
@@ -224,7 +224,7 @@ public class ComponentManager implements InjectionActions {
         }
 
         // Save the arn to the recipe meta data file
-        componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(componentContent.getArn()));
+        componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(resolvedComponentVersion.getArn()));
 
         return resolvedComponentId;
     }

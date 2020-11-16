@@ -7,13 +7,13 @@ package com.aws.greengrass.componentmanager;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.evergreen.model.ComponentCandidate;
-import com.amazonaws.services.evergreen.model.ComponentContent;
 import com.amazonaws.services.evergreen.model.ComponentPlatform;
 import com.amazonaws.services.evergreen.model.GetComponentVersionDeprecatedRequest;
 import com.amazonaws.services.evergreen.model.GetComponentVersionDeprecatedResult;
 import com.amazonaws.services.evergreen.model.RecipeFormatType;
 import com.amazonaws.services.evergreen.model.ResolveComponentCandidatesRequest;
 import com.amazonaws.services.evergreen.model.ResolveComponentCandidatesResult;
+import com.amazonaws.services.evergreen.model.ResolvedComponentVersion;
 import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
 import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
@@ -51,13 +51,12 @@ public class GreengrassComponentServiceHelper {
      * @param componentName             component name to be resolve
      * @param localCandidateVersion     component local candidate version if available
      * @param versionRequirements       component dependents version requirement map
-     * @param deploymentConfigurationId deployment configuration id
      * @return resolved component version and recipe
      * @throws NoAvailableComponentVersionException if no applicable version available in cloud service
      * @throws ComponentVersionNegotiationException if service exception happens
      */
-    ComponentContent resolveComponentVersion(String componentName, Semver localCandidateVersion,
-            Map<String, Requirement> versionRequirements, String deploymentConfigurationId)
+    ResolvedComponentVersion resolveComponentVersion(String componentName, Semver localCandidateVersion,
+            Map<String, Requirement> versionRequirements)
             throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
 
         // TODO: [P41215526]: Use osVersion and osFlavor for resolving component version once they are supported
@@ -88,9 +87,10 @@ public class GreengrassComponentServiceHelper {
                                   componentName), e);
         }
 
-        Validate.isTrue(result.getComponents() != null && result.getComponents().size() == 1,
-                        "Component service returns invalid response. It should have one resolved component version");
-        return result.getComponents().get(0);
+        Validate.isTrue(
+                result.getResolvedComponentVersions() != null && result.getResolvedComponentVersions().size() == 1,
+                "Component service returns invalid response. It should have one resolved component version");
+        return result.getResolvedComponentVersions().get(0);
     }
 
     /**

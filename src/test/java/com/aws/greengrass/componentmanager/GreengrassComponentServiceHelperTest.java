@@ -7,11 +7,11 @@ package com.aws.greengrass.componentmanager;
 
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.model.ComponentCandidate;
-import com.amazonaws.services.evergreen.model.ComponentContent;
 import com.amazonaws.services.evergreen.model.GetComponentVersionDeprecatedRequest;
 import com.amazonaws.services.evergreen.model.GetComponentVersionDeprecatedResult;
 import com.amazonaws.services.evergreen.model.ResolveComponentCandidatesRequest;
 import com.amazonaws.services.evergreen.model.ResolveComponentCandidatesResult;
+import com.amazonaws.services.evergreen.model.ResolvedComponentVersion;
 import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -51,7 +51,6 @@ class GreengrassComponentServiceHelperTest {
 
     private static final Semver v1_0_0 = new Semver("1.0.0");
     private static final String COMPONENT_A = "A";
-    private static final String DEPLOYMENT_CONFIGURATION_ID = "deploymentConfigurationId";
 
     @Mock
     private AWSEvergreen client;
@@ -74,11 +73,13 @@ class GreengrassComponentServiceHelperTest {
     void GIVEN_component_name_version_WHEN_download_component_recipe_THEN_task_succeed() throws Exception {
         String recipeContents = "testRecipeContent";
         ByteBuffer testRecipeBytes = ByteBuffer.wrap(recipeContents.getBytes());
-        GetComponentVersionDeprecatedResult testResult = new GetComponentVersionDeprecatedResult().withRecipe(testRecipeBytes);
-        doReturn(testResult).when(client).getComponentVersionDeprecated(GetComponentVersionDeprecatedRequestArgumentCaptor.capture());
+        GetComponentVersionDeprecatedResult testResult =
+                new GetComponentVersionDeprecatedResult().withRecipe(testRecipeBytes);
+        doReturn(testResult).when(client)
+                .getComponentVersionDeprecated(GetComponentVersionDeprecatedRequestArgumentCaptor.capture());
         String downloadPackageRecipeAsString = helper.downloadPackageRecipeAsString(
                 new ComponentIdentifier(ComponentTestResourceHelper.MONITORING_SERVICE_PACKAGE_NAME,
-                        new Semver("1.0.0")));
+                                        new Semver("1.0.0")));
 
         assertEquals(recipeContents, downloadPackageRecipeAsString);
     }
@@ -90,22 +91,21 @@ class GreengrassComponentServiceHelperTest {
         versionRequirements.put("X", Requirement.buildNPM("^1.0"));
         versionRequirements.put("Y", Requirement.buildNPM("^1.5"));
 
-        ComponentContent componentContent = new ComponentContent().withName(COMPONENT_A).withVersion(v1_0_0.getValue())
-                .withRecipe(ByteBuffer.wrap("new recipe".getBytes(Charsets.UTF_8)));
-        ResolveComponentCandidatesResult result =
-                new ResolveComponentCandidatesResult().withComponents(Collections.singletonList(componentContent));
+        ResolvedComponentVersion resolvedComponentVersion =
+                new ResolvedComponentVersion().withName(COMPONENT_A).withVersion(v1_0_0.getValue())
+                        .withRecipe(ByteBuffer.wrap("new recipe".getBytes(Charsets.UTF_8)));
+        ResolveComponentCandidatesResult result = new ResolveComponentCandidatesResult()
+                .withResolvedComponentVersions(Collections.singletonList(resolvedComponentVersion));
         when(client.resolveComponentCandidates(any())).thenReturn(result);
 
-        ComponentContent componentContentReturn =
-                helper.resolveComponentVersion(COMPONENT_A, v1_0_0, versionRequirements, DEPLOYMENT_CONFIGURATION_ID);
+        ResolvedComponentVersion componentContentReturn =
+                helper.resolveComponentVersion(COMPONENT_A, v1_0_0, versionRequirements);
 
-        assertThat(componentContentReturn, is(componentContent));
+        assertThat(componentContentReturn, is(resolvedComponentVersion));
         ArgumentCaptor<ResolveComponentCandidatesRequest> requestArgumentCaptor =
                 ArgumentCaptor.forClass(ResolveComponentCandidatesRequest.class);
         verify(client).resolveComponentCandidates(requestArgumentCaptor.capture());
         ResolveComponentCandidatesRequest request = requestArgumentCaptor.getValue();
-        //assertThat(request.getDeploymentConfigurationId(), is(DEPLOYMENT_CONFIGURATION_ID));
-        assertThat(request.getDeploymentConfigurationId(), notNullValue());
         assertThat(request.getPlatform(), notNullValue());
         assertThat(request.getPlatform().getOs(), notNullValue());
         assertThat(request.getPlatform().getArchitecture(), notNullValue());
@@ -123,7 +123,7 @@ class GreengrassComponentServiceHelperTest {
 
         Exception exp = assertThrows(NoAvailableComponentVersionException.class, () -> helper
                 .resolveComponentVersion(COMPONENT_A, v1_0_0,
-                        Collections.singletonMap("X", Requirement.buildNPM("^1.0")), DEPLOYMENT_CONFIGURATION_ID));
+                                         Collections.singletonMap("X", Requirement.buildNPM("^1.0"))));
 
         assertThat(exp.getMessage(), containsString("No applicable version found in cloud registry for component: 'A'"
                                                             + " satisfying requirement: '{X=>=1.0.0 <2.0.0}'."));
