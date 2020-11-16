@@ -24,6 +24,7 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -36,6 +37,7 @@ import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.publishToTopi
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.subscribeToTopicOveripcForBinaryMessages;
 import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTROL_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
@@ -78,15 +80,16 @@ class IPCPubSubRemovalTest extends BaseITCase {
             Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
                 assertEquals("some message", new String(m, StandardCharsets.UTF_8));
             });
-            subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight());//this should succeed
+            subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight());
             publishToTopicOverIpcAsBinaryMessage(ipcClient, "a", "some message");
             cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
 
             Topics serviceTopic = kernel.findServiceTopic("DoAll1");
             Topics parameters = serviceTopic.findTopics(PARAMETERS_CONFIG_KEY);
-            Topic acl = parameters.find(ACCESS_CONTROL_NAMESPACE_TOPIC);
+            Topic acl = parameters.find(ACCESS_CONTROL_NAMESPACE_TOPIC, "aws.greengrass.ipc.pubsub",
+                    "policyId5", "operations");
             if (acl != null) {
-                acl.remove();
+                acl.withValue(Collections.emptyList());
             }
             //Block until events are completed
             kernel.getContext().runOnPublishQueueAndWait(() -> {
@@ -100,6 +103,27 @@ class IPCPubSubRemovalTest extends BaseITCase {
             assertTrue(executionException.getCause() instanceof UnauthorizedError);
 
             ExecutionException executionException1 = assertThrows(ExecutionException.class,
+                    () -> publishToTopicOverIpcAsBinaryMessage(ipcClient, "a", "some message"));
+            assertTrue(executionException1.getCause() instanceof UnauthorizedError);
+
+            serviceTopic = kernel.findServiceTopic("DoAll1");
+            parameters = serviceTopic.findTopics(PARAMETERS_CONFIG_KEY);
+            Topics aclTopics = parameters.findTopics(ACCESS_CONTROL_NAMESPACE_TOPIC);
+            if (aclTopics != null) {
+                aclTopics.remove();
+            }
+            //Block until events are completed
+            kernel.getContext().runOnPublishQueueAndWait(() -> {
+            });
+
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+
+            //Now the authorization policies should have been removed and these should fail
+            executionException = assertThrows(ExecutionException.class,
+                    () -> subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight()));
+            assertTrue(executionException.getCause() instanceof UnauthorizedError);
+
+            executionException1 = assertThrows(ExecutionException.class,
                     () -> publishToTopicOverIpcAsBinaryMessage(ipcClient, "a", "some message"));
             assertTrue(executionException1.getCause() instanceof UnauthorizedError);
         }
@@ -128,8 +152,9 @@ class IPCPubSubRemovalTest extends BaseITCase {
             ignoreExceptionOfType(context, PackageDownloadException.class);
 
             // Remove ACL parameter from component SubscribeAndPublish
-            kernel.locate("SubscribeAndPublish").getConfig()
-                    .lookup(PARAMETERS_CONFIG_KEY, "accessControl").withValue("");
+            Topics aclNode = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
+                    "SubscribeAndPublish", PARAMETERS_CONFIG_KEY);
+            aclNode.remove(aclNode.lookupTopics("accessControl"));
             kernel.getContext().waitForPublishQueueToClear();
 
             assertFalse(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId1));

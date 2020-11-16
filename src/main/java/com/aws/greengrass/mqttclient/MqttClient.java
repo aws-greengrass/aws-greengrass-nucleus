@@ -38,7 +38,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -54,6 +53,7 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
@@ -116,12 +116,7 @@ public class MqttClient implements Closeable {
         }
     };
 
-    private final CallbackEventManager.OnConnectCallback onConnect = new CallbackEventManager.OnConnectCallback() {
-        @Override
-        public void onConnect(boolean curSessionPresent) {
-            callbacks.onConnectionResumed(curSessionPresent);
-        }
-    };
+    private final CallbackEventManager.OnConnectCallback onConnect = callbacks::onConnectionResumed;
 
     //
     // TODO: [P41214930] Handle timeouts and retries
@@ -130,13 +125,12 @@ public class MqttClient implements Closeable {
     /**
      * Constructor for injection.
      * @param deviceConfiguration device configuration
-     * @param executorService     executor service
      * @param ses                 scheduled executor service
      */
     @Inject
-    public MqttClient(DeviceConfiguration deviceConfiguration, ExecutorService executorService,
+    public MqttClient(DeviceConfiguration deviceConfiguration,
                       ScheduledExecutorService ses) {
-        this(deviceConfiguration, null, executorService, ses);
+        this(deviceConfiguration, null, ses);
 
         HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
 
@@ -196,24 +190,55 @@ public class MqttClient implements Closeable {
 
     protected MqttClient(DeviceConfiguration deviceConfiguration,
                          Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
-                         ExecutorService executorService,
                          ScheduledExecutorService ses) {
         this.deviceConfiguration = deviceConfiguration;
         this.ses = ses;
 
+        mqttTopics = this.deviceConfiguration.getMQTTNamespace();
+        this.builderProvider = builderProvider;
+
+        eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
+        hostResolver = new HostResolver(eventLoopGroup);
+        clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
+        spool = new Spool(deviceConfiguration);
+        callbackEventManager.addToCallbackEvents(onConnect, callbacks);
+
+        // Call getters for all of these topics prior to subscribing to changes so that these namespaces
+        // are created and fully updated so that our reconnection doesn't get triggered falsely
+        deviceConfiguration.getRootCAFilePath();
+        deviceConfiguration.getCertificateFilePath();
+        deviceConfiguration.getPrivateKeyFilePath();
+        deviceConfiguration.getSpoolerNamespace();
+        deviceConfiguration.getAWSRegion();
+
         // If anything in the device configuration changes, then we wil need to reconnect to the cloud
         // using the new settings. We do this by calling reconnect() on all of our connections
         this.deviceConfiguration.onAnyChange((what, node) -> {
+            if (connections.isEmpty()) {
+                return;
+            }
             if (WhatHappened.childChanged.equals(what) && node != null) {
                 // List of configuration nodes that we need to reconfigure for if they change
                 if (!(node.childOf(DEVICE_MQTT_NAMESPACE) || node.childOf(DEVICE_PARAM_THING_NAME) || node
                         .childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT) || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH) || node
-                        .childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH))) {
+                        .childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH) || node
+                        .childOf(DEVICE_PARAM_AWS_REGION))) {
                     return;
                 }
 
+                // Only reconnect when the region changed if the proxy exists
+                if (node.childOf(DEVICE_PARAM_AWS_REGION)
+                        && ProxyUtils.getHttpProxyOptions(deviceConfiguration) == null) {
+                    return;
+                }
+
+                logger.atInfo().kv("modifiedNode", node.getFullName())
+                        .kv("changeType", what)
+                        .log("Reconfiguring MQTT clients");
+
                 // Reconnect in separate thread to not block publish thread
-                Future<?> oldFuture = reconfigureFuture.getAndSet(executorService.submit(() -> {
+                // Schedule the reconnection for slightly in the future to de-dupe multiple changes
+                Future<?> oldFuture = reconfigureFuture.getAndSet(ses.schedule(() -> {
                     // Continually try to reconnect until all the connections are reconnected
                     Set<AwsIotMqttClient> brokenConnections = new CopyOnWriteArraySet<>(connections);
                     do {
@@ -231,7 +256,7 @@ public class MqttClient implements Closeable {
                             }
                         }
                     } while (!brokenConnections.isEmpty());
-                }));
+                }, 2, TimeUnit.SECONDS));
 
                 // If a reconfiguration task already existed, then kill it and create a new one
                 if (oldFuture != null) {
@@ -239,14 +264,6 @@ public class MqttClient implements Closeable {
                 }
             }
         });
-        mqttTopics = this.deviceConfiguration.getMQTTNamespace();
-        this.builderProvider = builderProvider;
-
-        eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
-        hostResolver = new HostResolver(eventLoopGroup);
-        clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
-        spool = new Spool(deviceConfiguration);
-        callbackEventManager.addToCallbackEvents(onConnect, callbacks);
     }
 
     // constructor specific for unit test with spooler
@@ -395,9 +412,7 @@ public class MqttClient implements Closeable {
 
     private synchronized void spoolMessage()  {
         if (spoolingFuture.get() == null || spoolingFuture.get().isCancelled()) {
-            spoolingFuture.set(ses.scheduleWithFixedDelay(() -> {
-                spoolTask();
-            }, 0, 5, TimeUnit.SECONDS));
+            spoolingFuture.set(ses.scheduleWithFixedDelay(this::spoolTask, 0, 5, TimeUnit.SECONDS));
         }
     }
 

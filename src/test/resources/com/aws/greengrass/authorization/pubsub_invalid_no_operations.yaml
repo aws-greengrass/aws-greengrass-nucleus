@@ -20,4 +20,10 @@ services:
           sleep 100
     parameters:
       accessControl:
-        '{"aws.greengrass.ipc.pubsub":[{"policyId1":{"resources":["/topic/1/#","/longer/topic/example/","*"]}}]}}'
+        aws.greengrass.ipc.pubsub:
+          policyId1:
+            policyDescription: access to pubsub topics
+            resources:
+              - /topic/1/#
+              - /longer/topic/example/
+              - '*'

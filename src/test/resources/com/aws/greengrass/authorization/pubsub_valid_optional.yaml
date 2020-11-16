@@ -10,7 +10,11 @@ services:
     lifecycle:
     parameters:
       accessControl:
-       '{"aws.greengrass.ipc.pubsub":[{"policyId2":{"operations":["publish","subscribe"]}}]}'
+        aws.greengrass.ipc.pubsub:
+          policyId2:
+            operations:
+              - publish
+              - subscribe
 
   ServiceName:
     resources:
@@ -23,4 +27,8 @@ services:
           sleep 100
     parameters:
       accessControl:
-       '{"aws.greengrass.ipc.pubsub":[{"policyId1":{"operations":["publish","subscribe"]}}]}'
+        aws.greengrass.ipc.pubsub:
+          policyId1:
+            operations:
+              - publish
+              - subscribe

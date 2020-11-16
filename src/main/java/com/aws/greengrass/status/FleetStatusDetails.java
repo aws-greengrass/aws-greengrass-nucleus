@@ -6,6 +6,7 @@
 package com.aws.greengrass.status;
 
 import com.aws.greengrass.util.Chunkable;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -34,6 +35,9 @@ public class FleetStatusDetails implements Chunkable<ComponentStatusDetails> {
 
     @JsonProperty("components")
     private List<ComponentStatusDetails> componentStatusDetails;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private DeploymentInformation deploymentInformation;
 
     @Override
     public void setVariablePayload(List<ComponentStatusDetails> variablePayload) {

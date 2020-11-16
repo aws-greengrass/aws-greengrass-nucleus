@@ -211,6 +211,10 @@ public class MqttProxyIPCAgent {
 
         for (String topicFilter : authorizedResources) {
             if (topicFilter.equals(ANY_REGEX) || MqttTopic.topicIsSupersetOf(topicFilter, topic)) {
+                LOGGER.atDebug().log("Hit policy with principal {}, operation {}, resource {}",
+                        MQTT_PROXY_SERVICE_NAME,
+                        opName,
+                        topicFilter);
                 return;
             }
         }
