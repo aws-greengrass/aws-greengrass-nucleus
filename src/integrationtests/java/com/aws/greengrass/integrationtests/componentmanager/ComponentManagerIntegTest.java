@@ -6,7 +6,7 @@
 package com.aws.greengrass.integrationtests.componentmanager;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
-import com.aws.greengrass.componentmanager.ComponentServiceHelper;
+import com.aws.greengrass.componentmanager.GreengrassComponentServiceHelper;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.plugins.S3Downloader;
@@ -69,12 +69,12 @@ class ComponentManagerIntegTest extends BaseITCase {
         when(mockDownloader.getArtifactFile(any(), any(), any())).thenReturn(artifactFile);
         when(mockDownloader.downloadToPath(any(), any(), any())).thenAnswer(downloadToPath("zip.zip", artifactFile));
 
-        ComponentServiceHelper mockServiceHelper = mock(ComponentServiceHelper.class);
+        GreengrassComponentServiceHelper mockServiceHelper = mock(GreengrassComponentServiceHelper.class);
 
         String testRecipeContent =
                 FileUtils.readFileToString(Paths.get(this.getClass().getResource("zip.yaml").toURI()).toFile());
         when(mockServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(testRecipeContent);
-        kernel.getContext().put(ComponentServiceHelper.class, mockServiceHelper);
+        kernel.getContext().put(GreengrassComponentServiceHelper.class, mockServiceHelper);
 
         // THEN
         kernel.getContext().get(ComponentManager.class).preparePackages(Collections.singletonList(ident))
@@ -121,12 +121,12 @@ class ComponentManagerIntegTest extends BaseITCase {
                 .thenAnswer(downloadToPath("script.sh", scriptFile))
                 .thenAnswer(downloadToPath("empty.txt", emptyFile));
 
-        ComponentServiceHelper mockServiceHelper = mock(ComponentServiceHelper.class);
+        GreengrassComponentServiceHelper mockServiceHelper = mock(GreengrassComponentServiceHelper.class);
 
         String testRecipeContent =
                 FileUtils.readFileToString(Paths.get(this.getClass().getResource("perms.yaml").toURI()).toFile());
         when(mockServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(testRecipeContent);
-        kernel.getContext().put(ComponentServiceHelper.class, mockServiceHelper);
+        kernel.getContext().put(GreengrassComponentServiceHelper.class, mockServiceHelper);
 
         // THEN
         kernel.getContext().get(ComponentManager.class).preparePackages(Collections.singletonList(ident))

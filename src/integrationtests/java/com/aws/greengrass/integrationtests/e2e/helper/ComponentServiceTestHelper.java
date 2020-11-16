@@ -11,7 +11,7 @@ import com.amazonaws.services.evergreen.model.CreateComponentVersionDeprecatedRe
 import com.amazonaws.services.evergreen.model.CreateComponentVersionDeprecatedResult;
 import com.amazonaws.services.evergreen.model.DeleteComponentVersionDeprecatedRequest;
 import com.amazonaws.services.evergreen.model.DeleteComponentVersionDeprecatedResult;
-import com.aws.greengrass.componentmanager.ComponentServiceHelper;
+import com.aws.greengrass.componentmanager.GreengrassComponentServiceHelper;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import lombok.AccessLevel;
@@ -24,7 +24,7 @@ import java.nio.file.Path;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE) // so that it can't be 'new'
 public class ComponentServiceTestHelper {
-    protected static final Logger logger = LogManager.getLogger(ComponentServiceHelper.class);
+    protected static final Logger logger = LogManager.getLogger(GreengrassComponentServiceHelper.class);
 
     /**
      * Create a component with the given recipe file.

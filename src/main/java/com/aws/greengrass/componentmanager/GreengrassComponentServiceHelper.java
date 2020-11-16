@@ -6,7 +6,6 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.model.ComponentCandidate;
 import com.amazonaws.services.evergreen.model.ComponentContent;
 import com.amazonaws.services.evergreen.model.ComponentPlatform;
@@ -33,15 +32,15 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-public class ComponentServiceHelper {
+public class GreengrassComponentServiceHelper {
 
     private static final String PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT = "Error downloading recipe for package %s";
-    protected static final Logger logger = LogManager.getLogger(ComponentServiceHelper.class);
+    protected static final Logger logger = LogManager.getLogger(GreengrassComponentServiceHelper.class);
 
     private final GreengrassComponentServiceClientFactory clientFactory;
 
     @Inject
-    public ComponentServiceHelper(GreengrassComponentServiceClientFactory clientFactory) {
+    public GreengrassComponentServiceHelper(GreengrassComponentServiceClientFactory clientFactory) {
         this.clientFactory = clientFactory;
     }
 

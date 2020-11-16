@@ -130,7 +130,7 @@ class ComponentManagerTest {
     private S3Downloader s3Downloader;
 
     @Mock
-    private ComponentServiceHelper componentManagementServiceHelper;
+    private GreengrassComponentServiceHelper componentManagementServiceHelper;
     @Mock
     private Kernel kernel;
     @Mock

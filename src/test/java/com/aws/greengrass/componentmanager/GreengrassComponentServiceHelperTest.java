@@ -10,8 +10,8 @@ import com.amazonaws.services.evergreen.model.ComponentCandidate;
 import com.amazonaws.services.evergreen.model.ComponentContent;
 import com.amazonaws.services.evergreen.model.GetComponentVersionDeprecatedRequest;
 import com.amazonaws.services.evergreen.model.GetComponentVersionDeprecatedResult;
-import com.amazonaws.services.evergreen.model.ResolveComponentVersionsRequest;
-import com.amazonaws.services.evergreen.model.ResolveComponentVersionsResult;
+import com.amazonaws.services.evergreen.model.ResolveComponentCandidatesRequest;
+import com.amazonaws.services.evergreen.model.ResolveComponentCandidatesResult;
 import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -47,7 +47,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-class ComponentServiceHelperTest {
+class GreengrassComponentServiceHelperTest {
 
     private static final Semver v1_0_0 = new Semver("1.0.0");
     private static final String COMPONENT_A = "A";
@@ -59,7 +59,7 @@ class ComponentServiceHelperTest {
     @Mock
     private GreengrassComponentServiceClientFactory clientFactory;
 
-    private ComponentServiceHelper helper;
+    private GreengrassComponentServiceHelper helper;
 
     @Captor
     private ArgumentCaptor<GetComponentVersionDeprecatedRequest> GetComponentVersionDeprecatedRequestArgumentCaptor;
@@ -67,7 +67,7 @@ class ComponentServiceHelperTest {
     @BeforeEach
     void beforeEach() {
         lenient().when(clientFactory.getCmsClient()).thenReturn(client);
-        this.helper = spy(new ComponentServiceHelper(clientFactory));
+        this.helper = spy(new GreengrassComponentServiceHelper(clientFactory));
     }
 
     @Test
@@ -92,18 +92,18 @@ class ComponentServiceHelperTest {
 
         ComponentContent componentContent = new ComponentContent().withName(COMPONENT_A).withVersion(v1_0_0.getValue())
                 .withRecipe(ByteBuffer.wrap("new recipe".getBytes(Charsets.UTF_8)));
-        ResolveComponentVersionsResult result =
-                new ResolveComponentVersionsResult().withComponents(Collections.singletonList(componentContent));
-        when(client.resolveComponentVersions(any())).thenReturn(result);
+        ResolveComponentCandidatesResult result =
+                new ResolveComponentCandidatesResult().withComponents(Collections.singletonList(componentContent));
+        when(client.resolveComponentCandidates(any())).thenReturn(result);
 
         ComponentContent componentContentReturn =
                 helper.resolveComponentVersion(COMPONENT_A, v1_0_0, versionRequirements, DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentContentReturn, is(componentContent));
-        ArgumentCaptor<ResolveComponentVersionsRequest> requestArgumentCaptor =
-                ArgumentCaptor.forClass(ResolveComponentVersionsRequest.class);
-        verify(client).resolveComponentVersions(requestArgumentCaptor.capture());
-        ResolveComponentVersionsRequest request = requestArgumentCaptor.getValue();
+        ArgumentCaptor<ResolveComponentCandidatesRequest> requestArgumentCaptor =
+                ArgumentCaptor.forClass(ResolveComponentCandidatesRequest.class);
+        verify(client).resolveComponentCandidates(requestArgumentCaptor.capture());
+        ResolveComponentCandidatesRequest request = requestArgumentCaptor.getValue();
         //assertThat(request.getDeploymentConfigurationId(), is(DEPLOYMENT_CONFIGURATION_ID));
         assertThat(request.getDeploymentConfigurationId(), notNullValue());
         assertThat(request.getPlatform(), notNullValue());
@@ -119,7 +119,7 @@ class ComponentServiceHelperTest {
 
     @Test
     void GIVEN_component_version_requirements_WHEN_service_no_resource_found_THEN_throw_no_available_version_exception() {
-        when(client.resolveComponentVersions(any())).thenThrow(ResourceNotFoundException.class);
+        when(client.resolveComponentCandidates(any())).thenThrow(ResourceNotFoundException.class);
 
         Exception exp = assertThrows(NoAvailableComponentVersionException.class, () -> helper
                 .resolveComponentVersion(COMPONENT_A, v1_0_0,
