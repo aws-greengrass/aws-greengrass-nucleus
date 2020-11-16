@@ -22,6 +22,7 @@ import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.Deployment.DeploymentStage;
@@ -35,6 +36,7 @@ import com.aws.greengrass.util.DependencyOrder;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.ProxyUtils;
+import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
@@ -157,6 +159,14 @@ public class Kernel {
      */
     @SuppressWarnings("PMD.MissingBreakInSwitch")
     public Kernel launch() {
+        try {
+            Platform.getInstance().getRunWithGenerator()
+                    .validateDefaultConfiguration(context.get(DeviceConfiguration.class));
+        } catch (DeviceConfigurationException e) {
+            RuntimeException rte = new RuntimeException(e);
+            logger.atError().setEventType("parse-args-error").setCause(rte).log();
+            throw rte;
+        }
         BootstrapManager bootstrapManager = kernelCommandLine.getBootstrapManager();
         DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
         KernelAlternatives kernelAlts = context.get(KernelAlternatives.class);

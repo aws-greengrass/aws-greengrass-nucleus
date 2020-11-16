@@ -121,6 +121,29 @@ class GreengrassSetupTest {
     }
 
     @Test
+    void GIVEN_ggc_user_as_arg_WHEN_script_is_used_THEN_default_user_created_and_added_to_config() throws Exception {
+        greengrassSetup =
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--aws-region", "us-east-1", "-ss", "false", "-u",
+                        "ggc_user");
+
+        when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
+        when(platform.lookupUserByName(any())).thenThrow(IOException.class);
+        when(platform.lookupGroupByName(any())).thenThrow(IOException.class);
+        doReturn(kernel).when(kernel).parseArgs(any());
+        doReturn("ggc_user").when(runWithDefaultPosixUserTopic).getOnce();
+        greengrassSetup.parseArgs();
+        greengrassSetup.performSetup();
+        verify(platform).createUser(eq("ggc_user"));
+        verify(platform, times(0)).createGroup(eq("ggc_group"));
+        verify(deviceConfiguration).getRunWithDefaultPosixUser();
+        // -u arg was present, so it would have been automatically added to config in kernel.parseArgs
+        // meaning the setup shouldn't add it again.
+        verify(runWithDefaultPosixUserTopic, times(0)).withValue(anyString());
+        verify(kernel).launch();
+    }
+
+    @Test
     void GIVEN_no_default_user_arg_but_user_present_in_config_WHEN_script_is_used_THEN_user_from_config_used()
             throws Exception {
         greengrassSetup =
@@ -248,9 +271,9 @@ class GreengrassSetupTest {
     @MethodSource("invalidUsers")
     void GIVEN_invalid_user_WHEN_script_is_used_THEN_error(String user, ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, IOException.class);
-        greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, new Kernel(),
-                "--config", "mock_config_path", "--root", "mock_root", "--component-default-user", user, "--aws-region",
-                "us-east-1", "-ss", "false");
+        Kernel realKernel = new Kernel();
+        greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, realKernel,
+                "--component-default-user", user, "--aws-region", "us-east-1", "-ss", "false");
         Exception e = assertThrows(RuntimeException.class, () -> {
             greengrassSetup.parseArgs();
             greengrassSetup.performSetup();
