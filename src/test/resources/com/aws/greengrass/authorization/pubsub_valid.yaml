@@ -10,7 +10,28 @@ services:
     lifecycle:
     parameters:
       accessControl:
-        '{"aws.greengrass.ipc.pubsub":[{"policyId2":{"policyDescription":"access to pubsub topics","operations":["publish","subscribe"],"resources":["/topic/1/#","/longer/topic/example/"]}}]}'
+        aws.greengrass.ipc.pubsub:
+          policyId1:
+            policyDescription: access to pubsub topics 1
+            operations:
+              - publish
+              - subscribe
+            resources:
+              - /topic/1/#
+              - /longer/topic/example/
+          policyId2:
+            policyDescription: access to pubsub topics 2
+            operations:
+              - publish
+            resources:
+              - /publishOnlyTopic
+        testComponent:
+          policyId3:
+            policyDescription: access to secrets
+            operations:
+              - getsecret
+            resources:
+              - secret1
 
   ServiceName:
     resources:
@@ -23,4 +44,13 @@ services:
           sleep 100
     parameters:
       accessControl:
-       '{"aws.greengrass.ipc.pubsub":[{"policyId1":{"policyDescription":"access to pubsub topics","operations":["publish","subscribe"],"resources":["/topic/1/#","/longer/topic/example/","*"]}}]}'
+        aws.greengrass.ipc.pubsub:
+          policyId4:
+            policyDescription: access to pubsub topics 4
+            operations:
+              - publish
+              - subscribe
+            resources:
+              - /topic/1/#
+              - /longer/topic/example/
+              - '*'
