@@ -38,12 +38,14 @@ import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 public class ComponentStore {
@@ -54,6 +56,11 @@ public class ComponentStore {
     public static final String ARTIFACTS_DECOMPRESSED_DIRECTORY = "artifacts-unarchived";
     public static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
     private static final String LOG_KEY_RECIPE_METADATA_FILE_PATH = "RecipeMetadataFilePath";
+
+    public static final String RECIPE_SUFFIX = ".recipe";
+    public static final String RECIPE_METADATA_SUFFIX = ".recipe.metadata";
+
+
     private final NucleusPaths nucleusPaths;
 
     /**
@@ -69,13 +76,14 @@ public class ComponentStore {
     /**
      * Creates or updates a package recipe in the package store on the disk.
      *
-     * @param pkgId         the id for the component
+     * @param componentId   the id for the component
      * @param recipeContent recipe content to save
      * @throws PackageLoadingException if fails to write the package recipe to disk.
      */
-    void savePackageRecipe(@NonNull ComponentIdentifier pkgId, String recipeContent) throws PackageLoadingException {
+    void savePackageRecipe(@NonNull ComponentIdentifier componentId, String recipeContent)
+            throws PackageLoadingException {
         try {
-            Path recipePath = resolveRecipePath(pkgId.getName(), pkgId.getVersion());
+            Path recipePath = resolveRecipePath(componentId);
             FileUtils.writeStringToFile(recipePath.toFile(), recipeContent);
         } catch (IOException e) {
             // TODO: [P41215929]: Better logging and exception messages in component store
@@ -132,7 +140,7 @@ public class ComponentStore {
 
     Optional<String> findComponentRecipeContent(@NonNull ComponentIdentifier componentId)
             throws PackageLoadingException {
-        Path recipePath = resolveRecipePath(componentId.getName(), componentId.getVersion());
+        Path recipePath = resolveRecipePath(componentId);
 
         logger.atDebug().setEventType("finding-package-recipe").addKeyValue("packageRecipePath", recipePath).log();
 
@@ -179,7 +187,7 @@ public class ComponentStore {
         IOException exception = null;
         // delete recipe
         try {
-            Path recipePath = resolveRecipePath(compId.getName(), compId.getVersion());
+            Path recipePath = resolveRecipePath(compId);
             Files.deleteIfExists(recipePath);
         } catch (IOException e) {
             exception = e;
@@ -242,10 +250,10 @@ public class ComponentStore {
      */
     List<ComponentMetadata> listAvailablePackageMetadata(@NonNull String packageName, @NonNull Requirement requirement)
             throws PackagingException {
-        File[] recipeFiles = getAllRecipeFiles();
+        List<File> recipeFiles = getAllRecipeFiles();
 
         List<ComponentMetadata> componentMetadataList = new ArrayList<>();
-        if (recipeFiles == null || recipeFiles.length == 0) {
+        if (recipeFiles.size() == 0) {
             return componentMetadataList;
         }
 
@@ -326,12 +334,15 @@ public class ComponentStore {
         }
     }
 
-    private File[] getAllRecipeFiles() {
-        // TODO Identify recipes by *.recipe.yaml or *.recipe.json
-        return Arrays.stream(nucleusPaths.recipePath().toFile().listFiles())
-                .filter(file -> file.getName().endsWith(".yaml")).filter(file -> file.getName().endsWith(".json"))
-                .filter(file -> !file.getName().endsWith("metadata.json"))  // exclude metadata files
-                .toArray(File[]::new);
+    private List<File> getAllRecipeFiles() {
+        File[] filesInRecipeFolder = nucleusPaths.recipePath().toFile().listFiles();
+
+        if (filesInRecipeFolder == null) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(filesInRecipeFolder)
+                .filter(file -> file.getName().endsWith(RECIPE_SUFFIX + FileSuffix.YAML_SUFFIX))    // recipe.yaml
+                .collect(Collectors.toList());
     }
 
 
@@ -357,13 +368,12 @@ public class ComponentStore {
      * @param componentIdentifier packageIdentifier
      * @return the recipe file path for target package.
      */
-    public Path resolveRecipePath(@NonNull ComponentIdentifier componentIdentifier) {
-        return resolveRecipePath(componentIdentifier.getName(), componentIdentifier.getVersion());
-    }
+    public Path resolveRecipePath(@NonNull ComponentIdentifier componentIdentifier) throws PackageLoadingException {
+        // .recipe is to indicate it is the recipe
+        // .yaml at the end is to indicate the file content type is a yaml
+        String recipeFileName = String.format("%s.recipe.yaml", getFilenamePrefixFromComponentId(componentIdentifier));
 
-    private Path resolveRecipePath(String packageName, Semver packageVersion) {
-        return nucleusPaths.recipePath()
-                .resolve(String.format(RECIPE_FILE_NAME_FORMAT, packageName, packageVersion.getValue()));
+        return nucleusPaths.recipePath().resolve(recipeFileName);
     }
 
     /**
@@ -428,7 +438,6 @@ public class ComponentStore {
      *
      * @param componentIdentifier component id
      * @param recipeMetadata      metadata for the recipe
-     *
      * @throws PackageLoadingException when failed write recipe metadata to file system.
      */
     public void saveRecipeMetadata(ComponentIdentifier componentIdentifier, RecipeMetadata recipeMetadata)
@@ -450,7 +459,6 @@ public class ComponentStore {
      * Reads component recipe metadata file.
      *
      * @param componentIdentifier component id
-     *
      * @throws PackageLoadingException if failed to read recipe metadata from file system or failed to parse the file.
      */
     public RecipeMetadata getRecipeMetadata(ComponentIdentifier componentIdentifier) throws PackageLoadingException {
@@ -505,22 +513,36 @@ public class ComponentStore {
         }
     }
 
-    private File resolveRecipeMetadataFile(ComponentIdentifier componentIdentifier) {
+    private File resolveRecipeMetadataFile(ComponentIdentifier componentIdentifier) throws PackageLoadingException {
+        // .metadata is to indicate it is the metadata
+        // .json at the end is to indicate the file content type is a json
+        String recipeMetaDataFileName =
+                String.format("%s.metadata.json", getFilenamePrefixFromComponentId(componentIdentifier));
+
+        return nucleusPaths.recipePath().resolve(recipeMetaDataFileName).toFile();
+    }
+
+    /**
+     * Get the file name prefix that is safe for cross-platform file systems for persistence
+     *
+     * @param componentIdentifier componentIdentifier
+     * @return a file name prefix for a component version that is safe for cross-platform file systems
+     */
+    private String getFilenamePrefixFromComponentId(ComponentIdentifier componentIdentifier)
+            throws PackageLoadingException {
         String hashOfComponentName = null;
         try {
             // calculate a hash for component name so that it is safe to be in a file name cross platform
             // padding is removed to avoid confusion
             hashOfComponentName = Digest.calculateWithUrlEncoderNoPadding(componentIdentifier.getName());
         } catch (NoSuchAlgorithmException e) {
-            //TODO
+            // This should never happen as SHA-256 is mandatory for every default JVM provider
+            throw new PackageLoadingException(
+                    "Failed to compute filename because desired hashing algorithm is not available.", e);
         }
 
         // @ is used as delimiter between component name hash and semver
-        // .metadata is to indicate it contains metadata info
-        // .json at the end is to indicate the file cotnent type is a json
-        String recipeMetaDataFileName =
-                String.format("%s@%s.metadata.json", hashOfComponentName, componentIdentifier.getVersion().getValue());
-
-        return nucleusPaths.recipePath().resolve(recipeMetaDataFileName).toFile();
+        // because it is cross-platform file system safe and also meaningful
+        return String.format("%s@%s", hashOfComponentName, componentIdentifier.getVersion().getValue());
     }
 }
