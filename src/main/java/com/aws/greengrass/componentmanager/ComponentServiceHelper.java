@@ -13,8 +13,8 @@ import com.amazonaws.services.evergreen.model.ComponentPlatform;
 import com.amazonaws.services.evergreen.model.GetComponentVersionDeprecatedRequest;
 import com.amazonaws.services.evergreen.model.GetComponentVersionDeprecatedResult;
 import com.amazonaws.services.evergreen.model.RecipeFormatType;
-import com.amazonaws.services.evergreen.model.ResolveComponentVersionsRequest;
-import com.amazonaws.services.evergreen.model.ResolveComponentVersionsResult;
+import com.amazonaws.services.evergreen.model.ResolveComponentCandidatesRequest;
+import com.amazonaws.services.evergreen.model.ResolveComponentCandidatesResult;
 import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
 import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
@@ -30,7 +30,6 @@ import org.apache.commons.lang3.Validate;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -70,16 +69,13 @@ public class ComponentServiceHelper {
         ComponentCandidate candidate = new ComponentCandidate().withName(componentName)
                 .withVersion(localCandidateVersion == null ? null : localCandidateVersion.getValue())
                 .withVersionRequirements(versionRequirementsInString);
-        ResolveComponentVersionsRequest request = new ResolveComponentVersionsRequest().withPlatform(platform)
-                .withComponentCandidates(Collections.singletonList(candidate))
-                // TODO: [P41215565]: Switch back deploymentConfigurationId once it's removed from URL path
-                // use UUID to avoid ARN complication in URL, deploymentConfigurationId is used for logging purpose
-                // in server, so could have this hack now
-                .withDeploymentConfigurationId(UUID.randomUUID().toString());
+        ResolveComponentCandidatesRequest request = new ResolveComponentCandidatesRequest().withPlatform(platform)
+                .withComponentCandidates(Collections.singletonList(candidate));
 
-        ResolveComponentVersionsResult result;
+        ResolveComponentCandidatesResult result;
         try {
-            result = evgCmsClient.resolveComponentVersions(request);
+            logger.atInfo().log("Ethan");
+            result = evgCmsClient.resolveComponentCandidates(request);
         } catch (ResourceNotFoundException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
                     .log("No applicable version found in cloud registry");

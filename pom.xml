@@ -101,7 +101,7 @@
         <dependency>
             <groupId>com.amazonaws.services</groupId>
             <artifactId>evergreen</artifactId>
-            <version>1.0.418</version>
+            <version>1.0.438</version>
         </dependency>
         <dependency>
             <groupId>com.aws.iot</groupId>
