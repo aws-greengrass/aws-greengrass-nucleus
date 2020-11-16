@@ -137,6 +137,8 @@ jobs:
         run: |
           aws s3 cp target/Greengrass.jar s3://gg-evergreen-releases/${{github.repository}}/${{github.ref}}/evergreen-${{github.sha}}.jar
           aws s3 cp target/aws.greengrass.nucleus.zip s3://gg-evergreen-releases/${{github.repository}}-zip/${{github.ref}}/evergreen-${{github.sha}}.zip
+          aws s3 cp target/aws.greengrass.nucleus.zip s3://greengrass-artifacts-releases/${{github.repository}}-zip/${{github.ref}}/greengrass-${{github.sha}}.zip
+          aws s3 cp target/Greengrass.jar s3://greengrass-artifacts-releases/${{github.repository}}/${{github.ref}}/greengrass-${{github.sha}}.jar
       - run: mkdir -p target/artifacts && cp target/aws.greengrass.nucleus.zip target/artifacts/aws.greengrass.nucleus.zip
       - uses: ./.github/actions/aws-greengrass-component-upload-action
         name: Upload to GCS Gamma
