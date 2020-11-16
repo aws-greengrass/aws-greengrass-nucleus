@@ -9,6 +9,7 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
+import com.amazonaws.retry.RetryMode;
 import com.amazonaws.services.evergreen.AWSEvergreen;
 import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
 import com.aws.greengrass.config.Node;
@@ -89,6 +90,7 @@ public class GreengrassComponentServiceClientFactory {
             logger.atWarn("configure-greengrass-mutual-auth")
                     .log("Error during configure greengrass client mutual auth", e);
         }
+        clientConfiguration.withRetryMode(RetryMode.STANDARD);
         AWSEvergreenClientBuilder clientBuilder = AWSEvergreenClientBuilder.standard()
                 // Use an empty credential provider because our requests don't need SigV4
                 // signing, as they are going through IoT Core instead
