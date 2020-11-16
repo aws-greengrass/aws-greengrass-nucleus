@@ -40,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -65,7 +66,7 @@ class GreengrassRepositoryDownloaderTest {
 
     @BeforeEach
     void beforeEach() {
-        when(clientFactory.getCmsClient()).thenReturn(client);
+        lenient().when(clientFactory.getCmsClient()).thenReturn(client);
         this.downloader = Mockito.spy(new GreengrassRepositoryDownloader(clientFactory, componentStore));
     }
 
@@ -125,18 +126,4 @@ class GreengrassRepositoryDownloaderTest {
                 .downloadToPath(pkgId,
                         ComponentArtifact.builder().artifactUri(new URI("greengrass:binary")).build(),null));
     }
-
-//    @Test
-//    void GIVEN_filename_in_uri_WHEN_attempt_resolve_filename_THEN_parse_filename() {
-//        String filename = downloader.getFilename(ComponentArtifact.builder().artifactUri(
-//                URI.create("greengrass:abcd.jj")).build());
-//        assertThat(filename, is("abcd.jj"));
-//        filename = downloader.getFilename(ComponentArtifact.builder().artifactUri(
-//                URI.create("greengrass:abcd")).build());
-//        assertThat(filename, is("abcd"));
-//        filename = downloader.getFilename(ComponentArtifact.builder().artifactUri(
-//                URI.create("greengrass:jkdfjk/kdjfkdj/abcd.jj")).build());
-//        assertThat(filename, is("abcd.jj"));
-//    }
-
 }

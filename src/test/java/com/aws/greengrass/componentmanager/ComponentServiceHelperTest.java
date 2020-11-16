@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,7 +66,7 @@ class ComponentServiceHelperTest {
 
     @BeforeEach
     void beforeEach() {
-        when(clientFactory.getCmsClient()).thenReturn(client);
+        lenient().when(clientFactory.getCmsClient()).thenReturn(client);
         this.helper = spy(new ComponentServiceHelper(clientFactory));
     }
 

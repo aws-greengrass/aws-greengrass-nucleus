@@ -38,11 +38,11 @@ public class ComponentServiceHelper {
     private static final String PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT = "Error downloading recipe for package %s";
     protected static final Logger logger = LogManager.getLogger(ComponentServiceHelper.class);
 
-    private final AWSEvergreen evgCmsClient;
+    private final GreengrassComponentServiceClientFactory clientFactory;
 
     @Inject
     public ComponentServiceHelper(GreengrassComponentServiceClientFactory clientFactory) {
-        this.evgCmsClient = clientFactory.getCmsClient();
+        this.clientFactory = clientFactory;
     }
 
     /**
@@ -74,8 +74,7 @@ public class ComponentServiceHelper {
 
         ResolveComponentCandidatesResult result;
         try {
-            logger.atInfo().log("Ethan");
-            result = evgCmsClient.resolveComponentCandidates(request);
+            result = clientFactory.getCmsClient().resolveComponentCandidates(request);
         } catch (ResourceNotFoundException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
                     .log("No applicable version found in cloud registry");
@@ -117,7 +116,7 @@ public class ComponentServiceHelper {
     private GetComponentVersionDeprecatedResult download(GetComponentVersionDeprecatedRequest r, ComponentIdentifier id)
             throws PackageDownloadException {
         try {
-            return evgCmsClient.getComponentVersionDeprecated(r);
+            return clientFactory.getCmsClient().getComponentVersionDeprecated(r);
         } catch (AmazonClientException e) {
             // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions
             String errorMsg = String.format(PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT, id);
