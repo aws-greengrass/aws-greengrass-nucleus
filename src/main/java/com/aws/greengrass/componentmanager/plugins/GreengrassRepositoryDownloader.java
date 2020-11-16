@@ -33,6 +33,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     public static final String ARTIFACT_URI_LOG_KEY = "artifactUri";
     public static final String COMPONENT_IDENTIFIER_LOG_KEY = "componentIdentifier";
 
+    private final GreengrassComponentServiceClientFactory clientFactory;
     private final ComponentStore componentStore;
 
     /**
@@ -41,8 +42,6 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
      * @param clientFactory  clientFactory
      * @param componentStore componentStore
      */
-    private final GreengrassComponentServiceClientFactory clientFactory;
-
     @Inject
     public GreengrassRepositoryDownloader(GreengrassComponentServiceClientFactory clientFactory,
             ComponentStore componentStore) {

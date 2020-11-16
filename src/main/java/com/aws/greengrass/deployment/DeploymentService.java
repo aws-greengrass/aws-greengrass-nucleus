@@ -482,8 +482,8 @@ public class DeploymentService extends GreengrassService {
                     break;
                 case IOT_JOBS:
                 case SHADOW:
-                    JsonNode jsonNode =
-                            SerializerFactory.getFailSafeJsonObjectMapper().readValue(jobDocumentString, JsonNode.class);
+                    JsonNode jsonNode = SerializerFactory.getFailSafeJsonObjectMapper()
+                            .readValue(jobDocumentString, JsonNode.class);
 
                     if (jsonNode.has("packages")) {
                         // If "packages" exists, the document is in the old format, which is

@@ -103,7 +103,8 @@ public class ComponentManager implements InjectionActions {
      */
     @Inject
     public ComponentManager(S3Downloader s3ArtifactsDownloader,
-            GreengrassRepositoryDownloader greengrassArtifactDownloader, GreengrassComponentServiceHelper greengrassComponentServiceHelper,
+            GreengrassRepositoryDownloader greengrassArtifactDownloader,
+            GreengrassComponentServiceHelper greengrassComponentServiceHelper,
             ExecutorService executorService, ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver,
             DeviceConfiguration deviceConfiguration, NucleusPaths nucleusPaths) {
         this.s3ArtifactsDownloader = s3ArtifactsDownloader;

@@ -53,6 +53,7 @@ public class ComponentStore {
     public static final String ARTIFACT_DIRECTORY = "artifacts";
     public static final String ARTIFACTS_DECOMPRESSED_DIRECTORY = "artifacts-unarchived";
     public static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
+    private static final String LOG_KEY_RECIPE_METADATA_FILE_PATH = "RecipeMetadataFilePath";
     private final NucleusPaths nucleusPaths;
 
     /**
@@ -326,8 +327,7 @@ public class ComponentStore {
     }
 
     private File[] getAllRecipeFiles() {
-        // Ideally we want to identify recipes by a suffix like *.recipe.yaml or *.recipe.json
-        // TODO review note: Should we consider a separate folder so that we don't have to worry about this?
+        // TODO Identify recipes by *.recipe.yaml or *.recipe.json
         return Arrays.stream(nucleusPaths.recipePath().toFile().listFiles())
                 .filter(file -> file.getName().endsWith(".yaml")).filter(file -> file.getName().endsWith(".json"))
                 .filter(file -> !file.getName().endsWith("metadata.json"))  // exclude metadata files
@@ -428,6 +428,8 @@ public class ComponentStore {
      *
      * @param componentIdentifier component id
      * @param recipeMetadata      metadata for the recipe
+     *
+     * @throws PackageLoadingException when failed write recipe metadata to file system.
      */
     public void saveRecipeMetadata(ComponentIdentifier componentIdentifier, RecipeMetadata recipeMetadata)
             throws PackageLoadingException {
@@ -436,7 +438,7 @@ public class ComponentStore {
         try {
             SerializerFactory.getFailSafeJsonObjectMapper().writeValue(metadataFile, recipeMetadata);
         } catch (IOException e) {
-            logger.atError().cause(e).kv("RecipeMetadataFilePath", metadataFile.getAbsolutePath())
+            logger.atError().cause(e).kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
                     .log("Failed to write recipe metadata file");
 
             throw new PackageLoadingException(
@@ -448,13 +450,15 @@ public class ComponentStore {
      * Reads component recipe metadata file.
      *
      * @param componentIdentifier component id
+     *
+     * @throws PackageLoadingException if failed to read recipe metadata from file system or failed to parse the file.
      */
     public RecipeMetadata getRecipeMetadata(ComponentIdentifier componentIdentifier) throws PackageLoadingException {
         File metadataFile = resolveRecipeMetadataFile(componentIdentifier);
 
         if (!metadataFile.exists() || !metadataFile.isFile()) {
             // log error because this is not expected to happen in any normal case
-            logger.atError().kv("RecipeMetadataFilePath", metadataFile.getAbsolutePath())
+            logger.atError().kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
                     .log("Failed to get recipe metadata because the file doesn't not exit or it is a folder");
 
             throw new PackageLoadingException(String.format(
@@ -471,7 +475,7 @@ public class ComponentStore {
             // Furthermore, we should do the similar to recipe file! That's a lot more important.
         } catch (JsonParseException e) {
             // log error because this is not expected to happen in any normal case
-            logger.atError().cause(e).kv("RecipeMetadataFilePath", metadataFile.getAbsolutePath())
+            logger.atError().cause(e).kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
                     .log("Failed to get recipe metadata because the recipe metadata file should be a json "
                                  + "but is corrupted");
 
@@ -481,7 +485,7 @@ public class ComponentStore {
 
         } catch (JsonMappingException e) {
             // log error because this is not expected to happen in any normal case
-            logger.atError().cause(e).kv("RecipeMetadataFilePath", metadataFile.getAbsolutePath())
+            logger.atError().cause(e).kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
                     .log("Failed to get recipe metadata because the recipe metadata file json has wrong structure");
 
 
@@ -491,7 +495,7 @@ public class ComponentStore {
 
         } catch (IOException e) {
             // log error because this is not expected to happen in any normal case
-            logger.atError().cause(e).kv("RecipeMetadataFilePath", metadataFile.getAbsolutePath())
+            logger.atError().cause(e).kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
                     .log("Failed to get recipe metadata because the file can't be read due to low-level I/O error");
 
 
