@@ -16,12 +16,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -37,12 +38,20 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCA
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class})
 class DeploymentStatusKeeperTest {
 
     @Mock
     private DeploymentService deploymentService;
+
+    @Mock
+    private DeploymentDirectoryManager deploymentDirectoryManager;
+
+    @TempDir
+    Path mockPath;
 
     private static final Function<Map<String, Object>, Boolean> DUMMY_CONSUMER = (details) -> false;
     private static final String DUMMY_SERVICE_NAME = "dummyService";
@@ -51,15 +60,17 @@ class DeploymentStatusKeeperTest {
     private Context context;
 
     @BeforeEach
-    void setup() {
+    void setup() throws IOException {
         context = new Context();
         Configuration config = new Configuration(context);
-        Mockito.when(deploymentService.getRuntimeConfig()).thenReturn(
+        when(deploymentService.getRuntimeConfig()).thenReturn(
                 config.lookupTopics(GreengrassService.SERVICES_NAMESPACE_TOPIC,
                         DeploymentService.DEPLOYMENT_SERVICE_TOPICS, GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC));
-
+        lenient().when(deploymentDirectoryManager.getSnapshotFilePath()).thenReturn(mockPath.resolve("snapshot"));
+        lenient().when(deploymentDirectoryManager.getOngoingDir()).thenReturn(mockPath);
         deploymentStatusKeeper = new DeploymentStatusKeeper();
         deploymentStatusKeeper.setDeploymentService(deploymentService);
+        deploymentStatusKeeper.setDeploymentDirectoryManager(deploymentDirectoryManager);
         processedDeployments = deploymentStatusKeeper.getProcessedDeployments();
     }
 

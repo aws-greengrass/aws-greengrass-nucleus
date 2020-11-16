@@ -21,8 +21,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloader;
-import com.aws.greengrass.componentmanager.plugins.GreengrassRepositoryDownloader;
-import com.aws.greengrass.componentmanager.plugins.S3Downloader;
+import com.aws.greengrass.componentmanager.plugins.ArtifactDownloaderFactory;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -43,7 +42,6 @@ import lombok.Setter;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -66,16 +64,13 @@ import static org.apache.commons.io.FileUtils.ONE_MB;
 
 public class ComponentManager implements InjectionActions {
     private static final Logger logger = LogManager.getLogger(ComponentManager.class);
-    private static final String GREENGRASS_SCHEME = "GREENGRASS";
-    private static final String S3_SCHEME = "S3";
     private static final String PACKAGE_NAME_KEY = "packageName";
     private static final String PACKAGE_IDENTIFIER = "packageIdentifier";
     private static final String COMPONENT_STR = "component";
 
     private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
 
-    private final S3Downloader s3ArtifactsDownloader;
-    private final GreengrassRepositoryDownloader greengrassArtifactDownloader;
+    private final ArtifactDownloaderFactory artifactDownloaderFactory;
     private final ComponentServiceHelper componentServiceHelper;
     private final ExecutorService executorService;
     private final ComponentStore componentStore;
@@ -90,23 +85,22 @@ public class ComponentManager implements InjectionActions {
     /**
      * PackageManager constructor.
      *
-     * @param s3ArtifactsDownloader        s3ArtifactsDownloader
-     * @param greengrassArtifactDownloader greengrassArtifactDownloader
-     * @param componentServiceHelper       greengrassPackageServiceHelper
-     * @param executorService              executorService
-     * @param componentStore               componentStore
-     * @param kernel                       kernel
-     * @param unarchiver                   unarchiver
-     * @param deviceConfiguration          deviceConfiguration
-     * @param nucleusPaths                 path library
+     * @param artifactDownloaderFactory      artifactDownloaderFactory
+     * @param componentServiceHelper         greengrassPackageServiceHelper
+     * @param executorService                executorService
+     * @param componentStore                 componentStore
+     * @param kernel                         kernel
+     * @param unarchiver                     unarchiver
+     * @param deviceConfiguration            deviceConfiguration
+     * @param nucleusPaths                   path library
      */
     @Inject
-    public ComponentManager(S3Downloader s3ArtifactsDownloader,
-            GreengrassRepositoryDownloader greengrassArtifactDownloader, ComponentServiceHelper componentServiceHelper,
-            ExecutorService executorService, ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver,
-            DeviceConfiguration deviceConfiguration, NucleusPaths nucleusPaths) {
-        this.s3ArtifactsDownloader = s3ArtifactsDownloader;
-        this.greengrassArtifactDownloader = greengrassArtifactDownloader;
+    public ComponentManager(ArtifactDownloaderFactory artifactDownloaderFactory,
+                            ComponentServiceHelper componentServiceHelper,
+                            ExecutorService executorService, ComponentStore componentStore, Kernel kernel,
+                            Unarchiver unarchiver, DeviceConfiguration deviceConfiguration,
+                            NucleusPaths nucleusPaths) {
+        this.artifactDownloaderFactory = artifactDownloaderFactory;
         this.componentServiceHelper = componentServiceHelper;
         this.executorService = executorService;
         this.componentStore = componentStore;
@@ -283,16 +277,25 @@ public class ComponentManager implements InjectionActions {
         return executorService.submit(() -> {
             for (ComponentIdentifier componentIdentifier : pkgIds) {
                 if (Thread.currentThread().isInterrupted()) {
+                    logger.atInfo().log("Interrupted while preparing artifact for component {}.",
+                            componentIdentifier.getName());
                     return null;
                 }
-                preparePackage(componentIdentifier);
+                try {
+                    preparePackage(componentIdentifier);
+                } catch (InterruptedException ie) {
+                    logger.atInfo().log("Interrupted while preparing artifact for component {}.",
+                            componentIdentifier.getName());
+                    return null;
+                }
             }
             return null;
         });
     }
 
     private void preparePackage(ComponentIdentifier componentIdentifier)
-            throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException {
+            throws PackageLoadingException, PackageDownloadException,
+                    InvalidArtifactUriException, InterruptedException {
         logger.atInfo().setEventType("prepare-package-start").kv(PACKAGE_IDENTIFIER, componentIdentifier).log();
         try {
             ComponentRecipe pkg = findRecipeDownloadIfNotExisted(componentIdentifier);
@@ -332,7 +335,8 @@ public class ComponentManager implements InjectionActions {
     }
 
     void prepareArtifacts(ComponentIdentifier componentIdentifier, List<ComponentArtifact> artifacts)
-            throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException {
+            throws PackageLoadingException, PackageDownloadException,
+            InvalidArtifactUriException, InterruptedException {
         if (artifacts == null) {
             logger.atWarn().kv(PACKAGE_IDENTIFIER, componentIdentifier)
                     .log("Artifact list was null, expected non-null and non-empty");
@@ -352,10 +356,11 @@ public class ComponentManager implements InjectionActions {
                         String.format("Disk space critical: %d bytes usable, %d bytes minimum allowed",
                                       usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
             }
-            ArtifactDownloader downloader = selectArtifactDownloader(artifact.getArtifactUri());
+            ArtifactDownloader downloader = artifactDownloaderFactory.getArtifactDownloader(
+                    componentIdentifier, artifact, packageArtifactDirectory);
 
-            if (downloader.downloadRequired(componentIdentifier, artifact, packageArtifactDirectory)) {
-                long downloadSize = downloader.getDownloadSize(componentIdentifier, artifact, packageArtifactDirectory);
+            if (downloader.downloadRequired()) {
+                long downloadSize = downloader.getDownloadSize();
                 long storeContentSize = componentStore.getContentSize();
                 if (storeContentSize + downloadSize > getConfiguredMaxSize()) {
                     throw new SizeLimitException(String.format(
@@ -364,14 +369,14 @@ public class ComponentManager implements InjectionActions {
                             getConfiguredMaxSize()));
                 }
                 try {
-                    downloader.downloadToPath(componentIdentifier, artifact, packageArtifactDirectory);
+                    downloader.downloadToPath();
                 } catch (IOException e) {
                     throw new PackageDownloadException(
                             String.format("Failed to download component %s artifact %s", componentIdentifier, artifact),
                             e);
                 }
             }
-            File artifactFile = downloader.getArtifactFile(packageArtifactDirectory, artifact, componentIdentifier);
+            File artifactFile = downloader.getArtifactFile();
             if (artifactFile != null) {
                 try {
                     Permissions.setArtifactPermission(artifactFile.toPath(),
@@ -465,17 +470,6 @@ public class ComponentManager implements InjectionActions {
             result.put(service.getName(), nonStaleVersions);
         }
         return result;
-    }
-
-    private ArtifactDownloader selectArtifactDownloader(URI artifactUri) throws PackageLoadingException {
-        String scheme = artifactUri.getScheme() == null ? null : artifactUri.getScheme().toUpperCase();
-        if (GREENGRASS_SCHEME.equals(scheme)) {
-            return greengrassArtifactDownloader;
-        }
-        if (S3_SCHEME.equals(scheme)) {
-            return s3ArtifactsDownloader;
-        }
-        throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme));
     }
 
     /**
