@@ -74,7 +74,10 @@ public class ComponentServiceHelper {
             Map<String, Requirement> versionRequirements, String deploymentConfigurationId)
             throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
 
-        ComponentPlatform platform = new ComponentPlatform().withAttributes(platformResolver.getCurrentPlatform());
+        //ComponentPlatform platform = new ComponentPlatform().withAttributes(platformResolver.getCurrentPlatform());
+        ComponentPlatform platform =
+                new ComponentPlatform().withOs(platformResolver.getCurrentPlatform().get(PlatformResolver.OS_KEY))
+                        .withArchitecture(platformResolver.getCurrentPlatform().get(PlatformResolver.ARCHITECTURE_KEY));
         Map<String, String> versionRequirementsInString = versionRequirements.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().toString()));
         ComponentCandidate candidate = new ComponentCandidate().withName(componentName)
