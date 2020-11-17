@@ -329,8 +329,7 @@ public class ComponentStore {
     private File[] getAllRecipeFiles() {
         // TODO Identify recipes by *.recipe.yaml or *.recipe.json
         return Arrays.stream(nucleusPaths.recipePath().toFile().listFiles())
-                .filter(file -> file.getName().endsWith(".yaml")).filter(file -> file.getName().endsWith(".json"))
-                .filter(file -> !file.getName().endsWith("metadata.json"))  // exclude metadata files
+                .filter(file -> file.getName().endsWith(".yaml"))
                 .toArray(File[]::new);
     }
 

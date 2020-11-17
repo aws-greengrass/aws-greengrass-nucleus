@@ -175,7 +175,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
         String arn;
         try {
-            arn = componentStore.getRecipeMetadata(componentIdentifier).getComponentVersionArn();
+            arn = componentStore.getRecipeMetadata(componentIdentifier)
+                    .getComponentVersionArn();
         } catch (PackageLoadingException e) {
             throw new PackageDownloadException(
                     "Failed to get component version arn from component store. The arn is required for getting artifact"

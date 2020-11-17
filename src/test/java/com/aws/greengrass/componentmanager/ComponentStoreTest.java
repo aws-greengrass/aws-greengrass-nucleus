@@ -493,7 +493,7 @@ class ComponentStoreTest {
         String expectedArn = "testArn"; // defined in HelloWorld@1.0.0.metadata.json
         RecipeMetadata recipeMetadata =
                 componentStore.getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("1.0.0")));
-        assertThat(recipeMetadata, equalTo(expectedArn));
+        assertThat(recipeMetadata.getComponentVersionArn(), equalTo(expectedArn));
     }
 
     @Test
@@ -505,7 +505,7 @@ class ComponentStoreTest {
 
         RecipeMetadata recipeMetadata = componentStore
                 .getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("0.0.0-test-unknown-fields")));
-        assertThat(recipeMetadata, equalTo(expectedArn));
+        assertThat(recipeMetadata.getComponentVersionArn(), equalTo(expectedArn));
     }
 
     @Test
