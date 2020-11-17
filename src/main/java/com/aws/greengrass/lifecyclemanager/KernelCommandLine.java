@@ -55,6 +55,7 @@ public class KernelCommandLine {
     private static final String kernelAltsPathName = "~root/alts";
     private static final String deploymentsPathName = "~root/deployments";
     private static final String cliIpcInfoPathName = "~root/cli_ipc_info";
+    private static final String binPathName = "~root/bin";
 
     public static void main(String[] args) {
         new Kernel().parseArgs(args).launch();
@@ -153,7 +154,8 @@ public class KernelCommandLine {
                     Paths.get(deTilde(configPathName)).toAbsolutePath(),
                     Paths.get(deTilde(kernelAltsPathName)).toAbsolutePath(),
                     Paths.get(deTilde(deploymentsPathName)).toAbsolutePath(),
-                    Paths.get(deTilde(cliIpcInfoPathName)).toAbsolutePath());
+                    Paths.get(deTilde(cliIpcInfoPathName)).toAbsolutePath(),
+                    Paths.get(deTilde(binPathName)).toAbsolutePath());
 
             Exec.setDefaultEnv("HOME", nucleusPaths.workPath().toString());
 
