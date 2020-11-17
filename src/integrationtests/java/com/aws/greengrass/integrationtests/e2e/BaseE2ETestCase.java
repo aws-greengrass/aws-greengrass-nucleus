@@ -16,7 +16,7 @@ import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
 import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
 import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
-import com.amazonaws.services.evergreen.model.DeleteComponentVersionResult;
+import com.amazonaws.services.evergreen.model.DeleteComponentVersionDeprecatedResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.ResourceAlreadyExistsException;
@@ -202,7 +202,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         try {
             List<ComponentIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInS3));
             for (ComponentIdentifier component : allComponents) {
-                DeleteComponentVersionResult result = ComponentServiceHelper
+                DeleteComponentVersionDeprecatedResult result = ComponentServiceHelper
                         .deleteComponent(greengrassClient, component.getName(), component.getVersion().toString());
                 assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
             }

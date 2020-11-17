@@ -101,13 +101,13 @@
         <dependency>
             <groupId>com.amazonaws.services</groupId>
             <artifactId>evergreen</artifactId>
-            <version>1.0.354</version>
+            <version>1.1.100</version>
         </dependency>
         <dependency>
             <groupId>com.aws.iot</groupId>
             <artifactId>component-common</artifactId>
             <!-- change back to 0.0.0-SNAPSHOT after common model is updated in repo -->
-            <version>0.0.0-ba9d57ca61b8396c92ab4df91a77fbaad9f8d9ef</version>
+            <version>0.0.0-SNAPSHOT</version>
         </dependency>
         <!-- TODO: This is temporary, adding because there is some confusion about which version
         of core should be used for the AWS SDK (2.x or 1.x). Will be removed once the pom file for
@@ -122,7 +122,7 @@
             <artifactId>aws-java-sdk-core</artifactId>
             <groupId>com.amazonaws</groupId>
             <optional>false</optional>
-            <version>1.11.766</version>
+            <version>1.11.873</version>
             <exclusions>
                 <exclusion>
                     <groupId>commons-logging</groupId>
