@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.util.Optional;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationUpdateEvents;
+import software.amazon.awssdk.aws.greengrass.model.CreateDebugPasswordRequest;
 import software.amazon.awssdk.aws.greengrass.model.CreateLocalDeploymentRequest;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.GetComponentDetailsRequest;
@@ -79,6 +80,14 @@ public class GreengrassCoreIPCClient extends EventStreamRPCClient implements Gre
       final Optional<StreamResponseHandler<EventStreamJsonMessage>> streamResponseHandler) {
     final ListComponentsOperationContext operationContext = GreengrassCoreIPCServiceModel.getListComponentsModelContext();
     return new ListComponentsResponseHandler(doOperationInvoke(operationContext, request, streamResponseHandler));
+  }
+
+  @Override
+  public CreateDebugPasswordResponseHandler createDebugPassword(
+      final CreateDebugPasswordRequest request,
+      final Optional<StreamResponseHandler<EventStreamJsonMessage>> streamResponseHandler) {
+    final CreateDebugPasswordOperationContext operationContext = GreengrassCoreIPCServiceModel.getCreateDebugPasswordModelContext();
+    return new CreateDebugPasswordResponseHandler(doOperationInvoke(operationContext, request, streamResponseHandler));
   }
 
   @Override

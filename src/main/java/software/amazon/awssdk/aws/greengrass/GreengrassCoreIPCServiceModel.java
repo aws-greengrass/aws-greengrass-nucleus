@@ -23,6 +23,8 @@ import software.amazon.awssdk.aws.greengrass.model.ConfigurationUpdateEvents;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityReport;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityStatus;
 import software.amazon.awssdk.aws.greengrass.model.ConflictError;
+import software.amazon.awssdk.aws.greengrass.model.CreateDebugPasswordRequest;
+import software.amazon.awssdk.aws.greengrass.model.CreateDebugPasswordResponse;
 import software.amazon.awssdk.aws.greengrass.model.CreateLocalDeploymentRequest;
 import software.amazon.awssdk.aws.greengrass.model.CreateLocalDeploymentResponse;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
@@ -129,6 +131,10 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
 
   private static final ListComponentsOperationContext _LIST_COMPONENTS_OPERATION_CONTEXT = new ListComponentsOperationContext();
 
+  public static final String CREATE_DEBUG_PASSWORD = SERVICE_NAMESPACE + "#" + "CreateDebugPassword";
+
+  private static final CreateDebugPasswordOperationContext _CREATE_DEBUG_PASSWORD_OPERATION_CONTEXT = new CreateDebugPasswordOperationContext();
+
   public static final String DEFER_COMPONENT_UPDATE = SERVICE_NAMESPACE + "#" + "DeferComponentUpdate";
 
   private static final DeferComponentUpdateOperationContext _DEFER_COMPONENT_UPDATE_OPERATION_CONTEXT = new DeferComponentUpdateOperationContext();
@@ -208,6 +214,8 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CONFIGURATION_UPDATE);
     SERVICE_OPERATION_MODEL_MAP.put(LIST_COMPONENTS, _LIST_COMPONENTS_OPERATION_CONTEXT);
     SERVICE_OPERATION_SET.add(LIST_COMPONENTS);
+    SERVICE_OPERATION_MODEL_MAP.put(CREATE_DEBUG_PASSWORD, _CREATE_DEBUG_PASSWORD_OPERATION_CONTEXT);
+    SERVICE_OPERATION_SET.add(CREATE_DEBUG_PASSWORD);
     SERVICE_OPERATION_MODEL_MAP.put(DEFER_COMPONENT_UPDATE, _DEFER_COMPONENT_UPDATE_OPERATION_CONTEXT);
     SERVICE_OPERATION_SET.add(DEFER_COMPONENT_UPDATE);
     SERVICE_OPERATION_MODEL_MAP.put(SEND_CONFIGURATION_VALIDITY_REPORT, _SEND_CONFIGURATION_VALIDITY_REPORT_OPERATION_CONTEXT);
@@ -263,6 +271,8 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToConfigurationUpdateResponse.APPLICATION_MODEL_TYPE, SubscribeToConfigurationUpdateResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(ResourceNotFoundError.APPLICATION_MODEL_TYPE, ResourceNotFoundError.class);
     SERVICE_OBJECT_MODEL_MAP.put(ListComponentsResponse.APPLICATION_MODEL_TYPE, ListComponentsResponse.class);
+    SERVICE_OBJECT_MODEL_MAP.put(CreateDebugPasswordRequest.APPLICATION_MODEL_TYPE, CreateDebugPasswordRequest.class);
+    SERVICE_OBJECT_MODEL_MAP.put(CreateDebugPasswordResponse.APPLICATION_MODEL_TYPE, CreateDebugPasswordResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(DeferComponentUpdateRequest.APPLICATION_MODEL_TYPE, DeferComponentUpdateRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(InvalidArgumentsError.APPLICATION_MODEL_TYPE, InvalidArgumentsError.class);
     SERVICE_OBJECT_MODEL_MAP.put(SendConfigurationValidityReportRequest.APPLICATION_MODEL_TYPE, SendConfigurationValidityReportRequest.class);
@@ -353,6 +363,10 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
 
   public static ListComponentsOperationContext getListComponentsModelContext() {
     return _LIST_COMPONENTS_OPERATION_CONTEXT;
+  }
+
+  public static CreateDebugPasswordOperationContext getCreateDebugPasswordModelContext() {
+    return _CREATE_DEBUG_PASSWORD_OPERATION_CONTEXT;
   }
 
   public static DeferComponentUpdateOperationContext getDeferComponentUpdateModelContext() {
