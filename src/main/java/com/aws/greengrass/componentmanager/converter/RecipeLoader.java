@@ -15,13 +15,14 @@ import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.models.Permission;
 import com.aws.greengrass.componentmanager.models.PermissionType;
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,16 +30,23 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.inject.Inject;
 
 /**
  * This class handles conversion between recipe file contract and device business model. It also resolves platform
  * resolving logic while converting.
  */
 
-@NoArgsConstructor(access = AccessLevel.PRIVATE) // so that it can't be 'new'
-public final class RecipeLoader {
+public class RecipeLoader {
     // GG_NEEDS_REVIEW: TODO:[P41216663]: add logging
-    //    private static final Logger logger = LogManager.getLogger(RecipeLoader.class);
+    private static final Logger LOGGER = LogManager.getLogger(PlatformResolver.class);
+
+    private final PlatformResolver platformResolver;
+
+    @Inject
+    public RecipeLoader(PlatformResolver platformResolver) {
+        this.platformResolver = platformResolver;
+    }
 
     /**
      * Parse the recipe content to recipe object.
@@ -66,7 +74,7 @@ public final class RecipeLoader {
      * @return Optional package recipe
      * @throws PackageLoadingException when failed to convert recipe file.
      */
-    public static Optional<ComponentRecipe> loadFromFile(String recipeFileContent) throws PackageLoadingException {
+    public Optional<ComponentRecipe> loadFromFile(String recipeFileContent) throws PackageLoadingException {
 
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe = parseRecipe(recipeFileContent);
         if (componentRecipe.getManifests() == null || componentRecipe.getManifests().isEmpty()) {
@@ -76,13 +84,14 @@ public final class RecipeLoader {
         }
 
         Optional<PlatformSpecificManifest> optionalPlatformSpecificManifest =
-                PlatformResolver.findBestMatch(componentRecipe.getManifests());
+                platformResolver.findBestMatch(componentRecipe.getManifests());
 
         if (!optionalPlatformSpecificManifest.isPresent()) {
             return Optional.empty();
         }
 
         PlatformSpecificManifest platformSpecificManifest = optionalPlatformSpecificManifest.get();
+        Set<String> selectors = collectAllSelectors(componentRecipe.getManifests());
 
         Map<String, DependencyProperties> dependencyPropertiesMap = new HashMap<>();
         if (componentRecipe.getComponentDependencies() != null) {
@@ -93,7 +102,8 @@ public final class RecipeLoader {
                 .version(componentRecipe.getComponentVersion()).publisher(componentRecipe.getComponentPublisher())
                 .recipeTemplateVersion(componentRecipe.getRecipeFormatVersion())
                 .componentType(componentRecipe.getComponentType()).dependencies(dependencyPropertiesMap)
-                .lifecycle(platformSpecificManifest.getLifecycle())
+                .lifecycle(convertLifecycleFromFile(componentRecipe.getLifecycle(), platformSpecificManifest,
+                        selectors))
                 .artifacts(convertArtifactsFromFile(platformSpecificManifest.getArtifacts()))
                 .componentConfiguration(componentRecipe.getComponentConfiguration())
                 .componentParameters(convertParametersFromFile(platformSpecificManifest.getParameters())).build();
@@ -132,6 +142,76 @@ public final class RecipeLoader {
                 .algorithm(componentArtifact.getAlgorithm()).checksum(componentArtifact.getDigest())
                 .unarchive(componentArtifact.getUnarchive())
                 .permission(convertPermissionFromFile(componentArtifact.getPermission())).build();
+    }
+
+    /**
+     * Folds all selectors into one set that is specific to this recipe, used for lifecycle filtering.
+     * @param manifests Collection of manifests
+     * @return Set of all selectors
+     */
+    private static Set<String> collectAllSelectors(@Nonnull List<PlatformSpecificManifest> manifests) {
+        Set<String> allSelectors = new HashSet<>();
+        manifests.stream().map(m -> m.getSelections()).filter(s -> s != null).forEach(s -> {
+            allSelectors.addAll(s);
+        });
+        allSelectors.add(PlatformResolver.ALL_KEYWORD); // implicit, it is ok if it was specified explicitly
+        return allSelectors;
+    }
+
+    /**
+     * Performs filtering on a lifecycle map that is manifest specific.
+     * @param lifecycleMap Recipe lifecycle map
+     * @param manifest     Selected manifest
+     * @param allSelectors All selectors defined in this recipe
+     * @return filtered lifecycle
+     */
+    private static Map<String, Object> convertLifecycleFromFile(
+            @Nonnull Map<String, Object> lifecycleMap,
+            @Nonnull PlatformSpecificManifest manifest,
+            @Nonnull Set<String> allSelectors) {
+
+        Map<String, Object> effectiveLifecycleMap = lifecycleMap;
+
+        if (manifest.getSelections() == null || manifest.getSelections().isEmpty()) {
+            // BEGIN BETA Compatibility code
+            // TODO: These need to be removed for re:Invent
+            // We might be running with old lifecycle
+
+            if (effectiveLifecycleMap.isEmpty()) {
+                effectiveLifecycleMap = manifest.getLifecycle();
+            }
+            if (!effectiveLifecycleMap.isEmpty()) {
+                Object resolvedPlatformMap = PlatformResolver.resolvePlatform(effectiveLifecycleMap);
+                if (resolvedPlatformMap instanceof Map) {
+                    effectiveLifecycleMap = (Map<String, Object>) resolvedPlatformMap;
+                } else {
+                    effectiveLifecycleMap = Collections.emptyMap();
+                }
+                if (effectiveLifecycleMap.isEmpty()) {
+                    LOGGER.warn("Non-empty lifecycle section ignored after (old style) platform selection filtering");
+                    return Collections.emptyMap();
+                }
+            }
+            // END BETA Compatibility code
+            return effectiveLifecycleMap;
+        } else {
+            // selections were applied to the lifecycle section
+            // we allow the following syntax forms (combined)
+            //
+            // Lifecycle:
+            //    <selector>: (optional)
+            //       Section:
+            //          <selector>: (optional)
+            //              body
+            Object filtered = PlatformResolver.filterPlatform(effectiveLifecycleMap, allSelectors,
+                    manifest.getSelections()).orElse(Collections.emptyMap());
+            if (filtered instanceof Map && !((Map<?, ?>) filtered).isEmpty()) {
+                return (Map<String, Object>) filtered;
+            } else {
+                LOGGER.warn("Non-empty lifecycle section ignored after platform selection filtering");
+                return Collections.emptyMap();
+            }
+        }
     }
 
     private static Permission convertPermissionFromFile(

@@ -116,7 +116,7 @@ public class Configuration {
     }
 
     /**
-     * Merges a Map into this configuration. The merge will resolve platform. The most common use case is for
+     * Merges a Map into this configuration. The most common use case is for
      * reading textual config files via jackson-jr. For example, to merge a
      * .yaml file:
      * <br><code>
@@ -135,19 +135,20 @@ public class Configuration {
     }
 
     /**
-     * Merges a Map into this configuration. The merge will resolve platform.
+     * Merges a Map into this configuration.
      *
      * @param map           map to merge
      * @param updateBehavior the updateBehavior of each node to be merged in
      */
     public void updateMap(Map<String, Object> map, UpdateBehaviorTree updateBehavior) {
+        // TODO: Deprecated, integration tests needs to be fixed before this can be removed
         Object resolvedPlatformMap = PlatformResolver.resolvePlatform(map);
         if (!(resolvedPlatformMap instanceof Map)) {
             throw new IllegalArgumentException("Invalid config after resolving platform: " + resolvedPlatformMap);
         }
         // TODO: avoid sending multiple changed/childChanged event when the entire config is being updated.
         configUnderUpdate.set(true);
-        root.updateFromMap((Map<String, Object>) resolvedPlatformMap, updateBehavior);
+        root.updateFromMap((Map<String,Object>)resolvedPlatformMap, updateBehavior);
         context.runOnPublishQueue(() -> {
             synchronized (configUpdateNotifier) {
                 configUnderUpdate.set(false);
