@@ -20,6 +20,7 @@ import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloaderFactory;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -120,6 +121,8 @@ class ComponentManagerTest {
 
     private ComponentManager componentManager;
 
+    private RecipeLoader recipeLoader;
+
     @Mock
     private ArtifactDownloader artifactDownloader;
 
@@ -146,6 +149,9 @@ class ComponentManagerTest {
 
     @BeforeEach
     void beforeEach() throws Exception {
+        PlatformResolver platformResolver = new PlatformResolver(null);
+        recipeLoader = new RecipeLoader(platformResolver);
+
         lenient().when(artifactDownloader.downloadRequired()).thenReturn(true);
         lenient().when(artifactDownloaderFactory.getArtifactDownloader(any(), any(), any()))
                 .thenReturn(artifactDownloader);
@@ -204,7 +210,7 @@ class ComponentManagerTest {
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
 
         String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
-        ComponentRecipe componentRecipe = RecipeLoader.loadFromFile(sourceRecipeString).get();
+        ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
 
 
         when(componentManagementServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(sourceRecipeString);
@@ -241,7 +247,7 @@ class ComponentManagerTest {
 
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-        ComponentRecipe pkg1 = RecipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
+        ComponentRecipe pkg1 = recipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
 
         CountDownLatch startedPreparingPkgId1 = new CountDownLatch(1);
         when(componentManagementServiceHelper.downloadPackageRecipeAsString(pkgId1)).thenAnswer(invocationOnMock -> {
@@ -425,7 +431,7 @@ class ComponentManagerTest {
         String fileName = "SimpleApp-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
         String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
-        ComponentRecipe componentRecipe = RecipeLoader.loadFromFile(sourceRecipeString).get();
+        ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
         when(componentManagementServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(sourceRecipeString);
         when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
 
@@ -447,7 +453,7 @@ class ComponentManagerTest {
         String fileName = "SimpleApp-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
         String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
-        ComponentRecipe componentRecipe = RecipeLoader.loadFromFile(sourceRecipeString).get();
+        ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
         when(componentManagementServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(sourceRecipeString);
         when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
 
