@@ -417,7 +417,7 @@ class DependencyResolverTest {
     }
 
     @Test
-    void GIVEN_resolved_components_contains_custom_nucleus_WHEN_active_nucleus_is_not_custom_nucleus_different_THEN_fail()
+    void GIVEN_resolved_components_contains_custom_nucleus_WHEN_active_nucleus_is_not_custom_nucleus_THEN_fail()
             throws Exception {
         GreengrassService activeNucleus = mock(GreengrassService.class);
         when(activeNucleus.getServiceName()).thenReturn("defaultNucleus");
