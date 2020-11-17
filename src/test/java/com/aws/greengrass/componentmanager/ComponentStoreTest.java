@@ -142,13 +142,13 @@ class ComponentStoreTest {
 
     @Test
     void GIVEN_a_recipe_exists_when_savePackageRecipe_THEN_recipe_file_is_updated()
-            throws IOException, PackageLoadingException {
+            throws Exception {
         // GIVEN
-        String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
         String recipeContent = "recipeContent";
 
+        ComponentIdentifier componentIdentifier = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"));
 
-        File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
+        File expectedRecipeFile = getExpectedRecipeFile(componentIdentifier);
 
         assertThat(expectedRecipeFile, not(anExistingFile()));
         FileUtils.writeStringToFile(expectedRecipeFile, "old content that will be replaced");
@@ -157,7 +157,7 @@ class ComponentStoreTest {
 
         // WHEN
         componentStore
-                .savePackageRecipe(new ComponentIdentifier("MonitoringService", new Semver("1.0.0")), recipeContent);
+                .savePackageRecipe(componentIdentifier, recipeContent);
 
         // THEN
         String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
@@ -339,7 +339,7 @@ class ComponentStoreTest {
         preloadArtifactFileFromTestResouce(MONITORING_SERVICE_PKG_ID, MONITORING_SERVICE_PKG_ARTIFACT_NAME);
         preloadRecipeMetadataFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_METADATA_FILE_NAME);
 
-        File expectedRecipeFile = recipeDirectory.resolve(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME).toFile();
+        File expectedRecipeFile = getExpectedRecipeFile(MONITORING_SERVICE_PKG_ID);
         File expectedArtifactFile = componentStore.resolveArtifactDirectoryPath(MONITORING_SERVICE_PKG_ID)
                 .resolve(MONITORING_SERVICE_PKG_ARTIFACT_NAME).toFile();
         File expectedRecipeMetadataFile =
@@ -504,7 +504,7 @@ class ComponentStoreTest {
         String expectedArn = "testArn"; // defined in HelloWorld@1.0.0.metadata.json
         RecipeMetadata recipeMetadata =
                 componentStore.getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("1.0.0")));
-        assertThat(recipeMetadata, equalTo(expectedArn));
+        assertThat(recipeMetadata.getComponentVersionArn(), equalTo(expectedArn));
     }
 
     @Test
@@ -516,7 +516,7 @@ class ComponentStoreTest {
 
         RecipeMetadata recipeMetadata = componentStore
                 .getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("0.0.0-test-unknown-fields")));
-        assertThat(recipeMetadata, equalTo(expectedArn));
+        assertThat(recipeMetadata.getComponentVersionArn(), equalTo(expectedArn));
     }
 
     @Test
