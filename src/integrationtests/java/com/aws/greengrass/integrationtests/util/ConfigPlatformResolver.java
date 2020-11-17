@@ -31,7 +31,7 @@ public final class ConfigPlatformResolver {
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
 
     private static final Set<String> SUPPORTED_PLATFORMS = Collections.unmodifiableSet(initializeSupportedPlatforms());
-    private static final Logger logger = LogManager.getLogger(com.aws.greengrass.config.PlatformResolver.class);
+    private static final Logger logger = LogManager.getLogger(ConfigPlatformResolver.class);
 
     public static final AtomicReference<Map<String, Integer>> RANKS =
             new AtomicReference<>(Collections.unmodifiableMap(initializeRanks()));
@@ -131,8 +131,7 @@ public final class ConfigPlatformResolver {
             if (!SUPPORTED_PLATFORMS.contains(entry.getKey())) {
                 continue;
             }
-            logger.error("Broken configuration, deprecated platform keyword {} was applied.",
-                    entry.getKey());
+            logger.info("platform keyword {} was applied.", entry.getKey());
             platformResolved = true;
             Integer g = ranks.get(entry.getKey());
             if (g != null && g > bestrank) {
