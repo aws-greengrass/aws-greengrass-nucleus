@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -533,7 +534,7 @@ public class KernelConfigResolver {
      */
     private Map<String, Object> getMainConfig(List<String> rootPackages, String nucleusComponentName) {
         Map<String, Object> mainServiceConfig = new HashMap<>();
-        ArrayList<String> mainDependencies = new ArrayList<>(rootPackages);
+        Set<String> mainDependencies = new HashSet<>(rootPackages);
         kernel.getMain().getDependencies().forEach((greengrassService, dependencyType) -> {
             // Add all autostart dependencies
             if (greengrassService.isBuiltin()) {
@@ -544,7 +545,7 @@ public class KernelConfigResolver {
         // Make Nucleus component sticky
         mainDependencies.add(nucleusComponentName);
 
-        mainServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, mainDependencies);
+        mainServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, new ArrayList<>(mainDependencies));
         return mainServiceConfig;
     }
 

@@ -186,12 +186,12 @@ class BootstrapManagerTest {
                 new BootstrapTaskStatus(componentB));
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(99).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(0)));
+        doNothing().when(bootstrapManager).persistBootstrapTaskList(any());
 
         bootstrapManager.setBootstrapTaskStatusList(pendingTasks);
         ServiceUpdateException exception = assertThrows(ServiceUpdateException.class,
                 () -> bootstrapManager.executeAllBootstrapTasksSequentially(filePath));
         assertThat(exception.getMessage(), stringContainsInOrder(componentA));
-        verify(bootstrapManager, times(0)).persistBootstrapTaskList(eq(filePath));
     }
 
     @Test

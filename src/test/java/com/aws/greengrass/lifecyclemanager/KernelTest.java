@@ -463,7 +463,7 @@ class KernelTest {
 
         verify(kernelAlternatives).prepareRollback();
         verify(deploymentDirectoryManager).writeDeploymentMetadata(eq(deployment));
-        verify(kernelLifecycle).shutdown(eq(30), eq(2));
+        verify(kernelLifecycle).shutdown(eq(30), eq(REQUEST_RESTART));
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
@@ -500,7 +500,7 @@ class KernelTest {
         }
 
         verify(kernelAlternatives).prepareRollback();
-        verify(kernelLifecycle).shutdown(eq(30), eq(2));
+        verify(kernelLifecycle).shutdown(eq(30), eq(REQUEST_RESTART));
     }
 
     static class TestClass extends GreengrassService {
