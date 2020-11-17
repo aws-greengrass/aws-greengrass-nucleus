@@ -6,8 +6,8 @@
 package com.aws.greengrass.componentmanager.plugins;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactRequest;
-import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactResult;
+import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactDeprecatedRequest;
+import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactDeprecatedResult;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
@@ -168,15 +168,15 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     private URL getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws PackageDownloadException {
-        GetComponentVersionArtifactRequest getComponentArtifactRequest =
-                new GetComponentVersionArtifactRequest().withArtifactName(artifactName)
+        GetComponentVersionArtifactDeprecatedRequest getComponentArtifactRequest =
+                new GetComponentVersionArtifactDeprecatedRequest().withArtifactName(artifactName)
                         .withComponentName(componentIdentifier.getName())
                         .withComponentVersion(componentIdentifier.getVersion().toString());
 
         String preSignedUrl;
         try {
-            GetComponentVersionArtifactResult getComponentArtifactResult =
-                    clientFactory.getCmsClient().getComponentVersionArtifact(getComponentArtifactRequest);
+            GetComponentVersionArtifactDeprecatedResult getComponentArtifactResult =
+                    clientFactory.getCmsClient().getComponentVersionArtifactDeprecated(getComponentArtifactRequest);
             preSignedUrl = getComponentArtifactResult.getPreSignedUrl();
         } catch (AmazonClientException ace) {
             throw new PackageDownloadException(getErrorString("error in get artifact download URL"), ace);

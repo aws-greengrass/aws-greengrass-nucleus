@@ -12,10 +12,10 @@ import com.amazonaws.services.evergreen.model.ComponentContent;
 import com.amazonaws.services.evergreen.model.ComponentPlatform;
 import com.amazonaws.services.evergreen.model.CreateComponentRequest;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
-import com.amazonaws.services.evergreen.model.DeleteComponentVersionRequest;
-import com.amazonaws.services.evergreen.model.DeleteComponentVersionResult;
-import com.amazonaws.services.evergreen.model.GetComponentVersionRequest;
-import com.amazonaws.services.evergreen.model.GetComponentVersionResult;
+import com.amazonaws.services.evergreen.model.DeleteComponentVersionDeprecatedRequest;
+import com.amazonaws.services.evergreen.model.DeleteComponentVersionDeprecatedResult;
+import com.amazonaws.services.evergreen.model.GetComponentVersionDeprecatedRequest;
+import com.amazonaws.services.evergreen.model.GetComponentVersionDeprecatedResult;
 import com.amazonaws.services.evergreen.model.RecipeFormatType;
 import com.amazonaws.services.evergreen.model.ResolveComponentVersionsRequest;
 import com.amazonaws.services.evergreen.model.ResolveComponentVersionsResult;
@@ -117,19 +117,20 @@ public class ComponentServiceHelper {
      */
     public String downloadPackageRecipeAsString(ComponentIdentifier componentIdentifier)
             throws PackageDownloadException {
-        GetComponentVersionRequest getComponentVersionRequest =
-                new GetComponentVersionRequest().withComponentName(componentIdentifier.getName())
+        GetComponentVersionDeprecatedRequest getComponentVersionRequest =
+                new GetComponentVersionDeprecatedRequest().withComponentName(componentIdentifier.getName())
                         .withComponentVersion(componentIdentifier.getVersion().toString())
                         .withType(RecipeFormatType.YAML);
 
-        GetComponentVersionResult getPackageResult = download(getComponentVersionRequest, componentIdentifier);
+        GetComponentVersionDeprecatedResult getPackageResult =
+                download(getComponentVersionRequest, componentIdentifier);
         return StandardCharsets.UTF_8.decode(getPackageResult.getRecipe()).toString();
     }
 
-    private GetComponentVersionResult download(GetComponentVersionRequest r, ComponentIdentifier id)
+    private GetComponentVersionDeprecatedResult download(GetComponentVersionDeprecatedRequest r, ComponentIdentifier id)
             throws PackageDownloadException {
         try {
-            return clientFactory.getCmsClient().getComponentVersion(r);
+            return clientFactory.getCmsClient().getComponentVersionDeprecated(r);
         } catch (AmazonClientException e) {
             // TODO: [P41215221]: Properly handle all retryable/nonretryable exceptions
             String errorMsg = String.format(PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT, id);
@@ -163,16 +164,16 @@ public class ComponentServiceHelper {
      * @param cmsClient        client of Component Management Service
      * @param componentName    name of the component to delete
      * @param componentVersion version of the component to delete
-     * @return {@link DeleteComponentVersionResult}
+     * @return {@link DeleteComponentVersionDeprecatedResult}
      */
-    public static DeleteComponentVersionResult deleteComponent(AWSEvergreen cmsClient, String componentName,
+    public static DeleteComponentVersionDeprecatedResult deleteComponent(AWSEvergreen cmsClient, String componentName,
             String componentVersion) {
-        DeleteComponentVersionRequest deleteComponentVersionRequest =
-                new DeleteComponentVersionRequest().withComponentName(componentName)
+        DeleteComponentVersionDeprecatedRequest deleteComponentVersionRequest =
+                new DeleteComponentVersionDeprecatedRequest().withComponentName(componentName)
                         .withComponentVersion(componentVersion);
         logger.atDebug("delete-component").kv("request", deleteComponentVersionRequest).log();
-        DeleteComponentVersionResult deleteComponentVersionResult =
-                cmsClient.deleteComponentVersion(deleteComponentVersionRequest);
+        DeleteComponentVersionDeprecatedResult deleteComponentVersionResult =
+                cmsClient.deleteComponentVersionDeprecated(deleteComponentVersionRequest);
         logger.atDebug("delete-component").kv("result", deleteComponentVersionResult).log();
         return deleteComponentVersionResult;
     }
