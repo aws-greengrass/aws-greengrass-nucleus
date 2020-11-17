@@ -49,10 +49,13 @@ public class ComponentServiceHelper {
     protected static final Logger logger = LogManager.getLogger(ComponentServiceHelper.class);
 
     private final GreengrassComponentServiceClientFactory clientFactory;
+    private final PlatformResolver platformResolver;
 
     @Inject
-    public ComponentServiceHelper(GreengrassComponentServiceClientFactory clientFactory) {
+    public ComponentServiceHelper(GreengrassComponentServiceClientFactory clientFactory,
+                                  PlatformResolver platformResolver) {
         this.clientFactory = clientFactory;
+        this.platformResolver = platformResolver;
     }
 
     /**
@@ -71,9 +74,10 @@ public class ComponentServiceHelper {
             Map<String, Requirement> versionRequirements, String deploymentConfigurationId)
             throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
 
-        // TODO: [P41215526]: Use osVersion and osFlavor for resolving component version once they are supported
-        ComponentPlatform platform = new ComponentPlatform().withOs(PlatformResolver.CURRENT_PLATFORM.getOs().getName())
-                .withArchitecture(PlatformResolver.CURRENT_PLATFORM.getArchitecture().getName());
+        //ComponentPlatform platform = new ComponentPlatform().withAttributes(platformResolver.getCurrentPlatform());
+        ComponentPlatform platform =
+                new ComponentPlatform().withOs(platformResolver.getCurrentPlatform().get(PlatformResolver.OS_KEY))
+                        .withArchitecture(platformResolver.getCurrentPlatform().get(PlatformResolver.ARCHITECTURE_KEY));
         Map<String, String> versionRequirementsInString = versionRequirements.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().toString()));
         ComponentCandidate candidate = new ComponentCandidate().withName(componentName)

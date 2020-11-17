@@ -22,9 +22,11 @@ import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.ResourceAlreadyExistsException;
 import com.aws.greengrass.componentmanager.ComponentServiceHelper;
 import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.easysetup.DeviceProvisioningHelper;
@@ -247,7 +249,8 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         NucleusPaths nucleusPaths = new NucleusPaths();
         nucleusPaths.setComponentStorePath(e2eTestPkgStoreDir);
-        e2ETestComponentStore = new ComponentStore(nucleusPaths);
+        PlatformResolver platformResolver = new PlatformResolver(null);
+        e2ETestComponentStore = new ComponentStore(nucleusPaths, platformResolver, new RecipeLoader(platformResolver));
     }
 
     /**
