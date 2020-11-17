@@ -504,14 +504,16 @@ public class ComponentStore {
         }
     }
 
-    private File resolveRecipeMetadataFile(ComponentIdentifier componentIdentifier) {
-        String hashOfComponentName = null;
+    private File resolveRecipeMetadataFile(ComponentIdentifier componentIdentifier) throws PackageLoadingException {
+        String hashOfComponentName;
         try {
             // calculate a hash for component name so that it is safe to be in a file name cross platform
             // padding is removed to avoid confusion
             hashOfComponentName = Digest.calculateWithUrlEncoderNoPadding(componentIdentifier.getName());
         } catch (NoSuchAlgorithmException e) {
-            //TODO
+            // This should never happen as SHA-256 is mandatory for every default JVM provider
+            throw new PackageLoadingException(
+                    "Failed to compute filename because desired hashing algorithm is not available.", e);
         }
 
         // @ is used as delimiter between component name hash and semver
