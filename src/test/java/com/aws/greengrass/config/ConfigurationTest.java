@@ -40,7 +40,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
@@ -275,14 +274,6 @@ class ConfigurationTest {
 
         assertEquals(1, childNotified[1].get());
         assertEquals(1, childNotified[2].get());
-    }
-
-    @Test
-    void GIVEN_config_to_merge_WHEN_resolved_platform_is_not_a_map_THEN_reject() {
-        Map<String, Object> toMerge = new HashMap<String, Object>() {{
-            put("ubuntu", "This is not a map");
-        }};
-        assertThrows(IllegalArgumentException.class, () -> config.mergeMap(1, toMerge));
     }
 
     @Test

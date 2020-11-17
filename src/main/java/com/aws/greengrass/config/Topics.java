@@ -259,18 +259,10 @@ public class Topics extends Node implements Iterable<Node> {
         });
 
         childrenToRemove.forEach(childName -> {
-            UpdateBehaviorTree childMergeBehavior = mergeBehavior.getBehavior(childName.toString());
-
-            // remove the existing child if its merge behavior is not present and root merge behavior is REPLACE
-            if (childMergeBehavior == null
-                    && mergeBehavior.getDefaultBehavior() == UpdateBehaviorTree.UpdateBehavior.REPLACE) {
-                remove(children.get(childName));
-                return;
-            }
+            UpdateBehaviorTree childMergeBehavior = mergeBehavior.getChildBehavior(childName.toString());
 
             // remove the existing child if its merge behavior is REPLACE
-            if (childMergeBehavior != null
-                    && childMergeBehavior.getDefaultBehavior() == UpdateBehaviorTree.UpdateBehavior.REPLACE) {
+            if (childMergeBehavior.getBehavior() == UpdateBehaviorTree.UpdateBehavior.REPLACE) {
                 remove(children.get(childName));
             }
         });
@@ -278,11 +270,7 @@ public class Topics extends Node implements Iterable<Node> {
 
     private void updateChild(CaseInsensitiveString key, Object value,
                              @NonNull UpdateBehaviorTree mergeBehavior) {
-        UpdateBehaviorTree childMergeBehavior = mergeBehavior.getBehavior(key.toString());
-
-        if (childMergeBehavior == null) {
-            childMergeBehavior = mergeBehavior;
-        }
+        UpdateBehaviorTree childMergeBehavior = mergeBehavior.getChildBehavior(key.toString());
 
         Node existingChild = children.get(key);
         // if new node is a container node

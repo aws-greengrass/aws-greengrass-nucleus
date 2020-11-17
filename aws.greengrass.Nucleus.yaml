@@ -20,9 +20,11 @@ ComponentConfiguration:
     runWithDefault: {}
     deploymentPollingFrequency: 15L
     componentStoreMaxSizeBytes: 10_000_000_000L
+    platformOverride: {}
 Manifests:
   - Platform:
       os: darwin
+    Name: darwin
     Artifacts:
       - URI: s3://gg-dev-artifacts-$stage/$componentName/$version/aws.greengrass.nucleus.zip
         Unarchive: zip
@@ -44,6 +46,7 @@ Manifests:
 
   - Platform:
       os: linux
+    Name: linux
     Artifacts:
       - URI: s3://gg-dev-artifacts-$stage/$componentName/$version/aws.greengrass.nucleus.zip
         Unarchive: zip

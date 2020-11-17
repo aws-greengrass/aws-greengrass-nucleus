@@ -6,6 +6,7 @@
 package com.aws.greengrass.status;
 
 import com.aws.greengrass.config.CaseInsensitiveString;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
@@ -175,7 +176,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient, mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
+        fleetStatusService = createFCS();
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
@@ -261,8 +262,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
+        fleetStatusService = createFCS();
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
@@ -321,8 +321,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
+        fleetStatusService = createFCS();
         fleetStatusService.startup();
 
         // Update the state of an EG service.
@@ -354,8 +353,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
+        fleetStatusService = createFCS();
         fleetStatusService.startup();
 
         Map<String, Object> map = new HashMap<>();
@@ -407,8 +405,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, 3);
+        fleetStatusService = createFCS(3);
         fleetStatusService.startup();
 
         TimeUnit.SECONDS.sleep(5);
@@ -455,8 +452,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
+        fleetStatusService = createFCS();
         fleetStatusService.startup();
 
         assertEquals(DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC, fleetStatusService.getPeriodicUpdateIntervalSec());
@@ -484,8 +480,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
+        fleetStatusService = createFCS();
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
@@ -561,8 +556,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
+        fleetStatusService = createFCS();
         fleetStatusService.startup();
 
         // Update the state of an EG service.
@@ -601,8 +595,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 .thenReturn(periodicUpdateIntervalMsTopic);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
+        fleetStatusService = createFCS();
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to IN_PROGRESS.
@@ -651,8 +644,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
+        fleetStatusService = createFCS();
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
@@ -736,8 +728,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, 3);
+        fleetStatusService = createFCS(3);
         fleetStatusService.startup();
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
 
@@ -803,8 +794,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
-        fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration);
+        fleetStatusService = createFCS();
         fleetStatusService.startup();
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
@@ -845,5 +835,18 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
             }
         }
         assertThat(serviceNamesToCheck, is(IsEmptyCollection.empty()));
+    }
+
+    private FleetStatusService createFCS() {
+        PlatformResolver platformResolver = new PlatformResolver(null);
+        return new FleetStatusService(config, mockMqttClient,
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, platformResolver);
+    }
+
+    private FleetStatusService createFCS(int periodicUpdateIntervalSec) {
+        PlatformResolver platformResolver = new PlatformResolver(null);
+        return new FleetStatusService(config, mockMqttClient,
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, platformResolver,
+                periodicUpdateIntervalSec);
     }
 }

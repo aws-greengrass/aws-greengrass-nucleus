@@ -8,9 +8,11 @@ package com.aws.greengrass.integrationtests.componentmanager;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentServiceHelper;
 import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloaderFactory;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.util.FileSystemPermission;
@@ -41,6 +43,8 @@ import static org.mockito.Mockito.when;
 
 class ComponentManagerIntegTest extends BaseITCase {
     private Kernel kernel;
+    private final PlatformResolver platformResolver = new PlatformResolver(null);
+    private final RecipeLoader recipeLoader = new RecipeLoader(platformResolver);
 
     private static final String ROOT = Platform.getInstance().getPrivilegedUser();
 
@@ -61,7 +65,7 @@ class ComponentManagerIntegTest extends BaseITCase {
 
         NucleusPaths nucleusPaths = kernel.getNucleusPaths();
         nucleusPaths.setComponentStorePath(tempRootDir);
-        ComponentStore store = new ComponentStore(nucleusPaths);
+        ComponentStore store = new ComponentStore(nucleusPaths, platformResolver, recipeLoader);
         kernel.getContext().put(ComponentStore.class, store);
 
         ArtifactDownloader mockDownloader = mock(ArtifactDownloader.class);
@@ -114,7 +118,7 @@ class ComponentManagerIntegTest extends BaseITCase {
 
         NucleusPaths nucleusPaths = kernel.getNucleusPaths();
         nucleusPaths.setComponentStorePath(tempRootDir);
-        ComponentStore store = new ComponentStore(nucleusPaths);
+        ComponentStore store = new ComponentStore(nucleusPaths, platformResolver, recipeLoader);
         kernel.getContext().put(ComponentStore.class, store);
         File scriptFile = store.resolveArtifactDirectoryPath(ident).resolve("script.sh").toFile();
         File emptyFile = store.resolveArtifactDirectoryPath(ident).resolve("empty.txt").toFile();

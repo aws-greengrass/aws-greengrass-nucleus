@@ -11,6 +11,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
@@ -74,7 +75,8 @@ class ComponentStoreTest {
     }
 
     private ComponentStore componentStore;
-
+    private PlatformResolver platformResolver;
+    private RecipeLoader recipeLoader;
     private Path recipeDirectory;
 
     private Path artifactDirectory;
@@ -87,9 +89,12 @@ class ComponentStoreTest {
 
     @BeforeEach
     void beforeEach() throws IOException {
+        platformResolver = new PlatformResolver(null);
+        recipeLoader = new RecipeLoader(platformResolver);
+
         nucleusPaths = new NucleusPaths();
         nucleusPaths.setComponentStorePath(packageStoreRootPath);
-        componentStore = new ComponentStore(nucleusPaths);
+        componentStore = new ComponentStore(nucleusPaths, platformResolver, recipeLoader);
         recipeDirectory = packageStoreRootPath.resolve("recipes");
         artifactDirectory = packageStoreRootPath.resolve("artifacts");
         artifactsUnpackDirectory = packageStoreRootPath.resolve("artifacts-unarchived");
@@ -160,7 +165,7 @@ class ComponentStoreTest {
         // THEN
         assertTrue(optionalPackageRecipe.isPresent());
 
-        ComponentRecipe expectedRecipe = RecipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
+        ComponentRecipe expectedRecipe = recipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
         assertThat(optionalPackageRecipe.get(), equalTo(expectedRecipe));
     }
 
@@ -224,7 +229,7 @@ class ComponentStoreTest {
         // THEN
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
 
-        ComponentRecipe expectedRecipe = RecipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
+        ComponentRecipe expectedRecipe = recipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
         assertThat(componentRecipe, equalTo(expectedRecipe));
     }
 

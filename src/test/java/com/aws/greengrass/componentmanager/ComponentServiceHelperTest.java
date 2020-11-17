@@ -18,6 +18,7 @@ import com.amazonaws.services.evergreen.model.ResolveComponentVersionsResult;
 import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
@@ -73,8 +74,9 @@ class ComponentServiceHelperTest {
 
     @BeforeEach
     void beforeEach() {
+        PlatformResolver platformResolver = new PlatformResolver(null);
         lenient().when(clientFactory.getCmsClient()).thenReturn(client);
-        this.helper = spy(new ComponentServiceHelper(clientFactory));
+        this.helper = spy(new ComponentServiceHelper(clientFactory, platformResolver));
     }
 
     @Test
@@ -142,6 +144,12 @@ class ComponentServiceHelperTest {
         //assertThat(request.getDeploymentConfigurationId(), is(DEPLOYMENT_CONFIGURATION_ID));
         assertThat(request.getDeploymentConfigurationId(), notNullValue());
         assertThat(request.getPlatform(), notNullValue());
+        // assertThat(request.getPlatform().getAttributes(), notNullValue());
+        // Map<String, String> attributes = request.getPlatform().getAttributes();
+        // assertThat(attributes, hasKey(PlatformResolver.OS_KEY));
+        // assertThat(attributes, hasKey(PlatformResolver.ARCHITECTURE_KEY));
+        // assertThat(request.getPlatform().getOs(), nullValue());
+        // assertThat(request.getPlatform().getArchitecture(), nullValue());
         assertThat(request.getPlatform().getOs(), notNullValue());
         assertThat(request.getPlatform().getArchitecture(), notNullValue());
         assertThat(request.getComponentCandidates().size(), is(1));
