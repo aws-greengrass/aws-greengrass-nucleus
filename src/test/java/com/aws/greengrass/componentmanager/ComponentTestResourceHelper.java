@@ -22,10 +22,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 public final class ComponentTestResourceHelper {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(new YAMLFactory());
     public static final String MONITORING_SERVICE_PACKAGE_NAME = "MonitoringService";
-    public static final String CONVEYOR_BELT_PACKAGE_NAME = "ConveyorBelt";
-    public static final String INVALID_VERSION_PACKAGE_NAME = "InvalidRecipeVersion";
-    public static final String INVALID_DEPENDENCY_NOT_MAP_PACKAGE_NAME = "DependencyNotMap";
-    public static final String INVALID_DEPENDENCY_UNKNOWN_KEYWORD_PACKAGE_NAME = "DependencyUnknownKeyword";
     public static final String LOG_PACKAGE_NAME = "Log";
     public static final String COOL_DB_PACKAGE_NAME = "Cool-Database";
 
