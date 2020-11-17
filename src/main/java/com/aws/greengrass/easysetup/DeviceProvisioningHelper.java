@@ -58,7 +58,6 @@ import software.amazon.awssdk.services.iot.model.GetPolicyRequest;
 import software.amazon.awssdk.services.iot.model.KeyPair;
 import software.amazon.awssdk.services.iot.model.ListAttachedPoliciesRequest;
 import software.amazon.awssdk.services.iot.model.Policy;
-import software.amazon.awssdk.services.iot.model.ResourceAlreadyExistsException;
 import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.UpdateCertificateRequest;
 import software.amazon.awssdk.utils.ImmutableMap;
@@ -107,8 +106,6 @@ public class DeviceProvisioningHelper {
                     + "}";
     private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
     private static final String IOT_ROLE_POLICY_NAME_PREFIX = "GreengrassTESCertificatePolicy";
-    private static final String HTTP_DEBUG_VIEW_COMPONENT_NAME = "aws.greengrass.HttpDebugView";
-    private static final String HTTP_DEBUG_VIEW_COMPONENT_VERSION = "1.0.0";
     private static final String GREENGRASS_CLI_COMPONENT_NAME = "aws.greengrass.Cli";
     private static final String GREENGRASS_CLI_COMPONENT_VERSION = "1.0.0";
 
@@ -126,6 +123,7 @@ public class DeviceProvisioningHelper {
     private final IamClient iamClient;
     private final AWSEvergreen greengrassClient;
     private EnvironmentStage envStage = EnvironmentStage.PROD;
+    private boolean thingGroupExists = false;
 
     /**
      * Constructor for a desired region and stage.
@@ -416,7 +414,8 @@ public class DeviceProvisioningHelper {
     }
 
     /**
-     * Add an existing Thing into a Thing Group which may or may not exist.
+     * Add an existing Thing into a Thing Group which may or may not exist,
+     * creates thing group if it doesn't exist.
      *
      * @param iotClient      client
      * @param thingName      thing name
@@ -424,32 +423,24 @@ public class DeviceProvisioningHelper {
      */
     public void addThingToGroup(IotClient iotClient, String thingName, String thingGroupName) {
         try {
-            iotClient.createThingGroup(CreateThingGroupRequest.builder().thingGroupName(thingGroupName).build());
-        } catch (ResourceAlreadyExistsException e) {
+            iotClient.describeThingGroup(DescribeThingGroupRequest.builder().thingGroupName(thingGroupName).build());
+            thingGroupExists = true;
             outStream.printf("IoT Thing Group \"%s\" already existed, reusing it%n", thingGroupName);
+        } catch (ResourceNotFoundException e) {
+            iotClient.createThingGroup(CreateThingGroupRequest.builder().thingGroupName(thingGroupName).build());
         }
         iotClient.addThingToThingGroup(
                 AddThingToThingGroupRequest.builder().thingName(thingName).thingGroupName(thingGroupName).build());
     }
 
-    private boolean thingGroupExists(String thingGroupName) {
-        try {
-            return thingGroupName.equals(iotClient
-                    .describeThingGroup(DescribeThingGroupRequest.builder().thingGroupName(thingGroupName).build())
-                    .thingGroupName());
-        } catch (ResourceNotFoundException e) {
-            return false;
-        }
-    }
-
     /**
-     * Creates an initial deployment to deploy dev tools like the Greengrass CLI and the Http Debug View component.
+     * Creates an initial deployment to deploy dev tools like the Greengrass CLI component.
      *
      * @param thingInfo thing info for the device
      * @param thingGroupName thing group name
      */
     public void createInitialDeploymentIfNeeded(ThingInfo thingInfo, String thingGroupName) {
-        if (Utils.isNotEmpty(thingGroupName) && thingGroupExists(thingGroupName)) {
+        if (Utils.isNotEmpty(thingGroupName) && thingGroupExists) {
             outStream.println(
                     "Thing group exists, no need to create a deployment for Greengrass first party components");
             return;
@@ -470,14 +461,11 @@ public class DeviceProvisioningHelper {
             deploymentRequest.withTargetName(thingInfo.thingName).withTargetType("thing");
         }
 
-        deploymentRequest.addComponentsEntry(HTTP_DEBUG_VIEW_COMPONENT_NAME,
-                new ComponentInfo().withVersion(HTTP_DEBUG_VIEW_COMPONENT_VERSION))
-                .addComponentsEntry(GREENGRASS_CLI_COMPONENT_NAME,
-                        new ComponentInfo().withVersion(GREENGRASS_CLI_COMPONENT_VERSION));
+        deploymentRequest.addComponentsEntry(GREENGRASS_CLI_COMPONENT_NAME,
+                new ComponentInfo().withVersion(GREENGRASS_CLI_COMPONENT_VERSION));
 
         greengrassClient.createDeployment(deploymentRequest);
-        outStream.printf("Configured Nucleus to deploy components %s and %s %n", GREENGRASS_CLI_COMPONENT_NAME,
-                HTTP_DEBUG_VIEW_COMPONENT_NAME);
+        outStream.printf("Configured Nucleus to deploy %s component", GREENGRASS_CLI_COMPONENT_NAME);
     }
 
     @AllArgsConstructor

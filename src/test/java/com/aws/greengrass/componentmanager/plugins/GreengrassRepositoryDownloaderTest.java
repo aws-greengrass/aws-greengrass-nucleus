@@ -6,8 +6,8 @@
 package com.aws.greengrass.componentmanager.plugins;
 
 import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactRequest;
-import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactResult;
+import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactDeprecatedRequest;
+import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactDeprecatedResult;
 import com.aws.greengrass.componentmanager.ComponentTestResourceHelper;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
@@ -59,7 +59,7 @@ class GreengrassRepositoryDownloaderTest {
     private GreengrassComponentServiceClientFactory clientFactory;
 
     @Captor
-    ArgumentCaptor<GetComponentVersionArtifactRequest> getComponentArtifactRequestArgumentCaptor;
+    ArgumentCaptor<GetComponentVersionArtifactDeprecatedRequest> getComponentArtifactRequestArgumentCaptor;
 
     @BeforeEach
     void beforeEach() {
@@ -89,9 +89,9 @@ class GreengrassRepositoryDownloaderTest {
                 pkgId, artifact, saveToPath));
 
         // mock requests to get downloadSize and local file name
-        GetComponentVersionArtifactResult result =
-                new GetComponentVersionArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
-        when(client.getComponentVersionArtifact(getComponentArtifactRequestArgumentCaptor.capture())).thenReturn(result);
+        GetComponentVersionArtifactDeprecatedResult result =
+                new GetComponentVersionArtifactDeprecatedResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
+        when(client.getComponentVersionArtifactDeprecated(getComponentArtifactRequestArgumentCaptor.capture())).thenReturn(result);
 
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
@@ -107,7 +107,7 @@ class GreengrassRepositoryDownloaderTest {
 
         downloader.downloadToPath();
 
-        GetComponentVersionArtifactRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
+        GetComponentVersionArtifactDeprecatedRequest generatedRequest = getComponentArtifactRequestArgumentCaptor.getValue();
         assertEquals("CoolService", generatedRequest.getComponentName());
         assertEquals("1.0.0", generatedRequest.getComponentVersion());
         assertNull(generatedRequest.getScope());
@@ -122,9 +122,9 @@ class GreengrassRepositoryDownloaderTest {
     @Test
     void GIVEN_http_connection_error_WHEN_attempt_download_THEN_retry_called() throws Exception {
         GreengrassRepositoryDownloader.MAX_RETRY = 2;
-        GetComponentVersionArtifactResult result =
-                new GetComponentVersionArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
-        when(client.getComponentVersionArtifact(any())).thenReturn(result);
+        GetComponentVersionArtifactDeprecatedResult result =
+                new GetComponentVersionArtifactDeprecatedResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
+        when(client.getComponentVersionArtifactDeprecated(any())).thenReturn(result);
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         GreengrassRepositoryDownloader downloader = spy(new GreengrassRepositoryDownloader(clientFactory,
                 pkgId, ComponentArtifact.builder().artifactUri(new URI("greengrass:binary")).build(), null));
@@ -143,9 +143,9 @@ class GreengrassRepositoryDownloaderTest {
 
     @Test
     void GIVEN_http_connection_bad_request_WHEN_attempt_download_THEN_download_error_thrown() throws Exception {
-        GetComponentVersionArtifactResult result =
-                new GetComponentVersionArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
-        when(client.getComponentVersionArtifact(any())).thenReturn(result);
+        GetComponentVersionArtifactDeprecatedResult result =
+                new GetComponentVersionArtifactDeprecatedResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
+        when(client.getComponentVersionArtifactDeprecated(any())).thenReturn(result);
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         GreengrassRepositoryDownloader downloader = spy(new GreengrassRepositoryDownloader(clientFactory,
                 pkgId, ComponentArtifact.builder().artifactUri(new URI("greengrass:binary")).build(), null));

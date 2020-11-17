@@ -100,7 +100,7 @@ public class GreengrassSetup {
             + "\t\t\t\t\tof the system user\n"
             + "\n\t--deploy-dev-tools, -d\t\t(Optional) Specify true or false. If true, the AWS IoT Greengrass Core "
             + "software retrieves and\n"
-            + "\t\t\t\t\tdeploys the Greengrass CLI and HTTP debug view components. Specify true to set up this core\n"
+            + "\t\t\t\t\tdeploys the Greengrass CLI component. Specify true to set up this core\n"
             + "\t\t\t\t\tdevice for local development. Specify false to set up this core device in a production\n"
             + "\t\t\t\t\tenvironment. Defaults to false.\n"
             + "\n\t--start, -s\t\t\t(Optional) Specify true or false. If true, the AWS IoT Greengrass Core software "
