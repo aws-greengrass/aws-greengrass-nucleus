@@ -22,7 +22,6 @@ import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.ResourceAlreadyExistsException;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
-import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
@@ -265,7 +264,7 @@ public class BaseE2ETestCase implements AutoCloseable {
      *
      * @param pkgIds list of component identifiers
      */
-    private static void uploadTestComponentsToCms(ComponentIdentifier... pkgIds) throws IOException, PackagingException {
+    private static void uploadTestComponentsToCms(ComponentIdentifier... pkgIds) throws Exception {
         List<String> errors = new ArrayList<>();
         for (ComponentIdentifier pkgId : pkgIds) {
             try {
@@ -285,7 +284,7 @@ public class BaseE2ETestCase implements AutoCloseable {
                 pkgIdCloud.getVersion());
     }
 
-    private static void draftComponent(ComponentIdentifier pkgIdCloud) throws IOException {
+    private static void draftComponent(ComponentIdentifier pkgIdCloud) throws Exception {
         ComponentIdentifier pkgIdLocal = getLocalPackageIdentifier(pkgIdCloud);
         Path testRecipePath = e2ETestComponentStore.resolveRecipePath(pkgIdLocal);
 

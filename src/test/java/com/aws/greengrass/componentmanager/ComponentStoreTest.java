@@ -7,7 +7,6 @@ package com.aws.greengrass.componentmanager;
 
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
-import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
@@ -117,23 +116,28 @@ class ComponentStoreTest {
     }
 
     @Test
-    void GIVEN_a_recipe_not_exists_when_savePackageRecipe_THEN_recipe_file_created()
-            throws IOException, PackageLoadingException {
+    void GIVEN_a_recipe_not_exists_when_savePackageRecipe_THEN_recipe_file_created() throws Exception {
         // GIVEN
-        String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
         String recipeContent = "recipeContent";
 
-        File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
+        ComponentIdentifier componentIdentifier = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"));
+
+        File expectedRecipeFile = getExpectedRecipeFile(componentIdentifier);
         assertThat(expectedRecipeFile, not(anExistingFile()));
 
         // WHEN
-        componentStore
-                .savePackageRecipe(new ComponentIdentifier("MonitoringService", new Semver("1.0.0")), recipeContent);
+        componentStore.savePackageRecipe(componentIdentifier, recipeContent);
 
         // THEN
-        assertThat(expectedRecipeFile, anExistingFile());
+        assertThat(getExpectedRecipeFile(componentIdentifier), anExistingFile());
         String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
         assertThat(fileContent, is(equalTo(recipeContent)));
+    }
+
+    private File getExpectedRecipeFile(ComponentIdentifier componentIdentifier) throws Exception {
+        String expectedFilename = String.format("%s@%s.recipe.yaml", getHashFromName(componentIdentifier.getName()),
+                                                componentIdentifier.getVersion());
+        return recipeDirectory.resolve(expectedFilename).toFile();
     }
 
     @Test
@@ -247,7 +251,7 @@ class ComponentStoreTest {
     }
 
     @Test
-    void GIVEN_a_recipe_exists_WHEN_getPackageMetadata_then_return_it() throws PackagingException, IOException {
+    void GIVEN_a_recipe_exists_WHEN_getPackageMetadata_then_return_it() throws Exception {
         // GIVEN
         preloadRecipeFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
 
@@ -262,7 +266,7 @@ class ComponentStoreTest {
 
     @Test
     void GIVEN_pre_loaded_package_versions_WHEN_listAvailablePackageMetadata_THEN_return_satisfiedVersion()
-            throws IOException, PackagingException {
+            throws Exception {
         // GIVEN
         preloadRecipeFileFromTestResource("MonitoringService-1.0.0.yaml");
         preloadRecipeFileFromTestResource("MonitoringService-1.1.0.yaml");
@@ -294,7 +298,7 @@ class ComponentStoreTest {
 
     @Test
     void GIVEN_pre_loaded_package_versions_WHEN_find_best_available_version_THEN_return_satisfied_version()
-            throws IOException, PackagingException {
+            throws Exception {
         // GIVEN
         preloadRecipeFileFromTestResource("MonitoringService-1.0.0.yaml");
         preloadRecipeFileFromTestResource("MonitoringService-1.1.0.yaml");
@@ -387,12 +391,19 @@ class ComponentStoreTest {
         assertEquals(recipeLength, componentStore.getContentSize());
     }
 
-    private void preloadRecipeFileFromTestResource(String fileName) throws IOException {
-        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
+    private void preloadRecipeFileFromTestResource(String recipeFileName) throws Exception {
+        // The test recipe file name is in the form of {componentName}-{version}.yaml
+        String componentName = recipeFileName.split("-")[0];
+        String version = recipeFileName.split("-")[1].split(".yaml")[0];
 
-        Path destinationRecipe = recipeDirectory.resolve(fileName);
+        // destination should be {hash}@{version}.recipe.yaml
+        String hash = getHashFromName(componentName);
 
-        Files.copy(sourceRecipe, destinationRecipe);
+        String destinationFilename = String.format("%s@%s.recipe.yaml", hash, version);
+
+        Path destinationRecipe = recipeDirectory.resolve(destinationFilename);
+
+        Files.copy(RECIPE_RESOURCE_PATH.resolve(recipeFileName), destinationRecipe);
     }
 
     private void preloadArtifactFileFromTestResouce(ComponentIdentifier pkgId, String artFileName)

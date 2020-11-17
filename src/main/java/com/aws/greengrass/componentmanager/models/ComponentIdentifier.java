@@ -29,7 +29,7 @@ public class ComponentIdentifier implements Comparable<ComponentIdentifier> {
     }
 
     /**
-     * Sort in ascending order according to Semver's standard
+     * Sort in ascending order according to Semver's standard.
      */
     @Override
     public int compareTo(ComponentIdentifier o) {

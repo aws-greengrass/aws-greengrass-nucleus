@@ -350,6 +350,8 @@ public class ComponentStore {
      *
      * @param componentIdentifier packageIdentifier
      * @return the recipe file path for target package.
+     *
+     * @throws PackageLoadingException if unable to resolve recipe file path
      */
     public Path resolveRecipePath(@NonNull ComponentIdentifier componentIdentifier) throws PackageLoadingException {
         // .recipe is to indicate it is the recipe
@@ -495,7 +497,7 @@ public class ComponentStore {
     }
 
     /**
-     * Get the file name prefix that is safe for cross-platform file systems for persistence
+     * Get the file name prefix that is safe for cross-platform file systems for persistence.
      *
      * @param componentIdentifier componentIdentifier
      * @return a file name prefix for a component version that is safe for cross-platform file systems
