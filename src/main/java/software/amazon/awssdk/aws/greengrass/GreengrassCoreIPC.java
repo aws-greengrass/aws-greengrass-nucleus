@@ -8,6 +8,7 @@ package software.amazon.awssdk.aws.greengrass;
 import java.util.Optional;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationUpdateEvents;
+import software.amazon.awssdk.aws.greengrass.model.CreateDebugPasswordRequest;
 import software.amazon.awssdk.aws.greengrass.model.CreateLocalDeploymentRequest;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.GetComponentDetailsRequest;
@@ -51,6 +52,9 @@ public interface GreengrassCoreIPC {
       final Optional<StreamResponseHandler<ConfigurationUpdateEvents>> streamResponseHandler);
 
   ListComponentsResponseHandler listComponents(final ListComponentsRequest request,
+      final Optional<StreamResponseHandler<EventStreamJsonMessage>> streamResponseHandler);
+
+  CreateDebugPasswordResponseHandler createDebugPassword(final CreateDebugPasswordRequest request,
       final Optional<StreamResponseHandler<EventStreamJsonMessage>> streamResponseHandler);
 
   DeferComponentUpdateResponseHandler deferComponentUpdate(

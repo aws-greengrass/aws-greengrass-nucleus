@@ -113,11 +113,13 @@ public class FleetStatusService extends GreengrassService {
      * @param deploymentStatusKeeper {@link DeploymentStatusKeeper}
      * @param kernel                 {@link Kernel}
      * @param deviceConfiguration    {@link DeviceConfiguration}
+     * @param platformResolver       {@link PlatformResolver}
      */
     @Inject
     public FleetStatusService(Topics topics, MqttClient mqttClient, DeploymentStatusKeeper deploymentStatusKeeper,
-                              Kernel kernel, DeviceConfiguration deviceConfiguration) {
-        this(topics, mqttClient, deploymentStatusKeeper, kernel, deviceConfiguration,
+                              Kernel kernel, DeviceConfiguration deviceConfiguration,
+                              PlatformResolver platformResolver) {
+        this(topics, mqttClient, deploymentStatusKeeper, kernel, deviceConfiguration, platformResolver,
                 DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC);
     }
 
@@ -129,22 +131,25 @@ public class FleetStatusService extends GreengrassService {
      * @param deploymentStatusKeeper        {@link DeploymentStatusKeeper}
      * @param kernel                        {@link Kernel}
      * @param deviceConfiguration           {@link DeviceConfiguration}
+     * @param platformResolver              {@link PlatformResolver}
      * @param periodicUpdateIntervalSec     interval for cadence based status update.
      */
     public FleetStatusService(Topics topics, MqttClient mqttClient, DeploymentStatusKeeper deploymentStatusKeeper,
-                              Kernel kernel, DeviceConfiguration deviceConfiguration, int periodicUpdateIntervalSec) {
+                              Kernel kernel, DeviceConfiguration deviceConfiguration,
+                              PlatformResolver platformResolver, int periodicUpdateIntervalSec) {
         super(topics);
 
         this.mqttClient = mqttClient;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.kernel = kernel;
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
-        this.architecture = System.getProperty("os.arch");
+        this.architecture = platformResolver.getCurrentPlatform()
+                .getOrDefault(PlatformResolver.ARCHITECTURE_KEY, PlatformResolver.UNKNOWN_KEYWORD);
         this.periodicUpdateIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
                 FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, periodicUpdateIntervalSec).intValue();
-
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
-        this.platform = PlatformResolver.CURRENT_PLATFORM.getOs().getName();
+        this.platform = platformResolver.getCurrentPlatform()
+                .getOrDefault(PlatformResolver.OS_KEY, PlatformResolver.UNKNOWN_KEYWORD);
 
         updateThingNameAndPublishTopic(Coerce.toString(deviceConfiguration.getThingName()));
         deviceConfiguration.getThingName()
