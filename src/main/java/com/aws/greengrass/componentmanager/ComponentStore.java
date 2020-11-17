@@ -188,7 +188,11 @@ public class ComponentStore {
         try {
             Files.deleteIfExists(resolveRecipeMetadataFile(compId).toPath());
         } catch (IOException e) {
-            exception = e;
+            if (exception == null) {
+                exception = e;
+            } else {
+                exception.addSuppressed(e);
+            }
         }
         // delete artifacts
         try {
