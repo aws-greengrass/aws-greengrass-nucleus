@@ -14,6 +14,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
@@ -71,8 +72,8 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
 
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
-        kernel.parseArgs("-i",
-                DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml"));
         // ensure deployment service starts
         CountDownLatch deploymentServiceLatch = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {

@@ -8,8 +8,8 @@ package com.aws.greengrass.integrationtests.status;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.integrationtests.BaseITCase;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttclient.MqttClient;
@@ -57,7 +57,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
     private MqttClient mqttClient;
 
     @BeforeEach
-    void setupKernel(ExtensionContext context) throws DeviceConfigurationException, InterruptedException {
+    void setupKernel(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, TLSAuthException.class);
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
@@ -66,7 +66,8 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         CompletableFuture cf = new CompletableFuture();
         cf.complete(null);
         kernel = new Kernel();
-        kernel.parseArgs("-i", IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
 
         when(mqttClient.publish(any(PublishRequest.class))).thenAnswer(i -> {

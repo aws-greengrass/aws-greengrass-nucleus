@@ -17,6 +17,7 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.lifecyclemanager.KernelTest.ExpectedStateTransition;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -168,8 +169,9 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
     void GIVEN_hard_dependency_WHEN_dependency_goes_through_lifecycle_events_THEN_customer_app_is_impacted()
             throws Throwable {
         // setup
+        kernel = new Kernel();
         URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_hard_dependency.yaml");
-        kernel = new Kernel().parseArgs("-i", configFile.toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFile);
 
         // WHEN_kernel_launch_THEN_customer_app_starts_after_hard_dependency_is_running
         LinkedList<ExpectedStateTransition> expectedDuringLaunch = new LinkedList<>(
@@ -281,8 +283,9 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
     void GIVEN_soft_dependency_WHEN_dependency_goes_through_lifecycle_events_THEN_customer_app_is_not_impacted()
             throws Throwable {
         // setup
+        kernel = new Kernel();
         URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_soft_dependency.yaml");
-        kernel = new Kernel().parseArgs("-i", configFile.toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFile);
 
         Set<ExpectedStateTransition> unexpectedDuringAllSoftDepChange = new HashSet<>(
                 Arrays.asList(new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
@@ -389,8 +392,10 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         // Assuming no other changes in customer app and dependency service
 
         String Dependency = SoftDependency;
+        kernel = new Kernel();
         URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_soft_dependency.yaml");
-        kernel = new Kernel().parseArgs("-i", configFile.toString()).launch();
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFile);
+        kernel.launch();
         assertThat(kernel.locate("main")::getState, eventuallyEval(is(State.FINISHED)));
 
         // The test below assumes SoftDependency is already running and checks against RUNNING->STOPPING and

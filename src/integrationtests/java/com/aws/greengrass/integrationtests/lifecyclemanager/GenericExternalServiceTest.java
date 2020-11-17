@@ -10,9 +10,9 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
@@ -76,7 +75,7 @@ class GenericExternalServiceTest extends BaseITCase {
     void GIVEN_service_config_with_broken_skipif_config_WHEN_launch_service_THEN_service_moves_to_error_state()
             throws Throwable {
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("skipif_broken.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("skipif_broken.yaml"));
 
         CountDownLatch testErrored = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -93,8 +92,8 @@ class GenericExternalServiceTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_service_with_timeout_WHEN_timeout_expires_THEN_move_service_to_errored() throws InterruptedException {
-        kernel.parseArgs("-i", getClass().getResource("service_timesout.yaml").toString());
+    void GIVEN_service_with_timeout_WHEN_timeout_expires_THEN_move_service_to_errored() throws Exception {
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("service_timesout.yaml"));
         kernel.launch();
         CountDownLatch ServicesAErroredLatch = new CountDownLatch(1);
         CountDownLatch ServicesBErroredLatch = new CountDownLatch(1);
@@ -114,8 +113,9 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_service_shutdown_with_timeout_WHEN_timeout_expires_THEN_service_still_closes()
-            throws InterruptedException, ServiceLoadException, TimeoutException, ExecutionException {
-        kernel.parseArgs("-i", getClass().getResource("service_shutdown_timesout.yaml").toString());
+            throws Exception {
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("service_shutdown_timesout.yaml"));
         kernel.launch();
         CountDownLatch mainRunning = new CountDownLatch(1);
         // service sleeps for 120 seconds during shutdown and timeout is 1 second, service should transition to errored
@@ -133,7 +133,8 @@ class GenericExternalServiceTest extends BaseITCase {
     void GIVEN_service_with_dynamically_loaded_config_WHEN_dynamic_config_changes_THEN_service_does_not_restart()
             throws Exception {
 
-        kernel.parseArgs("-i", getClass().getResource("service_with_dynamic_config.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("service_with_dynamic_config.yaml"));
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
@@ -165,7 +166,8 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_running_service_WHEN_install_config_changes_THEN_service_reinstalls() throws Exception {
-        kernel.parseArgs("-i", getClass().getResource("service_with_dynamic_config.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("service_with_dynamic_config.yaml"));
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
@@ -193,7 +195,8 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_running_service_WHEN_version_config_changes_THEN_service_reinstalls() throws Exception {
-        kernel.parseArgs("-i", getClass().getResource("service_with_dynamic_config.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("service_with_dynamic_config.yaml"));
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
@@ -220,7 +223,8 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_running_service_WHEN_run_config_changes_THEN_service_restarts() throws Exception {
-        kernel.parseArgs("-i", getClass().getResource("service_with_dynamic_config.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("service_with_dynamic_config.yaml"));
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
@@ -248,7 +252,8 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_running_service_WHEN_setenv_config_changes_THEN_service_restarts() throws Exception {
-        kernel.parseArgs("-i", getClass().getResource("service_with_dynamic_config.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("service_with_dynamic_config.yaml"));
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
@@ -275,7 +280,9 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_bootstrap_command_WHEN_bootstrap_THEN_command_runs_and_returns_exit_code() throws Exception {
-        kernel.parseArgs("-i", getClass().getResource("service_with_just_bootstrap.yaml").toString()).launch();
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("service_with_just_bootstrap.yaml"));
+        kernel.launch();
 
         CountDownLatch mainFinished = new CountDownLatch(1);
 
@@ -299,7 +306,9 @@ class GenericExternalServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_bootstrap_command_WHEN_runs_longer_than_5_sec_THEN_timeout_exception_is_thrown() throws Exception {
-        kernel.parseArgs("-i", getClass().getResource("service_with_just_bootstrap.yaml").toString()).launch();
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("service_with_just_bootstrap.yaml"));
+        kernel.launch();
 
         CountDownLatch mainFinished = new CountDownLatch(1);
 
@@ -341,7 +350,7 @@ class GenericExternalServiceTest extends BaseITCase {
             }
         })) {
 
-            kernel.parseArgs("-i", getClass().getResource(file).toString());
+            ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource(file));
 
             // skip when running as a user that cannot sudo to shell
             assumeCanSudoShell(kernel);

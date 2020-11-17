@@ -12,6 +12,7 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
@@ -96,7 +97,7 @@ class KernelTest extends BaseITCase {
         kernel = new Kernel();
 
         try (AutoCloseable l = getLogListener()) {
-            kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
+            ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config.yaml"));
             kernel.launch();
 
             testGroup(0);
@@ -118,7 +119,7 @@ class KernelTest extends BaseITCase {
         // add log listener to verify stdout pattern
         kernel = new Kernel();
         try (AutoCloseable l = getLogListener()) {
-            kernel.parseArgs("-i", this.getClass().getResource("config.yaml").toString());
+            ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config.yaml"));
             // launch kernel 1st time
             kernel.launch();
 
@@ -177,7 +178,7 @@ class KernelTest extends BaseITCase {
     @Test
     void GIVEN_service_install_always_fail_WHEN_kernel_launches_THEN_service_go_broken_state() throws Exception {
         kernel = new Kernel();
-        kernel.parseArgs("-i", getClass().getResource("config_install_error.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config_install_error.yaml"));
         kernel.launch();
 
         CountDownLatch serviceBroken = new CountDownLatch(1);
@@ -192,7 +193,8 @@ class KernelTest extends BaseITCase {
     @Test
     void GIVEN_service_install_broken_WHEN_kernel_launches_with_fix_THEN_service_install_succeeds() throws Exception {
         kernel = new Kernel();
-        kernel.parseArgs("-i", getClass().getResource("config_install_error.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                this.getClass().getResource("config_install_error.yaml"));
         kernel.launch();
 
         CountDownLatch serviceBroken = new CountDownLatch(1);
@@ -220,7 +222,8 @@ class KernelTest extends BaseITCase {
     void GIVEN_service_install_fail_retry_succeed_WHEN_kernel_launches_THEN_service_install_succeeds()
             throws Exception {
         kernel = new Kernel();
-        kernel.parseArgs("-i", getClass().getResource("config_install_error_retry.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                this.getClass().getResource("config_install_error_retry.yaml"));
         kernel.launch();
 
         CountDownLatch serviceRunning = new CountDownLatch(1);
@@ -235,7 +238,8 @@ class KernelTest extends BaseITCase {
     @Test
     void GIVEN_service_startup_always_fail_WHEN_kernel_launches_THEN_service_go_broken_state() throws Exception {
         kernel = new Kernel();
-        kernel.parseArgs("-i", getClass().getResource("config_startup_error.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                this.getClass().getResource("config_startup_error.yaml"));
         kernel.launch();
 
         CountDownLatch serviceBroken = new CountDownLatch(1);
@@ -251,7 +255,8 @@ class KernelTest extends BaseITCase {
     void GIVEN_service_startup_fail_retry_succeed_WHEN_kernel_launches_THEN_service_startup_succeeds()
             throws Exception {
         kernel = new Kernel();
-        kernel.parseArgs("-i", getClass().getResource("config_startup_error_retry.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                this.getClass().getResource("config_startup_error_retry.yaml"));
         kernel.launch();
 
         CountDownLatch serviceRunning = new CountDownLatch(1);
@@ -313,7 +318,8 @@ class KernelTest extends BaseITCase {
             }
         });
 
-        kernel.parseArgs("-i", getClass().getResource("config_broken.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                this.getClass().getResource("config_broken.yaml"));
         kernel.launch();
         assertionLatch.await(30, TimeUnit.SECONDS);
 

@@ -23,6 +23,7 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -167,12 +168,13 @@ class DeploymentTaskIntegrationTest {
     }
 
     @BeforeAll
-    static void setupKernel() {
+    static void setupKernel() throws IOException {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
 
-        kernel.parseArgs("-i", DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml"));
 
         kernel.launch();
         // get required instances from context
