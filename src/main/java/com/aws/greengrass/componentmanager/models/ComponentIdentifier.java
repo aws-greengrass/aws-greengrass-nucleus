@@ -28,8 +28,11 @@ public class ComponentIdentifier implements Comparable<ComponentIdentifier> {
                 new Semver(Coerce.toString(t.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY))));
     }
 
+    /**
+     * Sort in ascending order according to Semver's standard
+     */
     @Override
     public int compareTo(ComponentIdentifier o) {
-        return version.compareTo(o.version) * -1;
+        return version.compareTo(o.version) * -1;   // -1 so that it is ascending
     }
 }

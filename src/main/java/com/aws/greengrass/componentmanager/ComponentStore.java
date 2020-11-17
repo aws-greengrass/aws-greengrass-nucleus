@@ -37,15 +37,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 public class ComponentStore {
@@ -243,37 +240,67 @@ public class ComponentStore {
     /**
      * list PackageMetadata for available packages that satisfies the requirement.
      *
-     * @param packageName the target package
-     * @param requirement version requirement
+     * @param componentName the target package
+     * @param requirement   version requirement
      * @return a list of PackageMetadata that satisfies the requirement.
      * @throws UnexpectedPackagingException if fails to parse version directory to Semver
      */
-    List<ComponentMetadata> listAvailablePackageMetadata(@NonNull String packageName, @NonNull Requirement requirement)
-            throws PackagingException {
-        List<File> recipeFiles = getAllRecipeFiles();
+    List<ComponentMetadata> listAvailablePackageMetadata(@NonNull String componentName,
+            @NonNull Requirement requirement) throws PackagingException {
+        List<ComponentIdentifier> satisfyingComponentIds = listAvailableComponent(componentName, requirement);
 
-        List<ComponentMetadata> componentMetadataList = new ArrayList<>();
-        if (recipeFiles.size() == 0) {
-            return componentMetadataList;
+        List<ComponentMetadata> satisfiedComponentMetadataList = new ArrayList<>();
+
+        // for each loop is used, instead of lambda expression, because getPackageMetadata throws checked exception and
+        // lambda doesn't support throwing checked exception
+        for (ComponentIdentifier componentIdentifier : satisfyingComponentIds) {
+            satisfiedComponentMetadataList.add(getPackageMetadata(componentIdentifier));
         }
 
-        Arrays.sort(recipeFiles);
-
-        for (File recipeFile : recipeFiles) {
-            String recipePackageName = parsePackageNameFromFileName(recipeFile.getName());
-            // Only check the recipes for the package that we're looking for
-            if (!recipePackageName.equalsIgnoreCase(packageName)) {
-                continue;
-            }
-
-            Semver version = parseVersionFromFileName(recipeFile.getName());
-            if (requirement.isSatisfiedBy(version)) {
-                componentMetadataList.add(getPackageMetadata(new ComponentIdentifier(packageName, version)));
-            }
-        }
-        componentMetadataList.sort(null);
-        return componentMetadataList;
+        return satisfiedComponentMetadataList;
     }
+
+    Optional<ComponentIdentifier> findBestMatchAvailableComponent(@NonNull String componentName,
+            @NonNull Requirement requirement) throws PackageLoadingException {
+        List<ComponentIdentifier> componentIdentifierList = listAvailableComponent(componentName, requirement);
+
+        if (componentIdentifierList.isEmpty()) {
+            return Optional.empty();
+        } else {
+            return Optional.of(componentIdentifierList.get(0));
+        }
+    }
+
+    List<ComponentIdentifier> listAvailableComponent(@NonNull String componentName, @NonNull Requirement requirement)
+            throws PackageLoadingException {
+        String componentNameHash = getHashOfComponentName(componentName);
+
+        // target file name: {hash}@{semver}.recipe.yaml
+        File[] recipeFilesOfAllVersions = nucleusPaths.recipePath().toFile().listFiles(
+                (dir, name) -> name.endsWith(RECIPE_SUFFIX + FileSuffix.YAML_SUFFIX) && name
+                        .startsWith(componentNameHash));
+
+        if (recipeFilesOfAllVersions == null || recipeFilesOfAllVersions.length == 0) {
+            return new ArrayList<>();
+        }
+
+        List<ComponentIdentifier> satisfyingComponentIds = new ArrayList<>();
+
+        // for each loop is used, instead of lambda expression, because parseVersionFromFileName throws checked
+        // exception and lambda doesn't support throwing checked exception
+        for (File recipeFile : recipeFilesOfAllVersions) {
+            Semver version = parseVersionFromRecipeFileName(recipeFile.getName());
+
+            if (requirement.isSatisfiedBy(version)) {
+                satisfyingComponentIds.add(new ComponentIdentifier(componentName, version));
+            }
+        }
+
+        // sort with ComponentIdentifier's comparator which sorts in ascending order
+        satisfyingComponentIds.sort(null);
+        return satisfyingComponentIds;
+    }
+
 
     /**
      * Get all locally available component-version by checking the existence of its artifact directory.
@@ -301,50 +328,6 @@ public class ComponentStore {
 
         return result;
     }
-
-    Optional<ComponentIdentifier> findBestMatchAvailableComponent(@NonNull String componentName,
-            @NonNull Requirement requirement) throws PackageLoadingException {
-        File[] recipeFiles = getAllRecipeFiles();
-
-        if (recipeFiles.length == 0) {
-            return Optional.empty();
-        }
-
-        Arrays.sort(recipeFiles);
-
-        List<ComponentIdentifier> componentIdentifierList = new ArrayList<>();
-        for (File recipeFile : recipeFiles) {
-            String recipeComponentName = parsePackageNameFromFileName(recipeFile.getName());
-
-            if (!recipeComponentName.equalsIgnoreCase(componentName)) {
-                continue;
-            }
-
-            Semver version = parseVersionFromFileName(recipeFile.getName());
-            if (requirement.isSatisfiedBy(version)) {
-                componentIdentifierList.add(new ComponentIdentifier(componentName, version));
-            }
-        }
-        componentIdentifierList.sort(null);
-
-        if (componentIdentifierList.isEmpty()) {
-            return Optional.empty();
-        } else {
-            return Optional.of(componentIdentifierList.get(0));
-        }
-    }
-
-    private List<File> getAllRecipeFiles() {
-        File[] filesInRecipeFolder = nucleusPaths.recipePath().toFile().listFiles();
-
-        if (filesInRecipeFolder == null) {
-            return Collections.emptyList();
-        }
-        return Arrays.stream(filesInRecipeFolder)
-                .filter(file -> file.getName().endsWith(RECIPE_SUFFIX + FileSuffix.YAML_SUFFIX))    // recipe.yaml
-                .collect(Collectors.toList());
-    }
-
 
     /**
      * Resolve the artifact directory path for a target package id.
@@ -407,29 +390,18 @@ public class ComponentStore {
         }
     }
 
-    private static String parsePackageNameFromFileName(String filename) {
+    private static Semver parseVersionFromRecipeFileName(String recipeFilename) throws PackageLoadingException {
         // TODO: [P41215992]: Validate recipe filename before extracting name and version from it
 
-        // MonitoringService-1.0.0.yaml
-        String[] packageNameAndVersionParts = filename.split(FileSuffix.YAML_SUFFIX)[0].split("-");
-
-        return String.join("-", Arrays.copyOf(packageNameAndVersionParts, packageNameAndVersionParts.length - 1));
-    }
-
-    private static Semver parseVersionFromFileName(String filename) throws PackageLoadingException {
-        // TODO: [P41215992]: Validate recipe filename before extracting name and version from it
-
-        // MonitoringService-1.0.0.yaml
-        String[] packageNameAndVersionParts = filename.split(FileSuffix.YAML_SUFFIX)[0].split("-");
-
-        // PackageRecipe name could have '-'. Pick the last part since the version is always after the package name.
-        String versionStr = packageNameAndVersionParts[packageNameAndVersionParts.length - 1];
+        // {hash}}@{semver}.recipe.yaml
+        String versionStr =
+                recipeFilename.split(RECIPE_SUFFIX + FileSuffix.YAML_SUFFIX)[0].split("@")[1];
 
         try {
             return new Semver(versionStr);
         } catch (SemverException e) {
             throw new PackageLoadingException(
-                    String.format("PackageRecipe recipe file name: '%s' is corrupted!", filename), e);
+                    String.format("Component recipe file name: '%s' is corrupted!", recipeFilename), e);
         }
     }
 
@@ -530,19 +502,21 @@ public class ComponentStore {
      */
     private String getFilenamePrefixFromComponentId(ComponentIdentifier componentIdentifier)
             throws PackageLoadingException {
-        String hashOfComponentName = null;
+        // @ is used as delimiter between component name hash and semver
+        // because it is cross-platform file system safe and also meaningful
+        return String.format("%s@%s", getHashOfComponentName(componentIdentifier.getName()),
+                             componentIdentifier.getVersion().getValue());
+    }
+
+    private String getHashOfComponentName(String componentName) throws PackageLoadingException {
         try {
             // calculate a hash for component name so that it is safe to be in a file name cross platform
             // padding is removed to avoid confusion
-            hashOfComponentName = Digest.calculateWithUrlEncoderNoPadding(componentIdentifier.getName());
+            return Digest.calculateWithUrlEncoderNoPadding(componentName);
         } catch (NoSuchAlgorithmException e) {
             // This should never happen as SHA-256 is mandatory for every default JVM provider
             throw new PackageLoadingException(
                     "Failed to compute filename because desired hashing algorithm is not available.", e);
         }
-
-        // @ is used as delimiter between component name hash and semver
-        // because it is cross-platform file system safe and also meaningful
-        return String.format("%s@%s", hashOfComponentName, componentIdentifier.getVersion().getValue());
     }
 }
