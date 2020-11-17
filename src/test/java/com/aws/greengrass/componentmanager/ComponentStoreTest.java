@@ -28,14 +28,10 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -43,6 +39,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static com.aws.greengrass.helper.PreloadComponentStoreHelper.getHashFromComponentName;
+import static com.aws.greengrass.helper.PreloadComponentStoreHelper.getRecipeStorageFilenameFromTestSource;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
@@ -134,15 +132,15 @@ class ComponentStoreTest {
         assertThat(fileContent, is(equalTo(recipeContent)));
     }
 
-    private File getExpectedRecipeFile(ComponentIdentifier componentIdentifier) throws Exception {
-        String expectedFilename = String.format("%s@%s.recipe.yaml", getHashFromName(componentIdentifier.getName()),
-                                                componentIdentifier.getVersion());
+    private File getExpectedRecipeFile(ComponentIdentifier componentIdentifier) {
+        String expectedFilename =
+                String.format("%s@%s.recipe.yaml", getHashFromComponentName(componentIdentifier.getName()),
+                              componentIdentifier.getVersion());
         return recipeDirectory.resolve(expectedFilename).toFile();
     }
 
     @Test
-    void GIVEN_a_recipe_exists_when_savePackageRecipe_THEN_recipe_file_is_updated()
-            throws Exception {
+    void GIVEN_a_recipe_exists_when_savePackageRecipe_THEN_recipe_file_is_updated() throws Exception {
         // GIVEN
         String recipeContent = "recipeContent";
 
@@ -156,8 +154,7 @@ class ComponentStoreTest {
         assertThat(expectedRecipeFile, is(anExistingFile()));
 
         // WHEN
-        componentStore
-                .savePackageRecipe(componentIdentifier, recipeContent);
+        componentStore.savePackageRecipe(componentIdentifier, recipeContent);
 
         // THEN
         String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
@@ -392,14 +389,7 @@ class ComponentStoreTest {
     }
 
     private void preloadRecipeFileFromTestResource(String recipeFileName) throws Exception {
-        // The test recipe file name is in the form of {componentName}-{version}.yaml
-        String componentName = recipeFileName.split("-")[0];
-        String version = recipeFileName.split("-")[1].split(".yaml")[0];
-
-        // destination should be {hash}@{version}.recipe.yaml
-        String hash = getHashFromName(componentName);
-
-        String destinationFilename = String.format("%s@%s.recipe.yaml", hash, version);
+        String destinationFilename = getRecipeStorageFilenameFromTestSource(recipeFileName);
 
         Path destinationRecipe = recipeDirectory.resolve(destinationFilename);
 
@@ -481,20 +471,13 @@ class ComponentStoreTest {
         assertThat(actualContent, is(equalTo(expectedContent)));
     }
 
-    private File getExpectedRecipeMetadataFile(String componentName, String componentVersion)
-            throws NoSuchAlgorithmException {
-        String hash = getHashFromName(componentName);
+    private File getExpectedRecipeMetadataFile(String componentName, String componentVersion) {
+        String hash = getHashFromComponentName(componentName);
 
         String expectedRecipeMetadataFileName =
                 String.format("%s@%s.metadata.json", hash, componentVersion); // {hash}@1.0.0.metadata.json
 
         return recipeDirectory.resolve(expectedRecipeMetadataFileName).toFile();
-    }
-
-    private String getHashFromName(String componentName) throws NoSuchAlgorithmException {
-        // expects the hash of component name to be base64 (url safe and no padding) encoded SHA256
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(
-                MessageDigest.getInstance("SHA-256").digest(componentName.getBytes(StandardCharsets.UTF_8)));
     }
 
     @Test
@@ -540,7 +523,7 @@ class ComponentStoreTest {
         Path sourceRecipe = RECIPE_METADATA_RESOURCE_PATH.resolve(fileName);
         String componentName = fileName.split("@")[0];
 
-        String hash = getHashFromName(componentName);
+        String hash = getHashFromComponentName(componentName);
 
         String targetRecipeMetadataFileName = fileName.replace(componentName, hash);    // {hash}@1.0.0.metadata.json
 

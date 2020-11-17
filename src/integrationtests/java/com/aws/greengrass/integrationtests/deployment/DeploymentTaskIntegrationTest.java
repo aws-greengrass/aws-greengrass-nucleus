@@ -23,6 +23,7 @@ import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
+import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -98,6 +99,7 @@ import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMP
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
+import static com.aws.greengrass.helper.PreloadComponentStoreHelper.getRecipeStorageFilenameFromTestSource;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -197,7 +199,7 @@ class DeploymentTaskIntegrationTest {
         // pre-load contents to package store
         preloadLocalStoreContent();
 
-        assumeCanSudoShell(kernel);
+//        assumeCanSudoShell(kernel);
 
     }
 
@@ -1180,7 +1182,7 @@ class DeploymentTaskIntegrationTest {
     private static void preloadLocalStoreContent() throws URISyntaxException, IOException {
         Path localStoreContentPath =
                 Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
-        copyFolderRecursively(localStoreContentPath, kernel.getNucleusPaths().componentStorePath(), REPLACE_EXISTING);
+        PreloadComponentStoreHelper.preloadRecipesFromTestResourceFolder(localStoreContentPath, kernel.getNucleusPaths().componentStorePath());
     }
 
     /* just copy recipe and artifacts of a single component-version */
@@ -1190,16 +1192,18 @@ class DeploymentTaskIntegrationTest {
             Path localStoreContentPath = Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
             Files.copy(resolveRecipePathFromCompStoreRoot(localStoreContentPath, compName, version),
                     resolveRecipePathFromCompStoreRoot(kernel.getNucleusPaths().componentStorePath(), compName, version));
+
+            // TODO
+            compStoreRootPath.resolve(getRecipeStorageFilenameFromTestSource(recipeFileName);
+
+
+
             copyFolderRecursively(resolveArtifactPathFromCompStoreRoot(localStoreContentPath, compName, version),
                     resolveArtifactPathFromCompStoreRoot(kernel.getNucleusPaths().componentStorePath(), compName,
                             version), REPLACE_EXISTING);
         } catch (FileAlreadyExistsException e) {
             // ignore
         }
-    }
-
-    private static Path resolveRecipePathFromCompStoreRoot(Path compStoreRootPath, String name, String version) {
-        return compStoreRootPath.resolve("recipes").resolve(String.format("%s-%s.yaml", name, version));
     }
 
     private static Path resolveArtifactPathFromCompStoreRoot(Path compStoreRootPath, String name, String version) {
