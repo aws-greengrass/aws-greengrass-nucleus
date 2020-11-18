@@ -10,6 +10,9 @@ import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.lifecyclemanager.Lifecycle;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,12 +21,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.collection.IsMapContaining.hasEntry;
 import static org.hamcrest.collection.IsMapWithSize.aMapWithSize;
 import static org.hamcrest.core.Is.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
@@ -115,6 +123,41 @@ class RecipeLoaderTest {
         assertThat(recipe.getDependencies(),
                 hasEntry("BazService", new DependencyProperties("^2.0", DependencyType.HARD)));
 
+    }
+
+
+    @Test
+    void GIVEN_a_recipe_file_multi_platform_WHEN_converts_THEN_returns_expected() throws Exception {
+        // GIVEN
+        // read file
+        String filename = "sample_recipe_with_global_lifecycle_multiplatform.yaml";
+        String recipeFileContent = new String(Files.readAllBytes(Paths.get(getClass().getResource(filename).toURI())));
+
+        // init recipeLoader with overriding test platform
+        Map<String, Object> platformOverrideMap = new HashMap<>();
+        platformOverrideMap.put(PlatformResolver.OS_KEY, "testOs");
+        platformOverrideMap.put(PlatformResolver.ARCHITECTURE_KEY, "testArch");
+
+        Topics platformOverrideTopics = mock(Topics.class);
+        when(platformOverrideTopics.toPOJO()).thenReturn(platformOverrideMap);
+        DeviceConfiguration deviceConfiguration = mock(DeviceConfiguration.class);
+        when(deviceConfiguration.getPlatformOverrideTopic()).thenReturn(platformOverrideTopics);
+        PlatformResolver platformResolver = new PlatformResolver(deviceConfiguration);
+        recipeLoader = new RecipeLoader(platformResolver);
+
+        // WHEN
+        Optional<ComponentRecipe> optionalRecipe = recipeLoader.loadFromFile(recipeFileContent);
+
+        // THEN
+        assertThat(optionalRecipe.isPresent(), is(true));
+        ComponentRecipe recipe = optionalRecipe.get();
+
+        Map<String, Object> expectedLifecycle = new HashMap<>();
+        expectedLifecycle.put(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, "echo install");
+
+        assertThat(recipe.getLifecycle(), equalTo(expectedLifecycle));
+        assertThat(recipe.getArtifacts().size(), is(1));
+        assertThat(recipe.getDependencies().size(), is(2));
     }
 
     @Test
