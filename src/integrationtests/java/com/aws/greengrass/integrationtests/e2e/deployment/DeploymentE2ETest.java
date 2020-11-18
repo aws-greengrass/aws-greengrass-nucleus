@@ -57,6 +57,7 @@ import software.amazon.awssdk.iot.iotshadow.model.UpdateNamedShadowSubscriptionR
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
+import java.nio.file.attribute.UserPrincipalNotFoundException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -72,6 +73,7 @@ import java.util.function.Consumer;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
 import static com.aws.greengrass.deployment.ShadowDeploymentListener.DEPLOYMENT_SHADOW_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
@@ -175,9 +177,10 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_target_service_has_dependencies_WHEN_deploys_target_service_THEN_service_and_dependencies_should_be_deployed()
+    void GIVEN_target_service_has_dependencies_WHEN_deploys_target_service_THEN_service_and_dependencies_should_be_deployed(ExtensionContext context)
             throws Exception {
         // Set up stdout listener to capture stdout for verify interpolation
+        ignoreExceptionOfType(context, UserPrincipalNotFoundException.class);
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();

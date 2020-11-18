@@ -9,10 +9,7 @@
     {
       "Name": "YellowSignal",
       "ResolvedVersion": "1.0.0",
-      "RootComponent": true,
-      "Configuration": {
-        "message": "This is not a test"
-      }
+      "RootComponent": true
     }
   ],
   "Timestamp": 1592574829000,
