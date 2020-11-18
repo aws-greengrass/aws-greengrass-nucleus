@@ -239,7 +239,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     private static void initializePackageStore() throws Exception {
-        Path localStoreContentPath = Paths.get(BaseE2ETestCase.class.getResource("local_store_content").getPath());
+        Path localStoreContentPath = Paths.get(BaseE2ETestCase.class.getResource("component_resources").getPath());
 
         // copy to tmp directory
         FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());

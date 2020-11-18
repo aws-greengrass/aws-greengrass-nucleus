@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.aws.greengrass.helper;
 
 import lombok.SneakyThrows;
@@ -17,15 +22,15 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 public class PreloadComponentStoreHelper {
 
     /**
-     * @param localStorePath     contains recipes with file naming convention: {name}-{version}.yaml
-     * @param componentStorePath component store path
+     * @param testResourceRecipeDir     contains recipes with file naming convention: {name}-{version}.yaml
+     * @param componentStoreRecipeDir component store path
      */
-    public static void preloadRecipesFromTestResourceFolder(Path localStorePath, Path componentStorePath) throws IOException {
-        Files.walkFileTree(localStorePath, new SimpleFileVisitor<Path>() {
+    public static void preloadRecipesFromTestResourceDir(Path testResourceRecipeDir, Path componentStoreRecipeDir) throws IOException {
+        Files.walkFileTree(testResourceRecipeDir, new SimpleFileVisitor<Path>() {
 
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                // do nothing because expect the input localStorePath only contains recipe files
+                // do nothing because expect the input testResourceRecipeDir only contains recipe files
                 return FileVisitResult.CONTINUE;
             }
 
@@ -34,7 +39,7 @@ public class PreloadComponentStoreHelper {
                 // parse file name
                 String recipeStorageName = getRecipeStorageFilenameFromTestSource(file.toFile().getName());
 
-                Files.copy(file, componentStorePath.resolve(recipeStorageName), REPLACE_EXISTING);
+                Files.copy(file, componentStoreRecipeDir.resolve(recipeStorageName), REPLACE_EXISTING);
                 return FileVisitResult.CONTINUE;
             }
         });

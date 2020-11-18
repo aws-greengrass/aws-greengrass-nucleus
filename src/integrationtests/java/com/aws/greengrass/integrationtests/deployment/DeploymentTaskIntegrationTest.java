@@ -72,7 +72,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -124,7 +123,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(GGExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@SuppressWarnings("PMD.ExcessiveClassLength") // This test is essential and verified many details. Could be breakdown.
+@SuppressWarnings("PMD.ExcessiveClassLength")
+        // This test is essential and verified many details. Could be breakdown.
 class DeploymentTaskIntegrationTest {
 
     private static final String TEST_CUSTOMER_APP_STRING = "Hello Greengrass. This is a test";
@@ -199,8 +199,7 @@ class DeploymentTaskIntegrationTest {
         // pre-load contents to package store
         preloadLocalStoreContent();
 
-//        assumeCanSudoShell(kernel);
-
+        assumeCanSudoShell(kernel);
     }
 
     @AfterEach
@@ -217,10 +216,10 @@ class DeploymentTaskIntegrationTest {
     }
 
     /**
-     * Deploy versions 1.0.0 through 4.0.0 sequentially. Stale version should be removed.
-     * In this test we need to preload recipe/artifact before a deployment so that it can be found locally,
-     * because unused local files are removed by cleanup from previous deployment.
-     * After this we'll reload local files again so that the following tests can proceed normally.
+     * Deploy versions 1.0.0 through 4.0.0 sequentially. Stale version should be removed. In this test we need to
+     * preload recipe/artifact before a deployment so that it can be found locally, because unused local files are
+     * removed by cleanup from previous deployment. After this we'll reload local files again so that the following
+     * tests can proceed normally.
      */
     @Test
     @Order(1)
@@ -308,11 +307,10 @@ class DeploymentTaskIntegrationTest {
 
     @Test
     @Order(3)
-    void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel(ExtensionContext context)
-            throws Exception {
-        ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
-                GreengrassService.class
-                        .getName());
+    void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel(
+            ExtensionContext context) throws Exception {
+        ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get())
+                .put("plugin", GreengrassService.class.getName());
         outputMessagesToTimestamp.clear();
         final List<String> listOfExpectedMessages =
                 Arrays.asList(TEST_TICK_TOCK_STRING, TEST_MOSQUITTO_STRING, TEST_CUSTOMER_APP_STRING);
@@ -338,14 +336,16 @@ class DeploymentTaskIntegrationTest {
         Slf4jLogAdapter.addGlobalListener(listener);
         try {
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument.json").toURI(), System.currentTimeMillis());
+                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument.json").toURI(),
+                    System.currentTimeMillis());
 
             resultFuture.get(10, TimeUnit.SECONDS);
 
             countDownLatch.await(10, TimeUnit.SECONDS);
             Set<String> listOfStdoutMessagesTapped = outputMessagesToTimestamp.keySet();
             assertThat(listOfStdoutMessagesTapped, containsInAnyOrder(Matchers.equalTo(TEST_CUSTOMER_APP_STRING),
-                    Matchers.equalTo(TEST_MOSQUITTO_STRING), Matchers.equalTo(TEST_TICK_TOCK_STRING)));
+                                                                      Matchers.equalTo(TEST_MOSQUITTO_STRING),
+                                                                      Matchers.equalTo(TEST_TICK_TOCK_STRING)));
         } finally {
             Slf4jLogAdapter.removeGlobalListener(listener);
         }
@@ -368,8 +368,8 @@ class DeploymentTaskIntegrationTest {
         Consumer<GreengrassLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
-            if (messageOnStdout != null && messageOnStdout.contains(
-                    "aws.iot.gg.test.integ.ComponentConfigTestService output")) {
+            if (messageOnStdout != null && messageOnStdout
+                    .contains("aws.iot.gg.test.integ.ComponentConfigTestService output")) {
                 stdouts.add(messageOnStdout);
                 countDownLatch.countDown(); // countdown when received output to verify
             }
@@ -382,13 +382,14 @@ class DeploymentTaskIntegrationTest {
              */
             countDownLatch = new CountDownLatch(1);
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_1.json").toURI(),
-                    System.currentTimeMillis());
+                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_1.json")
+                            .toURI(), System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
 
             // verify config in config store and interpolation result
             Map<String, Object> resultConfig =
-                    kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+                    kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                            .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
 
             verifyDefaultValueIsApplied(stdouts, resultConfig);
 
@@ -397,12 +398,13 @@ class DeploymentTaskIntegrationTest {
              */
             countDownLatch = new CountDownLatch(1); // reset countdown
             resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_2.json").toURI(),
-                    System.currentTimeMillis());
+                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_2.json")
+                            .toURI(), System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
 
             // verify config in config store
-            resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+            resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                    .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
 
             // Asserted values can be found in ComponentConfigTest_DeployDocument_2.json
             assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
@@ -416,7 +418,8 @@ class DeploymentTaskIntegrationTest {
             assertThat(resultConfig, IsMapContaining.hasKey("path"));
             assertThat(resultConfig, IsMapWithSize.aMapWithSize(8));    // no more keys
 
-            assertThat((Map<String, String>) resultConfig.get("path"), IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
+            assertThat((Map<String, String>) resultConfig.get("path"),
+                       IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
             assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
 
             // verify interpolation result
@@ -436,12 +439,13 @@ class DeploymentTaskIntegrationTest {
              */
             countDownLatch = new CountDownLatch(1); // reset countdown
             resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_3.json").toURI(),
-                    System.currentTimeMillis());
+                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_3.json")
+                            .toURI(), System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
 
             // verify config in config store
-            resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+            resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                    .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
             assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
             assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
             assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
@@ -454,8 +458,10 @@ class DeploymentTaskIntegrationTest {
             assertThat(resultConfig, IsMapContaining.hasEntry("newSingleLevelKey", "value of newSingleLevelKey"));
             assertThat(resultConfig, IsMapWithSize.aMapWithSize(9));    // no more keys
 
-            assertThat((Map<String, String>) resultConfig.get("path"), IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
-            assertThat((Map<String, String>) resultConfig.get("path"), IsMapContaining.hasEntry("newLeafKey", "value of /path/newLeafKey"));
+            assertThat((Map<String, String>) resultConfig.get("path"),
+                       IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
+            assertThat((Map<String, String>) resultConfig.get("path"),
+                       IsMapContaining.hasEntry("newLeafKey", "value of /path/newLeafKey"));
             assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(2));  // no more keys
 
             // verify interpolation result
@@ -475,12 +481,13 @@ class DeploymentTaskIntegrationTest {
              */
             countDownLatch = new CountDownLatch(1); // reset countdown
             resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_4.json").toURI(),
-                    System.currentTimeMillis());
+                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_4.json")
+                            .toURI(), System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
 
             // verify config in config store
-            resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+            resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                    .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
             assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
             assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Arrays.asList("item1", "item2")));
             assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
@@ -490,14 +497,15 @@ class DeploymentTaskIntegrationTest {
             assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
 
             assertThat(resultConfig, IsMapContaining.hasKey("path"));
-            assertThat((Map<String, String>) resultConfig.get("path"), IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
+            assertThat((Map<String, String>) resultConfig.get("path"),
+                       IsMapContaining.hasEntry("leafKey", "updated value of /path/leafKey"));
 
             assertFalse(resultConfig.containsKey("newSingleLevelKey"),
-                    "newSingleLevelKey should be cleared after RESET because it doesn't have a default value");
+                        "newSingleLevelKey should be cleared after RESET because it doesn't have a default value");
             assertThat(resultConfig, IsMapWithSize.aMapWithSize(8));    // no more keys
 
             assertFalse(((Map<String, String>) resultConfig.get("path")).containsKey("newLeafKey"),
-                    "/path/newSingleLevelKey should be cleared after RESET because it doesn't have a default value");
+                        "/path/newSingleLevelKey should be cleared after RESET because it doesn't have a default value");
             assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
 
             // verify interpolation result
@@ -515,12 +523,13 @@ class DeploymentTaskIntegrationTest {
             // 5th RESET entirely to default
             countDownLatch = new CountDownLatch(1); // reset countdown
             resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_5.json").toURI(),
-                    System.currentTimeMillis());
+                    DeploymentTaskIntegrationTest.class.getResource("ComponentConfigTest_DeployDocument_5.json")
+                            .toURI(), System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
 
             // verify config in config store and interpolation result
-            resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService").findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+            resultConfig = kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                    .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
             verifyDefaultValueIsApplied(stdouts, resultConfig);
         } finally {
             Slf4jLogAdapter.removeGlobalListener(listener);
@@ -542,7 +551,7 @@ class DeploymentTaskIntegrationTest {
 
         assertThat(resultConfig, IsMapContaining.hasKey("path"));
         assertThat((Map<String, String>) resultConfig.get("path"),
-                IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
+                   IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
         // verify interpolation result
         assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
@@ -573,7 +582,8 @@ class DeploymentTaskIntegrationTest {
         Consumer<GreengrassLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
-            if (messageOnStdout != null && messageOnStdout.contains("aws.iot.gg.test.integ.ComponentConfigTestService output")) {
+            if (messageOnStdout != null && messageOnStdout
+                    .contains("aws.iot.gg.test.integ.ComponentConfigTestService output")) {
                 stdouts.add(messageOnStdout);
                 countDownLatch.countDown(); // countdown when received output to verify
             }
@@ -585,10 +595,11 @@ class DeploymentTaskIntegrationTest {
              * Initial deployment with configuration update
              */
             countDownLatch = new CountDownLatch(1);
-            Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class
-                            .getResource("ComponentConfigTest_InitialDocumentWithUpdate.json").toURI(),
-                    System.currentTimeMillis());
+            Future<DeploymentResult> resultFuture = submitSampleJobDocument(DeploymentTaskIntegrationTest.class
+                                                                                    .getResource(
+                                                                                            "ComponentConfigTest_InitialDocumentWithUpdate.json")
+                                                                                    .toURI(),
+                                                                            System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
 
             // verify config in config store and interpolation result
@@ -646,8 +657,8 @@ class DeploymentTaskIntegrationTest {
         Consumer<GreengrassLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
             String messageOnStdout = contexts.get("stdout");
-            if (messageOnStdout != null && messageOnStdout.contains(
-                    "aws.iot.gg.test.integ.ComponentConfigTestMain output")) {
+            if (messageOnStdout != null && messageOnStdout
+                    .contains("aws.iot.gg.test.integ.ComponentConfigTestMain output")) {
                 countDownLatch.countDown();
                 stdouts.add(messageOnStdout);
             }
@@ -659,8 +670,8 @@ class DeploymentTaskIntegrationTest {
              * 1st deployment. Default Config.
              */
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class.getResource("CrossComponentConfigTest_DeployDocument.json").toURI(),
-                    System.currentTimeMillis());
+                    DeploymentTaskIntegrationTest.class.getResource("CrossComponentConfigTest_DeployDocument.json")
+                            .toURI(), System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
 
             // verify interpolation result
@@ -712,18 +723,22 @@ class DeploymentTaskIntegrationTest {
             // verify interpolation result
             assertTrue(stdouts.get(0).contains("I'm kernel's root path: " + rootDir.toAbsolutePath().toString()));
 
-            assertTrue(stdouts.get(0).contains("I'm my own artifact path: " + rootDir.resolve("packages").resolve(ComponentStore.ARTIFACT_DIRECTORY).resolve(mainComponentName).resolve(mainComponentNameVer)
+            assertTrue(stdouts.get(0).contains("I'm my own artifact path: " + rootDir.resolve("packages")
+                    .resolve(ComponentStore.ARTIFACT_DIRECTORY).resolve(mainComponentName).resolve(mainComponentNameVer)
                     .toAbsolutePath().toString()));
 
-            assertTrue(stdouts.get(0).contains("I'm my own artifact decompressed path: " + rootDir.resolve("packages").resolve(ComponentStore.ARTIFACTS_DECOMPRESSED_DIRECTORY).resolve(mainComponentName)
+            assertTrue(stdouts.get(0).contains("I'm my own artifact decompressed path: " + rootDir.resolve("packages")
+                    .resolve(ComponentStore.ARTIFACTS_DECOMPRESSED_DIRECTORY).resolve(mainComponentName)
                     .resolve(mainComponentNameVer).toAbsolutePath().toString()));
 
 
-            assertTrue(stdouts.get(0).contains("I'm GreenSignal's artifact path: " + rootDir.resolve("packages").resolve(ComponentStore.ARTIFACT_DIRECTORY).resolve(otherComponentName).resolve(otherComponentVer)
+            assertTrue(stdouts.get(0).contains("I'm GreenSignal's artifact path: " + rootDir.resolve("packages")
+                    .resolve(ComponentStore.ARTIFACT_DIRECTORY).resolve(otherComponentName).resolve(otherComponentVer)
                     .toAbsolutePath().toString()));
 
             assertTrue(stdouts.get(0).contains(
-                    "I'm GreenSignal's artifact decompressed path: " + rootDir.resolve("packages").resolve(ComponentStore.ARTIFACTS_DECOMPRESSED_DIRECTORY).resolve(otherComponentName)
+                    "I'm GreenSignal's artifact decompressed path: " + rootDir.resolve("packages")
+                            .resolve(ComponentStore.ARTIFACTS_DECOMPRESSED_DIRECTORY).resolve(otherComponentName)
                             .resolve(otherComponentVer).toAbsolutePath().toString()));
         } finally {
             Slf4jLogAdapter.removeGlobalListener(listener);
@@ -752,10 +767,12 @@ class DeploymentTaskIntegrationTest {
         };
         Slf4jLogAdapter.addGlobalListener(listener);
         try {
-            groupToRootComponentsTopics.lookupTopics("CustomerApp").replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+            groupToRootComponentsTopics.lookupTopics("CustomerApp")
+                    .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
 
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI(), System.currentTimeMillis());
+                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI(),
+                    System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
             countDownLatch.await(10, TimeUnit.SECONDS);
             assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
@@ -778,17 +795,14 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("CustomerAppAndYellowSignal.json").toURI(),
                 System.currentTimeMillis());
         resultFuture.get(10, TimeUnit.SECONDS);
-        List<String> services = kernel.orderedDependencies()
-                .stream()
+        List<String> services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(GreengrassService::getName)
-                .collect(Collectors.toList());
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         //should contain main, Nucleus, YellowSignal, CustomerApp, Mosquitto and GreenSignal
         assertEquals(6, services.size());
-        assertThat(services,
-                containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "YellowSignal", "CustomerApp", "Mosquitto",
-                        "GreenSignal"));
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "YellowSignal", "CustomerApp",
+                                                "Mosquitto", "GreenSignal"));
         groupToRootComponentsTopics.lookupTopics("CustomerApp")
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         groupToRootComponentsTopics.lookupTopics("YellowSignal")
@@ -797,11 +811,9 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
         resultFuture.get(30, TimeUnit.SECONDS);
-        services = kernel.orderedDependencies()
-                .stream()
+        services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(GreengrassService::getName)
-                .collect(Collectors.toList());
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         //"should contain main, Nucleus, YellowSignal, RedSignal"
         assertEquals(4, services.size());
@@ -812,15 +824,15 @@ class DeploymentTaskIntegrationTest {
     }
 
     /**
-     * Start a service running with a user, then deploy an update to change the user and ensure the correct user
-     * stops the process and starts the new one.
+     * Start a service running with a user, then deploy an update to change the user and ensure the correct user stops
+     * the process and starts the new one.
      */
     @Test
     @Order(5) // deploy before tests that break services
     @EnabledOnOs(OS.LINUX)
     void GIVEN_a_deployment_with_runwith_config_WHEN_submitted_THEN_runwith_updated() throws Exception {
-        ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
-                GreengrassService.class.getName());
+        ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get())
+                .put("plugin", GreengrassService.class.getName());
 
 
         countDownLatch = new CountDownLatch(2);
@@ -845,7 +857,7 @@ class DeploymentTaskIntegrationTest {
 
             // verify user
             String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
-                    .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
+                                                  .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
             assertEquals("nobody", user);
             countDownLatch.await(10, TimeUnit.SECONDS);
             assertThat(stdouts, hasItem(containsString("installing app with user root")));
@@ -860,8 +872,8 @@ class DeploymentTaskIntegrationTest {
         countDownLatch = new CountDownLatch(3);
 
         // update component to runas the user running the test
-        String doc = Utils.inputStreamToString(DeploymentTaskIntegrationTest.class.getResource(
-                "SampleJobDocumentWithUser_2.json").openStream());
+        String doc = Utils.inputStreamToString(
+                DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentWithUser_2.json").openStream());
         String currentUser = System.getProperty("user.name");
         doc = String.format(doc, currentUser);
         File f = File.createTempFile("user-deployment", ".json");
@@ -871,7 +883,7 @@ class DeploymentTaskIntegrationTest {
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(f.toURI(), System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
             String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
-                    .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
+                                                  .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
             assertEquals(currentUser, user);
 
             countDownLatch.await(10, TimeUnit.SECONDS);
@@ -893,7 +905,7 @@ class DeploymentTaskIntegrationTest {
                     System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
             String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
-                    .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
+                                                  .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
 
             assertThat(user, is(nullValue()));
 
@@ -920,11 +932,9 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
         resultFuture.get(30, TimeUnit.SECONDS);
-        List<String> services = kernel.orderedDependencies()
-                .stream()
+        List<String> services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(GreengrassService::getName)
-                .collect(Collectors.toList());
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         // should contain main, Nucleus, YellowSignal and RedSignal
         assertEquals(4, services.size());
@@ -940,17 +950,14 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("FailureDoNothingDeployment.json").toURI(),
                 System.currentTimeMillis());
         DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
-        services = kernel.orderedDependencies()
-                .stream()
+        services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(GreengrassService::getName)
-                .collect(Collectors.toList());
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         // should contain main, Nucleus, RedSignal, BreakingService, Mosquitto and GreenSignal
         assertEquals(6, services.size());
-        assertThat(services,
-                containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "RedSignal", "BreakingService", "Mosquitto",
-                        "GreenSignal"));
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "RedSignal", "BreakingService",
+                                                "Mosquitto", "GreenSignal"));
         assertEquals(State.BROKEN, kernel.locate("BreakingService").getState());
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, result.getDeploymentStatus());
     }
@@ -974,11 +981,9 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
         resultFuture.get(30, TimeUnit.SECONDS);
-        List<String> services = kernel.orderedDependencies()
-                .stream()
+        List<String> services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(GreengrassService::getName)
-                .collect(Collectors.toList());
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         // should contain main, Nucleus, YellowSignal and RedSignal
         assertEquals(4, services.size());
@@ -986,19 +991,17 @@ class DeploymentTaskIntegrationTest {
 
         ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
         groupToRootComponentsTopics.lookupTopics("YellowSignal").remove();
-        groupToRootComponentsTopics.lookupTopics("BreakingService").replaceAndWait(
-                ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        groupToRootComponentsTopics.lookupTopics("BreakingService")
+                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
 
         preloadLocalStoreContent();
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("FailureRollbackDeployment.json").toURI(),
                 System.currentTimeMillis());
         DeploymentResult result = resultFuture.get(60, TimeUnit.SECONDS);
-        services = kernel.orderedDependencies()
-                .stream()
+        services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(GreengrassService::getName)
-                .collect(Collectors.toList());
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         // should contain main, Nucleus, YellowSignal, RedSignal
         assertEquals(4, services.size());
@@ -1010,8 +1013,8 @@ class DeploymentTaskIntegrationTest {
     }
 
     /**
-     * This test verifies that if a deployment has a broken service and then a new deployment comes which removes
-     * that one, but fails for a different reason and rolls back, then it is able to roll back successfully.
+     * This test verifies that if a deployment has a broken service and then a new deployment comes which removes that
+     * one, but fails for a different reason and rolls back, then it is able to roll back successfully.
      */
     @Test
     @Order(8)
@@ -1024,13 +1027,11 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("FailureDoNothingDeployment.json").toURI(),
                 System.currentTimeMillis());
         resultFuture.get(60, TimeUnit.SECONDS);
-        List<String> services = kernel.orderedDependencies()
-                .stream()
+        List<String> services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(GreengrassService::getName)
-                .collect(Collectors.toList());
-        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "BreakingService",
-                "RedSignal", "GreenSignal", "Mosquitto"));
+                .map(GreengrassService::getName).collect(Collectors.toList());
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "BreakingService", "RedSignal",
+                                                "GreenSignal", "Mosquitto"));
 
         // Deploy a new broken config (using a different service) which does rollback
         preloadLocalStoreContent();
@@ -1038,15 +1039,13 @@ class DeploymentTaskIntegrationTest {
                 DeploymentTaskIntegrationTest.class.getResource("Failure2RollbackDeployment.json").toURI(),
                 System.currentTimeMillis());
         DeploymentResult result = resultFuture.get(60, TimeUnit.SECONDS);
-        services = kernel.orderedDependencies()
-                .stream()
+        services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(GreengrassService::getName)
-                .collect(Collectors.toList());
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         // Make sure that it rolls back to the previous state
-        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "BreakingService",
-                "RedSignal", "GreenSignal", "Mosquitto"));
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "BreakingService", "RedSignal",
+                                                "GreenSignal", "Mosquitto"));
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
     }
 
@@ -1060,47 +1059,50 @@ class DeploymentTaskIntegrationTest {
         resultFuture.get(30, TimeUnit.SECONDS);
 
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, "NonDisruptableService");
-        final EventStreamRPCConnection clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions,
-                authToken, kernel);
-        SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest = new SubscribeToComponentUpdatesRequest();
+        final EventStreamRPCConnection clientConnection =
+                IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
+        SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest =
+                new SubscribeToComponentUpdatesRequest();
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
-        CompletableFuture<SubscribeToComponentUpdatesResponse> fut =
-                greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest,
-                        Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
-                            @Override
-                            public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
-                                if (streamEvent.getPreUpdateEvent() != null) {
-                                    DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
-                                    deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(60).toMillis());
-                                    deferComponentUpdateRequest.setMessage("Test");
-                                    deferComponentUpdateRequest.setDeploymentId(streamEvent.getPreUpdateEvent()
-                                            .getDeploymentId());
-                                    greengrassCoreIPCClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
-                                }
-                            }
+        CompletableFuture<SubscribeToComponentUpdatesResponse> fut = greengrassCoreIPCClient
+                .subscribeToComponentUpdates(subscribeToComponentUpdatesRequest,
+                                             Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+                                                 @Override
+                                                 public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                                                     if (streamEvent.getPreUpdateEvent() != null) {
+                                                         DeferComponentUpdateRequest deferComponentUpdateRequest =
+                                                                 new DeferComponentUpdateRequest();
+                                                         deferComponentUpdateRequest
+                                                                 .setRecheckAfterMs(Duration.ofSeconds(60).toMillis());
+                                                         deferComponentUpdateRequest.setMessage("Test");
+                                                         deferComponentUpdateRequest.setDeploymentId(
+                                                                 streamEvent.getPreUpdateEvent().getDeploymentId());
+                                                         greengrassCoreIPCClient
+                                                                 .deferComponentUpdate(deferComponentUpdateRequest,
+                                                                                       Optional.empty());
+                                                     }
+                                                 }
 
-                            @Override
-                            public boolean onStreamError(Throwable error) {
-                                logger.atError().setCause(error).log("Stream closed due to error");
-                                return false;
-                            }
+                                                 @Override
+                                                 public boolean onStreamError(Throwable error) {
+                                                     logger.atError().setCause(error).log("Stream closed due to error");
+                                                     return false;
+                                                 }
 
-                            @Override
-                            public void onStreamClosed() {
+                                                 @Override
+                                                 public void onStreamClosed() {
 
-                            }
-                        })).getResponse();
+                                                 }
+                                             })).getResponse();
         try {
             fut.get(30, TimeUnit.SECONDS);
         } catch (Exception e) {
             logger.atError().setCause(e).log("Error when subscribing to component updates");
             fail("Caught exception when subscribing to component updates");
         }
-        List<String> services = kernel.orderedDependencies()
-                .stream()
+        List<String> services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(GreengrassService::getName)
-                .collect(Collectors.toList());
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         // should contain main, Nucleus, NonDisruptableService 1.0.0
         assertEquals(3, services.size(), "Actual services: " + services);
@@ -1120,14 +1122,16 @@ class DeploymentTaskIntegrationTest {
         Slf4jLogAdapter.addGlobalListener(listener);
         try {
             resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class.getResource("UpdateServiceWithSafetyCheck.json").toURI(), System.currentTimeMillis());
+                    DeploymentTaskIntegrationTest.class.getResource("UpdateServiceWithSafetyCheck.json").toURI(),
+                    System.currentTimeMillis());
 
             assertTrue(cdlUpdateStarted.await(40, TimeUnit.SECONDS));
             resultFuture.cancel(true);
 
             assertTrue(cdlMergeCancelled.await(30, TimeUnit.SECONDS));
 
-            services = kernel.orderedDependencies().stream().filter(greengrassService -> greengrassService instanceof GenericExternalService)
+            services = kernel.orderedDependencies().stream()
+                    .filter(greengrassService -> greengrassService instanceof GenericExternalService)
                     .map(GreengrassService::getName).collect(Collectors.toList());
 
             // should contain main, Nucleus, NonDisruptableService 1.0.0
@@ -1142,20 +1146,19 @@ class DeploymentTaskIntegrationTest {
 
     @Test
     @Order(100)
-    void GIVEN_services_running_WHEN_new_deployment_asks_to_skip_safety_check_THEN_deployment_is_successful() throws Exception {
+    void GIVEN_services_running_WHEN_new_deployment_asks_to_skip_safety_check_THEN_deployment_is_successful()
+            throws Exception {
         // The previous test has NonDisruptableService 1.0.0 running in kernel that always returns false when its
         // safety check script is run, this test demonstrates that when a next deployment configured to skip safety
         // check is processed, it can still update the NonDisruptableService service to version 1.0.1 bypassing the
         // safety check
         Future<DeploymentResult> resultFuture =
                 submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("SkipSafetyCheck.json").toURI(),
-                        System.currentTimeMillis());
+                                        System.currentTimeMillis());
         DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
-        List<String> services = kernel.orderedDependencies()
-                .stream()
+        List<String> services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
-                .map(GreengrassService::getName)
-                .collect(Collectors.toList());
+                .map(GreengrassService::getName).collect(Collectors.toList());
 
         // should contain main, Nucleus, NonDisruptableService 1.0.1
         assertEquals(3, services.size(), "Existing services: " + services);
@@ -1182,28 +1185,32 @@ class DeploymentTaskIntegrationTest {
     private static void preloadLocalStoreContent() throws URISyntaxException, IOException {
         Path localStoreContentPath =
                 Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
-        PreloadComponentStoreHelper.preloadRecipesFromTestResourceFolder(localStoreContentPath, kernel.getNucleusPaths().componentStorePath());
+
+        PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"),
+                                                                      kernel.getNucleusPaths().recipePath());
+        copyFolderRecursively(localStoreContentPath.resolve("artifacts"), kernel.getNucleusPaths().artifactPath(), REPLACE_EXISTING);
     }
 
     /* just copy recipe and artifacts of a single component-version */
-    private static void preloadLocalStoreContent(String compName, String version) throws URISyntaxException,
-            IOException {
-        try {
-            Path localStoreContentPath = Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
-            Files.copy(resolveRecipePathFromCompStoreRoot(localStoreContentPath, compName, version),
-                    resolveRecipePathFromCompStoreRoot(kernel.getNucleusPaths().componentStorePath(), compName, version));
+    private static void preloadLocalStoreContent(String compName, String version)
+            throws URISyntaxException, IOException {
+        String recipeFileName = String.format("%s-%s.yaml", compName,
+                                              version); // naming convention under 'local_store_content/recipes/'
 
-            // TODO
-            compStoreRootPath.resolve(getRecipeStorageFilenameFromTestSource(recipeFileName);
+        Path localStoreContentPath =
+                Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
+
+        // copy over recipe
+        Path recipeFromTestResource = localStoreContentPath.resolve("recipes").resolve(recipeFileName);
+        Path destRecipe =
+                kernel.getNucleusPaths().recipePath().resolve(getRecipeStorageFilenameFromTestSource(recipeFileName));
+        Files.copy(recipeFromTestResource, destRecipe, REPLACE_EXISTING);
 
 
-
-            copyFolderRecursively(resolveArtifactPathFromCompStoreRoot(localStoreContentPath, compName, version),
-                    resolveArtifactPathFromCompStoreRoot(kernel.getNucleusPaths().componentStorePath(), compName,
-                            version), REPLACE_EXISTING);
-        } catch (FileAlreadyExistsException e) {
-            // ignore
-        }
+        // copy over artifacts
+        copyFolderRecursively(resolveArtifactPathFromCompStoreRoot(localStoreContentPath, compName, version),
+                              resolveArtifactPathFromCompStoreRoot(kernel.getNucleusPaths().componentStorePath(),
+                                                                   compName, version), REPLACE_EXISTING);
     }
 
     private static Path resolveArtifactPathFromCompStoreRoot(Path compStoreRootPath, String name, String version) {
@@ -1212,8 +1219,7 @@ class DeploymentTaskIntegrationTest {
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
-        kernel.getContext()
-                .get(DeploymentDirectoryManager.class)
+        kernel.getContext().get(DeploymentDirectoryManager.class)
                 .createNewDeploymentDirectory("testFleetConfigArn" + deploymentCount.getAndIncrement());
 
         sampleJobDocument = OBJECT_MAPPER.readValue(new File(uri), DeploymentDocument.class);
@@ -1221,9 +1227,9 @@ class DeploymentTaskIntegrationTest {
         sampleJobDocument.setGroupName(MOCK_GROUP_NAME);
         DefaultDeploymentTask deploymentTask =
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
-                        deploymentConfigMerger, logger,
-                        new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId",
-                                DEFAULT), deploymentServiceTopics);
+                                          deploymentConfigMerger, logger,
+                                          new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId",
+                                                         DEFAULT), deploymentServiceTopics);
         return executorService.submit(deploymentTask);
     }
 }

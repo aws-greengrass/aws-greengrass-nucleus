@@ -29,6 +29,7 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
+import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -278,8 +279,8 @@ class PluginComponentTest extends BaseITCase {
     private void setupPackageStore() throws IOException, PackagingException, URISyntaxException {
         Path localStoreContentPath = Paths.get(getClass().getResource("local_store_content").toURI());
         NucleusPaths nucleusPaths = kernel.getNucleusPaths();
-        Path e2eTestPkgStoreDir = nucleusPaths.componentStorePath();
-        FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
+        PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"), nucleusPaths.recipePath());
+        FileUtils.copyDirectory(localStoreContentPath.resolve("artifacts").toFile(), nucleusPaths.artifactPath().toFile());
         ComponentStore e2ETestComponentStore = kernel.getContext().get(ComponentStore.class);
         Path jarFilePath = e2ETestComponentStore.resolveArtifactDirectoryPath(componentId).resolve("plugin-tests.jar");
         // Copy over the same jar file as the plugin-1.1.0 artifact
