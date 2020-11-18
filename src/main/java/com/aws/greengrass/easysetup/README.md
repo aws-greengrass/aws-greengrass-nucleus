@@ -57,7 +57,7 @@ OPTIONS
                                 * If you run as a non-root user, the AWS IoT Greengrass Core software uses that user run components.
                                 * If you don't specify a group, the AWS IoT Greengrass Core software uses the primary group of the system user.
 --deploy-dev-tools, -d          (Optional) Specify true or false. If this argument is true, then the AWS IoT Greengrass Core software
-                                retrieves and deploys the Greengrass CLI and HTTP debug view components. Specify true to set up this
+                                retrieves and deploys the Greengrass CLI component. Specify true to set up this
                                 core device for local development. Specify false to set up this core device in a production environment.
                                 Defaults to false.
 --start, -s                     (Optional) Specify true or false. If this argument is true, then the AWS IoT Greengrass Core software runs
