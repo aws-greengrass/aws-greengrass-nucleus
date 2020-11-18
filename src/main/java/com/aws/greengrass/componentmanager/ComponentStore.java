@@ -75,7 +75,7 @@ public class ComponentStore {
      * @param recipeContent recipe content to save
      * @throws PackageLoadingException if fails to write the package recipe to disk.
      */
-    void savePackageRecipe(@NonNull ComponentIdentifier componentId, String recipeContent)
+    public void savePackageRecipe(@NonNull ComponentIdentifier componentId, String recipeContent)
             throws PackageLoadingException {
         try {
             Path recipePath = resolveRecipePath(componentId);
