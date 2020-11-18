@@ -43,6 +43,9 @@ public class DependencyResolver {
     private static final String VERSION_KEY = "version";
     private static final String COMPONENT_NAME_KEY = "componentName";
     private static final String COMPONENT_VERSION_REQUIREMENT_KEY = "componentToVersionRequirements";
+    static final String NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT = "The deployment attempts to update the "
+            + "nucleus from %s-%s to %s-%s but no component of type nucleus was included as target component, please "
+            + "add the desired nucleus version as top level component if you wish to update the nucleus";
 
     @Inject
     private ComponentManager componentManager;
@@ -105,12 +108,8 @@ public class DependencyResolver {
                             document.getDeploymentId())));
         }
 
-        if (nonExplicitNucleusUpdate(targetComponentsToResolve,
-                resolvedComponents.entrySet().stream().map(Map.Entry::getValue).collect(Collectors.toList()))) {
-            throw new PackagingException("The deployment attempts to update the nucleus version but no target "
-                    + "component of type nucleus included as target component, please add the desired nucleus version"
-                    + " as top level component if you wish to update the nucleus");
-        }
+        checkNonExplicitNucleusUpdate(targetComponentsToResolve,
+                resolvedComponents.entrySet().stream().map(Map.Entry::getValue).collect(Collectors.toList()));
 
         logger.atInfo().setEventType("resolve-group-dependencies-finish").kv("resolvedComponents", resolvedComponents)
                 .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
@@ -118,7 +117,7 @@ public class DependencyResolver {
         return new ArrayList<>(resolvedComponents.values());
     }
 
-    boolean nonExplicitNucleusUpdate(List<String> targetComponents,
+    void checkNonExplicitNucleusUpdate(List<String> targetComponents,
                                      List<ComponentIdentifier> resolvedComponents) throws PackagingException {
         List<ComponentIdentifier> resolvedNucleusComponents = new ArrayList<>();
         for (ComponentIdentifier componentIdentifier : resolvedComponents) {
@@ -131,20 +130,24 @@ public class DependencyResolver {
                     + "%s", Arrays.toString(resolvedNucleusComponents.toArray())));
         }
         if (resolvedNucleusComponents.isEmpty()) {
-            return false;
+            return;
         }
         Optional<GreengrassService> activeNucleusOption = kernel.orderedDependencies().stream()
                 .filter(s -> ComponentType.NUCLEUS.name().equals(s.getServiceType())).findFirst();
         if (!activeNucleusOption.isPresent()) {
-            return false;
+            return;
         }
         GreengrassService activeNucleus = activeNucleusOption.get();
         Semver activeNucleusVersion = new Semver(Coerce.toString(activeNucleus.getServiceConfig().find(VERSION_KEY)));
-        ComponentIdentifier resolvedNucleus = resolvedNucleusComponents.get(0);
-        if (resolvedNucleus.equals(new ComponentIdentifier(activeNucleus.getServiceName(), activeNucleusVersion))) {
-            return false;
+        ComponentIdentifier activeNucleusId = new ComponentIdentifier(activeNucleus.getServiceName(),
+                activeNucleusVersion);
+        ComponentIdentifier resolvedNucleusId = resolvedNucleusComponents.get(0);
+
+        if (!resolvedNucleusId.equals(activeNucleusId) && !targetComponents.contains(resolvedNucleusId.getName())) {
+            throw new PackagingException(String.format(NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT,
+                    activeNucleusId.getName(), activeNucleusId.getVersion().toString(), resolvedNucleusId.getName(),
+                    resolvedNucleusId.getVersion().toString()));
         }
-        return !targetComponents.contains(resolvedNucleus.getName());
     }
 
     private Set<String> getOtherGroupsTargetComponents(Topics groupToTargetComponentDetails, String deploymentGroupName,

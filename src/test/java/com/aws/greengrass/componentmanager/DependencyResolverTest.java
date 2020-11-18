@@ -43,13 +43,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.aws.greengrass.componentmanager.DependencyResolver.NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.core.Is.is;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -436,8 +437,11 @@ class DependencyResolverTest {
         when(customNucleusRecipe.getComponentType()).thenReturn(ComponentType.NUCLEUS);
         when(componentStore.getPackageRecipe(customNucleus)).thenReturn(customNucleusRecipe);
 
-        assertTrue(dependencyResolver.nonExplicitNucleusUpdate(Arrays.asList("A", "B"),
-                Arrays.asList(componentA, componentB, customNucleus)));
+        Exception e = assertThrows(PackagingException.class, () -> dependencyResolver
+                .checkNonExplicitNucleusUpdate(Arrays.asList("A", "B"),
+                        Arrays.asList(componentA, componentB, customNucleus)));
+        assertEquals(String.format(NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT, "defaultNucleus", "1.0.0",
+                "customNucleus", "1.2.0"), e.getMessage());
     }
 
     @Test
@@ -460,8 +464,11 @@ class DependencyResolverTest {
         when(defaultNucleusNewVersionRecipe.getComponentType()).thenReturn(ComponentType.NUCLEUS);
         when(componentStore.getPackageRecipe(defaultNucleusNewVersion)).thenReturn(defaultNucleusNewVersionRecipe);
 
-        assertTrue(dependencyResolver.nonExplicitNucleusUpdate(Arrays.asList("A", "B"),
-                Arrays.asList(componentA, componentB, defaultNucleusNewVersion)));
+        Exception e = assertThrows(PackagingException.class, () -> dependencyResolver
+                .checkNonExplicitNucleusUpdate(Arrays.asList("A", "B"),
+                        Arrays.asList(componentA, componentB, defaultNucleusNewVersion)));
+        assertEquals(String.format(NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT, "defaultNucleus", "1.0.0",
+                "defaultNucleus", "1.2.0"), e.getMessage());
     }
 
     @Test
@@ -484,8 +491,8 @@ class DependencyResolverTest {
         when(defaultNucleusSameVersionsRecipe.getComponentType()).thenReturn(ComponentType.NUCLEUS);
         when(componentStore.getPackageRecipe(defaultNucleusSameVersion)).thenReturn(defaultNucleusSameVersionsRecipe);
 
-        assertFalse(dependencyResolver.nonExplicitNucleusUpdate(Arrays.asList("A", "B"),
-                Arrays.asList(componentA, componentB, defaultNucleusSameVersion)));
+        dependencyResolver.checkNonExplicitNucleusUpdate(Arrays.asList("A", "B"),
+                Arrays.asList(componentA, componentB, defaultNucleusSameVersion));
     }
 
     @Test
@@ -494,8 +501,8 @@ class DependencyResolverTest {
         ComponentIdentifier componentA = new ComponentIdentifier("A", new Semver("1.0.0"));
         ComponentIdentifier componentB = new ComponentIdentifier("B", new Semver("1.0.0"));
 
-        assertFalse(dependencyResolver
-                .nonExplicitNucleusUpdate(Arrays.asList("A", "B"), Arrays.asList(componentA, componentB)));
+        dependencyResolver
+                .checkNonExplicitNucleusUpdate(Arrays.asList("A", "B"), Arrays.asList(componentA, componentB));
     }
 
     @Test
@@ -518,8 +525,8 @@ class DependencyResolverTest {
         when(customNucleusRecipe.getComponentType()).thenReturn(ComponentType.NUCLEUS);
         when(componentStore.getPackageRecipe(customNucleus)).thenReturn(customNucleusRecipe);
 
-        assertFalse(dependencyResolver.nonExplicitNucleusUpdate(Arrays.asList("A", "B", "customNucleus"),
-                Arrays.asList(componentA, componentB, customNucleus)));
+        dependencyResolver.checkNonExplicitNucleusUpdate(Arrays.asList("A", "B", "customNucleus"),
+                Arrays.asList(componentA, componentB, customNucleus));
     }
 
     @Test
@@ -537,7 +544,7 @@ class DependencyResolverTest {
         when(componentStore.getPackageRecipe(defaultNucleusNewerVersion)).thenReturn(defaultNucleusNewerVersionRecipe);
 
         Exception e = assertThrows(PackagingException.class, () -> dependencyResolver
-                .nonExplicitNucleusUpdate(Arrays.asList("A", "B"),
+                .checkNonExplicitNucleusUpdate(Arrays.asList("A", "B"),
                         Arrays.asList(componentA, componentB, defaultNucleusNewVersion, defaultNucleusNewerVersion)));
         assertTrue(e.getMessage().contains("Deployment cannot have more than 1 component of type Nucleus"));
     }
