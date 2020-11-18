@@ -6,18 +6,14 @@ ComponentDescription: SubscribeAndPublish
 ComponentPublisher: Amazon
 ComponentConfiguration:
   DefaultConfiguration:
-    accessControl: >-
-      {"aws.greengrass.ipc.pubsub":
-        [
-          {
-            "policyId1": {
-              "policyDescription": "access to pubsub topics",
-              "operations": ["*"],
-              "resources": ["*"]
-            }
-          }
-        ]
-      }
+    accessControl:
+      aws.greengrass.ipc.pubsub:
+        policyId1:
+          policyDescription: access to pubsub topics
+          operations:
+            - '*'
+          resources:
+            - '*'
 
 Manifests:
   - Platform:

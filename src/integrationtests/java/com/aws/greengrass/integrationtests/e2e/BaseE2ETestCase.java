@@ -16,15 +16,17 @@ import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
 import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
 import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
-import com.amazonaws.services.evergreen.model.DeleteComponentVersionResult;
+import com.amazonaws.services.evergreen.model.DeleteComponentVersionDeprecatedResult;
 import com.amazonaws.services.evergreen.model.DeploymentPolicies;
 import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
 import com.amazonaws.services.evergreen.model.ResourceAlreadyExistsException;
 import com.aws.greengrass.componentmanager.ComponentServiceHelper;
 import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.easysetup.DeviceProvisioningHelper;
@@ -202,7 +204,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         try {
             List<ComponentIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInS3));
             for (ComponentIdentifier component : allComponents) {
-                DeleteComponentVersionResult result = ComponentServiceHelper
+                DeleteComponentVersionDeprecatedResult result = ComponentServiceHelper
                         .deleteComponent(greengrassClient, component.getName(), component.getVersion().toString());
                 assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
             }
@@ -247,7 +249,8 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         NucleusPaths nucleusPaths = new NucleusPaths();
         nucleusPaths.setComponentStorePath(e2eTestPkgStoreDir);
-        e2ETestComponentStore = new ComponentStore(nucleusPaths);
+        PlatformResolver platformResolver = new PlatformResolver(null);
+        e2ETestComponentStore = new ComponentStore(nucleusPaths, platformResolver, new RecipeLoader(platformResolver));
     }
 
     /**

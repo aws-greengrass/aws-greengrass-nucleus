@@ -10,14 +10,15 @@ import com.amazonaws.services.evergreen.model.ComponentCandidate;
 import com.amazonaws.services.evergreen.model.ComponentContent;
 import com.amazonaws.services.evergreen.model.CreateComponentRequest;
 import com.amazonaws.services.evergreen.model.CreateComponentResult;
-import com.amazonaws.services.evergreen.model.DeleteComponentVersionRequest;
-import com.amazonaws.services.evergreen.model.GetComponentVersionRequest;
-import com.amazonaws.services.evergreen.model.GetComponentVersionResult;
+import com.amazonaws.services.evergreen.model.DeleteComponentVersionDeprecatedRequest;
+import com.amazonaws.services.evergreen.model.GetComponentVersionDeprecatedRequest;
+import com.amazonaws.services.evergreen.model.GetComponentVersionDeprecatedResult;
 import com.amazonaws.services.evergreen.model.ResolveComponentVersionsRequest;
 import com.amazonaws.services.evergreen.model.ResolveComponentVersionsResult;
 import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
@@ -47,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -68,20 +70,21 @@ class ComponentServiceHelperTest {
     private ComponentServiceHelper helper;
 
     @Captor
-    private ArgumentCaptor<GetComponentVersionRequest> GetComponentVersionRequestArgumentCaptor;
+    private ArgumentCaptor<GetComponentVersionDeprecatedRequest> GetComponentVersionDeprecatedRequestArgumentCaptor;
 
     @BeforeEach
     void beforeEach() {
-        when(clientFactory.getCmsClient()).thenReturn(client);
-        this.helper = spy(new ComponentServiceHelper(clientFactory));
+        PlatformResolver platformResolver = new PlatformResolver(null);
+        lenient().when(clientFactory.getCmsClient()).thenReturn(client);
+        this.helper = spy(new ComponentServiceHelper(clientFactory, platformResolver));
     }
 
     @Test
     void GIVEN_component_name_version_WHEN_download_component_recipe_THEN_task_succeed() throws Exception {
         String recipeContents = "testRecipeContent";
         ByteBuffer testRecipeBytes = ByteBuffer.wrap(recipeContents.getBytes());
-        GetComponentVersionResult testResult = new GetComponentVersionResult().withRecipe(testRecipeBytes);
-        doReturn(testResult).when(client).getComponentVersion(GetComponentVersionRequestArgumentCaptor.capture());
+        GetComponentVersionDeprecatedResult testResult = new GetComponentVersionDeprecatedResult().withRecipe(testRecipeBytes);
+        doReturn(testResult).when(client).getComponentVersionDeprecated(GetComponentVersionDeprecatedRequestArgumentCaptor.capture());
         String downloadPackageRecipeAsString = helper.downloadPackageRecipeAsString(
                 new ComponentIdentifier(ComponentTestResourceHelper.MONITORING_SERVICE_PACKAGE_NAME,
                         new Semver("1.0.0")));
@@ -109,10 +112,10 @@ class ComponentServiceHelperTest {
 
     @Test
     void GIVEN_component_name_version_WHEN_delete_component_THEN_send_service_request() {
-        ArgumentCaptor<DeleteComponentVersionRequest> requestCaptor = ArgumentCaptor.forClass(DeleteComponentVersionRequest.class);
+        ArgumentCaptor<DeleteComponentVersionDeprecatedRequest> requestCaptor = ArgumentCaptor.forClass(DeleteComponentVersionDeprecatedRequest.class);
         ComponentServiceHelper.deleteComponent(client, "mockName", "mockVersion");
-        verify(client, times(1)).deleteComponentVersion(requestCaptor.capture());
-        DeleteComponentVersionRequest request = requestCaptor.getValue();
+        verify(client, times(1)).deleteComponentVersionDeprecated(requestCaptor.capture());
+        DeleteComponentVersionDeprecatedRequest request = requestCaptor.getValue();
         assertEquals("mockName", request.getComponentName());
         assertEquals("mockVersion", request.getComponentVersion());
     }
@@ -141,6 +144,12 @@ class ComponentServiceHelperTest {
         //assertThat(request.getDeploymentConfigurationId(), is(DEPLOYMENT_CONFIGURATION_ID));
         assertThat(request.getDeploymentConfigurationId(), notNullValue());
         assertThat(request.getPlatform(), notNullValue());
+        // assertThat(request.getPlatform().getAttributes(), notNullValue());
+        // Map<String, String> attributes = request.getPlatform().getAttributes();
+        // assertThat(attributes, hasKey(PlatformResolver.OS_KEY));
+        // assertThat(attributes, hasKey(PlatformResolver.ARCHITECTURE_KEY));
+        // assertThat(request.getPlatform().getOs(), nullValue());
+        // assertThat(request.getPlatform().getArchitecture(), nullValue());
         assertThat(request.getPlatform().getOs(), notNullValue());
         assertThat(request.getPlatform().getArchitecture(), notNullValue());
         assertThat(request.getComponentCandidates().size(), is(1));

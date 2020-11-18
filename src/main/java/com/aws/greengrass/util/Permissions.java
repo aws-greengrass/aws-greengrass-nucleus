@@ -114,6 +114,10 @@ public final class Permissions {
         platform.setPermissions(OWNER_RWX_EVERYONE_RX, p);
     }
 
+    public static void setBinPermission(Path p) throws IOException {
+        platform.setPermissions(OWNER_RWX_EVERYONE_RX, p);
+    }
+
     /**
      * Set permissions on the IPC socket path.
      *

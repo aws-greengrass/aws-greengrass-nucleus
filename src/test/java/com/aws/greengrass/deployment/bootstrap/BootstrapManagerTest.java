@@ -16,10 +16,13 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.RunWithGenerator;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Answers;
 import org.mockito.Mock;
@@ -42,6 +45,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFE
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
@@ -227,15 +231,25 @@ class BootstrapManagerTest {
     }
 
     @Test
-    void GIVEN_file_path_WHEN_persist_and_load_bootstrap_tasks_THEN_restore_bootstrap_tasks(@TempDir Path tempDir) throws Exception{
+    void GIVEN_file_path_WHEN_persist_and_load_bootstrap_tasks_THEN_restore_bootstrap_tasks(
+            ExtensionContext context, @TempDir Path tempDir) throws Exception{
+        ignoreExceptionOfType(context, MismatchedInputException.class);
+
         BootstrapTaskStatus taskA = new BootstrapTaskStatus(componentA);
         BootstrapTaskStatus taskB = new BootstrapTaskStatus(componentB);
         List<BootstrapTaskStatus> pendingTasks = new ArrayList<>(Arrays.asList(taskA, taskB));
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
         bootstrapManager.setBootstrapTaskStatusList(pendingTasks);
 
-        Path filePath = tempDir.resolve("testFile.ser");
+        Path filePath = tempDir.resolve("testFile.json");
         bootstrapManager.persistBootstrapTaskList(filePath);
+        bootstrapManager.loadBootstrapTaskList(filePath);
+        assertThat(bootstrapManager.getBootstrapTaskStatusList(), contains(taskA, taskB));
+
+        try (CommitableWriter writer = CommitableWriter.commitOnClose(filePath)) {
+        }
+        bootstrapManager.loadBootstrapTaskList(filePath);
+        assertThat(bootstrapManager.getBootstrapTaskStatusList(), contains(taskA, taskB));
         bootstrapManager.loadBootstrapTaskList(filePath);
         assertThat(bootstrapManager.getBootstrapTaskStatusList(), contains(taskA, taskB));
     }

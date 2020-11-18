@@ -340,7 +340,21 @@ public class CredentialRequestHandler implements HttpHandler {
      */
     private boolean areCredentialsValid(TESCache cacheEntry) {
         Instant now = Instant.now(clock);
-        return now.isBefore(cacheEntry.expiry);
+        return cacheEntry.credentials != null && now.isBefore(cacheEntry.expiry);
+    }
+
+    /**
+     * Clear cached credentials.
+     */
+    @SuppressWarnings("PMD.NullAssignment")
+    public void clearCache() {
+        if (iotCredentialsPath != null && tesCache.containsKey(iotCredentialsPath)) {
+            LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath).log("Clearing TES cache");
+            TESCache cacheEntry = tesCache.get(iotCredentialsPath);
+            cacheEntry.credentials = null;
+            cacheEntry.responseCode = 0;
+            cacheEntry.expiry = Instant.EPOCH;
+        }
     }
 
     /**

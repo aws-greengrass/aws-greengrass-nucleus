@@ -8,8 +8,11 @@ package com.aws.greengrass.integrationtests.componentmanager;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentServiceHelper;
 import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.componentmanager.plugins.S3Downloader;
+import com.aws.greengrass.componentmanager.plugins.ArtifactDownloader;
+import com.aws.greengrass.componentmanager.plugins.ArtifactDownloaderFactory;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.util.FileSystemPermission;
@@ -40,6 +43,8 @@ import static org.mockito.Mockito.when;
 
 class ComponentManagerIntegTest extends BaseITCase {
     private Kernel kernel;
+    private final PlatformResolver platformResolver = new PlatformResolver(null);
+    private final RecipeLoader recipeLoader = new RecipeLoader(platformResolver);
 
     private static final String ROOT = Platform.getInstance().getPrivilegedUser();
 
@@ -60,14 +65,19 @@ class ComponentManagerIntegTest extends BaseITCase {
 
         NucleusPaths nucleusPaths = kernel.getNucleusPaths();
         nucleusPaths.setComponentStorePath(tempRootDir);
-        ComponentStore store = new ComponentStore(nucleusPaths);
+        ComponentStore store = new ComponentStore(nucleusPaths, platformResolver, recipeLoader);
         kernel.getContext().put(ComponentStore.class, store);
-        S3Downloader mockDownloader = mock(S3Downloader.class);
-        kernel.getContext().put(S3Downloader.class, mockDownloader);
+
+        ArtifactDownloader mockDownloader = mock(ArtifactDownloader.class);
         File artifactFile = store.resolveArtifactDirectoryPath(ident).resolve("zip.zip").toFile();
-        when(mockDownloader.downloadRequired(any(), any(), any())).thenReturn(true);
-        when(mockDownloader.getArtifactFile(any(), any(), any())).thenReturn(artifactFile);
-        when(mockDownloader.downloadToPath(any(), any(), any())).thenAnswer(downloadToPath("zip.zip", artifactFile));
+        when(mockDownloader.downloadRequired()).thenReturn(true);
+        when(mockDownloader.getArtifactFile()).thenReturn(artifactFile);
+        when(mockDownloader.downloadToPath()).thenAnswer(downloadToPath("zip.zip", artifactFile));
+
+        ArtifactDownloaderFactory mockDownloaderFactory = mock(ArtifactDownloaderFactory.class);
+        when(mockDownloaderFactory.getArtifactDownloader(any(), any(), any())).thenReturn(mockDownloader);
+
+        kernel.getContext().put(ArtifactDownloaderFactory.class, mockDownloaderFactory);
 
         ComponentServiceHelper mockServiceHelper = mock(ComponentServiceHelper.class);
 
@@ -108,18 +118,20 @@ class ComponentManagerIntegTest extends BaseITCase {
 
         NucleusPaths nucleusPaths = kernel.getNucleusPaths();
         nucleusPaths.setComponentStorePath(tempRootDir);
-        ComponentStore store = new ComponentStore(nucleusPaths);
+        ComponentStore store = new ComponentStore(nucleusPaths, platformResolver, recipeLoader);
         kernel.getContext().put(ComponentStore.class, store);
-        S3Downloader mockDownloader = mock(S3Downloader.class);
-        kernel.getContext().put(S3Downloader.class, mockDownloader);
         File scriptFile = store.resolveArtifactDirectoryPath(ident).resolve("script.sh").toFile();
         File emptyFile = store.resolveArtifactDirectoryPath(ident).resolve("empty.txt").toFile();
-        when(mockDownloader.downloadRequired(any(), any(), any())).thenReturn(true);
-        when(mockDownloader.getArtifactFile(any(), any(), any())).thenReturn(scriptFile).thenReturn(emptyFile);
-
-        when(mockDownloader.downloadToPath(any(), any(), any()))
+        ArtifactDownloader mockDownloader = mock(ArtifactDownloader.class);
+        when(mockDownloader.downloadRequired()).thenReturn(true);
+        when(mockDownloader.getArtifactFile()).thenReturn(scriptFile).thenReturn(emptyFile);
+        when(mockDownloader.downloadToPath())
                 .thenAnswer(downloadToPath("script.sh", scriptFile))
                 .thenAnswer(downloadToPath("empty.txt", emptyFile));
+
+        ArtifactDownloaderFactory mockDownloaderFactory = mock(ArtifactDownloaderFactory.class);
+        when(mockDownloaderFactory.getArtifactDownloader(any(), any(), any())).thenReturn(mockDownloader);
+        kernel.getContext().put(ArtifactDownloaderFactory.class, mockDownloaderFactory);
 
         ComponentServiceHelper mockServiceHelper = mock(ComponentServiceHelper.class);
 

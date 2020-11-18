@@ -22,6 +22,7 @@ import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.Deployment.DeploymentStage;
@@ -32,12 +33,10 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.DependencyOrder;
-import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.ProxyUtils;
-import com.aws.greengrass.util.RegionUtils;
-import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
+import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.jr.ob.JSON;
@@ -67,7 +66,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
-import static com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory.CONTEXT_COMPONENT_SERVICE_ENDPOINT;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
@@ -161,6 +159,14 @@ public class Kernel {
      */
     @SuppressWarnings("PMD.MissingBreakInSwitch")
     public Kernel launch() {
+        try {
+            Platform.getInstance().getRunWithGenerator()
+                    .validateDefaultConfiguration(context.get(DeviceConfiguration.class));
+        } catch (DeviceConfigurationException e) {
+            RuntimeException rte = new RuntimeException(e);
+            logger.atError().setEventType("parse-args-error").setCause(rte).log();
+            throw rte;
+        }
         BootstrapManager bootstrapManager = kernelCommandLine.getBootstrapManager();
         DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
         KernelAlternatives kernelAlts = context.get(KernelAlternatives.class);
@@ -184,10 +190,11 @@ public class Kernel {
                 } catch (ServiceUpdateException | IOException e) {
                     logger.atError().log("Deployment bootstrap failed", e);
                     try {
-                        kernelAlts.prepareRollback();
                         Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
+                        deployment.setDeploymentStage(DeploymentStage.KERNEL_ROLLBACK);
                         deployment.setStageDetails(e.getMessage());
                         deploymentDirectoryManager.writeDeploymentMetadata(deployment);
+                        kernelAlts.prepareRollback();
                     } catch (IOException ioException) {
                         logger.atError().setCause(ioException).log("Something went wrong while preparing for rollback");
                     }
@@ -535,29 +542,11 @@ public class Kernel {
         config.lookupTopics(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         kernelLifecycle.initConfigAndTlog();
         setupProxy();
-        setupCloudEndpoint();
         return this;
     }
 
     private void setupProxy() {
         ProxyUtils.setProxyProperties(context.get(DeviceConfiguration.class));
-    }
-
-    private void setupCloudEndpoint() {
-        DeviceConfiguration deviceConfiguration = context.get(DeviceConfiguration.class);
-        IotSdkClientFactory.EnvironmentStage stage;
-        try {
-            stage = IotSdkClientFactory.EnvironmentStage
-                    .fromString(Coerce.toString(deviceConfiguration.getEnvironmentStage()));
-        } catch (InvalidEnvironmentStageException e) {
-            logger.atError().setCause(e).log("Caught exception while parsing kernel args");
-            throw new RuntimeException(e);
-        }
-
-        String region = Coerce.toString(deviceConfiguration.getAWSRegion());
-        String endpoint = RegionUtils.getGreengrassDataPlaneEndpoint(region, stage);
-        logger.atInfo().log("Configured to use Greengrass endpoint: {}", endpoint);
-        context.put(CONTEXT_COMPONENT_SERVICE_ENDPOINT, endpoint);
     }
 
     /*
