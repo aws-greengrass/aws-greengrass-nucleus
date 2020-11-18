@@ -48,6 +48,7 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -256,6 +257,24 @@ class CredentialRequestHandlerTest {
         assertThat(SECRET_ACCESS_KEY, is(resp.get("SecretAccessKey")));
         assertThat(SESSION_TOKEN, is(resp.get("Token")));
         assertThat(EXPIRATION, is(resp.get("Expiration")));
+
+        // Cache will be returned if called again
+        reset(mockCloudHelper);
+        final byte[] cached_creds = handler.getCredentials();
+        verify(mockCloudHelper, times(0)).sendHttpRequest(any(),any(),any(),any(),any());
+        resp = OBJECT_MAPPER.readValue(cached_creds, new TypeReference<Map<String, String>>() {
+        });
+        assertThat(ACCESS_KEY_ID, is(resp.get("AccessKeyId")));
+        assertThat(SECRET_ACCESS_KEY, is(resp.get("SecretAccessKey")));
+        assertThat(SESSION_TOKEN, is(resp.get("Token")));
+        assertThat(EXPIRATION, is(resp.get("Expiration")));
+
+        // Clear cache then new request will be sent
+        reset(mockCloudHelper);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(CLOUD_RESPONSE);
+        handler.clearCache();
+        handler.getCredentials();
+        verify(mockCloudHelper).sendHttpRequest(any(),any(),any(),any(),any());
     }
 
     @Test
