@@ -26,6 +26,20 @@ public abstract class Platform implements UserPlatform {
 
     private static Platform INSTANCE;
 
+    private static final String UNIX_SYS_VER = getUnixSysVer();
+
+    private static String getUnixSysVer() {
+        if (PlatformResolver.isWindows) {
+            return "";
+        }
+        try {
+            return Exec.sh("uname -a").toLowerCase();
+        } catch (InterruptedException | IOException e) {
+            logger.atError().setCause(e).log("Error in running uname -a");
+        }
+        return "";
+    }
+
     /**
      * Get the appropriate instance of Platform for the current platform.
      *
@@ -35,16 +49,18 @@ public abstract class Platform implements UserPlatform {
         if (INSTANCE != null) {
             return INSTANCE;
         }
-        if (Exec.isWindows) {
+
+        if (PlatformResolver.isWindows) {
             INSTANCE = new WindowsPlatform();
-        } else if (PlatformResolver.RANKS.get().containsKey("qnx")) {
+        } else if (UNIX_SYS_VER.contains("qnx")) {
             INSTANCE = new QNXPlatform();
-        } else if (PlatformResolver.RANKS.get().containsKey("macos") || PlatformResolver.RANKS.get()
-                .containsKey("darwin")) {
+        } else if (UNIX_SYS_VER.contains("darwin") || UNIX_SYS_VER.contains("macos")) {
             INSTANCE = new DarwinPlatform();
         } else {
             INSTANCE = new UnixPlatform();
         }
+
+        logger.atInfo().log("Getting platform instance {}.", INSTANCE.getClass().getCanonicalName());
 
         return INSTANCE;
     }

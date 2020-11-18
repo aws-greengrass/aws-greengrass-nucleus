@@ -36,6 +36,7 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
@@ -106,7 +107,7 @@ class IPCPubSubTest {
             "}";
 
     @BeforeAll
-    static void beforeEach(ExtensionContext context) throws InterruptedException, ExecutionException {
+    static void beforeEach(ExtensionContext context) throws InterruptedException, IOException {
         ignoreExceptionOfType(context, InterruptedException.class);
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.

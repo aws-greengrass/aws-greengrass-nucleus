@@ -141,14 +141,9 @@ public class Configuration {
      * @param updateBehavior the updateBehavior of each node to be merged in
      */
     public void updateMap(Map<String, Object> map, UpdateBehaviorTree updateBehavior) {
-        // TODO: Deprecated, integration tests needs to be fixed before this can be removed
-        Object resolvedPlatformMap = PlatformResolver.resolvePlatform(map);
-        if (!(resolvedPlatformMap instanceof Map)) {
-            throw new IllegalArgumentException("Invalid config after resolving platform: " + resolvedPlatformMap);
-        }
         // TODO: avoid sending multiple changed/childChanged event when the entire config is being updated.
         configUnderUpdate.set(true);
-        root.updateFromMap((Map<String,Object>)resolvedPlatformMap, updateBehavior);
+        root.updateFromMap(map, updateBehavior);
         context.runOnPublishQueue(() -> {
             synchronized (configUpdateNotifier) {
                 configUnderUpdate.set(false);

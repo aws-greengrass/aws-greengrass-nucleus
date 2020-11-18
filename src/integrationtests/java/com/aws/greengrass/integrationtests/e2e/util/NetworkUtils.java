@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.integrationtests.e2e.util;
 
-import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 
@@ -23,9 +23,10 @@ public abstract class NetworkUtils {
 
     private static Platform initialize() {
         Platform platform = Platform.UNKNOWN;
-        if (PlatformResolver.RANKS.get().containsKey("linux")) {
+
+        if (ConfigPlatformResolver.RANKS.get().containsKey("linux")) {
             platform = Platform.LINUX;
-        } else if (PlatformResolver.RANKS.get().containsKey("macos")) {
+        } else if (ConfigPlatformResolver.RANKS.get().containsKey("macos")) {
             platform = Platform.MACOS;
         }
         return platform;
