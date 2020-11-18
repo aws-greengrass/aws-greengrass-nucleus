@@ -7,7 +7,6 @@ package com.aws.greengrass.integrationtests.ipc;
 
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.ipc.authorization.AuthorizationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
@@ -91,7 +90,7 @@ class IPCAuthorizationTest {
     }
 
     @Test
-    void GIVEN_authorizationClient_WHEN_valid_token_provided_THEN_succeeds() throws AuthorizationException {
+    void GIVEN_authorizationClient_WHEN_valid_token_provided_THEN_succeeds() {
         //Grab a real, randomly assigned auth token for an existing service
         Topics authTokensArray = kernel.findServiceTopic(AUTHENTICATION_TOKEN_LOOKUP_KEY);
         Topic authTokenTopic = (Topic) authTokensArray.children.values().toArray()[0];
