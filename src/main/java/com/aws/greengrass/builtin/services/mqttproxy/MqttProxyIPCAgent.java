@@ -36,7 +36,6 @@ import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import javax.inject.Inject;
@@ -99,13 +98,11 @@ public class MqttProxyIPCAgent {
                         .qos(getQualityOfServiceFromQOS(request.getQos())).build();
                 CompletableFuture<Integer> future = mqttClient.publish(publishRequest);
 
+                // If the future is completed exceptionally then the MqttClient was unable to spool the request
                 try {
-                    future.get(2, TimeUnit.SECONDS);
-                } catch (TimeoutException | InterruptedException ignored) {
-                    // If it times out or we're interrupted, then just return the positive response
-                    // it is most likely in the spooler since it didn't fail immediately.
-                } catch (ExecutionException e) {
-                    LOGGER.atError().cause(e).kv(TOPIC_KEY, topic).kv(COMPONENT_NAME, serviceName)
+                    future.getNow(null);
+                } catch (Exception e) {
+                    LOGGER.atWarn().kv(TOPIC_KEY, topic).kv(COMPONENT_NAME, serviceName)
                             .log("Unable to spool the publish request");
                     throw new ServiceError(String.format("Publish to topic %s failed with error %s", topic, e));
                 }

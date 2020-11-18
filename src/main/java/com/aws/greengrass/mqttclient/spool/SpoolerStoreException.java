@@ -5,18 +5,18 @@
 
 package com.aws.greengrass.mqttclient.spool;
 
-public class SpoolerLoadException extends Exception {
+public class SpoolerStoreException extends Exception {
     static final long serialVersionUID = -3387516993124229948L;
 
-    public SpoolerLoadException(String message) {
+    public SpoolerStoreException(String message) {
         super(message);
     }
 
-    public SpoolerLoadException(String message, Throwable cause) {
+    public SpoolerStoreException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public SpoolerLoadException(Throwable cause) {
+    public SpoolerStoreException(Throwable cause) {
         super(cause);
     }
 }
