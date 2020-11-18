@@ -195,6 +195,11 @@ public class GreengrassService implements InjectionActions {
         return lifecycle.reachedDesiredState();
     }
 
+    public String getDesiredStateList() {
+        return lifecycle.getDesiredStateList().stream().map(n -> n.getName())
+                .collect(Collectors.joining(","));
+    }
+
     /**
      * Start Service.
      */

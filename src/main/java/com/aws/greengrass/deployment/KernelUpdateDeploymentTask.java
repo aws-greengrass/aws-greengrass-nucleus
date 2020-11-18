@@ -49,9 +49,11 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     public DeploymentResult call() {
         Deployment.DeploymentStage stage = deployment.getDeploymentStage();
         KernelAlternatives kernelAlts = kernel.getContext().get(KernelAlternatives.class);
+        logger.atDebug("P41769181").kv("stage", stage).log("Executing deployment");
         try {
             DeploymentConfigMerger.waitForServicesToStart(kernel.orderedDependencies(),
                     kernel.getConfig().lookup("system", "rootpath").getModtime());
+            logger.atDebug("P41769181").log("All services healthy");
 
             DeploymentResult result = null;
             if (KERNEL_ACTIVATION.equals(stage)) {

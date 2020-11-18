@@ -97,6 +97,7 @@ public class Lifecycle {
     // DesiredStateList is used to set desired path of state transition.
     // Eg. Start a service will need DesiredStateList to be <RUNNING>
     // ReInstall a service will set DesiredStateList to <FINISHED->NEW->RUNNING>
+    @Getter
     private final List<State> desiredStateList = new CopyOnWriteArrayList<>();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 

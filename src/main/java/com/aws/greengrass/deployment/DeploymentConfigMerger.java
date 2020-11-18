@@ -44,6 +44,8 @@ public class DeploymentConfigMerger {
     public static final String MERGE_CONFIG_EVENT_KEY = "merge-config";
     public static final String MERGE_ERROR_LOG_EVENT_KEY = "config-update-error";
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
+    public static final String SERVICE_NAME_LOG_KEY = "serviceName";
+    public static final String EVENT_NAME = "P41769181";
     protected static final int WAIT_SVC_START_POLL_INTERVAL_MILLISEC = 1000;
 
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
@@ -125,25 +127,35 @@ public class DeploymentConfigMerger {
         // assuming this loop will not get stuck waiting forever
         while (true) {
             boolean allServicesRunning = true;
+            logger.atDebug(EVENT_NAME).kv("mergeTime", mergeTime).log("Wait for services to start");
             for (GreengrassService service : servicesToTrack) {
                 State state = service.getState();
+                logger.atDebug(EVENT_NAME).kv(SERVICE_NAME_LOG_KEY, service.getName())
+                        .kv("desiredStateList", service.getDesiredStateList())
+                        .kv("modTime", service.getStateModTime()).kv("autostart", service.shouldAutoStart())
+                        .kv("state", state).log("Checking service state");
 
                 // If a service is previously BROKEN, its state might have not been updated yet when this check
                 // executes. Therefore we first check the service state has been updated since merge map occurs.
                 if (service.getStateModTime() > mergeTime && State.BROKEN.equals(state)) {
-                    logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv("serviceName", service.getName())
+                    logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(SERVICE_NAME_LOG_KEY, service.getName())
                             .log("merge-config-service BROKEN");
                     throw new ServiceUpdateException(
                             String.format("Service %s in broken state after deployment", service.getName()));
                 }
                 if (!service.reachedDesiredState()) {
                     allServicesRunning = false;
+                    logger.atDebug(EVENT_NAME).kv(SERVICE_NAME_LOG_KEY, service.getName())
+                            .log("Service hasn't reached desired state");
                     continue;
                 }
                 if (State.RUNNING.equals(state) || State.FINISHED.equals(state) || !service.shouldAutoStart()
                         && service.reachedDesiredState()) {
+                    logger.atDebug(EVENT_NAME).kv(SERVICE_NAME_LOG_KEY, service.getName()).log("Service is ready");
                     continue;
                 }
+                logger.atDebug(EVENT_NAME).kv(SERVICE_NAME_LOG_KEY, service.getName())
+                        .log("Service is not ready");
                 allServicesRunning = false;
             }
             if (allServicesRunning) {
@@ -256,7 +268,7 @@ public class DeploymentConfigMerger {
 
                     serviceClosedFutures.add(eg.close());
                 } catch (ServiceLoadException e) {
-                    logger.atError(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).addKeyValue("serviceName", serviceName)
+                    logger.atError(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).addKeyValue(SERVICE_NAME_LOG_KEY, serviceName)
                             .log("Could not locate Greengrass service to close service");
                     // Even though we couldn't find it, we might still need to drop it from the context, so return true
                     return true;
