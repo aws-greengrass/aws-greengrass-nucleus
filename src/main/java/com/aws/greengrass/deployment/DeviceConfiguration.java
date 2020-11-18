@@ -62,6 +62,7 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
     public static final String SYSTEM_NAMESPACE_KEY = "system";
+    public static final String PLATFORM_OVERRIDE_TOPIC = "platformOverride";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
     public static final String DEVICE_SPOOLER_NAMESPACE = "spooler";
@@ -279,6 +280,16 @@ public class DeviceConfiguration {
 
     public Topic getRunWithDefaultWindowsUser() {
         return getRunWithTopic().lookup(RUN_WITH_DEFAULT_WINDOWS_USER);
+    }
+
+    /**
+     * Topic containing a set of key/value describing a platform. If provided, overrides (part of) the detected
+     * platform.
+     *
+     * @return Platform override topic
+     */
+    public Topics getPlatformOverrideTopic() {
+        return kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY, PLATFORM_OVERRIDE_TOPIC);
     }
 
     /**

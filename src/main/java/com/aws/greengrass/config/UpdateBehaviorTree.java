@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Getter;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -83,20 +84,42 @@ public class UpdateBehaviorTree {
         MERGE, REPLACE;
     }
 
-    private final UpdateBehavior defaultBehavior;
+    private final UpdateBehavior behavior;
     private final Map<String, UpdateBehaviorTree> childOverride;
     private final long timestampToUse;
 
     /**
-     * Create a behavior tree with some behavior and a timestamp.
+     * Create a mutable behavior tree with some behavior and a timestamp.
      *
-     * @param defaultBehavior behavior to use when merging this and child nodes
+     * @param behavior behavior to use when merging this and child nodes
      * @param timestamp       timestamp to use for this and child nodes
      */
-    public UpdateBehaviorTree(UpdateBehavior defaultBehavior, long timestamp) {
-        this.defaultBehavior = defaultBehavior;
-        this.childOverride = new HashMap<>();
+    public UpdateBehaviorTree(UpdateBehavior behavior, long timestamp) {
+        this(behavior, timestamp, new HashMap<>());
+    }
+
+    /**
+     * Create a behavior tree with some behavior, timestamp, and map of child behaviors.
+     *
+     * @param behavior        behavior to use when merging this and child nodes
+     * @param timestamp       timestamp to use for this and child nodes
+     * @param childOverride   initial map to use to override children
+     */
+    protected UpdateBehaviorTree(UpdateBehavior behavior, long timestamp,
+                                Map<String, UpdateBehaviorTree> childOverride) {
+        this.behavior = behavior;
         this.timestampToUse = timestamp;
+        this.childOverride = childOverride;
+    }
+
+    /**
+     * Retrieve child behavior to use when behavior has not been overridden. Note that sub-class of
+     * {@link UpdateBehaviorTree} is allowed to override this.
+     *
+     * @return child behavior to use
+     */
+    protected UpdateBehaviorTree getDefaultChildBehavior() {
+        return new PrunedUpdateBehaviorTree(this.behavior, timestampToUse);
     }
 
     /**
@@ -105,13 +128,42 @@ public class UpdateBehaviorTree {
      * @param key Name of the subtree
      * @return the behavior(s) to use for this subtree
      */
-    public UpdateBehaviorTree getBehavior(String key) {
-        if (childOverride.get(key) != null) {
-            return childOverride.get(key);
+    public UpdateBehaviorTree getChildBehavior(String key) {
+        UpdateBehaviorTree behavior = childOverride.get(key);
+        if (behavior != null) {
+            return behavior;
         }
-        if (childOverride.get(WILDCARD) != null) {
-            return childOverride.get(WILDCARD);
+        behavior = childOverride.get(WILDCARD);
+        if (behavior != null) {
+            return behavior;
         }
-        return new UpdateBehaviorTree(defaultBehavior, timestampToUse);
+        return getDefaultChildBehavior();
+    }
+
+    /**
+     * This transitively applies to subtree without needing to recursively create objects.
+     */
+    private static final class PrunedUpdateBehaviorTree extends UpdateBehaviorTree {
+        private static final Map<String, UpdateBehaviorTree> DEFAULT_CHILD_BEHAVIOR = Collections.emptyMap();
+
+        public PrunedUpdateBehaviorTree(UpdateBehavior behavior, long timestampToUse) {
+            super(behavior, timestampToUse, DEFAULT_CHILD_BEHAVIOR);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public UpdateBehaviorTree getDefaultChildBehavior() {
+            return this;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public UpdateBehaviorTree getChildBehavior(String key) {
+            return this;
+        }
     }
 }

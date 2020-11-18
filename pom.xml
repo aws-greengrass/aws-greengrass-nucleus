@@ -106,7 +106,6 @@
         <dependency>
             <groupId>com.aws.iot</groupId>
             <artifactId>component-common</artifactId>
-            <!-- change back to 0.0.0-SNAPSHOT after common model is updated in repo -->
             <version>0.0.0-SNAPSHOT</version>
         </dependency>
         <!-- TODO: This is temporary, adding because there is some confusion about which version
