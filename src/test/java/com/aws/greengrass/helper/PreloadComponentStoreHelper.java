@@ -22,10 +22,11 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 public class PreloadComponentStoreHelper {
 
     /**
-     * @param testResourceRecipeDir     contains recipes with file naming convention: {name}-{version}.yaml
-     * @param componentStoreRecipeDir component store path
+     * @param testResourceRecipeDir   contains recipes with file naming convention: {name}-{version}.yaml
+     * @param componentStoreRecipeDir component store recipe folder
      */
-    public static void preloadRecipesFromTestResourceDir(Path testResourceRecipeDir, Path componentStoreRecipeDir) throws IOException {
+    public static void preloadRecipesFromTestResourceDir(Path testResourceRecipeDir, Path componentStoreRecipeDir)
+            throws IOException {
         Files.walkFileTree(testResourceRecipeDir, new SimpleFileVisitor<Path>() {
 
             @Override

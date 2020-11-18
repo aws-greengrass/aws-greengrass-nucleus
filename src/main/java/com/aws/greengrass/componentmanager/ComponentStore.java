@@ -55,8 +55,6 @@ public class ComponentStore {
     private static final String LOG_KEY_RECIPE_METADATA_FILE_PATH = "RecipeMetadataFilePath";
 
     public static final String RECIPE_SUFFIX = ".recipe";
-    public static final String RECIPE_METADATA_SUFFIX = ".recipe.metadata";
-
 
     private final NucleusPaths nucleusPaths;
 
@@ -109,7 +107,7 @@ public class ComponentStore {
      * @return whether the expected digest matches the calculated digest on disk
      */
     public boolean validateComponentRecipeDigest(@NonNull ComponentIdentifier componentIdentifier,
-            String expectedDigest) {
+                                                 String expectedDigest) {
         try {
             Optional<String> recipeContent = findComponentRecipeContent(componentIdentifier);
             if (!recipeContent.isPresent()) {
@@ -250,7 +248,7 @@ public class ComponentStore {
      * @throws UnexpectedPackagingException if fails to parse version directory to Semver
      */
     List<ComponentMetadata> listAvailablePackageMetadata(@NonNull String componentName,
-            @NonNull Requirement requirement) throws PackagingException {
+                                                         @NonNull Requirement requirement) throws PackagingException {
         List<ComponentIdentifier> satisfyingComponentIds = listAvailableComponent(componentName, requirement);
 
         List<ComponentMetadata> satisfiedComponentMetadataList = new ArrayList<>();
@@ -265,7 +263,8 @@ public class ComponentStore {
     }
 
     Optional<ComponentIdentifier> findBestMatchAvailableComponent(@NonNull String componentName,
-            @NonNull Requirement requirement) throws PackageLoadingException {
+                                                                  @NonNull Requirement requirement)
+            throws PackageLoadingException {
         List<ComponentIdentifier> componentIdentifierList = listAvailableComponent(componentName, requirement);
 
         if (componentIdentifierList.isEmpty()) {
@@ -354,7 +353,6 @@ public class ComponentStore {
      *
      * @param componentIdentifier packageIdentifier
      * @return the recipe file path for target package.
-     *
      * @throws PackageLoadingException if unable to resolve recipe file path
      */
     public Path resolveRecipePath(@NonNull ComponentIdentifier componentIdentifier) throws PackageLoadingException {
@@ -400,8 +398,7 @@ public class ComponentStore {
         // TODO: [P41215992]: Validate recipe filename before extracting name and version from it
 
         // {hash}}@{semver}.recipe.yaml
-        String versionStr =
-                recipeFilename.split(RECIPE_SUFFIX + FileSuffix.YAML_SUFFIX)[0].split("@")[1];
+        String versionStr = recipeFilename.split(RECIPE_SUFFIX + FileSuffix.YAML_SUFFIX)[0].split("@")[1];
 
         try {
             return new Semver(versionStr);
@@ -463,7 +460,7 @@ public class ComponentStore {
             // log error because this is not expected to happen in any normal case
             logger.atError().cause(e).kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
                     .log("Failed to get recipe metadata because the recipe metadata file should be a json "
-                                 + "but is corrupted");
+                            + "but is corrupted");
 
             throw new PackageLoadingException(String.format(
                     "Failed to get recipe metadata because the recipe metadata file should be a json but is corrupted."
@@ -511,7 +508,7 @@ public class ComponentStore {
         // @ is used as delimiter between component name hash and semver
         // because it is cross-platform file system safe and also meaningful
         return String.format("%s@%s", getHashOfComponentName(componentIdentifier.getName()),
-                             componentIdentifier.getVersion().getValue());
+                componentIdentifier.getVersion().getValue());
     }
 
     private String getHashOfComponentName(String componentName) throws PackageLoadingException {

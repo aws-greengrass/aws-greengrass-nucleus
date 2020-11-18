@@ -135,7 +135,7 @@ class ComponentStoreTest {
     private File getExpectedRecipeFile(ComponentIdentifier componentIdentifier) {
         String expectedFilename =
                 String.format("%s@%s.recipe.yaml", getHashFromComponentName(componentIdentifier.getName()),
-                              componentIdentifier.getVersion());
+                        componentIdentifier.getVersion());
         return recipeDirectory.resolve(expectedFilename).toFile();
     }
 
@@ -196,10 +196,10 @@ class ComponentStoreTest {
         String recipeString = new String(Files.readAllBytes(sourceRecipe));
 
         assertTrue(componentStore
-                           .validateComponentRecipeDigest(MONITORING_SERVICE_PKG_ID, Digest.calculate(recipeString)));
+                .validateComponentRecipeDigest(MONITORING_SERVICE_PKG_ID, Digest.calculate(recipeString)));
 
-        assertFalse(componentStore.validateComponentRecipeDigest(MONITORING_SERVICE_PKG_ID,
-                                                                 Digest.calculate("random String")));
+        assertFalse(componentStore
+                .validateComponentRecipeDigest(MONITORING_SERVICE_PKG_ID, Digest.calculate("random String")));
 
         ComponentIdentifier nonExistentComponent =
                 new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("5.0.0"));
@@ -223,8 +223,8 @@ class ComponentStoreTest {
 
         // WHEN
         // THEN
-        assertThrows(PackageLoadingException.class, () -> componentStore
-                .findPackageRecipe(new ComponentIdentifier("InvalidRecipe", new Semver("1.0.0"))));
+        assertThrows(PackageLoadingException.class,
+                () -> componentStore.findPackageRecipe(new ComponentIdentifier("InvalidRecipe", new Semver("1.0.0"))));
     }
 
     @Test
@@ -258,7 +258,7 @@ class ComponentStoreTest {
         // THEN
         assertThat(componentMetadata.getComponentIdentifier(), is(MONITORING_SERVICE_PKG_ID));
         assertThat(componentMetadata.getDependencies(),
-                   is(getExpectedDependencies(Requirement.build(MONITORING_SERVICE_PKG_VERSION))));
+                is(getExpectedDependencies(Requirement.build(MONITORING_SERVICE_PKG_VERSION))));
     }
 
     @Test
@@ -310,7 +310,7 @@ class ComponentStoreTest {
 
         // THEN
         assertThat(componentIdentifierOptional.get(),
-                   is(new ComponentIdentifier("MonitoringService", new Semver("1.1.0"))));
+                is(new ComponentIdentifier("MonitoringService", new Semver("1.1.0"))));
 
         // WHEN
         requirement = Requirement.buildNPM("^2.0");
@@ -319,7 +319,7 @@ class ComponentStoreTest {
 
         // THEN
         assertThat(componentIdentifierOptional.get(),
-                   is(new ComponentIdentifier("MonitoringService", new Semver("2.0.0"))));
+                is(new ComponentIdentifier("MonitoringService", new Semver("2.0.0"))));
 
         // WHEN
         requirement = Requirement.buildNPM("^3.1");
@@ -357,10 +357,10 @@ class ComponentStoreTest {
     void GIVEN_artifacts_WHEN_list_by_artifact_THEN_result_is_correct() throws Exception {
         Set<ComponentIdentifier> mockComponents = new HashSet<>(
                 Arrays.asList(new ComponentIdentifier("Mock1", new Semver("1.1.0")),
-                              new ComponentIdentifier("Mock1", new Semver("1.2.0")),
-                              new ComponentIdentifier("Mock2", new Semver("2.1.0")),
-                              new ComponentIdentifier("Mock3", new Semver("3.1.0")),
-                              new ComponentIdentifier("Mock3", new Semver("3.2.0"))));
+                        new ComponentIdentifier("Mock1", new Semver("1.2.0")),
+                        new ComponentIdentifier("Mock2", new Semver("2.1.0")),
+                        new ComponentIdentifier("Mock3", new Semver("3.1.0")),
+                        new ComponentIdentifier("Mock3", new Semver("3.2.0"))));
 
         // mock these artifact exist
         for (ComponentIdentifier mockComponent : mockComponents) {
@@ -433,7 +433,7 @@ class ComponentStoreTest {
 
         // WHEN
         componentStore.saveRecipeMetadata(new ComponentIdentifier(componentName, new Semver(version)),
-                                          new RecipeMetadata(testArn));
+                new RecipeMetadata(testArn));
 
         // THEN
         assertThat(expectedRecipeMetadataFile, is(anExistingFile()));
@@ -460,7 +460,7 @@ class ComponentStoreTest {
 
         // WHEN
         componentStore.saveRecipeMetadata(new ComponentIdentifier(componentName, new Semver(version)),
-                                          new RecipeMetadata(updatedArn));
+                new RecipeMetadata(updatedArn));
 
         // THEN
         assertThat(expectedRecipeMetadataFile, is(anExistingFile()));
@@ -504,8 +504,8 @@ class ComponentStoreTest {
 
     @Test
     void GIVEN_a_non_existing_metadata_file_WHEN_getRecipeMetadata_THEN_throws_PackageLoadingException() {
-        assertThrows(PackageLoadingException.class, () -> componentStore
-                .getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("0.0.0"))));
+        assertThrows(PackageLoadingException.class,
+                () -> componentStore.getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("0.0.0"))));
     }
 
     @Test
