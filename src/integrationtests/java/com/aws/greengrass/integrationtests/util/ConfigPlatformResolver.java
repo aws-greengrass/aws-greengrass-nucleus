@@ -116,6 +116,11 @@ public final class ConfigPlatformResolver {
                 .orElse("all");
     }
 
+    public static Map<String, Object> resolvePlatformMap(URL path) throws IOException {
+        Map<String, Object> objectMap = YAML_OBJECT_MAPPER.readValue(path, Map.class);
+        return (Map<String, Object>) resolvePlatform(RANKS.get(), objectMap);
+    }
+
     public static Map<String, Object> resolvePlatformMap(Map<String, Object> input) {
         return (Map<String, Object>) resolvePlatform(RANKS.get(), input);
     }

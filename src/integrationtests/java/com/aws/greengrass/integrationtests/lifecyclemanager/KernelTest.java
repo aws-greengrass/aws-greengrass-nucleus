@@ -206,7 +206,8 @@ class KernelTest extends BaseITCase {
         assertTrue(serviceBroken.await(10, TimeUnit.SECONDS));
 
         // merge in a new config that fixes the installation error
-        kernel.getConfig().read(getClass().getResource("config_install_succeed_partial.yaml").toString());
+        kernel.getConfig().mergeMap(System.currentTimeMillis(), ConfigPlatformResolver.resolvePlatformMap(
+                getClass().getResource("config_install_succeed_partial.yaml")));
 
         CountDownLatch serviceInstalled = new CountDownLatch(1);
 

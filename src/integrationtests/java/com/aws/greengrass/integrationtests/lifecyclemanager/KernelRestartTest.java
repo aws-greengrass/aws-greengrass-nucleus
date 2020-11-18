@@ -82,10 +82,9 @@ class KernelRestartTest extends BaseITCase {
         kernel.shutdown();
 
         // WHEN
-
-        kernel = new Kernel();
-        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
-                this.getClass().getResource("kernel_restart_new_config.yaml"));
+        // start kernel with parseArgs input so previous config tlog will be ignored.
+        kernel = new Kernel().parseArgs("-i",
+                this.getClass().getResource("kernel_restart_new_config.yaml").toString());
         kernel.launch();
 
         // THEN
@@ -99,7 +98,8 @@ class KernelRestartTest extends BaseITCase {
         assertThat(kernel.locate("service_2").getConfig().find("setenv", "key1").getOnce(), is(equalTo("new_value1")));
 
         // service 1 is removed
-        assertThrows(ServiceLoadException.class, () -> kernel.locate("service_1"));
+        assertThrows(ServiceLoadException.class, () -> kernel.locate("service_1"),
+                "actual kernel config: " + kernel.getConfig().toPOJO());
     }
 
     @AfterEach

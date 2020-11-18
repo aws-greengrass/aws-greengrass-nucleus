@@ -24,8 +24,6 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -224,7 +222,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
                 Arrays.asList(new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
                         new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
 
-        Map<String, Object> configAddDep = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        Map<String, Object> configAddDep = ConfigPlatformResolver.resolvePlatformMap(configFile);
 
         DeploymentDocument doc2 = mock(DeploymentDocument.class);
         when(doc2.getTimestamp()).thenReturn(System.currentTimeMillis());
@@ -337,7 +335,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
                         new ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING),
                         new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
 
-        Map<String, Object> configAddDep = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        Map<String, Object> configAddDep = ConfigPlatformResolver.resolvePlatformMap(configFile);
 
         DeploymentDocument doc2 = mock(DeploymentDocument.class);
         when(doc2.getTimestamp()).thenReturn(System.currentTimeMillis());
@@ -408,7 +406,8 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
                         new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING));
 
 
-        Map<String, Object> depTypeSoftToHard = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        Map<String, Object> depTypeSoftToHard = ConfigPlatformResolver.resolvePlatformMap(configFile);
+
         ((Map) ((Map) depTypeSoftToHard.get(SERVICES_NAMESPACE_TOPIC)).get(CustomerApp))
                 .put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + DependencyType.HARD));
 
@@ -423,7 +422,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
                 "dependency type changes from soft to hard", new LinkedList<>(), new HashSet<>(stateTransitions));
 
 
-        Map<String, Object> depTypeHardToSoft = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        Map<String, Object> depTypeHardToSoft = ConfigPlatformResolver.resolvePlatformMap(configFile);
         ((Map) ((Map) depTypeHardToSoft.get(SERVICES_NAMESPACE_TOPIC)).get(CustomerApp))
                 .put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + DependencyType.SOFT));
 
