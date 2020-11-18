@@ -14,6 +14,7 @@ import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
+import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.FileSystemPermission;
@@ -106,8 +107,9 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
 
             assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).resolve(kernelIntegTestPkgName + "-1.0.0.yaml").toFile(),
                     anExistingFile());
+            String testResourceRecipeFilename = getTestComponentNameInCloud("KernelIntegTestDependency") + "-1.0.0.yaml";
             assertThat(componentStorePath
-                            .resolve(RECIPE_DIRECTORY).resolve(getTestComponentNameInCloud("KernelIntegTestDependency") + "-1.0.0.yaml").toFile(),
+                            .resolve(RECIPE_DIRECTORY).resolve(PreloadComponentStoreHelper.getRecipeStorageFilenameFromTestSource(testResourceRecipeFilename)).toFile(),
                     anExistingFile());
             assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).resolve(getTestComponentNameInCloud("Log") + "-2.0.0.yaml").toFile(), anExistingFile());
 
@@ -142,8 +144,11 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
             assertThat(componentStorePath.toFile(), anExistingDirectory());
             assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
             assertThat(componentStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
-            assertThat(componentStorePath.resolve(RECIPE_DIRECTORY)
-                    .resolve(appWithS3ArtifactsPackageName + "-1.0.0" + ".yaml").toFile(), anExistingFile());
+
+            String testResourceRecipeFilename = appWithS3ArtifactsPackageName + "-1.0.0.yaml";
+
+            assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).resolve(
+                    PreloadComponentStoreHelper.getRecipeStorageFilenameFromTestSource(testResourceRecipeFilename)).toFile(), anExistingFile());
             Path artifactTxt = componentStorePath.resolve(ARTIFACT_DIRECTORY).resolve(appWithS3ArtifactsPackageName)
                     .resolve("1.0.0").resolve("artifact.txt");
             assertThat(artifactTxt.toFile(), anExistingFile());
