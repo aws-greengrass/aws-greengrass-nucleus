@@ -32,6 +32,8 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String LIST_COMPONENTS = SERVICE_NAMESPACE + "#ListComponents";
 
+  public static final String CREATE_DEBUG_PASSWORD = SERVICE_NAMESPACE + "#CreateDebugPassword";
+
   public static final String DEFER_COMPONENT_UPDATE = SERVICE_NAMESPACE + "#DeferComponentUpdate";
 
   public static final String SEND_CONFIGURATION_VALIDITY_REPORT = SERVICE_NAMESPACE + "#SendConfigurationValidityReport";
@@ -73,6 +75,7 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(PUBLISH_TO_IOT_CORE);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CONFIGURATION_UPDATE);
     SERVICE_OPERATION_SET.add(LIST_COMPONENTS);
+    SERVICE_OPERATION_SET.add(CREATE_DEBUG_PASSWORD);
     SERVICE_OPERATION_SET.add(DEFER_COMPONENT_UPDATE);
     SERVICE_OPERATION_SET.add(SEND_CONFIGURATION_VALIDITY_REPORT);
     SERVICE_OPERATION_SET.add(UPDATE_CONFIGURATION);
@@ -126,6 +129,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setListComponentsHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractListComponentsOperationHandler> handler) {
     operationSupplierMap.put(LIST_COMPONENTS, handler);
+  }
+
+  public void setCreateDebugPasswordHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractCreateDebugPasswordOperationHandler> handler) {
+    operationSupplierMap.put(CREATE_DEBUG_PASSWORD, handler);
   }
 
   public void setDeferComponentUpdateHandler(
