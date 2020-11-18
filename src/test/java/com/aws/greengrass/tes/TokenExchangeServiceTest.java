@@ -46,6 +46,9 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.AWS_IOT_THING_NA
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.GGC_VERSION_ENV;
 import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
@@ -108,6 +111,9 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         Topic componentVersionTopic = Topic.of(context, VERSION_CONFIG_KEY, KernelVersion.KERNEL_VERSION);
         Topic componentStoreSizeLimitTopic = Topic.of(context, COMPONENT_STORE_MAX_SIZE_BYTES, 10_000_000_000L);
         Topic thingName = Topic.of(context, SYSTEM_NAMESPACE_KEY, "abc");
+        Topic privateKeyPath = Topic.of(context, DEVICE_PARAM_PRIVATE_KEY_PATH, "key.key");
+        Topic certPath = Topic.of(context, DEVICE_PARAM_CERTIFICATE_FILE_PATH, "cert.crt");
+        Topic caPath = Topic.of(context, DEVICE_PARAM_ROOT_CA_PATH, "ca.pem");
         Topic deploymentPollingFrequency = Topic.of(context, SERVICE_TYPE_TOPIC_KEY, 15L);
         Topic mainDependenciesTopic = Topic.of(context, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC,
                 DEFAULT_NUCLEUS_COMPONENT_NAME);
@@ -129,6 +135,12 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 DEPLOYMENT_POLLING_FREQUENCY_SECONDS)).thenReturn(deploymentPollingFrequency);
         when(configuration.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME)).thenReturn(thingName);
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                DEVICE_PARAM_PRIVATE_KEY_PATH)).thenReturn(privateKeyPath);
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                DEVICE_PARAM_CERTIFICATE_FILE_PATH)).thenReturn(certPath);
+        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                DEVICE_PARAM_ROOT_CA_PATH)).thenReturn(caPath);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))
                 .thenReturn(mainDependenciesTopic);
         when(configuration.lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV)).thenReturn(ggcVersionVnv);
