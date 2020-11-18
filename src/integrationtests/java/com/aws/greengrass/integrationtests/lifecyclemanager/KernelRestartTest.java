@@ -7,6 +7,7 @@ package com.aws.greengrass.integrationtests.lifecyclemanager;
 
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import org.junit.jupiter.api.AfterEach;
@@ -40,10 +41,12 @@ class KernelRestartTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_kernel_shuts_down_WHEN_kernel_restarts_with_same_root_dir_THEN_it_should_get_back_to_prev_state() throws ServiceLoadException, InterruptedException {
+    void GIVEN_kernel_shuts_down_WHEN_kernel_restarts_with_same_root_dir_THEN_it_should_get_back_to_prev_state()
+            throws Exception {
         // GIVEN
-        kernel = new Kernel()
-                .parseArgs("-i", this.getClass().getResource("kernel_restart_initial_config.yaml").toString());
+        kernel = new Kernel();
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                this.getClass().getResource("kernel_restart_initial_config.yaml"));
         kernel.launch();
 
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
@@ -64,10 +67,11 @@ class KernelRestartTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_shuts_down_WHEN_kernel_restarts_with_a_new_config_THEN_it_should_start_with_the_new_config()
-            throws ServiceLoadException {
+            throws Exception {
         // GIVEN
-        kernel = new Kernel()
-                .parseArgs("-i", this.getClass().getResource("kernel_restart_initial_config.yaml").toString());
+        kernel = new Kernel();
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                this.getClass().getResource("kernel_restart_initial_config.yaml"));
         kernel.launch();
 
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
@@ -78,8 +82,10 @@ class KernelRestartTest extends BaseITCase {
         kernel.shutdown();
 
         // WHEN
-        kernel = new Kernel().parseArgs("-i", this.getClass().getResource("kernel_restart_new_config.yaml").toString())
-                .launch();
+        // start kernel with parseArgs input so previous config tlog will be ignored.
+        kernel = new Kernel().parseArgs("-i",
+                this.getClass().getResource("kernel_restart_new_config.yaml").toString());
+        kernel.launch();
 
         // THEN
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
@@ -92,7 +98,8 @@ class KernelRestartTest extends BaseITCase {
         assertThat(kernel.locate("service_2").getConfig().find("setenv", "key1").getOnce(), is(equalTo("new_value1")));
 
         // service 1 is removed
-        assertThrows(ServiceLoadException.class, () -> kernel.locate("service_1"));
+        assertThrows(ServiceLoadException.class, () -> kernel.locate("service_1"),
+                "actual kernel config: " + kernel.getConfig().toPOJO());
     }
 
     @AfterEach

@@ -8,6 +8,7 @@ package com.aws.greengrass.integrationtests.telemetry;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
@@ -88,9 +89,9 @@ class TelemetryAgentTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_running_with_telemetry_config_WHEN_launch_THEN_metrics_are_published()
-            throws InterruptedException {
+            throws InterruptedException, IOException {
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("config.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
         //WHEN
         CountDownLatch telemetryRunning = new CountDownLatch(1);

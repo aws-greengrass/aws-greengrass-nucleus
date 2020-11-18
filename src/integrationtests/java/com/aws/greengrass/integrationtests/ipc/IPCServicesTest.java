@@ -52,6 +52,7 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -95,7 +96,7 @@ class IPCServicesTest {
     private static GreengrassCoreIPCClient greengrassCoreIPCClient;
 
     @BeforeAll
-    static void beforeAll() throws InterruptedException, ExecutionException {
+    static void beforeAll() throws InterruptedException, ExecutionException, IOException {
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCServicesTest.class, TEST_SERVICE_NAME);
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, TEST_SERVICE_NAME);
         socketOptions = TestUtils.getSocketOptionsForIPC();

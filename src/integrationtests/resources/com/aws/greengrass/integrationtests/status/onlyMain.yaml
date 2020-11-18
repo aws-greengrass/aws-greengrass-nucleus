@@ -6,9 +6,4 @@ services:
         posixUser: nobody
 
   main:
-    lifecycle:
-      install:
-        all: echo All installed
     dependencies:
-      posix:
-      windows:

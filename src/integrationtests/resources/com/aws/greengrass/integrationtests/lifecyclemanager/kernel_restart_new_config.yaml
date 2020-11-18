@@ -11,14 +11,10 @@ services:
 
   service_3:
     lifecycle:
-      run:
-        posix: echo "service_3"
-        windows: powershell -command echo "service_3"
+      run: echo "service_3"
 
   service_2:
     setenv:
       key1: new_value1 # updated comparing to kernel_restart_initial_config.yaml
     lifecycle:
-      run:
-        posix: echo "service_2"
-        windows: powershell -command echo "service_2"
+      run: echo "service_2"

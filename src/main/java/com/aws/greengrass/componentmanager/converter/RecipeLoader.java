@@ -176,24 +176,16 @@ public class RecipeLoader {
             // BEGIN BETA Compatibility code
             // TODO: These need to be removed for re:Invent
             // We might be running with old lifecycle
-
             if (effectiveLifecycleMap.isEmpty()) {
                 effectiveLifecycleMap = manifest.getLifecycle();
             }
-            if (!effectiveLifecycleMap.isEmpty()) {
-                Object resolvedPlatformMap = PlatformResolver.resolvePlatform(effectiveLifecycleMap);
-                if (resolvedPlatformMap instanceof Map) {
-                    effectiveLifecycleMap = (Map<String, Object>) resolvedPlatformMap;
-                } else {
-                    effectiveLifecycleMap = Collections.emptyMap();
-                }
-                if (effectiveLifecycleMap.isEmpty()) {
-                    LOGGER.warn("Non-empty lifecycle section ignored after (old style) platform selection filtering");
-                    return Collections.emptyMap();
-                }
+            if (effectiveLifecycleMap.isEmpty()) {
+                LOGGER.warn("Non-empty lifecycle section ignored after (old style) platform selection filtering");
+                return Collections.emptyMap();
             }
-            // END BETA Compatibility code
+
             return effectiveLifecycleMap;
+            // END BETA Compatibility code
         } else {
             // selections were applied to the lifecycle section
             // we allow the following syntax forms (combined)

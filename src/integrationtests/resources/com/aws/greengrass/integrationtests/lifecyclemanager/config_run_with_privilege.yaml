@@ -9,9 +9,8 @@ services:
     dependencies:
       - echo_service
     lifecycle:
-      posix:
-        run:
-          echo "Running main"
+      run:
+        echo "Running main"
   echo_service:
     lifecycle:
       install:

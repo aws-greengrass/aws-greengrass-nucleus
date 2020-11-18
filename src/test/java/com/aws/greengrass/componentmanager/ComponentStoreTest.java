@@ -214,8 +214,11 @@ class ComponentStoreTest {
 
         // WHEN
         // THEN
-        assertThrows(PackageLoadingException.class,
-                () -> componentStore.findPackageRecipe(new ComponentIdentifier("InvalidRecipe", new Semver("1.0.0"))));
+        PackageLoadingException pe = assertThrows(PackageLoadingException.class,
+                () -> componentStore.findPackageRecipe(
+                        new ComponentIdentifier("InvalidRecipe", new Semver("1.0.0"))));
+        assertTrue(pe.getMessage().contains("Failed to parse recipe file content to contract model"),
+                "Actual error: " + pe.getMessage());
     }
 
     @Test

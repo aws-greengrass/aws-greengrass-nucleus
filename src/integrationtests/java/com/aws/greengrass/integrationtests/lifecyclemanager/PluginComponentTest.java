@@ -30,6 +30,7 @@ import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.BaseITCase;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
@@ -119,14 +120,14 @@ class PluginComponentTest extends BaseITCase {
     void GIVEN_kernel_WHEN_locate_plugin_without_digest_THEN_plugin_is_not_loaded_into_JVM(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, RuntimeException.class);
-        kernel.parseArgs("-i", this.getClass().getResource("plugin.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("plugin.yaml"));
         setupPackageStore();
         assertThrows(RuntimeException.class, () -> kernel.launch());
     }
 
     @Test
     void GIVEN_kernel_WHEN_locate_plugin_THEN_plugin_is_loaded_into_JVM() throws Exception {
-        kernel.parseArgs("-i", this.getClass().getResource("plugin.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("plugin.yaml"));
         setupPackageStoreAndConfigWithDigest();
 
         launchAndWait();
@@ -158,7 +159,8 @@ class PluginComponentTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_WHEN_locate_plugin_dependency_THEN_dependency_from_plugin_is_loaded_into_JVM() throws Exception {
-        kernel.parseArgs("-i", this.getClass().getResource("plugin_dependency.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                this.getClass().getResource("plugin_dependency.yaml"));
         setupPackageStoreAndConfigWithDigest();
         launchAndWait();
 
