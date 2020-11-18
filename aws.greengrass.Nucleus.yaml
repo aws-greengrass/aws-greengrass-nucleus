@@ -24,7 +24,7 @@ ComponentConfiguration:
 Manifests:
   - Platform:
       os: darwin
-    Name: darwin
+    # TODO: add new field Name: darwin
     Artifacts:
       - URI: s3://gg-dev-artifacts-$stage/$componentName/$version/aws.greengrass.nucleus.zip
         Unarchive: zip
@@ -46,7 +46,7 @@ Manifests:
 
   - Platform:
       os: linux
-    Name: linux
+    # TODO: add new field Name: linux
     Artifacts:
       - URI: s3://gg-dev-artifacts-$stage/$componentName/$version/aws.greengrass.nucleus.zip
         Unarchive: zip
