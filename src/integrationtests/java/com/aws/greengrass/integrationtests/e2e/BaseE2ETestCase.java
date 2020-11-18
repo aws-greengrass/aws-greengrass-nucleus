@@ -144,7 +144,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     @TempDir
     protected static Path e2eTestPkgStoreDir;
 
-    protected static ComponentStore e2ETestComponentStore;
+//    protected static ComponentStore e2ETestComponentStore;
 
     protected Kernel kernel;
 
@@ -240,16 +240,12 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
+    // TODO rename before pushing, so that it avoids merge conflict
     private static void initializePackageStore() throws Exception {
         Path localStoreContentPath = Paths.get(BaseE2ETestCase.class.getResource("component_resources").getPath());
 
         // copy to tmp directory
         FileUtils.copyDirectory(localStoreContentPath.toFile(), e2eTestPkgStoreDir.toFile());
-
-        NucleusPaths nucleusPaths = new NucleusPaths();
-        nucleusPaths.setComponentStorePath(e2eTestPkgStoreDir);
-        PlatformResolver platformResolver = new PlatformResolver(null);
-        e2ETestComponentStore = new ComponentStore(nucleusPaths, platformResolver, new RecipeLoader(platformResolver));
     }
 
     /**
@@ -289,7 +285,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     private static void draftComponent(ComponentIdentifier pkgIdCloud) throws Exception {
         ComponentIdentifier pkgIdLocal = getLocalPackageIdentifier(pkgIdCloud);
-        Path testRecipePath = e2ETestComponentStore.resolveRecipePath(pkgIdLocal);
+        Path testRecipePath = e2eTestPkgStoreDir.resolve("recipes").resolve(getTestRecipeFileName(pkgIdLocal));
 
         // update recipe
         String content = new String(Files.readAllBytes(testRecipePath), StandardCharsets.UTF_8);
@@ -302,13 +298,18 @@ public class BaseE2ETestCase implements AutoCloseable {
             content = content.replaceAll("\\{\\{" + TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX + "}}", TEST_COMPONENT_ARTIFACTS_S3_BUCKET);
         }
 
-        testRecipePath = e2ETestComponentStore.resolveRecipePath(pkgIdCloud);
+        testRecipePath = e2eTestPkgStoreDir.resolve("recipes").resolve((getTestRecipeFileName(pkgIdCloud)));
 
         Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));
 
         CreateComponentVersionDeprecatedResult createComponentResult = ComponentServiceTestHelper.createComponent(greengrassClient, testRecipePath);
         assertEquals(pkgIdCloud.getName(), createComponentResult.getName(), createComponentResult.toString());
         assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getVersion());
+    }
+
+    private static String getTestRecipeFileName(ComponentIdentifier componentIdentifier) {
+        // naming convention under 'component_resources/recipes/'
+        return String.format("%s-%s.yaml", componentIdentifier.getName(), componentIdentifier.getVersion());
     }
 
     private static void createS3BucketsForTestComponentArtifacts() {
@@ -322,10 +323,11 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    private static void uploadComponentArtifactToS3(ComponentIdentifier... pkgIds) throws PackageLoadingException {
+    private static void uploadComponentArtifactToS3(ComponentIdentifier... pkgIds) {
         for (ComponentIdentifier pkgId : pkgIds) {
             ComponentIdentifier pkgIdLocal = getLocalPackageIdentifier(pkgId);
-            Path artifactDirPath = e2ETestComponentStore.resolveArtifactDirectoryPath(pkgIdLocal);
+            Path artifactDirPath =
+                    e2eTestPkgStoreDir.resolve(pkgIdLocal.getName()).resolve(pkgIdLocal.getVersion().toString());
             File[] artifactFiles = artifactDirPath.toFile().listFiles();
             if (artifactFiles == null) {
                 logger.atInfo().kv("component", pkgIdLocal).kv("artifactPath", artifactDirPath.toAbsolutePath())

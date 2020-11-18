@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.helper;
 
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 
 import java.io.IOException;
@@ -19,6 +21,7 @@ import java.util.Base64;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
+@NoArgsConstructor(access = AccessLevel.PRIVATE) // so that it can't be 'new'
 public class PreloadComponentStoreHelper {
 
     /**
@@ -30,7 +33,7 @@ public class PreloadComponentStoreHelper {
         Files.walkFileTree(testResourceRecipeDir, new SimpleFileVisitor<Path>() {
 
             @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
                 // do nothing because expect the input testResourceRecipeDir only contains recipe files
                 return FileVisitResult.CONTINUE;
             }
