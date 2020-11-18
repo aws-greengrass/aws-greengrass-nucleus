@@ -293,7 +293,7 @@ public class BaseE2ETestCase implements AutoCloseable {
             content = content.replaceAll("\\{\\{" + TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX + "}}", TEST_COMPONENT_ARTIFACTS_S3_BUCKET);
         }
 
-        testRecipePath = e2eTestPkgStoreDir.resolve("recipes").resolve((getTestRecipeFileName(pkgIdCloud)));
+        testRecipePath = e2eTestPkgStoreDir.resolve("recipes").resolve(getTestRecipeFileName(pkgIdCloud));
 
         Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));
 
