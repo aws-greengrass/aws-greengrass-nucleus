@@ -21,6 +21,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -34,8 +35,6 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.jr.ob.JSON;
 import org.apache.commons.lang3.SystemUtils;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
@@ -137,7 +136,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     @Test
     void GIVEN_kernel_running_with_some_config_WHEN_merge_simple_yaml_file_THEN_config_is_updated() throws Throwable {
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("config.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("config.yaml"));
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
@@ -157,8 +156,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Topics t = kernel.findServiceTopic(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
         assertNotNull(t, "FSS Topics should not be null before merging");
 
-        Map<String, Object> newConfig =
-                (Map<String, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml"));
+        Map<String, Object> newConfig = ConfigPlatformResolver
+                .resolvePlatformMap(getClass().getResource("delta.yaml"));
 
         ((Map<String, Object>)newConfig.get(SERVICES_NAMESPACE_TOPIC)).put(DEFAULT_NUCLEUS_COMPONENT_NAME,
                 getNucleusConfig());
@@ -180,7 +179,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             throws Throwable {
 
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
@@ -228,7 +227,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_dependency_THEN_dependent_service_starts_and_service_restarts()
             throws Throwable {
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
 
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -286,7 +285,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_nested_dependency_THEN_dependent_services_start_and_service_restarts()
             throws Throwable {
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
 
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -358,7 +357,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             throws Throwable {
 
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
 
         // launch kernel
         CountDownLatch mainRunning = new CountDownLatch(1);
@@ -455,7 +454,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
     @Test
     void GIVEN_kernel_running_services_WHEN_merge_removes_service_THEN_removed_service_is_closed() throws Throwable {
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("long_running_services.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("long_running_services.yaml"));
         kernel.launch();
 
         CountDownLatch mainRunningLatch = new CountDownLatch(1);
@@ -517,7 +517,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     void GIVEN_a_running_service_is_not_disruptable_WHEN_deployed_THEN_deployment_waits() throws Throwable {
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("non_disruptable_service.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("non_disruptable_service.yaml"));
+
         kernel.launch();
 
         CountDownLatch mainFinished = new CountDownLatch(1);
@@ -600,8 +602,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         ignoreExceptionUltimateCauseWithMessage(context, "Service sleeperB in broken state after deployment");
 
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("short_running_services_using_startup_script.yaml")
-                .toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("short_running_services_using_startup_script.yaml"));
 
         kernel.launch();
 
@@ -666,7 +668,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             throws Throwable {
 
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
         Runnable mainRunning = createServiceStateChangeWaiter(kernel, "main",5, State.RUNNING);
         kernel.launch();
         mainRunning.run();
@@ -705,7 +707,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         assumeCanSudoShell(kernel);
 
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("config_run_with_user.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("config_run_with_user.yaml"));
 
         List<String> stdouts = new ArrayList<>();
         try (AutoCloseable l = createCloseableLogListener((m) -> {

@@ -18,6 +18,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -91,8 +92,8 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
         deploymentConfigMerger = new DeploymentConfigMerger(kernel);
-        kernel.parseArgs("-i",
-                DynamicComponentConfigurationValidationTest.class.getResource("onlyMain.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                DynamicComponentConfigurationValidationTest.class.getResource("onlyMain.yaml"));
 
         // launch kernel
         Runnable mainFinished = createServiceStateChangeWaiter(kernel, "main", 10, State.FINISHED);
