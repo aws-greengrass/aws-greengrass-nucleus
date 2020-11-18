@@ -32,15 +32,15 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-public class GreengrassComponentServiceHelper {
+public class ComponentServiceHelper {
 
     private static final String PACKAGE_RECIPE_DOWNLOAD_EXCEPTION_FMT = "Error downloading recipe for package %s";
-    protected static final Logger logger = LogManager.getLogger(GreengrassComponentServiceHelper.class);
+    protected static final Logger logger = LogManager.getLogger(ComponentServiceHelper.class);
 
     private final GreengrassComponentServiceClientFactory clientFactory;
 
     @Inject
-    public GreengrassComponentServiceHelper(GreengrassComponentServiceClientFactory clientFactory) {
+    public ComponentServiceHelper(GreengrassComponentServiceClientFactory clientFactory) {
         this.clientFactory = clientFactory;
     }
 

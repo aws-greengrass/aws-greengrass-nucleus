@@ -47,7 +47,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-class GreengrassComponentServiceHelperTest {
+class ComponentServiceHelperTest {
 
     private static final Semver v1_0_0 = new Semver("1.0.0");
     private static final String COMPONENT_A = "A";
@@ -58,7 +58,7 @@ class GreengrassComponentServiceHelperTest {
     @Mock
     private GreengrassComponentServiceClientFactory clientFactory;
 
-    private GreengrassComponentServiceHelper helper;
+    private ComponentServiceHelper helper;
 
     @Captor
     private ArgumentCaptor<GetComponentVersionDeprecatedRequest> GetComponentVersionDeprecatedRequestArgumentCaptor;
@@ -66,7 +66,7 @@ class GreengrassComponentServiceHelperTest {
     @BeforeEach
     void beforeEach() {
         lenient().when(clientFactory.getCmsClient()).thenReturn(client);
-        this.helper = spy(new GreengrassComponentServiceHelper(clientFactory));
+        this.helper = spy(new ComponentServiceHelper(clientFactory));
     }
 
     @Test

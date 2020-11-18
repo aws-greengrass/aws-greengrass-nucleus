@@ -130,7 +130,7 @@ class ComponentManagerTest {
     private ArtifactDownloaderFactory artifactDownloaderFactory;
 
     @Mock
-    private GreengrassComponentServiceHelper componentManagementServiceHelper;
+    private ComponentServiceHelper componentManagementServiceHelper;
     @Mock
     private Kernel kernel;
     @Mock
