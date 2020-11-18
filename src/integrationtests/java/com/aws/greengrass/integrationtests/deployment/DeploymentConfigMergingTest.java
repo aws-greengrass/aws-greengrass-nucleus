@@ -653,10 +653,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
         assertTrue(sleeperBRolledBack.await(10, TimeUnit.SECONDS));
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
 
-        // Value set in listener should not have been rolled back
-        assertEquals("setOnErrorValue",
-                config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB", RUNTIME_STORE_NAMESPACE_TOPIC, "testKey")
-                        .getOnce());
         // remove listener
         kernel.getContext().removeGlobalStateChangeListener(listener);
     }
