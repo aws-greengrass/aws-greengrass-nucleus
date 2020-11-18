@@ -23,9 +23,10 @@ public class NucleusPaths {
     private Path deploymentPath;
     private Path kernelAltsPath;
     private Path cliIpcInfoPath;
+    private Path binPath;
 
     public void initPaths(Path root, Path workPath, Path componentStorePath, Path configPath, Path kernelAlts,
-                          Path deployment, Path cliIpcInfo) throws IOException {
+                          Path deployment, Path cliIpcInfo, Path binPath) throws IOException {
         setRootPath(root);
         setConfigPath(configPath);
         setDeploymentPath(deployment);
@@ -33,6 +34,17 @@ public class NucleusPaths {
         setWorkPath(workPath);
         setComponentStorePath(componentStorePath);
         setCliIpcInfoPath(cliIpcInfo);
+        setBinPath(binPath);
+    }
+
+    public void setBinPath(Path binPath) throws IOException {
+        this.binPath = binPath;
+        Utils.createPaths(binPath());
+        Permissions.setBinPermission(binPath());
+    }
+
+    public Path binPath() {
+        return binPath;
     }
 
     public void setCliIpcInfoPath(Path cliIpcInfoPath) throws IOException {

@@ -9,7 +9,9 @@ import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -27,6 +29,14 @@ import static org.hamcrest.core.Is.is;
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class RecipeLoaderTest {
 
+    private RecipeLoader recipeLoader;
+
+    @BeforeEach
+    void setupRecipeLoader() {
+        PlatformResolver platformResolver = new PlatformResolver(null);
+        recipeLoader = new RecipeLoader(platformResolver);
+    }
+
     @Test
     void GIVEN_a_recipe_file_with_all_fields_and_mocked_resolved_platform_WHEN_converts_THEN_fields_are_populated_correctly()
             throws Exception {
@@ -37,7 +47,7 @@ class RecipeLoaderTest {
         String recipeFileContent = new String(Files.readAllBytes(Paths.get(getClass().getResource(filename).toURI())));
 
         // WHEN
-        Optional<ComponentRecipe> optionalRecipe = RecipeLoader.loadFromFile(recipeFileContent);
+        Optional<ComponentRecipe> optionalRecipe = recipeLoader.loadFromFile(recipeFileContent);
 
         // THEN
         assertThat(optionalRecipe.isPresent(), is(true));
@@ -77,7 +87,7 @@ class RecipeLoaderTest {
         String recipeFileContent = new String(Files.readAllBytes(Paths.get(getClass().getResource(filename).toURI())));
 
         // WHEN
-        Optional<ComponentRecipe> optionalRecipe = RecipeLoader.loadFromFile(recipeFileContent);
+        Optional<ComponentRecipe> optionalRecipe = recipeLoader.loadFromFile(recipeFileContent);
 
         // THEN
         assertThat(optionalRecipe.isPresent(), is(true));
@@ -115,7 +125,7 @@ class RecipeLoaderTest {
         String recipeFileContent = new String(Files.readAllBytes(Paths.get(getClass().getResource(filename).toURI())));
 
         // WHEN
-        Optional<ComponentRecipe> optionalRecipe = RecipeLoader.loadFromFile(recipeFileContent);
+        Optional<ComponentRecipe> optionalRecipe = recipeLoader.loadFromFile(recipeFileContent);
 
         // THEN
         assertThat(optionalRecipe.isPresent(), is(false));

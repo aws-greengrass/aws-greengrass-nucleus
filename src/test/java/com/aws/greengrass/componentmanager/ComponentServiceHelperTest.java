@@ -15,6 +15,7 @@ import com.amazonaws.services.evergreen.model.ResolvedComponentVersion;
 import com.amazonaws.services.evergreen.model.ResourceNotFoundException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
@@ -47,7 +48,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-class GreengrassComponentServiceHelperTest {
+class ComponentServiceHelperTest {
 
     private static final Semver v1_0_0 = new Semver("1.0.0");
     private static final String COMPONENT_A = "A";
@@ -58,15 +59,16 @@ class GreengrassComponentServiceHelperTest {
     @Mock
     private GreengrassComponentServiceClientFactory clientFactory;
 
-    private GreengrassComponentServiceHelper helper;
+    private ComponentServiceHelper helper;
 
     @Captor
     private ArgumentCaptor<GetComponentVersionDeprecatedRequest> GetComponentVersionDeprecatedRequestArgumentCaptor;
 
     @BeforeEach
     void beforeEach() {
+        PlatformResolver platformResolver = new PlatformResolver(null);
         lenient().when(clientFactory.getCmsClient()).thenReturn(client);
-        this.helper = spy(new GreengrassComponentServiceHelper(clientFactory));
+        this.helper = spy(new ComponentServiceHelper(clientFactory, platformResolver));
     }
 
     @Test
@@ -107,6 +109,12 @@ class GreengrassComponentServiceHelperTest {
         verify(client).resolveComponentCandidates(requestArgumentCaptor.capture());
         ResolveComponentCandidatesRequest request = requestArgumentCaptor.getValue();
         assertThat(request.getPlatform(), notNullValue());
+        // assertThat(request.getPlatform().getAttributes(), notNullValue());
+        // Map<String, String> attributes = request.getPlatform().getAttributes();
+        // assertThat(attributes, hasKey(PlatformResolver.OS_KEY));
+        // assertThat(attributes, hasKey(PlatformResolver.ARCHITECTURE_KEY));
+        // assertThat(request.getPlatform().getOs(), nullValue());
+        // assertThat(request.getPlatform().getArchitecture(), nullValue());
         assertThat(request.getPlatform().getOs(), notNullValue());
         assertThat(request.getPlatform().getArchitecture(), notNullValue());
         assertThat(request.getComponentCandidates().size(), is(1));

@@ -72,7 +72,7 @@ public class ComponentManager implements InjectionActions {
     private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
 
     private final ArtifactDownloaderFactory artifactDownloaderFactory;
-    private final GreengrassComponentServiceHelper greengrassComponentServiceHelper;
+    private final ComponentServiceHelper componentServiceHelper;
     private final ExecutorService executorService;
     private final ComponentStore componentStore;
     private final Kernel kernel;
@@ -87,7 +87,7 @@ public class ComponentManager implements InjectionActions {
      * PackageManager constructor.
      *
      * @param artifactDownloaderFactory        artifactDownloaderFactory
-     * @param greengrassComponentServiceHelper greengrassComponentServiceHelper
+     * @param componentServiceHelper greengrassComponentServiceHelper
      * @param executorService                  executorService
      * @param componentStore                   componentStore
      * @param kernel                           kernel
@@ -97,11 +97,11 @@ public class ComponentManager implements InjectionActions {
      */
     @Inject
     public ComponentManager(ArtifactDownloaderFactory artifactDownloaderFactory,
-            GreengrassComponentServiceHelper greengrassComponentServiceHelper, ExecutorService executorService,
-            ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver,
-            DeviceConfiguration deviceConfiguration, NucleusPaths nucleusPaths) {
+                            ComponentServiceHelper componentServiceHelper, ExecutorService executorService,
+                            ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver,
+                            DeviceConfiguration deviceConfiguration, NucleusPaths nucleusPaths) {
         this.artifactDownloaderFactory = artifactDownloaderFactory;
-        this.greengrassComponentServiceHelper = greengrassComponentServiceHelper;
+        this.componentServiceHelper = componentServiceHelper;
         this.executorService = executorService;
         this.componentStore = componentStore;
         this.kernel = kernel;
@@ -188,7 +188,7 @@ public class ComponentManager implements InjectionActions {
         ResolvedComponentVersion resolvedComponentVersion;
 
         try {
-            resolvedComponentVersion = greengrassComponentServiceHelper
+            resolvedComponentVersion = componentServiceHelper
                     .resolveComponentVersion(componentName, localCandidate == null ? null : localCandidate.getVersion(),
                                              versionRequirements);
         } catch (ComponentVersionNegotiationException | NoAvailableComponentVersionException e) {
@@ -332,7 +332,7 @@ public class ComponentManager implements InjectionActions {
             return packageOptional.get();
         }
         String downloadRecipeContent =
-                greengrassComponentServiceHelper.downloadPackageRecipeAsString(componentIdentifier);
+                componentServiceHelper.downloadPackageRecipeAsString(componentIdentifier);
         // Save the recipe digest in a secure place, before persisting recipe
         storeRecipeDigestSecurelyForPlugin(componentIdentifier, downloadRecipeContent);
         componentStore.savePackageRecipe(componentIdentifier, downloadRecipeContent);

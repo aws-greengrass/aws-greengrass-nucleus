@@ -57,15 +57,20 @@ public class ComponentStore {
     public static final String RECIPE_SUFFIX = ".recipe";
 
     private final NucleusPaths nucleusPaths;
+    private final PlatformResolver platformResolver;
+    private final RecipeLoader recipeLoader;
 
     /**
      * Constructor. It will initialize recipe, artifact and artifact decompressed directory.
-     *
      * @param nucleusPaths path library
+     * @param platformResolver platform resolver
+     * @param recipeLoader recipe loader
      */
     @Inject
-    public ComponentStore(NucleusPaths nucleusPaths) {
+    public ComponentStore(NucleusPaths nucleusPaths, PlatformResolver platformResolver, RecipeLoader recipeLoader) {
         this.nucleusPaths = nucleusPaths;
+        this.platformResolver = platformResolver;
+        this.recipeLoader = recipeLoader;
     }
 
     /**
@@ -96,7 +101,7 @@ public class ComponentStore {
     Optional<ComponentRecipe> findPackageRecipe(@NonNull ComponentIdentifier pkgId) throws PackageLoadingException {
         Optional<String> recipeContent = findComponentRecipeContent(pkgId);
 
-        return recipeContent.isPresent() ? RecipeLoader.loadFromFile(recipeContent.get()) : Optional.empty();
+        return recipeContent.isPresent() ? recipeLoader.loadFromFile(recipeContent.get()) : Optional.empty();
     }
 
     /**
@@ -165,7 +170,7 @@ public class ComponentStore {
             // TODO: [P41215929]: Better logging and exception messages in component store
             throw new PackageLoadingException(String.format(
                     "Failed to find usable recipe for current platform: %s, for package: '%s' in the "
-                            + "local package store.", PlatformResolver.CURRENT_PLATFORM, pkgId));
+                            + "local package store.", platformResolver.getCurrentPlatform(), pkgId));
         }
 
         return optionalPackage.get();
