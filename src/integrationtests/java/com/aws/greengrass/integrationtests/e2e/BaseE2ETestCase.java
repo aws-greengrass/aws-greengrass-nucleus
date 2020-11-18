@@ -327,7 +327,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         for (ComponentIdentifier pkgId : pkgIds) {
             ComponentIdentifier pkgIdLocal = getLocalPackageIdentifier(pkgId);
             Path artifactDirPath =
-                    e2eTestPkgStoreDir.resolve(pkgIdLocal.getName()).resolve(pkgIdLocal.getVersion().toString());
+                    e2eTestPkgStoreDir.resolve("artifacts").resolve(pkgIdLocal.getName()).resolve(pkgIdLocal.getVersion().toString());
             File[] artifactFiles = artifactDirPath.toFile().listFiles();
             if (artifactFiles == null) {
                 logger.atInfo().kv("component", pkgIdLocal).kv("artifactPath", artifactDirPath.toAbsolutePath())
