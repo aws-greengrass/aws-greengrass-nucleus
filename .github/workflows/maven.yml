@@ -149,7 +149,7 @@ jobs:
           artifactDirectoryPath: target/artifacts
           endpoint: https://evergreen-gamma.us-east-1.amazonaws.com
           autoBumpVersion: true
-          publishAsPublic: true
+          publishAsPublic: false
           additionalReplacements: '{"stage": "gamma"}'
       - uses: ./.github/actions/aws-greengrass-component-upload-action
         if: ${{ github.event_name == 'push' && contains(github.ref, 'tags') }}
