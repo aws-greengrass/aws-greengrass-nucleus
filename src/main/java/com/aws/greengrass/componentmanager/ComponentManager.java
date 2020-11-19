@@ -20,6 +20,7 @@ import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
+import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloaderFactory;
 import com.aws.greengrass.config.Topic;
@@ -151,7 +152,7 @@ public class ComponentManager implements InjectionActions {
         return getComponentMetadata(resolvedComponentId);
     }
 
-    private void storeRecipeDigestSecurely(ComponentIdentifier componentIdentifier, String recipeContent)
+    private void storeRecipeDigestSecurelyForPlugin(ComponentIdentifier componentIdentifier, String recipeContent)
             throws PackageLoadingException {
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe =
                 RecipeLoader.parseRecipe(recipeContent);
@@ -187,10 +188,9 @@ public class ComponentManager implements InjectionActions {
             throws PackagingException {
         ResolvedComponentVersion resolvedComponentVersion;
         try {
-            resolvedComponentVersion =
-             componentServiceHelper.resolveComponentVersion(componentName, localCandidate == null ? null :
-                             localCandidate.getVersion(),
-                                             versionRequirements);
+            resolvedComponentVersion = componentServiceHelper
+                    .resolveComponentVersion(componentName, localCandidate == null ? null : localCandidate.getVersion(),
+                            versionRequirements);
         } catch (ComponentVersionNegotiationException | NoAvailableComponentVersionException e) {
             logger.atInfo().setCause(e).kv("componentName", componentName).kv("versionRequirement", versionRequirements)
                     .kv("localVersion", localCandidate)
@@ -208,8 +208,11 @@ public class ComponentManager implements InjectionActions {
                 new ComponentIdentifier(resolvedComponentVersion.getComponentName(),
                         new Semver(resolvedComponentVersion.getComponentVersion()));
         String downloadedRecipeContent = StandardCharsets.UTF_8.decode(resolvedComponentVersion.getRecipe()).toString();
-        // Save the recipe digest in a secure place, before persisting recipe
-        storeRecipeDigestSecurely(resolvedComponentId, downloadedRecipeContent);
+
+        // Save the recipe digest for plugin in a secure place, before persisting recipe
+        storeRecipeDigestSecurelyForPlugin(resolvedComponentId, downloadedRecipeContent);
+
+        // Save the recipe
         boolean saveContent = true;
         Optional<String> recipeContentOnDevice = componentStore.findComponentRecipeContent(resolvedComponentId);
 
@@ -220,6 +223,10 @@ public class ComponentManager implements InjectionActions {
         if (saveContent) {
             componentStore.savePackageRecipe(resolvedComponentId, downloadedRecipeContent);
         }
+
+        // Save the arn to the recipe meta data file
+        logger.atInfo().kv("Arn", resolvedComponentVersion.getArn()).log("Ethan");
+        componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(resolvedComponentVersion.getArn()));
 
         return resolvedComponentId;
     }
@@ -298,7 +305,7 @@ public class ComponentManager implements InjectionActions {
                     InvalidArtifactUriException, InterruptedException {
         logger.atInfo().setEventType("prepare-package-start").kv(PACKAGE_IDENTIFIER, componentIdentifier).log();
         try {
-            ComponentRecipe pkg = findRecipeDownloadIfNotExisted(componentIdentifier);
+            ComponentRecipe pkg = componentStore.getPackageRecipe(componentIdentifier);
             prepareArtifacts(componentIdentifier, pkg.getArtifacts());
             logger.atInfo("prepare-package-finished").kv(PACKAGE_IDENTIFIER, componentIdentifier).log();
         } catch (SizeLimitException e) {
@@ -308,30 +315,6 @@ public class ComponentManager implements InjectionActions {
             logger.atError().log("Failed to prepare package {}", componentIdentifier, e);
             throw e;
         }
-    }
-
-    // With simplified dependency resolving logic, recipe should be available when resolveComponentVersion,
-    // and should be available on device at this step.
-    @Deprecated
-    private ComponentRecipe findRecipeDownloadIfNotExisted(ComponentIdentifier componentIdentifier)
-            throws PackageDownloadException, PackageLoadingException {
-        Optional<ComponentRecipe> packageOptional = Optional.empty();
-        try {
-            packageOptional = componentStore.findPackageRecipe(componentIdentifier);
-            logger.atDebug().kv("component", componentIdentifier).log("Loaded from local component store");
-        } catch (PackageLoadingException e) {
-            logger.atWarn().log("Failed to load component recipe for {}", componentIdentifier, e);
-        }
-
-        if (packageOptional.isPresent()) {
-            return packageOptional.get();
-        }
-        String downloadRecipeContent = componentServiceHelper.downloadPackageRecipeAsString(componentIdentifier);
-        // Save the recipe digest in a secure place, before persisting recipe
-        storeRecipeDigestSecurely(componentIdentifier, downloadRecipeContent);
-        componentStore.savePackageRecipe(componentIdentifier, downloadRecipeContent);
-        logger.atDebug().kv("pkgId", componentIdentifier).log("Downloaded from component service");
-        return componentStore.getPackageRecipe(componentIdentifier);
     }
 
     void prepareArtifacts(ComponentIdentifier componentIdentifier, List<ComponentArtifact> artifacts)

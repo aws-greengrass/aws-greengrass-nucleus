@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.plugins;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
@@ -24,16 +25,22 @@ public class ArtifactDownloaderFactory {
 
     private final GreengrassComponentServiceClientFactory greengrassComponentServiceClientFactory;
 
+    private final ComponentStore componentStore;
+
     /**
      * ArtifactDownloaderFactory constructor.
-     * @param s3SdkClientFactory                        s3SdkClientFactory
-     * @param greengrassComponentServiceClientFactory   greengrassComponentServiceClientFactory
+     *
+     * @param s3SdkClientFactory                      s3SdkClientFactory
+     * @param greengrassComponentServiceClientFactory greengrassComponentServiceClientFactory
+     * @param componentStore                          componentStore
      */
     @Inject
     public ArtifactDownloaderFactory(S3SdkClientFactory s3SdkClientFactory,
-                              GreengrassComponentServiceClientFactory greengrassComponentServiceClientFactory) {
+                                     GreengrassComponentServiceClientFactory greengrassComponentServiceClientFactory,
+                                     ComponentStore componentStore) {
         this.s3ClientFactory = s3SdkClientFactory;
         this.greengrassComponentServiceClientFactory = greengrassComponentServiceClientFactory;
+        this.componentStore = componentStore;
     }
 
     /**
@@ -52,7 +59,7 @@ public class ArtifactDownloaderFactory {
         String scheme = artifactUri.getScheme() == null ? null : artifactUri.getScheme().toUpperCase();
         if (GREENGRASS_SCHEME.equals(scheme)) {
             return new GreengrassRepositoryDownloader(
-                    greengrassComponentServiceClientFactory, identifier, artifact, artifactDir);
+                    greengrassComponentServiceClientFactory, identifier, artifact, artifactDir, componentStore);
         }
         if (S3_SCHEME.equals(scheme)) {
             return new S3Downloader(s3ClientFactory, identifier, artifact, artifactDir);
