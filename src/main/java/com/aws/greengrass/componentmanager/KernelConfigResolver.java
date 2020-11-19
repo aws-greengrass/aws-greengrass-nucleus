@@ -530,8 +530,6 @@ public class KernelConfigResolver {
         return null;
     }
 
-    /**** end of new configuration code path. Most of below are all deprecated and will be remove soon ****/
-
     /*
      * Compute the config for main service
      */
