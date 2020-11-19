@@ -177,10 +177,9 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_target_service_has_dependencies_WHEN_deploys_target_service_THEN_service_and_dependencies_should_be_deployed(ExtensionContext context)
+    void GIVEN_target_service_has_dependencies_WHEN_deploys_target_service_THEN_service_and_dependencies_should_be_deployed()
             throws Exception {
         // Set up stdout listener to capture stdout for verify interpolation
-        ignoreExceptionOfType(context, UserPrincipalNotFoundException.class);
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
             Map<String, String> contexts = m.getContexts();
