@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.deployment.model;
 
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
@@ -27,5 +27,6 @@ public class ComponentUpdatePolicy {
     @JsonProperty("Timeout")
     private Integer timeout = 60;
     @JsonProperty("ComponentUpdatePolicyAction")
-    private ComponentUpdatePolicyAction componentUpdatePolicyAction = ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
+    private DeploymentComponentUpdatePolicyAction componentUpdatePolicyAction =
+            DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 }

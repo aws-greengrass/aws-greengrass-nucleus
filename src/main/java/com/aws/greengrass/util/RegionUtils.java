@@ -20,9 +20,9 @@ public final class RegionUtils {
     );
     private static final Map<IotSdkClientFactory.EnvironmentStage, String>
             GREENGRASS_CONTROL_PLANE_STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
-            IotSdkClientFactory.EnvironmentStage.PROD, "evergreen.%s.%s",
-            IotSdkClientFactory.EnvironmentStage.GAMMA, "evergreen-gamma.%s.%s",
-            IotSdkClientFactory.EnvironmentStage.BETA, "evergreen-beta.%s.%s"
+            IotSdkClientFactory.EnvironmentStage.PROD, "greengrass.%s.%s",
+            IotSdkClientFactory.EnvironmentStage.GAMMA, "greengrass-gamma.%s.%s",
+            IotSdkClientFactory.EnvironmentStage.BETA, "greengrass-beta2.%s.%s"
     );
 
     private RegionUtils() {

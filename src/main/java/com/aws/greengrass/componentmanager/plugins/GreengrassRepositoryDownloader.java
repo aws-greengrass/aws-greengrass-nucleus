@@ -6,8 +6,8 @@
 package com.aws.greengrass.componentmanager.plugins;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactDeprecatedRequest;
-import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactDeprecatedResult;
+import com.amazonaws.services.greengrassv2.model.GetComponentVersionArtifactRequest;
+import com.amazonaws.services.greengrassv2.model.GetComponentVersionArtifactResult;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
@@ -168,15 +168,15 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     private URL getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws PackageDownloadException {
-        GetComponentVersionArtifactDeprecatedRequest getComponentArtifactRequest =
-                new GetComponentVersionArtifactDeprecatedRequest().withArtifactName(artifactName)
-                        .withComponentName(componentIdentifier.getName())
-                        .withComponentVersion(componentIdentifier.getVersion().toString());
+        // TODO : UPDATE_MODEL : use ARN when the PR to handle ARN is checked in
+        GetComponentVersionArtifactRequest getComponentArtifactRequest =
+                new GetComponentVersionArtifactRequest().withArtifactName(artifactName)
+                        .withArn(componentIdentifier.getName());
 
         String preSignedUrl;
         try {
-            GetComponentVersionArtifactDeprecatedResult getComponentArtifactResult =
-                    clientFactory.getCmsClient().getComponentVersionArtifactDeprecated(getComponentArtifactRequest);
+            GetComponentVersionArtifactResult getComponentArtifactResult =
+                    clientFactory.getCmsClient().getComponentVersionArtifact(getComponentArtifactRequest);
             preSignedUrl = getComponentArtifactResult.getPreSignedUrl();
         } catch (AmazonClientException ace) {
             throw new PackageDownloadException(getErrorString("error in get artifact download URL"), ace);
