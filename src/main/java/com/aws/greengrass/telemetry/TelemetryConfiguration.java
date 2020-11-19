@@ -8,7 +8,7 @@ package com.aws.greengrass.telemetry;
 import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Value;
 
 import java.util.Map;
 
@@ -17,16 +17,16 @@ import static com.aws.greengrass.telemetry.TelemetryAgent.DEFAULT_PERIODIC_PUBLI
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC;
 
-@Data
+@Value
 @Builder
 public class TelemetryConfiguration {
 
     @Builder.Default
-    private boolean isEnabled = true;
+    boolean isEnabled = true;
     @Builder.Default
-    private int periodicAggregateMetricsIntervalSec = DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC;
+    int periodicAggregateMetricsIntervalSec = DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC;
     @Builder.Default
-    private int periodicPublishMetricsIntervalSec = DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC;
+    int periodicPublishMetricsIntervalSec = DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC;
 
     /**
      * Get the telemetry configuration from the POJO map.
@@ -34,13 +34,13 @@ public class TelemetryConfiguration {
      * @return  the telemetry configuration.
      */
     public static TelemetryConfiguration fromPojo(Map<String, Object> pojo) {
-        TelemetryConfiguration telemetryConfiguration = TelemetryConfiguration.builder().build();
         int periodicAggregateMetricsIntervalSec = DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC;
         int periodicPublishMetricsIntervalSec = DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC;
+        boolean isEnabled = true;
         for (Map.Entry<String, Object> entry : pojo.entrySet()) {
             switch (entry.getKey()) {
                 case "isEnabled":
-                    telemetryConfiguration.setEnabled(Coerce.toBoolean(entry.getValue()));
+                    isEnabled = Coerce.toBoolean(entry.getValue());
                     break;
                 case "periodicAggregateMetricsIntervalSec":
                     int newPeriodicAggregateMetricsIntervalSec = Coerce.toInt(entry.getValue());
@@ -70,9 +70,10 @@ public class TelemetryConfiguration {
         periodicPublishMetricsIntervalSec = TestFeatureParameters
                 .retrieveWithDefault(Double.class, TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC,
                         periodicPublishMetricsIntervalSec).intValue();
-        telemetryConfiguration
-                .setPeriodicAggregateMetricsIntervalSec(periodicAggregateMetricsIntervalSec);
-        telemetryConfiguration.setPeriodicPublishMetricsIntervalSec(periodicPublishMetricsIntervalSec);
-        return telemetryConfiguration;
+        return TelemetryConfiguration.builder()
+                .isEnabled(isEnabled)
+                .periodicAggregateMetricsIntervalSec(periodicAggregateMetricsIntervalSec)
+                .periodicPublishMetricsIntervalSec(periodicPublishMetricsIntervalSec)
+                .build();
     }
 }

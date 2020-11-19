@@ -94,9 +94,6 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         serviceFullName = "MetricsAgent";
         initializeMockedConfig();
         TelemetryConfig.getInstance().setRoot(tempRootDir);
-        //kme = new KernelMetricsEmitter(mock(Kernel.class));
-        //sme = new SystemMetricsEmitter();
-        //ma = new MetricsAggregator();
         ses = new ScheduledThreadPoolExecutor(3);
         Topic lastPeriodicAggregateTime = Topic.of(context, TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC,
                 Instant.now().toEpochMilli());
@@ -153,8 +150,8 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         }
 
         assertNotNull(telemetryAgent.getCurrentConfiguration());
-        assertEquals(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().getPeriodicAggregateMetricsIntervalSec());
-        assertEquals(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().getPeriodicPublishMetricsIntervalSec());
+        assertEquals(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().get().getPeriodicAggregateMetricsIntervalSec());
+        assertEquals(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().get().getPeriodicPublishMetricsIntervalSec());
     }
 
     @Test
@@ -174,9 +171,9 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         }
 
         assertNotNull(telemetryAgent.getCurrentConfiguration());
-        assertFalse(telemetryAgent.getCurrentConfiguration().isEnabled());
-        assertEquals(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().getPeriodicAggregateMetricsIntervalSec());
-        assertEquals(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().getPeriodicPublishMetricsIntervalSec());
+        assertFalse(telemetryAgent.getCurrentConfiguration().get().isEnabled());
+        assertEquals(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().get().getPeriodicAggregateMetricsIntervalSec());
+        assertEquals(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().get().getPeriodicPublishMetricsIntervalSec());
         assertTrue(telemetryAgent.getPeriodicPublishMetricsFuture().isCancelled());
         assertTrue(telemetryAgent.getPeriodicAggregateMetricsFuture().isCancelled());
     }
@@ -190,12 +187,19 @@ class TelemetryAgentTest extends GGServiceTestUtil {
                 .thenReturn(3);
         telemetryAgent.postInject();
         long milliSeconds = 4000;
-        telemetryAgent.getCurrentConfiguration().setPeriodicAggregateMetricsIntervalSec(5);
+        telemetryAgent.getCurrentConfiguration().set(TelemetryConfiguration.builder()
+                .periodicPublishMetricsIntervalSec(3)
+                .periodicAggregateMetricsIntervalSec(5)
+                .build());
+
         telemetryAgent.schedulePeriodicAggregateMetrics(false);
         // aggregation starts at 5th second but we are checking only for 3 seconds
         verify(ma, timeout(milliSeconds).times(0)).aggregateMetrics(anyLong(), anyLong());
         verify(ma, timeout(milliSeconds).atLeastOnce()).getMetricsToPublish(anyLong(), anyLong());
-        telemetryAgent.getCurrentConfiguration().setPeriodicAggregateMetricsIntervalSec(2);
+        telemetryAgent.getCurrentConfiguration().set(TelemetryConfiguration.builder()
+                .periodicPublishMetricsIntervalSec(3)
+                .periodicAggregateMetricsIntervalSec(2)
+                .build());
         telemetryAgent.schedulePeriodicAggregateMetrics(false);
         // aggregation starts at least at the 2nd sec
         verify(ma, timeout(milliSeconds).times(0)).aggregateMetrics(anyLong(), anyLong());
@@ -216,7 +220,11 @@ class TelemetryAgentTest extends GGServiceTestUtil {
             return metricsToPublishMap;
         });
 
-        telemetryAgent.getCurrentConfiguration().setPeriodicPublishMetricsIntervalSec(2);
+        telemetryAgent.getCurrentConfiguration().set(TelemetryConfiguration.builder()
+                .periodicPublishMetricsIntervalSec(2)
+                .periodicAggregateMetricsIntervalSec(1)
+                .build());
+
         telemetryAgent.schedulePeriodicPublishMetrics(false);
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
         telemetryAgent.postInject();

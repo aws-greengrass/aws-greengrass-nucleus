@@ -17,7 +17,6 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.MqttChunkedPayloadPublisher;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.Setter;
 import org.apache.commons.lang3.RandomUtils;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 
@@ -29,6 +28,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
 @ImplementsService(name = TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS, version = "1.0.0", autostart = true)
@@ -71,9 +71,12 @@ public class TelemetryAgent extends GreengrassService {
         }
     };
     private String thingName;
-    @Setter // Needed for integration tests.
+    /**
+     * Configuration for telemetry.
+     */
     @Getter(AccessLevel.PACKAGE) // Needed for unit tests.
-    private final TelemetryConfiguration currentConfiguration = TelemetryConfiguration.builder().build();
+    private final AtomicReference<TelemetryConfiguration> currentConfiguration =
+            new AtomicReference<>(TelemetryConfiguration.builder().build());
 
     /**
      * Constructor for the class.
@@ -107,10 +110,10 @@ public class TelemetryAgent extends GreengrassService {
      * @param periodicPublishMetricsIntervalSec   interval for cadence based telemetry publish.
      * @param periodicAggregateMetricsIntervalSec interval for cadence based telemetry metrics aggregation.
      */
-    public TelemetryAgent(Topics topics, MqttClient mqttClient, DeviceConfiguration deviceConfiguration,
-                          MetricsAggregator ma, SystemMetricsEmitter sme, KernelMetricsEmitter kme,
-                          ScheduledExecutorService ses, int periodicPublishMetricsIntervalSec,
-                          int periodicAggregateMetricsIntervalSec) {
+    TelemetryAgent(Topics topics, MqttClient mqttClient, DeviceConfiguration deviceConfiguration,
+                   MetricsAggregator ma, SystemMetricsEmitter sme, KernelMetricsEmitter kme,
+                   ScheduledExecutorService ses, int periodicPublishMetricsIntervalSec,
+                   int periodicAggregateMetricsIntervalSec) {
         super(topics);
         this.mqttClient = mqttClient;
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
@@ -123,8 +126,10 @@ public class TelemetryAgent extends GreengrassService {
                 TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC, periodicAggregateMetricsIntervalSec).intValue();
         int finalPeriodicPublishMetricsIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
                 TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC, periodicPublishMetricsIntervalSec).intValue();
-        currentConfiguration.setPeriodicAggregateMetricsIntervalSec(finalPeriodicAggregateMetricsIntervalSec);
-        currentConfiguration.setPeriodicPublishMetricsIntervalSec(finalPeriodicPublishMetricsIntervalSec);
+        currentConfiguration.set(TelemetryConfiguration.builder()
+                .periodicAggregateMetricsIntervalSec(finalPeriodicAggregateMetricsIntervalSec)
+                .periodicPublishMetricsIntervalSec(finalPeriodicPublishMetricsIntervalSec)
+                .build());
         periodicMetricsEmitters.add(sme);
         periodicMetricsEmitters.add(kme);
         getPeriodicAggregateTimeTopic();
@@ -147,10 +152,11 @@ public class TelemetryAgent extends GreengrassService {
             cancelJob(emitter.future, periodicAggregateMetricsInProgressLock, false);
         }
         cancelJob(periodicAggregateMetricsFuture, periodicAggregateMetricsInProgressLock, false);
+        TelemetryConfiguration configuration = currentConfiguration.get();
         if (isReconfigured) {
             synchronized (periodicAggregateMetricsInProgressLock) {
                 Instant lastPeriodicAggTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicAggregateTimeTopic()));
-                if (lastPeriodicAggTime.plusSeconds(currentConfiguration.getPeriodicAggregateMetricsIntervalSec())
+                if (lastPeriodicAggTime.plusSeconds(configuration.getPeriodicAggregateMetricsIntervalSec())
                         .isBefore(Instant.now())) {
                     for (PeriodicMetricsEmitter periodicMetricsEmitter : periodicMetricsEmitters) {
                         periodicMetricsEmitter.emitMetrics();
@@ -159,10 +165,7 @@ public class TelemetryAgent extends GreengrassService {
                 }
             }
         }
-        int periodicAggregateMetricsIntervalSec;
-        synchronized (currentConfiguration) {
-            periodicAggregateMetricsIntervalSec = currentConfiguration.getPeriodicAggregateMetricsIntervalSec();
-        }
+        int periodicAggregateMetricsIntervalSec = configuration.getPeriodicAggregateMetricsIntervalSec();
         synchronized (periodicAggregateMetricsInProgressLock) {
             for (PeriodicMetricsEmitter emitter : periodicMetricsEmitters) {
                 // Start emitting metrics with no delay. This is device specific where metrics are stored in files.
@@ -188,19 +191,17 @@ public class TelemetryAgent extends GreengrassService {
         // If we missed to publish the metrics due to connection loss or if the publish interval is reconfigured,
         // cancel the previously scheduled job.
         cancelJob(periodicPublishMetricsFuture, periodicPublishMetricsInProgressLock, false);
+        TelemetryConfiguration configuration = currentConfiguration.get();
         if (isReconfigured) {
             synchronized (periodicPublishMetricsInProgressLock) {
                 Instant lastPeriodicPubTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicPublishTimeTopic()));
-                if (lastPeriodicPubTime.plusSeconds(currentConfiguration.getPeriodicPublishMetricsIntervalSec())
+                if (lastPeriodicPubTime.plusSeconds(configuration.getPeriodicPublishMetricsIntervalSec())
                         .isBefore(Instant.now())) {
                     publishPeriodicMetrics();
                 }
             }
         }
-        int periodicPublishMetricsIntervalSec;
-        synchronized (currentConfiguration) {
-            periodicPublishMetricsIntervalSec = currentConfiguration.getPeriodicPublishMetricsIntervalSec();
-        }
+        int periodicPublishMetricsIntervalSec = configuration.getPeriodicPublishMetricsIntervalSec();
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it, we don't want
         // all the devices to publish metrics at the same time.
         long initialDelay = RandomUtils.nextLong(0, periodicPublishMetricsIntervalSec + 1);
@@ -235,6 +236,7 @@ public class TelemetryAgent extends GreengrassService {
         getPeriodicPublishTimeTopic().withValue(timestamp);
         // TODO: [P41214679] Do not publish if the metrics are empty.
         publisher.publish(MetricsPayload.builder().build(), metricsToPublishMap.get(timestamp));
+        logger.atInfo().event("telemetry-metrics-published").log("Telemetry metrics update published.");
     }
 
     private Topic getPeriodicPublishTimeTopic() {
@@ -269,31 +271,28 @@ public class TelemetryAgent extends GreengrassService {
         configurationTopics.subscribe((why, newv) -> {
             TelemetryConfiguration newTelemetryConfiguration =
                     TelemetryConfiguration.fromPojo(configurationTopics.toPOJO());
+            TelemetryConfiguration configuration = currentConfiguration.get();
+            boolean aggregateMetricsIntervalSecChanged = false;
+            boolean publishMetricsIntervalSecChanged = false;
             if (newTelemetryConfiguration.isEnabled()) {
                 // If the current aggregation interval is different from the new interval, then reschedule
                 // the periodic aggregation task
-                if (currentConfiguration == null || currentConfiguration.getPeriodicAggregateMetricsIntervalSec()
-                        != newTelemetryConfiguration.getPeriodicAggregateMetricsIntervalSec()) {
-                    setPeriodicAggregateMetricsIntervalAndSchedule(newTelemetryConfiguration
-                            .getPeriodicAggregateMetricsIntervalSec());
-                }
+                aggregateMetricsIntervalSecChanged = configuration.getPeriodicAggregateMetricsIntervalSec()
+                        != newTelemetryConfiguration.getPeriodicAggregateMetricsIntervalSec();
                 // If the current publish interval is different from the new interval, then reschedule
                 // the publish aggregation task
-                if (currentConfiguration == null || currentConfiguration.getPeriodicPublishMetricsIntervalSec()
-                        != newTelemetryConfiguration.getPeriodicPublishMetricsIntervalSec()) {
-                    setPeriodicPublishMetricsIntervalAndScheduleTask(newTelemetryConfiguration
-                            .getPeriodicPublishMetricsIntervalSec());
-                }
+                publishMetricsIntervalSecChanged = configuration.getPeriodicPublishMetricsIntervalSec()
+                        != newTelemetryConfiguration.getPeriodicPublishMetricsIntervalSec();
             } else {
                 // If telemetry is not enabled, then cancel the futures.
-                for (PeriodicMetricsEmitter emitter : periodicMetricsEmitters) {
-                    cancelJob(emitter.future, periodicAggregateMetricsInProgressLock, true);
-                }
-                cancelJob(periodicAggregateMetricsFuture, periodicAggregateMetricsInProgressLock, true);
-                cancelJob(periodicPublishMetricsFuture, periodicPublishMetricsInProgressLock, true);
+                cancelAllJobs();
             }
-            synchronized (currentConfiguration) {
-                currentConfiguration.setEnabled(newTelemetryConfiguration.isEnabled());
+            currentConfiguration.set(newTelemetryConfiguration);
+            if (aggregateMetricsIntervalSecChanged) {
+                schedulePeriodicAggregateMetrics(true);
+            }
+            if (publishMetricsIntervalSecChanged) {
+                schedulePeriodicPublishMetrics(true);
             }
         });
         updateThingNameAndPublishTopic(thingName);
@@ -304,16 +303,20 @@ public class TelemetryAgent extends GreengrassService {
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleTestFeatureParametersHandlerChange(Boolean isDefault) {
-        setPeriodicAggregateMetricsIntervalAndSchedule(currentConfiguration.getPeriodicPublishMetricsIntervalSec());
-        setPeriodicPublishMetricsIntervalAndScheduleTask(currentConfiguration.getPeriodicAggregateMetricsIntervalSec());
+        TelemetryConfiguration configuration = currentConfiguration.get();
+        setPeriodicAggregateMetricsIntervalAndSchedule(configuration.getPeriodicPublishMetricsIntervalSec());
+        setPeriodicPublishMetricsIntervalAndScheduleTask(configuration.getPeriodicAggregateMetricsIntervalSec());
     }
 
     private void setPeriodicPublishMetricsIntervalAndScheduleTask(int defaultValue) {
-        synchronized (currentConfiguration) {
-            currentConfiguration.setPeriodicPublishMetricsIntervalSec(TestFeatureParameters
-                    .retrieveWithDefault(Double.class, TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC, defaultValue)
-                    .intValue());
-        }
+        TelemetryConfiguration telemetryConfiguration = currentConfiguration.get();
+        currentConfiguration.set(TelemetryConfiguration.builder()
+                .periodicPublishMetricsIntervalSec(TestFeatureParameters
+                        .retrieveWithDefault(Double.class, TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC, defaultValue)
+                        .intValue())
+                .periodicAggregateMetricsIntervalSec(telemetryConfiguration.getPeriodicAggregateMetricsIntervalSec())
+                .isEnabled(telemetryConfiguration.isEnabled())
+                .build());
         synchronized (periodicPublishMetricsInProgressLock) {
             if (periodicPublishMetricsFuture != null) {
                 schedulePeriodicPublishMetrics(true);
@@ -322,11 +325,14 @@ public class TelemetryAgent extends GreengrassService {
     }
 
     private void setPeriodicAggregateMetricsIntervalAndSchedule(int defaultValue) {
-        synchronized (currentConfiguration) {
-            currentConfiguration.setPeriodicAggregateMetricsIntervalSec(TestFeatureParameters
-                    .retrieveWithDefault(Double.class, TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC, defaultValue)
-                    .intValue());
-        }
+        TelemetryConfiguration telemetryConfiguration = currentConfiguration.get();
+        currentConfiguration.set(TelemetryConfiguration.builder()
+                .periodicAggregateMetricsIntervalSec(TestFeatureParameters
+                        .retrieveWithDefault(Double.class, TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC, defaultValue)
+                        .intValue())
+                .periodicPublishMetricsIntervalSec(telemetryConfiguration.getPeriodicPublishMetricsIntervalSec())
+                .isEnabled(telemetryConfiguration.isEnabled())
+                .build());
 
         synchronized (periodicAggregateMetricsInProgressLock) {
             if (periodicAggregateMetricsFuture != null) {
@@ -337,11 +343,16 @@ public class TelemetryAgent extends GreengrassService {
 
     @Override
     public void shutdown() {
+        cancelAllJobs();
+        TestFeatureParameters.unRegisterHandlerCallback(this.getName());
+    }
+
+    private void cancelAllJobs() {
+        logger.atInfo().log("Cancelling all telemetry scheduled tasks.");
         for (PeriodicMetricsEmitter emitter : periodicMetricsEmitters) {
             cancelJob(emitter.future, periodicAggregateMetricsInProgressLock, true);
         }
         cancelJob(periodicAggregateMetricsFuture, periodicAggregateMetricsInProgressLock, true);
         cancelJob(periodicPublishMetricsFuture, periodicPublishMetricsInProgressLock, true);
-        TestFeatureParameters.unRegisterHandlerCallback(this.getName());
     }
 }
