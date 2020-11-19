@@ -42,6 +42,7 @@ import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.RegionUtils;
+import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -204,9 +205,16 @@ public class BaseE2ETestCase implements AutoCloseable {
         try {
             List<ComponentIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInS3));
             for (ComponentIdentifier component : allComponents) {
-                DeleteComponentResult result = ComponentServiceTestHelper
-                        .deleteComponent(greengrassClient, componentArns.get(component));
-                assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
+                String componentArn = componentArns.get(component);
+                if (Utils.isEmpty(componentArn)) {
+                    logger.atWarn().kv("component-name", component.getName())
+                            .kv("compoenent-version", component.getVersion())
+                            .log("No component arn found to make delete request for cleanup");
+                } else {
+                    DeleteComponentResult result =
+                            ComponentServiceTestHelper.deleteComponent(greengrassClient, componentArn);
+                    assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
+                }
             }
         } finally {
             cleanUpTestComponentArtifactsFromS3();

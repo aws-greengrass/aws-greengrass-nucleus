@@ -35,7 +35,6 @@ public class ComponentServiceTestHelper {
      * @return {@link CreateComponentVersionResult}
      * @throws IOException if file reading fails
      */
-    // TODO: [P41215855]: Make createComponent method non static
     public static CreateComponentVersionResult createComponent(AWSGreengrassV2 cmsClient, Path recipeFilePath)
             throws IOException {
         ByteBuffer recipeBuf = ByteBuffer.wrap(Files.readAllBytes(recipeFilePath));
@@ -56,7 +55,6 @@ public class ComponentServiceTestHelper {
      * @return {@link DeleteComponentResult}
      */
     public static DeleteComponentResult deleteComponent(AWSGreengrassV2 cmsClient, String componentArn) {
-        // TODO : UPDATE_MODEL : use ARN when the PR to handle ARN is checked in
         DeleteComponentRequest deleteComponentVersionRequest =
                 new DeleteComponentRequest().withArn(componentArn);
         logger.atDebug("delete-component").kv("request", deleteComponentVersionRequest).log();
