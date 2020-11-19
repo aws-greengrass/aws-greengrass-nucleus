@@ -66,6 +66,8 @@ class KernelUpdateDeploymentTaskTest {
     @Mock
     GreengrassService greengrassService;
     @Mock
+    GreengrassService mainService;
+    @Mock
     ComponentManager componentManager;
 
     KernelUpdateDeploymentTask task;
@@ -76,6 +78,8 @@ class KernelUpdateDeploymentTaskTest {
         lenient().doReturn(deploymentDirectoryManager).when(context).get(DeploymentDirectoryManager.class);
         lenient().doReturn(context).when(kernel).getContext();
         lenient().doReturn("A").when(greengrassService).getName();
+        lenient().doReturn(mainService).when(kernel).getMain();
+        lenient().doReturn(true).when(greengrassService).shouldAutoStart();
         lenient().doReturn(Arrays.asList(greengrassService)).when(kernel).orderedDependencies();
         lenient().doNothing().when(componentManager).cleanupStaleVersions();
 
