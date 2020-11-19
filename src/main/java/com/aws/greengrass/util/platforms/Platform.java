@@ -60,7 +60,7 @@ public abstract class Platform implements UserPlatform {
             INSTANCE = new UnixPlatform();
         }
 
-        logger.atInfo().log("Getting platform instance {}.", INSTANCE.getClass().getCanonicalName());
+        logger.atInfo().log("Getting platform instance {}.", INSTANCE.getClass().getName());
 
         return INSTANCE;
     }
