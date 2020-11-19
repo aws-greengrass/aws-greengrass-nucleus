@@ -334,11 +334,9 @@ public class ComponentStore {
     }
 
     private File[] getAllRecipeFiles() {
-        // Ideally we want to identify recipes by a suffix like *.recipe.yaml or *.recipe.json
-        // TODO review note: Should we consider a separate folder so that we don't have to worry about this?
+        // TODO Identify recipes by *.recipe.yaml or *.recipe.json
         return Arrays.stream(nucleusPaths.recipePath().toFile().listFiles())
-                .filter(file -> file.getName().endsWith(".yaml")).filter(file -> file.getName().endsWith(".json"))
-                .filter(file -> !file.getName().endsWith("metadata.json"))  // exclude metadata files
+                .filter(file -> file.getName().endsWith(".yaml"))
                 .toArray(File[]::new);
     }
 

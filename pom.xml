@@ -99,6 +99,7 @@
             <version>0.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
+            <!-- TODO: Change this dependency to the AWS SDK public maven repo once the V2 SDK is published there -->
             <groupId>com.amazonaws.services</groupId>
             <artifactId>evergreen</artifactId>
             <version>1.0.0-FINALCP-SNAPSHOT</version>

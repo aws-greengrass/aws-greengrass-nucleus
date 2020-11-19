@@ -221,8 +221,6 @@ class ComponentManagerTest {
 
         assertThat(future.isDone(), is(true));
 
-        verify(componentStore).findPackageRecipe(pkgId);
-        verify(componentStore).savePackageRecipe(pkgId, sourceRecipeString);
         verify(componentStore).getPackageRecipe(pkgId);
         verifyNoMoreInteractions(componentStore);
 
