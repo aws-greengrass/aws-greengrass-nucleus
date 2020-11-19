@@ -243,7 +243,10 @@ public class DeploymentService extends GreengrassService {
     @Override
     protected void shutdown() {
         receivedShutdown.set(true);
-        context.get(IotJobsHelper.class).unsubscribeFromIotJobsTopics();
+        IotJobsHelper iotJobsHelper = context.get(IotJobsHelper.class);
+        if (iotJobsHelper != null) {
+            iotJobsHelper.unsubscribeFromIotJobsTopics();
+        }
     }
 
     @SuppressWarnings("PMD.NullAssignment")

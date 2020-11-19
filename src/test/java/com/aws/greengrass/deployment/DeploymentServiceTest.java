@@ -118,6 +118,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     private DeploymentDirectoryManager deploymentDirectoryManager;
     @Mock
     private DeviceConfiguration deviceConfiguration;
+    @Mock
+    private IotJobsHelper iotJobsHelper;
 
     private Thread deploymentServiceThread;
 
@@ -134,6 +136,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         lenient().when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
         Topic pollingFrequency = Topic.of(context, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 1L);
         when(deviceConfiguration.getDeploymentPollingFrequencySeconds()).thenReturn(pollingFrequency);
+        when(context.get(IotJobsHelper.class)).thenReturn(iotJobsHelper);
         // Creating the class to be tested
         deploymentService = new DeploymentService(config, mockExecutorService, dependencyResolver, componentManager,
                 kernelConfigResolver, deploymentConfigMerger, deploymentStatusKeeper, deploymentDirectoryManager,
@@ -149,6 +152,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @AfterEach
     void afterEach() {
         deploymentService.shutdown();
+        verify(iotJobsHelper).unsubscribeFromIotJobsTopics();
         if (deploymentServiceThread != null && deploymentServiceThread.isAlive()) {
             deploymentServiceThread.interrupt();
         }
@@ -208,8 +212,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             assertThat("Expected package version not found",
                     ((Map<String, String>) groupToRootPackages.get(EXPECTED_ROOT_PACKAGE_NAME))
                             .get("version").equals("1.0.0"));
-
-            deploymentService.shutdown();
         }
 
         @Test
@@ -380,8 +382,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
-
-            deploymentService.shutdown();
         }
 
 
@@ -400,7 +400,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), statusDetails.capture());
             assertEquals("java.io.IOException: mock error", statusDetails.getValue().get("error"));
-            deploymentService.shutdown();
         }
 
         @Test
@@ -417,7 +416,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
-            deploymentService.shutdown();
         }
 
         @Test
@@ -434,7 +432,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                     any());
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
-            deploymentService.shutdown();
         }
 
         @Test
@@ -452,7 +449,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                     any());
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
-            deploymentService.shutdown();
         }
 
         @Test
@@ -486,7 +482,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             jobSucceededLatch.await(10, TimeUnit.SECONDS);
             statusOrdering.verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
-            deploymentService.shutdown();
         }
 
         @Test
@@ -505,8 +500,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
             verify(mockSafeUpdateService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_CONFIGURATION_ARN);
             verify(mockFuture, WAIT_FOUR_SECONDS).cancel(true);
-
-            deploymentService.shutdown();
         }
 
         @Test
@@ -525,7 +518,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             verify(mockFuture, times(0)).cancel(true);
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
-            deploymentService.shutdown();
         }
 
         @Test
@@ -557,7 +549,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             verify(mockFuture, times(0)).cancel(true);
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
-            deploymentService.shutdown();
         }
     }
 
