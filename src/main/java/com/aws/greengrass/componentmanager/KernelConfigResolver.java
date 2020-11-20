@@ -60,7 +60,6 @@ public class KernelConfigResolver {
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PREV_VERSION_CONFIG_KEY = "previousVersion";
 
-    // TODO: [P41216177]: Deprecate parameters in favor of configuration
     public static final String CONFIGURATION_CONFIG_KEY = "configuration";
 
     static final String ARTIFACTS_NAMESPACE = "artifacts";
