@@ -172,7 +172,8 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected static final S3Client s3Client = S3Client.builder().region(GAMMA_REGION).build();
 
     private static final ComponentIdentifier[] componentsWithArtifactsInS3 =
-            {createPackageIdentifier("CustomerApp", new Semver("1.0.0")),
+            {createPackageIdentifier("AppWithS3Artifacts", new Semver("1.0.0")),
+            createPackageIdentifier("CustomerApp", new Semver("1.0.0")),
             createPackageIdentifier("CustomerApp", new Semver("0.9.0")),
             createPackageIdentifier("CustomerApp", new Semver("0.9.1")),
             createPackageIdentifier("SomeService", new Semver("1.0.0")),
@@ -182,6 +183,7 @@ public class BaseE2ETestCase implements AutoCloseable {
             createPackageIdentifier("YellowSignal", new Semver("1.0.0")),
             createPackageIdentifier("Mosquitto", new Semver("1.0.0")),
             createPackageIdentifier("Mosquitto", new Semver("0.9.0")),
+            createPackageIdentifier("KernelIntegTest", new Semver("1.0.0")),
             createPackageIdentifier("KernelIntegTestDependency", new Semver("1.0.0")),
             createPackageIdentifier("Log", new Semver("2.0.0")),
             createPackageIdentifier("NonDisruptableService", new Semver("1.0.0")),
