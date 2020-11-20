@@ -6,6 +6,7 @@
 package com.aws.greengrass.deployment.activator;
 
 import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -62,6 +63,10 @@ class KernelUpdateActivatorTest {
     Deployment deployment;
     @Mock
     Map<String, Object> newConfig;
+    @Mock
+    ConfigurationWriter tlog;
+    @Mock
+    KernelLifecycle lifecycle;
 
     KernelUpdateActivator kernelUpdateActivator;
 
@@ -75,7 +80,8 @@ class KernelUpdateActivatorTest {
         kernelUpdateActivator = new KernelUpdateActivator(kernel, bootstrapManager);
         lenient().doReturn(DeploymentDocument.builder().timestamp(0L).deploymentId("testId").build())
                 .when(deployment).getDeploymentDocumentObj();
-        lenient().doReturn(mock(KernelLifecycle.class)).when(context).get(eq(KernelLifecycle.class));
+        lenient().doReturn(tlog).when(lifecycle).getTlog();
+        lenient().doReturn(lifecycle).when(context).get(eq(KernelLifecycle.class));
     }
 
     @Test

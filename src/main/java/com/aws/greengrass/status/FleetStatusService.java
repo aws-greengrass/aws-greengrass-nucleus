@@ -57,7 +57,7 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCA
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.SHADOW;
 import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
 
-@ImplementsService(name = FleetStatusService.FLEET_STATUS_SERVICE_TOPICS, autostart = true, version = "1.0.0")
+@ImplementsService(name = FleetStatusService.FLEET_STATUS_SERVICE_TOPICS, autostart = true)
 public class FleetStatusService extends GreengrassService {
     public static final String FLEET_STATUS_SERVICE_TOPICS = "FleetStatusService";
     public static final String DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC =
