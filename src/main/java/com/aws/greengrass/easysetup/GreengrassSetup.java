@@ -189,8 +189,8 @@ public class GreengrassSetup {
     private boolean setupSystemService = SETUP_SYSTEM_SERVICE_ARG_DEFAULT;
     private boolean kernelStart = KERNEL_START_ARG_DEFAULT;
     private boolean deployDevTools = DEPLOY_DEV_TOOLS_ARG_DEFAULT;
-    private final Platform platform;
-    private final Kernel kernel;
+    private Platform platform;
+    private Kernel kernel;
 
     /**
      * Constructor to create an instance using CLI args.
@@ -203,8 +203,6 @@ public class GreengrassSetup {
         this.setupArgs = setupArgs;
         this.outStream = outStream;
         this.errStream = errStream;
-        this.platform = Platform.getInstance();
-        this.kernel = new Kernel();
     }
 
     /**
@@ -260,6 +258,9 @@ public class GreengrassSetup {
             return;
         }
 
+        if (kernel == null) {
+            kernel = new Kernel();
+        }
         kernel.parseArgs(kernelArgs.toArray(new String[]{}));
 
         DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
@@ -429,6 +430,9 @@ public class GreengrassSetup {
             return;
         }
         try {
+            if (platform == null) {
+                platform = Platform.getInstance();
+            }
             // If not super user we cannot create anything
             if (!platform.lookupCurrentUser().isSuperUser()) {
                 return;
