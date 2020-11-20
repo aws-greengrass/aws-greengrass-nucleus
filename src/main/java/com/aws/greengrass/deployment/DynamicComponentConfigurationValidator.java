@@ -238,7 +238,5 @@ public class DynamicComponentConfigurationValidator {
         private final String componentName;
         private final Map<String, Object> configuration;
         private final CompletableFuture<ConfigurationValidityReport> response = new CompletableFuture<>();
-        private final CompletableFuture<com.aws.greengrass.ipc.services.configstore.ConfigurationValidityReport>
-                oldResponse = new CompletableFuture<>();
     }
 }

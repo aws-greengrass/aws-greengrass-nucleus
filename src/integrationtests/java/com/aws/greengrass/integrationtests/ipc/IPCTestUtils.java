@@ -9,8 +9,8 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.ipc.IPCEventStreamService;
-import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -20,6 +20,7 @@ import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
+import software.amazon.awssdk.aws.greengrass.model.DeploymentStatus;
 import software.amazon.awssdk.aws.greengrass.model.PublishMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicRequest;
@@ -32,6 +33,7 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
 import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
+import java.io.IOException;
 import java.util.Optional;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
@@ -59,10 +61,11 @@ public final class IPCTestUtils {
 
     }
 
-    public static Kernel prepareKernelFromConfigFile(String configFile, Class testClass, String... serviceNames) throws InterruptedException {
+    public static Kernel prepareKernelFromConfigFile(String configFile, Class testClass, String... serviceNames)
+            throws InterruptedException, IOException {
         Kernel kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
-        kernel.parseArgs("-i", testClass.getResource(configFile).toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, testClass.getResource(configFile));
         // ensure awaitIpcServiceLatch starts
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(serviceNames.length);
         GlobalStateChangeListener listener = getListenerForServiceRunning(awaitIpcServiceLatch, serviceNames);

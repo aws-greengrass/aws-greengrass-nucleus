@@ -15,8 +15,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Class to represent a single package along with its dependencies that comes in the deployment configuration.
@@ -41,10 +39,6 @@ public class DeploymentPackageConfiguration {
     @JsonProperty("ResolvedVersion")
     private String resolvedVersion;
 
-    @Deprecated
-    @JsonProperty("Configuration")
-    private Map<String, Object> configuration = new HashMap<>();
-
     @JsonProperty("ConfigurationUpdate")
     private ConfigurationUpdateOperation configurationUpdateOperation;
 
@@ -52,19 +46,16 @@ public class DeploymentPackageConfiguration {
     private RunWith runWith;
 
     /**
-     * Constructor for no update configuration update for backward compatibility.
+     * Constructor for no update configuration update. Used for testing
      *
      * @param packageName     name of package
      * @param rootComponent   if it is root
      * @param resolvedVersion resolved version
-     * @param configuration   configuration
      */
-    public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,
-            Map<String, Object> configuration) {
+    public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion) {
         this.packageName = packageName;
         this.rootComponent = rootComponent;
         this.resolvedVersion = resolvedVersion;
-        this.configuration = configuration;
     }
 
     /**

@@ -7,6 +7,7 @@ package com.aws.greengrass.integrationtests.ipc;
 
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -85,7 +86,8 @@ public class IPCMqttProxyTest {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
 
         kernel = new Kernel();
-        kernel.parseArgs("-i", IPCMqttProxyTest.class.getResource("mqttproxy.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                IPCMqttProxyTest.class.getResource("mqttproxy.yaml"));
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals(TEST_SERVICE_NAME) && newState.equals(State.FINISHED)) {

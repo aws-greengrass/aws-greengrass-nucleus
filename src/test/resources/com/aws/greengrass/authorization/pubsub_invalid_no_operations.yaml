@@ -13,11 +13,6 @@ services:
     resources:
       - http-resource
     lifecycle:
-      run:
-        windows:
-          powershell -command sleep 100
-        posix:
-          sleep 100
     parameters:
       accessControl:
         aws.greengrass.ipc.pubsub:

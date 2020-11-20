@@ -11,11 +11,13 @@ import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentTask;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
@@ -50,7 +52,9 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
         Deployment.DeploymentStage stage = deployment.getDeploymentStage();
         KernelAlternatives kernelAlts = kernel.getContext().get(KernelAlternatives.class);
         try {
-            DeploymentConfigMerger.waitForServicesToStart(kernel.orderedDependencies(),
+            DeploymentConfigMerger.waitForServicesToStart(
+                    kernel.orderedDependencies().stream().filter(GreengrassService::shouldAutoStart)
+                            .filter(o -> !kernel.getMain().equals(o)).collect(Collectors.toList()),
                     kernel.getConfig().lookup("system", "rootpath").getModtime());
 
             DeploymentResult result = null;

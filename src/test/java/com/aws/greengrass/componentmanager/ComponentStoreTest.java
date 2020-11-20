@@ -38,6 +38,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsIterableWithSize.iterableWithSize;
 import static org.hamcrest.core.Is.is;
@@ -214,8 +215,10 @@ class ComponentStoreTest {
 
         // WHEN
         // THEN
-        assertThrows(PackageLoadingException.class,
-                () -> componentStore.findPackageRecipe(new ComponentIdentifier("InvalidRecipe", new Semver("1.0.0"))));
+        PackageLoadingException pe = assertThrows(PackageLoadingException.class,
+                () -> componentStore.findPackageRecipe(
+                        new ComponentIdentifier("InvalidRecipe", new Semver("1.0.0"))));
+        assertThat(pe.getMessage(), containsString("Failed to parse recipe file content to contract model"));
     }
 
     @Test

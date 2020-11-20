@@ -3,54 +3,32 @@ services:
   jdk11:
     Lifecycle:
       install:
-        debian:
-          script: |-
-            sudo curl --silent https://d3pxv6yz143wms.cloudfront.net/11.0.4.11.1/java-11-amazon-corretto-jdk_11.0.4.11-1_amd64.deb > /tmp/corettojdk11.deb 2>/dev/null
-            sudo dpkg --install /tmp/corettojdk11.deb 2>/dev/null
-        macos:
-          script: |-
-            brew tap homebrew/cask-versions
-            brew cask install corretto
+        script: |-
+          echo "install jdk11"
     Dependencies:
-      macos:
-        - homebrew
+      - homebrew
   git:
     Lifecycle:
       install:
-        debian:
-          skipif: onpath git
-          script: sudo apt-get install git
-        macos:
-          skipif: onpath git
-          script: brew install git
+        skipif: onpath git
+        script: echo "install git"
     Dependencies:
-      macos:
-        - homebrew
+      - homebrew
   homebrew:
     Lifecycle:
       install:
-        macos:
-          skipif: onpath brew
-          script: /usr/bin/ruby -e "$(curl --silent -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+        skipif: onpath brew
+        script: echo "install brew"
 
   docker:
     bashtimeout: 300
     Lifecycle:
-      startup:
-        macos: open /Applications/Docker.app
+      startup: echo "start docker"
       install:
         skipif: onpath docker
-        debian: |-
-          curl --silent -sSL https://get.docker.com/ | sh
-        fedora: sudo dnf install docker
-        macos:
-          skipif: exists /Applications/Docker.app
-          script: |-
-            find $(brew --cache)/downloads/ -name *Docker.dmg.incomplete | xargs rm -f
-            brew cask install docker
+        script: echo "install docker"
     Dependencies:
-      macos:
-        - homebrew
+      - homebrew
   plain:
     Lifecycle:
       run:
@@ -62,10 +40,7 @@ services:
 
   greenlake:
     Lifecycle:
-      install:
-        debian: |-
-          sudo add-apt-repository https://aws.amazon.com/iot/apt
-          sudo apt-get install greenlake
+      install: echo "install greenlake"
     throttleBandwidth: 100 kb/s
   hello-docker:
     Dependencies:
@@ -81,10 +56,7 @@ services:
       shutdown: (docker stop nginx; docker rm nginx; exit 0)2>&1
   monitoring:
     Lifecycle:
-      install:
-        debian: |-
-          sudo add-apt-repository https://aws.amazon.com/iot/apt
-          sudo apt-get install monitoring
+      install: echo "install monibering"
     Dependencies:
       - greenlake
 
@@ -99,8 +71,7 @@ services:
     ANSWER: 42
   main:
     Lifecycle:
-      install:
-        all: echo All installed
+      install: echo All installed
       run: |-
         echo $PATH
         pwd
@@ -111,16 +82,11 @@ services:
       download:
         hw.jar: http://foo/hw.jar
     Dependencies:
-      macos:
-        - jdk11
-        - git
-        - hello-docker
-        - hello-docker-nginx
-        - ticktock
-      linux:
-        - jdk11
-        - git
-        - ticktock # Remove docker dependency for github code check run due to docker install failure.
+      - jdk11
+      - git
+      - hello-docker
+      - hello-docker-nginx
+      - ticktock
     xyzzy: localhttp, broken
     setenv:
       JUSTME: fancy a spot of tea?
