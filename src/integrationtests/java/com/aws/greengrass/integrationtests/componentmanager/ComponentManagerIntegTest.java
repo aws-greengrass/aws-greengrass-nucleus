@@ -6,7 +6,6 @@
 package com.aws.greengrass.integrationtests.componentmanager;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
-import com.aws.greengrass.componentmanager.ComponentServiceHelper;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -28,6 +27,7 @@ import org.mockito.stubbing.Answer;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
@@ -65,6 +65,7 @@ class ComponentManagerIntegTest extends BaseITCase {
         nucleusPaths.setComponentStorePath(tempRootDir);
         ComponentStore store = new ComponentStore(nucleusPaths, platformResolver, recipeLoader);
         kernel.getContext().put(ComponentStore.class, store);
+
         ArtifactDownloader mockDownloader = mock(ArtifactDownloader.class);
         File artifactFile = store.resolveArtifactDirectoryPath(ident).resolve("zip.zip").toFile();
         when(mockDownloader.downloadRequired()).thenReturn(true);
@@ -76,9 +77,8 @@ class ComponentManagerIntegTest extends BaseITCase {
 
         kernel.getContext().put(ArtifactDownloaderFactory.class, mockDownloaderFactory);
 
-        ComponentServiceHelper mockServiceHelper = mock(ComponentServiceHelper.class);
-
-        kernel.getContext().put(ComponentServiceHelper.class, mockServiceHelper);
+        Files.copy(Paths.get(this.getClass().getResource("zip.yaml").toURI()),
+                nucleusPaths.recipePath().resolve("A-1.0.0.yaml"));
 
         // THEN
         kernel.getContext().get(ComponentManager.class).preparePackages(Collections.singletonList(ident))
@@ -114,7 +114,6 @@ class ComponentManagerIntegTest extends BaseITCase {
         nucleusPaths.setComponentStorePath(tempRootDir);
         ComponentStore store = new ComponentStore(nucleusPaths, platformResolver, recipeLoader);
         kernel.getContext().put(ComponentStore.class, store);
-
         File scriptFile = store.resolveArtifactDirectoryPath(ident).resolve("script.sh").toFile();
         File emptyFile = store.resolveArtifactDirectoryPath(ident).resolve("empty.txt").toFile();
         ArtifactDownloader mockDownloader = mock(ArtifactDownloader.class);
@@ -128,9 +127,8 @@ class ComponentManagerIntegTest extends BaseITCase {
         when(mockDownloaderFactory.getArtifactDownloader(any(), any(), any())).thenReturn(mockDownloader);
         kernel.getContext().put(ArtifactDownloaderFactory.class, mockDownloaderFactory);
 
-        ComponentServiceHelper mockServiceHelper = mock(ComponentServiceHelper.class);
-
-        kernel.getContext().put(ComponentServiceHelper.class, mockServiceHelper);
+        Files.copy(Paths.get(this.getClass().getResource("perms.yaml").toURI()),
+                nucleusPaths.recipePath().resolve("A-1.0.0.yaml"));
 
         // THEN
         kernel.getContext().get(ComponentManager.class).preparePackages(Collections.singletonList(ident))
