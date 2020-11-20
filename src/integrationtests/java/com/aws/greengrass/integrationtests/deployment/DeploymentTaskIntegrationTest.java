@@ -129,7 +129,6 @@ class DeploymentTaskIntegrationTest {
     private static final String MOCK_GROUP_NAME = "thinggroup/group1";
 
     // Based on the recipe files of the packages in sample job document
-    private static final String TEST_CUSTOMER_APP_STRING_UPDATED = "Hello Greengrass. This is a new value";
     private static final String TEST_MOSQUITTO_STRING = "Hello this is mosquitto getting started";
     private static final String TEST_TICK_TOCK_STRING = "Go ahead with 2 approvals";
 
@@ -724,40 +723,6 @@ class DeploymentTaskIntegrationTest {
             assertTrue(stdouts.get(0).contains(
                     "I'm GreenSignal's artifact decompressed path: " + rootDir.resolve("packages").resolve(ComponentStore.ARTIFACTS_DECOMPRESSED_DIRECTORY).resolve(otherComponentName)
                             .resolve(otherComponentVer).toAbsolutePath().toString()));
-        } finally {
-            Slf4jLogAdapter.removeGlobalListener(listener);
-        }
-    }
-
-    @Test
-    @Order(4)
-    @Deprecated
-    void GIVEN_services_running_WHEN_updated_params_THEN_services_start_with_updated_params_in_kernel()
-            throws Exception {
-        outputMessagesToTimestamp.clear();
-        countDownLatch = new CountDownLatch(1);
-        Consumer<GreengrassLogMessage> listener = m -> {
-            Map<String, String> contexts = m.getContexts();
-            String messageOnStdout = contexts.get("stdout");
-            if (messageOnStdout == null) {
-                return;
-            }
-            // Windows has quotes in the echo, so strip them
-            messageOnStdout = messageOnStdout.replaceAll("\"", "");
-            if (messageOnStdout.equals(TEST_CUSTOMER_APP_STRING_UPDATED)) {
-                outputMessagesToTimestamp.put(messageOnStdout, m.getTimestamp());
-                countDownLatch.countDown();
-            }
-        };
-        Slf4jLogAdapter.addGlobalListener(listener);
-        try {
-            groupToRootComponentsTopics.lookupTopics("CustomerApp").replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
-
-            Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI(), System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
-            countDownLatch.await(10, TimeUnit.SECONDS);
-            assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
         } finally {
             Slf4jLogAdapter.removeGlobalListener(listener);
         }
