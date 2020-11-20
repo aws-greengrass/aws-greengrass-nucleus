@@ -57,7 +57,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
@@ -126,7 +126,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                 }});
                 put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig(kernel));
                 put("OldService", new HashMap<String, Object>() {{
-                    put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                         put("ConfigKey1", "ConfigValue1");
                     }});
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
@@ -213,7 +213,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                 put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                     put("main", kernel.getMain().getServiceConfig().toPOJO());
                     put("OldService", new HashMap<String, Object>() {{
-                        put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                             put("ConfigKey1", "ConfigValue2");
                         }});
                         put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
@@ -296,7 +296,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                 put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                     put("main", kernel.getMain().getServiceConfig().toPOJO());
                     put("OldService", new HashMap<String, Object>() {{
-                        put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                             put("ConfigKey1", "ConfigValue2");
                         }});
                         put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
