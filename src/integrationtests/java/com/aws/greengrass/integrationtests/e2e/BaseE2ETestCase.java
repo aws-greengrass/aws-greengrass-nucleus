@@ -41,7 +41,6 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.NucleusPaths;
-import com.aws.greengrass.util.RegionUtils;
 import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
@@ -163,10 +162,8 @@ public class BaseE2ETestCase implements AutoCloseable {
     };
 
     protected static final AWSGreengrassV2 greengrassClient = AWSGreengrassV2ClientBuilder.standard()
-                                                                             .withEndpointConfiguration(
-                                                                                     new AwsClientBuilder.EndpointConfiguration(
-                                                                                             RegionUtils.getGreengrassControlPlaneEndpoint(GAMMA_REGION.toString(), envStage),
-                                                                                             GAMMA_REGION.toString()))
+            .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
+                    "https://oaqfz9s9ik.execute-api.us-east-1.amazonaws.com/katkov-beta2", GAMMA_REGION.toString()))
                                                                              .build();
     protected static final IamClient iamClient = IamSdkClientFactory.getIamClient(GAMMA_REGION.toString());
     protected static final S3Client s3Client = S3Client.builder().region(GAMMA_REGION).build();
