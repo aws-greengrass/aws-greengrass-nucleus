@@ -139,52 +139,32 @@ public final class DeploymentDocumentConverter {
             // GG_NEEDS_REVIEW: TODO This will be removed along with the function when migrating to
             // new createDeployment API
             ConfigurationUpdateOperation configurationUpdateOperation = new ConfigurationUpdateOperation();
-            boolean isConfigUpdate = false;
+
 
             Map<String, Object> configuration = pkgInfo.getConfiguration();
             if (configuration.containsKey(ConfigurationUpdateOperation.MERGE_KEY)) {
-                isConfigUpdate = true;
-
-
                 Object mergeVal = configuration.get(ConfigurationUpdateOperation.MERGE_KEY);
                 if (mergeVal instanceof Map) {
                     configurationUpdateOperation.setValueToMerge((Map) mergeVal);
                 }
             }
             if (configuration.containsKey(ConfigurationUpdateOperation.RESET_KEY)) {
-                isConfigUpdate = true;
-
                 Object resetPaths = configuration.get(ConfigurationUpdateOperation.RESET_KEY);
                 if (resetPaths instanceof List) {
                     configurationUpdateOperation.setPathsToReset((List<String>) resetPaths);
                 }
             }
 
-            deploymentDocument.getDeploymentPackageConfigurationList()
-                    .add(isConfigUpdate ? new DeploymentPackageConfiguration(pkgName, pkgInfo.isRootComponent(),
-                                                                             pkgInfo.getVersion(),
-                                                                             configurationUpdateOperation)
-                                 : new DeploymentPackageConfiguration(pkgName, pkgInfo.isRootComponent(),
-                                                                      pkgInfo.getVersion(),
-                                                                      pkgInfo.getConfiguration()));
+            deploymentDocument.getDeploymentPackageConfigurationList().add(
+                    new DeploymentPackageConfiguration(pkgName, pkgInfo.isRootComponent(),
+                            pkgInfo.getVersion(), configurationUpdateOperation));
         }
         return deploymentDocument;
     }
 
     private static List<DeploymentPackageConfiguration> buildDeploymentPackageConfigurations(
             LocalOverrideRequest localOverrideRequest, Map<String, String> newRootComponents) {
-        Map<String, DeploymentPackageConfiguration> packageConfigurations;
-
-        // convert Deployment Config from getComponentNameToConfig, which doesn't include root components necessarily
-        if (localOverrideRequest.getComponentNameToConfig() == null || localOverrideRequest.getComponentNameToConfig()
-                .isEmpty()) {
-            packageConfigurations = new HashMap<>();
-        } else {
-            packageConfigurations = localOverrideRequest.getComponentNameToConfig().entrySet().stream().collect(
-                    Collectors.toMap(Map.Entry::getKey,
-                                     entry -> new DeploymentPackageConfiguration(entry.getKey(), false, ANY_VERSION,
-                                                                                 entry.getValue())));
-        }
+        Map<String, DeploymentPackageConfiguration> packageConfigurations = new HashMap<>();
 
         if (localOverrideRequest.getConfigurationUpdate() != null) {
             localOverrideRequest.getConfigurationUpdate().forEach((componentName, configUpdate) -> {

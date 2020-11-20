@@ -6,7 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 public final class KernelVersion {
-    public static final String KERNEL_VERSION = "1.0.0";
+    public static final String KERNEL_VERSION = "2.0.0";
 
     private KernelVersion() {
     }
