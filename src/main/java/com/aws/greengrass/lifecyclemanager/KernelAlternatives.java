@@ -212,7 +212,7 @@ public class KernelAlternatives {
     public void activationSucceeds() throws IOException {
         Path launchDirToCleanUp = Files.readSymbolicLink(oldDir);
         Files.delete(oldDir);
-        Utils.deleteFileRecursively(launchDirToCleanUp.toFile());
+        cleanupLaunchDirectorySingleLevel(launchDirToCleanUp.toFile());
     }
 
     /**
@@ -240,7 +240,7 @@ public class KernelAlternatives {
         if (!Files.exists(brokenDir)) {
             return;
         }
-        Utils.deleteFileRecursively(Files.readSymbolicLink(brokenDir).toFile());
+        cleanupLaunchDirectorySingleLevel(Files.readSymbolicLink(brokenDir).toFile());
         Files.delete(brokenDir);
     }
 
@@ -256,10 +256,11 @@ public class KernelAlternatives {
         Path existingLaunchDir = Files.readSymbolicLink(currentDir).toAbsolutePath();
         copyFolderRecursively(existingLaunchDir, newLaunchDir, REPLACE_EXISTING, NOFOLLOW_LINKS, COPY_ATTRIBUTES);
 
-        cleanupLaunchDirectories();
+        cleanupLaunchDirectoryLinks();
         setupLinkToDirectory(newDir, newLaunchDir);
         setupLinkToDirectory(oldDir, existingLaunchDir);
         Files.delete(currentDir);
+
         setupLinkToDirectory(currentDir, newLaunchDir);
         Files.delete(newDir);
         logger.atInfo().log("Finish setup of launch directory for new Kernel");
@@ -277,18 +278,28 @@ public class KernelAlternatives {
         Files.createSymbolicLink(link, directory);
     }
 
-    private void cleanupLaunchDirectories() {
-        cleanupLaunchDirectory(brokenDir);
-        cleanupLaunchDirectory(oldDir);
-        cleanupLaunchDirectory(newDir);
+    private void cleanupLaunchDirectoryLinks() {
+        cleanupLaunchDirectoryLink(brokenDir);
+        cleanupLaunchDirectoryLink(oldDir);
+        cleanupLaunchDirectoryLink(newDir);
     }
 
-    private void cleanupLaunchDirectory(Path directory) {
+    private void cleanupLaunchDirectoryLink(Path link) {
         try {
-            Files.deleteIfExists(directory);
+            Files.deleteIfExists(link);
         } catch (IOException e) {
-            logger.atWarn().kv("directory", directory).log(
-                    "Failed to clean up launch directory from previous deployments", e);
+            logger.atWarn().kv("link", link).log(
+                    "Failed to clean up launch directory link from previous deployments", e);
         }
+    }
+
+    private void cleanupLaunchDirectorySingleLevel(File filePath) throws IOException {
+        File[] files = filePath.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                Files.deleteIfExists(file.toPath());
+            }
+        }
+        Files.deleteIfExists(filePath.toPath());
     }
 }

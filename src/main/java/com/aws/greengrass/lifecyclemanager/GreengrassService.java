@@ -329,7 +329,7 @@ public class GreengrassService implements InjectionActions {
      * @return future completes when the lifecycle thread shuts down.
      */
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    public final CompletableFuture<Void> close() {
+    public CompletableFuture<Void> close() {
         CompletableFuture<Void> closeFuture = new CompletableFuture<>();
 
         context.get(Executor.class).execute(() -> {

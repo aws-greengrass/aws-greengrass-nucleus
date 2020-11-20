@@ -37,7 +37,6 @@ launch_kernel() {
 }
 
 flip_link() {
-  rm -r $(readlink $2) || true
   rm $2 || true
   ln -s $(readlink $1) $2
   rm $1 || true
