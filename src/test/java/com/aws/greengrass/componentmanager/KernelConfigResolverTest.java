@@ -644,6 +644,56 @@ class KernelConfigResolverTest {
     }
 
     @Test
+    void GIVEN_deployment_with_params_not_set_WHEN_previous_deployment_had_params_THEN_use_params_from_previous_deployment()
+            throws Exception {
+        // GIVEN
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2.0"));
+        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
+
+        ComponentRecipe rootComponentRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2.0", Collections.emptyMap(),
+                getSimpleParameterMap(TEST_INPUT_PACKAGE_A), TEST_INPUT_PACKAGE_A);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2");
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
+
+        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
+        when(nucleusPaths.unarchiveArtifactPath(rootComponentIdentifier)).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
+        when(kernel.getMain()).thenReturn(mainService);
+        when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
+        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(alreadyRunningServiceConfig);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(
+                Collections.singletonMap(alreadyRunningService, DependencyType.HARD));
+        when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
+        when(alreadyRunningService.isBuiltin()).thenReturn(true);
+        when(alreadyRunningServiceConfig.findTopics(RUN_WITH_NAMESPACE_TOPIC)).thenReturn(alreadyRunningServiceRunWithConfig);
+        when(alreadyRunningServiceRunWithConfig.toPOJO()).thenReturn(new HashMap<String, Object>() {{
+            put("posixUser", "foo:bar");
+        }});
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths);
+        Map<String, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        // service config
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+        assertThat("Must contain main service", servicesConfig, hasKey("main"));
+        assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
+
+        assertThat(getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig), hasKey(RUN_WITH_NAMESPACE_TOPIC));
+        assertThat((Map<String,
+                        Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig).get(RUN_WITH_NAMESPACE_TOPIC),
+                hasEntry(POSIX_USER_KEY, "foo:bar"));
+    }
+
+    @Test
     void GIVEN_deployment_for_package_WHEN_run_with_not_specified_on_non_root_component_THEN_existing_run_with_used()
             throws Exception {
         // GIVEN

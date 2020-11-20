@@ -25,6 +25,7 @@ import com.aws.greengrass.deployment.model.PackageInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import software.amazon.awssdk.aws.greengrass.model.RunWithInfo;
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.nio.file.Files;
@@ -87,6 +88,14 @@ class DeploymentDocumentConverterTest {
         updateConfig.put(EXISTING_ROOT_COMPONENT,
                          mapper.readValue(existingUpdateConfigString, ConfigurationUpdateOperation.class));
 
+        Map<String, RunWithInfo> componentToRunWithInfo = new HashMap<>();
+        RunWithInfo runWithInfo = new RunWithInfo();
+        runWithInfo.setPosixUser("foo:bar");
+        componentToRunWithInfo.put(NEW_ROOT_COMPONENT, runWithInfo);
+        runWithInfo = new RunWithInfo();
+        runWithInfo.setPosixUser("1234");
+        componentToRunWithInfo.put(DEPENDENCY_COMPONENT, runWithInfo);
+
         // Existing: ROOT_COMPONENT_TO_REMOVE_1-1.0.0, ROOT_COMPONENT_TO_REMOVE_2-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
         // To Remove: ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2
         // To Add: NEW_ROOT_COMPONENT-2.0.0
@@ -96,7 +105,8 @@ class DeploymentDocumentConverterTest {
                 LocalOverrideRequest.builder().requestId(REQUEST_ID).requestTimestamp(REQUEST_TIMESTAMP)
                         .componentsToMerge(ROOT_COMPONENTS_TO_MERGE)
                         .componentsToRemove(Arrays.asList(ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2))
-                        .configurationUpdate(updateConfig).build();
+                        .configurationUpdate(updateConfig)
+                        .componentToRunWithInfo(componentToRunWithInfo).build();
 
         DeploymentDocument deploymentDocument = DeploymentDocumentConverter
                 .convertFromLocalOverrideRequestAndRoot(testRequest, CURRENT_ROOT_COMPONENTS);
@@ -128,6 +138,7 @@ class DeploymentDocumentConverterTest {
 
         assertThat(newRootComponentConfig.getResolvedVersion(), is("2.0.0"));
         assertEquals(newRootComponentConfig.getConfigurationUpdateOperation(), null);
+        assertEquals(newRootComponentConfig.getRunWith().getPosixUser(), "foo:bar");
 
 
         DeploymentPackageConfiguration DependencyComponentConfig =
@@ -137,6 +148,7 @@ class DeploymentDocumentConverterTest {
         assertEquals(DependencyComponentConfig.getConfigurationUpdateOperation(),
                      mapper.readValue(dependencyUpdateConfigString, ConfigurationUpdateOperation.class));
         assertThat(DependencyComponentConfig.getResolvedVersion(), is("*"));
+        assertEquals(DependencyComponentConfig.getRunWith().getPosixUser(), "1234");
     }
 
 
