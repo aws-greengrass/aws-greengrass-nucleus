@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -12,19 +13,26 @@ import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import com.vdurmont.semver4j.Requirement;
+import com.vdurmont.semver4j.Semver;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
@@ -35,9 +43,18 @@ public class DependencyResolver {
     private static final String VERSION_KEY = "version";
     private static final String COMPONENT_NAME_KEY = "componentName";
     private static final String COMPONENT_VERSION_REQUIREMENT_KEY = "componentToVersionRequirements";
+    static final String NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT = "The deployment attempts to update the "
+            + "nucleus from %s-%s to %s-%s but no component of type nucleus was included as target component, please "
+            + "add the desired nucleus version as top level component if you wish to update the nucleus";
 
     @Inject
     private ComponentManager componentManager;
+
+    @Inject
+    private Kernel kernel;
+
+    @Inject
+    private ComponentStore componentStore;
 
     /**
      * Create the full list of components to be run on the device from a deployment document. It also resolves the
@@ -91,12 +108,47 @@ public class DependencyResolver {
                             document.getDeploymentId())));
         }
 
+        checkNonExplicitNucleusUpdate(targetComponentsToResolve,
+                resolvedComponents.entrySet().stream().map(Map.Entry::getValue).collect(Collectors.toList()));
+
         logger.atInfo().setEventType("resolve-group-dependencies-finish").kv("resolvedComponents", resolvedComponents)
                 .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
                 .log("Finish resolving group dependencies");
         return new ArrayList<>(resolvedComponents.values());
     }
 
+    void checkNonExplicitNucleusUpdate(List<String> targetComponents,
+                                     List<ComponentIdentifier> resolvedComponents) throws PackagingException {
+        List<ComponentIdentifier> resolvedNucleusComponents = new ArrayList<>();
+        for (ComponentIdentifier componentIdentifier : resolvedComponents) {
+            if (ComponentType.NUCLEUS.equals(componentStore.getPackageRecipe(componentIdentifier).getComponentType())) {
+                resolvedNucleusComponents.add(componentIdentifier);
+            }
+        }
+        if (resolvedNucleusComponents.size() > 1) {
+            throw new PackagingException(String.format("Deployment cannot have more than 1 component of type Nucleus "
+                    + "%s", Arrays.toString(resolvedNucleusComponents.toArray())));
+        }
+        if (resolvedNucleusComponents.isEmpty()) {
+            return;
+        }
+        Optional<GreengrassService> activeNucleusOption = kernel.orderedDependencies().stream()
+                .filter(s -> ComponentType.NUCLEUS.name().equals(s.getServiceType())).findFirst();
+        if (!activeNucleusOption.isPresent()) {
+            return;
+        }
+        GreengrassService activeNucleus = activeNucleusOption.get();
+        Semver activeNucleusVersion = new Semver(Coerce.toString(activeNucleus.getServiceConfig().find(VERSION_KEY)));
+        ComponentIdentifier activeNucleusId = new ComponentIdentifier(activeNucleus.getServiceName(),
+                activeNucleusVersion);
+        ComponentIdentifier resolvedNucleusId = resolvedNucleusComponents.get(0);
+
+        if (!resolvedNucleusId.equals(activeNucleusId) && !targetComponents.contains(resolvedNucleusId.getName())) {
+            throw new PackagingException(String.format(NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT,
+                    activeNucleusId.getName(), activeNucleusId.getVersion().toString(), resolvedNucleusId.getName(),
+                    resolvedNucleusId.getVersion().toString()));
+        }
+    }
 
     private Set<String> getOtherGroupsTargetComponents(Topics groupToTargetComponentDetails, String deploymentGroupName,
                                                        Map<String, Map<String, Requirement>>

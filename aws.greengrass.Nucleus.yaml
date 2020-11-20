@@ -4,7 +4,7 @@ ComponentName: aws.greengrass.Nucleus
 ComponentType: aws.greengrass.nucleus
 ComponentDescription: Core functionality for device side orchestration of deployments and lifecycle management for execution of Greengrass components and applications.
 ComponentPublisher: AWS
-ComponentVersion: '1.0.0'
+ComponentVersion: '2.0.0'
 ComponentConfiguration:
   DefaultConfiguration:
     jvmOptions: -Xms512m -Xmx512m
