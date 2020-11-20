@@ -107,7 +107,7 @@ public class DeviceProvisioningHelper {
     private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
     private static final String IOT_ROLE_POLICY_NAME_PREFIX = "GreengrassTESCertificatePolicy";
     private static final String GREENGRASS_CLI_COMPONENT_NAME = "aws.greengrass.Cli";
-    private static final String GREENGRASS_CLI_COMPONENT_VERSION = "1.0.0";
+    private static final String GREENGRASS_CLI_COMPONENT_VERSION = "2.0.0";
 
     private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
     private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
