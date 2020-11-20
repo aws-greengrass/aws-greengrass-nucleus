@@ -28,7 +28,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETER
 import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
 
 @SuppressWarnings("PMD.DataClass")
-@ImplementsService(name = TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS, version = "1.0.0")
+@ImplementsService(name = TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS)
 public class TokenExchangeService extends GreengrassService implements AwsCredentialsProvider {
     public static final String PORT_TOPIC = "port";
     public static final String TOKEN_EXCHANGE_SERVICE_TOPICS = "aws.greengrass.TokenExchangeService";
