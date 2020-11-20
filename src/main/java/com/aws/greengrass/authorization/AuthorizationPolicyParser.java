@@ -66,7 +66,8 @@ public final class AuthorizationPolicyParser {
             Topics serviceConfig = (Topics) service;
             String componentName = Kernel.findServiceForNode(serviceConfig);
 
-            Node accessControlMapTopic = serviceConfig.findNode(CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+            Node accessControlMapTopic = serviceConfig
+                    .findNode(CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
             if (accessControlMapTopic == null) {
                 continue;
             }
