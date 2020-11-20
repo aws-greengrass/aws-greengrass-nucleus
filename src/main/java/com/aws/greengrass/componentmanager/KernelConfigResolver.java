@@ -9,7 +9,6 @@ import com.amazon.aws.iot.greengrass.component.common.ComponentConfiguration;
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.componentmanager.models.ComponentParameter;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
@@ -25,28 +24,24 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CrashableFunction;
 import com.aws.greengrass.util.NucleusPaths;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonPointer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
@@ -72,12 +67,6 @@ public class KernelConfigResolver {
     static final String ARTIFACTS_NAMESPACE = "artifacts";
     static final String KERNEL_NAMESPACE = "kernel";
     static final String KERNEL_ROOT_PATH = "rootPath";
-    private static final String WORD_GROUP = "([\\.\\w]+)";
-    // Pattern matches {{otherComponentName:parameterNamespace:parameterKey}}
-    private static final Pattern CROSS_INTERPOLATION_REGEX =
-            Pattern.compile("\\{\\{" + WORD_GROUP + ":" + WORD_GROUP + ":" + WORD_GROUP + "}}");
-    private static final Pattern SAME_INTERPOLATION_REGEX =
-            Pattern.compile("\\{\\{" + WORD_GROUP + ":" + WORD_GROUP + "}}");
 
     // pattern matches {group1:group2}. ex. {configuration:/singleLevelKey}
     // Group 1 could only be word or dot (.). It is for the namespace such as "artifacts" and "configuration".
@@ -100,8 +89,6 @@ public class KernelConfigResolver {
     static final String PARAM_VALUE_SUFFIX = ".value";
     static final String PATH_KEY = "path";
     static final String DECOMPRESSED_PATH_KEY = "decompressedPath";
-
-    private static final String NO_RECIPE_ERROR_FORMAT = "Failed to find component recipe for {}";
 
     // https://tools.ietf.org/html/rfc6901#section-5
     private static final String JSON_POINTER_WHOLE_DOC = "";
@@ -157,15 +144,10 @@ public class KernelConfigResolver {
      */
     public Map<String, Object> resolve(List<ComponentIdentifier> componentsToDeploy, DeploymentDocument document,
             List<String> rootPackages) throws PackageLoadingException, IOException {
-        Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache =
-                new ConcurrentHashMap<>();
         Map<String, Object> servicesConfig = new HashMap<>();
-
         // resolve configuration
         for (ComponentIdentifier componentToDeploy : componentsToDeploy) {
-            servicesConfig.put(componentToDeploy.getName(),
-                               getServiceConfig(componentToDeploy, document, componentsToDeploy,
-                                                parameterAndDependencyCache));
+            servicesConfig.put(componentToDeploy.getName(), getServiceConfig(componentToDeploy, document));
         }
 
         // Interpolate configurations
@@ -195,30 +177,20 @@ public class KernelConfigResolver {
      *
      * @param componentIdentifier         target component id
      * @param document                    deployment doc for the current deployment
-     * @param componentsToDeploy          the entire list of components that would be deployed to the device cross
-     *                                    groups
-     * @param parameterAndDependencyCache cache for processing parameter and dependency
      * @return a built map representing the kernel config under "services" key for a particular component
      * @throws PackageLoadingException if any service package was unable to be loaded
      * @throws IOException             for directory issues
      */
-    private Map<String, Object> getServiceConfig(ComponentIdentifier componentIdentifier, DeploymentDocument document,
-            List<ComponentIdentifier> componentsToDeploy,
-            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)
-            throws PackageLoadingException, IOException {
+    private Map<String, Object> getServiceConfig(ComponentIdentifier componentIdentifier, DeploymentDocument document)
+            throws PackageLoadingException {
 
         ComponentRecipe componentRecipe = componentStore.getPackageRecipe(componentIdentifier);
 
-        Set<ComponentParameter> resolvedParams = resolveParameterValuesToUse(document, componentRecipe);
-        parameterAndDependencyCache
-                .put(componentIdentifier, new Pair<>(resolvedParams, componentRecipe.getDependencies().keySet()));
 
         Map<String, Object> resolvedServiceConfig = new HashMap<>();
 
-        // Interpolate parameters
-        resolvedServiceConfig.put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                                  interpolate(componentRecipe.getLifecycle(), componentIdentifier, componentsToDeploy,
-                                              document, parameterAndDependencyCache));
+        resolvedServiceConfig.put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, componentRecipe.getLifecycle());
+
 
         resolvedServiceConfig.put(SERVICE_TYPE_TOPIC_KEY, componentRecipe.getComponentType() == null ? null
                 : componentRecipe.getComponentType().name());
@@ -232,11 +204,6 @@ public class KernelConfigResolver {
         // State information for deployments
         handleComponentVersionConfigs(componentIdentifier, componentRecipe.getVersion().getValue(),
                                       resolvedServiceConfig);
-        Map<String, String> resolvedParamMap = new HashMap<>();
-        for (ComponentParameter resolvedParam : resolvedParams) {
-            resolvedParamMap.put(resolvedParam.getName(), resolvedParam.getValue());
-        }
-        resolvedServiceConfig.put(PARAMETERS_CONFIG_KEY, resolvedParamMap);
 
         Optional<DeploymentPackageConfiguration> optionalDeploymentPackageConfig =
                 document.getDeploymentPackageConfigurationList().stream()
@@ -250,12 +217,6 @@ public class KernelConfigResolver {
         if (optionalDeploymentPackageConfig.isPresent()) {
             DeploymentPackageConfiguration packageConfiguration = optionalDeploymentPackageConfig.get();
             optionalConfigUpdate = Optional.ofNullable(packageConfiguration.getConfigurationUpdateOperation());
-
-            if (!optionalConfigUpdate.isPresent() && packageConfiguration.getConfiguration() != null) {
-                ConfigurationUpdateOperation op = new ConfigurationUpdateOperation();
-                op.setValueToMerge(packageConfiguration.getConfiguration());
-                optionalConfigUpdate = Optional.of(op);
-            }
 
             updateRunWith(packageConfiguration.getRunWith(), resolvedServiceConfig, componentIdentifier.getName());
         } else {
@@ -569,127 +530,6 @@ public class KernelConfigResolver {
         return null;
     }
 
-    /**** end of new configuration code path. Most of below are all deprecated and will be remove soon ****/
-
-    /*
-     * For each lifecycle key-value pair of a package, substitute parameter values.
-     */
-    @Deprecated
-    @SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
-    private Object interpolate(Object configValue, ComponentIdentifier componentIdentifier,
-            List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
-            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)
-            throws IOException {
-
-        Object result = configValue;
-
-        if (configValue instanceof String) {
-            result = replace((String) configValue, componentIdentifier, packagesToDeploy, document,
-                             parameterAndDependencyCache);
-        }
-        if (configValue instanceof Map) {
-            Map<String, Object> childConfigMap = (Map<String, Object>) configValue;
-            Map<String, Object> resolvedChildConfig = new HashMap<>();
-            for (Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
-                resolvedChildConfig.put(childLifecycle.getKey(),
-                                        interpolate(childLifecycle.getValue(), componentIdentifier, packagesToDeploy,
-                                                    document, parameterAndDependencyCache));
-            }
-            result = resolvedChildConfig;
-        }
-
-        return result;
-    }
-
-    @Deprecated
-    private String replace(String stringValue, ComponentIdentifier componentIdentifier,
-            List<ComponentIdentifier> packagesToDeploy, DeploymentDocument document,
-            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache)
-            throws IOException {
-
-        // Handle some-component parameters
-        Matcher matcher = SAME_INTERPOLATION_REGEX.matcher(stringValue);
-        while (matcher.find()) {
-            String replacement =
-                    lookupParameterValueForComponent(parameterAndDependencyCache, document, componentIdentifier,
-                                                     matcher.group(1), matcher.group(2));
-            if (replacement != null) {
-                stringValue = stringValue.replace(matcher.group(), replacement);
-            }
-        }
-
-        // Handle cross-component parameters
-        matcher = CROSS_INTERPOLATION_REGEX.matcher(stringValue);
-
-        while (matcher.find()) {
-            String crossComponent = matcher.group(1);
-            Optional<ComponentIdentifier> crossComponentIdentifier =
-                    packagesToDeploy.stream().filter(t -> t.getName().equals(crossComponent)).findFirst();
-
-            if (crossComponentIdentifier.isPresent() && componentCanReadParameterFrom(componentIdentifier,
-                                                                                      crossComponentIdentifier.get(),
-                                                                                      parameterAndDependencyCache)) {
-                String replacement = lookupParameterValueForComponent(parameterAndDependencyCache, document,
-                                                                      crossComponentIdentifier.get(), matcher.group(2),
-                                                                      matcher.group(3));
-                if (replacement != null) {
-                    stringValue = stringValue.replace(matcher.group(), replacement);
-                }
-            }
-        }
-        return stringValue;
-    }
-
-    @Deprecated
-    private boolean componentCanReadParameterFrom(ComponentIdentifier component, ComponentIdentifier canReadFrom,
-            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache) {
-        Set<String> depSet;
-        if (parameterAndDependencyCache.containsKey(component)
-                && parameterAndDependencyCache.get(component).getRight() != null) {
-            depSet = parameterAndDependencyCache.get(component).getRight();
-        } else {
-            try {
-                ComponentRecipe recipe = componentStore.getPackageRecipe(component);
-                return recipe.getDependencies().containsKey(canReadFrom.getName());
-            } catch (PackageLoadingException e) {
-                LOGGER.atWarn().log(NO_RECIPE_ERROR_FORMAT, component, e);
-                return false;
-            }
-        }
-        return depSet.contains(canReadFrom.getName());
-    }
-
-    @Nullable
-    @Deprecated
-    private String lookupParameterValueForComponent(
-            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
-            DeploymentDocument document, ComponentIdentifier component, String namespace, String key)
-            throws IOException {
-        // Handle cross-component system parameters
-        Map<String, CrashableFunction<ComponentIdentifier, String, IOException>> systemParams =
-                systemParameters.getOrDefault(namespace, Collections.emptyMap());
-        if (systemParams.containsKey(key)) {
-            return systemParams.get(key).apply(component);
-        }
-
-        // Handle component parameters
-        if (namespace.equals(PARAM_NAMESPACE)) {
-            try {
-                Set<ComponentParameter> resolvedParams =
-                        resolveParameterValuesToUseWithCache(parameterAndDependencyCache, component, document);
-                Optional<ComponentParameter> potentialParameter =
-                        resolvedParams.stream().filter(p -> (p.getName() + PARAM_VALUE_SUFFIX).equals(key)).findFirst();
-                if (potentialParameter.isPresent()) {
-                    return potentialParameter.get().getValue();
-                }
-            } catch (PackageLoadingException e) {
-                LOGGER.atWarn().log(NO_RECIPE_ERROR_FORMAT, component, e);
-                return null;
-            }
-        }
-        return null;
-    }
-
     /*
      * Compute the config for main service
      */
@@ -758,92 +598,5 @@ public class KernelConfigResolver {
             // rotate versions if deploying a different version than the existing one
             newConfig.put(PREV_VERSION_CONFIG_KEY, existingVersion);
         }
-    }
-
-    /*
-     * Get configuration for a package-version combination from deployment document.
-     */
-    @Deprecated
-    private Optional<DeploymentPackageConfiguration> getMatchingPackageConfigFromDeployment(DeploymentDocument document,
-            String packageName, String packageVersion) {
-        return document.getDeploymentPackageConfigurationList().stream()
-                .filter(packageConfig -> packageName.equals(packageConfig.getPackageName())
-                        //TODO: [P41216380]: packageConfig.getResolvedVersion() should be strongly typed when created
-                        && Requirement.buildNPM(packageConfig.getResolvedVersion())
-                        .isSatisfiedBy(new Semver(packageVersion, Semver.SemverType.NPM))).findAny();
-    }
-
-    @Deprecated
-    private Set<ComponentParameter> resolveParameterValuesToUseWithCache(
-            Map<ComponentIdentifier, Pair<Set<ComponentParameter>, Set<String>>> parameterAndDependencyCache,
-            ComponentIdentifier componentIdentifier, DeploymentDocument document) throws PackageLoadingException {
-        if (parameterAndDependencyCache.containsKey(componentIdentifier)
-                && parameterAndDependencyCache.get(componentIdentifier).getLeft() != null) {
-            return parameterAndDependencyCache.get(componentIdentifier).getLeft();
-        }
-        return resolveParameterValuesToUse(document, componentStore.getPackageRecipe(componentIdentifier));
-    }
-
-    /*
-     * Resolve values to be used for all package parameters combining those coming from
-     * deployment document, if not, those stored in the kernel config for previous
-     * deployments and defaults for the rest.
-     */
-    @Deprecated
-    private Set<ComponentParameter> resolveParameterValuesToUse(DeploymentDocument document,
-            ComponentRecipe componentRecipe) {
-        // If values for parameters were set in deployment they should be used
-        Set<ComponentParameter> resolvedParams = new HashSet<>(getParametersFromDeployment(document, componentRecipe));
-
-        // If not set in deployment, use values from previous deployments that were stored in config
-        resolvedParams.addAll(getParametersStoredInConfig(componentRecipe));
-
-        // Use defaults for parameters for which no values were set in current or previous deployment
-        resolvedParams.addAll(componentRecipe.getComponentParameters());
-        return resolvedParams;
-    }
-
-    /*
-     * Get parameter values for a package set by customer from deployment document.
-     */
-    @Deprecated
-    private Set<ComponentParameter> getParametersFromDeployment(DeploymentDocument document,
-            ComponentRecipe componentRecipe) {
-        Optional<DeploymentPackageConfiguration> packageConfigInDeployment =
-                getMatchingPackageConfigFromDeployment(document, componentRecipe.getComponentName(),
-                                                       componentRecipe.getVersion().toString());
-        return packageConfigInDeployment.map(deploymentPackageConfiguration -> ComponentParameter
-                .fromMap(deploymentPackageConfiguration.getConfiguration())).orElse(Collections.emptySet());
-    }
-
-    /*
-     * Get parameter values for a package stored in config that were set by customer in previous deployment.
-     */
-    @Deprecated
-    private Set<ComponentParameter> getParametersStoredInConfig(ComponentRecipe componentRecipe) {
-        Set<ComponentParameter> parametersStoredInConfig = new HashSet<>();
-
-        // Get only those parameters which are still valid for the current version of the package
-        componentRecipe.getComponentParameters().forEach(parameterFromRecipe -> {
-            Optional<String> parameterValueStoredInConfig =
-                    getParameterValueFromServiceConfig(componentRecipe.getComponentName(),
-                                                       parameterFromRecipe.getName());
-            parameterValueStoredInConfig.ifPresent(s -> parametersStoredInConfig
-                    .add(new ComponentParameter(parameterFromRecipe.getName(), s, parameterFromRecipe.getType())));
-        });
-        return parametersStoredInConfig;
-    }
-
-    /*
-     * Lookup parameter value from service config by parameter name
-     */
-    @Deprecated
-    private Optional<String> getParameterValueFromServiceConfig(String service, String parameterName) {
-        Topics serviceTopics = kernel.findServiceTopic(service);
-        if (serviceTopics == null) {
-            return Optional.empty();
-        }
-        Topic parameterConfig = serviceTopics.find(PARAMETERS_CONFIG_KEY, parameterName);
-        return parameterConfig == null ? Optional.empty() : Optional.ofNullable(Coerce.toString(parameterConfig));
     }
 }

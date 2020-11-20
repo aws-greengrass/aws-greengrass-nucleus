@@ -131,7 +131,7 @@ class DependencyResolverTest {
 
         DeploymentDocument doc = new DeploymentDocument("mockJob1", Collections
                 .singletonList(
-                        new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue(), new HashMap<>())),
+                        new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
@@ -200,8 +200,8 @@ class DependencyResolverTest {
 
         // top-level package order: A, B2
         DeploymentDocument doc = new DeploymentDocument("mockJob1",
-                Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue(), new HashMap<>()),
-                        new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue(), new HashMap<>())),
+                Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue()),
+                        new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue())),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
@@ -285,8 +285,8 @@ class DependencyResolverTest {
 
         // top-level package order: A, B2
         DeploymentDocument doc = new DeploymentDocument("mockJob1",
-                Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue(), new HashMap<>()),
-                        new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue(), new HashMap<>())),
+                Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue()),
+                        new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue())),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
@@ -359,8 +359,8 @@ class DependencyResolverTest {
 
         // top-level package order: A, B2
         DeploymentDocument doc = new DeploymentDocument("mockJob1",
-                Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue(), new HashMap<>()),
-                        new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue(), new HashMap<>())),
+                Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue()),
+                        new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue())),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)

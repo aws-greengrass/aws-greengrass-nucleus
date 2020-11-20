@@ -33,8 +33,8 @@ Manifests:
           RequiresPrivilege: true
           script: |-
             set -eu
-            KERNEL_ROOT="{{kernel:rootPath}}"
-            UNPACK_DIR="{{artifacts:decompressedPath}}/aws.greengrass.nucleus"
+            KERNEL_ROOT="{kernel:rootPath}"
+            UNPACK_DIR="{artifacts:decompressedPath}/aws.greengrass.nucleus"
             # TODO: Use builtin unpack functionality with permission preserved if available
             chmod +x "$UNPACK_DIR/bin/loader"
 
@@ -55,8 +55,8 @@ Manifests:
         RequiresPrivilege: true
         script: |-
           set -eu
-          KERNEL_ROOT="{{kernel:rootPath}}"
-          UNPACK_DIR="{{artifacts:decompressedPath}}/aws.greengrass.nucleus"
+          KERNEL_ROOT="{kernel:rootPath}"
+          UNPACK_DIR="{artifacts:decompressedPath}/aws.greengrass.nucleus"
           # TODO: Use builtin unpack functionality with permission preserved if available
           chmod +x "$UNPACK_DIR/bin/loader"
 
