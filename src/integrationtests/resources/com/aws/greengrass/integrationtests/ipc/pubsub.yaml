@@ -1,7 +1,7 @@
 ---
 services:
   aws.greengrass.Nucleus:
-    parameters:
+    configuration:
       runWithDefault:
         posixUser: nobody
 
@@ -9,7 +9,7 @@ services:
     dependencies:
       - SubscribeAndPublish
   PublishNotSubscribe:
-    parameters:
+    configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
           policyId1:
@@ -34,7 +34,7 @@ services:
           powershell -command sleep 1
         posix:
           sleep 1
-    parameters:
+    configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
           policyId2:
@@ -51,7 +51,7 @@ services:
           powershell -command sleep 1
         posix:
           sleep 1
-    parameters:
+    configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
           policyId3:
@@ -70,7 +70,7 @@ services:
           powershell -command sleep 1
         posix:
           sleep 1
-    parameters:
+    configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
           policyId4:
@@ -88,7 +88,7 @@ services:
           powershell -command sleep 1
         posix:
           sleep 1
-    parameters:
+    configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
           policyId5:
@@ -105,7 +105,7 @@ services:
           powershell -command sleep 1
         posix:
           sleep 1
-    parameters:
+    configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
           policyId6:

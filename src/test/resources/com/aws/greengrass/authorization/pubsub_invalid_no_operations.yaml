@@ -13,7 +13,7 @@ services:
     resources:
       - http-resource
     lifecycle:
-    parameters:
+    configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
           policyId1:

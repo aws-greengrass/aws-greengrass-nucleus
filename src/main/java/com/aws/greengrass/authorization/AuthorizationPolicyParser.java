@@ -24,7 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTROL_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 
@@ -66,7 +66,8 @@ public final class AuthorizationPolicyParser {
             Topics serviceConfig = (Topics) service;
             String componentName = Kernel.findServiceForNode(serviceConfig);
 
-            Node accessControlMapTopic = serviceConfig.findNode(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+            Node accessControlMapTopic = serviceConfig
+                    .findNode(CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
             if (accessControlMapTopic == null) {
                 continue;
             }

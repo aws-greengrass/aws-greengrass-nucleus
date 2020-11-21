@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.publishToTopicOverIpcAsBinaryMessage;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.subscribeToTopicOveripcForBinaryMessages;
@@ -180,7 +180,7 @@ class IPCPubSubTest {
                     () -> subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight()));
             assertTrue(executionException.getCause() instanceof UnauthorizedError);
 
-            Topics aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+            Topics aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
             Map<String, Object> newAcl = OBJECT_MAPPER.readValue(newAclStr, new TypeReference<Map<String, Object>>(){});
             aclTopic.updateFromMap(newAcl,
                     new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
@@ -195,7 +195,7 @@ class IPCPubSubTest {
 
             cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
 
-            aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+            aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
             Map<String, Object> oldAcl = OBJECT_MAPPER.readValue(oldAclStr, new TypeReference<Map<String, Object>>(){});
             aclTopic.updateFromMap(oldAcl,
                     new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
@@ -335,7 +335,7 @@ class IPCPubSubTest {
                     unauthorizedError.getMessage());
 
         }
-        Topics aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+        Topics aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
         Map<String, Object> newAcl = OBJECT_MAPPER.readValue(newAclStr, new TypeReference<Map<String, Object>>(){});
         aclTopic.updateFromMap(newAcl,
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
@@ -359,7 +359,7 @@ class IPCPubSubTest {
             assertTrue(subscriptionLatch.await(10, TimeUnit.SECONDS));
         }
 
-        aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+        aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
         Map<String, Object> oldAcl = OBJECT_MAPPER.readValue(oldAclStr, new TypeReference<Map<String, Object>>(){});
         aclTopic.updateFromMap(oldAcl,
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));

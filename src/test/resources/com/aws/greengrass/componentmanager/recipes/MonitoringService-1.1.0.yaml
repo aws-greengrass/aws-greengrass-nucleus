@@ -11,9 +11,5 @@ ComponentDependencies:
 Manifests:
   - Platform:
       os: all
-    Parameters:
-      - name: TestParam
-        value: TestVal
-        type: STRING
     Lifecycle:
       run: echo MonitoringService-1.1.0

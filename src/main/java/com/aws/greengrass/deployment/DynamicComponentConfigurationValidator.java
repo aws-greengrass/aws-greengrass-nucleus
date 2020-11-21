@@ -41,7 +41,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 
 /**
@@ -120,9 +120,9 @@ public class DynamicComponentConfigurationValidator {
 
             if (!willChildTopicChange(proposedServiceConfig, currentServiceConfig, VERSION_CONFIG_KEY,
                     proposedTimestamp) && willChildTopicsChange(proposedServiceConfig, currentServiceConfig,
-                    PARAMETERS_CONFIG_KEY, proposedTimestamp)) {
+                    CONFIGURATION_CONFIG_KEY, proposedTimestamp)) {
                 componentsToValidate.add(new ComponentToValidate(serviceName,
-                        (Map<String, Object>) proposedServiceConfig.get(PARAMETERS_CONFIG_KEY)));
+                        (Map<String, Object>) proposedServiceConfig.get(CONFIGURATION_CONFIG_KEY)));
             }
         }
         return componentsToValidate;

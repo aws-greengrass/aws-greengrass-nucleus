@@ -35,7 +35,7 @@ import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
@@ -97,7 +97,7 @@ class DynamicComponentConfigurationValidatorTest {
         createMockGenericExternalService("OldService");
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("OldService", new HashMap<String, Object>() {{
-                put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                     put("ConfigKey1", "ConfigValue2");
                 }});
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
@@ -122,7 +122,7 @@ class DynamicComponentConfigurationValidatorTest {
         createMockGenericExternalService("OldService");
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("OldService", new HashMap<String, Object>() {{
-                put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                     put("ConfigKey1", "ConfigValue2");
                 }});
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
@@ -144,7 +144,7 @@ class DynamicComponentConfigurationValidatorTest {
         createMockGenericExternalService("OldService");
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("OldService", new HashMap<String, Object>() {{
-                put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                     put("ConfigKey1", "ConfigValue2");
                 }});
                 put(VERSION_CONFIG_KEY, "2.0.0");
@@ -161,7 +161,7 @@ class DynamicComponentConfigurationValidatorTest {
         createMockGenericExternalService("OldService");
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("OldService", new HashMap<String, Object>() {{
-                put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                     put("ConfigKey1", "ConfigValue1");
                 }});
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
@@ -180,7 +180,7 @@ class DynamicComponentConfigurationValidatorTest {
         createMockGenericExternalService("OldService");
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("OldService", new HashMap<String, Object>() {{
-                put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                     put("ConfigKey1", "ConfigValue2");
                 }});
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
@@ -207,7 +207,7 @@ class DynamicComponentConfigurationValidatorTest {
         createMockGenericExternalService("OldService");
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("OldService", new HashMap<String, Object>() {{
-                put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                     put("ConfigKey1", "ConfigValue2");
                 }});
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
@@ -230,7 +230,7 @@ class DynamicComponentConfigurationValidatorTest {
         createMockGenericExternalService("OldService");
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("OldService", new HashMap<String, Object>() {{
-                put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                     put("ConfigKey1", "ConfigValue2");
                 }});
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
@@ -260,13 +260,13 @@ class DynamicComponentConfigurationValidatorTest {
 
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("OldService", new HashMap<String, Object>() {{
-                put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                     put("ConfigKey1", "ConfigValue2");
                 }});
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
             }});
             put("OldInternalService", new HashMap<String, Object>() {{
-                put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                     put("ConfigKey1", "ConfigValue2");
                 }});
             }});
@@ -281,13 +281,13 @@ class DynamicComponentConfigurationValidatorTest {
             throws Exception {
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("NewService", new HashMap<String, Object>() {{
-                put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                     put("ConfigKey1", "ConfigValue2");
                 }});
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
             }});
             put("OldInternalService", new HashMap<String, Object>() {{
-                put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                     put("ConfigKey1", "ConfigValue2");
                 }});
                 put(VERSION_CONFIG_KEY, DEFAULT_EXISTING_SERVICE_VERSION);
@@ -332,7 +332,7 @@ class DynamicComponentConfigurationValidatorTest {
         lenient().when(componentConfig.getModtime()).thenReturn(DEFAULT_EXISTING_NODE_MOD_TIME);
         Topics serviceConfig = mock(Topics.class);
         lenient().when(serviceConfig.findNode(VERSION_CONFIG_KEY)).thenReturn(versionConfig);
-        lenient().when(serviceConfig.findTopics(PARAMETERS_CONFIG_KEY)).thenReturn(componentConfig);
+        lenient().when(serviceConfig.findTopics(CONFIGURATION_CONFIG_KEY)).thenReturn(componentConfig);
         GenericExternalService service = mock(GenericExternalService.class);
         lenient().when(service.getName()).thenReturn(name);
         lenient().when(service.getServiceConfig()).thenReturn(serviceConfig);

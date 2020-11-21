@@ -59,10 +59,8 @@ public class KernelConfigResolver {
     private static final Logger LOGGER = LogManager.getLogger(KernelConfigResolver.class);
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PREV_VERSION_CONFIG_KEY = "previousVersion";
-    public static final String PARAMETERS_CONFIG_KEY = "parameters";
 
-    // TODO: [P41216177]: Deprecate parameters in favor of configuration
-    public static final String CONFIGURATION_CONFIG_KEY = "parameters";
+    public static final String CONFIGURATION_CONFIG_KEY = "configuration";
 
     static final String ARTIFACTS_NAMESPACE = "artifacts";
     static final String KERNEL_NAMESPACE = "kernel";

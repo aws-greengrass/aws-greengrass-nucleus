@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
@@ -152,7 +152,7 @@ class GenericExternalServiceTest extends BaseITCase {
         Subscriber customConfigWatcher = (WhatHappened what, Topic t) -> {
             topicUpdateProcessedFuture.complete(null);
         };
-        Topic customConfigTopic = service.getServiceConfig().find(PARAMETERS_CONFIG_KEY, "my_custom_key");
+        Topic customConfigTopic = service.getServiceConfig().find(CONFIGURATION_CONFIG_KEY, "my_custom_key");
         customConfigTopic.subscribe(customConfigWatcher);
 
         customConfigTopic.withValue("my_custom_initial_value");

@@ -1,7 +1,7 @@
 ---
 services:
   aws.greengrass.Nucleus:
-    parameters:
+    configuration:
       runWithDefault:
         posixUser: nobody
 

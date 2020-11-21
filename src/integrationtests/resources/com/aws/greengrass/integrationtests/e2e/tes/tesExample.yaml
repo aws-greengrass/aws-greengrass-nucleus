@@ -4,6 +4,6 @@ services:
     dependencies:
       - aws.greengrass.TokenExchangeService
   aws.greengrass.TokenExchangeService:
-    parameters:
+    configuration:
       port: 2020
     lifecycle:

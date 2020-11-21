@@ -67,7 +67,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -128,7 +128,7 @@ class IPCServicesTest {
 
     @Test
     void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed(ExtensionContext context) throws Exception {
-        Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
+        Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(CONFIGURATION_CONFIG_KEY);
         configuration.createLeafChild("abc").withValue("pqr");
         configuration.createLeafChild("DDF").withValue("xyz");
         kernel.getContext().runOnPublishQueueAndWait(() -> {
@@ -250,7 +250,7 @@ class IPCServicesTest {
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
     void GIVEN_ConfigStoreEventStreamClient_WHEN_update_config_request_THEN_config_is_updated() throws Exception {
-        Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
+        Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(CONFIGURATION_CONFIG_KEY);
         Topic configToUpdate = configuration.lookup("SomeKeyToUpdate").withNewerValue(0, "InitialValue");
         CountDownLatch cdl = new CountDownLatch(1);
         CountDownLatch subscriptionLatch = new CountDownLatch(1);
@@ -312,7 +312,7 @@ class IPCServicesTest {
     @SuppressWarnings("PMD.CloseResource")
     @Test
     void GIVEN_ConfigStoreEventStreamClient_WHEN_read_THEN_value_returned() throws Exception {
-        Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
+        Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(CONFIGURATION_CONFIG_KEY);
         custom.createLeafChild("abc").withValue("ABC");
         custom.createInteriorChild("DDF").createLeafChild("A").withValue("C");
         GetConfigurationRequest getConfigurationRequest = new GetConfigurationRequest();
@@ -338,7 +338,7 @@ class IPCServicesTest {
 
     @Test
     void GIVEN_ConfigStoreClient_WHEN_read_THEN_value_returned() throws Exception {
-        Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(PARAMETERS_CONFIG_KEY);
+        Topics custom = kernel.findServiceTopic("ServiceName").createInteriorChild(CONFIGURATION_CONFIG_KEY);
         custom.createLeafChild("abc").withValue("ABC");
         custom.createInteriorChild("DDF").createLeafChild("A").withValue("C");
 

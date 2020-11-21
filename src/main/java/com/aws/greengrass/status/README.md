@@ -35,7 +35,7 @@ services:
   main:
     lifecycle:
   FleetStatusService:
-    parameters:
+    configuration:
       periodicUpdateIntervalSec: 86400
     lifecycle:
 ```
