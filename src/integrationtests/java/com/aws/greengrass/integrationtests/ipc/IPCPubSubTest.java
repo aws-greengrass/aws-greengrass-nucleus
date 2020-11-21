@@ -216,13 +216,13 @@ class IPCPubSubTest {
         AtomicInteger atomicInteger = new AtomicInteger();
 
         CountDownLatch subscriptionLatch = new CountDownLatch(1);
-        
+
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, "SubscribeAndPublish");
         SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
         try (EventStreamRPCConnection clientConnection =
                      IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
             AutoCloseable l = TestUtils.createCloseableLogListener(m -> {
-                if (m.getMessage().contains("Subscribing to topic")) {
+                if (m.getMessage().contains("Subscribed to topic")) {
                     subscriptionLatch.countDown();
                 }
             })){
@@ -312,7 +312,7 @@ class IPCPubSubTest {
         subscribeToTopicRequest.setTopic(topicName);
         CountDownLatch subscriptionLatch = new CountDownLatch(1);
         Slf4jLogAdapter.addGlobalListener(m -> {
-            if (m.getMessage().contains("Subscribing to topic")) {
+            if (m.getMessage().contains("Subscribed to topic")) {
                 subscriptionLatch.countDown();
             }
         });

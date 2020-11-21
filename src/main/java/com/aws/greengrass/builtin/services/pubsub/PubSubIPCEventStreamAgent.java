@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -84,8 +85,14 @@ public class PubSubIPCEventStreamAgent {
      * @param serviceName name of the service unsubscribing.
      */
     public void unsubscribe(String topic, Consumer<PublishEvent> cb, String serviceName) {
-        log.atDebug().kv(COMPONENT_NAME, serviceName).log("Unsubscribing from topic {}", topic);
-        listeners.computeIfPresent(topic, (s, objects) -> objects.remove(cb) && objects.isEmpty() ? null : objects);
+        AtomicBoolean removed = new AtomicBoolean(false);
+        listeners.computeIfPresent(topic, (s, objects) -> {
+            removed.set(objects.remove(cb));
+            return objects.isEmpty() ? null : objects;
+        });
+        if (removed.get()) {
+            log.atInfo().kv(COMPONENT_NAME, serviceName).log("Unsubscribed from topic {}", topic);
+        }
     }
 
     /**
@@ -144,8 +151,9 @@ public class PubSubIPCEventStreamAgent {
 
     private void handleSubscribeToTopicRequest(String topic, String serviceName, Object handler) {
         // TODO: [P32540011]: All IPC service requests need input validation
-        log.atInfo().kv(COMPONENT_NAME, serviceName).log("Subscribing to topic {}", topic);
-        listeners.computeIfAbsent(topic, k -> ConcurrentHashMap.newKeySet()).add(handler);
+        if (listeners.computeIfAbsent(topic, k -> ConcurrentHashMap.newKeySet()).add(handler)) {
+            log.atInfo().kv(COMPONENT_NAME, serviceName).log("Subscribed to topic {}", topic);
+        }
     }
 
 
