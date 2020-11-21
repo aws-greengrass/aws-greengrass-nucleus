@@ -7,13 +7,11 @@ package com.aws.greengrass.integrationtests.deployment;
 
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
-import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
-import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -44,7 +42,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.ExtensionContext;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
@@ -75,14 +72,11 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
-import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC;
-import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createServiceStateChangeWaiter;
@@ -596,74 +590,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_service_running_with_rollback_safe_param_WHEN_rollback_THEN_rollback_safe_param_not_updated(
-            ExtensionContext context) throws Throwable {
-
-        ignoreExceptionUltimateCauseWithMessage(context, "Service sleeperB in broken state after deployment");
-
-        // GIVEN
-        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
-                getClass().getResource("short_running_services_using_startup_script.yaml"));
-
-        kernel.launch();
-
-        Configuration config = kernel.getConfig();
-        config.lookup(SERVICES_NAMESPACE_TOPIC, "sleeperB", RUNTIME_STORE_NAMESPACE_TOPIC, "testKey")
-                .withNewerValue(System.currentTimeMillis(), "initialValue");
-
-        // WHEN
-        // merge broken config
-        HashMap<String, Object> brokenConfig = new HashMap<String, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put("sleeperB", new HashMap<String, Object>() {{
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                        put(LIFECYCLE_STARTUP_NAMESPACE_TOPIC, "exit 1");
-                    }});
-                }});
-
-                put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig());
-            }});
-        }};
-
-        AtomicBoolean sleeperBBroken = new AtomicBoolean(false);
-        CountDownLatch sleeperBRolledBack = new CountDownLatch(1);
-        GlobalStateChangeListener listener = (service, oldState, newState) -> {
-            if (service.getName().equals("sleeperB")) {
-                if (newState.equals(State.ERRORED)) {
-                    config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB", RUNTIME_STORE_NAMESPACE_TOPIC, "testKey")
-                            .withNewerValue(System.currentTimeMillis(), "setOnErrorValue");
-                }
-                if (newState.equals(State.BROKEN)) {
-                    sleeperBBroken.set(true);
-                }
-                if (sleeperBBroken.get() && newState.equals(State.RUNNING)) {
-                    // Rollback should only count after error
-                    sleeperBRolledBack.countDown();
-                }
-            }
-        };
-
-        kernel.getContext().get(DeploymentDirectoryManager.class).createNewDeploymentDirectory(
-                "mockFleetConfigArn");
-        kernel.getContext().addGlobalStateChangeListener(listener);
-        DeploymentResult result =
-                deploymentConfigMerger.mergeInNewConfig(testRollbackDeployment(), brokenConfig)
-                        .get(40, TimeUnit.SECONDS);
-
-        // THEN
-        // deployment should have errored and rolled back
-        assertTrue(sleeperBRolledBack.await(10, TimeUnit.SECONDS));
-        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
-
-        // Value set in listener should not have been rolled back
-        assertEquals("setOnErrorValue",
-                config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB", RUNTIME_STORE_NAMESPACE_TOPIC, "testKey")
-                        .getOnce());
-        // remove listener
-        kernel.getContext().removeGlobalStateChangeListener(listener);
-    }
-
-    @Test
     void GIVEN_kernel_running_single_service_WHEN_deployment_with_skip_safety_check_config_THEN_merge_without_checking_safety()
             throws Throwable {
 
@@ -770,17 +696,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(
                         new ComponentUpdatePolicy(3, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
-                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
-                .build();
-        return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
-    }
-
-    private Deployment testRollbackDeployment() {
-        DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                .deploymentId("rollback_id")
-                .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK)
-                .componentUpdatePolicy(
-                        new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
                 .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
                 .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
