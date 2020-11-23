@@ -267,38 +267,6 @@ class ComponentStoreTest {
     }
 
     @Test
-    void GIVEN_pre_loaded_package_versions_WHEN_listAvailablePackageMetadata_THEN_return_satisfiedVersion()
-            throws Exception {
-        // GIVEN
-        preloadRecipeFileFromTestResource("MonitoringService-1.0.0.yaml");
-        preloadRecipeFileFromTestResource("MonitoringService-1.1.0.yaml");
-        preloadRecipeFileFromTestResource("MonitoringService-2.0.0.yaml");
-        preloadRecipeFileFromTestResource("MonitoringService-3.0.0.yaml");
-        preloadRecipeFileFromTestResource("Log-1.0.0.yaml");
-
-        // WHEN
-        Requirement requirement = Requirement.buildNPM(">=1.0.0 <2.0.0");
-        List<ComponentMetadata> componentMetadataList =
-                componentStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement);
-
-        // THEN
-        // expected return: MonitoringService 1.0.0 and 1.1.0
-        assertThat(componentMetadataList, iterableWithSize(2));
-
-        // 1.1.0
-        ComponentMetadata componentMetadata = componentMetadataList.get(0);
-        assertThat(componentMetadata.getComponentIdentifier().getName(), is(MONITORING_SERVICE_PKG_NAME));
-        assertThat(componentMetadata.getComponentIdentifier().getVersion(), is(new Semver("1.1.0")));
-        assertThat(componentMetadata.getDependencies(), is(getExpectedDependencies(Requirement.buildNPM("1.1.0"))));
-
-        // 1.0.0
-        componentMetadata = componentMetadataList.get(1);
-        assertThat(componentMetadata.getComponentIdentifier().getName(), is(MONITORING_SERVICE_PKG_NAME));
-        assertThat(componentMetadata.getComponentIdentifier().getVersion(), is(new Semver("1.0.0")));
-        assertThat(componentMetadata.getDependencies(), is(getExpectedDependencies(Requirement.buildNPM("1.0.0"))));
-    }
-
-    @Test
     void GIVEN_pre_loaded_package_versions_WHEN_find_best_available_version_THEN_return_satisfied_version()
             throws Exception {
         // GIVEN

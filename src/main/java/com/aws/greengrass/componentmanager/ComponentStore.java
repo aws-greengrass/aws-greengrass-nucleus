@@ -244,29 +244,6 @@ public class ComponentStore {
         return new ComponentMetadata(pkgId, dependencyMetadata);
     }
 
-    /**
-     * list PackageMetadata for available packages that satisfies the requirement.
-     *
-     * @param componentName the target package
-     * @param requirement   version requirement
-     * @return a list of PackageMetadata that satisfies the requirement.
-     * @throws UnexpectedPackagingException if fails to parse version directory to Semver
-     */
-    List<ComponentMetadata> listAvailablePackageMetadata(@NonNull String componentName,
-                                                         @NonNull Requirement requirement) throws PackagingException {
-        List<ComponentIdentifier> satisfyingComponentIds = listAvailableComponent(componentName, requirement);
-
-        List<ComponentMetadata> satisfiedComponentMetadataList = new ArrayList<>();
-
-        // for each loop is used, instead of lambda expression, because getPackageMetadata throws checked exception and
-        // lambda doesn't support throwing checked exception
-        for (ComponentIdentifier componentIdentifier : satisfyingComponentIds) {
-            satisfiedComponentMetadataList.add(getPackageMetadata(componentIdentifier));
-        }
-
-        return satisfiedComponentMetadataList;
-    }
-
     Optional<ComponentIdentifier> findBestMatchAvailableComponent(@NonNull String componentName,
                                                                   @NonNull Requirement requirement)
             throws PackageLoadingException {
