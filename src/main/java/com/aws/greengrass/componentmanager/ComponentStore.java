@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.exceptions.UnexpectedPackagingExcepti
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
+import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.constants.FileSuffix;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -20,6 +21,9 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.SerializerFactory;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -43,12 +47,15 @@ import java.util.Set;
 import javax.inject.Inject;
 
 public class ComponentStore {
-    private static final Logger logger = LogManager.getLogger(ComponentStore.class);
 
     public static final String RECIPE_DIRECTORY = "recipes";
     public static final String ARTIFACT_DIRECTORY = "artifacts";
     public static final String ARTIFACTS_DECOMPRESSED_DIRECTORY = "artifacts-unarchived";
     public static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
+
+    private static final Logger logger = LogManager.getLogger(ComponentStore.class);
+    private static final String RECIPE_METADATA_FILE_PATH_LOG_KEY = "RecipeMetadataFilePath";
+
     private final NucleusPaths nucleusPaths;
     private final PlatformResolver platformResolver;
     private final RecipeLoader recipeLoader;
@@ -98,17 +105,18 @@ public class ComponentStore {
 
     /**
      * Validate whether given digest matches the component recipe on disk.
+     *
      * @param componentIdentifier component whose recipe is read from disk
-     * @param expectedDigest expected digest for the recipe
+     * @param expectedDigest      expected digest for the recipe
      * @return whether the expected digest matches the calculated digest on disk
      */
     public boolean validateComponentRecipeDigest(@NonNull ComponentIdentifier componentIdentifier,
-                                                 String expectedDigest) {
+            String expectedDigest) {
         try {
             Optional<String> recipeContent = findComponentRecipeContent(componentIdentifier);
             if (!recipeContent.isPresent()) {
-                logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY,
-                        componentIdentifier.getName())
+                logger.atError("plugin-load-error")
+                        .kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
                         .log("Recipe not found for component " + componentIdentifier.getName());
                 return false;
             }
@@ -116,15 +124,15 @@ public class ComponentStore {
             logger.atInfo("plugin-load").log("Digest from store: " + Coerce.toString(expectedDigest));
             logger.atInfo("plugin-load").log("Digest from recipe: " + Coerce.toString(digest));
             if (!Digest.isEqual(digest, expectedDigest)) {
-                logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY,
-                        componentIdentifier.getName())
+                logger.atError("plugin-load-error")
+                        .kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
                         .log("Recipe on disk was modified after it was downloaded from cloud");
                 return false;
             }
             return true;
         } catch (PackageLoadingException | NoSuchAlgorithmException e) {
-            logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY,
-                    componentIdentifier.getName()).log("Cannot validate digest for recipe");
+            logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
+                    .log("Cannot validate digest for recipe");
         }
         return false;
     }
@@ -183,6 +191,12 @@ public class ComponentStore {
         } catch (IOException e) {
             exception = e;
         }
+        // delete recipeMetadata
+        try {
+            Files.deleteIfExists(resolveRecipeMetadataFile(compId).toPath());
+        } catch (IOException e) {
+            exception = e;
+        }
         // delete artifacts
         try {
             Path artifactDirPath = resolveArtifactDirectoryPath(compId);
@@ -235,7 +249,7 @@ public class ComponentStore {
      */
     List<ComponentMetadata> listAvailablePackageMetadata(@NonNull String packageName, @NonNull Requirement requirement)
             throws PackagingException {
-        File[] recipeFiles = nucleusPaths.recipePath().toFile().listFiles();
+        File[] recipeFiles = getAllRecipeFiles();
 
         List<ComponentMetadata> componentMetadataList = new ArrayList<>();
         if (recipeFiles == null || recipeFiles.length == 0) {
@@ -243,7 +257,6 @@ public class ComponentStore {
         }
 
         Arrays.sort(recipeFiles);
-
 
         for (File recipeFile : recipeFiles) {
             String recipePackageName = parsePackageNameFromFileName(recipeFile.getName());
@@ -289,11 +302,10 @@ public class ComponentStore {
     }
 
     Optional<ComponentIdentifier> findBestMatchAvailableComponent(@NonNull String componentName,
-                                                                  @NonNull Requirement requirement)
-            throws PackageLoadingException {
-        File[] recipeFiles = nucleusPaths.recipePath().toFile().listFiles();
+            @NonNull Requirement requirement) throws PackageLoadingException {
+        File[] recipeFiles = getAllRecipeFiles();
 
-        if (recipeFiles == null || recipeFiles.length == 0) {
+        if (recipeFiles.length == 0) {
             return Optional.empty();
         }
 
@@ -319,6 +331,13 @@ public class ComponentStore {
         } else {
             return Optional.of(componentIdentifierList.get(0));
         }
+    }
+
+    private File[] getAllRecipeFiles() {
+        // TODO Identify recipes by *.recipe.yaml or *.recipe.json
+        return Arrays.stream(nucleusPaths.recipePath().toFile().listFiles())
+                .filter(file -> file.getName().endsWith(".yaml"))
+                .toArray(File[]::new);
     }
 
 
@@ -349,8 +368,8 @@ public class ComponentStore {
     }
 
     private Path resolveRecipePath(String packageName, Semver packageVersion) {
-        return nucleusPaths.recipePath().resolve(String.format(RECIPE_FILE_NAME_FORMAT,
-                packageName, packageVersion.getValue()));
+        return nucleusPaths.recipePath()
+                .resolve(String.format(RECIPE_FILE_NAME_FORMAT, packageName, packageVersion.getValue()));
     }
 
     /**
@@ -362,8 +381,8 @@ public class ComponentStore {
      */
     public long getContentSize() throws PackageLoadingException {
         try {
-            return Files.walk(nucleusPaths.componentStorePath()).map(Path::toFile)
-                    .filter(File::isFile).mapToLong(File::length).sum();
+            return Files.walk(nucleusPaths.componentStorePath()).map(Path::toFile).filter(File::isFile)
+                    .mapToLong(File::length).sum();
         } catch (IOException e) {
             throw new PackageLoadingException("Failed to access package store", e);
         }
@@ -371,6 +390,7 @@ public class ComponentStore {
 
     /**
      * Get remaining usable bytes for the package store.
+     *
      * @return usable bytes
      * @throws PackageLoadingException if I/O error occurred
      */
@@ -409,4 +429,102 @@ public class ComponentStore {
         }
     }
 
+    /**
+     * Saves recipe metadata to file. Overrides if the target file exists.
+     *
+     * @param componentIdentifier component id
+     * @param recipeMetadata      metadata for the recipe
+     * @throws PackageLoadingException when failed write recipe metadata to file system.
+     */
+    public void saveRecipeMetadata(ComponentIdentifier componentIdentifier, RecipeMetadata recipeMetadata)
+            throws PackageLoadingException {
+        File metadataFile = resolveRecipeMetadataFile(componentIdentifier);
+
+        try {
+            SerializerFactory.getFailSafeJsonObjectMapper().writeValue(metadataFile, recipeMetadata);
+        } catch (IOException e) {
+            logger.atError().cause(e).kv(RECIPE_METADATA_FILE_PATH_LOG_KEY, metadataFile.getAbsolutePath())
+                    .log("Failed to write recipe metadata file");
+
+            throw new PackageLoadingException(
+                    String.format("Failed to write recipe metadata to file: '%s'.", metadataFile.getAbsolutePath()), e);
+        }
+    }
+
+    /**
+     * Reads component recipe metadata file.
+     *
+     * @param componentIdentifier component id
+     * @throws PackageLoadingException if failed to read recipe metadata from file system or failed to parse the file.
+     */
+    public RecipeMetadata getRecipeMetadata(ComponentIdentifier componentIdentifier) throws PackageLoadingException {
+        File metadataFile = resolveRecipeMetadataFile(componentIdentifier);
+
+        if (!metadataFile.exists() || !metadataFile.isFile()) {
+            // log error because this is not expected to happen in any normal case
+            logger.atError().kv(RECIPE_METADATA_FILE_PATH_LOG_KEY, metadataFile.getAbsolutePath())
+                    .log("Failed to get recipe metadata because the file doesn't not exit or it is a folder");
+
+            throw new PackageLoadingException(String.format(
+                    "Failed to get recipe metadata because the file doesn't not exit or it is a folder. "
+                            + RECIPE_METADATA_FILE_PATH_LOG_KEY + ": '%s'.", metadataFile.getAbsolutePath()));
+        }
+
+        try {
+            return SerializerFactory.getFailSafeJsonObjectMapper().readValue(metadataFile, RecipeMetadata.class);
+
+            // exception handling is intentionally heavy so that to deal with file corruption
+            // TODO review note: I struggled btw having the below or removing it. Tried to remove it and feel a single
+            // catch on IOException and saying file is corrupted is a little thin.
+            // Furthermore, we should do the similar to recipe file! That's a lot more important.
+        } catch (JsonParseException e) {
+            // log error because this is not expected to happen in any normal case
+            logger.atError().cause(e).kv(RECIPE_METADATA_FILE_PATH_LOG_KEY, metadataFile.getAbsolutePath())
+                    .log("Failed to get recipe metadata because the recipe metadata file should be a json "
+                                 + "but is corrupted");
+
+            throw new PackageLoadingException(String.format(
+                    "Failed to get recipe metadata because the recipe metadata file should be a json but is corrupted. "
+                            + RECIPE_METADATA_FILE_PATH_LOG_KEY + ": '%s'.", metadataFile.getAbsolutePath()), e);
+
+        } catch (JsonMappingException e) {
+            // log error because this is not expected to happen in any normal case
+            logger.atError().cause(e).kv(RECIPE_METADATA_FILE_PATH_LOG_KEY, metadataFile.getAbsolutePath())
+                    .log("Failed to get recipe metadata because the recipe metadata file json has wrong structure");
+
+
+            throw new PackageLoadingException(String.format(
+                    "Failed to get recipe metadata because the recipe metadata file json has wrong structure. "
+                            + RECIPE_METADATA_FILE_PATH_LOG_KEY + ": '%s'.", metadataFile.getAbsolutePath()), e);
+
+        } catch (IOException e) {
+            // log error because this is not expected to happen in any normal case
+            logger.atError().cause(e).kv("RecipeMetadataFilePath", metadataFile.getAbsolutePath())
+                    .log("Failed to get recipe metadata because the file can't be read due to low-level I/O error");
+
+
+            throw new PackageLoadingException(String.format(
+                    "Failed to get recipe metadata because the file can't be read due to low-level I/O error."
+                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e);
+        }
+    }
+
+    private File resolveRecipeMetadataFile(ComponentIdentifier componentIdentifier) {
+        String hashOfComponentName = null;
+        try {
+            // calculate a hash for component name so that it is safe to be in a file name cross platform
+            // padding is removed to avoid confusion
+            hashOfComponentName = Digest.calculateWithUrlEncoderNoPadding(componentIdentifier.getName());
+        } catch (NoSuchAlgorithmException e) {
+            //TODO
+        }
+
+        // @ is used as delimiter between component name hash and semver
+        // .metadata is to indicate it contains metadata info
+        // .json at the end is to indicate the file cotnent type is a json
+        String recipeMetaDataFileName =
+                String.format("%s@%s.metadata.json", hashOfComponentName, componentIdentifier.getVersion().getValue());
+
+        return nucleusPaths.recipePath().resolve(recipeMetaDataFileName).toFile();
+    }
 }

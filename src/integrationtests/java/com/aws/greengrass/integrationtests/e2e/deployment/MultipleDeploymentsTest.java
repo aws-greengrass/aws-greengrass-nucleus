@@ -5,9 +5,9 @@
 
 package com.aws.greengrass.integrationtests.e2e.deployment;
 
-import com.amazonaws.services.evergreen.model.ComponentInfo;
-import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
-import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
+import com.amazonaws.services.greengrassv2.model.ComponentDeploymentSpecification;
+import com.amazonaws.services.greengrassv2.model.CreateDeploymentRequest;
+import com.amazonaws.services.greengrassv2.model.CreateDeploymentResult;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
@@ -66,19 +66,21 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
     // notifications in this scenario.
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_offline_device_WHEN_create_multiple_deployments_for_same_group_THEN_last_deployment_execute_successfully() throws Exception {
+    void GIVEN_offline_device_WHEN_create_multiple_deployments_for_same_group_THEN_last_deployment_execute_successfully()
+            throws Exception {
         DeploymentJobHelper mostRecentJobHelper = new DeploymentJobHelper(3, "CustomerApp");
-        List<DeploymentJobHelper> helpers = Arrays
-                .asList(new DeploymentJobHelper(1, "GreenSignal"), new DeploymentJobHelper(2, "SomeService"),
+        List<DeploymentJobHelper> helpers =
+                Arrays.asList(new DeploymentJobHelper(1, "GreenSignal"), new DeploymentJobHelper(2, "SomeService"),
                         mostRecentJobHelper);
 
         // Create multiple jobs
         for (DeploymentJobHelper helper : helpers) {
             CreateDeploymentRequest createDeploymentRequest = new CreateDeploymentRequest()
-                    .addComponentsEntry(helper.targetPkgName, new ComponentInfo().withVersion("1.0.0"));
+                    .addComponentsEntry(helper.targetPkgName,
+                            new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
 
             CreateDeploymentResult createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest);
-            helper.jobId = createDeploymentResult.getJobId();
+            helper.jobId = createDeploymentResult.getIotJobId();
 
             IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
                     Duration.ofMinutes(1), s -> s.ordinal() >= JobExecutionStatus.QUEUED.ordinal());
@@ -106,8 +108,8 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
 
     private void subscribeToLocalDeploymentStatus(Kernel kernel, List<DeploymentJobHelper> helpers) {
         Topics processedDeployments = kernel.getConfig()
-                .lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS,
-                        RUNTIME_STORE_NAMESPACE_TOPIC, PROCESSED_DEPLOYMENTS_TOPICS);
+                .lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS, RUNTIME_STORE_NAMESPACE_TOPIC,
+                        PROCESSED_DEPLOYMENTS_TOPICS);
         processedDeployments.subscribe((whatHappened, newValue) -> {
             if (!(newValue instanceof Topics) || whatHappened == WhatHappened.interiorAdded) {
                 return;
@@ -121,7 +123,7 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
                     logger.atWarn().kv("jobId", helpers.get(i - 1).jobId).log("Waiting for deployment job to complete");
                     break;
                 }
-                if (helpers.get(i).jobId.equals(jobId) && "SUCCEEDED".equals(status)) {
+                if (helpers.get(i).jobId.equals(jobId) && "SUCCEEDED" .equals(status)) {
                     logger.atWarn().kv("jobId", helpers.get(i).jobId).log("Deployment job has completed");
                     helpers.get(i).jobCompleted.countDown();
                     break;
