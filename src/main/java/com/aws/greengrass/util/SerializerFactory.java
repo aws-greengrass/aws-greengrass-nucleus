@@ -9,12 +9,14 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public final class SerializerFactory {
-    private static final ObjectMapper JSON_OBJECT_MAPPER =
+
+    // most of our use cases need to be fail safe on unknowns, rather than throwing exceptions
+    private static final ObjectMapper FAIL_SAFE_JSON_OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    public static ObjectMapper getJsonObjectMapper() {
-        return JSON_OBJECT_MAPPER;
+    public static ObjectMapper getFailSafeJsonObjectMapper() {
+        return FAIL_SAFE_JSON_OBJECT_MAPPER;
     }
 
     private SerializerFactory() {

@@ -6,7 +6,6 @@
 package com.aws.greengrass.integrationtests.componentmanager;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
-import com.aws.greengrass.componentmanager.ComponentServiceHelper;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -19,7 +18,6 @@ import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.platforms.Platform;
 import com.vdurmont.semver4j.Semver;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,12 +77,8 @@ class ComponentManagerIntegTest extends BaseITCase {
 
         kernel.getContext().put(ArtifactDownloaderFactory.class, mockDownloaderFactory);
 
-        ComponentServiceHelper mockServiceHelper = mock(ComponentServiceHelper.class);
-
-        String testRecipeContent =
-                FileUtils.readFileToString(Paths.get(this.getClass().getResource("zip.yaml").toURI()).toFile());
-        when(mockServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(testRecipeContent);
-        kernel.getContext().put(ComponentServiceHelper.class, mockServiceHelper);
+        Files.copy(Paths.get(this.getClass().getResource("zip.yaml").toURI()),
+                nucleusPaths.recipePath().resolve("A-1.0.0.yaml"));
 
         // THEN
         kernel.getContext().get(ComponentManager.class).preparePackages(Collections.singletonList(ident))
@@ -133,12 +127,8 @@ class ComponentManagerIntegTest extends BaseITCase {
         when(mockDownloaderFactory.getArtifactDownloader(any(), any(), any())).thenReturn(mockDownloader);
         kernel.getContext().put(ArtifactDownloaderFactory.class, mockDownloaderFactory);
 
-        ComponentServiceHelper mockServiceHelper = mock(ComponentServiceHelper.class);
-
-        String testRecipeContent =
-                FileUtils.readFileToString(Paths.get(this.getClass().getResource("perms.yaml").toURI()).toFile());
-        when(mockServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(testRecipeContent);
-        kernel.getContext().put(ComponentServiceHelper.class, mockServiceHelper);
+        Files.copy(Paths.get(this.getClass().getResource("perms.yaml").toURI()),
+                nucleusPaths.recipePath().resolve("A-1.0.0.yaml"));
 
         // THEN
         kernel.getContext().get(ComponentManager.class).preparePackages(Collections.singletonList(ident))

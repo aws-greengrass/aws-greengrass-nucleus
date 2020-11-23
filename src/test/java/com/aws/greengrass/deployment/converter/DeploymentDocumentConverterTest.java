@@ -12,9 +12,9 @@ package com.aws.greengrass.deployment.converter;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.amazonaws.arn.Arn;
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
@@ -151,7 +151,6 @@ class DeploymentDocumentConverterTest {
         assertEquals(DependencyComponentConfig.getRunWith().getPosixUser(), "1234");
     }
 
-
     @Test
     void GIVEN_fleet_configuration_with_config_update_WHEN_convert_to_deployment_doc_THEN_parse_successfully() {
         String configurationArn =
@@ -164,8 +163,10 @@ class DeploymentDocumentConverterTest {
         FleetConfiguration config =
                 FleetConfiguration.builder().creationTimestamp(0L).packages(new HashMap<String, PackageInfo>() {{
                     put("pkgA", new PackageInfo(true, "1.0.0", configMapA));
-                }}).componentUpdatePolicy(new ComponentUpdatePolicy().withAction("NOTIFY_COMPONENTS").withTimeout(60))
-                        .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
+                }}).componentUpdatePolicy(
+                        new DeploymentComponentUpdatePolicy().withAction("NOTIFY_COMPONENTS").withTimeoutInSeconds(60))
+                        .configurationValidationPolicy(
+                                new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20))
                         .configurationArn(configurationArn).build();
 
         DeploymentDocument doc = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
@@ -201,7 +202,7 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentDocument.getFailureHandlingPolicy(), is(FailureHandlingPolicy.DO_NOTHING));
         assertThat(deploymentDocument.getTimestamp(), is(1604067741583L));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
-                   is(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                   is(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(120));
 
         assertThat(deploymentDocument.getDeploymentId(),
@@ -258,7 +259,7 @@ class DeploymentDocumentConverterTest {
 
         // Default for ComponentUpdatePolicy is NOTIFY_COMPONENTS with 60 sec as timeout
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
-                   is(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                   is(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(60));
     }
 
@@ -292,7 +293,7 @@ class DeploymentDocumentConverterTest {
 
         // Default for ComponentUpdatePolicy is NOTIFY_COMPONENTS with 60 sec as timeout
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
-                   is(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                   is(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(120));
 
     }

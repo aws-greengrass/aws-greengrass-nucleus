@@ -6,7 +6,7 @@
 package com.aws.greengrass.easysetup;
 
 import com.amazonaws.arn.Arn;
-import com.amazonaws.services.evergreen.AWSEvergreen;
+import com.amazonaws.services.greengrassv2.AWSGreengrassV2;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.IamSdkClientFactory;
@@ -82,7 +82,7 @@ class DeviceProvisioningHelperTest {
     @Mock
     private IamClient iamClient;
     @Mock
-    private AWSEvergreen greengrassClient;
+    private AWSGreengrassV2 greengrassClient;
     @Mock
     private GetPolicyResponse getPolicyResponse;
     @Mock

@@ -5,7 +5,8 @@
 
 package com.aws.greengrass.deployment;
 
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
+
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.activator.DeploymentActivator;
@@ -79,7 +80,7 @@ public class DeploymentConfigMerger {
         }
 
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
-        if (ComponentUpdatePolicyAction.NOTIFY_COMPONENTS
+        if (DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS
                 .equals(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction())) {
             kernel.getContext().get(UpdateSystemSafelyService.class)
                     .addUpdateAction(deploymentDocument.getDeploymentId(),

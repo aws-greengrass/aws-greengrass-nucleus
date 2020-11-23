@@ -38,19 +38,19 @@ import java.util.function.Consumer;
 @SuppressFBWarnings("NM_METHOD_NAMING_CONVENTION")
 public class IotJobsClientWrapper extends IotJobsClient {
     private static final String UPDATE_JOB_TOPIC =
-            "$aws/things/%s/jobs/%s/namespace-cust-deployment/update";
+            "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/update";
     static final String JOB_UPDATE_ACCEPTED_TOPIC =
-            "$aws/things/%s/jobs/%s/namespace-cust-deployment/update/accepted";
+            "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/update/accepted";
     static final String JOB_UPDATE_REJECTED_TOPIC =
-            "$aws/things/%s/jobs/%s/namespace-cust-deployment/update/rejected";
+            "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/update/rejected";
     private static final String DESCRIBE_JOB_TOPIC =
-            "$aws/things/%s/jobs/%s/namespace-cust-deployment/get";
+            "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/get";
     private static final String JOB_DESCRIBE_ACCEPTED_TOPIC =
-            "$aws/things/%s/jobs/%s/namespace-cust-deployment/get/accepted";
+            "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/get/accepted";
     private static final String JOB_DESCRIBE_REJECTED_TOPIC =
-            "$aws/things/%s/jobs/%s/namespace-cust-deployment/get/rejected";
+            "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/get/rejected";
     private static final String JOB_EXECUTIONS_CHANGED_TOPIC =
-            "$aws/things/%s/jobs/notify-namespace-cust-deployment";
+            "$aws/things/%s/jobs/notify-namespace-aws-gg-deployment";
 
     private final MqttClientConnection connection;
     private final Gson gson = this.getGson();

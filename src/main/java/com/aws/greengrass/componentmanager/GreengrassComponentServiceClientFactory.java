@@ -10,8 +10,8 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.retry.RetryMode;
-import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
+import com.amazonaws.services.greengrassv2.AWSGreengrassV2;
+import com.amazonaws.services.greengrassv2.AWSGreengrassV2ClientBuilder;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
@@ -56,7 +56,7 @@ public class GreengrassComponentServiceClientFactory {
 
     private static final Logger logger = LogManager.getLogger(GreengrassComponentServiceClientFactory.class);
 
-    private AWSEvergreen cmsClient;
+    private AWSGreengrassV2 cmsClient;
 
     /**
      * Constructor with custom endpoint/region configuration.
@@ -91,7 +91,7 @@ public class GreengrassComponentServiceClientFactory {
                     .log("Error during configure greengrass client mutual auth", e);
         }
         clientConfiguration.withRetryMode(RetryMode.STANDARD);
-        AWSEvergreenClientBuilder clientBuilder = AWSEvergreenClientBuilder.standard()
+        AWSGreengrassV2ClientBuilder clientBuilder = AWSGreengrassV2ClientBuilder.standard()
                 // Use an empty credential provider because our requests don't need SigV4
                 // signing, as they are going through IoT Core instead
                 .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))

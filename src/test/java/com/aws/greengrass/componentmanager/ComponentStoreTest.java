@@ -12,24 +12,32 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.SerializerFactory;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -37,6 +45,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -51,9 +60,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Every test in ComponentStoreTest start with a new and clean package store by creating a temp folder. It pre loads files
- * from its test resource folder if it needs to mock some recipe/artifact. It doesn't and shouldn't use or assume any
- * static folder directly as package store. The package store folder is deleted after each test.
+ * Every test in ComponentStoreTest start with a new and clean package store by creating a temp folder. It pre loads
+ * files from its test resource folder if it needs to mock some recipe/artifact. It doesn't and shouldn't use or assume
+ * any static folder directly as package store. The package store folder is deleted after each test.
  */
 @ExtendWith({GGExtension.class})
 class ComponentStoreTest {
@@ -63,14 +72,19 @@ class ComponentStoreTest {
             new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, MONITORING_SERVICE_PKG_VERSION);
     private static final String MONITORING_SERVICE_PKG_ARTIFACT_NAME = "monitor_artifact_100.txt";
     public static final String MONITORING_SERVICE_PKG_RECIPE_FILE_NAME = "MonitoringService-1.0.0.yaml";
+    public static final String MONITORING_SERVICE_PKG_RECIPE_METADATA_FILE_NAME =
+            "MonitoringService@1.0.0.metadata.json";
 
     private static Path RECIPE_RESOURCE_PATH;
     private static Path ARTIFACT_RESOURCE_PATH;
+    private static Path RECIPE_METADATA_RESOURCE_PATH;
 
     static {
         try {
             RECIPE_RESOURCE_PATH = Paths.get(ComponentStoreTest.class.getResource("recipes").toURI());
             ARTIFACT_RESOURCE_PATH = Paths.get(ComponentStoreTest.class.getResource("test_packages").toURI());
+            RECIPE_METADATA_RESOURCE_PATH =
+                    Paths.get(ComponentStoreTest.class.getResource("test_recipe_metadata_files").toURI());
         } catch (URISyntaxException ignore) {
         }
     }
@@ -186,16 +200,15 @@ class ComponentStoreTest {
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
         String recipeString = new String(Files.readAllBytes(sourceRecipe));
 
-        assertTrue(componentStore.validateComponentRecipeDigest(
-                MONITORING_SERVICE_PKG_ID, Digest.calculate(recipeString)));
+        assertTrue(componentStore
+                           .validateComponentRecipeDigest(MONITORING_SERVICE_PKG_ID, Digest.calculate(recipeString)));
 
-        assertFalse(componentStore.validateComponentRecipeDigest(
-                MONITORING_SERVICE_PKG_ID, Digest.calculate("random String")));
+        assertFalse(componentStore.validateComponentRecipeDigest(MONITORING_SERVICE_PKG_ID,
+                                                                 Digest.calculate("random String")));
 
         ComponentIdentifier nonExistentComponent =
                 new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("5.0.0"));
-        assertFalse(componentStore.validateComponentRecipeDigest(
-                nonExistentComponent, Digest.calculate(recipeString)));
+        assertFalse(componentStore.validateComponentRecipeDigest(nonExistentComponent, Digest.calculate(recipeString)));
     }
 
     @Test
@@ -251,7 +264,8 @@ class ComponentStoreTest {
 
         // THEN
         assertThat(componentMetadata.getComponentIdentifier(), is(MONITORING_SERVICE_PKG_ID));
-        assertThat(componentMetadata.getDependencies(), is(getExpectedDependencies(Requirement.build(MONITORING_SERVICE_PKG_VERSION))));
+        assertThat(componentMetadata.getDependencies(),
+                   is(getExpectedDependencies(Requirement.build(MONITORING_SERVICE_PKG_VERSION))));
     }
 
     @Test
@@ -302,8 +316,8 @@ class ComponentStoreTest {
                 componentStore.findBestMatchAvailableComponent(MONITORING_SERVICE_PKG_NAME, requirement);
 
         // THEN
-        assertThat(componentIdentifierOptional.get(), is(new ComponentIdentifier("MonitoringService",
-                new Semver("1.1.0"))));
+        assertThat(componentIdentifierOptional.get(),
+                   is(new ComponentIdentifier("MonitoringService", new Semver("1.1.0"))));
 
         // WHEN
         requirement = Requirement.buildNPM("^2.0");
@@ -311,8 +325,8 @@ class ComponentStoreTest {
                 componentStore.findBestMatchAvailableComponent(MONITORING_SERVICE_PKG_NAME, requirement);
 
         // THEN
-        assertThat(componentIdentifierOptional.get(), is(new ComponentIdentifier("MonitoringService",
-                new Semver("2.0.0"))));
+        assertThat(componentIdentifierOptional.get(),
+                   is(new ComponentIdentifier("MonitoringService", new Semver("2.0.0"))));
 
         // WHEN
         requirement = Requirement.buildNPM("^3.1");
@@ -327,26 +341,33 @@ class ComponentStoreTest {
     void GIVEN_recipe_and_artifact_exists_WHEN_delete_package_THEN_both_deleted() throws Exception {
         preloadRecipeFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
         preloadArtifactFileFromTestResouce(MONITORING_SERVICE_PKG_ID, MONITORING_SERVICE_PKG_ARTIFACT_NAME);
-        Path expectedRecipePath = recipeDirectory.resolve(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
-        Path expectedArtifactPath = componentStore.resolveArtifactDirectoryPath(MONITORING_SERVICE_PKG_ID)
-                .resolve(MONITORING_SERVICE_PKG_ARTIFACT_NAME);
-        assertTrue(Files.exists(expectedRecipePath));
-        assertTrue(Files.exists(expectedArtifactPath));
-        componentStore.deleteComponent(MONITORING_SERVICE_PKG_ID);
-        assertFalse(Files.exists(expectedRecipePath));
-        assertFalse(Files.exists(expectedArtifactPath));
-    }
+        preloadRecipeMetadataFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_METADATA_FILE_NAME);
 
+        File expectedRecipeFile = recipeDirectory.resolve(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME).toFile();
+        File expectedArtifactFile = componentStore.resolveArtifactDirectoryPath(MONITORING_SERVICE_PKG_ID)
+                .resolve(MONITORING_SERVICE_PKG_ARTIFACT_NAME).toFile();
+        File expectedRecipeMetadataFile =
+                getExpectedRecipeMetadataFile(MONITORING_SERVICE_PKG_NAME, MONITORING_SERVICE_PKG_VERSION.getValue());
+
+        assertThat(expectedRecipeFile, anExistingFile());
+        assertThat(expectedArtifactFile, anExistingFile());
+        assertThat(expectedRecipeMetadataFile, anExistingFile());
+
+        componentStore.deleteComponent(MONITORING_SERVICE_PKG_ID);
+
+        assertThat(expectedRecipeFile, not(anExistingFile()));
+        assertThat(expectedArtifactFile, not(anExistingFile()));
+        assertThat(expectedRecipeMetadataFile, not(anExistingFile()));
+    }
 
     @Test
     void GIVEN_artifacts_WHEN_list_by_artifact_THEN_result_is_correct() throws Exception {
-        Set<ComponentIdentifier> mockComponents = new HashSet<>(Arrays.asList(
-                new ComponentIdentifier("Mock1", new Semver("1.1.0")),
-                new ComponentIdentifier("Mock1", new Semver("1.2.0")),
-                new ComponentIdentifier("Mock2", new Semver("2.1.0")),
-                new ComponentIdentifier("Mock3", new Semver("3.1.0")),
-                new ComponentIdentifier("Mock3", new Semver("3.2.0"))
-        ));
+        Set<ComponentIdentifier> mockComponents = new HashSet<>(
+                Arrays.asList(new ComponentIdentifier("Mock1", new Semver("1.1.0")),
+                              new ComponentIdentifier("Mock1", new Semver("1.2.0")),
+                              new ComponentIdentifier("Mock2", new Semver("2.1.0")),
+                              new ComponentIdentifier("Mock3", new Semver("3.1.0")),
+                              new ComponentIdentifier("Mock3", new Semver("3.2.0"))));
 
         // mock these artifact exist
         for (ComponentIdentifier mockComponent : mockComponents) {
@@ -384,8 +405,8 @@ class ComponentStoreTest {
 
     private void preloadArtifactFileFromTestResouce(ComponentIdentifier pkgId, String artFileName)
             throws IOException, PackageLoadingException {
-        Path sourceArtFile = ARTIFACT_RESOURCE_PATH.resolve(String.format("%s-%s", pkgId.getName(),
-                pkgId.getVersion())).resolve(artFileName);
+        Path sourceArtFile = ARTIFACT_RESOURCE_PATH.resolve(String.format("%s-%s", pkgId.getName(), pkgId.getVersion()))
+                .resolve(artFileName);
         Path destArtFile = componentStore.resolveArtifactDirectoryPath(pkgId).resolve(artFileName);
         Files.createDirectories(destArtFile.getParent());
         Files.copy(sourceArtFile, destArtFile);
@@ -401,8 +422,128 @@ class ComponentStoreTest {
         Path artifactPath = componentStore.resolveArtifactDirectoryPath(MONITORING_SERVICE_PKG_ID);
 
         Path expectedArtifactPath = artifactDirectory.resolve(MONITORING_SERVICE_PKG_ID.getName())
-                                                     .resolve(MONITORING_SERVICE_PKG_ID.getVersion().getValue());
+                .resolve(MONITORING_SERVICE_PKG_ID.getVersion().getValue());
         assertThat(artifactPath.toAbsolutePath(), is(equalTo(expectedArtifactPath)));
+    }
+
+    @Test
+    void GIVEN_no_existing_metadata_file_WHEN_saveRecipeMetadata_THEN_file_is_written_with_right_content()
+            throws Exception {
+        // GIVEN
+        String componentName = "HelloWorld";
+        String version = "1.0.0";
+        File expectedRecipeMetadataFile = getExpectedRecipeMetadataFile(componentName, version);
+
+        assertThat(expectedRecipeMetadataFile, not(anExistingFile()));
+
+        String testArn = "testArn";
+
+        // WHEN
+        componentStore.saveRecipeMetadata(new ComponentIdentifier(componentName, new Semver(version)),
+                                          new RecipeMetadata(testArn));
+
+        // THEN
+        assertThat(expectedRecipeMetadataFile, is(anExistingFile()));
+
+        String expectedContent =
+                SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(new RecipeMetadata(testArn));
+        String actualContent = new String(Files.readAllBytes(expectedRecipeMetadataFile.toPath()));
+        assertThat(actualContent, is(equalTo(expectedContent)));
+    }
+
+    @Test
+    void GIVEN_existing_metadata_file_WHEN_saveRecipeMetadata_THEN_file_is_written_with_right_content()
+            throws Exception {
+        // GIVEN
+        preloadRecipeMetadataFileFromTestResource("HelloWorld@1.0.0.metadata.json");
+
+        String componentName = "HelloWorld";
+        String version = "1.0.0";
+        File expectedRecipeMetadataFile = getExpectedRecipeMetadataFile(componentName, version);
+
+        assertThat(expectedRecipeMetadataFile, is(anExistingFile()));
+
+        String updatedArn = "updatedArn";
+
+        // WHEN
+        componentStore.saveRecipeMetadata(new ComponentIdentifier(componentName, new Semver(version)),
+                                          new RecipeMetadata(updatedArn));
+
+        // THEN
+        assertThat(expectedRecipeMetadataFile, is(anExistingFile()));
+
+        String expectedContent =
+                SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(new RecipeMetadata(updatedArn));
+        String actualContent = new String(Files.readAllBytes(expectedRecipeMetadataFile.toPath()));
+        assertThat(actualContent, is(equalTo(expectedContent)));
+    }
+
+    private File getExpectedRecipeMetadataFile(String componentName, String componentVersion)
+            throws NoSuchAlgorithmException {
+        String hash = getHashFromName(componentName);
+
+        String expectedRecipeMetadataFileName =
+                String.format("%s@%s.metadata.json", hash, componentVersion); // {hash}@1.0.0.metadata.json
+
+        return recipeDirectory.resolve(expectedRecipeMetadataFileName).toFile();
+    }
+
+    private String getHashFromName(String componentName) throws NoSuchAlgorithmException {
+        // expects the hash of component name to be base64 (url safe and no padding) encoded SHA256
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(
+                MessageDigest.getInstance("SHA-256").digest(componentName.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void GIVEN_a_valid_metadata_file_WHEN_getRecipeMetadata_THEN_return() throws Exception {
+        preloadRecipeMetadataFileFromTestResource("HelloWorld@1.0.0.metadata.json");
+
+        String expectedArn = "testArn"; // defined in HelloWorld@1.0.0.metadata.json
+        RecipeMetadata recipeMetadata =
+                componentStore.getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("1.0.0")));
+        assertThat(recipeMetadata.getComponentVersionArn(), equalTo(expectedArn));
+    }
+
+    @Test
+    void GIVEN_a_metadata_file_has_unknown_fields_WHEN_getRecipeMetadata_THEN_arn_can_still_be_returned()
+            throws Exception {
+        preloadRecipeMetadataFileFromTestResource("HelloWorld@0.0.0-test-unknown-fields.metadata.json");
+
+        String expectedArn = "testArn"; // defined in HelloWorld@0.0.0-test-unknown-fields.metadata.json
+
+        RecipeMetadata recipeMetadata = componentStore
+                .getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("0.0.0-test-unknown-fields")));
+        assertThat(recipeMetadata.getComponentVersionArn(), equalTo(expectedArn));
+    }
+
+    @Test
+    void GIVEN_a_non_existing_metadata_file_WHEN_getRecipeMetadata_THEN_throws_PackageLoadingException() {
+        assertThrows(PackageLoadingException.class, () -> componentStore
+                .getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("0.0.0"))));
+    }
+
+    @Test
+    void GIVEN_a_corrupted_metadata_file_WHEN_getRecipeMetadata_THEN_throws_PackageLoadingException(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, JsonParseException.class);   // ignore exception error log
+
+        preloadRecipeMetadataFileFromTestResource("HelloWorld@0.0.0-test-corrupted.metadata.json");
+
+        assertThrows(PackageLoadingException.class, () -> componentStore
+                .getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("0.0.0-test-corrupted"))));
+    }
+
+    private void preloadRecipeMetadataFileFromTestResource(String fileName) throws Exception {
+        Path sourceRecipe = RECIPE_METADATA_RESOURCE_PATH.resolve(fileName);
+        String componentName = fileName.split("@")[0];
+
+        String hash = getHashFromName(componentName);
+
+        String targetRecipeMetadataFileName = fileName.replace(componentName, hash);    // {hash}@1.0.0.metadata.json
+
+        Path destinationRecipe = recipeDirectory.resolve(targetRecipeMetadataFileName);
+
+        Files.copy(sourceRecipe, destinationRecipe);
     }
 
     private static Map<String, String> getExpectedDependencies(Requirement versionRequirement) {

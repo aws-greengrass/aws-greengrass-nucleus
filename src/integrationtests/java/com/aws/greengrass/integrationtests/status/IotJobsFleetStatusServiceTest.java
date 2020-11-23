@@ -5,9 +5,9 @@
 
 package com.aws.greengrass.integrationtests.status;
 
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
@@ -229,10 +229,11 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         packages.putIfAbsent("CustomerApp", new PackageInfo(true, "1.0.0", new HashMap<>()));
         List<String> platforms = new ArrayList<>();
         platforms.add("all");
-        FleetConfiguration configuration = new FleetConfiguration(MOCK_FLEET_CONFIG_ARN, packages, platforms,
-                Instant.now().toEpochMilli(), FailureHandlingPolicy.DO_NOTHING,
-                new ComponentUpdatePolicy().withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                        .withTimeout(120), new ConfigurationValidationPolicy().withTimeout(120));
+        FleetConfiguration configuration =
+                new FleetConfiguration(MOCK_FLEET_CONFIG_ARN, packages, platforms, Instant.now().toEpochMilli(),
+                        FailureHandlingPolicy.DO_NOTHING, new DeploymentComponentUpdatePolicy()
+                        .withAction(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS).withTimeoutInSeconds(120),
+                        new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(120));
         configuration.setCreationTimestamp(Instant.now().toEpochMilli());
 
         deploymentQueue.offer(new Deployment(OBJECT_MAPPER.writeValueAsString(configuration),

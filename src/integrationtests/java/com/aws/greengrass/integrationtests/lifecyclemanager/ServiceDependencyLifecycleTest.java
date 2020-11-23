@@ -6,7 +6,7 @@
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.Crashable;
 import com.aws.greengrass.dependency.State;
@@ -44,7 +44,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
+import static com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
@@ -438,7 +438,8 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
 
     private Deployment createMockDeployment(DeploymentDocument doc) {
         when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
-        when(doc.getConfigurationValidationPolicy()).thenReturn(new ConfigurationValidationPolicy().withTimeout(20));
+        when(doc.getConfigurationValidationPolicy())
+                .thenReturn(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20));
         Deployment deployment = mock(Deployment.class);
         doReturn(doc).when(deployment).getDeploymentDocumentObj();
         return deployment;

@@ -6,21 +6,19 @@
 package com.aws.greengrass.integrationtests.e2e;
 
 import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.evergreen.AWSEvergreen;
-import com.amazonaws.services.evergreen.AWSEvergreenClientBuilder;
-import com.amazonaws.services.evergreen.model.CancelDeploymentRequest;
-import com.amazonaws.services.evergreen.model.ComponentInfo;
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
-import com.amazonaws.services.evergreen.model.CreateComponentResult;
-import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
-import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
-import com.amazonaws.services.evergreen.model.DeleteComponentVersionDeprecatedResult;
-import com.amazonaws.services.evergreen.model.DeploymentPolicies;
-import com.amazonaws.services.evergreen.model.FailureHandlingPolicy;
-import com.amazonaws.services.evergreen.model.ResourceAlreadyExistsException;
-import com.aws.greengrass.componentmanager.ComponentServiceHelper;
+import com.amazonaws.services.greengrassv2.AWSGreengrassV2;
+import com.amazonaws.services.greengrassv2.AWSGreengrassV2ClientBuilder;
+import com.amazonaws.services.greengrassv2.model.CancelDeploymentRequest;
+import com.amazonaws.services.greengrassv2.model.ComponentDeploymentSpecification;
+import com.amazonaws.services.greengrassv2.model.CreateComponentVersionResult;
+import com.amazonaws.services.greengrassv2.model.CreateDeploymentRequest;
+import com.amazonaws.services.greengrassv2.model.CreateDeploymentResult;
+import com.amazonaws.services.greengrassv2.model.DeleteComponentResult;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentFailureHandlingPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentPolicies;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
@@ -30,6 +28,7 @@ import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.easysetup.DeviceProvisioningHelper;
+import com.aws.greengrass.integrationtests.e2e.helper.ComponentServiceTestHelper;
 import com.aws.greengrass.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -43,6 +42,7 @@ import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.RegionUtils;
+import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -56,6 +56,7 @@ import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
 import software.amazon.awssdk.services.iot.model.DeleteConflictException;
 import software.amazon.awssdk.services.iot.model.InvalidRequestException;
+import software.amazon.awssdk.services.iot.model.ResourceAlreadyExistsException;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
@@ -100,8 +101,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @ExtendWith(GGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
     protected static final Region GAMMA_REGION = Region.US_EAST_1;
-    protected static final String THING_GROUP_TARGET_TYPE = "thinggroup";
-    protected static final String THING_TARGET_TYPE = "thing";
     private static final String TES_ROLE_NAME = "E2ETestsTesRole";
     protected static final String TES_ROLE_ALIAS_NAME = "E2ETestsTesRoleAlias";
     private static final String TES_ROLE_POLICY_NAME = "E2ETestsTesRolePolicy";
@@ -133,6 +132,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected final Set<String> createdThingGroups = new HashSet<>();
     protected DeviceProvisioningHelper.ThingInfo thingInfo;
     protected String thingGroupName;
+    protected String thingGroupArn;
     protected CreateThingGroupResponse thingGroupResp;
 
     protected DeviceProvisioningHelper deviceProvisioningHelper =
@@ -162,7 +162,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     };
 
-    protected static final AWSEvergreen greengrassClient = AWSEvergreenClientBuilder.standard()
+    protected static final AWSGreengrassV2 greengrassClient = AWSGreengrassV2ClientBuilder.standard()
                                                                              .withEndpointConfiguration(
                                                                                      new AwsClientBuilder.EndpointConfiguration(
                                                                                              RegionUtils.getGreengrassControlPlaneEndpoint(GAMMA_REGION.toString(), envStage),
@@ -187,7 +187,9 @@ public class BaseE2ETestCase implements AutoCloseable {
             createPackageIdentifier("KernelIntegTestDependency", new Semver("1.0.0")),
             createPackageIdentifier("Log", new Semver("2.0.0")),
             createPackageIdentifier("NonDisruptableService", new Semver("1.0.0")),
-            createPackageIdentifier("NonDisruptableService", new Semver("1.0.1"))};
+            createPackageIdentifier("NonDisruptableService", new Semver("1.0.1"))
+            };
+    private static final Map<ComponentIdentifier, String> componentArns = new HashMap<>();
 
     @BeforeAll
     static void beforeAll() throws Exception {
@@ -204,9 +206,16 @@ public class BaseE2ETestCase implements AutoCloseable {
         try {
             List<ComponentIdentifier> allComponents = new ArrayList<>(Arrays.asList(componentsWithArtifactsInS3));
             for (ComponentIdentifier component : allComponents) {
-                DeleteComponentVersionDeprecatedResult result = ComponentServiceHelper
-                        .deleteComponent(greengrassClient, component.getName(), component.getVersion().toString());
-                assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
+                String componentArn = componentArns.get(component);
+                if (Utils.isEmpty(componentArn)) {
+                    logger.atWarn().kv("component-name", component.getName())
+                            .kv("compoenent-version", component.getVersion())
+                            .log("No component arn found to make delete request for cleanup");
+                } else {
+                    DeleteComponentResult result =
+                            ComponentServiceTestHelper.deleteComponent(greengrassClient, componentArn);
+                    assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
+                }
             }
         } finally {
             cleanUpTestComponentArtifactsFromS3();
@@ -217,6 +226,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         thingInfo = deviceProvisioningHelper.createThingForE2ETests();
         thingGroupResp = IotJobsUtils.createThingGroupAndAddThing(iotClient, thingInfo);
         thingGroupName = thingGroupResp.thingGroupName();
+        thingGroupArn = thingGroupResp.thingGroupArn();
         createdThingGroups.add(thingGroupName);
     }
 
@@ -307,10 +317,11 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));
 
-        CreateComponentResult createComponentResult =
-                ComponentServiceHelper.createComponent(greengrassClient, testRecipePath);
-        assertEquals(pkgIdCloud.getName(), createComponentResult.getName(), createComponentResult.toString());
-        assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getVersion());
+        CreateComponentVersionResult createComponentResult =
+                ComponentServiceTestHelper.createComponent(greengrassClient, testRecipePath);
+        componentArns.put(pkgIdLocal, createComponentResult.getArn());
+        assertEquals(pkgIdCloud.getName(), createComponentResult.getComponentName(), createComponentResult.toString());
+        assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getComponentVersion());
     }
 
     private static void createS3BucketsForTestComponentArtifacts() {
@@ -370,24 +381,22 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected CreateDeploymentResult draftAndCreateDeployment(CreateDeploymentRequest createDeploymentRequest) {
 
         // update package name with random suffix to avoid conflict in cloud
-        Map<String, ComponentInfo> updatedPkgMetadata = new HashMap<>();
+        Map<String, ComponentDeploymentSpecification> updatedPkgMetadata = new HashMap<>();
         createDeploymentRequest.getComponents().forEach((key, val) -> updatedPkgMetadata.put(getTestComponentNameInCloud(key), val));
         createDeploymentRequest.setComponents(updatedPkgMetadata);
 
         // set default value
-        if (createDeploymentRequest.getTargetName() == null) {
-            createDeploymentRequest.withTargetName(thingGroupName);
-        }
-        if (createDeploymentRequest.getTargetType() == null) {
-            createDeploymentRequest.withTargetType(THING_GROUP_TARGET_TYPE);
+        if (createDeploymentRequest.getTargetArn() == null) {
+            createDeploymentRequest.withTargetArn(thingGroupArn);
         }
         if (createDeploymentRequest.getDeploymentPolicies() == null) {
-            createDeploymentRequest.withDeploymentPolicies(new DeploymentPolicies()
-                                                      .withConfigurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(120))
-                                                      .withComponentUpdatePolicy(
-                                                              new ComponentUpdatePolicy().withAction(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                                                                      .withTimeout(120))
-                                                      .withFailureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING));
+            createDeploymentRequest.withDeploymentPolicies(
+                    new DeploymentPolicies()
+                            .withConfigurationValidationPolicy(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(120))
+                            .withComponentUpdatePolicy(
+                                    new DeploymentComponentUpdatePolicy().withAction(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
+                                            .withTimeoutInSeconds(120))
+                            .withFailureHandlingPolicy(DeploymentFailureHandlingPolicy.DO_NOTHING));
         }
 
         logger.atInfo().kv("CreateDeploymentRequest", createDeploymentRequest).log();
@@ -395,8 +404,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         logger.atInfo().kv("CreateDeploymentResult", createDeploymentResult).log();
 
         // Keep track of deployments to clean up
-        createdDeployments.add(new CancelDeploymentRequest().withTargetName(createDeploymentRequest.getTargetName())
-                .withTargetType(createDeploymentRequest.getTargetType()));
+        createdDeployments.add(new CancelDeploymentRequest().withDeploymentId(createDeploymentResult.getDeploymentId()));
 
         return createDeploymentResult;
     }

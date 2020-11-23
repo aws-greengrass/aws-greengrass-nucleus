@@ -6,10 +6,12 @@
 package com.aws.greengrass.componentmanager.plugins;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactDeprecatedRequest;
-import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactDeprecatedResult;
+import com.amazonaws.services.greengrassv2.model.GetComponentVersionArtifactRequest;
+import com.amazonaws.services.greengrassv2.model.GetComponentVersionArtifactResult;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 
@@ -26,15 +28,17 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     private static final String HTTP_HEADER_CONTENT_DISPOSITION = "Content-Disposition";
 
+    private final ComponentStore componentStore;
     private final GreengrassComponentServiceClientFactory clientFactory;
     private Long artifactSize = null;
     private String artifactFilename = null;
 
     protected GreengrassRepositoryDownloader(GreengrassComponentServiceClientFactory clientFactory,
                                           ComponentIdentifier identifier, ComponentArtifact artifact,
-                                          Path artifactDir) {
+                                          Path artifactDir, ComponentStore componentStore) {
         super(identifier, artifact, artifactDir);
         this.clientFactory = clientFactory;
+        this.componentStore = componentStore;
     }
 
     // TODO: avoid calling cloud to get artifact file name.
@@ -166,20 +170,29 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         });
     }
 
+
     private URL getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws PackageDownloadException {
-        GetComponentVersionArtifactDeprecatedRequest getComponentArtifactRequest =
-                new GetComponentVersionArtifactDeprecatedRequest().withArtifactName(artifactName)
-                        .withComponentName(componentIdentifier.getName())
-                        .withComponentVersion(componentIdentifier.getVersion().toString());
+        String arn;
+        try {
+            arn = componentStore.getRecipeMetadata(componentIdentifier)
+                    .getComponentVersionArn();
+        } catch (PackageLoadingException e) {
+            throw new PackageDownloadException(
+                    "Failed to get component version arn from component store. The arn is required for getting artifact"
+                            + " from greengrass cloud.",
+                    e);
+        }
 
+        GetComponentVersionArtifactRequest getComponentArtifactRequest =
+                new GetComponentVersionArtifactRequest().withArtifactName(artifactName).withArn(arn);
         String preSignedUrl;
         try {
-            GetComponentVersionArtifactDeprecatedResult getComponentArtifactResult =
-                    clientFactory.getCmsClient().getComponentVersionArtifactDeprecated(getComponentArtifactRequest);
+            GetComponentVersionArtifactResult getComponentArtifactResult =
+                    clientFactory.getCmsClient().getComponentVersionArtifact(getComponentArtifactRequest);
             preSignedUrl = getComponentArtifactResult.getPreSignedUrl();
-        } catch (AmazonClientException ace) {
-            throw new PackageDownloadException(getErrorString("error in get artifact download URL"), ace);
+        } catch (AmazonClientException e) {
+            throw new PackageDownloadException(getErrorString("error in get artifact download URL"), e);
         }
         try {
             return new URL(preSignedUrl);

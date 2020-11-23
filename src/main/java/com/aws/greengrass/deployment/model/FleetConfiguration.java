@@ -5,8 +5,8 @@
 
 package com.aws.greengrass.deployment.model;
 
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.AllArgsConstructor;
@@ -47,7 +47,7 @@ public class FleetConfiguration {
 
     private FailureHandlingPolicy failureHandlingPolicy;
 
-    private ComponentUpdatePolicy componentUpdatePolicy;
+    private DeploymentComponentUpdatePolicy componentUpdatePolicy;
 
-    private ConfigurationValidationPolicy configurationValidationPolicy;
+    private DeploymentConfigurationValidationPolicy configurationValidationPolicy;
 }
