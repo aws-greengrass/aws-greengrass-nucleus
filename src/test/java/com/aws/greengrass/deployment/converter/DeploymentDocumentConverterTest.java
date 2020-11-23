@@ -11,17 +11,12 @@
 package com.aws.greengrass.deployment.converter;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
-import com.amazonaws.arn.Arn;
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicy;
 import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
-import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
-import com.aws.greengrass.deployment.model.PackageInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.aws.greengrass.model.RunWithInfo;
@@ -34,10 +29,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
+
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
@@ -211,76 +204,6 @@ class DeploymentDocumentConverterTest {
         assertEquals(DependencyComponentConfig.getConfigurationUpdateOperation(),
                      mapper.readValue(dependencyUpdateConfigString, ConfigurationUpdateOperation.class));
         assertThat(DependencyComponentConfig.getResolvedVersion(), is("*"));
-    }
-
-    @Test
-    void GIVEN_fleet_configuration_with_arn_WHEN_convert_to_deployment_doc_THEN_parse_successfully() {
-        String configurationArn =
-                Arn.builder().withPartition("aws").withService("gg").withResource("configuration:thing/test:1").build()
-                        .toString();
-        Map<String, Object> configMapA = new HashMap<String, Object>() {{
-            put("param1", "value1");
-        }};
-        Map<String, Object> configMapB = new HashMap<String, Object>() {{
-            put("param2", singletonMap("foo", "bar"));
-        }};
-        FleetConfiguration config =
-                FleetConfiguration.builder().creationTimestamp(0L).packages(new HashMap<String, PackageInfo>() {{
-                    put("pkgA", new PackageInfo(true, "1.0.0", configMapA));
-                    put("pkgB", new PackageInfo(false, "1.1.0", configMapB));
-                }}).componentUpdatePolicy(new ComponentUpdatePolicy().withAction("NOTIFY_COMPONENTS").withTimeout(60))
-                        .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
-                        .configurationArn(configurationArn).build();
-
-        DeploymentDocument doc = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
-
-        assertEquals(configurationArn, doc.getDeploymentId());
-        assertNull(doc.getFailureHandlingPolicy());
-        assertEquals(0L, doc.getTimestamp());
-        assertThat(doc.getDeploymentPackageConfigurationList(),
-                   containsInAnyOrder(new DeploymentPackageConfiguration("pkgA", true, "1.0.0", configMapA),
-                                      new DeploymentPackageConfiguration("pkgB", false, "1.1.0", configMapB)));
-        assertThat(doc.getRootPackages(), containsInAnyOrder("pkgA"));
-        assertEquals("thing/test", doc.getGroupName());
-    }
-
-    @Test
-    void GIVEN_fleet_configuration_with_config_update_WHEN_convert_to_deployment_doc_THEN_parse_successfully() {
-        String configurationArn =
-                Arn.builder().withPartition("aws").withService("gg").withResource("configuration:thing/test:1").build()
-                        .toString();
-        Map<String, Object> configMapA = new HashMap<String, Object>() {{
-            put(ConfigurationUpdateOperation.MERGE_KEY, ImmutableMap.of("param1", "value1"));
-            put(ConfigurationUpdateOperation.RESET_KEY, Arrays.asList("/path1", "/nested/path2"));
-        }};
-        Map<String, Object> configMapB = new HashMap<String, Object>() {{
-            put("param2", singletonMap("foo", "bar"));
-        }};
-        FleetConfiguration config =
-                FleetConfiguration.builder().creationTimestamp(0L).packages(new HashMap<String, PackageInfo>() {{
-                    put("pkgA", new PackageInfo(true, "1.0.0", configMapA));
-                    put("pkgB", new PackageInfo(false, "1.1.0", configMapB));
-                }}).componentUpdatePolicy(new ComponentUpdatePolicy().withAction("NOTIFY_COMPONENTS").withTimeout(60))
-                        .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
-                        .configurationArn(configurationArn).build();
-
-        DeploymentDocument doc = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
-
-        ConfigurationUpdateOperation configurationUpdateOperation = new ConfigurationUpdateOperation();
-        configurationUpdateOperation.setValueToMerge(ImmutableMap.of("param1", "value1"));
-        configurationUpdateOperation.setPathsToReset(Arrays.asList("/path1", "/nested/path2"));
-
-        assertEquals(configurationArn, doc.getDeploymentId());
-        assertNull(doc.getFailureHandlingPolicy());
-        assertEquals(0L, doc.getTimestamp());
-        assertThat(doc.getDeploymentPackageConfigurationList(), containsInAnyOrder(
-                DeploymentPackageConfiguration.builder().packageName("pkgA").rootComponent(true)
-                        .resolvedVersion("1.0.0").configuration(emptyMap())
-                        .configurationUpdateOperation(configurationUpdateOperation).build(),
-                DeploymentPackageConfiguration.builder().packageName("pkgB").rootComponent(false)
-                        .resolvedVersion("1.1.0").configuration(configMapB).build()));
-        assertThat(doc.getRootPackages(), containsInAnyOrder("pkgA"));
-        assertEquals("thing/test", doc.getGroupName());
     }
 
     @Test
