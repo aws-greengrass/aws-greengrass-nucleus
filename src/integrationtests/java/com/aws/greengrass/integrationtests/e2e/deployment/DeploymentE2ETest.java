@@ -23,7 +23,7 @@ import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.greengrass.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
-import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
+import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
@@ -479,9 +479,9 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_some_running_services_WHEN_cancel_event_received_and_kernel_is_waiting_for_safe_time_THEN_deployment_should_be_canceled()
+    void GIVEN_some_running_services_WHEN_cancel_event_received_and_kernel_is_waiting_for_disruptable_time_THEN_deployment_should_be_canceled()
             throws Exception {
-        // First Deployment to have a service running in Kernel which has a safety check that always returns
+        // First Deployment to have a service running in Kernel which has a update policy check that always returns
         // false, i.e. keeps waiting forever
         CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest()
                 .addComponentsEntry("NonDisruptableService",
@@ -523,7 +523,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                     }));
 
             // Second deployment to update the service which is currently running an important task so deployment should
-            // wait for a safe time to update
+             // wait for a disruptable time to update
             CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest().withDeploymentPolicies(
                     new DeploymentPolicies().withConfigurationValidationPolicy(
                             new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(120))
@@ -552,7 +552,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             // then cancel it's corresponding job from cloud
             assertTrue(updateRegistered.await(60, TimeUnit.SECONDS));
             assertThat("The UpdateSystemService should have one pending action.",
-                    kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions(),
+                    kernel.getContext().get(UpdateSystemPolicyService.class).getPendingActions(),
                     IsCollectionWithSize.hasSize(1));
 
             // GG_NEEDS_REVIEW: TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
@@ -561,7 +561,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             // Wait for indication that cancellation has gone through
             assertTrue(deploymentCancelled.await(60, TimeUnit.SECONDS));
             assertThat("The UpdateSystemService's one pending action should be be removed.",
-                    kernel.getContext().get(UpdateSystemSafelyService.class).getPendingActions(),
+                    kernel.getContext().get(UpdateSystemPolicyService.class).getPendingActions(),
                     IsCollectionWithSize.hasSize(0));
 
             // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
@@ -578,9 +578,9 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_deployment_received_WHEN_skip_safety_check_THEN_safety_check_skipped() throws Exception {
+    void GIVEN_deployment_received_WHEN_skip_update_policy_check_THEN_update_policy_check_skipped() throws Exception {
         // GIVEN
-        // First Deployment to have a service running in Kernel which has a safety check that always returns
+        // First Deployment to have a service running in Kernel which has a update policy that always returns
         // false, i.e. keeps waiting forever
         CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest()
                 .addComponentsEntry("NonDisruptableService",
@@ -590,10 +590,10 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getIotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
-        CountDownLatch safeCheckSkipped = new CountDownLatch(1);
+        CountDownLatch updatePolicyCheckSkipped = new CountDownLatch(1);
         Consumer<GreengrassLogMessage> logListener = m -> {
-            if (m.getMessage().contains("Deployment is configured to skip safety check")) {
-                safeCheckSkipped.countDown();
+            if (m.getMessage().contains("Deployment is configured to skip update policy check")) {
+                updatePolicyCheckSkipped.countDown();
             }
         };
         Slf4jLogAdapter.addGlobalListener(logListener);
@@ -614,7 +614,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
 
         // THEN
-        assertTrue(safeCheckSkipped.await(60, TimeUnit.SECONDS));
+        assertTrue(updatePolicyCheckSkipped.await(60, TimeUnit.SECONDS));
         Slf4jLogAdapter.removeGlobalListener(logListener);
 
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getIotJobId(), thingInfo.getThingName(),
@@ -714,12 +714,13 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             // Wait for the second deployment to start waiting for safe time to update and
             // then cancel it's corresponding job from cloud
             assertTrue(updateRegistered.await(60, TimeUnit.SECONDS));
-            UpdateSystemSafelyService updateSystemSafelyService =
-                    kernel.getContext().get(UpdateSystemSafelyService.class);
+
+            UpdateSystemPolicyService updateSystemPolicyService = kernel.getContext().get(UpdateSystemPolicyService.class);
             assertThat("The UpdateSystemService should have one pending action.",
-                    updateSystemSafelyService.getPendingActions(), IsCollectionWithSize.hasSize(1));
+                    updateSystemPolicyService.getPendingActions(),
+                    IsCollectionWithSize.hasSize(1));
             // Get the value of the pending Action
-            String pendingAction = updateSystemSafelyService.getPendingActions().iterator().next();
+            String pendingAction = updateSystemPolicyService.getPendingActions().iterator().next();
 
             // GG_NEEDS_REVIEW: TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
             IotJobsUtils.cancelJob(iotClient, result2.getIotJobId());
@@ -727,13 +728,13 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             // Wait for indication that cancellation has gone through
             assertTrue(deploymentCancelled.await(240, TimeUnit.SECONDS));
             // the third deployment may have reached device.
-            Set<String> pendingActions = updateSystemSafelyService.getPendingActions();
+            Set<String> pendingActions = updateSystemPolicyService.getPendingActions();
             if (pendingActions.size() == 1) {
                 String newPendingAction = pendingActions.iterator().next();
                 assertNotEquals(pendingAction, newPendingAction,
                         "The UpdateSystemService's one pending action should be be replaced.");
             } else if (pendingActions.size() > 1) {
-                fail("Deployment not cancelled, pending actions: " + updateSystemSafelyService.getPendingActions());
+                fail("Deployment not cancelled, pending actions: " + updateSystemPolicyService.getPendingActions());
             }
 
             // Now that we've verified that the job got cancelled, let's verify that the next job was picked up

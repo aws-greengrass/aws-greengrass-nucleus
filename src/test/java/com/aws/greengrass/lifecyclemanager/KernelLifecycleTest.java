@@ -119,7 +119,7 @@ class KernelLifecycleTest {
         doAnswer((i) -> {
             ClassAnnotationMatchProcessor func = i.getArgument(1);
 
-            func.processMatch(UpdateSystemSafelyService.class);
+            func.processMatch(UpdateSystemPolicyService.class);
             func.processMatch(DeploymentService.class);
 
             return null;

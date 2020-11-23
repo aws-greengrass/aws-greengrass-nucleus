@@ -603,13 +603,13 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Runnable mainRestarted = createServiceStateChangeWaiter(kernel, "main", 10, State.FINISHED, State.STARTING);
         AtomicBoolean safeUpdateSkipped= new AtomicBoolean();
         Consumer<GreengrassLogMessage> listener = (m) -> {
-            if ("Deployment is configured to skip safety check, not waiting for safe time to update"
+            if ("Deployment is configured to skip update policy check, not waiting for disruptable time to update"
                     .equals(m.getMessage())) {
                     safeUpdateSkipped.set(true);
                 }
         };
         try (AutoCloseable l = createCloseableLogListener(listener)) {
-            deploymentConfigMerger.mergeInNewConfig(testDeploymentWithSkipSafetyCheckConfig(), new HashMap<String, Object>() {{
+            deploymentConfigMerger.mergeInNewConfig(testDeploymentWithSkipPolicyCheckConfig(), new HashMap<String, Object>() {{
                 put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                     put("main", new HashMap<String, Object>() {{
                         put(SETENV_CONFIG_NAMESPACE, new HashMap<String, Object>() {{
@@ -701,7 +701,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
 
-    private Deployment testDeploymentWithSkipSafetyCheckConfig() {
+    private Deployment testDeploymentWithSkipPolicyCheckConfig() {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(

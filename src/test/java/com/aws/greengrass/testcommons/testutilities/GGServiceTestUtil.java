@@ -9,7 +9,7 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
+import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -33,7 +33,7 @@ public class GGServiceTestUtil {
     protected String serviceFullName = "EvergreenServiceFullName";
 
     @Mock
-    protected UpdateSystemSafelyService mockSafeUpdateService;
+    protected UpdateSystemPolicyService updateSystemPolicyService;
 
     @Mock
     protected Topics config;
@@ -68,7 +68,7 @@ public class GGServiceTestUtil {
         lenient().when(config.getContext()).thenReturn(context);
         lenient().when(context.get(ExecutorService.class)).thenReturn(mock(ExecutorService.class));
         lenient().when(context.get(Kernel.class)).thenReturn(mock(Kernel.class));
-        lenient().when(context.get(eq(UpdateSystemSafelyService.class))).thenReturn(mockSafeUpdateService);
+        lenient().when(context.get(eq(UpdateSystemPolicyService.class))).thenReturn(updateSystemPolicyService);
         return config;
     }
 }

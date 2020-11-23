@@ -20,7 +20,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.UpdateAction;
-import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
+import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -82,14 +82,15 @@ public class DeploymentConfigMerger {
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         if (DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS
                 .equals(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction())) {
-            kernel.getContext().get(UpdateSystemSafelyService.class)
+            kernel.getContext().get(UpdateSystemPolicyService.class)
                     .addUpdateAction(deploymentDocument.getDeploymentId(),
                             new UpdateAction(deploymentDocument.getDeploymentId(),
                                     ggcRestart, deploymentDocument.getComponentUpdatePolicy().getTimeout(),
                                     () -> updateActionForDeployment(newConfig, deployment, activator,
                                             totallyCompleteFuture)));
         } else {
-            logger.atInfo().log("Deployment is configured to skip safety check, not waiting for safe time to update");
+            logger.atInfo().log("Deployment is configured to skip update policy check,"
+                    + " not waiting for disruptable time to update");
             updateActionForDeployment(newConfig, deployment, activator, totallyCompleteFuture);
         }
 
