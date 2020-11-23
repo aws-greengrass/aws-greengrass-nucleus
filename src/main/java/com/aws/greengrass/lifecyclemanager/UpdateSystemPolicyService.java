@@ -30,20 +30,20 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
- * Handles requests to update the system's configuration during safe times.
+ * Handles requests to update the system's configuration during disruptable times.
  * (or anything else that's disruptive and shouldn't be done until the system
- * is in a "safe" state).
+ * is in a "disruptable" state).
  *
  * <p>It maintains a list of actions that will be executed when the
- * system is next "disruptable".  This is typically code that is going to install an update.
+ * system is next "disruptable". This is typically code that is going to install an update.
  *
  * <p>If the update service is periodic, update actions will only be processed at that time.
  * Otherwise, it the update will be processed immediately, assuming that all disruptability
  * checks pass.
  */
-@ImplementsService(name = "SafeSystemUpdate", autostart = true)
+@ImplementsService(name = "UpdateSystemPolicyService", autostart = true)
 @Singleton
-public class UpdateSystemSafelyService extends GreengrassService {
+public class UpdateSystemPolicyService extends GreengrassService {
     // String identifies the action, the pair consist of timeout and an action. The timeout
     // represents the value in seconds the kernel will wait for components to respond to
     // an precomponent update event
@@ -59,15 +59,15 @@ public class UpdateSystemSafelyService extends GreengrassService {
     /**
      * Constructor for injection.
      *
-     * @param c topics root
+     * @param topics topics root
      */
     @Inject
-    public UpdateSystemSafelyService(Topics c) {
-        super(c);
+    public UpdateSystemPolicyService(Topics topics) {
+        super(topics);
     }
 
     /**
-     * Add an update action to be performed when the system is in a "safe" state.
+     * Add an update action to be performed when the system is in a "disruptable" state.
      *
      * @param tag          used both as a printable description and a de-duplication key.  eg. If the action is
      *                     installing a new config file, the tag should probably be the URL of the config.  If a key is
@@ -118,7 +118,7 @@ public class UpdateSystemSafelyService extends GreengrassService {
      *
      * @param  tag tag to identify an update action
      * @return true if all update actions are pending and requested action could be discarded,
-     *         false if update actions were already in progress so it's not safe to discard the requested action
+     *         false if update actions were already in progress
      */
     public boolean discardPendingUpdateAction(String tag) {
         if (runningUpdateActions.get()) {
