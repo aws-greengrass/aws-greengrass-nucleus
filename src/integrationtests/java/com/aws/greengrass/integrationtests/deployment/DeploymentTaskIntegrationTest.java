@@ -1112,7 +1112,7 @@ class DeploymentTaskIntegrationTest {
         // check is processed, it can still update the NonDisruptableService service to version 1.0.1 bypassing the
         // update policy check
         Future<DeploymentResult> resultFuture =
-                submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("SkipSafetyCheck.json").toURI(),
+                submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("SkipPolicyCheck.json").toURI(),
                         System.currentTimeMillis());
         DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies()
