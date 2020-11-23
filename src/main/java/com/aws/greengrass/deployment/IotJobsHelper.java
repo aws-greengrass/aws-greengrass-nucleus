@@ -279,7 +279,7 @@ public class IotJobsHelper implements InjectionActions {
         try {
             deviceConfiguration.validate();
         } catch (DeviceConfigurationException e) {
-            logger.atWarn().log("Device not configured to talk to AWS Iot cloud. Device will run in offline mode");
+            logger.atWarn().log("Device not configured to talk to AWS Iot cloud. Device will run in offline mode", e);
             return;
         }
         mqttClient.addToCallbackEvents(callbacks);
