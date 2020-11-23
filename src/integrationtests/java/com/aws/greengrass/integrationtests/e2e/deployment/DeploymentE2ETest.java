@@ -15,6 +15,7 @@ import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidati
 import com.amazonaws.services.greengrassv2.model.DeploymentFailureHandlingPolicy;
 import com.amazonaws.services.greengrassv2.model.DeploymentPolicies;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -361,6 +362,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
     void GIVEN_blank_kernel_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error(
             ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, ResourceNotFoundException.class);
+        ignoreExceptionUltimateCauseOfType(context, NoAvailableComponentVersionException.class);
 
         // New deployment contains dependency conflicts
         CreateDeploymentRequest createDeploymentRequest = new CreateDeploymentRequest()

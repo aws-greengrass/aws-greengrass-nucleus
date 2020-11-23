@@ -225,7 +225,6 @@ public class ComponentManager implements InjectionActions {
         }
 
         // Save the arn to the recipe meta data file
-        logger.atInfo().kv("Arn", resolvedComponentVersion.getArn()).log("Ethan");
         componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(resolvedComponentVersion.getArn()));
 
         return resolvedComponentId;
