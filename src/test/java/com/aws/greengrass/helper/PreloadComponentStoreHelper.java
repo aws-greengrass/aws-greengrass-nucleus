@@ -55,8 +55,14 @@ public class PreloadComponentStoreHelper {
      */
     public static String getRecipeStorageFilenameFromTestSource(String recipeFileName) {
         // The test recipe file name is in the form of {componentName}-{version}.yaml
-        String componentName = recipeFileName.split("-")[0];
-        String version = recipeFileName.split("-")[1].split(".yaml")[0];
+
+        // Get the last index of '-' because test component name may contain '-'. ex. UUID.
+        // Semver could have '-' but we are not testing it now. When we need to, we will move from '-' to '@' as
+        // delimiter for testing resource
+        int dashPos = recipeFileName.lastIndexOf('-');
+
+        String componentName = recipeFileName.substring(0, dashPos);
+        String version = recipeFileName.substring(dashPos + 1).split(".yaml")[0];
 
         // destination should be {hash}@{version}.recipe.yaml
         String hash = getHashFromComponentName(componentName);
