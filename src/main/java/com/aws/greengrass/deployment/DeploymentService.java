@@ -460,7 +460,7 @@ public class DeploymentService extends GreengrassService {
         try {
             switch (deployment.getDeploymentType()) {
                 case LOCAL:
-                    LocalOverrideRequest localOverrideRequest = SerializerFactory.getJsonObjectMapper()
+                    LocalOverrideRequest localOverrideRequest = SerializerFactory.getFailSafeJsonObjectMapper()
                             .readValue(jobDocumentString, LocalOverrideRequest.class);
                     Map<String, String> rootComponents = new HashMap<>();
                     Set<String> rootComponentsInRequestedGroup = new HashSet<>();
@@ -482,22 +482,22 @@ public class DeploymentService extends GreengrassService {
                     break;
                 case IOT_JOBS:
                 case SHADOW:
-                    JsonNode jsonNode =
-                            SerializerFactory.getJsonObjectMapper().readValue(jobDocumentString, JsonNode.class);
+                    JsonNode jsonNode = SerializerFactory.getFailSafeJsonObjectMapper()
+                            .readValue(jobDocumentString, JsonNode.class);
 
                     if (jsonNode.has("packages")) {
                         // If "packages" exists, the document is in the old format, which is
                         // the result of Set/PublishConfiguration
                         // TODO remove after migrating off Set/PublishConfiguration:
                         // https://issues.amazon.com/issues/P41383716
-                        FleetConfiguration config = SerializerFactory.getJsonObjectMapper()
+                        FleetConfiguration config = SerializerFactory.getFailSafeJsonObjectMapper()
                                 .readValue(jobDocumentString, FleetConfiguration.class);
                         document = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
                     } else {
                         // Note: This is the data contract that gets sending down from FCS::CreateDeployment
                         // Configuration is really a bad name choice as it is too generic but we can change it later
                         // since it is only a internal model
-                        Configuration configuration = SerializerFactory.getJsonObjectMapper()
+                        Configuration configuration = SerializerFactory.getFailSafeJsonObjectMapper()
                                 .readValue(jobDocumentString, Configuration.class);
                         document = DeploymentDocumentConverter.convertFromDeploymentConfiguration(configuration);
                     }

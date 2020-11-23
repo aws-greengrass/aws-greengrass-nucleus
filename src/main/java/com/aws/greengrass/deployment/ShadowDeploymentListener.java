@@ -236,7 +236,8 @@ public class ShadowDeploymentListener implements InjectionActions {
         String fleetConfigStr = (String) desired.get(FLEET_CONFIG_KEY);
         FleetConfiguration fleetConfig;
         try {
-            fleetConfig = SerializerFactory.getJsonObjectMapper().readValue(fleetConfigStr, FleetConfiguration.class);
+            fleetConfig =
+                    SerializerFactory.getFailSafeJsonObjectMapper().readValue(fleetConfigStr, FleetConfiguration.class);
         } catch (JsonProcessingException e) {
             logger.atError().log("failed to process shadow update", e);
             return;
