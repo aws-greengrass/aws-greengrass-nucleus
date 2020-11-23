@@ -1106,13 +1106,13 @@ class DeploymentTaskIntegrationTest {
 
     @Test
     @Order(100)
-    void GIVEN_services_running_WHEN_new_deployment_asks_to_skip_safety_check_THEN_deployment_is_successful() throws Exception {
+    void GIVEN_services_running_WHEN_new_deployment_asks_to_skip_update_policy_check_THEN_deployment_is_successful() throws Exception {
         // The previous test has NonDisruptableService 1.0.0 running in kernel that always returns false when its
-        // safety check script is run, this test demonstrates that when a next deployment configured to skip safety
+        // update policy check is run, this test demonstrates that when a next deployment configured to skip update policy
         // check is processed, it can still update the NonDisruptableService service to version 1.0.1 bypassing the
-        // safety check
+        // update policy check
         Future<DeploymentResult> resultFuture =
-                submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("SkipSafetyCheck.json").toURI(),
+                submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("SkipPolicyCheck.json").toURI(),
                         System.currentTimeMillis());
         DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies()

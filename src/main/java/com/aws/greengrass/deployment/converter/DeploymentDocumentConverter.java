@@ -88,7 +88,7 @@ public final class DeploymentDocumentConverter {
                 .deploymentId(localOverrideRequest.getRequestId())
                 .deploymentPackageConfigurationList(packageConfigurations)
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)    // Can't rollback for local deployment
-                // Currently we always skip safety check for local deployment to not slow down testing for customers
+                // Currently we skip update policy check for local deployment to not slow down testing for customers
                 // If we make this configurable in local development then we can plug that input in here
                 // NO_OP_TIMEOUT is not used since the policy is SKIP_NOTIFY_COMPONENTS
                 .configurationValidationPolicy(
