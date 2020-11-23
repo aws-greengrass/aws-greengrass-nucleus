@@ -53,7 +53,8 @@ public class ComponentStore {
     public static final String RECIPE_FILE_NAME_FORMAT = "%s-%s.yaml";
 
     private static final Logger logger = LogManager.getLogger(ComponentStore.class);
-    private static final String RECIPE_METADATA_FILE_PATH_LOG_KEY = "RecipeMetadataFilePath";
+    private static final String LOG_KEY_RECIPE_METADATA_FILE_PATH = "RecipeMetadataFilePath";
+    private static final String RECIPE_SUFFIX = ".recipe";
 
     private final NucleusPaths nucleusPaths;
     private final PlatformResolver platformResolver;
@@ -365,11 +366,6 @@ public class ComponentStore {
         String recipeFileName = String.format("%s.recipe.yaml", getFilenamePrefixFromComponentId(componentIdentifier));
 
         return nucleusPaths.recipePath().resolve(recipeFileName);
-    }
-
-    private Path resolveRecipePath(String packageName, Semver packageVersion) {
-        return nucleusPaths.recipePath()
-                .resolve(String.format(RECIPE_FILE_NAME_FORMAT, packageName, packageVersion.getValue()));
     }
 
     /**
