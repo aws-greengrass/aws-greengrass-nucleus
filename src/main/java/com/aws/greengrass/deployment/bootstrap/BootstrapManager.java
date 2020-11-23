@@ -227,8 +227,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             }
             try {
                 logger.atInfo().kv("changed", RUN_WITH_TOPIC)
-                        .kv("old", SerializerFactory.getJsonObjectMapper().writeValueAsString(currentValues))
-                        .kv("new", SerializerFactory.getJsonObjectMapper().writeValueAsString(runWithDefault))
+                        .kv("old", SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(currentValues))
+                        .kv("new", SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(runWithDefault))
                         .log(RESTART_REQUIRED_MESSAGE);
             } catch (JsonProcessingException e) {
                 throw new ComponentConfigurationValidationException(e);
@@ -363,7 +363,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         Files.createFile(persistedTaskFilePath);
 
         try (CommitableWriter out = CommitableWriter.commitOnClose(persistedTaskFilePath)) {
-            SerializerFactory.getJsonObjectMapper().writeValue(out, bootstrapTaskStatusList);
+            SerializerFactory.getFailSafeJsonObjectMapper().writeValue(out, bootstrapTaskStatusList);
         }
         logger.atInfo().kv("filePath", persistedTaskFilePath).log("Bootstrap task list is saved to file");
     }
@@ -381,7 +381,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
 
         CommitableReader.of(persistedTaskFilePath).read(in -> {
             bootstrapTaskStatusList.clear();
-            bootstrapTaskStatusList.addAll(SerializerFactory.getJsonObjectMapper()
+            bootstrapTaskStatusList.addAll(SerializerFactory.getFailSafeJsonObjectMapper()
                     .readValue(in, new TypeReference<List<BootstrapTaskStatus>>(){}));
             return null;
         });

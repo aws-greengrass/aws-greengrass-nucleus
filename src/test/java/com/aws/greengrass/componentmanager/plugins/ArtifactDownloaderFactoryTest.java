@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.plugins;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
@@ -38,12 +39,15 @@ public class ArtifactDownloaderFactoryTest {
     @Mock
     GreengrassComponentServiceClientFactory greengrassComponentServiceClientFactory;
 
+    @Mock
+    ComponentStore componentStore;
+
     ArtifactDownloaderFactory artifactDownloaderFactory;
 
     @BeforeEach
     public void setup() {
         artifactDownloaderFactory = new ArtifactDownloaderFactory(
-                s3SdkClientFactory, greengrassComponentServiceClientFactory);
+                s3SdkClientFactory, greengrassComponentServiceClientFactory, componentStore);
     }
 
     @Test

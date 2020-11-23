@@ -159,7 +159,8 @@ public class DynamicComponentConfigurationValidator {
     private boolean validateOverIpc(Deployment deployment, Set<ComponentToValidate> componentsToValidate,
                                     CompletableFuture<DeploymentResult> deploymentResultFuture) {
         String deploymentId = deployment.getId();
-        Integer timeoutSec = deployment.getDeploymentDocumentObj().getConfigurationValidationPolicy().getTimeout();
+        Integer timeoutSec =
+                deployment.getDeploymentDocumentObj().getConfigurationValidationPolicy().getTimeoutInSeconds();
         Long timeoutMs = Duration.ofSeconds(DEFAULT_TIMEOUT_SECOND).toMillis();
         if (timeoutSec != null) {
             timeoutMs = Duration.ofSeconds(timeoutSec).toMillis();

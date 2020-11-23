@@ -6,8 +6,8 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -91,9 +91,9 @@ class DependencyResolverTest {
     private Topics groupToTargetComponentsTopics;
     private Context context;
     private final ComponentUpdatePolicy componentUpdatePolicy =
-            new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS);
-    private final ConfigurationValidationPolicy configurationValidationPolicy =
-            new ConfigurationValidationPolicy().withTimeout(20);
+            new ComponentUpdatePolicy(60, DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS);
+    private final DeploymentConfigurationValidationPolicy configurationValidationPolicy =
+            new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20);
 
     @BeforeEach
     void setupTopics() throws Exception {
