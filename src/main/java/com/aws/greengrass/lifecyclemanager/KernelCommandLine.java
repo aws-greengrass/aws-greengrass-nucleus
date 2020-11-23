@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -16,6 +17,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
+import com.vdurmont.semver4j.Semver;
 import lombok.AccessLevel;
 import lombok.Getter;
 
@@ -23,6 +25,10 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Objects;
 
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
 import static com.aws.greengrass.util.Utils.HOME_PATH;
 
 public class KernelCommandLine {
@@ -56,6 +62,13 @@ public class KernelCommandLine {
     private static final String deploymentsPathName = "~root/deployments";
     private static final String cliIpcInfoPathName = "~root/cli_ipc_info";
     private static final String binPathName = "~root/bin";
+    public static final String DEFAULT_NUCLEUS_BOOTSTRAP_TEMPLATE = "set -eu\n"
+            + "KERNEL_ROOT=\"%s\"\n"
+            + "UNPACK_DIR=\"%s/aws.greengrass.nucleus\"\n"
+            + "# TODO: Use builtin unpack functionality with permission preserved if available\n"
+            + "chmod +x \"$UNPACK_DIR/bin/loader\"\n" + "\n" + "rm -r \"$KERNEL_ROOT\"/alts/current/*\n\n"
+            + "echo \"-Xms512m -Xmx512m\" > \"$KERNEL_ROOT/alts/current/launch.params\"\n"
+            + "ln -sf \"$UNPACK_DIR\" \"$KERNEL_ROOT/alts/current/distro\"\n" + "exit 100";
 
     public static void main(String[] args) {
         new Kernel().parseArgs(args).launch();
@@ -162,6 +175,19 @@ public class KernelCommandLine {
             // Initialize file and directory managers after kernel root directory is set up
             deploymentDirectoryManager = new DeploymentDirectoryManager(kernel, nucleusPaths);
             kernel.getContext().put(DeploymentDirectoryManager.class, deploymentDirectoryManager);
+
+            // Initialize default nucleus bootstrap script with provided paths
+            ComponentIdentifier nucleusComponentId =
+                    new ComponentIdentifier(DEFAULT_NUCLEUS_COMPONENT_NAME, new Semver(KernelVersion.KERNEL_VERSION));
+            String rootPath = nucleusPaths.rootPath().toAbsolutePath().toString();
+            String unarchivePath = nucleusPaths.unarchiveArtifactPath(nucleusComponentId).toAbsolutePath().toString();
+            String bootstrapScript = String.format(DEFAULT_NUCLEUS_BOOTSTRAP_TEMPLATE, rootPath, unarchivePath);
+            kernel.getConfig()
+                    .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                            LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, "script").dflt(bootstrapScript);
+            kernel.getConfig()
+                    .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                            LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, "RequiresPrivilege").dflt(true);
         } catch (IOException e) {
             RuntimeException rte = new RuntimeException("Cannot create all required directories", e);
             logger.atError("system-boot-error", rte).log();
