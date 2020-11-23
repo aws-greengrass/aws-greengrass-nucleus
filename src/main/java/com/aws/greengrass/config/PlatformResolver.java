@@ -136,7 +136,14 @@ public class PlatformResolver {
             return null;
         }
         try {
-            return Exec.sh("uname -m").toLowerCase();
+            String archDetail = Exec.sh("uname -m").toLowerCase();
+            // TODO: "uname -m" is not sufficient to capture arch details on all platforms.
+            // Currently only return if detected armv6l, as required by lambda launcher.
+            if ("armv6l".equals(archDetail)) {
+                return archDetail;
+            } else {
+                return null;
+            }
         } catch (IOException | InterruptedException e) {
             logger.error("Error trying to determine architecture detail - assuming not available", e);
         }
