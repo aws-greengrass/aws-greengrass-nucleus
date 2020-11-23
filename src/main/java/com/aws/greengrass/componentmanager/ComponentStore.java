@@ -8,7 +8,6 @@ package com.aws.greengrass.componentmanager;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
-import com.aws.greengrass.componentmanager.exceptions.UnexpectedPackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;

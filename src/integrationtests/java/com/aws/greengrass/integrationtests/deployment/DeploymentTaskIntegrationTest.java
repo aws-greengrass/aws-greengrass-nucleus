@@ -1174,10 +1174,6 @@ class DeploymentTaskIntegrationTest {
                 REPLACE_EXISTING);
     }
 
-    private static Path resolveRecipePathFromCompStoreRoot(Path compStoreRootPath, String name, String version) {
-        return compStoreRootPath.resolve("recipes").resolve(String.format("%s-%s.yaml", name, version));
-    }
-
     private static Path resolveArtifactPathFromCompStoreRoot(Path compStoreRootPath, String name, String version) {
         return compStoreRootPath.resolve("artifacts").resolve(name).resolve(version);
     }
