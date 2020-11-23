@@ -11,7 +11,6 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
-import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -53,12 +52,8 @@ public abstract class DeploymentActivator {
         long mergeTime;
         try {
             mergeTime = System.currentTimeMillis();
-            // The lambda is set up to ignore anything that is a child of DEPLOYMENT_SAFE_NAMESPACE_TOPIC
-            // Does not necessarily have to be a child of services, customers are free to put this namespace wherever
-            // they like in the config
             ConfigurationReader.mergeTLogInto(kernel.getConfig(),
-                    deploymentDirectoryManager.getSnapshotFilePath(), true,
-                    s -> !s.childOf(GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC));
+                    deploymentDirectoryManager.getSnapshotFilePath(), true, null);
             return mergeTime;
         } catch (IOException e) {
             // Could not merge old snapshot transaction log, rollback failed

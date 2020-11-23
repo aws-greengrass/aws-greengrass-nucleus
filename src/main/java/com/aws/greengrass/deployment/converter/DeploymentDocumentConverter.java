@@ -14,8 +14,8 @@ import com.amazon.aws.iot.greengrass.configuration.common.ComponentUpdate;
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.amazon.aws.iot.greengrass.configuration.common.ConfigurationUpdate;
 import com.amazonaws.arn.Arn;
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
+import static com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 import static com.aws.greengrass.deployment.DynamicComponentConfigurationValidator.DEFAULT_TIMEOUT_SECOND;
 
 public final class DeploymentDocumentConverter {
@@ -86,29 +86,20 @@ public final class DeploymentDocumentConverter {
                 .deploymentId(localOverrideRequest.getRequestId())
                 .deploymentPackageConfigurationList(packageConfigurations)
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)    // Can't rollback for local deployment
-                // Currently we always skip safety check for local deployment to not slow down testing for customers
+                // Currently we skip update policy check for local deployment to not slow down testing for customers
                 // If we make this configurable in local development then we can plug that input in here
                 // NO_OP_TIMEOUT is not used since the policy is SKIP_NOTIFY_COMPONENTS
-                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(DEFAULT_TIMEOUT_SECOND))
+                .configurationValidationPolicy(
+                        new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(DEFAULT_TIMEOUT_SECOND))
                 .componentUpdatePolicy(new ComponentUpdatePolicy(NO_OP_TIMEOUT, SKIP_NOTIFY_COMPONENTS)).groupName(
                         StringUtils.isEmpty(localOverrideRequest.getGroupName()) ? LOCAL_DEPLOYMENT_GROUP_NAME
                                 : localOverrideRequest.getGroupName()).build();
     }
 
+
     private static List<DeploymentPackageConfiguration> buildDeploymentPackageConfigurations(
             LocalOverrideRequest localOverrideRequest, Map<String, String> newRootComponents) {
-        Map<String, DeploymentPackageConfiguration> packageConfigurations;
-
-        // convert Deployment Config from getComponentNameToConfig, which doesn't include root components necessarily
-        if (localOverrideRequest.getComponentNameToConfig() == null || localOverrideRequest.getComponentNameToConfig()
-                .isEmpty()) {
-            packageConfigurations = new HashMap<>();
-        } else {
-            packageConfigurations = localOverrideRequest.getComponentNameToConfig().entrySet().stream().collect(
-                    Collectors.toMap(Map.Entry::getKey,
-                                     entry -> new DeploymentPackageConfiguration(entry.getKey(), false, ANY_VERSION,
-                                                                                 entry.getValue())));
-        }
+        Map<String, DeploymentPackageConfiguration> packageConfigurations = new HashMap<>();
 
         if (localOverrideRequest.getConfigurationUpdate() != null) {
             localOverrideRequest.getConfigurationUpdate().forEach((componentName, configUpdate) -> {
@@ -229,8 +220,8 @@ public final class DeploymentDocumentConverter {
 
         Map mapToMerge = null;
         if (configurationUpdate.getMerge() != null) {
-            mapToMerge =
-                    SerializerFactory.getJsonObjectMapper().convertValue(configurationUpdate.getMerge(), Map.class);
+            mapToMerge = SerializerFactory.getFailSafeJsonObjectMapper()
+                    .convertValue(configurationUpdate.getMerge(), Map.class);
         }
 
         return new ConfigurationUpdateOperation(mapToMerge, configurationUpdate.getReset());
@@ -247,19 +238,19 @@ public final class DeploymentDocumentConverter {
 
         if (componentUpdatePolicy.getAction() != null) {
             converted.setComponentUpdatePolicyAction(
-                    ComponentUpdatePolicyAction.fromValue(componentUpdatePolicy.getAction().name()));
+                    DeploymentComponentUpdatePolicyAction.fromValue(componentUpdatePolicy.getAction().name()));
         }
 
         return converted;
     }
 
-    private static ConfigurationValidationPolicy convertConfigurationValidationPolicy(
+    private static DeploymentConfigurationValidationPolicy convertConfigurationValidationPolicy(
             @Nonnull  com.amazon.aws.iot.greengrass.configuration.common.ConfigurationValidationPolicy
                     configurationValidationPolicy) {
 
-        ConfigurationValidationPolicy converted = new ConfigurationValidationPolicy();
+        DeploymentConfigurationValidationPolicy converted = new DeploymentConfigurationValidationPolicy();
         if (configurationValidationPolicy.getTimeout() != null) {
-            converted.setTimeout(configurationValidationPolicy.getTimeout());
+            converted.setTimeoutInSeconds(configurationValidationPolicy.getTimeout());
         }
         return converted;
     }

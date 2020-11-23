@@ -28,7 +28,7 @@ import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
+import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.SerializerFactory;
@@ -348,7 +348,7 @@ public class DeploymentService extends GreengrassService {
                     .isCancellable()) {
                 logger.atInfo().log("Deployment already finished processing or cannot be cancelled");
             } else {
-                boolean canCancelDeployment = context.get(UpdateSystemSafelyService.class).discardPendingUpdateAction(
+                boolean canCancelDeployment = context.get(UpdateSystemPolicyService.class).discardPendingUpdateAction(
                         ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask()).getDeployment()
                                 .getDeploymentDocumentObj().getDeploymentId());
                 if (canCancelDeployment) {
@@ -458,7 +458,7 @@ public class DeploymentService extends GreengrassService {
         try {
             switch (deployment.getDeploymentType()) {
                 case LOCAL:
-                    LocalOverrideRequest localOverrideRequest = SerializerFactory.getJsonObjectMapper()
+                    LocalOverrideRequest localOverrideRequest = SerializerFactory.getFailSafeJsonObjectMapper()
                             .readValue(jobDocumentString, LocalOverrideRequest.class);
                     Map<String, String> rootComponents = new HashMap<>();
                     Set<String> rootComponentsInRequestedGroup = new HashSet<>();
@@ -484,9 +484,10 @@ public class DeploymentService extends GreengrassService {
                     // Note: This is the data contract that gets sending down from FCS::CreateDeployment
                     // Configuration is really a bad name choice as it is too generic but we can change it later
                     // since it is only a internal model
-                    Configuration configuration = SerializerFactory.getJsonObjectMapper()
+                    Configuration configuration = SerializerFactory.getFailSafeJsonObjectMapper()
                             .readValue(jobDocumentString, Configuration.class);
                     document = DeploymentDocumentConverter.convertFromDeploymentConfiguration(configuration);
+
                     break;
                 default:
                     throw new IllegalArgumentException("Invalid deployment type: " + deployment.getDeploymentType());

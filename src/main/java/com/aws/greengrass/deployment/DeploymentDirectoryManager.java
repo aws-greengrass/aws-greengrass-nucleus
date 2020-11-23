@@ -143,7 +143,7 @@ public class DeploymentDirectoryManager {
 
     private void writeDeploymentMetadata(Path filePath, Deployment deployment) throws IOException {
         try (CommitableWriter out = CommitableWriter.commitOnClose(filePath)) {
-            SerializerFactory.getJsonObjectMapper().writeValue(out, deployment);
+            SerializerFactory.getFailSafeJsonObjectMapper().writeValue(out, deployment);
         }
     }
 
@@ -164,7 +164,7 @@ public class DeploymentDirectoryManager {
         logger.atInfo().kv(FILE_LOG_KEY, filePath).log("Load deployment metadata");
         AtomicReference<Deployment> deploymentAtomicReference = new AtomicReference<>();
         CommitableReader.of(filePath).read(in -> {
-            Deployment deployment = SerializerFactory.getJsonObjectMapper().readValue(in, Deployment.class);
+            Deployment deployment = SerializerFactory.getFailSafeJsonObjectMapper().readValue(in, Deployment.class);
             deploymentAtomicReference.set(deployment);
             return null;
         });

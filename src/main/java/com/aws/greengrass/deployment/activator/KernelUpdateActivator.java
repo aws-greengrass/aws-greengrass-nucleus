@@ -62,15 +62,18 @@ public class KernelUpdateActivator extends DeploymentActivator {
         }
 
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
-        // Wait for all services to close
-        kernel.getContext().get(KernelLifecycle.class).stopAllServices(30);
+        KernelLifecycle lifecycle = kernel.getContext().get(KernelLifecycle.class);
+        // Preserve tlog state before launch directory is updated to reflect ongoing deployment.
+        lifecycle.getTlog().close();
+        // Wait for all services to close.
+        lifecycle.stopAllServices(30);
+
         kernel.getConfig().mergeMap(deploymentDocument.getTimestamp(), newConfig);
         Path bootstrapTaskFilePath;
         try {
             bootstrapTaskFilePath = deploymentDirectoryManager.getBootstrapTaskFilePath();
             deploymentDirectoryManager.takeConfigSnapshot(deploymentDirectoryManager.getTargetConfigFilePath());
             bootstrapManager.persistBootstrapTaskList(bootstrapTaskFilePath);
-
             kernelAlternatives.prepareBootstrap(deploymentDocument.getDeploymentId());
         } catch (IOException e) {
             rollback(deployment, e);

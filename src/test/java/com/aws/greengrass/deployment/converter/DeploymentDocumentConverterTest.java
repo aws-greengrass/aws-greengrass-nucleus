@@ -11,7 +11,7 @@
 package com.aws.greengrass.deployment.converter;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
@@ -19,6 +19,7 @@ import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+
 import software.amazon.awssdk.aws.greengrass.model.RunWithInfo;
 import software.amazon.awssdk.utils.ImmutableMap;
 
@@ -28,7 +29,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -63,78 +63,6 @@ class DeploymentDocumentConverterTest {
     private static final long REQUEST_TIMESTAMP = System.currentTimeMillis();
     private static final String REQUEST_ID = "requestId";
 
-    @Test
-    void GIVEN_Full_Local_Override_Request_And_Current_Root_WHEN_convert_THEN_Return_expected_Deployment_Document() {
-
-        Map<String, Map<String, Object>> componentNameToConfig = new HashMap<>();
-        componentNameToConfig.put(EXISTING_ROOT_COMPONENT, new HashMap<>());
-        componentNameToConfig.get(EXISTING_ROOT_COMPONENT).put("K1", "V1");
-        componentNameToConfig.get(EXISTING_ROOT_COMPONENT).put("nested", new HashMap<>());
-        ((HashMap) componentNameToConfig.get(EXISTING_ROOT_COMPONENT).get("nested")).put("K2", "V2");
-
-        componentNameToConfig.put(DEPENDENCY_COMPONENT, new HashMap<>());
-        componentNameToConfig.get(DEPENDENCY_COMPONENT).put("K3", "V3");
-
-        Map<String, RunWithInfo> componentToRunWithInfo = new HashMap<>();
-        RunWithInfo runWithInfo = new RunWithInfo();
-        runWithInfo.setPosixUser("foo:bar");
-        componentToRunWithInfo.put(NEW_ROOT_COMPONENT, runWithInfo);
-        runWithInfo = new RunWithInfo();
-        runWithInfo.setPosixUser("1234");
-        componentToRunWithInfo.put(DEPENDENCY_COMPONENT, runWithInfo);
-        // Existing: ROOT_COMPONENT_TO_REMOVE_1-1.0.0, ROOT_COMPONENT_TO_REMOVE_2-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
-        // To Remove: ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2
-        // To Add: NEW_ROOT_COMPONENT-2.0.0
-        // To Update: EXISTING_ROOT_COMPONENT-1.0.0 -> 2.0.0
-        // Result roots: NEW_ROOT_COMPONENT-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
-        LocalOverrideRequest testRequest =
-                LocalOverrideRequest.builder().requestId(REQUEST_ID).requestTimestamp(REQUEST_TIMESTAMP)
-                        .componentsToMerge(ROOT_COMPONENTS_TO_MERGE)
-                        .componentsToRemove(Arrays.asList(ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2))
-                        .componentNameToConfig(componentNameToConfig)
-                        .componentToRunWithInfo(componentToRunWithInfo).build();
-
-        DeploymentDocument deploymentDocument = DeploymentDocumentConverter
-                .convertFromLocalOverrideRequestAndRoot(testRequest, CURRENT_ROOT_COMPONENTS);
-
-        assertThat(deploymentDocument.getFailureHandlingPolicy(), is(FailureHandlingPolicy.DO_NOTHING));
-
-        assertThat(deploymentDocument.getDeploymentId(), is(REQUEST_ID));
-        assertThat(deploymentDocument.getTimestamp(), is(REQUEST_TIMESTAMP));
-        assertThat(deploymentDocument.getRootPackages(),
-                   is(Arrays.asList(EXISTING_ROOT_COMPONENT, NEW_ROOT_COMPONENT)));
-
-        List<DeploymentPackageConfiguration> deploymentPackageConfigurations =
-                deploymentDocument.getDeploymentPackageConfigurationList();
-
-        assertThat(deploymentPackageConfigurations.size(), is(3));
-
-        // verify deploymentConfigs
-        DeploymentPackageConfiguration existingRootComponentConfig =
-                deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(EXISTING_ROOT_COMPONENT))
-                        .findAny().get();
-
-        assertThat(existingRootComponentConfig.getResolvedVersion(), is("2.0.0"));
-        assertThat(existingRootComponentConfig.getConfiguration(),
-                   is(componentNameToConfig.get(EXISTING_ROOT_COMPONENT)));
-
-        DeploymentPackageConfiguration newRootComponentConfig =
-                deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(NEW_ROOT_COMPONENT))
-                        .findAny().get();
-
-        assertThat(newRootComponentConfig.getResolvedVersion(), is("2.0.0"));
-        assertEquals(newRootComponentConfig.getConfiguration().size(), 0);
-        assertEquals(newRootComponentConfig.getRunWith().getPosixUser(), "foo:bar");
-
-
-        DeploymentPackageConfiguration DependencyComponentConfig =
-                deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(DEPENDENCY_COMPONENT))
-                        .findAny().get();
-
-        assertThat(DependencyComponentConfig.getResolvedVersion(), is("*"));
-        assertThat(DependencyComponentConfig.getConfiguration(), is(componentNameToConfig.get(DEPENDENCY_COMPONENT)));
-        assertEquals(DependencyComponentConfig.getRunWith().getPosixUser(), "1234");
-    }
 
     // Existing: ROOT_COMPONENT_TO_REMOVE_1-1.0.0, ROOT_COMPONENT_TO_REMOVE_2-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
     // To Remove: ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2
@@ -148,11 +76,19 @@ class DeploymentDocumentConverterTest {
                 "{ \"MERGE\": { \"Company\": { \"Office\": { \"temperature\": 22 } }, \"path1\": { \"Object2\": { \"key2\": \"val2\" } } }, \"RESET\": [ \"/secret/first\" ] }";
         Map<String, ConfigurationUpdateOperation> updateConfig = new HashMap<>();
         updateConfig.put(DEPENDENCY_COMPONENT,
-                         mapper.readValue(dependencyUpdateConfigString, ConfigurationUpdateOperation.class));
+                mapper.readValue(dependencyUpdateConfigString, ConfigurationUpdateOperation.class));
 
         String existingUpdateConfigString = "{ \"MERGE\": {\"foo\": \"bar\"}}";
         updateConfig.put(EXISTING_ROOT_COMPONENT,
-                         mapper.readValue(existingUpdateConfigString, ConfigurationUpdateOperation.class));
+                mapper.readValue(existingUpdateConfigString, ConfigurationUpdateOperation.class));
+
+        Map<String, RunWithInfo> componentToRunWithInfo = new HashMap<>();
+        RunWithInfo runWithInfo = new RunWithInfo();
+        runWithInfo.setPosixUser("foo:bar");
+        componentToRunWithInfo.put(NEW_ROOT_COMPONENT, runWithInfo);
+        runWithInfo = new RunWithInfo();
+        runWithInfo.setPosixUser("1234");
+        componentToRunWithInfo.put(DEPENDENCY_COMPONENT, runWithInfo);
 
         // Existing: ROOT_COMPONENT_TO_REMOVE_1-1.0.0, ROOT_COMPONENT_TO_REMOVE_2-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
         // To Remove: ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2
@@ -163,7 +99,8 @@ class DeploymentDocumentConverterTest {
                 LocalOverrideRequest.builder().requestId(REQUEST_ID).requestTimestamp(REQUEST_TIMESTAMP)
                         .componentsToMerge(ROOT_COMPONENTS_TO_MERGE)
                         .componentsToRemove(Arrays.asList(ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2))
-                        .configurationUpdate(updateConfig).build();
+                        .configurationUpdate(updateConfig)
+                        .componentToRunWithInfo(componentToRunWithInfo).build();
 
         DeploymentDocument deploymentDocument = DeploymentDocumentConverter
                 .convertFromLocalOverrideRequestAndRoot(testRequest, CURRENT_ROOT_COMPONENTS);
@@ -173,7 +110,7 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentDocument.getDeploymentId(), is(REQUEST_ID));
         assertThat(deploymentDocument.getTimestamp(), is(REQUEST_TIMESTAMP));
         assertThat(deploymentDocument.getRootPackages(),
-                   is(Arrays.asList(EXISTING_ROOT_COMPONENT, NEW_ROOT_COMPONENT)));
+                is(Arrays.asList(EXISTING_ROOT_COMPONENT, NEW_ROOT_COMPONENT)));
 
         List<DeploymentPackageConfiguration> deploymentPackageConfigurations =
                 deploymentDocument.getDeploymentPackageConfigurationList();
@@ -187,7 +124,7 @@ class DeploymentDocumentConverterTest {
 
         assertThat(existingRootComponentConfig.getResolvedVersion(), is("2.0.0"));
         assertThat(existingRootComponentConfig.getConfigurationUpdateOperation(),
-                   is(mapper.readValue(existingUpdateConfigString, ConfigurationUpdateOperation.class)));
+                is(mapper.readValue(existingUpdateConfigString, ConfigurationUpdateOperation.class)));
 
         DeploymentPackageConfiguration newRootComponentConfig =
                 deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(NEW_ROOT_COMPONENT))
@@ -195,6 +132,7 @@ class DeploymentDocumentConverterTest {
 
         assertThat(newRootComponentConfig.getResolvedVersion(), is("2.0.0"));
         assertEquals(newRootComponentConfig.getConfigurationUpdateOperation(), null);
+        assertEquals(newRootComponentConfig.getRunWith().getPosixUser(), "foo:bar");
 
 
         DeploymentPackageConfiguration DependencyComponentConfig =
@@ -202,7 +140,7 @@ class DeploymentDocumentConverterTest {
                         .findAny().get();
 
         assertEquals(DependencyComponentConfig.getConfigurationUpdateOperation(),
-                     mapper.readValue(dependencyUpdateConfigString, ConfigurationUpdateOperation.class));
+                mapper.readValue(dependencyUpdateConfigString, ConfigurationUpdateOperation.class));
         assertThat(DependencyComponentConfig.getResolvedVersion(), is("*"));
     }
 
@@ -222,7 +160,7 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentDocument.getFailureHandlingPolicy(), is(FailureHandlingPolicy.DO_NOTHING));
         assertThat(deploymentDocument.getTimestamp(), is(1604067741583L));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
-                   is(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                   is(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(120));
 
         assertThat(deploymentDocument.getDeploymentId(),
@@ -279,7 +217,7 @@ class DeploymentDocumentConverterTest {
 
         // Default for ComponentUpdatePolicy is NOTIFY_COMPONENTS with 60 sec as timeout
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
-                   is(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                   is(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(60));
     }
 
@@ -313,7 +251,7 @@ class DeploymentDocumentConverterTest {
 
         // Default for ComponentUpdatePolicy is NOTIFY_COMPONENTS with 60 sec as timeout
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
-                   is(ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                   is(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(120));
 
     }

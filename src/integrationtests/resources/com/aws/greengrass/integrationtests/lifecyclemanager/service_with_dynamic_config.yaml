@@ -1,7 +1,7 @@
 services:
   aws.greengrass.Nucleus:
     componentType: NUCLEUS
-    parameters:
+    configuration:
       runWithDefault:
         posixUser: nobody
 
@@ -28,5 +28,5 @@ services:
     version: 1.0.0
     setenv:
       my_env_var: var1
-    parameters:
+    configuration:
       my_custom_key: 'my_custom_initial_value'
