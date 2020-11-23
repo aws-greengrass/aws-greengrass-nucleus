@@ -22,6 +22,7 @@ import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 
+import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -30,7 +31,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.integrationtests.ipc.IPCPubSubTest.TES_DEFAULT_POLICY;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.publishToTopicOverIpcAsBinaryMessage;
@@ -60,7 +61,7 @@ class IPCPubSubRemovalTest extends BaseITCase {
     }
 
     @BeforeEach
-    void beforeEach(ExtensionContext context) throws InterruptedException {
+    void beforeEach(ExtensionContext context) throws InterruptedException, IOException {
         ignoreExceptionOfType(context, InterruptedException.class);
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
@@ -85,7 +86,7 @@ class IPCPubSubRemovalTest extends BaseITCase {
             cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
 
             Topics serviceTopic = kernel.findServiceTopic("DoAll1");
-            Topics parameters = serviceTopic.findTopics(PARAMETERS_CONFIG_KEY);
+            Topics parameters = serviceTopic.findTopics(CONFIGURATION_CONFIG_KEY);
             Topic acl = parameters.find(ACCESS_CONTROL_NAMESPACE_TOPIC, "aws.greengrass.ipc.pubsub",
                     "policyId5", "operations");
             if (acl != null) {
@@ -107,7 +108,7 @@ class IPCPubSubRemovalTest extends BaseITCase {
             assertTrue(executionException1.getCause() instanceof UnauthorizedError);
 
             serviceTopic = kernel.findServiceTopic("DoAll1");
-            parameters = serviceTopic.findTopics(PARAMETERS_CONFIG_KEY);
+            parameters = serviceTopic.findTopics(CONFIGURATION_CONFIG_KEY);
             Topics aclTopics = parameters.findTopics(ACCESS_CONTROL_NAMESPACE_TOPIC);
             if (aclTopics != null) {
                 aclTopics.remove();
@@ -153,7 +154,7 @@ class IPCPubSubRemovalTest extends BaseITCase {
 
             // Remove ACL parameter from component SubscribeAndPublish
             Topics aclNode = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC,
-                    "SubscribeAndPublish", PARAMETERS_CONFIG_KEY);
+                    "SubscribeAndPublish", CONFIGURATION_CONFIG_KEY);
             aclNode.remove(aclNode.lookupTopics("accessControl"));
             kernel.getContext().waitForPublishQueueToClear();
 
@@ -194,7 +195,7 @@ class IPCPubSubRemovalTest extends BaseITCase {
             cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
 
             Topics serviceTopic = kernel.findServiceTopic("DoAll2");
-            Topics parameters = serviceTopic.findTopics(PARAMETERS_CONFIG_KEY);
+            Topics parameters = serviceTopic.findTopics(CONFIGURATION_CONFIG_KEY);
             if (parameters != null) {
                 parameters.remove();
             }

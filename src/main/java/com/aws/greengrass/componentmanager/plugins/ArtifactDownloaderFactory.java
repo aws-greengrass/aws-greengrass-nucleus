@@ -29,14 +29,15 @@ public class ArtifactDownloaderFactory {
 
     /**
      * ArtifactDownloaderFactory constructor.
-     * @param s3SdkClientFactory                        s3SdkClientFactory
-     * @param greengrassComponentServiceClientFactory   greengrassComponentServiceClientFactory
-     * @param componentStore                            componentStore
+     *
+     * @param s3SdkClientFactory                      s3SdkClientFactory
+     * @param greengrassComponentServiceClientFactory greengrassComponentServiceClientFactory
+     * @param componentStore                          componentStore
      */
     @Inject
     public ArtifactDownloaderFactory(S3SdkClientFactory s3SdkClientFactory,
-                              GreengrassComponentServiceClientFactory greengrassComponentServiceClientFactory,
-                              ComponentStore componentStore) {
+                                     GreengrassComponentServiceClientFactory greengrassComponentServiceClientFactory,
+                                     ComponentStore componentStore) {
         this.s3ClientFactory = s3SdkClientFactory;
         this.greengrassComponentServiceClientFactory = greengrassComponentServiceClientFactory;
         this.componentStore = componentStore;

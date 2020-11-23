@@ -6,7 +6,7 @@
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.Crashable;
 import com.aws.greengrass.dependency.State;
@@ -17,14 +17,13 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.lifecyclemanager.KernelTest.ExpectedStateTransition;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.jr.ob.JSON;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +44,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
+import static com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
@@ -168,8 +167,9 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
     void GIVEN_hard_dependency_WHEN_dependency_goes_through_lifecycle_events_THEN_customer_app_is_impacted()
             throws Throwable {
         // setup
+        kernel = new Kernel();
         URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_hard_dependency.yaml");
-        kernel = new Kernel().parseArgs("-i", configFile.toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFile);
 
         // WHEN_kernel_launch_THEN_customer_app_starts_after_hard_dependency_is_running
         LinkedList<ExpectedStateTransition> expectedDuringLaunch = new LinkedList<>(
@@ -222,7 +222,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
                 Arrays.asList(new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
                         new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
 
-        Map<String, Object> configAddDep = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        Map<String, Object> configAddDep = ConfigPlatformResolver.resolvePlatformMap(configFile);
 
         DeploymentDocument doc2 = mock(DeploymentDocument.class);
         when(doc2.getTimestamp()).thenReturn(System.currentTimeMillis());
@@ -281,8 +281,9 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
     void GIVEN_soft_dependency_WHEN_dependency_goes_through_lifecycle_events_THEN_customer_app_is_not_impacted()
             throws Throwable {
         // setup
+        kernel = new Kernel();
         URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_soft_dependency.yaml");
-        kernel = new Kernel().parseArgs("-i", configFile.toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFile);
 
         Set<ExpectedStateTransition> unexpectedDuringAllSoftDepChange = new HashSet<>(
                 Arrays.asList(new ExpectedStateTransition(CustomerApp, State.RUNNING, State.STOPPING),
@@ -334,7 +335,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
                         new ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING),
                         new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING)));
 
-        Map<String, Object> configAddDep = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        Map<String, Object> configAddDep = ConfigPlatformResolver.resolvePlatformMap(configFile);
 
         DeploymentDocument doc2 = mock(DeploymentDocument.class);
         when(doc2.getTimestamp()).thenReturn(System.currentTimeMillis());
@@ -389,8 +390,10 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         // Assuming no other changes in customer app and dependency service
 
         String Dependency = SoftDependency;
+        kernel = new Kernel();
         URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_soft_dependency.yaml");
-        kernel = new Kernel().parseArgs("-i", configFile.toString()).launch();
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFile);
+        kernel.launch();
         assertThat(kernel.locate("main")::getState, eventuallyEval(is(State.FINISHED)));
 
         // The test below assumes SoftDependency is already running and checks against RUNNING->STOPPING and
@@ -403,7 +406,8 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
                         new ExpectedStateTransition(CustomerApp, State.STARTING, State.RUNNING));
 
 
-        Map<String, Object> depTypeSoftToHard = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        Map<String, Object> depTypeSoftToHard = ConfigPlatformResolver.resolvePlatformMap(configFile);
+
         ((Map) ((Map) depTypeSoftToHard.get(SERVICES_NAMESPACE_TOPIC)).get(CustomerApp))
                 .put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + DependencyType.HARD));
 
@@ -418,7 +422,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
                 "dependency type changes from soft to hard", new LinkedList<>(), new HashSet<>(stateTransitions));
 
 
-        Map<String, Object> depTypeHardToSoft = (Map) JSON.std.with(new YAMLFactory()).anyFrom(configFile);
+        Map<String, Object> depTypeHardToSoft = ConfigPlatformResolver.resolvePlatformMap(configFile);
         ((Map) ((Map) depTypeHardToSoft.get(SERVICES_NAMESPACE_TOPIC)).get(CustomerApp))
                 .put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(Dependency + ":" + DependencyType.SOFT));
 
@@ -434,7 +438,8 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
 
     private Deployment createMockDeployment(DeploymentDocument doc) {
         when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
-        when(doc.getConfigurationValidationPolicy()).thenReturn(new ConfigurationValidationPolicy().withTimeout(20));
+        when(doc.getConfigurationValidationPolicy())
+                .thenReturn(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20));
         Deployment deployment = mock(Deployment.class);
         doReturn(doc).when(deployment).getDeploymentDocumentObj();
         return deployment;

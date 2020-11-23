@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.deployment.model;
 
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -61,7 +61,8 @@ public class DeploymentDocument {
 
     @JsonProperty("ConfigurationValidationPolicy")
     @Builder.Default
-    private ConfigurationValidationPolicy configurationValidationPolicy = new ConfigurationValidationPolicy();
+    private DeploymentConfigurationValidationPolicy configurationValidationPolicy =
+            new DeploymentConfigurationValidationPolicy();
 
     /**
      * Get a list of root component names from the deploymentPackageConfigurationList.

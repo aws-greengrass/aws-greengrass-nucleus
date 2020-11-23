@@ -2,9 +2,9 @@
 RecipeFormatVersion: '2020-01-25'
 ComponentName: aws.greengrass.Nucleus
 ComponentType: aws.greengrass.nucleus
-ComponentDescription: Core functionality for device side orchestration of deployments and lifecycle management for execution of Greengrass components and applications.
+ComponentDescription: Core functionality for device side orchestration of deployments and life-cycle management for execution of Greengrass components and applications. This includes features such as starting, stopping, and monitoring execution of components and apps, inter-process communication server for communication between components, component installation and configuration management. This is a fundamental cornerstone of open-sourcing Greengrass, providing documentation and ability to debug Greengrass Core.
 ComponentPublisher: AWS
-ComponentVersion: '1.0.0'
+ComponentVersion: '2.0.0'
 ComponentConfiguration:
   DefaultConfiguration:
     jvmOptions: -Xms512m -Xmx512m
@@ -24,7 +24,7 @@ ComponentConfiguration:
 Manifests:
   - Platform:
       os: darwin
-    Name: darwin
+    # TODO: add new field Name: darwin
     Artifacts:
       - URI: s3://gg-dev-artifacts-$stage/$componentName/$version/aws.greengrass.nucleus.zip
         Unarchive: zip
@@ -33,9 +33,8 @@ Manifests:
           RequiresPrivilege: true
           script: |-
             set -eu
-            KERNEL_ROOT="{{kernel:rootPath}}"
-            UNPACK_DIR="{{artifacts:decompressedPath}}/aws.greengrass.nucleus"
-            # TODO: Use builtin unpack functionality with permission preserved if available
+            KERNEL_ROOT="{kernel:rootPath}"
+            UNPACK_DIR="{artifacts:decompressedPath}/aws.greengrass.nucleus"
             chmod +x "$UNPACK_DIR/bin/loader"
 
             rm -r "$KERNEL_ROOT"/alts/current/*
@@ -46,7 +45,7 @@ Manifests:
 
   - Platform:
       os: linux
-    Name: linux
+    # TODO: add new field Name: linux
     Artifacts:
       - URI: s3://gg-dev-artifacts-$stage/$componentName/$version/aws.greengrass.nucleus.zip
         Unarchive: zip
@@ -55,9 +54,8 @@ Manifests:
         RequiresPrivilege: true
         script: |-
           set -eu
-          KERNEL_ROOT="{{kernel:rootPath}}"
-          UNPACK_DIR="{{artifacts:decompressedPath}}/aws.greengrass.nucleus"
-          # TODO: Use builtin unpack functionality with permission preserved if available
+          KERNEL_ROOT="{kernel:rootPath}"
+          UNPACK_DIR="{artifacts:decompressedPath}/aws.greengrass.nucleus"
           chmod +x "$UNPACK_DIR/bin/loader"
 
           rm -r "$KERNEL_ROOT"/alts/current/*

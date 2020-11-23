@@ -9,6 +9,7 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.util.Coerce;
 import org.junit.jupiter.api.AfterEach;
@@ -26,9 +27,10 @@ class KernelShutdownTest extends BaseITCase {
     private Kernel kernel;
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws Exception {
         kernel = new Kernel();
-        kernel.parseArgs("-i", getClass().getResource("long_running_services.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("long_running_services.yaml"));
         kernel.launch();
     }
 

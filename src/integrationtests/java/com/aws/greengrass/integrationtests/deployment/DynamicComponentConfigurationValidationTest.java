@@ -5,8 +5,8 @@
 
 package com.aws.greengrass.integrationtests.deployment;
 
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
@@ -18,6 +18,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -56,7 +57,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
@@ -91,8 +92,8 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
         deploymentConfigMerger = new DeploymentConfigMerger(kernel);
-        kernel.parseArgs("-i",
-                DynamicComponentConfigurationValidationTest.class.getResource("onlyMain.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                DynamicComponentConfigurationValidationTest.class.getResource("onlyMain.yaml"));
 
         // launch kernel
         Runnable mainFinished = createServiceStateChangeWaiter(kernel, "main", 10, State.FINISHED);
@@ -125,7 +126,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                 }});
                 put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig(kernel));
                 put("OldService", new HashMap<String, Object>() {{
-                    put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                         put("ConfigKey1", "ConfigValue1");
                     }});
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
@@ -212,7 +213,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                 put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                     put("main", kernel.getMain().getServiceConfig().toPOJO());
                     put("OldService", new HashMap<String, Object>() {{
-                        put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                             put("ConfigKey1", "ConfigValue2");
                         }});
                         put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
@@ -295,7 +296,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                 put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                     put("main", kernel.getMain().getServiceConfig().toPOJO());
                     put("OldService", new HashMap<String, Object>() {{
-                        put(PARAMETERS_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                             put("ConfigKey1", "ConfigValue2");
                         }});
                         put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
@@ -321,8 +322,8 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .timestamp(System.currentTimeMillis() + 20).failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(
-                        new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
-                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
+                        new ComponentUpdatePolicy(60, DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
+                .configurationValidationPolicy(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20))
                 .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }

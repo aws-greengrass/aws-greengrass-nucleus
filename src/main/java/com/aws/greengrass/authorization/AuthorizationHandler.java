@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.ipc.modules.MqttProxyIPCService.MQTT_PROXY_SERVICE_NAME;
 import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTROL_NAMESPACE_TOPIC;
@@ -109,7 +109,7 @@ public class AuthorizationHandler  {
                     if (WhatHappened.childRemoved.equals(why) || WhatHappened.removed.equals(why)) {
                         // Either a service or a parameter block or acl subkey
                         if (!newv.parent.getName().equals(SERVICES_NAMESPACE_TOPIC)
-                                && !newv.getName().equals(PARAMETERS_CONFIG_KEY)
+                                && !newv.getName().equals(CONFIGURATION_CONFIG_KEY)
                                 && !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)
                                 && !newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
                             return;

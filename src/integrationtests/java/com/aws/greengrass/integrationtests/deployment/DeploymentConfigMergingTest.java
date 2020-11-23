@@ -5,15 +5,13 @@
 
 package com.aws.greengrass.integrationtests.deployment;
 
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
-import com.aws.greengrass.config.Configuration;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
-import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -21,6 +19,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -34,8 +33,6 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.jr.ob.JSON;
 import org.apache.commons.lang3.SystemUtils;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
@@ -45,7 +42,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.ExtensionContext;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
@@ -76,14 +72,11 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
-import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC;
-import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createServiceStateChangeWaiter;
@@ -137,7 +130,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     @Test
     void GIVEN_kernel_running_with_some_config_WHEN_merge_simple_yaml_file_THEN_config_is_updated() throws Throwable {
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("config.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("config.yaml"));
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
@@ -157,8 +150,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Topics t = kernel.findServiceTopic(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
         assertNotNull(t, "FSS Topics should not be null before merging");
 
-        Map<String, Object> newConfig =
-                (Map<String, Object>) JSON.std.with(new YAMLFactory()).anyFrom(getClass().getResource("delta.yaml"));
+        Map<String, Object> newConfig = ConfigPlatformResolver
+                .resolvePlatformMap(getClass().getResource("delta.yaml"));
 
         ((Map<String, Object>)newConfig.get(SERVICES_NAMESPACE_TOPIC)).put(DEFAULT_NUCLEUS_COMPONENT_NAME,
                 getNucleusConfig());
@@ -180,7 +173,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             throws Throwable {
 
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
@@ -228,7 +221,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_dependency_THEN_dependent_service_starts_and_service_restarts()
             throws Throwable {
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
 
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -286,7 +279,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     void GIVEN_kernel_running_single_service_WHEN_merge_change_adding_nested_dependency_THEN_dependent_services_start_and_service_restarts()
             throws Throwable {
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
 
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -358,7 +351,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             throws Throwable {
 
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
 
         // launch kernel
         CountDownLatch mainRunning = new CountDownLatch(1);
@@ -455,7 +448,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
     @Test
     void GIVEN_kernel_running_services_WHEN_merge_removes_service_THEN_removed_service_is_closed() throws Throwable {
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("long_running_services.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("long_running_services.yaml"));
         kernel.launch();
 
         CountDownLatch mainRunningLatch = new CountDownLatch(1);
@@ -517,7 +511,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     void GIVEN_a_running_service_is_not_disruptable_WHEN_deployed_THEN_deployment_waits() throws Throwable {
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("non_disruptable_service.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("non_disruptable_service.yaml"));
+
         kernel.launch();
 
         CountDownLatch mainFinished = new CountDownLatch(1);
@@ -594,79 +590,11 @@ class DeploymentConfigMergingTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_service_running_with_rollback_safe_param_WHEN_rollback_THEN_rollback_safe_param_not_updated(
-            ExtensionContext context) throws Throwable {
-
-        ignoreExceptionUltimateCauseWithMessage(context, "Service sleeperB in broken state after deployment");
-
-        // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("short_running_services_using_startup_script.yaml")
-                .toString());
-
-        kernel.launch();
-
-        Configuration config = kernel.getConfig();
-        config.lookup(SERVICES_NAMESPACE_TOPIC, "sleeperB", RUNTIME_STORE_NAMESPACE_TOPIC, "testKey")
-                .withNewerValue(System.currentTimeMillis(), "initialValue");
-
-        // WHEN
-        // merge broken config
-        HashMap<String, Object> brokenConfig = new HashMap<String, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put("sleeperB", new HashMap<String, Object>() {{
-                    put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                        put(LIFECYCLE_STARTUP_NAMESPACE_TOPIC, "exit 1");
-                    }});
-                }});
-
-                put(DEFAULT_NUCLEUS_COMPONENT_NAME, getNucleusConfig());
-            }});
-        }};
-
-        AtomicBoolean sleeperBBroken = new AtomicBoolean(false);
-        CountDownLatch sleeperBRolledBack = new CountDownLatch(1);
-        GlobalStateChangeListener listener = (service, oldState, newState) -> {
-            if (service.getName().equals("sleeperB")) {
-                if (newState.equals(State.ERRORED)) {
-                    config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB", RUNTIME_STORE_NAMESPACE_TOPIC, "testKey")
-                            .withNewerValue(System.currentTimeMillis(), "setOnErrorValue");
-                }
-                if (newState.equals(State.BROKEN)) {
-                    sleeperBBroken.set(true);
-                }
-                if (sleeperBBroken.get() && newState.equals(State.RUNNING)) {
-                    // Rollback should only count after error
-                    sleeperBRolledBack.countDown();
-                }
-            }
-        };
-
-        kernel.getContext().get(DeploymentDirectoryManager.class).createNewDeploymentDirectory(
-                "mockFleetConfigArn");
-        kernel.getContext().addGlobalStateChangeListener(listener);
-        DeploymentResult result =
-                deploymentConfigMerger.mergeInNewConfig(testRollbackDeployment(), brokenConfig)
-                        .get(40, TimeUnit.SECONDS);
-
-        // THEN
-        // deployment should have errored and rolled back
-        assertTrue(sleeperBRolledBack.await(10, TimeUnit.SECONDS));
-        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
-
-        // Value set in listener should not have been rolled back
-        assertEquals("setOnErrorValue",
-                config.find(SERVICES_NAMESPACE_TOPIC, "sleeperB", RUNTIME_STORE_NAMESPACE_TOPIC, "testKey")
-                        .getOnce());
-        // remove listener
-        kernel.getContext().removeGlobalStateChangeListener(listener);
-    }
-
-    @Test
     void GIVEN_kernel_running_single_service_WHEN_deployment_with_skip_safety_check_config_THEN_merge_without_checking_safety()
             throws Throwable {
 
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("single_service.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
         Runnable mainRunning = createServiceStateChangeWaiter(kernel, "main",5, State.RUNNING);
         kernel.launch();
         mainRunning.run();
@@ -675,13 +603,13 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Runnable mainRestarted = createServiceStateChangeWaiter(kernel, "main", 10, State.FINISHED, State.STARTING);
         AtomicBoolean safeUpdateSkipped= new AtomicBoolean();
         Consumer<GreengrassLogMessage> listener = (m) -> {
-            if ("Deployment is configured to skip safety check, not waiting for safe time to update"
+            if ("Deployment is configured to skip update policy check, not waiting for disruptable time to update"
                     .equals(m.getMessage())) {
                     safeUpdateSkipped.set(true);
                 }
         };
         try (AutoCloseable l = createCloseableLogListener(listener)) {
-            deploymentConfigMerger.mergeInNewConfig(testDeploymentWithSkipSafetyCheckConfig(), new HashMap<String, Object>() {{
+            deploymentConfigMerger.mergeInNewConfig(testDeploymentWithSkipPolicyCheckConfig(), new HashMap<String, Object>() {{
                 put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                     put("main", new HashMap<String, Object>() {{
                         put(SETENV_CONFIG_NAMESPACE, new HashMap<String, Object>() {{
@@ -705,7 +633,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         assumeCanSudoShell(kernel);
 
         // GIVEN
-        kernel.parseArgs("-i", getClass().getResource("config_run_with_user.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("config_run_with_user.yaml"));
 
         List<String> stdouts = new ArrayList<>();
         try (AutoCloseable l = createCloseableLogListener((m) -> {
@@ -766,29 +695,18 @@ class DeploymentConfigMergingTest extends BaseITCase {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(
-                        new ComponentUpdatePolicy(3, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
-                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
+                        new ComponentUpdatePolicy(3, DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
+                .configurationValidationPolicy(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20))
                 .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
 
-    private Deployment testRollbackDeployment() {
-        DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis())
-                .deploymentId("rollback_id")
-                .failureHandlingPolicy(FailureHandlingPolicy.ROLLBACK)
-                .componentUpdatePolicy(
-                        new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
-                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
-                .build();
-        return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
-    }
-
-    private Deployment testDeploymentWithSkipSafetyCheckConfig() {
+    private Deployment testDeploymentWithSkipPolicyCheckConfig() {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(
-                        new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS))
-                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
+                        new ComponentUpdatePolicy(60, DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS))
+                .configurationValidationPolicy(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20))
                 .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }

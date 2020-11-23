@@ -6,8 +6,8 @@
 package com.aws.greengrass.componentmanager.plugins;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactRequest;
-import com.amazonaws.services.evergreen.model.GetComponentVersionArtifactResult;
+import com.amazonaws.services.greengrassv2.model.GetComponentVersionArtifactRequest;
+import com.amazonaws.services.greengrassv2.model.GetComponentVersionArtifactResult;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
@@ -28,8 +28,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     private static final String HTTP_HEADER_CONTENT_DISPOSITION = "Content-Disposition";
 
-    private final GreengrassComponentServiceClientFactory clientFactory;
     private final ComponentStore componentStore;
+    private final GreengrassComponentServiceClientFactory clientFactory;
     private Long artifactSize = null;
     private String artifactFilename = null;
 
@@ -170,9 +170,9 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         });
     }
 
+
     private URL getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws PackageDownloadException {
-
         String arn;
         try {
             arn = componentStore.getRecipeMetadata(componentIdentifier)
@@ -185,8 +185,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         }
 
         GetComponentVersionArtifactRequest getComponentArtifactRequest =
-                new GetComponentVersionArtifactRequest().withArtifactName(artifactName).withComponentVersionArn(arn);
-
+                new GetComponentVersionArtifactRequest().withArtifactName(artifactName).withArn(arn);
         String preSignedUrl;
         try {
             GetComponentVersionArtifactResult getComponentArtifactResult =

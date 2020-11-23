@@ -24,11 +24,11 @@ import java.util.HashSet;
 import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
 
 @SuppressWarnings("PMD.DataClass")
-@ImplementsService(name = TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS, version = "1.0.0")
+@ImplementsService(name = TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS)
 public class TokenExchangeService extends GreengrassService implements AwsCredentialsProvider {
     public static final String PORT_TOPIC = "port";
     public static final String TOKEN_EXCHANGE_SERVICE_TOPICS = "aws.greengrass.TokenExchangeService";
@@ -60,15 +60,21 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
                                 ExecutorService executor, DeviceConfiguration deviceConfiguration) {
         super(topics);
         // Port change should not be allowed
-        topics.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT)
+        topics.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT)
                 .subscribe((why, newv) -> port = Coerce.toInt(newv));
 
         deviceConfiguration.getIotRoleAlias().subscribe((why, newv) -> {
             iotRoleAlias = Coerce.toString(newv);
+            credentialRequestHandler.clearCache();
             credentialRequestHandler.setIotCredentialsPath(iotRoleAlias);
         });
-        deviceConfiguration.getThingName()
-                .subscribe((why, newv) -> credentialRequestHandler.setThingName(Coerce.toString(newv)));
+        deviceConfiguration.getThingName().subscribe((why, newv) -> {
+            credentialRequestHandler.clearCache();
+            credentialRequestHandler.setThingName(Coerce.toString(newv));
+        });
+        deviceConfiguration.getCertificateFilePath().subscribe((why, newv) -> credentialRequestHandler.clearCache());
+        deviceConfiguration.getRootCAFilePath().subscribe((why, newv) -> credentialRequestHandler.clearCache());
+        deviceConfiguration.getPrivateKeyFilePath().subscribe((why, newv) -> credentialRequestHandler.clearCache());
 
         this.authZHandler = authZHandler;
         this.credentialRequestHandler = credentialRequestHandler;

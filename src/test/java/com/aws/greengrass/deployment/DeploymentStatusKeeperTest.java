@@ -9,7 +9,6 @@ import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.model.Deployment;
-import com.aws.greengrass.ipc.services.cli.models.DeploymentStatus;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.util.Coerce;
 import org.junit.jupiter.api.AfterEach;
@@ -19,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.aws.greengrass.model.DeploymentStatus;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.IOException;

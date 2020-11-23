@@ -40,7 +40,7 @@ public class ArtifactDownloaderFactoryTest {
     GreengrassComponentServiceClientFactory greengrassComponentServiceClientFactory;
 
     @Mock
-    private ComponentStore componentStore;
+    ComponentStore componentStore;
 
     ArtifactDownloaderFactory artifactDownloaderFactory;
 

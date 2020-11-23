@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
@@ -31,6 +31,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
+import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
@@ -64,7 +65,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
-import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
+import static com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
@@ -120,14 +121,14 @@ class PluginComponentTest extends BaseITCase {
     void GIVEN_kernel_WHEN_locate_plugin_without_digest_THEN_plugin_is_not_loaded_into_JVM(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, RuntimeException.class);
-        kernel.parseArgs("-i", this.getClass().getResource("plugin.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("plugin.yaml"));
         setupPackageStore();
         assertThrows(RuntimeException.class, () -> kernel.launch());
     }
 
     @Test
     void GIVEN_kernel_WHEN_locate_plugin_THEN_plugin_is_loaded_into_JVM() throws Exception {
-        kernel.parseArgs("-i", this.getClass().getResource("plugin.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("plugin.yaml"));
         setupPackageStoreAndConfigWithDigest();
 
         launchAndWait();
@@ -159,7 +160,8 @@ class PluginComponentTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_WHEN_locate_plugin_dependency_THEN_dependency_from_plugin_is_loaded_into_JVM() throws Exception {
-        kernel.parseArgs("-i", this.getClass().getResource("plugin_dependency.yaml").toString());
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                this.getClass().getResource("plugin_dependency.yaml"));
         setupPackageStoreAndConfigWithDigest();
         launchAndWait();
 
@@ -335,7 +337,7 @@ class PluginComponentTest extends BaseITCase {
         return DeploymentDocument.builder().timestamp(timestamp).deploymentId(deploymentId)
                 .failureHandlingPolicy(onFailure)
                 .componentUpdatePolicy(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS)).groupName("ANY")
-                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
+                .configurationValidationPolicy(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20))
                 .deploymentPackageConfigurationList(
                         Arrays.asList(DeploymentPackageConfiguration.builder()
                                 .packageName(componentName)
