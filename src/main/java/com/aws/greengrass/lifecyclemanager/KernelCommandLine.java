@@ -62,13 +62,13 @@ public class KernelCommandLine {
     private static final String deploymentsPathName = "~root/deployments";
     private static final String cliIpcInfoPathName = "~root/cli_ipc_info";
     private static final String binPathName = "~root/bin";
-    public static final String DEFAULT_NUCLEUS_BOOTSTRAP_TEMPLATE = "set -eu\n"
-            + "KERNEL_ROOT=\"%s\"\n"
-            + "UNPACK_DIR=\"%s/aws.greengrass.nucleus\"\n"
-            + "# TODO: Use builtin unpack functionality with permission preserved if available\n"
-            + "chmod +x \"$UNPACK_DIR/bin/loader\"\n" + "\n" + "rm -r \"$KERNEL_ROOT\"/alts/current/*\n\n"
-            + "echo \"-Xms512m -Xmx512m\" > \"$KERNEL_ROOT/alts/current/launch.params\"\n"
-            + "ln -sf \"$UNPACK_DIR\" \"$KERNEL_ROOT/alts/current/distro\"\n" + "exit 100";
+    public static final String DEFAULT_NUCLEUS_BOOTSTRAP_TEMPLATE = "set -eu%n"
+            + "KERNEL_ROOT=\"%s\"%n"
+            + "UNPACK_DIR=\"%s/aws.greengrass.nucleus\"%n"
+            + "# TODO: Use builtin unpack functionality with permission preserved if available%n"
+            + "chmod +x \"$UNPACK_DIR/bin/loader\"%n" + "%n" + "rm -r \"$KERNEL_ROOT\"/alts/current/*%n%n"
+            + "echo \"-Xms512m -Xmx512m\" > \"$KERNEL_ROOT/alts/current/launch.params\"%n"
+            + "ln -sf \"$UNPACK_DIR\" \"$KERNEL_ROOT/alts/current/distro\"%n" + "exit 100";
 
     public static void main(String[] args) {
         new Kernel().parseArgs(args).launch();
