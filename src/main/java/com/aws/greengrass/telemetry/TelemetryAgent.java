@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 
 @ImplementsService(name = TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS, autostart = true)
 public class TelemetryAgent extends GreengrassService {
@@ -255,7 +255,7 @@ public class TelemetryAgent extends GreengrassService {
 
     @Override
     public void startup() throws InterruptedException {
-        config.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
+        config.lookup(CONFIGURATION_CONFIG_KEY, TELEMETRY_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     int newPeriodicAggregateMetricsIntervalSec = Coerce.toInt(newv);
@@ -265,7 +265,7 @@ public class TelemetryAgent extends GreengrassService {
                     }
                     setPeriodicAggregateMetricsIntervalAndSchedule(newPeriodicAggregateMetricsIntervalSec);
                 });
-        config.lookup(PARAMETERS_CONFIG_KEY, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
+        config.lookup(CONFIGURATION_CONFIG_KEY, TELEMETRY_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     int newPeriodicPublishMetricsIntervalSec = Coerce.toInt(newv);
