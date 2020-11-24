@@ -176,9 +176,9 @@ services:
         outputDirectory: /path/to/logs/directory
         outputType: FILE
       telemetry:
-        isEnabled: true
-        periodicAggregateMetricsIntervalSec: 3600
-        periodicPublishMetricsIntervalSec: 86400
+        enabled: true
+        periodicAggregateMetricsIntervalSeconds: 3600
+        periodicPublishMetricsIntervalSeconds: 86400
 ```
 
 

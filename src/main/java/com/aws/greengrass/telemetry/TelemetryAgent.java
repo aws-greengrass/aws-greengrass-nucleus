@@ -127,8 +127,8 @@ public class TelemetryAgent extends GreengrassService {
         int finalPeriodicPublishMetricsIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
                 TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC, periodicPublishMetricsIntervalSec).intValue();
         currentConfiguration.set(TelemetryConfiguration.builder()
-                .periodicAggregateMetricsIntervalSec(finalPeriodicAggregateMetricsIntervalSec)
-                .periodicPublishMetricsIntervalSec(finalPeriodicPublishMetricsIntervalSec)
+                .periodicAggregateMetricsIntervalSeconds(finalPeriodicAggregateMetricsIntervalSec)
+                .periodicPublishMetricsIntervalSeconds(finalPeriodicPublishMetricsIntervalSec)
                 .build());
         periodicMetricsEmitters.add(sme);
         periodicMetricsEmitters.add(kme);
@@ -156,7 +156,7 @@ public class TelemetryAgent extends GreengrassService {
         if (isReconfigured) {
             synchronized (periodicAggregateMetricsInProgressLock) {
                 Instant lastPeriodicAggTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicAggregateTimeTopic()));
-                if (lastPeriodicAggTime.plusSeconds(configuration.getPeriodicAggregateMetricsIntervalSec())
+                if (lastPeriodicAggTime.plusSeconds(configuration.getPeriodicAggregateMetricsIntervalSeconds())
                         .isBefore(Instant.now())) {
                     for (PeriodicMetricsEmitter periodicMetricsEmitter : periodicMetricsEmitters) {
                         periodicMetricsEmitter.emitMetrics();
@@ -165,7 +165,7 @@ public class TelemetryAgent extends GreengrassService {
                 }
             }
         }
-        int periodicAggregateMetricsIntervalSec = configuration.getPeriodicAggregateMetricsIntervalSec();
+        int periodicAggregateMetricsIntervalSec = configuration.getPeriodicAggregateMetricsIntervalSeconds();
         synchronized (periodicAggregateMetricsInProgressLock) {
             for (PeriodicMetricsEmitter emitter : periodicMetricsEmitters) {
                 // Start emitting metrics with no delay. This is device specific where metrics are stored in files.
@@ -195,13 +195,13 @@ public class TelemetryAgent extends GreengrassService {
         if (isReconfigured) {
             synchronized (periodicPublishMetricsInProgressLock) {
                 Instant lastPeriodicPubTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicPublishTimeTopic()));
-                if (lastPeriodicPubTime.plusSeconds(configuration.getPeriodicPublishMetricsIntervalSec())
+                if (lastPeriodicPubTime.plusSeconds(configuration.getPeriodicPublishMetricsIntervalSeconds())
                         .isBefore(Instant.now())) {
                     publishPeriodicMetrics();
                 }
             }
         }
-        int periodicPublishMetricsIntervalSec = configuration.getPeriodicPublishMetricsIntervalSec();
+        int periodicPublishMetricsIntervalSec = configuration.getPeriodicPublishMetricsIntervalSeconds();
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it, we don't want
         // all the devices to publish metrics at the same time.
         long initialDelay = RandomUtils.nextLong(0, periodicPublishMetricsIntervalSec + 1);
@@ -267,55 +267,59 @@ public class TelemetryAgent extends GreengrassService {
 
     @Override
     public void postInject() {
-        Topics configurationTopics = deviceConfiguration.getTelemetryConfigurationTopics();
-        configurationTopics.subscribe((why, newv) -> {
-            TelemetryConfiguration newTelemetryConfiguration =
-                    TelemetryConfiguration.fromPojo(configurationTopics.toPOJO());
-            TelemetryConfiguration configuration = currentConfiguration.get();
-            boolean aggregateMetricsIntervalSecChanged = false;
-            boolean publishMetricsIntervalSecChanged = false;
-            if (newTelemetryConfiguration.isEnabled()) {
-                // If the current aggregation interval is different from the new interval, then reschedule
-                // the periodic aggregation task
-                aggregateMetricsIntervalSecChanged = configuration.getPeriodicAggregateMetricsIntervalSec()
-                        != newTelemetryConfiguration.getPeriodicAggregateMetricsIntervalSec();
-                // If the current publish interval is different from the new interval, then reschedule
-                // the publish aggregation task
-                publishMetricsIntervalSecChanged = configuration.getPeriodicPublishMetricsIntervalSec()
-                        != newTelemetryConfiguration.getPeriodicPublishMetricsIntervalSec();
-            } else {
-                // If telemetry is not enabled, then cancel the futures.
-                cancelAllJobs();
-            }
-            currentConfiguration.set(newTelemetryConfiguration);
-            if (aggregateMetricsIntervalSecChanged) {
-                schedulePeriodicAggregateMetrics(true);
-            }
-            if (publishMetricsIntervalSecChanged) {
-                schedulePeriodicPublishMetrics(true);
-            }
-        });
-        updateThingNameAndPublishTopic(thingName);
-        mqttClient.addToCallbackEvents(callbacks);
-        TestFeatureParameters.registerHandlerCallback(this.getName(), this::handleTestFeatureParametersHandlerChange);
+        ses.schedule(() -> {
+            Topics configurationTopics = deviceConfiguration.getTelemetryConfigurationTopics();
+            configurationTopics.subscribe((why, newv) -> {
+                TelemetryConfiguration newTelemetryConfiguration =
+                        TelemetryConfiguration.fromPojo(configurationTopics.toPOJO());
+                TelemetryConfiguration configuration = currentConfiguration.get();
+                boolean aggregateMetricsIntervalSecChanged = false;
+                boolean publishMetricsIntervalSecChanged = false;
+                if (newTelemetryConfiguration.isEnabled()) {
+                    // If the current aggregation interval is different from the new interval, then reschedule
+                    // the periodic aggregation task
+                    aggregateMetricsIntervalSecChanged = configuration.getPeriodicAggregateMetricsIntervalSeconds()
+                            != newTelemetryConfiguration.getPeriodicAggregateMetricsIntervalSeconds();
+                    // If the current publish interval is different from the new interval, then reschedule
+                    // the publish aggregation task
+                    publishMetricsIntervalSecChanged = configuration.getPeriodicPublishMetricsIntervalSeconds()
+                            != newTelemetryConfiguration.getPeriodicPublishMetricsIntervalSeconds();
+                } else {
+                    // If telemetry is not enabled, then cancel the futures.
+                    cancelAllJobs();
+                }
+                currentConfiguration.set(newTelemetryConfiguration);
+                if (aggregateMetricsIntervalSecChanged) {
+                    schedulePeriodicAggregateMetrics(true);
+                }
+                if (publishMetricsIntervalSecChanged) {
+                    schedulePeriodicPublishMetrics(true);
+                }
+            });
+            updateThingNameAndPublishTopic(thingName);
+            mqttClient.addToCallbackEvents(callbacks);
+            TestFeatureParameters.registerHandlerCallback(this.getName(),
+                    this::handleTestFeatureParametersHandlerChange);
+        }, 0, TimeUnit.SECONDS);
         super.postInject();
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleTestFeatureParametersHandlerChange(Boolean isDefault) {
         TelemetryConfiguration configuration = currentConfiguration.get();
-        setPeriodicAggregateMetricsIntervalAndSchedule(configuration.getPeriodicPublishMetricsIntervalSec());
-        setPeriodicPublishMetricsIntervalAndScheduleTask(configuration.getPeriodicAggregateMetricsIntervalSec());
+        setPeriodicAggregateMetricsIntervalAndSchedule(configuration.getPeriodicPublishMetricsIntervalSeconds());
+        setPeriodicPublishMetricsIntervalAndScheduleTask(configuration.getPeriodicAggregateMetricsIntervalSeconds());
     }
 
     private void setPeriodicPublishMetricsIntervalAndScheduleTask(int defaultValue) {
         TelemetryConfiguration telemetryConfiguration = currentConfiguration.get();
         currentConfiguration.set(TelemetryConfiguration.builder()
-                .periodicPublishMetricsIntervalSec(TestFeatureParameters
+                .periodicPublishMetricsIntervalSeconds(TestFeatureParameters
                         .retrieveWithDefault(Double.class, TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC, defaultValue)
                         .intValue())
-                .periodicAggregateMetricsIntervalSec(telemetryConfiguration.getPeriodicAggregateMetricsIntervalSec())
-                .isEnabled(telemetryConfiguration.isEnabled())
+                .periodicAggregateMetricsIntervalSeconds(telemetryConfiguration
+                        .getPeriodicAggregateMetricsIntervalSeconds())
+                .enabled(telemetryConfiguration.isEnabled())
                 .build());
         synchronized (periodicPublishMetricsInProgressLock) {
             if (periodicPublishMetricsFuture != null) {
@@ -327,11 +331,12 @@ public class TelemetryAgent extends GreengrassService {
     private void setPeriodicAggregateMetricsIntervalAndSchedule(int defaultValue) {
         TelemetryConfiguration telemetryConfiguration = currentConfiguration.get();
         currentConfiguration.set(TelemetryConfiguration.builder()
-                .periodicAggregateMetricsIntervalSec(TestFeatureParameters
+                .periodicAggregateMetricsIntervalSeconds(TestFeatureParameters
                         .retrieveWithDefault(Double.class, TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC, defaultValue)
                         .intValue())
-                .periodicPublishMetricsIntervalSec(telemetryConfiguration.getPeriodicPublishMetricsIntervalSec())
-                .isEnabled(telemetryConfiguration.isEnabled())
+                .periodicPublishMetricsIntervalSeconds(telemetryConfiguration
+                        .getPeriodicPublishMetricsIntervalSeconds())
+                .enabled(telemetryConfiguration.isEnabled())
                 .build());
 
         synchronized (periodicAggregateMetricsInProgressLock) {

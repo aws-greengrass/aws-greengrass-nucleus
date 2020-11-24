@@ -22,11 +22,11 @@ import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODI
 public class TelemetryConfiguration {
 
     @Builder.Default
-    boolean isEnabled = true;
+    boolean enabled = true;
     @Builder.Default
-    int periodicAggregateMetricsIntervalSec = DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC;
+    int periodicAggregateMetricsIntervalSeconds = DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC;
     @Builder.Default
-    int periodicPublishMetricsIntervalSec = DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC;
+    int periodicPublishMetricsIntervalSeconds = DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC;
 
     /**
      * Get the telemetry configuration from the POJO map.
@@ -39,7 +39,7 @@ public class TelemetryConfiguration {
         boolean isEnabled = true;
         for (Map.Entry<String, Object> entry : pojo.entrySet()) {
             switch (entry.getKey()) {
-                case "isEnabled":
+                case "enabled":
                     isEnabled = Coerce.toBoolean(entry.getValue());
                     break;
                 case "periodicAggregateMetricsIntervalSec":
@@ -71,9 +71,9 @@ public class TelemetryConfiguration {
                 .retrieveWithDefault(Double.class, TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC,
                         periodicPublishMetricsIntervalSec).intValue();
         return TelemetryConfiguration.builder()
-                .isEnabled(isEnabled)
-                .periodicAggregateMetricsIntervalSec(periodicAggregateMetricsIntervalSec)
-                .periodicPublishMetricsIntervalSec(periodicPublishMetricsIntervalSec)
+                .enabled(isEnabled)
+                .periodicAggregateMetricsIntervalSeconds(periodicAggregateMetricsIntervalSec)
+                .periodicPublishMetricsIntervalSeconds(periodicPublishMetricsIntervalSec)
                 .build();
     }
 }

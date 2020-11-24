@@ -110,9 +110,9 @@ class TelemetryAgentTest extends GGServiceTestUtil {
 
         lenient().when(config.lookup(DEVICE_PARAM_THING_NAME)).thenReturn(thingNameTopic);
         Topics configurationTopics = Topics.of(context, TELEMETRY_CONFIG_LOGGING_TOPICS, null);
-        configurationTopics.createLeafChild("isEnabled").withValue(true);
-        configurationTopics.createLeafChild("periodicAggregateMetricsIntervalSec").withValue(100);
-        configurationTopics.createLeafChild("periodicPublishMetricsIntervalSec").withValue(300);
+        configurationTopics.createLeafChild("enabled").withValue(true);
+        configurationTopics.createLeafChild("periodicAggregateMetricsIntervalSeconds").withValue(100);
+        configurationTopics.createLeafChild("periodicPublishMetricsIntervalSeconds").withValue(300);
         when(mockDeviceConfiguration.getTelemetryConfigurationTopics()).thenReturn(configurationTopics);
         telemetryAgent = new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses,
                 3, 1);
@@ -129,8 +129,9 @@ class TelemetryAgentTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Telemetry_Agent_WHEN_starts_up_THEN_schedule_operations_on_metrics() {
+    void GIVEN_Telemetry_Agent_WHEN_starts_up_THEN_schedule_operations_on_metrics() throws InterruptedException {
         telemetryAgent.postInject();
+        TimeUnit.SECONDS.sleep(1);
 
         assertNotNull(telemetryAgent.getPeriodicAggregateMetricsFuture());
         assertNotNull(telemetryAgent.getPeriodicPublishMetricsFuture());
@@ -140,9 +141,10 @@ class TelemetryAgentTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_periodic_update_less_than_default_WHEN_config_read_THEN_sets_publish_interval_to_default() {
+    void GIVEN_periodic_update_less_than_default_WHEN_config_read_THEN_sets_publish_interval_to_default() throws InterruptedException {
         telemetryAgent = spy(new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses));
         telemetryAgent.postInject();
+        TimeUnit.SECONDS.sleep(1);
         assertNotNull(telemetryAgent.getPeriodicAggregateMetricsFuture());
         assertNotNull(telemetryAgent.getPeriodicPublishMetricsFuture());
         for (PeriodicMetricsEmitter p : telemetryAgent.getPeriodicMetricsEmitters()) {
@@ -150,20 +152,22 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         }
 
         assertNotNull(telemetryAgent.getCurrentConfiguration());
-        assertEquals(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().get().getPeriodicAggregateMetricsIntervalSec());
-        assertEquals(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().get().getPeriodicPublishMetricsIntervalSec());
+        assertEquals(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().get().getPeriodicAggregateMetricsIntervalSeconds());
+        assertEquals(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().get().getPeriodicPublishMetricsIntervalSeconds());
     }
 
     @Test
-    void GIVEN_telemetry_not_enabled_WHEN_config_read_THEN_does_not_publish() {
+    void GIVEN_telemetry_not_enabled_WHEN_config_read_THEN_does_not_publish() throws InterruptedException {
         Topics configurationTopics = Topics.of(context, TELEMETRY_CONFIG_LOGGING_TOPICS, null);
-        configurationTopics.createLeafChild("isEnabled").withValue(false);
-        configurationTopics.createLeafChild("periodicAggregateMetricsIntervalSec").withValue(100);
-        configurationTopics.createLeafChild("periodicPublishMetricsIntervalSec").withValue(300);
+        configurationTopics.createLeafChild("enabled").withValue(false);
+        configurationTopics.createLeafChild("periodicAggregateMetricsIntervalSeconds").withValue(100);
+        configurationTopics.createLeafChild("periodicPublishMetricsIntervalSeconds").withValue(300);
         when(mockDeviceConfiguration.getTelemetryConfigurationTopics()).thenReturn(configurationTopics);
 
         telemetryAgent = spy(new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses));
         telemetryAgent.postInject();
+
+        TimeUnit.SECONDS.sleep(2);
         assertNotNull(telemetryAgent.getPeriodicAggregateMetricsFuture());
         assertNotNull(telemetryAgent.getPeriodicPublishMetricsFuture());
         for (PeriodicMetricsEmitter p : telemetryAgent.getPeriodicMetricsEmitters()) {
@@ -172,8 +176,8 @@ class TelemetryAgentTest extends GGServiceTestUtil {
 
         assertNotNull(telemetryAgent.getCurrentConfiguration());
         assertFalse(telemetryAgent.getCurrentConfiguration().get().isEnabled());
-        assertEquals(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().get().getPeriodicAggregateMetricsIntervalSec());
-        assertEquals(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().get().getPeriodicPublishMetricsIntervalSec());
+        assertEquals(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().get().getPeriodicAggregateMetricsIntervalSeconds());
+        assertEquals(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC, telemetryAgent.getCurrentConfiguration().get().getPeriodicPublishMetricsIntervalSeconds());
         assertTrue(telemetryAgent.getPeriodicPublishMetricsFuture().isCancelled());
         assertTrue(telemetryAgent.getPeriodicAggregateMetricsFuture().isCancelled());
     }
@@ -188,8 +192,8 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         telemetryAgent.postInject();
         long milliSeconds = 4000;
         telemetryAgent.getCurrentConfiguration().set(TelemetryConfiguration.builder()
-                .periodicPublishMetricsIntervalSec(3)
-                .periodicAggregateMetricsIntervalSec(5)
+                .periodicPublishMetricsIntervalSeconds(3)
+                .periodicAggregateMetricsIntervalSeconds(5)
                 .build());
 
         telemetryAgent.schedulePeriodicAggregateMetrics(false);
@@ -197,12 +201,12 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         verify(ma, timeout(milliSeconds).times(0)).aggregateMetrics(anyLong(), anyLong());
         verify(ma, timeout(milliSeconds).atLeastOnce()).getMetricsToPublish(anyLong(), anyLong());
         telemetryAgent.getCurrentConfiguration().set(TelemetryConfiguration.builder()
-                .periodicPublishMetricsIntervalSec(3)
-                .periodicAggregateMetricsIntervalSec(2)
+                .periodicPublishMetricsIntervalSeconds(3)
+                .periodicAggregateMetricsIntervalSeconds(2)
                 .build());
         telemetryAgent.schedulePeriodicAggregateMetrics(false);
         // aggregation starts at least at the 2nd sec
-        verify(ma, timeout(milliSeconds).times(0)).aggregateMetrics(anyLong(), anyLong());
+        verify(ma, timeout(milliSeconds).atLeastOnce()).aggregateMetrics(anyLong(), anyLong());
     }
 
     @Test
@@ -221,8 +225,8 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         });
 
         telemetryAgent.getCurrentConfiguration().set(TelemetryConfiguration.builder()
-                .periodicPublishMetricsIntervalSec(2)
-                .periodicAggregateMetricsIntervalSec(1)
+                .periodicPublishMetricsIntervalSeconds(2)
+                .periodicAggregateMetricsIntervalSeconds(1)
                 .build());
 
         telemetryAgent.schedulePeriodicPublishMetrics(false);
