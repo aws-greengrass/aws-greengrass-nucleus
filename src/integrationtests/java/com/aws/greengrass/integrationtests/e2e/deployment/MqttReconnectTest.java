@@ -69,7 +69,6 @@ class MqttReconnectTest extends BaseE2ETestCase {
         java.security.Security.setProperty(dnsCacheTtlPropertyKey, Long.toString(DNS_CACHE_TTL.getSeconds()));
 
         initKernel();
-        kernel.getNucleusPaths().setComponentStorePath(e2eTestPkgStoreDir);
     }
 
     @AfterEach

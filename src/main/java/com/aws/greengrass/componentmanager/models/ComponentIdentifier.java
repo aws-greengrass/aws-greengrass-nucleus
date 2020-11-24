@@ -11,6 +11,7 @@ import com.aws.greengrass.util.Coerce;
 import com.vdurmont.semver4j.Semver;
 import lombok.AllArgsConstructor;
 import lombok.Value;
+import org.apache.commons.lang3.builder.CompareToBuilder;
 
 @Value
 @AllArgsConstructor
@@ -28,8 +29,11 @@ public class ComponentIdentifier implements Comparable<ComponentIdentifier> {
                 new Semver(Coerce.toString(t.findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY))));
     }
 
+    /**
+     * First compare the name, then compare the version according to Semver's compareTo.
+     */
     @Override
     public int compareTo(ComponentIdentifier o) {
-        return version.compareTo(o.version) * -1;
+        return new CompareToBuilder().append(name, o.name).append(version, o.version).build();
     }
 }

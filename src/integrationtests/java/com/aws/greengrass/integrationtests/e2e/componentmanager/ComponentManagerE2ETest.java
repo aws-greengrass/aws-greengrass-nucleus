@@ -14,6 +14,7 @@ import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
+import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.FileSystemPermission;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import software.amazon.awssdk.utils.ImmutableMap;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -82,18 +84,17 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
         List<String> rootPackageList = new ArrayList<>();
         rootPackageList.add(kernelIntegTestPkgName);
         List<DeploymentPackageConfiguration> configList = new ArrayList<>();
-        configList.add(new DeploymentPackageConfiguration(kernelIntegTestPkgName, true,
-                "1.0.0"));
-        DeploymentDocument testDeploymentDocument
-                = DeploymentDocument.builder().deploymentId("test").timestamp(12345678L)
-                                    .deploymentPackageConfigurationList(configList)
-                                    .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
-                                    .groupName("mockGroup").build();
-        try(Context context = new Context()) {
+        configList.add(new DeploymentPackageConfiguration(kernelIntegTestPkgName, true, "1.0.0"));
+        DeploymentDocument testDeploymentDocument =
+                DeploymentDocument.builder().deploymentId("test").timestamp(12345678L)
+                        .deploymentPackageConfigurationList(configList)
+                        .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).groupName("mockGroup").build();
+        try (Context context = new Context()) {
             Topics groupToRootPackagesTopics =
                     Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-            rootPackageList.stream().forEach(pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookupTopics(pkg)
-                    .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
+            rootPackageList.stream().forEach(
+                    pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookupTopics(pkg).replaceAndWait(
+                            ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
             List<ComponentIdentifier> resolutionResult =
                     dependencyResolver.resolveDependencies(testDeploymentDocument, groupToRootPackagesTopics);
             Future<Void> testFuture = componentManager.preparePackages(resolutionResult);
@@ -103,14 +104,18 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
             assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
             assertThat(componentStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
 
-            assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).resolve(kernelIntegTestPkgName + "-1.0.0.yaml").toFile(),
-                    anExistingFile());
-            assertThat(componentStorePath
-                            .resolve(RECIPE_DIRECTORY).resolve(getTestComponentNameInCloud("KernelIntegTestDependency") + "-1.0.0.yaml").toFile(),
-                    anExistingFile());
-            assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).resolve(getTestComponentNameInCloud("Log") + "-2.0.0.yaml").toFile(), anExistingFile());
+            File downloadedRecipe = componentStorePath.resolve(RECIPE_DIRECTORY).resolve(PreloadComponentStoreHelper
+                    .getRecipeStorageFilenameFromTestSource(
+                            getTestComponentNameInCloud("KernelIntegTestDependency") + "-1.0.0.yaml")).toFile();
 
-            assertThat(componentStorePath.resolve(ARTIFACT_DIRECTORY).resolve(kernelIntegTestPkgName).resolve("1.0.0").resolve("kernel_integ_test_artifact.txt").toFile(), anExistingFile());
+            assertThat(downloadedRecipe, anExistingFile());
+
+            assertThat(componentStorePath.resolve(componentStorePath.resolve(RECIPE_DIRECTORY).resolve(
+                    PreloadComponentStoreHelper.getRecipeStorageFilenameFromTestSource(
+                            getTestComponentNameInCloud("Log") + "-2.0.0" + ".yaml"))).toFile(), anExistingFile());
+
+            assertThat(componentStorePath.resolve(ARTIFACT_DIRECTORY).resolve(kernelIntegTestPkgName).resolve("1.0.0")
+                    .resolve("kernel_integ_test_artifact.txt").toFile(), anExistingFile());
         }
     }
 
@@ -130,8 +135,9 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
         try (Context context = new Context()) {
             Topics groupToRootPackagesTopics =
                     Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-            rootPackageList.stream().forEach(pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookupTopics(pkg)
-                    .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
+            rootPackageList.stream().forEach(
+                    pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookupTopics(pkg).replaceAndWait(
+                            ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
             List<ComponentIdentifier> resolutionResult =
                     dependencyResolver.resolveDependencies(testDeploymentDocument, groupToRootPackagesTopics);
             Future<Void> testFuture = componentManager.preparePackages(resolutionResult);
@@ -141,17 +147,21 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
             assertThat(componentStorePath.toFile(), anExistingDirectory());
             assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
             assertThat(componentStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
-            assertThat(componentStorePath.resolve(RECIPE_DIRECTORY)
-                    .resolve(appWithS3ArtifactsPackageName + "-1.0.0" + ".yaml").toFile(), anExistingFile());
+
+            String testResourceRecipeFilename =
+                    getTestComponentNameInCloud(appWithS3ArtifactsPackageName) + "-1.0.0" + ".yaml";
+
+            assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).resolve(
+                    PreloadComponentStoreHelper.getRecipeStorageFilenameFromTestSource(testResourceRecipeFilename))
+                    .toFile(), anExistingFile());
             Path artifactTxt = componentStorePath.resolve(ARTIFACT_DIRECTORY).resolve(appWithS3ArtifactsPackageName)
                     .resolve("1.0.0").resolve("artifact.txt");
             assertThat(artifactTxt.toFile(), anExistingFile());
 
-            assertThat(artifactTxt, hasPermission(FileSystemPermission.builder()
-                    .ownerRead(true).groupRead(true).otherRead(true)
-                    .ownerWrite(!SystemUtils.USER_NAME.equals(Platform.getInstance().getPrivilegedUser()))
-                    .ownerExecute(true).groupExecute(true)
-                    .build()));
+            assertThat(artifactTxt, hasPermission(
+                    FileSystemPermission.builder().ownerRead(true).groupRead(true).otherRead(true)
+                            .ownerWrite(!SystemUtils.USER_NAME.equals(Platform.getInstance().getPrivilegedUser()))
+                            .ownerExecute(true).groupExecute(true).build()));
         }
     }
 }

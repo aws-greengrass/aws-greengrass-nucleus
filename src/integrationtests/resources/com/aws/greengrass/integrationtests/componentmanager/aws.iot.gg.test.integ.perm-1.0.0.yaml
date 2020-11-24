@@ -1,6 +1,6 @@
 ---
 RecipeFormatVersion: '2020-01-25'
-ComponentName: A
+ComponentName: aws.iot.gg.test.integ.perm
 ComponentVersion: '1.0.0'
 Manifests:
   - Platform:
