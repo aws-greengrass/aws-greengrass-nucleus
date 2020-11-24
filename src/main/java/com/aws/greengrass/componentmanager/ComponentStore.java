@@ -36,6 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -255,6 +256,13 @@ public class ComponentStore {
         }
     }
 
+    /**
+     * List available component (versions) that satisfies the requirement in descending order.
+     * @param componentName target component's name
+     * @param requirement   semver requirement
+     * @return component id list contains all satisfied version, in descending order
+     * @throws PackageLoadingException  when fails to read recipe directory or parse recipe file name
+     */
     List<ComponentIdentifier> listAvailableComponent(@NonNull String componentName, @NonNull Requirement requirement)
             throws PackageLoadingException {
         String componentNameHash = getHashOfComponentName(componentName);
@@ -270,7 +278,7 @@ public class ComponentStore {
 
         List<ComponentIdentifier> satisfyingComponentIds = new ArrayList<>();
 
-        // for each loop is used, instead of lambda expression, because parseVersionFromFileName throws checked
+        // for each loop is used, instead of lambda expression, because parseVersionFromRecipeFileName throws checked
         // exception and lambda doesn't support throwing checked exception
         for (File recipeFile : recipeFilesOfAllVersions) {
             Semver version = parseVersionFromRecipeFileName(recipeFile.getName());
@@ -280,8 +288,8 @@ public class ComponentStore {
             }
         }
 
-        // sort with ComponentIdentifier's comparator which sorts in ascending order
-        satisfyingComponentIds.sort(null);
+        // Sort in descending order
+        satisfyingComponentIds.sort(Collections.reverseOrder());
         return satisfyingComponentIds;
     }
 

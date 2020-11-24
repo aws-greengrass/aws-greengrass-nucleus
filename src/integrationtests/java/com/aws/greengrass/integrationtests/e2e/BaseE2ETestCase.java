@@ -99,12 +99,20 @@ public class BaseE2ETestCase implements AutoCloseable {
     private static final String TES_ROLE_NAME = "E2ETestsTesRole";
     protected static final String TES_ROLE_ALIAS_NAME = "E2ETestsTesRoleAlias";
     private static final String TES_ROLE_POLICY_NAME = "E2ETestsTesRolePolicy";
-    private static final String TES_ROLE_POLICY_DOCUMENT =
-            "{\n" + "    \"Version\": \"2012-10-17\",\n" + "    \"Statement\": [\n" + "        {\n"
-                    + "            \"Effect\": \"Allow\",\n" + "            \"Action\": [\n"
-                    + "                \"greengrass:*\",\n" + "                \"s3:Get*\",\n"
-                    + "                \"s3:List*\"\n" + "            ],\n" + "            \"Resource\": \"*\"\n"
-                    + "        }\n" + "    ]\n" + "}";
+    private static final String TES_ROLE_POLICY_DOCUMENT = "{\n"
+            + "    \"Version\": \"2012-10-17\",\n"
+            + "    \"Statement\": [\n"
+            + "        {\n"
+            + "            \"Effect\": \"Allow\",\n"
+            + "            \"Action\": [\n"
+            + "                \"greengrass:*\",\n"
+            + "                \"s3:Get*\",\n"
+            + "                \"s3:List*\"\n"
+            + "            ],\n"
+            + "            \"Resource\": \"*\"\n"
+            + "        }\n"
+            + "    ]\n"
+            + "}";
     protected static final String TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX = "eg-e2e-test-artifacts";
     protected static final String TEST_COMPONENT_ARTIFACTS_S3_BUCKET =
             TEST_COMPONENT_ARTIFACTS_S3_BUCKET_PREFIX + UUID.randomUUID().toString();
@@ -144,8 +152,6 @@ public class BaseE2ETestCase implements AutoCloseable {
             throw new RuntimeException(e);
         }
     }
-
-    ;
 
     protected static final AWSGreengrassV2 greengrassClient = AWSGreengrassV2ClientBuilder.standard()
             .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
@@ -242,13 +248,17 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     /**
-     * Load recipes from test resources and publish components to GCS. Directory tree layout should follow the local
-     * component store. e.g. src/integrationtests/resources/com/aws/greengrass/integrationtests/e2e └──
-     * component_resources ├── artifacts │  └── KernelIntegTest │      └── 1.0.0 │          └──
-     * kernel_integ_test_artifact.txt └── recipes ├── KernelIntegTest-1.0.0.yaml └──
-     * KernelIntegTestDependency-1.0.0.yaml
-     *
-     * @param pkgIds list of component identifiers
+     * Load recipes from local store and publish components to CMS.
+     * Directory tree layout should follow the local component store. e.g.
+     * src/integrationtests/resources/com/aws/greengrass/integrationtests/e2e
+     * └── local_store_content
+     *     ├── artifacts
+     *     │  └── KernelIntegTest
+     *     │      └── 1.0.0
+     *     │          └── kernel_integ_test_artifact.txt
+     *     └── recipes
+     *         ├── KernelIntegTest-1.0.0.yaml
+     *         └── KernelIntegTestDependency-1.0.0.yaml
      */
     private static void uploadTestComponentsToCms(ComponentIdentifier... pkgIds)
             throws IOException, PackagingException {

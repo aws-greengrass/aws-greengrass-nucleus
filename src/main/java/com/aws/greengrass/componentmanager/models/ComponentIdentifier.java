@@ -29,10 +29,10 @@ public class ComponentIdentifier implements Comparable<ComponentIdentifier> {
     }
 
     /**
-     * Sort in ascending order according to Semver's standard.
+     * Sort according to Semver's standard.
      */
     @Override
     public int compareTo(ComponentIdentifier o) {
-        return version.compareTo(o.version) * -1;   // -1 so that it is ascending
+        return version.compareTo(o.version);
     }
 }
