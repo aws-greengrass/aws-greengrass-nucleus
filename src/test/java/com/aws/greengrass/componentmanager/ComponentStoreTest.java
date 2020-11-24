@@ -8,12 +8,11 @@ package com.aws.greengrass.componentmanager;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
-import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
-import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.componentmanager.models.RecipeMetadata;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
@@ -35,19 +34,17 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static com.aws.greengrass.helper.PreloadComponentStoreHelper.getHashFromComponentName;
+import static com.aws.greengrass.helper.PreloadComponentStoreHelper.getRecipeStorageFilenameFromTestSource;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -179,34 +176,39 @@ class ComponentStoreTest {
     }
 
     @Test
-    void GIVEN_a_recipe_not_exists_when_savePackageRecipe_THEN_recipe_file_created()
-            throws IOException, PackageLoadingException {
+    void GIVEN_a_recipe_not_exists_when_savePackageRecipe_THEN_recipe_file_created() throws Exception {
         // GIVEN
-        String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
         String recipeContent = "recipeContent";
 
-        File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
+        ComponentIdentifier componentIdentifier = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"));
+
+        File expectedRecipeFile = getExpectedRecipeFile(componentIdentifier);
         assertThat(expectedRecipeFile, not(anExistingFile()));
 
         // WHEN
-        componentStore
-                .savePackageRecipe(new ComponentIdentifier("MonitoringService", new Semver("1.0.0")), recipeContent);
+        componentStore.savePackageRecipe(componentIdentifier, recipeContent);
 
         // THEN
-        assertThat(expectedRecipeFile, anExistingFile());
+        assertThat(getExpectedRecipeFile(componentIdentifier), anExistingFile());
         String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
         assertThat(fileContent, is(equalTo(recipeContent)));
     }
 
+    private File getExpectedRecipeFile(ComponentIdentifier componentIdentifier) {
+        String expectedFilename =
+                String.format("%s@%s.recipe.yaml", getHashFromComponentName(componentIdentifier.getName()),
+                        componentIdentifier.getVersion());
+        return recipeDirectory.resolve(expectedFilename).toFile();
+    }
+
     @Test
-    void GIVEN_a_recipe_exists_when_savePackageRecipe_THEN_recipe_file_is_updated()
-            throws IOException, PackageLoadingException {
+    void GIVEN_a_recipe_exists_when_savePackageRecipe_THEN_recipe_file_is_updated() throws Exception {
         // GIVEN
-        String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
         String recipeContent = "recipeContent";
 
+        ComponentIdentifier componentIdentifier = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"));
 
-        File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
+        File expectedRecipeFile = getExpectedRecipeFile(componentIdentifier);
 
         assertThat(expectedRecipeFile, not(anExistingFile()));
         FileUtils.writeStringToFile(expectedRecipeFile, "old content that will be replaced");
@@ -214,8 +216,7 @@ class ComponentStoreTest {
         assertThat(expectedRecipeFile, is(anExistingFile()));
 
         // WHEN
-        componentStore
-                .savePackageRecipe(new ComponentIdentifier("MonitoringService", new Semver("1.0.0")), recipeContent);
+        componentStore.savePackageRecipe(componentIdentifier, recipeContent);
 
         // THEN
         String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
@@ -283,9 +284,8 @@ class ComponentStoreTest {
 
         // WHEN
         // THEN
-        PackageLoadingException pe = assertThrows(PackageLoadingException.class,
+        assertThrows(PackageLoadingException.class,
                 () -> componentStore.findPackageRecipe(new ComponentIdentifier("InvalidRecipe", new Semver("1.0.0"))));
-        assertThat(pe.getMessage(), containsString("Failed to parse recipe file content to contract model"));
     }
 
     @Test
@@ -309,7 +309,7 @@ class ComponentStoreTest {
     }
 
     @Test
-    void GIVEN_a_recipe_exists_WHEN_getPackageMetadata_then_return_it() throws PackagingException, IOException {
+    void GIVEN_a_recipe_exists_WHEN_getPackageMetadata_then_return_it() throws Exception {
         // GIVEN
         preloadRecipeFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME);
 
@@ -324,7 +324,7 @@ class ComponentStoreTest {
 
     @Test
     void GIVEN_pre_loaded_package_versions_WHEN_find_best_available_version_THEN_return_satisfied_version()
-            throws IOException, PackagingException {
+            throws Exception {
         // GIVEN
         preloadRecipeFileFromTestResource("MonitoringService-1.0.0.yaml");
         preloadRecipeFileFromTestResource("MonitoringService-1.1.0.yaml");
@@ -365,7 +365,7 @@ class ComponentStoreTest {
         preloadArtifactFileFromTestResouce(MONITORING_SERVICE_PKG_ID, MONITORING_SERVICE_PKG_ARTIFACT_NAME);
         preloadRecipeMetadataFileFromTestResource(MONITORING_SERVICE_PKG_RECIPE_METADATA_FILE_NAME);
 
-        File expectedRecipeFile = recipeDirectory.resolve(MONITORING_SERVICE_PKG_RECIPE_FILE_NAME).toFile();
+        File expectedRecipeFile = getExpectedRecipeFile(MONITORING_SERVICE_PKG_ID);
         File expectedArtifactFile = componentStore.resolveArtifactDirectoryPath(MONITORING_SERVICE_PKG_ID)
                 .resolve(MONITORING_SERVICE_PKG_ARTIFACT_NAME).toFile();
         File expectedRecipeMetadataFile =
@@ -417,12 +417,12 @@ class ComponentStoreTest {
         assertEquals(recipeLength, componentStore.getContentSize());
     }
 
-    private void preloadRecipeFileFromTestResource(String fileName) throws IOException {
-        Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
+    private void preloadRecipeFileFromTestResource(String recipeFileName) throws Exception {
+        String destinationFilename = getRecipeStorageFilenameFromTestSource(recipeFileName);
 
-        Path destinationRecipe = recipeDirectory.resolve(fileName);
+        Path destinationRecipe = recipeDirectory.resolve(destinationFilename);
 
-        Files.copy(sourceRecipe, destinationRecipe);
+        Files.copy(RECIPE_RESOURCE_PATH.resolve(recipeFileName), destinationRecipe);
     }
 
     private void preloadArtifactFileFromTestResouce(ComponentIdentifier pkgId, String artFileName)
@@ -500,20 +500,13 @@ class ComponentStoreTest {
         assertThat(actualContent, is(equalTo(expectedContent)));
     }
 
-    private File getExpectedRecipeMetadataFile(String componentName, String componentVersion)
-            throws NoSuchAlgorithmException {
-        String hash = getHashFromName(componentName);
+    private File getExpectedRecipeMetadataFile(String componentName, String componentVersion) {
+        String hash = getHashFromComponentName(componentName);
 
         String expectedRecipeMetadataFileName =
                 String.format("%s@%s.metadata.json", hash, componentVersion); // {hash}@1.0.0.metadata.json
 
         return recipeDirectory.resolve(expectedRecipeMetadataFileName).toFile();
-    }
-
-    private String getHashFromName(String componentName) throws NoSuchAlgorithmException {
-        // expects the hash of component name to be base64 (url safe and no padding) encoded SHA256
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(
-                MessageDigest.getInstance("SHA-256").digest(componentName.getBytes(StandardCharsets.UTF_8)));
     }
 
     @Test
@@ -559,7 +552,7 @@ class ComponentStoreTest {
         Path sourceRecipe = RECIPE_METADATA_RESOURCE_PATH.resolve(fileName);
         String componentName = fileName.split("@")[0];
 
-        String hash = getHashFromName(componentName);
+        String hash = getHashFromComponentName(componentName);
 
         String targetRecipeMetadataFileName = fileName.replace(componentName, hash);    // {hash}@1.0.0.metadata.json
 
