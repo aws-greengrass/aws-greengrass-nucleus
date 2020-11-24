@@ -5,10 +5,10 @@
 
 package com.aws.greengrass.integrationtests.e2e.deployment;
 
-import com.amazonaws.services.evergreen.model.ComponentInfo;
-import com.amazonaws.services.evergreen.model.ConfigurationUpdate;
-import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
-import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
+import com.amazonaws.services.greengrassv2.model.ComponentConfigurationUpdate;
+import com.amazonaws.services.greengrassv2.model.ComponentDeploymentSpecification;
+import com.amazonaws.services.greengrassv2.model.CreateDeploymentRequest;
+import com.amazonaws.services.greengrassv2.model.CreateDeploymentResult;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
@@ -72,28 +72,25 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_kernel_running_WHEN_deployment_to_2_groups_THEN_both_deployments_succeed_and_service_in_both_group_finished() throws Exception {
+    void GIVEN_kernel_running_WHEN_deployment_to_2_groups_THEN_both_deployments_succeed_and_service_in_both_group_finished()
+            throws Exception {
 
-        CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest()
-                .withTargetName(thingGroupName)
-                .withTargetType(THING_GROUP_TARGET_TYPE)
-                .addComponentsEntry("CustomerApp", new ComponentInfo().withVersion("1.0.0")
+        CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest().withTargetArn(thingGroupArn)
+                .addComponentsEntry("CustomerApp", new ComponentDeploymentSpecification().withComponentVersion("1.0.0")
                         .withConfigurationUpdate(
-                                new ConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}")
-                        )
-                );
+                                new ComponentConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}")));
         CreateDeploymentResult result1 = draftAndCreateDeployment(createDeploymentRequest1);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getIotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
-        CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest()
-                .withTargetName(secondThingGroupResponse.thingGroupName())
-                .withTargetType(THING_GROUP_TARGET_TYPE)
-                .addComponentsEntry("SomeService", new ComponentInfo().withVersion("1.0.0"));
+        CreateDeploymentRequest createDeploymentRequest2 =
+                new CreateDeploymentRequest().withTargetArn(secondThingGroupResponse.thingGroupArn())
+                        .addComponentsEntry("SomeService",
+                                new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
         CreateDeploymentResult result2 = draftAndCreateDeployment(createDeploymentRequest2);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getIotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
@@ -109,123 +106,114 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
         ignoreExceptionOfType(context, ExecutionException.class);
 
         ignoreExceptionOfType(context,
-                              NoAvailableComponentVersionException.class); // Expect this to happen due to conflict
+                NoAvailableComponentVersionException.class); // Expect this to happen due to conflict
 
-        CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest()
-                .withTargetName(thingGroupName)
-                .withTargetType(THING_GROUP_TARGET_TYPE)
-                .addComponentsEntry("CustomerApp", new ComponentInfo().withVersion("0.9.1")
+        CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest().withTargetArn(thingGroupArn)
+                .addComponentsEntry("CustomerApp", new ComponentDeploymentSpecification().withComponentVersion("0.9.1")
                         .withConfigurationUpdate(
-                                new ConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}"))
-                );
+                                new ComponentConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}")));
         CreateDeploymentResult result1 = draftAndCreateDeployment(createDeploymentRequest1);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getIotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
         Topics groupToRootMapping = kernel.getConfig().lookupTopics(DeploymentService.DEPLOYMENT_SERVICE_TOPICS,
                 DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
         logger.atInfo().log("Group to root mapping is: " + groupToRootMapping.toString());
 
-        CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest()
-                .withTargetName(secondThingGroupResponse.thingGroupName())
-                .withTargetType(THING_GROUP_TARGET_TYPE)
-                .addComponentsEntry("CustomerApp", new ComponentInfo().withVersion("1.0.0")
-                        .withConfigurationUpdate(
-                                new ConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}"))
-                );
+        CreateDeploymentRequest createDeploymentRequest2 =
+                new CreateDeploymentRequest().withTargetArn(secondThingGroupResponse.thingGroupArn())
+                        .addComponentsEntry("CustomerApp",
+                                new ComponentDeploymentSpecification().withComponentVersion("1.0.0")
+                                        .withConfigurationUpdate(new ComponentConfigurationUpdate()
+                                                .withMerge("{\"sampleText\":\"FCS integ test\"}")));
         CreateDeploymentResult result2 = draftAndCreateDeployment(createDeploymentRequest2);
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getIotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.FAILED));
 
         assertThat("Incorrect component version running",
-                getCloudDeployedComponent("CustomerApp").getServiceConfig().find(VERSION_CONFIG_KEY).getOnce().toString(),
-                is("0.9.1"));
+                getCloudDeployedComponent("CustomerApp").getServiceConfig().find(VERSION_CONFIG_KEY).getOnce()
+                        .toString(), is("0.9.1"));
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_deployment_to_2_groups_WHEN_remove_common_service_from_1_group_THEN_service_keeps_running() throws Exception {
+    void GIVEN_deployment_to_2_groups_WHEN_remove_common_service_from_1_group_THEN_service_keeps_running()
+            throws Exception {
 
-        CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest()
-                .withTargetName(thingGroupName)
-                .withTargetType(THING_GROUP_TARGET_TYPE)
-                .addComponentsEntry("CustomerApp", new ComponentInfo().withVersion("0.9.1")
-                        .withConfigurationUpdate(new ConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}"))
-                )
-                .addComponentsEntry("SomeService", new ComponentInfo().withVersion("1.0.0"));
+        CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest().withTargetArn(thingGroupArn)
+                .addComponentsEntry("CustomerApp", new ComponentDeploymentSpecification().withComponentVersion("0.9.1")
+                        .withConfigurationUpdate(new ComponentConfigurationUpdate()
+                                .withMerge("{\"sampleText\":\"FCS " + "integ test\"}")))
+                .addComponentsEntry("SomeService",
+                        new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
         CreateDeploymentResult result1 = draftAndCreateDeployment(createDeploymentRequest1);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getIotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
         Topics groupToRootMapping = kernel.getConfig().lookupTopics(DeploymentService.DEPLOYMENT_SERVICE_TOPICS,
                 DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
         logger.atInfo().log("Group to root mapping is: " + groupToRootMapping.toString());
 
-        CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest()
-                .withTargetName(secondThingGroupResponse.thingGroupName())
-                .withTargetType(THING_GROUP_TARGET_TYPE)
-                .addComponentsEntry("CustomerApp", new ComponentInfo().withVersion("0.9.1")
-                        .withConfigurationUpdate(
-                                new ConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}"))
-                );
+        CreateDeploymentRequest createDeploymentRequest2 =
+                new CreateDeploymentRequest().withTargetArn(secondThingGroupResponse.thingGroupArn())
+                        .addComponentsEntry("CustomerApp",
+                                new ComponentDeploymentSpecification().withComponentVersion("0.9.1")
+                                        .withConfigurationUpdate(new ComponentConfigurationUpdate()
+                                                .withMerge("{\"sampleText\":\"FCS integ test\"}")));
         CreateDeploymentResult result2 = draftAndCreateDeployment(createDeploymentRequest2);
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getIotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
-        CreateDeploymentRequest createDeploymentRequest3 = new CreateDeploymentRequest()
-                .withTargetName(thingGroupName)
-                .withTargetType(THING_GROUP_TARGET_TYPE)
-                .addComponentsEntry("SomeService", new ComponentInfo().withVersion("1.0.0"));
+        CreateDeploymentRequest createDeploymentRequest3 = new CreateDeploymentRequest().withTargetArn(thingGroupArn)
+                .addComponentsEntry("SomeService",
+                        new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
         CreateDeploymentResult result3 = draftAndCreateDeployment(createDeploymentRequest3);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result3.getJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result3.getIotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.RUNNING)));
         assertThat("Incorrect component version running",
-                getCloudDeployedComponent("CustomerApp").getServiceConfig().find(VERSION_CONFIG_KEY).getOnce().toString(),
-                is("0.9.1"));
+                getCloudDeployedComponent("CustomerApp").getServiceConfig().find(VERSION_CONFIG_KEY).getOnce()
+                        .toString(), is("0.9.1"));
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
-    void GIVEN_deployment_to_2_groups_WHEN_remove_service_from_1_group_THEN_service_is_removed () throws Exception {
+    void GIVEN_deployment_to_2_groups_WHEN_remove_service_from_1_group_THEN_service_is_removed() throws Exception {
 
-        CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest()
-                .withTargetName(thingGroupName)
-                .withTargetType(THING_GROUP_TARGET_TYPE)
-                .addComponentsEntry("CustomerApp", new ComponentInfo().withVersion("0.9.1")
+        CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest().withTargetArn(thingGroupArn)
+                .addComponentsEntry("CustomerApp", new ComponentDeploymentSpecification().withComponentVersion("0.9.1")
                         .withConfigurationUpdate(
-                                new ConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}")))
-                .addComponentsEntry("SomeService", new ComponentInfo().withVersion("1.0.0"));
+                                new ComponentConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}")))
+                .addComponentsEntry("SomeService",
+                        new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
         CreateDeploymentResult result1 = draftAndCreateDeployment(createDeploymentRequest1);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getIotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
         Topics groupToRootMapping = kernel.getConfig().lookupTopics(DeploymentService.DEPLOYMENT_SERVICE_TOPICS,
                 DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
         logger.atInfo().log("Group to root mapping is: " + groupToRootMapping.toString());
 
-        CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest()
-                .withTargetName(secondThingGroupResponse.thingGroupName())
-                .withTargetType(THING_GROUP_TARGET_TYPE)
-                .addComponentsEntry("CustomerApp", new ComponentInfo().withVersion("0.9.1")
-                        .withConfigurationUpdate(
-                                new ConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}")));
+        CreateDeploymentRequest createDeploymentRequest2 =
+                new CreateDeploymentRequest().withTargetArn(secondThingGroupResponse.thingGroupArn())
+                        .addComponentsEntry("CustomerApp",
+                                new ComponentDeploymentSpecification().withComponentVersion("0.9.1")
+                                        .withConfigurationUpdate(new ComponentConfigurationUpdate()
+                                                .withMerge("{\"sampleText\":\"FCS integ test\"}")));
         CreateDeploymentResult result2 = draftAndCreateDeployment(createDeploymentRequest2);
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getIotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
-        CreateDeploymentRequest createDeploymentRequest3 = new CreateDeploymentRequest()
-                .withTargetName(thingGroupName)
-                .withTargetType(THING_GROUP_TARGET_TYPE)
-                .addComponentsEntry("CustomerApp", new ComponentInfo().withVersion("0.9.1")
+        CreateDeploymentRequest createDeploymentRequest3 = new CreateDeploymentRequest().withTargetArn(thingGroupArn)
+                .addComponentsEntry("CustomerApp", new ComponentDeploymentSpecification().withComponentVersion("0.9.1")
                         .withConfigurationUpdate(
-                                new ConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}")));
+                                new ComponentConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}")));
         CreateDeploymentResult result3 = draftAndCreateDeployment(createDeploymentRequest3);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result3.getJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result3.getIotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));

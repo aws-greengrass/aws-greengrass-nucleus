@@ -29,7 +29,7 @@ services:
 
     logging: # logging config.
       
-    parameters: # custom config.
+    configuration: # custom config.
     
     runtime: # namespace for service local datastore
         # not rolled back during deployment
@@ -160,7 +160,7 @@ services:
     dependencies:
       - TokenExchangeService
   aws.greengrass.Nucleus:
-    parameters:
+    configuration:
       awsRegion: "us-east-1"
       certificateFilePath: "root/thingCert.crt"
       iotCredEndpoint: "c13im2gfya04ip.credentials.iot.us-east-1.amazonaws.com"

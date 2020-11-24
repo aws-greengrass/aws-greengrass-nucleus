@@ -5,9 +5,9 @@
 
 package com.aws.greengrass.integrationtests.e2e.deployment;
 
-import com.amazonaws.services.evergreen.model.ComponentInfo;
-import com.amazonaws.services.evergreen.model.CreateDeploymentRequest;
-import com.amazonaws.services.evergreen.model.CreateDeploymentResult;
+import com.amazonaws.services.greengrassv2.model.ComponentDeploymentSpecification;
+import com.amazonaws.services.greengrassv2.model.CreateDeploymentRequest;
+import com.amazonaws.services.greengrassv2.model.CreateDeploymentResult;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
@@ -102,9 +102,9 @@ class MqttReconnectTest extends BaseE2ETestCase {
 
         // Create Job
         CreateDeploymentRequest createDeploymentRequest = new CreateDeploymentRequest()
-                .addComponentsEntry("CustomerApp", new ComponentInfo().withVersion("1.0.0"));
+                .addComponentsEntry("CustomerApp", new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
         CreateDeploymentResult result = draftAndCreateDeployment(createDeploymentRequest);
-        String jobId = result.getJobId();
+        String jobId = result.getIotJobId();
 
         // Subscribe to persisted deployment status
         Topics deploymentServiceTopics =

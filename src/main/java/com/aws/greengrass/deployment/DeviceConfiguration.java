@@ -298,7 +298,7 @@ public class DeviceConfiguration {
      * @return Platform override topic
      */
     public Topics getPlatformOverrideTopic() {
-        return kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY, PLATFORM_OVERRIDE_TOPIC);
+        return getTopics(PLATFORM_OVERRIDE_TOPIC);
     }
 
     /**

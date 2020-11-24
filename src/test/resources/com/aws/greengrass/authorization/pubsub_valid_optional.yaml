@@ -8,7 +8,7 @@ services:
 
   mqtt:
     lifecycle:
-    parameters:
+    configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
           policyId2:
@@ -20,7 +20,7 @@ services:
     resources:
       - http-resource
     lifecycle:
-    parameters:
+    configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
           policyId1:

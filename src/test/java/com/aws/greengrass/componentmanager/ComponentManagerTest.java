@@ -8,7 +8,7 @@ package com.aws.greengrass.componentmanager;
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
-import com.amazonaws.services.evergreen.model.ComponentContent;
+import com.amazonaws.services.greengrassv2.model.ResolvedComponentVersion;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
@@ -21,6 +21,7 @@ import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloaderFactory;
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -95,6 +96,7 @@ import static org.mockito.Mockito.when;
 class ComponentManagerTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final String TEST_ARN = "testArn";
     private static Path RECIPE_RESOURCE_PATH;
 
     static {
@@ -213,16 +215,12 @@ class ComponentManagerTest {
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
 
 
-        when(componentManagementServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(sourceRecipeString);
         when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
         Future<Void> future = componentManager.preparePackages(Collections.singletonList(pkgId));
         future.get(5, TimeUnit.SECONDS);
 
         assertThat(future.isDone(), is(true));
 
-        verify(componentManagementServiceHelper).downloadPackageRecipeAsString(pkgId);
-        verify(componentStore).findPackageRecipe(pkgId);
-        verify(componentStore).savePackageRecipe(pkgId, sourceRecipeString);
         verify(componentStore).getPackageRecipe(pkgId);
         verifyNoMoreInteractions(componentStore);
 
@@ -232,8 +230,6 @@ class ComponentManagerTest {
     void GIVEN_package_service_error_out_WHEN_request_to_prepare_package_THEN_task_error_out(ExtensionContext context)
             throws Exception {
         ComponentIdentifier pkgId = new ComponentIdentifier("SomeService", new Semver("1.0.0"));
-        when(componentManagementServiceHelper
-                     .downloadPackageRecipeAsString(any())).thenThrow(PackageDownloadException.class);
         ignoreExceptionUltimateCauseOfType(context, PackageDownloadException.class);
 
         Future<Void> future = componentManager.preparePackages(Collections.singletonList(pkgId));
@@ -250,7 +246,7 @@ class ComponentManagerTest {
         ComponentRecipe pkg1 = recipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
 
         CountDownLatch startedPreparingPkgId1 = new CountDownLatch(1);
-        when(componentManagementServiceHelper.downloadPackageRecipeAsString(pkgId1)).thenAnswer(invocationOnMock -> {
+        when(componentStore.getPackageRecipe(pkgId1)).thenAnswer(invocationOnMock -> {
             startedPreparingPkgId1.countDown();
             Thread.sleep(2_000);
             return pkg1;
@@ -260,8 +256,8 @@ class ComponentManagerTest {
         assertTrue(startedPreparingPkgId1.await(1, TimeUnit.SECONDS));
         future.cancel(true);
 
-        verify(componentManagementServiceHelper).downloadPackageRecipeAsString(pkgId1);
-        verify(componentManagementServiceHelper, times(0)).downloadPackageRecipeAsString(pkgId2);
+        verify(componentStore).getPackageRecipe(pkgId1);
+        verify(componentStore, times(0)).getPackageRecipe(pkgId2);
     }
 
     @Test
@@ -291,7 +287,7 @@ class ComponentManagerTest {
         assertThat(componentMetadata, is(componentA_1_2_0_md));
         verify(componentStore).findBestMatchAvailableComponent(componentA, Requirement.buildNPM("^1.0"));
         verify(componentStore).getPackageMetadata(componentA_1_2_0);
-        verify(componentManagementServiceHelper, never()).resolveComponentVersion(anyString(), any(), any(), anyString());
+        verify(componentManagementServiceHelper, never()).resolveComponentVersion(anyString(), any(), any());
     }
 
     @Test
@@ -310,12 +306,12 @@ class ComponentManagerTest {
                         .componentType(ComponentType.GENERIC).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
                         .build();
 
-        ComponentContent componentContent = new ComponentContent().withName(componentA).withVersion(v1_0_0.getValue())
-                .withRecipe(ByteBuffer.wrap(MAPPER.writeValueAsBytes(recipeContent)));
+        ResolvedComponentVersion resolvedComponentVersion =
+                new ResolvedComponentVersion().withComponentName(componentA).withComponentVersion(v1_0_0.getValue())
+                .withRecipe(ByteBuffer.wrap(MAPPER.writeValueAsBytes(recipeContent))).withArn(TEST_ARN);
 
-        when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any(), anyString()))
-                .thenReturn(componentContent);
-
+        when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
+                .thenReturn(resolvedComponentVersion);
         // mock return metadata from the id
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
 
@@ -330,10 +326,11 @@ class ComponentManagerTest {
 
         verify(componentStore).findBestMatchAvailableComponent(componentA, Requirement.buildNPM("^1.0"));
         verify(componentManagementServiceHelper).resolveComponentVersion(componentA, null, Collections
-                .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")), DEPLOYMENT_CONFIGURATION_ID);
+                .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")));
         verify(componentStore).findComponentRecipeContent(componentA_1_0_0);
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
         verify(componentStore).savePackageRecipe(componentA_1_0_0, MAPPER.writeValueAsString(recipeContent));
+        verify(componentStore).saveRecipeMetadata(componentA_1_0_0, new RecipeMetadata(TEST_ARN));
     }
 
     @Test
@@ -367,10 +364,11 @@ class ComponentManagerTest {
         when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());
 
-        ComponentContent componentContent = new ComponentContent().withName(componentA).withVersion(v1_0_0.getValue())
-                .withRecipe(ByteBuffer.wrap(MAPPER.writeValueAsBytes(newRecipe)));
-        when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any(), anyString()))
-                .thenReturn(componentContent);
+        ResolvedComponentVersion resolvedComponentVersion =
+                new ResolvedComponentVersion().withComponentName(componentA).withComponentVersion(v1_0_0.getValue())
+                .withRecipe(ByteBuffer.wrap(MAPPER.writeValueAsBytes(newRecipe))).withArn(TEST_ARN);
+        when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
+                .thenReturn(resolvedComponentVersion);
         when(componentStore.findComponentRecipeContent(any()))
                 .thenReturn(Optional.of(MAPPER.writeValueAsString(oldRecipe)));
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
@@ -381,11 +379,12 @@ class ComponentManagerTest {
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
         verify(componentManagementServiceHelper).resolveComponentVersion(componentA, v1_0_0, Collections
-                .singletonMap("X", Requirement.buildNPM("^1.0")), DEPLOYMENT_CONFIGURATION_ID);
+                .singletonMap("X", Requirement.buildNPM("^1.0")));
         verify(componentStore).findComponentRecipeContent(componentA_1_0_0);
         verify(componentStore).savePackageRecipe(componentA_1_0_0, MAPPER.writeValueAsString(newRecipe));
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
-        String recipeString = new String(componentContent.getRecipe().array(), StandardCharsets.UTF_8);
+        verify(componentStore).saveRecipeMetadata(componentA_1_0_0, new RecipeMetadata(TEST_ARN));
+        String recipeString = new String(resolvedComponentVersion.getRecipe().array(), StandardCharsets.UTF_8);
         verify(digestTopic).withValue(Digest.calculate(recipeString));
     }
 
@@ -406,7 +405,7 @@ class ComponentManagerTest {
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());
         when(mockService.isBuiltin()).thenReturn(true);
 
-        when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any(), anyString()))
+        when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
                 .thenThrow(ComponentVersionNegotiationException.class);
         when(componentStore.getPackageMetadata(any())).thenThrow(PackagingException.class);
 
@@ -432,7 +431,6 @@ class ComponentManagerTest {
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
         String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
-        when(componentManagementServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(sourceRecipeString);
         when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
 
         // mock very limited space left
@@ -454,7 +452,6 @@ class ComponentManagerTest {
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
         String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
-        when(componentManagementServiceHelper.downloadPackageRecipeAsString(any())).thenReturn(sourceRecipeString);
         when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
 
         // mock very large component store size

@@ -129,7 +129,6 @@ class DeploymentTaskIntegrationTest {
     private static final String MOCK_GROUP_NAME = "thinggroup/group1";
 
     // Based on the recipe files of the packages in sample job document
-    private static final String TEST_CUSTOMER_APP_STRING_UPDATED = "Hello Greengrass. This is a new value";
     private static final String TEST_MOSQUITTO_STRING = "Hello this is mosquitto getting started";
     private static final String TEST_TICK_TOCK_STRING = "Go ahead with 2 approvals";
 
@@ -729,40 +728,6 @@ class DeploymentTaskIntegrationTest {
         }
     }
 
-    @Test
-    @Order(4)
-    @Deprecated
-    void GIVEN_services_running_WHEN_updated_params_THEN_services_start_with_updated_params_in_kernel()
-            throws Exception {
-        outputMessagesToTimestamp.clear();
-        countDownLatch = new CountDownLatch(1);
-        Consumer<GreengrassLogMessage> listener = m -> {
-            Map<String, String> contexts = m.getContexts();
-            String messageOnStdout = contexts.get("stdout");
-            if (messageOnStdout == null) {
-                return;
-            }
-            // Windows has quotes in the echo, so strip them
-            messageOnStdout = messageOnStdout.replaceAll("\"", "");
-            if (messageOnStdout.equals(TEST_CUSTOMER_APP_STRING_UPDATED)) {
-                outputMessagesToTimestamp.put(messageOnStdout, m.getTimestamp());
-                countDownLatch.countDown();
-            }
-        };
-        Slf4jLogAdapter.addGlobalListener(listener);
-        try {
-            groupToRootComponentsTopics.lookupTopics("CustomerApp").replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
-
-            Future<DeploymentResult> resultFuture = submitSampleJobDocument(
-                    DeploymentTaskIntegrationTest.class.getResource("SampleJobDocument_updated.json").toURI(), System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
-            countDownLatch.await(10, TimeUnit.SECONDS);
-            assertTrue(outputMessagesToTimestamp.containsKey(TEST_CUSTOMER_APP_STRING_UPDATED));
-        } finally {
-            Slf4jLogAdapter.removeGlobalListener(listener);
-        }
-    }
-
     /**
      * First deployment contains packages yellow and customerApp Second deployment updates the root packages to yellow
      * and red. Red is added, customerApp is removed and no update for yellow
@@ -1141,13 +1106,13 @@ class DeploymentTaskIntegrationTest {
 
     @Test
     @Order(100)
-    void GIVEN_services_running_WHEN_new_deployment_asks_to_skip_safety_check_THEN_deployment_is_successful() throws Exception {
+    void GIVEN_services_running_WHEN_new_deployment_asks_to_skip_update_policy_check_THEN_deployment_is_successful() throws Exception {
         // The previous test has NonDisruptableService 1.0.0 running in kernel that always returns false when its
-        // safety check script is run, this test demonstrates that when a next deployment configured to skip safety
+        // update policy check is run, this test demonstrates that when a next deployment configured to skip update policy
         // check is processed, it can still update the NonDisruptableService service to version 1.0.1 bypassing the
-        // safety check
+        // update policy check
         Future<DeploymentResult> resultFuture =
-                submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("SkipSafetyCheck.json").toURI(),
+                submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("SkipPolicyCheck.json").toURI(),
                         System.currentTimeMillis());
         DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies()
