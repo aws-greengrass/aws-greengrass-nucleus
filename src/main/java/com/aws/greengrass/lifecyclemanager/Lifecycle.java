@@ -53,7 +53,7 @@ public class Lifecycle {
     public static final String LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC = "shutdown";
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
     public static final String ERROR_RESET_TIME_TOPIC = "errorResetTime";
-    public static final String REQUIRES_PRIVILEGE_NAMESPACE_TOPIC = "requiresPrivilege";
+    public static final String REQUIRES_PRIVILEGE_NAMESPACE_TOPIC = "RequiresPrivilege";
 
     public static final String STATE_TOPIC_NAME = "_State";
     private static final String NEW_STATE_METRIC_NAME = "newState";
