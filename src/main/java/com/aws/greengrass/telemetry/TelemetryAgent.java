@@ -15,6 +15,7 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.MqttChunkedPayloadPublisher;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
 import org.apache.commons.lang3.RandomUtils;
@@ -24,6 +25,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -52,6 +54,7 @@ public class TelemetryAgent extends GreengrassService {
     private final Object periodicAggregateMetricsInProgressLock = new Object();
     private final MqttChunkedPayloadPublisher<AggregatedNamespaceData> publisher;
     private final ScheduledExecutorService ses;
+    private final ExecutorService executorService;
     private final DeviceConfiguration deviceConfiguration;
     @Getter(AccessLevel.PACKAGE)
     private final List<PeriodicMetricsEmitter> periodicMetricsEmitters = new ArrayList<>();
@@ -88,12 +91,13 @@ public class TelemetryAgent extends GreengrassService {
      * @param sme                 {@link SystemMetricsEmitter}
      * @param kme                 {@link KernelMetricsEmitter}
      * @param ses                 {@link ScheduledExecutorService}
+     * @param executorService     {@link ExecutorService}
      */
     @Inject
     public TelemetryAgent(Topics topics, MqttClient mqttClient, DeviceConfiguration deviceConfiguration,
                           MetricsAggregator ma, SystemMetricsEmitter sme, KernelMetricsEmitter kme,
-                          ScheduledExecutorService ses) {
-        this(topics, mqttClient, deviceConfiguration, ma, sme, kme, ses,
+                          ScheduledExecutorService ses, ExecutorService executorService) {
+        this(topics, mqttClient, deviceConfiguration, ma, sme, kme, ses, executorService,
                 DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC, DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC);
     }
 
@@ -107,18 +111,21 @@ public class TelemetryAgent extends GreengrassService {
      * @param sme                                 {@link SystemMetricsEmitter}
      * @param kme                                 {@link KernelMetricsEmitter}
      * @param ses                                 {@link ScheduledExecutorService}
+     * @param executorService                     {@link ExecutorService}
      * @param periodicPublishMetricsIntervalSec   interval for cadence based telemetry publish.
      * @param periodicAggregateMetricsIntervalSec interval for cadence based telemetry metrics aggregation.
      */
+    @SuppressWarnings("PMD.ExcessiveParameterList")
     TelemetryAgent(Topics topics, MqttClient mqttClient, DeviceConfiguration deviceConfiguration,
                    MetricsAggregator ma, SystemMetricsEmitter sme, KernelMetricsEmitter kme,
-                   ScheduledExecutorService ses, int periodicPublishMetricsIntervalSec,
+                   ScheduledExecutorService ses, ExecutorService executorService, int periodicPublishMetricsIntervalSec,
                    int periodicAggregateMetricsIntervalSec) {
         super(topics);
         this.mqttClient = mqttClient;
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
         this.ses = ses;
+        this.executorService = executorService;
         this.metricsAggregator = ma;
         this.deviceConfiguration = deviceConfiguration;
         this.thingName = Coerce.toString(deviceConfiguration.getThingName());
@@ -266,8 +273,9 @@ public class TelemetryAgent extends GreengrassService {
     }
 
     @Override
+    @SuppressFBWarnings
     public void postInject() {
-        ses.schedule(() -> {
+        executorService.submit(() -> {
             Topics configurationTopics = deviceConfiguration.getTelemetryConfigurationTopics();
             configurationTopics.subscribe((why, newv) -> {
                 TelemetryConfiguration newTelemetryConfiguration =
@@ -300,7 +308,7 @@ public class TelemetryAgent extends GreengrassService {
             mqttClient.addToCallbackEvents(callbacks);
             TestFeatureParameters.registerHandlerCallback(this.getName(),
                     this::handleTestFeatureParametersHandlerChange);
-        }, 0, TimeUnit.SECONDS);
+        });
         super.postInject();
     }
 

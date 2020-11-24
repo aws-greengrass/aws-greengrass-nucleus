@@ -35,6 +35,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -81,6 +83,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
     @Captor
     private ArgumentCaptor<MqttClientConnectionEvents> mqttClientConnectionEventsArgumentCaptor;
     private ScheduledExecutorService ses;
+    private ExecutorService executorService;
     private TelemetryAgent telemetryAgent;
     @Mock
     private SystemMetricsEmitter sme;
@@ -95,6 +98,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         initializeMockedConfig();
         TelemetryConfig.getInstance().setRoot(tempRootDir);
         ses = new ScheduledThreadPoolExecutor(3);
+        executorService = Executors.newCachedThreadPool();
         Topic lastPeriodicAggregateTime = Topic.of(context, TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC,
                 Instant.now().toEpochMilli());
         lenient().when(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC)
@@ -114,7 +118,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         configurationTopics.createLeafChild("periodicAggregateMetricsIntervalSeconds").withValue(100);
         configurationTopics.createLeafChild("periodicPublishMetricsIntervalSeconds").withValue(300);
         when(mockDeviceConfiguration.getTelemetryConfigurationTopics()).thenReturn(configurationTopics);
-        telemetryAgent = new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses,
+        telemetryAgent = new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses, executorService,
                 3, 1);
     }
 
@@ -142,7 +146,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
 
     @Test
     void GIVEN_periodic_update_less_than_default_WHEN_config_read_THEN_sets_publish_interval_to_default() throws InterruptedException {
-        telemetryAgent = spy(new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses));
+        telemetryAgent = spy(new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses, executorService));
         telemetryAgent.postInject();
         TimeUnit.SECONDS.sleep(1);
         assertNotNull(telemetryAgent.getPeriodicAggregateMetricsFuture());
@@ -164,7 +168,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         configurationTopics.createLeafChild("periodicPublishMetricsIntervalSeconds").withValue(300);
         when(mockDeviceConfiguration.getTelemetryConfigurationTopics()).thenReturn(configurationTopics);
 
-        telemetryAgent = spy(new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses));
+        telemetryAgent = spy(new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses, executorService));
         telemetryAgent.postInject();
 
         TimeUnit.SECONDS.sleep(2);
