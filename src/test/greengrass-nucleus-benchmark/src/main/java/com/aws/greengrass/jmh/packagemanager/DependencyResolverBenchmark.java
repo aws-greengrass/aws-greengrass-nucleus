@@ -40,6 +40,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
+import static com.aws.greengrass.jmh.PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir;
 
 public class DependencyResolverBenchmark {
 
@@ -70,7 +71,8 @@ public class DependencyResolverBenchmark {
                     .resolve("src/test/greengrass-nucleus-benchmark/mock_artifact_source");
 
             // pre-load contents to package store
-            copyFolderRecursively(localStoreContentPath, kernel.getNucleusPaths().componentStorePath());
+            preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"),
+                    kernel.getNucleusPaths().recipePath());
 
             // get the resolver from context
             resolver = kernel.getContext().get(DependencyResolver.class);
