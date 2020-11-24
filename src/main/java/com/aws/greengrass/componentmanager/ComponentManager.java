@@ -207,8 +207,13 @@ public class ComponentManager implements InjectionActions {
         ComponentIdentifier resolvedComponentId = new ComponentIdentifier(resolvedComponentVersion.getComponentName(),
                 new Semver(resolvedComponentVersion.getComponentVersion()));
         String downloadedRecipeContent = StandardCharsets.UTF_8.decode(resolvedComponentVersion.getRecipe()).toString();
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe downloadedRecipe =
-                RecipeLoader.parseRecipe(downloadedRecipeContent);
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe downloadedRecipe;
+        try {
+            downloadedRecipe = RecipeLoader.parseRecipe(downloadedRecipeContent, RecipeLoader.RecipeFormat.JSON);
+        } catch (PackageLoadingException e) {
+            // TODO remove this backoff operation once cloud switch to send JSON recipe
+            downloadedRecipe = RecipeLoader.parseRecipe(downloadedRecipeContent, RecipeLoader.RecipeFormat.YAML);
+        }
 
         // Save the recipe digest for plugin in a secure place, before persisting recipe
         storeRecipeDigestSecurelyForPlugin(downloadedRecipe, downloadedRecipeContent);
@@ -217,15 +222,16 @@ public class ComponentManager implements InjectionActions {
         boolean saveContent = true;
         Optional<String> recipeContentOnDevice = componentStore.findComponentRecipeContent(resolvedComponentId);
 
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe finalDownloadedRecipe = downloadedRecipe;
         if (recipeContentOnDevice.map(recipeContent -> {
             try {
-                return RecipeLoader.parseRecipe(recipeContent);
+                return RecipeLoader.parseRecipe(recipeContent, RecipeLoader.RecipeFormat.YAML);
             } catch (PackageLoadingException e) {
                 // if fail to parse local recipe, treat it as not presented
                 logger.atDebug().setCause(e).kv("componentId", resolvedComponentId).log("Failed to parse local recipe");
                 return null;
             }
-        }).filter(recipe -> recipe.equals(downloadedRecipe)).isPresent()) {
+        }).filter(recipe -> recipe.equals(finalDownloadedRecipe)).isPresent()) {
             saveContent = false;
         }
 

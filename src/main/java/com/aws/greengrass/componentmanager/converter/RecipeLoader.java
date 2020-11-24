@@ -17,15 +17,10 @@ import com.aws.greengrass.componentmanager.models.PermissionType;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.format.DataFormatDetector;
-import com.fasterxml.jackson.core.format.DataFormatMatcher;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -46,8 +41,6 @@ import javax.inject.Inject;
 public class RecipeLoader {
     // GG_NEEDS_REVIEW: TODO:[P41216663]: add logging
     private static final Logger LOGGER = LogManager.getLogger(PlatformResolver.class);
-    private static final DataFormatDetector JSON_DATA_FORMAT_DETECTOR =
-            new DataFormatDetector(new JsonFactory());
 
     private final PlatformResolver platformResolver;
 
@@ -60,12 +53,14 @@ public class RecipeLoader {
      * Parse the recipe content to recipe object.
      *
      * @param recipe recipe content as string
+     * @param recipeFormat format of recipe content
      * @return recipe object
      * @throws PackageLoadingException when there are issues parsing the string
      */
-    public static com.amazon.aws.iot.greengrass.component.common.ComponentRecipe parseRecipe(String recipe)
+    public static com.amazon.aws.iot.greengrass.component.common.ComponentRecipe parseRecipe(String recipe,
+                                                                                             RecipeFormat recipeFormat)
             throws PackageLoadingException {
-        ObjectMapper mapper = getObjectMapperForRecipeFormat(recipe);
+        ObjectMapper mapper = getObjectMapperForRecipeFormat(recipeFormat);
 
         try {
             return mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
@@ -78,18 +73,16 @@ public class RecipeLoader {
         }
     }
 
-    private static ObjectMapper getObjectMapperForRecipeFormat(String recipe) throws PackageLoadingException {
-        try {
-            DataFormatMatcher matcher = JSON_DATA_FORMAT_DETECTOR.findFormat(recipe.getBytes(StandardCharsets.UTF_8));
-            if (matcher.hasMatch() && JsonFactory.FORMAT_NAME_JSON.equals(matcher.getMatchedFormatName())) {
+    private static ObjectMapper getObjectMapperForRecipeFormat(RecipeFormat recipeFormat) {
+        switch (recipeFormat) {
+            case JSON:
                 return SerializerFactory.getRecipeSerializerJson();
-            }
-        } catch (IOException e) {
-            throw new PackageLoadingException(String.format("Failed to find format of recipe content %s", recipe), e);
+            case YAML:
+                return SerializerFactory.getRecipeSerializer();
+            default:
+                throw new IllegalArgumentException(
+                        String.format("No object mapper for recipe format %s", recipeFormat));
         }
-
-        // If it's not JSON, try as YAML
-        return SerializerFactory.getRecipeSerializer();
     }
 
     /**
@@ -101,7 +94,8 @@ public class RecipeLoader {
      */
     public Optional<ComponentRecipe> loadFromFile(String recipeFileContent) throws PackageLoadingException {
 
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe = parseRecipe(recipeFileContent);
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe =
+                parseRecipe(recipeFileContent, RecipeFormat.YAML);
         if (componentRecipe.getManifests() == null || componentRecipe.getManifests().isEmpty()) {
             throw new PackageLoadingException(
                     String.format("Recipe file %s-%s.yaml is missing manifests", componentRecipe.getComponentName(),
@@ -240,5 +234,9 @@ public class RecipeLoader {
             builder.execute(PermissionType.fromString(permission.getExecute().name()));
         }
         return builder.build();
+    }
+
+    public enum RecipeFormat {
+        JSON, YAML
     }
 }
