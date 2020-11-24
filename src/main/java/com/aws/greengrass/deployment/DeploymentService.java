@@ -60,6 +60,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
+import static com.aws.greengrass.deployment.DeploymentDirectoryManager.CONFIG_SNAPSHOT_ERROR;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
@@ -289,6 +290,12 @@ public class DeploymentService extends GreengrassService {
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                                                currentDeploymentTaskMetadata.getDeploymentType(),
                                                                JobStatus.SUCCEEDED.toString(), statusDetails);
+                    try {
+                        deploymentDirectoryManager.takeConfigSnapshot(deploymentDirectoryManager.getSnapshotFilePath());
+                    } catch (IOException e) {
+                        logger.atError().setEventType(CONFIG_SNAPSHOT_ERROR).setCause(e)
+                                .log("Failed to take a snapshot on finishing deployment");
+                    }
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
                     if (result.getFailureCause() != null) {
