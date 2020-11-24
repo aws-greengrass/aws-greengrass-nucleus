@@ -14,7 +14,7 @@ The file name needs to be cross-platform safe. See below for details for each pa
 1. ComponentNameHash
     1. Hash = Base64.getUrlEncoder().withoutPadding((SHA_256(ComponentName))). 
     1. Padding is omitted to avoid confusion.
-    1. Hash does lost the ability to convert it back, but we only need and foresee one-way conversion of file name
+    1. Hash does lose the ability to convert it back, but we only need and foresee one-way conversion of file name
      for querying purposes. 
 1. Semver
     1. We don't hash semver because we will need to sort with Semver Standard.
