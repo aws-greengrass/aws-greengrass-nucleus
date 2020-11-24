@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.jmh.packagemanager;
 
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
@@ -39,7 +39,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
+import static com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 
 public class DependencyResolverBenchmark {
 
@@ -53,7 +53,7 @@ public class DependencyResolverBenchmark {
                 Arrays.asList(new DeploymentPackageConfiguration("boto3", true, "1.9.128"),
                         new DeploymentPackageConfiguration("awscli", true, "1.16.144")), "mockGroup1",
                 1L, FailureHandlingPolicy.DO_NOTHING, new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS),
-                new ConfigurationValidationPolicy().withTimeout(20));
+                new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20));
 
         private DependencyResolver resolver;
         private List<ComponentIdentifier> result;

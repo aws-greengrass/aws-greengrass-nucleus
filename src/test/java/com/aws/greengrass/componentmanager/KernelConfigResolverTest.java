@@ -74,16 +74,14 @@ class KernelConfigResolverTest {
     private static final String LIFECYCLE_RUN_KEY = "run";
     private static final String LIFECYCLE_SCRIPT_KEY = "script";
     private static final String LIFECYCLE_MOCK_INSTALL_COMMAND_FORMAT =
-            "echo installing service in Package %s with param {{" + KernelConfigResolver.PARAM_NAMESPACE + ":%s_Param_1" + KernelConfigResolver.PARAM_VALUE_SUFFIX
-                    + "}}, kernel rootPath as {{" + KernelConfigResolver.KERNEL_NAMESPACE + ":" + KernelConfigResolver.KERNEL_ROOT_PATH + "}} and "
+            "echo installing service in Package %s with param , kernel rootPath as {" + KernelConfigResolver.KERNEL_NAMESPACE + ":" + KernelConfigResolver.KERNEL_ROOT_PATH + "} and "
                     + "unpack dir as {{" + KernelConfigResolver.ARTIFACTS_NAMESPACE + ":" + KernelConfigResolver.DECOMPRESSED_PATH_KEY + "}}";
     private static final String LIFECYCLE_INSTALL_COMMAND_FORMAT =
             "echo installing service in Component %s with param {" + KernelConfigResolver.CONFIGURATION_NAMESPACE + ":%s}, kernel rootPath as {" + KernelConfigResolver.KERNEL_NAMESPACE + ":" + KernelConfigResolver.KERNEL_ROOT_PATH + "} and "
                     + "unpack dir as {" + KernelConfigResolver.ARTIFACTS_NAMESPACE + ":" + KernelConfigResolver.DECOMPRESSED_PATH_KEY + "}";
 
     private static final String LIFECYCLE_MOCK_RUN_COMMAND_FORMAT =
-            "echo running service in Package %s with param {{" + KernelConfigResolver.PARAM_NAMESPACE + ":%s_Param_2" + KernelConfigResolver.PARAM_VALUE_SUFFIX
-                    + "}}";
+            "echo running service in Package %s ";
     private static final String LIFECYCLE_RUN_COMMAND_FORMAT =
             "echo running service in Component %s with param {" + KernelConfigResolver.CONFIGURATION_NAMESPACE + ":%s}";
 

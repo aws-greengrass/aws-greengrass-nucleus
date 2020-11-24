@@ -5,8 +5,8 @@
 
 package com.aws.greengrass.integrationtests.deployment;
 
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
+import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
+import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
@@ -603,13 +603,13 @@ class DeploymentConfigMergingTest extends BaseITCase {
         Runnable mainRestarted = createServiceStateChangeWaiter(kernel, "main", 10, State.FINISHED, State.STARTING);
         AtomicBoolean safeUpdateSkipped= new AtomicBoolean();
         Consumer<GreengrassLogMessage> listener = (m) -> {
-            if ("Deployment is configured to skip safety check, not waiting for safe time to update"
+            if ("Deployment is configured to skip update policy check, not waiting for disruptable time to update"
                     .equals(m.getMessage())) {
                     safeUpdateSkipped.set(true);
                 }
         };
         try (AutoCloseable l = createCloseableLogListener(listener)) {
-            deploymentConfigMerger.mergeInNewConfig(testDeploymentWithSkipSafetyCheckConfig(), new HashMap<String, Object>() {{
+            deploymentConfigMerger.mergeInNewConfig(testDeploymentWithSkipPolicyCheckConfig(), new HashMap<String, Object>() {{
                 put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                     put("main", new HashMap<String, Object>() {{
                         put(SETENV_CONFIG_NAMESPACE, new HashMap<String, Object>() {{
@@ -695,18 +695,18 @@ class DeploymentConfigMergingTest extends BaseITCase {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(
-                        new ComponentUpdatePolicy(3, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
-                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
+                        new ComponentUpdatePolicy(3, DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
+                .configurationValidationPolicy(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20))
                 .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
 
-    private Deployment testDeploymentWithSkipSafetyCheckConfig() {
+    private Deployment testDeploymentWithSkipPolicyCheckConfig() {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(
-                        new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS))
-                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(20))
+                        new ComponentUpdatePolicy(60, DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS))
+                .configurationValidationPolicy(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20))
                 .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }

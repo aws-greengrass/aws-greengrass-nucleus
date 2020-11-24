@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.testcommons.testutilities;
 
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.util.Utils;
@@ -130,6 +131,7 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         ignoreExceptionWithMessage(context, "Unable to load region information from any provider in the chain");
         ignoreExceptionWithMessageSubstring(context, "Failed to connect to service endpoint:");
         ignoreExceptionWithMessageSubstring(context, "Forbidden (Service: null; Status Code: 403;");
+        ignoreExceptionOfType(context, DeviceConfigurationException.class);
 
         // Ignore IPC error which somehow happens even though we ignore it in the tests which cause it
         // (probably threading?)
