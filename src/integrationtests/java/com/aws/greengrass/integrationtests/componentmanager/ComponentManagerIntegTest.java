@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloaderFactory;
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.util.FileSystemPermission;
@@ -59,7 +60,7 @@ class ComponentManagerIntegTest extends BaseITCase {
     @Test
     void GIVEN_component_with_archived_artifact_WHEN_prepareArtifacts_THEN_unarchives_artifacts() throws Exception {
         // GIVEN
-        ComponentIdentifier ident = new ComponentIdentifier("A", new Semver("1.0.0"));
+        ComponentIdentifier ident = new ComponentIdentifier("aws.iot.gg.test.integ.zip", new Semver("1.0.0"));
 
         NucleusPaths nucleusPaths = kernel.getNucleusPaths();
         nucleusPaths.setComponentStorePath(tempRootDir);
@@ -77,8 +78,9 @@ class ComponentManagerIntegTest extends BaseITCase {
 
         kernel.getContext().put(ArtifactDownloaderFactory.class, mockDownloaderFactory);
 
-        Files.copy(Paths.get(this.getClass().getResource("zip.yaml").toURI()),
-                nucleusPaths.recipePath().resolve("A-1.0.0.yaml"));
+        Files.copy(Paths.get(this.getClass().getResource("aws.iot.gg.test.integ.zip-1.0.0.yaml").toURI()),
+                nucleusPaths.recipePath().resolve(PreloadComponentStoreHelper
+                        .getRecipeStorageFilenameFromTestSource("aws.iot.gg.test.integ.zip-1.0.0.yaml")));
 
         // THEN
         kernel.getContext().get(ComponentManager.class).preparePackages(Collections.singletonList(ident))
@@ -91,14 +93,12 @@ class ComponentManagerIntegTest extends BaseITCase {
         assertThat(zipPath.resolve("zip").resolve("2").toFile(), anExistingFile());
 
         // check everyone can enter dir
-        assertThat(zipPath.resolve("zip"), hasPermission(FileSystemPermission.builder()
-                        .ownerRead(true).ownerWrite(true).ownerExecute(true)
-                        .groupRead(true).groupExecute(true)
-                        .otherRead(true).otherExecute(true).build()));
+        assertThat(zipPath.resolve("zip"), hasPermission(
+                FileSystemPermission.builder().ownerRead(true).ownerWrite(true).ownerExecute(true).groupRead(true)
+                        .groupExecute(true).otherRead(true).otherExecute(true).build()));
 
         // check perms match what we gave
-        FileSystemPermission allRead = FileSystemPermission.builder()
-                .ownerRead(true).groupRead(true).otherRead(true)
+        FileSystemPermission allRead = FileSystemPermission.builder().ownerRead(true).groupRead(true).otherRead(true)
                 .ownerWrite(!SystemUtils.USER_NAME.equals(ROOT)) // we preserve write permissions for non-root user
                 .build();
 
@@ -108,7 +108,7 @@ class ComponentManagerIntegTest extends BaseITCase {
 
     @Test
     void GIVEN_component_with_artifact_WHEN_prepareArtifacts_THEN_set_permissions_on_artifacts() throws Exception {
-        ComponentIdentifier ident = new ComponentIdentifier("A", new Semver("1.0.0"));
+        ComponentIdentifier ident = new ComponentIdentifier("aws.iot.gg.test.integ.perm", new Semver("1.0.0"));
 
         NucleusPaths nucleusPaths = kernel.getNucleusPaths();
         nucleusPaths.setComponentStorePath(tempRootDir);
@@ -119,37 +119,36 @@ class ComponentManagerIntegTest extends BaseITCase {
         ArtifactDownloader mockDownloader = mock(ArtifactDownloader.class);
         when(mockDownloader.downloadRequired()).thenReturn(true);
         when(mockDownloader.getArtifactFile()).thenReturn(scriptFile).thenReturn(emptyFile);
-        when(mockDownloader.downloadToPath())
-                .thenAnswer(downloadToPath("script.sh", scriptFile))
+        when(mockDownloader.downloadToPath()).thenAnswer(downloadToPath("script.sh", scriptFile))
                 .thenAnswer(downloadToPath("empty.txt", emptyFile));
 
         ArtifactDownloaderFactory mockDownloaderFactory = mock(ArtifactDownloaderFactory.class);
         when(mockDownloaderFactory.getArtifactDownloader(any(), any(), any())).thenReturn(mockDownloader);
         kernel.getContext().put(ArtifactDownloaderFactory.class, mockDownloaderFactory);
 
-        Files.copy(Paths.get(this.getClass().getResource("perms.yaml").toURI()),
-                nucleusPaths.recipePath().resolve("A-1.0.0.yaml"));
+        Files.copy(Paths.get(this.getClass().getResource("aws.iot.gg.test.integ.perm-1.0.0.yaml").toURI()),
+                nucleusPaths.recipePath().resolve(PreloadComponentStoreHelper
+                        .getRecipeStorageFilenameFromTestSource("aws.iot.gg.test.integ.perm-1.0.0.yaml")));
 
         // THEN
         kernel.getContext().get(ComponentManager.class).preparePackages(Collections.singletonList(ident))
                 .get(10, TimeUnit.SECONDS);
-        assertThat(nucleusPaths.artifactPath(ident).resolve("script.sh"), hasPermission(FileSystemPermission.builder()
-                .ownerRead(true).groupRead(true).otherRead(true)
-                .ownerWrite(!SystemUtils.USER_NAME.equals(ROOT)) // we preserve write permissions for  non-root user
-                .ownerExecute(true).groupExecute(true)
-                .build()));
+        assertThat(nucleusPaths.artifactPath(ident).resolve("script.sh"), hasPermission(
+                FileSystemPermission.builder().ownerRead(true).groupRead(true).otherRead(true).ownerWrite(
+                        !SystemUtils.USER_NAME.equals(ROOT)) // we preserve write permissions for  non-root user
+                        .ownerExecute(true).groupExecute(true).build()));
 
-        assertThat(nucleusPaths.artifactPath(ident).resolve("empty.txt"), hasPermission(FileSystemPermission.builder()
-                .ownerRead(true).groupRead(true)
-                .ownerWrite(!SystemUtils.USER_NAME.equals(ROOT)) // we preserve write permissions for non-root user
-                .build()));
+        assertThat(nucleusPaths.artifactPath(ident).resolve("empty.txt"), hasPermission(
+                FileSystemPermission.builder().ownerRead(true).groupRead(true).ownerWrite(
+                        !SystemUtils.USER_NAME.equals(ROOT)) // we preserve write permissions for non-root user
+                        .build()));
     }
 
     /**
      * Mock download a file to a path using a class resource.
      *
      * @param resource the resource to copy
-     * @param f the file location to copy to.
+     * @param f        the file location to copy to.
      * @return an answer that can be used for mocking.
      */
     Answer<File> downloadToPath(String resource, File f) {
