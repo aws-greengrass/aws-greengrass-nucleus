@@ -391,7 +391,7 @@ class ComponentManagerTest {
     }
 
     @Test
-    void GIVEN_component_is_local_active_WHEN_cloud_resolve_to_different_recipe_in_YAML_FORMAT_THEN_update_recipe()
+    void GIVEN_component_is_local_active_WHEN_cloud_resolve_to_different_recipe_in_YAML_format_THEN_update_recipe()
             throws Exception {
         ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
         ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
