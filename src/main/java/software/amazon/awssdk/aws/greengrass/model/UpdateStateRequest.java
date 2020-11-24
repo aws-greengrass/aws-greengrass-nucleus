@@ -45,7 +45,7 @@ public class UpdateStateRequest implements EventStreamJsonMessage {
   }
 
   public void setState(final ReportedLifecycleState state) {
-    this.state = Optional.of(state);
+    this.state = Optional.ofNullable(state);
   }
 
   @Override

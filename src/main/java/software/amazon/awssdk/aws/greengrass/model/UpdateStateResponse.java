@@ -11,9 +11,6 @@ import java.lang.String;
 import java.util.Objects;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-/**
- * Generated empty model type not defined in model
- */
 public class UpdateStateResponse implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#UpdateStateResponse";
 
@@ -22,10 +19,13 @@ public class UpdateStateResponse implements EventStreamJsonMessage {
   static {
     VOID = new UpdateStateResponse() {
       @Override
-      public final boolean isVoid() {
+      public boolean isVoid() {
         return true;
       }
     };
+  }
+
+  public UpdateStateResponse() {
   }
 
   @Override
@@ -34,18 +34,17 @@ public class UpdateStateResponse implements EventStreamJsonMessage {
   }
 
   @Override
-  public boolean isVoid() {
-    return true;
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof UpdateStateResponse)) return false;
+    if (this == rhs) return true;
+    final UpdateStateResponse other = (UpdateStateResponse)rhs;
+    boolean isEquals = true;
+    return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(UpdateStateResponse.class);
-  }
-
-  @Override
-  public boolean equals(Object rhs) {
-    if (rhs == null) return false;
-    return (rhs instanceof UpdateStateResponse);
+    return Objects.hash();
   }
 }
