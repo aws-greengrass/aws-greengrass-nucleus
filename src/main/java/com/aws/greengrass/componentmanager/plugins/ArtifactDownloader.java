@@ -37,7 +37,7 @@ public abstract class ArtifactDownloader {
     protected static final int INIT_RETRY_INTERVAL_MILLI = 1000;
     private static final int DOWNLOAD_BUFFER_SIZE = 1024;
     static final String ARTIFACT_DOWNLOAD_EXCEPTION_FMT =
-            "Failed to download artifact %s for component %s-%s, reason: ";
+            "Failed to download artifact name: '%s' for component %s-%s, reason: ";
     public static final String ARTIFACT_URI_LOG_KEY = "artifactUri";
     public static final String COMPONENT_IDENTIFIER_LOG_KEY = "componentIdentifier";
     protected static final String HTTP_RANGE_HEADER_FORMAT = "bytes=%d-%d";
