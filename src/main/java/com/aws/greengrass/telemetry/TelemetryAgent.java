@@ -31,8 +31,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
-
 @ImplementsService(name = TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS, autostart = true)
 public class TelemetryAgent extends GreengrassService {
     public static final String TELEMETRY_AGENT_SERVICE_TOPICS = "TelemetryAgent";
