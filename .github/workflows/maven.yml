@@ -27,8 +27,6 @@ jobs:
           java-version: 1.8
       - run: rm -rf /tmp/*
         continue-on-error: true
-      - name: Publish with Maven Temp
-        run: mvn -ntp -U --settings settings.xml deploy -DskipTests -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
       - name: Build with Maven
         run: mvn -ntp -U verify
         shell: cmd
