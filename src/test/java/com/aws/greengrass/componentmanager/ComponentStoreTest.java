@@ -119,16 +119,16 @@ class ComponentStoreTest {
     }
 
     @Test
-    void GIVEN_a_recipe_not_exists_when_saveComponentRecipe_THEN_recipe_file_created()
-            throws IOException, PackageLoadingException {
+    void GIVEN_a_recipe_not_exists_when_saveComponentRecipe_THEN_recipe_file_created() throws Exception {
         // GIVEN
-        String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
                 com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
                         .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020).componentName("MonitoringService")
                         .componentVersion(new Semver("1.0.0")).componentDescription("a monitor service").build();
 
-        File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
+        ComponentIdentifier componentIdentifier = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"));
+
+        File expectedRecipeFile = getExpectedRecipeFile(componentIdentifier);
         assertThat(expectedRecipeFile, not(anExistingFile()));
 
         // WHEN
@@ -144,17 +144,16 @@ class ComponentStoreTest {
     }
 
     @Test
-    void GIVEN_a_recipe_exists_when_saveComponentRecipe_THEN_recipe_file_is_updated()
-            throws IOException, PackageLoadingException {
+    void GIVEN_a_recipe_exists_when_saveComponentRecipe_THEN_recipe_file_is_updated() throws Exception {
         // GIVEN
-        String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
                 com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
                         .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020).componentName("MonitoringService")
                         .componentVersion(new Semver("1.0.0")).componentDescription("a monitor service").build();
 
+        ComponentIdentifier componentIdentifier = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"));
 
-        File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
+        File expectedRecipeFile = getExpectedRecipeFile(componentIdentifier);
 
         assertThat(expectedRecipeFile, not(anExistingFile()));
         String oldContent = "old content that will be replaced";
