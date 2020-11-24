@@ -16,6 +16,7 @@ import com.aws.greengrass.deployment.IotJobsClientWrapper;
 import com.aws.greengrass.deployment.IotJobsHelper;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -153,7 +154,8 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         // pre-load contents to package store
         Path localStoreContentPath =
                 Paths.get(IotJobsFleetStatusServiceTest.class.getResource("local_store_content").toURI());
-        copyFolderRecursively(localStoreContentPath, kernel.getNucleusPaths().componentStorePath(), REPLACE_EXISTING);
+        PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"), kernel.getNucleusPaths().recipePath());
+        copyFolderRecursively(localStoreContentPath.resolve("artifacts"), kernel.getNucleusPaths().artifactPath(), REPLACE_EXISTING);
         kernel.launch();
         assertTrue(fssRunning.await(10, TimeUnit.SECONDS));
         assertTrue(deploymentServiceRunning.await(10, TimeUnit.SECONDS));
