@@ -3,7 +3,7 @@ services:
   aws.greengrass.Nucleus:
     configuration:
       runWithDefault:
-        posixUser: shuyeh
+        posixUser: nobody
 
   main:
     lifecycle:
