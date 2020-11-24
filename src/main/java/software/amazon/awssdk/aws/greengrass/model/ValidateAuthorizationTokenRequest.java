@@ -45,7 +45,7 @@ public class ValidateAuthorizationTokenRequest implements EventStreamJsonMessage
   }
 
   public void setToken(final String token) {
-    this.token = Optional.of(token);
+    this.token = Optional.ofNullable(token);
   }
 
   @Override

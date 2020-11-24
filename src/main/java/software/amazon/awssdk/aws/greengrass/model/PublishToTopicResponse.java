@@ -11,9 +11,6 @@ import java.lang.String;
 import java.util.Objects;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-/**
- * Generated empty model type not defined in model
- */
 public class PublishToTopicResponse implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#PublishToTopicResponse";
 
@@ -22,10 +19,13 @@ public class PublishToTopicResponse implements EventStreamJsonMessage {
   static {
     VOID = new PublishToTopicResponse() {
       @Override
-      public final boolean isVoid() {
+      public boolean isVoid() {
         return true;
       }
     };
+  }
+
+  public PublishToTopicResponse() {
   }
 
   @Override
@@ -34,18 +34,17 @@ public class PublishToTopicResponse implements EventStreamJsonMessage {
   }
 
   @Override
-  public boolean isVoid() {
-    return true;
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof PublishToTopicResponse)) return false;
+    if (this == rhs) return true;
+    final PublishToTopicResponse other = (PublishToTopicResponse)rhs;
+    boolean isEquals = true;
+    return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(PublishToTopicResponse.class);
-  }
-
-  @Override
-  public boolean equals(Object rhs) {
-    if (rhs == null) return false;
-    return (rhs instanceof PublishToTopicResponse);
+    return Objects.hash();
   }
 }

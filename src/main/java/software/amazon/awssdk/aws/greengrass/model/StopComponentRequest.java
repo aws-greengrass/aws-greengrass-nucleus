@@ -45,7 +45,7 @@ public class StopComponentRequest implements EventStreamJsonMessage {
   }
 
   public void setComponentName(final String componentName) {
-    this.componentName = Optional.of(componentName);
+    this.componentName = Optional.ofNullable(componentName);
   }
 
   @Override

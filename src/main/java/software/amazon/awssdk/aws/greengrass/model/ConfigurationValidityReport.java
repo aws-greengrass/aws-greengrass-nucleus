@@ -59,7 +59,7 @@ public class ConfigurationValidityReport implements EventStreamJsonMessage {
   }
 
   public void setStatus(final ConfigurationValidityStatus status) {
-    this.status = Optional.of(status);
+    this.status = Optional.ofNullable(status);
   }
 
   public String getDeploymentId() {
@@ -70,7 +70,7 @@ public class ConfigurationValidityReport implements EventStreamJsonMessage {
   }
 
   public void setDeploymentId(final String deploymentId) {
-    this.deploymentId = Optional.of(deploymentId);
+    this.deploymentId = Optional.ofNullable(deploymentId);
   }
 
   public String getMessage() {

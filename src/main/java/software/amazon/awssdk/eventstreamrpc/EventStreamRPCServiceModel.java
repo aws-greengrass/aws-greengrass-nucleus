@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.*;
 
 /**
@@ -39,6 +40,7 @@ public abstract class EventStreamRPCServiceModel {
         builder.registerTypeAdapterFactory(new ForceNullsForMapTypeAdapterFactory());
         builder.registerTypeAdapterFactory(OptionalTypeAdapter.FACTORY);
         builder.registerTypeAdapter(byte[].class, new Base64BlobSerializerDeserializer());
+        builder.registerTypeAdapter(Instant.class, new InstantSerializerDeserializer());
         GSON = builder.create();
     }
 
@@ -137,59 +139,47 @@ public abstract class EventStreamRPCServiceModel {
         return Arrays.equals(lhs.get(), rhs.get());
     }
 
-    public abstract String getServiceName();
-
     private static class Base64BlobSerializerDeserializer implements JsonSerializer<byte[]>, JsonDeserializer<byte[]> {
         private static final Base64.Encoder BASE_64_ENCODER = Base64.getEncoder();
         private static final Base64.Decoder BASE_64_DECODER = Base64.getDecoder();
 
-        /**
-         * Gson invokes this call-back method during deserialization when it encounters a field of the
-         * specified type.
-         * <p>In the implementation of this call-back method, you should consider invoking
-         * {@link JsonDeserializationContext#deserialize(JsonElement, Type)} method to create objects
-         * for any non-trivial field of the returned object. However, you should never invoke it on the
-         * the same type passing {@code json} since that will cause an infinite loop (Gson will call your
-         * call-back method again).
-         *
-         * @param json    The Json data being deserialized
-         * @param typeOfT The type of the Object to deserialize to
-         * @param context
-         * @return a deserialized object of the specified type typeOfT which is a subclass of {@code T}
-         * @throws JsonParseException if json is not in the expected format of {@code typeofT}
-         */
         @Override
         public byte[] deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
             return BASE_64_DECODER.decode(json.getAsString());
         }
 
-        /**
-         * Gson invokes this call-back method during serialization when it encounters a field of the
-         * specified type.
-         *
-         * <p>In the implementation of this call-back method, you should consider invoking
-         * {@link JsonSerializationContext#serialize(Object, Type)} method to create JsonElements for any
-         * non-trivial field of the {@code src} object. However, you should never invoke it on the
-         * {@code src} object itself since that will cause an infinite loop (Gson will call your
-         * call-back method again).</p>
-         *
-         * @param src       the object that needs to be converted to Json.
-         * @param typeOfSrc the actual type (fully genericized version) of the source object.
-         * @param context
-         * @return a JsonElement corresponding to the specified object.
-         */
         @Override
         public JsonElement serialize(byte[] src, Type typeOfSrc, JsonSerializationContext context) {
             return new JsonPrimitive(BASE_64_ENCODER.encodeToString(src));
         }
     }
 
+    private static class InstantSerializerDeserializer implements JsonSerializer<Instant>, JsonDeserializer<Instant> {
+        @Override
+        public Instant deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+            double fSecondsEpoch = json.getAsDouble();
+            long secondsEpoch = (long)fSecondsEpoch;
+            long nanoEpoch = (long)((fSecondsEpoch - secondsEpoch) * 1_000_000_000.);
+            return Instant.ofEpochSecond(secondsEpoch, nanoEpoch);
+        }
+
+        @Override
+        public JsonElement serialize(Instant src, Type typeOfSrc, JsonSerializationContext context) {
+            return new JsonPrimitive((double)src.getEpochSecond() + (double)src.getNano() / 1000000000.);
+        }
+    }
+
+    /**
+     * For actual
+     * @return
+     */
+    public abstract String getServiceName();
+    
     private static final Map<String, Class<? extends EventStreamJsonMessage>> FRAMEWORK_APPLICATION_MODEL_TYPES
             = new HashMap<>();
     static {
         //TODO: find a reliable way to verify all of these are set? reflection cannot scan a package
         FRAMEWORK_APPLICATION_MODEL_TYPES.put(AccessDeniedException.ERROR_CODE, AccessDeniedException.class);
-        FRAMEWORK_APPLICATION_MODEL_TYPES.put(InternalServerException.ERROR_CODE, InternalServerException.class);
         FRAMEWORK_APPLICATION_MODEL_TYPES.put(UnsupportedOperationException.ERROR_CODE, UnsupportedOperationException.class);
         FRAMEWORK_APPLICATION_MODEL_TYPES.put(ValidationException.ERROR_CODE, ValidationException.class);
     }

@@ -60,7 +60,7 @@ public class CreateDebugPasswordResponse implements EventStreamJsonMessage {
   }
 
   public void setPassword(final String password) {
-    this.password = Optional.of(password);
+    this.password = Optional.ofNullable(password);
   }
 
   public String getUsername() {
@@ -71,7 +71,7 @@ public class CreateDebugPasswordResponse implements EventStreamJsonMessage {
   }
 
   public void setUsername(final String username) {
-    this.username = Optional.of(username);
+    this.username = Optional.ofNullable(username);
   }
 
   public Instant getPasswordExpiration() {
@@ -82,7 +82,7 @@ public class CreateDebugPasswordResponse implements EventStreamJsonMessage {
   }
 
   public void setPasswordExpiration(final Instant passwordExpiration) {
-    this.passwordExpiration = Optional.of(passwordExpiration);
+    this.passwordExpiration = Optional.ofNullable(passwordExpiration);
   }
 
   @Override

@@ -64,7 +64,7 @@ public class GetConfigurationRequest implements EventStreamJsonMessage {
   }
 
   public void setKeyPath(final List<String> keyPath) {
-    this.keyPath = Optional.of(keyPath);
+    this.keyPath = Optional.ofNullable(keyPath);
   }
 
   @Override

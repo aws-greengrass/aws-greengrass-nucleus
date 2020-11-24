@@ -52,7 +52,7 @@ public class StopComponentResponse implements EventStreamJsonMessage {
   }
 
   public void setStopStatus(final RequestStatus stopStatus) {
-    this.stopStatus = Optional.of(stopStatus);
+    this.stopStatus = Optional.ofNullable(stopStatus);
   }
 
   public String getMessage() {

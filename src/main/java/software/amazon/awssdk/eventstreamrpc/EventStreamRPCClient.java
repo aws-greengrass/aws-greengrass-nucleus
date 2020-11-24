@@ -50,7 +50,7 @@ public class EventStreamRPCClient {
         }
         final CompletableFuture<RespType> responseFuture = new CompletableFuture<>();
         final AtomicBoolean isContinuationClosed = new AtomicBoolean(true);
-        final ClientConnectionContinuation continuation = connection.getConnection().newStream(new ClientConnectionContinuationHandler() {
+        final ClientConnectionContinuation continuation = connection.newStream(new ClientConnectionContinuationHandler() {
             boolean initialResponseReceived = false;
 
             @Override
@@ -70,7 +70,7 @@ public class EventStreamRPCClient {
                                 operationModelContext, continuation, isContinuationClosed);
                     }
                     //intentionally not else if here. We can have data, and the terminate flag set
-                    if (MessageFlags.TerminateStream.getByteValue() == messageFlags) {
+                    if ((MessageFlags.TerminateStream.getByteValue() & messageFlags) != 0) {
                         this.close();
                         handleClose(initialResponseReceived, responseFuture, streamResponseHandler);
                     } else if (!applicationModelType.isPresent()) {
@@ -97,7 +97,7 @@ public class EventStreamRPCClient {
 
                     //TODO: application errors always have TerminateStream flag set?
                     //first close the stream immediately if the other side hasn't already done so
-                    if (messageFlags == MessageFlags.TerminateStream.getByteValue()) {
+                    if ((messageFlags & MessageFlags.TerminateStream.getByteValue()) != 0) {
                         try {
                             this.close();
                             //is this call needed?
@@ -158,6 +158,8 @@ public class EventStreamRPCClient {
 
         return response;
     }
+
+    
 
     /**
      * Sends an empty close message on the open stream. 

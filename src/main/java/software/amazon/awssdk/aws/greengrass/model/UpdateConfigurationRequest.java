@@ -73,7 +73,7 @@ public class UpdateConfigurationRequest implements EventStreamJsonMessage {
   }
 
   public void setTimestamp(final Instant timestamp) {
-    this.timestamp = Optional.of(timestamp);
+    this.timestamp = Optional.ofNullable(timestamp);
   }
 
   public Map<String, Object> getValueToMerge() {
@@ -84,7 +84,7 @@ public class UpdateConfigurationRequest implements EventStreamJsonMessage {
   }
 
   public void setValueToMerge(final Map<String, Object> valueToMerge) {
-    this.valueToMerge = Optional.of(valueToMerge);
+    this.valueToMerge = Optional.ofNullable(valueToMerge);
   }
 
   @Override

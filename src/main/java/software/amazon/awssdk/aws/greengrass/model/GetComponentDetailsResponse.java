@@ -45,7 +45,7 @@ public class GetComponentDetailsResponse implements EventStreamJsonMessage {
   }
 
   public void setComponentDetails(final ComponentDetails componentDetails) {
-    this.componentDetails = Optional.of(componentDetails);
+    this.componentDetails = Optional.ofNullable(componentDetails);
   }
 
   @Override

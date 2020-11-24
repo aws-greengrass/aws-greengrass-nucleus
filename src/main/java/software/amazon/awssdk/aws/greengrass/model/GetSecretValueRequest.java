@@ -59,7 +59,7 @@ public class GetSecretValueRequest implements EventStreamJsonMessage {
   }
 
   public void setSecretId(final String secretId) {
-    this.secretId = Optional.of(secretId);
+    this.secretId = Optional.ofNullable(secretId);
   }
 
   public String getVersionId() {

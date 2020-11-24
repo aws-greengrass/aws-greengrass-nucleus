@@ -11,9 +11,6 @@ import java.lang.String;
 import java.util.Objects;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-/**
- * Generated empty model type not defined in model
- */
 public class ListLocalDeploymentsRequest implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#ListLocalDeploymentsRequest";
 
@@ -22,10 +19,13 @@ public class ListLocalDeploymentsRequest implements EventStreamJsonMessage {
   static {
     VOID = new ListLocalDeploymentsRequest() {
       @Override
-      public final boolean isVoid() {
+      public boolean isVoid() {
         return true;
       }
     };
+  }
+
+  public ListLocalDeploymentsRequest() {
   }
 
   @Override
@@ -34,18 +34,17 @@ public class ListLocalDeploymentsRequest implements EventStreamJsonMessage {
   }
 
   @Override
-  public boolean isVoid() {
-    return true;
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof ListLocalDeploymentsRequest)) return false;
+    if (this == rhs) return true;
+    final ListLocalDeploymentsRequest other = (ListLocalDeploymentsRequest)rhs;
+    boolean isEquals = true;
+    return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(ListLocalDeploymentsRequest.class);
-  }
-
-  @Override
-  public boolean equals(Object rhs) {
-    if (rhs == null) return false;
-    return (rhs instanceof ListLocalDeploymentsRequest);
+    return Objects.hash();
   }
 }
