@@ -5,9 +5,9 @@
 
 package com.aws.greengrass.deployment;
 
+import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.model.Deployment;
-import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
@@ -234,15 +234,16 @@ public class ShadowDeploymentListener implements InjectionActions {
             return;
         }
         String fleetConfigStr = (String) desired.get(FLEET_CONFIG_KEY);
-        FleetConfiguration fleetConfig;
+        Configuration configuration;
         try {
-            fleetConfig =
-                    SerializerFactory.getFailSafeJsonObjectMapper().readValue(fleetConfigStr, FleetConfiguration.class);
+            configuration = SerializerFactory.getFailSafeJsonObjectMapper()
+                    .readValue(fleetConfigStr, Configuration.class);
+
         } catch (JsonProcessingException e) {
             logger.atError().log("failed to process shadow update", e);
             return;
         }
-        String configurationArn = fleetConfig.getConfigurationArn();
+        String configurationArn = configuration.getConfigurationArn();
         boolean cancelDeployment = DESIRED_STATUS_CANCELED.equals(desired.get(DESIRED_STATUS_KEY));
 
         synchronized (ShadowDeploymentListener.class) {
