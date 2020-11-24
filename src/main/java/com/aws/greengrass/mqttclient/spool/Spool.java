@@ -97,14 +97,14 @@ public class Spool {
 
     /**
      * Spool the given PublishRequest.
-     *
+     * <p></p>
      * If there is no room for the given PublishRequest, then QoS 0 PublishRequests will be deleted to make room.
      * If there is still no room after deleting QoS 0 PublishRequests, then an exception will be thrown.
      *
      * @param request publish request
+     * @return MessageID identifying the spooled PublishRequest
      * @throws InterruptedException result from the queue implementation
      * @throws SpoolerStoreException  leads to the failure to insert the message to the spooler
-     * @return MessageID identifying the spooled PublishRequest
      */
     public synchronized long addMessage(PublishRequest request) throws InterruptedException, SpoolerStoreException {
         int messageSizeInBytes = request.getPayload().length;

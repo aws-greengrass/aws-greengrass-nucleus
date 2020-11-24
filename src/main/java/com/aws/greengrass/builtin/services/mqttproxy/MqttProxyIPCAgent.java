@@ -35,6 +35,7 @@ import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
@@ -100,9 +101,9 @@ public class MqttProxyIPCAgent {
 
                 // If the future is completed exceptionally then the MqttClient was unable to spool the request
                 try {
-                    future.getNow(null);
-                } catch (Exception e) {
-                    LOGGER.atWarn().kv(TOPIC_KEY, topic).kv(COMPONENT_NAME, serviceName)
+                    future.getNow(0);
+                } catch (CompletionException e) {
+                    LOGGER.atWarn().cause(e.getCause()).kv(TOPIC_KEY, topic).kv(COMPONENT_NAME, serviceName)
                             .log("Unable to spool the publish request");
                     throw new ServiceError(String.format("Publish to topic %s failed with error %s", topic, e));
                 }

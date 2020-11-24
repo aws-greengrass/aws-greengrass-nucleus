@@ -76,7 +76,7 @@ public class MqttClient implements Closeable {
     private static final int DEFAULT_MQTT_SOCKET_TIMEOUT = (int) Duration.ofSeconds(3).toMillis();
     static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
     static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
-    static final String MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY = "maxInflightPublishes";
+    static final String MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY = "maxInFlightPublishes";
     static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 1;
     public static final int MAX_SUBSCRIPTIONS_PER_CONNECTION = 50;
     public static final String CLIENT_ID_KEY = "clientId";
@@ -103,7 +103,7 @@ public class MqttClient implements Closeable {
     private final Spool spool;
     private final ScheduledExecutorService ses;
     private final AtomicReference<Future<?>> spoolingFuture = new AtomicReference<>();
-    private int maxInflightPublishes;
+    private int maxInFlightPublishes;
 
     private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
@@ -204,8 +204,14 @@ public class MqttClient implements Closeable {
         mqttTopics.lookup(MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY)
                 .dflt(DEFAULT_MAX_IN_FLIGHT_PUBLISHES)
                 .subscribe((what, node) -> {
-                    logger.atInfo().kv("value", Coerce.toInt(node)).log("updating in flight publishes key");
-                    maxInflightPublishes = Coerce.toInt(node);
+                    if (node == null) {
+                        maxInFlightPublishes = DEFAULT_MAX_IN_FLIGHT_PUBLISHES;
+                        logger.atWarn().kv("value", maxInFlightPublishes)
+                                .log("maxInFlightPublishes key is null, using default value");
+                    } else {
+                        maxInFlightPublishes = Coerce.toInt(node);
+                        logger.atInfo().kv("value", maxInFlightPublishes).log("updating maxInFlightPublishes");
+                    }
                 });
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
@@ -453,9 +459,9 @@ public class MqttClient implements Closeable {
                     }
                 }));
 
-                if (publishRequests.size() >= maxInflightPublishes) {
+                if (publishRequests.size() >= maxInFlightPublishes) {
                     CompletableFuture.anyOf(
-                            publishRequests.toArray(new CompletableFuture[publishRequests.size()])).get();
+                            publishRequests.toArray(new CompletableFuture[0])).get();
                     publishRequests = publishRequests.stream().filter(f -> !f.isDone()).collect(Collectors.toList());
                 }
             }
