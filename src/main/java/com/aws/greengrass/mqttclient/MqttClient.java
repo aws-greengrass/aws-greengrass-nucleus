@@ -453,7 +453,7 @@ public class MqttClient implements Closeable {
                     }
                 }));
 
-                if (publishRequests.size() > maxInflightPublishes) {
+                if (publishRequests.size() >= maxInflightPublishes) {
                     CompletableFuture.anyOf(
                             publishRequests.toArray(new CompletableFuture[publishRequests.size()])).get();
                     publishRequests = publishRequests.stream().filter(f -> !f.isDone()).collect(Collectors.toList());
