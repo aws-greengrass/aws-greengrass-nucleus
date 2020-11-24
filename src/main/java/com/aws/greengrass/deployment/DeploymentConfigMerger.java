@@ -51,9 +51,7 @@ public class DeploymentConfigMerger {
 
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
 
-    @Inject
     private Kernel kernel;
-    @Inject
     private DynamicComponentConfigurationValidator validator;
 
     /**

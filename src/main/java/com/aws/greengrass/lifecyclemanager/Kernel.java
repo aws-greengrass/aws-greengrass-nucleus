@@ -539,6 +539,8 @@ public class Kernel {
         kernelCommandLine.parseArgs(args);
         config.lookupTopics(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         kernelLifecycle.initConfigAndTlog();
+        // Update device configuration from commandline arguments after loading config files
+        kernelCommandLine.updateDeviceConfiguration(getContext().get(DeviceConfiguration.class));
         setupProxy();
         return this;
     }

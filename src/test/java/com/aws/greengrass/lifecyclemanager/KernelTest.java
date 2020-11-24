@@ -102,7 +102,9 @@ class KernelTest {
             throws Exception {
         KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, new KernelCommandLine(kernel), mock(
                 NucleusPaths.class)));
+        doNothing().when(kernelLifecycle).initConfigAndTlog();
         kernel.setKernelLifecycle(kernelLifecycle);
+        kernel.parseArgs();
 
         GreengrassService mockMain = new GreengrassService(
                 kernel.getConfig().lookupTopics(GreengrassService.SERVICES_NAMESPACE_TOPIC, "main"));
@@ -168,7 +170,9 @@ class KernelTest {
             throws InputValidationException {
         KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class),
                 mock(NucleusPaths.class)));
+        doNothing().when(kernelLifecycle).initConfigAndTlog();
         kernel.setKernelLifecycle(kernelLifecycle);
+        kernel.parseArgs();
 
         GreengrassService mockMain =
                 new GreengrassService(kernel.getConfig()
