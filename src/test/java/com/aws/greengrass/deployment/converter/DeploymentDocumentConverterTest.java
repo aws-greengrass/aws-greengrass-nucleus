@@ -11,17 +11,12 @@
 package com.aws.greengrass.deployment.converter;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
-import com.amazonaws.arn.Arn;
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
 import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
-import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
-import com.aws.greengrass.deployment.model.PackageInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -36,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
@@ -82,11 +76,11 @@ class DeploymentDocumentConverterTest {
                 "{ \"MERGE\": { \"Company\": { \"Office\": { \"temperature\": 22 } }, \"path1\": { \"Object2\": { \"key2\": \"val2\" } } }, \"RESET\": [ \"/secret/first\" ] }";
         Map<String, ConfigurationUpdateOperation> updateConfig = new HashMap<>();
         updateConfig.put(DEPENDENCY_COMPONENT,
-                         mapper.readValue(dependencyUpdateConfigString, ConfigurationUpdateOperation.class));
+                mapper.readValue(dependencyUpdateConfigString, ConfigurationUpdateOperation.class));
 
         String existingUpdateConfigString = "{ \"MERGE\": {\"foo\": \"bar\"}}";
         updateConfig.put(EXISTING_ROOT_COMPONENT,
-                         mapper.readValue(existingUpdateConfigString, ConfigurationUpdateOperation.class));
+                mapper.readValue(existingUpdateConfigString, ConfigurationUpdateOperation.class));
 
         Map<String, RunWithInfo> componentToRunWithInfo = new HashMap<>();
         RunWithInfo runWithInfo = new RunWithInfo();
@@ -116,7 +110,7 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentDocument.getDeploymentId(), is(REQUEST_ID));
         assertThat(deploymentDocument.getTimestamp(), is(REQUEST_TIMESTAMP));
         assertThat(deploymentDocument.getRootPackages(),
-                   is(Arrays.asList(EXISTING_ROOT_COMPONENT, NEW_ROOT_COMPONENT)));
+                is(Arrays.asList(EXISTING_ROOT_COMPONENT, NEW_ROOT_COMPONENT)));
 
         List<DeploymentPackageConfiguration> deploymentPackageConfigurations =
                 deploymentDocument.getDeploymentPackageConfigurationList();
@@ -130,7 +124,7 @@ class DeploymentDocumentConverterTest {
 
         assertThat(existingRootComponentConfig.getResolvedVersion(), is("2.0.0"));
         assertThat(existingRootComponentConfig.getConfigurationUpdateOperation(),
-                   is(mapper.readValue(existingUpdateConfigString, ConfigurationUpdateOperation.class)));
+                is(mapper.readValue(existingUpdateConfigString, ConfigurationUpdateOperation.class)));
 
         DeploymentPackageConfiguration newRootComponentConfig =
                 deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(NEW_ROOT_COMPONENT))
@@ -146,44 +140,8 @@ class DeploymentDocumentConverterTest {
                         .findAny().get();
 
         assertEquals(DependencyComponentConfig.getConfigurationUpdateOperation(),
-                     mapper.readValue(dependencyUpdateConfigString, ConfigurationUpdateOperation.class));
+                mapper.readValue(dependencyUpdateConfigString, ConfigurationUpdateOperation.class));
         assertThat(DependencyComponentConfig.getResolvedVersion(), is("*"));
-        assertEquals(DependencyComponentConfig.getRunWith().getPosixUser(), "1234");
-    }
-
-    @Test
-    void GIVEN_fleet_configuration_with_config_update_WHEN_convert_to_deployment_doc_THEN_parse_successfully() {
-        String configurationArn =
-                Arn.builder().withPartition("aws").withService("gg").withResource("configuration:thing/test:1").build()
-                        .toString();
-        Map<String, Object> configMapA = new HashMap<String, Object>() {{
-            put(ConfigurationUpdateOperation.MERGE_KEY, ImmutableMap.of("param1", "value1"));
-            put(ConfigurationUpdateOperation.RESET_KEY, Arrays.asList("/path1", "/nested/path2"));
-        }};
-        FleetConfiguration config =
-                FleetConfiguration.builder().creationTimestamp(0L).packages(new HashMap<String, PackageInfo>() {{
-                    put("pkgA", new PackageInfo(true, "1.0.0", configMapA));
-                }}).componentUpdatePolicy(
-                        new DeploymentComponentUpdatePolicy().withAction("NOTIFY_COMPONENTS").withTimeoutInSeconds(60))
-                        .configurationValidationPolicy(
-                                new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20))
-                        .configurationArn(configurationArn).build();
-
-        DeploymentDocument doc = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
-
-        ConfigurationUpdateOperation configurationUpdateOperation = new ConfigurationUpdateOperation();
-        configurationUpdateOperation.setValueToMerge(ImmutableMap.of("param1", "value1"));
-        configurationUpdateOperation.setPathsToReset(Arrays.asList("/path1", "/nested/path2"));
-
-        assertEquals(configurationArn, doc.getDeploymentId());
-        assertNull(doc.getFailureHandlingPolicy());
-        assertEquals(0L, doc.getTimestamp());
-        assertThat(doc.getDeploymentPackageConfigurationList(), containsInAnyOrder(
-                DeploymentPackageConfiguration.builder().packageName("pkgA").rootComponent(true)
-                        .resolvedVersion("1.0.0")
-                        .configurationUpdateOperation(configurationUpdateOperation).build()));
-        assertThat(doc.getRootPackages(), containsInAnyOrder("pkgA"));
-        assertEquals("thing/test", doc.getGroupName());
     }
 
     @Test

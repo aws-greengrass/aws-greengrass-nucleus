@@ -11,7 +11,6 @@ import com.amazonaws.services.greengrassv2.model.CreateDeploymentResult;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
-import com.aws.greengrass.integrationtests.e2e.util.DeploymentJobHelper;
 import com.aws.greengrass.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -27,6 +26,8 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
@@ -130,5 +131,19 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
                 }
             }
         });
+    }
+
+    class DeploymentJobHelper {
+        public int index;
+        public String jobId;
+        public CountDownLatch jobCompleted;
+        public String targetPkgName;
+
+        DeploymentJobHelper(int index, String pkgName) {
+            this.index = index;
+            jobId = UUID.randomUUID().toString();
+            jobCompleted = new CountDownLatch(1);
+            targetPkgName = pkgName;
+        }
     }
 }
