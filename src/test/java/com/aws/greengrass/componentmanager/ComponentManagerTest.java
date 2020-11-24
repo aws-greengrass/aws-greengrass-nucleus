@@ -300,7 +300,7 @@ class ComponentManagerTest {
                 .thenReturn(Optional.empty());
 
         // has cloud version
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipeContent =
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
                 com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
                         .componentName(componentA).componentVersion(v1_0_0)
                         .componentType(ComponentType.GENERIC).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
@@ -308,7 +308,7 @@ class ComponentManagerTest {
 
         ResolvedComponentVersion resolvedComponentVersion =
                 new ResolvedComponentVersion().withComponentName(componentA).withComponentVersion(v1_0_0.getValue())
-                .withRecipe(ByteBuffer.wrap(MAPPER.writeValueAsBytes(recipeContent))).withArn(TEST_ARN);
+                .withRecipe(ByteBuffer.wrap(MAPPER.writeValueAsBytes(recipe))).withArn(TEST_ARN);
 
         when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
                 .thenReturn(resolvedComponentVersion);
@@ -329,7 +329,7 @@ class ComponentManagerTest {
                 .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")));
         verify(componentStore).findComponentRecipeContent(componentA_1_0_0);
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
-        verify(componentStore).savePackageRecipe(componentA_1_0_0, MAPPER.writeValueAsString(recipeContent));
+        verify(componentStore).saveComponentRecipe(recipe);
         verify(componentStore).saveRecipeMetadata(componentA_1_0_0, new RecipeMetadata(TEST_ARN));
     }
 
@@ -381,7 +381,7 @@ class ComponentManagerTest {
         verify(componentManagementServiceHelper).resolveComponentVersion(componentA, v1_0_0, Collections
                 .singletonMap("X", Requirement.buildNPM("^1.0")));
         verify(componentStore).findComponentRecipeContent(componentA_1_0_0);
-        verify(componentStore).savePackageRecipe(componentA_1_0_0, MAPPER.writeValueAsString(newRecipe));
+        verify(componentStore).saveComponentRecipe(newRecipe);
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
         verify(componentStore).saveRecipeMetadata(componentA_1_0_0, new RecipeMetadata(TEST_ARN));
         String recipeString = new String(resolvedComponentVersion.getRecipe().array(), StandardCharsets.UTF_8);
@@ -417,7 +417,7 @@ class ComponentManagerTest {
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
         verify(componentStore, never()).findComponentRecipeContent(any());
-        verify(componentStore, never()).savePackageRecipe(any(), anyString());
+        verify(componentStore, never()).saveComponentRecipe(any());
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
     }
 

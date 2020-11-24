@@ -17,9 +17,15 @@ import com.aws.greengrass.componentmanager.models.PermissionType;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.format.DataFormatDetector;
+import com.fasterxml.jackson.core.format.DataFormatMatcher;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,6 +46,8 @@ import javax.inject.Inject;
 public class RecipeLoader {
     // GG_NEEDS_REVIEW: TODO:[P41216663]: add logging
     private static final Logger LOGGER = LogManager.getLogger(PlatformResolver.class);
+    private static final DataFormatDetector JSON_DATA_FORMAT_DETECTOR =
+            new DataFormatDetector(new JsonFactory());
 
     private final PlatformResolver platformResolver;
 
@@ -50,21 +58,38 @@ public class RecipeLoader {
 
     /**
      * Parse the recipe content to recipe object.
+     *
      * @param recipe recipe content as string
      * @return recipe object
      * @throws PackageLoadingException when there are issues parsing the string
      */
     public static com.amazon.aws.iot.greengrass.component.common.ComponentRecipe parseRecipe(String recipe)
             throws PackageLoadingException {
+        ObjectMapper mapper = getObjectMapperForRecipeFormat(recipe);
+
         try {
-            return SerializerFactory.getRecipeSerializer().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                            .readValue(recipe, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
+            return mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                    .readValue(recipe, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
         } catch (JsonProcessingException e) {
             // TODO: [P41216539]: move this to common model
             throw new PackageLoadingException(
                     String.format("Failed to parse recipe file content to contract model. Recipe file content: '%s'.",
                             recipe), e);
         }
+    }
+
+    private static ObjectMapper getObjectMapperForRecipeFormat(String recipe) throws PackageLoadingException {
+        try {
+            DataFormatMatcher matcher = JSON_DATA_FORMAT_DETECTOR.findFormat(recipe.getBytes(StandardCharsets.UTF_8));
+            if (matcher.hasMatch() && JsonFactory.FORMAT_NAME_JSON.equals(matcher.getMatchedFormatName())) {
+                return SerializerFactory.getRecipeSerializerJson();
+            }
+        } catch (IOException e) {
+            throw new PackageLoadingException(String.format("Failed to find format of recipe content %s", recipe), e);
+        }
+
+        // If it's not JSON, try as YAML
+        return SerializerFactory.getRecipeSerializer();
     }
 
     /**
@@ -101,9 +126,8 @@ public class RecipeLoader {
         ComponentRecipe packageRecipe = ComponentRecipe.builder().componentName(componentRecipe.getComponentName())
                 .version(componentRecipe.getComponentVersion()).publisher(componentRecipe.getComponentPublisher())
                 .recipeTemplateVersion(componentRecipe.getRecipeFormatVersion())
-                .componentType(componentRecipe.getComponentType()).dependencies(dependencyPropertiesMap)
-                .lifecycle(convertLifecycleFromFile(componentRecipe.getLifecycle(), platformSpecificManifest,
-                        selectors))
+                .componentType(componentRecipe.getComponentType()).dependencies(dependencyPropertiesMap).lifecycle(
+                        convertLifecycleFromFile(componentRecipe.getLifecycle(), platformSpecificManifest, selectors))
                 .artifacts(convertArtifactsFromFile(platformSpecificManifest.getArtifacts()))
                 .componentConfiguration(componentRecipe.getComponentConfiguration())
                 .componentParameters(convertParametersFromFile(platformSpecificManifest.getParameters())).build();
@@ -146,6 +170,7 @@ public class RecipeLoader {
 
     /**
      * Folds all selectors into one set that is specific to this recipe, used for lifecycle filtering.
+     *
      * @param manifests Collection of manifests
      * @return Set of all selectors
      */
@@ -160,15 +185,15 @@ public class RecipeLoader {
 
     /**
      * Performs filtering on a lifecycle map that is manifest specific.
+     *
      * @param lifecycleMap Recipe lifecycle map
      * @param manifest     Selected manifest
      * @param allSelectors All selectors defined in this recipe
      * @return filtered lifecycle
      */
-    private static Map<String, Object> convertLifecycleFromFile(
-            @Nonnull Map<String, Object> lifecycleMap,
-            @Nonnull PlatformSpecificManifest manifest,
-            @Nonnull Set<String> allSelectors) {
+    private static Map<String, Object> convertLifecycleFromFile(@Nonnull Map<String, Object> lifecycleMap,
+                                                                @Nonnull PlatformSpecificManifest manifest,
+                                                                @Nonnull Set<String> allSelectors) {
 
         Map<String, Object> effectiveLifecycleMap = lifecycleMap;
 
@@ -195,8 +220,9 @@ public class RecipeLoader {
             //       Section:
             //          <selector>: (optional)
             //              body
-            Object filtered = PlatformResolver.filterPlatform(effectiveLifecycleMap, allSelectors,
-                    manifest.getSelections()).orElse(Collections.emptyMap());
+            Object filtered =
+                    PlatformResolver.filterPlatform(effectiveLifecycleMap, allSelectors, manifest.getSelections())
+                            .orElse(Collections.emptyMap());
             if (filtered instanceof Map && !((Map<?, ?>) filtered).isEmpty()) {
                 return (Map<String, Object>) filtered;
             } else {

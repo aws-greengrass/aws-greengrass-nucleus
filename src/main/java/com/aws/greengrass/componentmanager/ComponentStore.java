@@ -8,7 +8,6 @@ package com.aws.greengrass.componentmanager;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
-import com.aws.greengrass.componentmanager.exceptions.UnexpectedPackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
@@ -62,9 +61,10 @@ public class ComponentStore {
 
     /**
      * Constructor. It will initialize recipe, artifact and artifact decompressed directory.
-     * @param nucleusPaths path library
+     *
+     * @param nucleusPaths     path library
      * @param platformResolver platform resolver
-     * @param recipeLoader recipe loader
+     * @param recipeLoader     recipe loader
      */
     @Inject
     public ComponentStore(NucleusPaths nucleusPaths, PlatformResolver platformResolver, RecipeLoader recipeLoader) {
@@ -76,13 +76,17 @@ public class ComponentStore {
     /**
      * Creates or updates a package recipe in the package store on the disk.
      *
-     * @param pkgId         the id for the component
-     * @param recipeContent recipe content to save
+     * @param componentRecipe raw component recipe
      * @throws PackageLoadingException if fails to write the package recipe to disk.
      */
-    void savePackageRecipe(@NonNull ComponentIdentifier pkgId, String recipeContent) throws PackageLoadingException {
+    void saveComponentRecipe(@NonNull com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe)
+            throws PackageLoadingException {
         try {
-            Path recipePath = resolveRecipePath(pkgId.getName(), pkgId.getVersion());
+            Path recipePath =
+                    resolveRecipePath(componentRecipe.getComponentName(), componentRecipe.getComponentVersion());
+            String recipeContent =
+                    com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer()
+                            .writeValueAsString(componentRecipe);
             FileUtils.writeStringToFile(recipePath.toFile(), recipeContent);
         } catch (IOException e) {
             // TODO: [P41215929]: Better logging and exception messages in component store
@@ -111,7 +115,7 @@ public class ComponentStore {
      * @return whether the expected digest matches the calculated digest on disk
      */
     public boolean validateComponentRecipeDigest(@NonNull ComponentIdentifier componentIdentifier,
-            String expectedDigest) {
+                                                 String expectedDigest) {
         try {
             Optional<String> recipeContent = findComponentRecipeContent(componentIdentifier);
             if (!recipeContent.isPresent()) {
@@ -240,41 +244,6 @@ public class ComponentStore {
     }
 
     /**
-     * list PackageMetadata for available packages that satisfies the requirement.
-     *
-     * @param packageName the target package
-     * @param requirement version requirement
-     * @return a list of PackageMetadata that satisfies the requirement.
-     * @throws UnexpectedPackagingException if fails to parse version directory to Semver
-     */
-    List<ComponentMetadata> listAvailablePackageMetadata(@NonNull String packageName, @NonNull Requirement requirement)
-            throws PackagingException {
-        File[] recipeFiles = getAllRecipeFiles();
-
-        List<ComponentMetadata> componentMetadataList = new ArrayList<>();
-        if (recipeFiles == null || recipeFiles.length == 0) {
-            return componentMetadataList;
-        }
-
-        Arrays.sort(recipeFiles);
-
-        for (File recipeFile : recipeFiles) {
-            String recipePackageName = parsePackageNameFromFileName(recipeFile.getName());
-            // Only check the recipes for the package that we're looking for
-            if (!recipePackageName.equalsIgnoreCase(packageName)) {
-                continue;
-            }
-
-            Semver version = parseVersionFromFileName(recipeFile.getName());
-            if (requirement.isSatisfiedBy(version)) {
-                componentMetadataList.add(getPackageMetadata(new ComponentIdentifier(packageName, version)));
-            }
-        }
-        componentMetadataList.sort(null);
-        return componentMetadataList;
-    }
-
-    /**
      * Get all locally available component-version by checking the existence of its artifact directory.
      *
      * @return map from component name to a set of version strings in Semver format
@@ -302,7 +271,8 @@ public class ComponentStore {
     }
 
     Optional<ComponentIdentifier> findBestMatchAvailableComponent(@NonNull String componentName,
-            @NonNull Requirement requirement) throws PackageLoadingException {
+                                                                  @NonNull Requirement requirement)
+            throws PackageLoadingException {
         File[] recipeFiles = getAllRecipeFiles();
 
         if (recipeFiles.length == 0) {
@@ -336,8 +306,7 @@ public class ComponentStore {
     private File[] getAllRecipeFiles() {
         // TODO Identify recipes by *.recipe.yaml or *.recipe.json
         return Arrays.stream(nucleusPaths.recipePath().toFile().listFiles())
-                .filter(file -> file.getName().endsWith(".yaml"))
-                .toArray(File[]::new);
+                .filter(file -> file.getName().endsWith(".yaml")).toArray(File[]::new);
     }
 
 
@@ -481,7 +450,7 @@ public class ComponentStore {
             // log error because this is not expected to happen in any normal case
             logger.atError().cause(e).kv(RECIPE_METADATA_FILE_PATH_LOG_KEY, metadataFile.getAbsolutePath())
                     .log("Failed to get recipe metadata because the recipe metadata file should be a json "
-                                 + "but is corrupted");
+                            + "but is corrupted");
 
             throw new PackageLoadingException(String.format(
                     "Failed to get recipe metadata because the recipe metadata file should be a json but is corrupted. "

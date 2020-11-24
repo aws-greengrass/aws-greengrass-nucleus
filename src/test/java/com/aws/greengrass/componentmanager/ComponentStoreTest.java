@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager;
 
+import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
@@ -40,7 +41,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -49,7 +49,6 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.collection.IsIterableWithSize.iterableWithSize;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.io.FileMatchers.anExistingDirectory;
@@ -127,19 +126,24 @@ class ComponentStoreTest {
             throws IOException, PackageLoadingException {
         // GIVEN
         String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
-        String recipeContent = "recipeContent";
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
+                com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
+                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020).componentName("MonitoringService")
+                        .componentVersion(new Semver("1.0.0")).componentDescription("a monitor service").build();
 
         File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
         assertThat(expectedRecipeFile, not(anExistingFile()));
 
         // WHEN
-        componentStore
-                .savePackageRecipe(new ComponentIdentifier("MonitoringService", new Semver("1.0.0")), recipeContent);
+        componentStore.saveComponentRecipe(recipe);
 
         // THEN
         assertThat(expectedRecipeFile, anExistingFile());
-        String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
-        assertThat(fileContent, is(equalTo(recipeContent)));
+        String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()), StandardCharsets.UTF_8);
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe savedRecipe =
+                com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer()
+                        .readValue(fileContent, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
+        assertThat(savedRecipe, is(recipe));
     }
 
     @Test
@@ -147,23 +151,31 @@ class ComponentStoreTest {
             throws IOException, PackageLoadingException {
         // GIVEN
         String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
-        String recipeContent = "recipeContent";
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
+                com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
+                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020).componentName("MonitoringService")
+                        .componentVersion(new Semver("1.0.0")).componentDescription("a monitor service").build();
 
 
         File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
 
         assertThat(expectedRecipeFile, not(anExistingFile()));
-        FileUtils.writeStringToFile(expectedRecipeFile, "old content that will be replaced");
+        String oldContent = "old content that will be replaced";
+        FileUtils.writeStringToFile(expectedRecipeFile, oldContent);
 
         assertThat(expectedRecipeFile, is(anExistingFile()));
+        String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
+        assertThat(fileContent, is(equalTo(oldContent)));
 
         // WHEN
-        componentStore
-                .savePackageRecipe(new ComponentIdentifier("MonitoringService", new Semver("1.0.0")), recipeContent);
+        componentStore.saveComponentRecipe(recipe);
 
         // THEN
-        String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
-        assertThat(fileContent, is(equalTo(recipeContent)));
+        fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()), StandardCharsets.UTF_8);
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe savedRecipe =
+                com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer()
+                        .readValue(fileContent, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
+        assertThat(savedRecipe, is(recipe));
     }
 
 
@@ -201,10 +213,10 @@ class ComponentStoreTest {
         String recipeString = new String(Files.readAllBytes(sourceRecipe));
 
         assertTrue(componentStore
-                           .validateComponentRecipeDigest(MONITORING_SERVICE_PKG_ID, Digest.calculate(recipeString)));
+                .validateComponentRecipeDigest(MONITORING_SERVICE_PKG_ID, Digest.calculate(recipeString)));
 
-        assertFalse(componentStore.validateComponentRecipeDigest(MONITORING_SERVICE_PKG_ID,
-                                                                 Digest.calculate("random String")));
+        assertFalse(componentStore
+                .validateComponentRecipeDigest(MONITORING_SERVICE_PKG_ID, Digest.calculate("random String")));
 
         ComponentIdentifier nonExistentComponent =
                 new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("5.0.0"));
@@ -229,8 +241,7 @@ class ComponentStoreTest {
         // WHEN
         // THEN
         PackageLoadingException pe = assertThrows(PackageLoadingException.class,
-                () -> componentStore.findPackageRecipe(
-                        new ComponentIdentifier("InvalidRecipe", new Semver("1.0.0"))));
+                () -> componentStore.findPackageRecipe(new ComponentIdentifier("InvalidRecipe", new Semver("1.0.0"))));
         assertThat(pe.getMessage(), containsString("Failed to parse recipe file content to contract model"));
     }
 
@@ -265,39 +276,7 @@ class ComponentStoreTest {
         // THEN
         assertThat(componentMetadata.getComponentIdentifier(), is(MONITORING_SERVICE_PKG_ID));
         assertThat(componentMetadata.getDependencies(),
-                   is(getExpectedDependencies(Requirement.build(MONITORING_SERVICE_PKG_VERSION))));
-    }
-
-    @Test
-    void GIVEN_pre_loaded_package_versions_WHEN_listAvailablePackageMetadata_THEN_return_satisfiedVersion()
-            throws IOException, PackagingException {
-        // GIVEN
-        preloadRecipeFileFromTestResource("MonitoringService-1.0.0.yaml");
-        preloadRecipeFileFromTestResource("MonitoringService-1.1.0.yaml");
-        preloadRecipeFileFromTestResource("MonitoringService-2.0.0.yaml");
-        preloadRecipeFileFromTestResource("MonitoringService-3.0.0.yaml");
-        preloadRecipeFileFromTestResource("Log-1.0.0.yaml");
-
-        // WHEN
-        Requirement requirement = Requirement.buildNPM(">=1.0.0 <2.0.0");
-        List<ComponentMetadata> componentMetadataList =
-                componentStore.listAvailablePackageMetadata(MONITORING_SERVICE_PKG_NAME, requirement);
-
-        // THEN
-        // expected return: MonitoringService 1.0.0 and 1.1.0
-        assertThat(componentMetadataList, iterableWithSize(2));
-
-        // 1.1.0
-        ComponentMetadata componentMetadata = componentMetadataList.get(0);
-        assertThat(componentMetadata.getComponentIdentifier().getName(), is(MONITORING_SERVICE_PKG_NAME));
-        assertThat(componentMetadata.getComponentIdentifier().getVersion(), is(new Semver("1.1.0")));
-        assertThat(componentMetadata.getDependencies(), is(getExpectedDependencies(Requirement.buildNPM("1.1.0"))));
-
-        // 1.0.0
-        componentMetadata = componentMetadataList.get(1);
-        assertThat(componentMetadata.getComponentIdentifier().getName(), is(MONITORING_SERVICE_PKG_NAME));
-        assertThat(componentMetadata.getComponentIdentifier().getVersion(), is(new Semver("1.0.0")));
-        assertThat(componentMetadata.getDependencies(), is(getExpectedDependencies(Requirement.buildNPM("1.0.0"))));
+                is(getExpectedDependencies(Requirement.build(MONITORING_SERVICE_PKG_VERSION))));
     }
 
     @Test
@@ -317,7 +296,7 @@ class ComponentStoreTest {
 
         // THEN
         assertThat(componentIdentifierOptional.get(),
-                   is(new ComponentIdentifier("MonitoringService", new Semver("1.1.0"))));
+                is(new ComponentIdentifier("MonitoringService", new Semver("1.1.0"))));
 
         // WHEN
         requirement = Requirement.buildNPM("^2.0");
@@ -326,7 +305,7 @@ class ComponentStoreTest {
 
         // THEN
         assertThat(componentIdentifierOptional.get(),
-                   is(new ComponentIdentifier("MonitoringService", new Semver("2.0.0"))));
+                is(new ComponentIdentifier("MonitoringService", new Semver("2.0.0"))));
 
         // WHEN
         requirement = Requirement.buildNPM("^3.1");
@@ -364,10 +343,10 @@ class ComponentStoreTest {
     void GIVEN_artifacts_WHEN_list_by_artifact_THEN_result_is_correct() throws Exception {
         Set<ComponentIdentifier> mockComponents = new HashSet<>(
                 Arrays.asList(new ComponentIdentifier("Mock1", new Semver("1.1.0")),
-                              new ComponentIdentifier("Mock1", new Semver("1.2.0")),
-                              new ComponentIdentifier("Mock2", new Semver("2.1.0")),
-                              new ComponentIdentifier("Mock3", new Semver("3.1.0")),
-                              new ComponentIdentifier("Mock3", new Semver("3.2.0"))));
+                        new ComponentIdentifier("Mock1", new Semver("1.2.0")),
+                        new ComponentIdentifier("Mock2", new Semver("2.1.0")),
+                        new ComponentIdentifier("Mock3", new Semver("3.1.0")),
+                        new ComponentIdentifier("Mock3", new Semver("3.2.0"))));
 
         // mock these artifact exist
         for (ComponentIdentifier mockComponent : mockComponents) {
@@ -440,7 +419,7 @@ class ComponentStoreTest {
 
         // WHEN
         componentStore.saveRecipeMetadata(new ComponentIdentifier(componentName, new Semver(version)),
-                                          new RecipeMetadata(testArn));
+                new RecipeMetadata(testArn));
 
         // THEN
         assertThat(expectedRecipeMetadataFile, is(anExistingFile()));
@@ -467,7 +446,7 @@ class ComponentStoreTest {
 
         // WHEN
         componentStore.saveRecipeMetadata(new ComponentIdentifier(componentName, new Semver(version)),
-                                          new RecipeMetadata(updatedArn));
+                new RecipeMetadata(updatedArn));
 
         // THEN
         assertThat(expectedRecipeMetadataFile, is(anExistingFile()));
@@ -518,8 +497,8 @@ class ComponentStoreTest {
 
     @Test
     void GIVEN_a_non_existing_metadata_file_WHEN_getRecipeMetadata_THEN_throws_PackageLoadingException() {
-        assertThrows(PackageLoadingException.class, () -> componentStore
-                .getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("0.0.0"))));
+        assertThrows(PackageLoadingException.class,
+                () -> componentStore.getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("0.0.0"))));
     }
 
     @Test
