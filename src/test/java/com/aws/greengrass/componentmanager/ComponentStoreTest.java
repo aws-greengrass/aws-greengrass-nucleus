@@ -122,7 +122,7 @@ class ComponentStoreTest {
     }
 
     @Test
-    void GIVEN_a_recipe_not_exists_when_savePackageRecipe_THEN_recipe_file_created()
+    void GIVEN_a_recipe_not_exists_when_saveComponentRecipe_THEN_recipe_file_created()
             throws IOException, PackageLoadingException {
         // GIVEN
         String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
@@ -147,7 +147,7 @@ class ComponentStoreTest {
     }
 
     @Test
-    void GIVEN_a_recipe_exists_when_savePackageRecipe_THEN_recipe_file_is_updated()
+    void GIVEN_a_recipe_exists_when_saveComponentRecipe_THEN_recipe_file_is_updated()
             throws IOException, PackageLoadingException {
         // GIVEN
         String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
@@ -178,6 +178,49 @@ class ComponentStoreTest {
         assertThat(savedRecipe, is(recipe));
     }
 
+    @Test
+    void GIVEN_a_recipe_not_exists_when_savePackageRecipe_THEN_recipe_file_created()
+            throws IOException, PackageLoadingException {
+        // GIVEN
+        String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
+        String recipeContent = "recipeContent";
+
+        File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
+        assertThat(expectedRecipeFile, not(anExistingFile()));
+
+        // WHEN
+        componentStore
+                .savePackageRecipe(new ComponentIdentifier("MonitoringService", new Semver("1.0.0")), recipeContent);
+
+        // THEN
+        assertThat(expectedRecipeFile, anExistingFile());
+        String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
+        assertThat(fileContent, is(equalTo(recipeContent)));
+    }
+
+    @Test
+    void GIVEN_a_recipe_exists_when_savePackageRecipe_THEN_recipe_file_is_updated()
+            throws IOException, PackageLoadingException {
+        // GIVEN
+        String fileName = MONITORING_SERVICE_PKG_RECIPE_FILE_NAME;
+        String recipeContent = "recipeContent";
+
+
+        File expectedRecipeFile = recipeDirectory.resolve(fileName).toFile();
+
+        assertThat(expectedRecipeFile, not(anExistingFile()));
+        FileUtils.writeStringToFile(expectedRecipeFile, "old content that will be replaced");
+
+        assertThat(expectedRecipeFile, is(anExistingFile()));
+
+        // WHEN
+        componentStore
+                .savePackageRecipe(new ComponentIdentifier("MonitoringService", new Semver("1.0.0")), recipeContent);
+
+        // THEN
+        String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
+        assertThat(fileContent, is(equalTo(recipeContent)));
+    }
 
     @Test
     void GIVEN_a_recipe_exists_WHEN_findPackageRecipe_THEN_return_it() throws Exception {

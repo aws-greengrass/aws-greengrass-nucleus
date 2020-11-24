@@ -95,6 +95,23 @@ public class ComponentStore {
     }
 
     /**
+     * Creates or updates a package recipe in the package store on the disk.
+     *
+     * @param pkgId         the id for the component
+     * @param recipeContent recipe content to save
+     * @throws PackageLoadingException if fails to write the package recipe to disk.
+     */
+    void savePackageRecipe(@NonNull ComponentIdentifier pkgId, String recipeContent) throws PackageLoadingException {
+        try {
+            Path recipePath = resolveRecipePath(pkgId.getName(), pkgId.getVersion());
+            FileUtils.writeStringToFile(recipePath.toFile(), recipeContent);
+        } catch (IOException e) {
+            // TODO: [P41215929]: Better logging and exception messages in component store
+            throw new PackageLoadingException("Failed to save package recipe", e);
+        }
+    }
+
+    /**
      * Find the target package recipe from package store on the disk.
      *
      * @param pkgId package identifier
