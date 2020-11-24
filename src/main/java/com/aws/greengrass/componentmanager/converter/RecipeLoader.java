@@ -170,40 +170,28 @@ public class RecipeLoader {
             @Nonnull PlatformSpecificManifest manifest,
             @Nonnull Set<String> allSelectors) {
 
-        Map<String, Object> effectiveLifecycleMap = lifecycleMap;
-
-        if (manifest.getSelections() == null || manifest.getSelections().isEmpty()) {
-            // BEGIN BETA Compatibility code
-            // TODO: These need to be removed for re:Invent
-            // We might be running with old lifecycle
-            if (effectiveLifecycleMap.isEmpty()) {
-                effectiveLifecycleMap = manifest.getLifecycle();
-            }
-            if (effectiveLifecycleMap.isEmpty()) {
-                LOGGER.warn("Non-empty lifecycle section ignored after (old style) platform selection filtering");
-                return Collections.emptyMap();
-            }
-
-            return effectiveLifecycleMap;
-            // END BETA Compatibility code
-        } else {
-            // selections were applied to the lifecycle section
-            // we allow the following syntax forms (combined)
-            //
-            // Lifecycle:
-            //    <selector>: (optional)
-            //       Section:
-            //          <selector>: (optional)
-            //              body
-            Object filtered = PlatformResolver.filterPlatform(effectiveLifecycleMap, allSelectors,
-                    manifest.getSelections()).orElse(Collections.emptyMap());
-            if (filtered instanceof Map && !((Map<?, ?>) filtered).isEmpty()) {
-                return (Map<String, Object>) filtered;
-            } else {
-                LOGGER.warn("Non-empty lifecycle section ignored after platform selection filtering");
-                return Collections.emptyMap();
-            }
+        // If there is manifest level lifecycle
+        Map<String, Object> manifestLifecycle = manifest.getLifecycle();
+        if (manifestLifecycle != null && !manifestLifecycle.isEmpty()) {
+            return manifestLifecycle;
         }
+
+        // selections were applied to the lifecycle section
+        // we allow the following syntax forms (combined)
+        //
+        // Lifecycle:
+        //    <selector>: (optional)
+        //       Section:
+        //          <selector>: (optional)
+        //              body
+        Object filtered = PlatformResolver.filterPlatform(lifecycleMap, allSelectors,
+                manifest.getSelections()).orElse(Collections.emptyMap());
+        if (filtered instanceof Map && !((Map<?, ?>) filtered).isEmpty()) {
+            return (Map<String, Object>) filtered;
+        } else if (!lifecycleMap.isEmpty()) {
+            LOGGER.warn("Non-empty lifecycle section ignored after platform selection filtering");
+        }
+        return Collections.emptyMap();
     }
 
     private static Permission convertPermissionFromFile(
