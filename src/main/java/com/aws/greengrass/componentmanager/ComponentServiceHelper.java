@@ -66,10 +66,6 @@ public class ComponentServiceHelper {
                 .withVersionRequirements(versionRequirementsInString);
         ResolveComponentCandidatesRequest request = new ResolveComponentCandidatesRequest().withPlatform(platform)
                 .withComponentCandidates(Collections.singletonList(candidate));
-        // TODO: [P41215565]: Switch back deploymentConfigurationId once it's removed from URL path
-        // use UUID to avoid ARN complication in URL, deploymentConfigurationId is used for logging purpose
-        // in server, so could have this hack now
-        //.withDeploymentConfigurationId(UUID.randomUUID().toString());
 
         ResolveComponentCandidatesResult result;
         try {
