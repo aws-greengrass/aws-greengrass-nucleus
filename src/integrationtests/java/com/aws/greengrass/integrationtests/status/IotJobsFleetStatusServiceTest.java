@@ -43,7 +43,6 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
-import software.amazon.awssdk.iot.iotjobs.IotJobsClient;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionResponse;
 
@@ -90,8 +89,6 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     @Mock
     private MqttClient mqttClient;
     @Mock
-    private IotJobsClient mockIotJobsClient;
-    @Mock
     private IotJobsClientWrapper mockIotJobsClientWrapper;
     @Captor
     private ArgumentCaptor<PublishRequest> captor;
@@ -110,19 +107,13 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
         CompletableFuture cf = new CompletableFuture();
         cf.complete(null);
-        when(mockIotJobsClient.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
-                any(QualityOfService.class))).thenAnswer(invocationOnMock -> {
-            verify(mockIotJobsClient, atLeastOnce()).SubscribeToUpdateJobExecutionAccepted(any(),
-                    eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
-            Consumer<UpdateJobExecutionResponse> jobResponseConsumer = jobsAcceptedHandlerCaptor.getValue();
-            UpdateJobExecutionResponse mockJobExecutionResponse = mock(UpdateJobExecutionResponse.class);
-            jobResponseConsumer.accept(mockJobExecutionResponse);
-            return cf;
-        });
         when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
                 any(QualityOfService.class))).thenAnswer(invocationOnMock -> {
             verify(mockIotJobsClientWrapper, atLeastOnce()).SubscribeToUpdateJobExecutionAccepted(any(),
                     eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
+            Consumer<UpdateJobExecutionResponse> jobResponseConsumer = jobsAcceptedHandlerCaptor.getValue();
+            UpdateJobExecutionResponse mockJobExecutionResponse = mock(UpdateJobExecutionResponse.class);
+            jobResponseConsumer.accept(mockJobExecutionResponse);
             return cf;
         });
         kernel = new Kernel();
@@ -141,7 +132,6 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
                 deploymentServiceRunning.countDown();
                 deploymentService = (DeploymentService) service;
                 IotJobsHelper iotJobsHelper = deploymentService.getContext().get(IotJobsHelper.class);
-                iotJobsHelper.setIotJobsClient(mockIotJobsClient);
                 iotJobsHelper.setIotJobsClientWrapper(mockIotJobsClientWrapper);
             }
             componentNamesToCheck.add(service.getName());
