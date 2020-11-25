@@ -14,6 +14,7 @@ import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
@@ -36,6 +37,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -47,7 +49,6 @@ import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -97,6 +98,7 @@ public class KernelConfigResolver {
 
     private final ComponentStore componentStore;
     private final Kernel kernel;
+    private final DeviceConfiguration deviceConfiguration;
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
@@ -109,11 +111,14 @@ public class KernelConfigResolver {
      * @param componentStore package store used to look up packages
      * @param kernel         kernel
      * @param nucleusPaths   nucleus paths
+     * @param deviceConfiguration device configuration
      */
     @Inject
-    public KernelConfigResolver(ComponentStore componentStore, Kernel kernel, NucleusPaths nucleusPaths) {
+    public KernelConfigResolver(ComponentStore componentStore, Kernel kernel, NucleusPaths nucleusPaths,
+                                DeviceConfiguration deviceConfiguration) {
         this.componentStore = componentStore;
         this.kernel = kernel;
+        this.deviceConfiguration = deviceConfiguration;
 
         // More system parameters can be added over time by extending this map with new namespaces/keys
         HashMap<String, CrashableFunction<ComponentIdentifier, String, IOException>> artifactNamespace =
@@ -265,6 +270,7 @@ public class KernelConfigResolver {
      * @param document                     deployment document
      * @return resolved configuration for this component. non null.
      */
+    @SuppressWarnings("PMD.ConfusingTernary")
     private Map<String, Object> resolveConfigurationToApply(
             @Nullable ConfigurationUpdateOperation configurationUpdateOperation, ComponentRecipe componentRecipe,
             DeploymentDocument document) {
@@ -279,6 +285,15 @@ public class KernelConfigResolver {
                 Topics configuration = serviceTopics.findTopics(CONFIGURATION_CONFIG_KEY);
                 if (configuration != null) {
                     currentRunningConfig.copyFrom(configuration);
+                }
+            } else if (ComponentType.NUCLEUS.equals(componentRecipe.getComponentType())) {
+                // Copy from existing Nucleus config (if any)
+                Topics nucleusTopics = kernel.findServiceTopic(deviceConfiguration.getNucleusComponentName());
+                if (nucleusTopics != null) {
+                    Topics nucleusConfig = nucleusTopics.findTopics(CONFIGURATION_CONFIG_KEY);
+                    if (nucleusConfig != null) {
+                        currentRunningConfig.copyFrom(nucleusConfig);
+                    }
                 }
             }
 
@@ -533,7 +548,7 @@ public class KernelConfigResolver {
      */
     private Map<String, Object> getMainConfig(List<String> rootPackages, String nucleusComponentName) {
         Map<String, Object> mainServiceConfig = new HashMap<>();
-        ArrayList<String> mainDependencies = new ArrayList<>(rootPackages);
+        Set<String> mainDependencies = new HashSet<>(rootPackages);
         kernel.getMain().getDependencies().forEach((greengrassService, dependencyType) -> {
             // Add all autostart dependencies
             if (greengrassService.isBuiltin()) {
@@ -544,7 +559,7 @@ public class KernelConfigResolver {
         // Make Nucleus component sticky
         mainDependencies.add(nucleusComponentName);
 
-        mainServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, mainDependencies);
+        mainServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, new ArrayList<>(mainDependencies));
         return mainServiceConfig;
     }
 
@@ -555,7 +570,7 @@ public class KernelConfigResolver {
     private String getNucleusComponentName(Map<String, Object> newServiceConfig) {
         Optional<String> nucleusComponentName = newServiceConfig.keySet().stream()
                 .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(newServiceConfig.get(s)))).findAny();
-        return nucleusComponentName.orElse(DEFAULT_NUCLEUS_COMPONENT_NAME);
+        return nucleusComponentName.orElse(deviceConfiguration.getNucleusComponentName());
     }
 
     private Object getNucleusComponentConfig(String nucleusComponentName) {
