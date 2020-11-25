@@ -7,6 +7,7 @@ package com.aws.greengrass.constants;
 
 public final class FileSuffix {
     public static final String YAML_SUFFIX = ".yaml";
+    public static final String JSON_SUFFIX = ".json";
 
     private FileSuffix() {
     }

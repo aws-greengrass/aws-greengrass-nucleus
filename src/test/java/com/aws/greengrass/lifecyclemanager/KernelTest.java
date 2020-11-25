@@ -102,7 +102,9 @@ class KernelTest {
             throws Exception {
         KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, new KernelCommandLine(kernel), mock(
                 NucleusPaths.class)));
+        doNothing().when(kernelLifecycle).initConfigAndTlog();
         kernel.setKernelLifecycle(kernelLifecycle);
+        kernel.parseArgs();
 
         GreengrassService mockMain = new GreengrassService(
                 kernel.getConfig().lookupTopics(GreengrassService.SERVICES_NAMESPACE_TOPIC, "main"));
@@ -168,7 +170,9 @@ class KernelTest {
             throws InputValidationException {
         KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class),
                 mock(NucleusPaths.class)));
+        doNothing().when(kernelLifecycle).initConfigAndTlog();
         kernel.setKernelLifecycle(kernelLifecycle);
+        kernel.parseArgs();
 
         GreengrassService mockMain =
                 new GreengrassService(kernel.getConfig()
@@ -463,7 +467,7 @@ class KernelTest {
 
         verify(kernelAlternatives).prepareRollback();
         verify(deploymentDirectoryManager).writeDeploymentMetadata(eq(deployment));
-        verify(kernelLifecycle).shutdown(eq(30), eq(2));
+        verify(kernelLifecycle).shutdown(eq(30), eq(REQUEST_RESTART));
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
@@ -500,7 +504,7 @@ class KernelTest {
         }
 
         verify(kernelAlternatives).prepareRollback();
-        verify(kernelLifecycle).shutdown(eq(30), eq(2));
+        verify(kernelLifecycle).shutdown(eq(30), eq(REQUEST_RESTART));
     }
 
     static class TestClass extends GreengrassService {

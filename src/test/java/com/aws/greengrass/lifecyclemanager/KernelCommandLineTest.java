@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
-import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,16 +38,14 @@ class KernelCommandLineTest {
 
     @Test
     void GIVEN_missing_parameter_to_argument_WHEN_parseArgs_THEN_throw_RuntimeException() {
-        KernelCommandLine kcl = new KernelCommandLine(mock(Kernel.class), mock(DeviceConfiguration.class),
-                mock(NucleusPaths.class));
+        KernelCommandLine kcl = new KernelCommandLine(mock(Kernel.class), mock(NucleusPaths.class));
         RuntimeException ex = assertThrows(RuntimeException.class, () -> kcl.parseArgs("-i"));
         assertThat(ex.getMessage(), is("-i or --config requires an argument"));
     }
 
     @Test
     void GIVEN_invalid_command_line_argument_WHEN_parseArgs_THEN_throw_RuntimeException(ExtensionContext context) {
-        KernelCommandLine kernel = new KernelCommandLine(mock(Kernel.class), mock(DeviceConfiguration.class),
-                mock(NucleusPaths.class));
+        KernelCommandLine kernel = new KernelCommandLine(mock(Kernel.class), mock(NucleusPaths.class));
         String exceptionSubstring = "Undefined command line argument";
         ignoreExceptionWithMessageSubstring(context, exceptionSubstring);
         RuntimeException thrown =
@@ -74,7 +71,7 @@ class KernelCommandLineTest {
         when(nucleusPaths.componentStorePath()).thenReturn(tempRootDir.resolve("packages"));
         when(nucleusPaths.rootPath()).thenReturn(tempRootDir.resolve("root"));
 
-        KernelCommandLine kcl = new KernelCommandLine(mockKernel, mock(DeviceConfiguration.class), nucleusPaths);
+        KernelCommandLine kcl = new KernelCommandLine(mockKernel, nucleusPaths);
 
         assertEquals(Paths.get(System.getProperty("user.home"), "test").toString(), kcl.deTilde("~/test"));
         assertEquals(tempRootDir.resolve("config/test").toString(), kcl.deTilde("~config/test"));
