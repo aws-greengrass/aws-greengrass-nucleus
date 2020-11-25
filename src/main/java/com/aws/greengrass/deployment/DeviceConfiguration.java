@@ -77,6 +77,7 @@ public class DeviceConfiguration {
     public static final String COMPONENT_STORE_MAX_SIZE_BYTES = "componentStoreMaxSizeBytes";
     public static final String DEPLOYMENT_POLLING_FREQUENCY_SECONDS = "deploymentPollingFrequencySeconds";
     public static final String NUCLEUS_CONFIG_LOGGING_TOPICS = "logging";
+    public static final String TELEMETRY_CONFIG_LOGGING_TOPICS = "telemetry";
 
     public static final String DEVICE_NETWORK_PROXY_NAMESPACE = "networkProxy";
     public static final String DEVICE_PROXY_NAMESPACE = "proxy";
@@ -161,6 +162,14 @@ public class DeviceConfiguration {
      */
     public Topics getLoggingConfigurationTopics() {
         return getTopics(NUCLEUS_CONFIG_LOGGING_TOPICS);
+    }
+
+    /**
+     * Get the telemetry configuration.
+     * @return  Configuration for telemetry agent.
+     */
+    public Topics getTelemetryConfigurationTopics() {
+        return getTopics(TELEMETRY_CONFIG_LOGGING_TOPICS);
     }
 
     /**
