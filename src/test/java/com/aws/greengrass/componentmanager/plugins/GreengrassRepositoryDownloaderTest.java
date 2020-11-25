@@ -28,7 +28,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -81,11 +80,8 @@ class GreengrassRepositoryDownloaderTest {
                 .resolve("monitor_artifact_100.txt");
         String checksum = Base64.getEncoder()
                 .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
-        ComponentArtifact artifact = ComponentArtifact.builder()
-                .algorithm(SHA256)
-                .checksum(checksum)
-                .artifactUri(new URI("greengrass:artifactName"))
-                .build();
+        ComponentArtifact artifact = ComponentArtifact.builder().algorithm(SHA256).checksum(checksum)
+                .artifactUri(new URI("greengrass:774pP05xtua0RCcwj9uALSdAqGr_vC631EdOBkJxnec=/artifact.txt")).build();
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
 
         lenient().when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(TEST_ARN));
@@ -94,33 +90,33 @@ class GreengrassRepositoryDownloaderTest {
         Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
         Files.createDirectories(saveToPath);
 
-        GreengrassRepositoryDownloader downloader = spy(new GreengrassRepositoryDownloader(clientFactory,
-                pkgId, artifact, saveToPath, componentStore));
+        GreengrassRepositoryDownloader downloader =
+                spy(new GreengrassRepositoryDownloader(clientFactory, pkgId, artifact, saveToPath, componentStore));
+
+        assertThat(downloader.getArtifactFilename(), is("artifact.txt"));
 
         // mock requests to get downloadSize and local file name
         GetComponentVersionArtifactResult result =
                 new GetComponentVersionArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
-        when(client.getComponentVersionArtifact(getComponentVersionArtifactRequestArgumentCaptor.capture())).thenReturn(result);
-
-        doReturn(connection).when(downloader).connect(any());
-        when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
-        when(connection.getContentLengthLong()).thenReturn(Files.size(mockArtifactPath));
-        when(connection.getHeaderField("Content-Disposition")).thenReturn("filename=artifact.txt");
-        assertThat(downloader.getArtifactFilename(), is("artifact.txt"));
+        when(client.getComponentVersionArtifact(getComponentVersionArtifactRequestArgumentCaptor.capture()))
+                .thenReturn(result);
 
         // mock requests to return partial stream
-        when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_PARTIAL);
+        doReturn(connection).when(downloader).connect(any());
+        when(connection.getContentLengthLong()).thenReturn(Files.size(mockArtifactPath));
+        when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK)
+                .thenReturn(HttpURLConnection.HTTP_PARTIAL);
         when(connection.getInputStream()).thenReturn(Files.newInputStream(mockArtifactPath));
-
-        Path artifactFilePath = saveToPath.resolve("artifact.txt");
 
         downloader.downloadToPath();
 
-        GetComponentVersionArtifactRequest generatedRequest = getComponentVersionArtifactRequestArgumentCaptor.getValue();
+        GetComponentVersionArtifactRequest generatedRequest =
+                getComponentVersionArtifactRequestArgumentCaptor.getValue();
         assertEquals(TEST_ARN, generatedRequest.getArn());
-        assertEquals("artifactName", generatedRequest.getArtifactName());
+        assertEquals("774pP05xtua0RCcwj9uALSdAqGr_vC631EdOBkJxnec=/artifact.txt", generatedRequest.getArtifactName());
 
         byte[] originalFile = Files.readAllBytes(mockArtifactPath);
+        Path artifactFilePath = saveToPath.resolve("artifact.txt");
         byte[] downloadFile = Files.readAllBytes(artifactFilePath);
         assertThat(Arrays.equals(originalFile, downloadFile), is(true));
         ComponentTestResourceHelper.cleanDirectory(testCache);
@@ -172,20 +168,15 @@ class GreengrassRepositoryDownloaderTest {
     }
 
     @Test
-    void GIVEN_filename_in_disposition_WHEN_attempt_resolve_filename_THEN_parse_filename() throws Exception {
+    void GIVEN_filename_in_uri_WHEN_attempt_resolve_filename_THEN_parse_filename() {
         String filename = GreengrassRepositoryDownloader
-                .extractFilename(new URL("https://www.amazon.com/artifact.txt"),
-                "attachment; " + "filename=\"filename.jpg\"");
-
-        assertThat(filename, is("filename.jpg"));
+                .getArtifactFilename(ComponentArtifact.builder().artifactUri(URI.create("greengrass:abcd.jj")).build());
+        assertThat(filename, is("abcd.jj"));
+        filename = GreengrassRepositoryDownloader
+                .getArtifactFilename(ComponentArtifact.builder().artifactUri(URI.create("greengrass:abcd")).build());
+        assertThat(filename, is("abcd"));
+        filename = GreengrassRepositoryDownloader.getArtifactFilename(
+                ComponentArtifact.builder().artifactUri(URI.create("greengrass:jkdfjk/kdjfkdj/abcd.jj")).build());
+        assertThat(filename, is("abcd.jj"));
     }
-
-    @Test
-    void GIVEN_filename_in_url_WHEN_attempt_resolve_filename_THEN_parse_filename() throws Exception {
-        String filename = GreengrassRepositoryDownloader
-                .extractFilename(new URL("https://www.amazon.com/artifact.txt?key=value"), "attachment");
-
-        assertThat(filename, is("artifact.txt"));
-    }
-
 }
