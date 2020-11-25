@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -35,7 +34,6 @@ public class KernelCommandLine {
     private static final String PACKAGE_DIR_PREFIX = "~packages/";
 
     private final Kernel kernel;
-    private final DeviceConfiguration deviceConfiguration;
 
     @Getter(AccessLevel.PACKAGE)
     private DeploymentDirectoryManager deploymentDirectoryManager;
@@ -48,6 +46,10 @@ public class KernelCommandLine {
     private String[] args;
     private String arg;
     private int argpos = 0;
+
+    private String awsRegionFromCmdLine;
+    private String envStageFromCmdLine;
+    private String defaultUserFromCmdLine;
 
     private static final String configPathName = "~root/config";
     private static final String workPathName = "~root/work";
@@ -62,12 +64,11 @@ public class KernelCommandLine {
     }
 
     public KernelCommandLine(Kernel kernel) {
-        this(kernel, kernel.getContext().get(DeviceConfiguration.class), kernel.getNucleusPaths());
+        this(kernel, kernel.getNucleusPaths());
     }
 
-    KernelCommandLine(Kernel kernel, DeviceConfiguration deviceConfiguration, NucleusPaths nucleusPaths) {
+    KernelCommandLine(Kernel kernel, NucleusPaths nucleusPaths) {
         this.kernel = kernel;
-        this.deviceConfiguration = deviceConfiguration;
         this.nucleusPaths = nucleusPaths;
     }
 
@@ -97,21 +98,17 @@ public class KernelCommandLine {
                     break;
                 case "--aws-region":
                 case "-ar":
-                    deviceConfiguration.setAWSRegion(getArg());
+                    awsRegionFromCmdLine = getArg();
                     break;
                 case "--env-stage":
                 case "-es":
-                    deviceConfiguration.getEnvironmentStage().withValue(getArg());
+                    envStageFromCmdLine = getArg();
                     break;
                 case "--component-default-user":
                 case "-u":
                     String user = getArg();
                     Objects.requireNonNull(user, "-u or --component-default-user requires an argument");
-                    if (Exec.isWindows) {
-                        deviceConfiguration.getRunWithDefaultWindowsUser().withValue(user);
-                    } else {
-                        deviceConfiguration.getRunWithDefaultPosixUser().withValue(user);
-                    }
+                    defaultUserFromCmdLine = user;
                     break;
                 default:
                     RuntimeException rte =
@@ -130,6 +127,22 @@ public class KernelCommandLine {
                 .subscribe((whatHappened, topic) -> initPaths(Coerce.toString(topic)));
     }
 
+    void updateDeviceConfiguration(DeviceConfiguration deviceConfiguration) {
+        if (awsRegionFromCmdLine != null) {
+            deviceConfiguration.setAWSRegion(awsRegionFromCmdLine);
+        }
+        if (envStageFromCmdLine != null) {
+            deviceConfiguration.getEnvironmentStage().withValue(envStageFromCmdLine);
+        }
+        if (defaultUserFromCmdLine != null) {
+            if (Exec.isWindows) {
+                deviceConfiguration.getRunWithDefaultWindowsUser().withValue(defaultUserFromCmdLine);
+            } else {
+                deviceConfiguration.getRunWithDefaultPosixUser().withValue(defaultUserFromCmdLine);
+            }
+        }
+    }
+
     private void initPaths(String rootAbsolutePath) {
         // init all paths
         try {
@@ -141,12 +154,6 @@ public class KernelCommandLine {
             nucleusPaths.setTelemetryPath(TelemetryConfig.getInstance().getStoreDirectory());
             String storeDirectory = LogManager.getRootLogConfiguration().getStoreDirectory().toAbsolutePath()
                     .toString();
-            Topic outputDirectoryTopic = deviceConfiguration.getLoggingConfigurationTopics()
-                    .lookup("outputDirectory");
-            String outputDirectory = Coerce.toString(outputDirectoryTopic);
-            if (Utils.isNotEmpty(outputDirectory)) {
-                storeDirectory = deTilde(outputDirectory);
-            }
             nucleusPaths.setLoggerPath(Paths.get(storeDirectory));
             nucleusPaths.initPaths(Paths.get(rootAbsolutePath).toAbsolutePath(),
                     Paths.get(deTilde(workPathName)).toAbsolutePath(),

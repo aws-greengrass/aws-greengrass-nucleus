@@ -16,7 +16,6 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
-import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -130,7 +129,6 @@ public class Kernel {
         kernelLifecycle = new KernelLifecycle(this, kernelCommandLine, nucleusPaths);
         context.put(KernelCommandLine.class, kernelCommandLine);
         context.put(KernelLifecycle.class, kernelLifecycle);
-        context.put(DeploymentConfigMerger.class, new DeploymentConfigMerger(this));
         context.put(DeploymentActivatorFactory.class, new DeploymentActivatorFactory(this));
         context.put(Clock.class, Clock.systemUTC());
         Map<String, String> typeToClassMap = new ConcurrentHashMap<>();
@@ -198,7 +196,7 @@ public class Kernel {
                     } catch (IOException ioException) {
                         logger.atError().setCause(ioException).log("Something went wrong while preparing for rollback");
                     }
-                    shutdown(30, 2);
+                    shutdown(30, REQUEST_RESTART);
                 }
                 break;
             case KERNEL_ACTIVATION:
@@ -541,6 +539,8 @@ public class Kernel {
         kernelCommandLine.parseArgs(args);
         config.lookupTopics(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
         kernelLifecycle.initConfigAndTlog();
+        // Update device configuration from commandline arguments after loading config files
+        kernelCommandLine.updateDeviceConfiguration(getContext().get(DeviceConfiguration.class));
         setupProxy();
         return this;
     }

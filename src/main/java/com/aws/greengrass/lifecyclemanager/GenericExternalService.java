@@ -462,7 +462,7 @@ public class GenericExternalService extends GreengrassService {
             Optional<RunWith> opt = computeRunWithConfiguration();
             if (!opt.isPresent()) {
                 logger.atError().log("Could not determine user/group to run with. Ensure that {} is set for {}",
-                        DeviceConfiguration.RUN_WITH_TOPIC, DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME);
+                        DeviceConfiguration.RUN_WITH_TOPIC, deviceConfiguration.getNucleusComponentName());
                 return new Pair<>(RunStatus.Errored, null);
             }
 

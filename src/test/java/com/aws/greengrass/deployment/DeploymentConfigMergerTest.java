@@ -73,13 +73,15 @@ class DeploymentConfigMergerTest {
 
     @Mock
     private Kernel kernel;
-
+    @Mock
+    private DynamicComponentConfigurationValidator validator;
     @Mock
     private Context context;
 
     @BeforeEach
     void beforeEach() {
         lenient().when(kernel.getContext()).thenReturn(context);
+        lenient().when(validator.validate(anyMap(), any(), any())).thenReturn(true);
     }
 
     @AfterEach
@@ -287,7 +289,7 @@ class DeploymentConfigMergerTest {
         when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
         when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
 
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, validator);
 
         DeploymentDocument doc = new DeploymentDocument();
         doc.setDeploymentId("NoSafetyCheckDeploy");
@@ -325,7 +327,7 @@ class DeploymentConfigMergerTest {
         });
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, validator);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
@@ -361,7 +363,7 @@ class DeploymentConfigMergerTest {
         when(context.get(DefaultActivator.class)).thenReturn(defaultActivator);
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, validator);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(

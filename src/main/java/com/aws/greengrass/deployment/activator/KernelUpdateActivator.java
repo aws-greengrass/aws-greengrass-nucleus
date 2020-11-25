@@ -36,7 +36,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
     /**
      * Constructor of KernelUpdateActivator.
      *
-     * @param kernel Kernel instance
+     * @param kernel           Kernel instance
      * @param bootstrapManager BootstrapManager instance
      */
     @Inject
@@ -68,7 +68,8 @@ public class KernelUpdateActivator extends DeploymentActivator {
         // Wait for all services to close.
         lifecycle.stopAllServices(30);
 
-        kernel.getConfig().mergeMap(deploymentDocument.getTimestamp(), newConfig);
+        updateConfiguration(deploymentDocument.getTimestamp(), newConfig);
+
         Path bootstrapTaskFilePath;
         try {
             bootstrapTaskFilePath = deploymentDirectoryManager.getBootstrapTaskFilePath();

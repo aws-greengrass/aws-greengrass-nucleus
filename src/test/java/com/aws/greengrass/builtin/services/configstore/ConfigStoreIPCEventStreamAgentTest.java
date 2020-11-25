@@ -329,7 +329,8 @@ class ConfigStoreIPCEventStreamAgentTest {
         when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
-        componentAConfiguration.lookup(CONFIGURATION_CONFIG_KEY, "SomeContainerKey", "SomeLeafKey").withValue("SomeValue");
+        componentAConfiguration.lookup(CONFIGURATION_CONFIG_KEY, "SomeContainerKey", "SomeLeafKey")
+                .withNewerValue(Instant.now().toEpochMilli(), "SomeValue");
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
 
         UpdateConfigurationRequest request = new UpdateConfigurationRequest();
