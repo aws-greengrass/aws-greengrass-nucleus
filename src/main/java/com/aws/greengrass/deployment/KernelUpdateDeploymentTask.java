@@ -17,6 +17,7 @@ import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
@@ -52,10 +53,13 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
         Deployment.DeploymentStage stage = deployment.getDeploymentStage();
         KernelAlternatives kernelAlts = kernel.getContext().get(KernelAlternatives.class);
         try {
-            DeploymentConfigMerger.waitForServicesToStart(
+            List<GreengrassService> servicesToTrack =
                     kernel.orderedDependencies().stream().filter(GreengrassService::shouldAutoStart)
-                            .filter(o -> !kernel.getMain().equals(o)).collect(Collectors.toList()),
-                    kernel.getConfig().lookup("system", "rootpath").getModtime());
+                            .filter(o -> !kernel.getMain().equals(o)).collect(Collectors.toList());
+            long mergeTimestamp = kernel.getConfig().lookup("system", "rootpath").getModtime();
+            logger.atDebug().kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTimestamp)
+                    .log("Nucleus update workflow waiting for services to complete update");
+            DeploymentConfigMerger.waitForServicesToStart(servicesToTrack, mergeTimestamp);
 
             DeploymentResult result = null;
             if (KERNEL_ACTIVATION.equals(stage)) {
