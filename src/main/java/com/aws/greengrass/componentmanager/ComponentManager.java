@@ -86,21 +86,20 @@ public class ComponentManager implements InjectionActions {
     /**
      * PackageManager constructor.
      *
-     * @param artifactDownloaderFactory      artifactDownloaderFactory
-     * @param componentServiceHelper         greengrassPackageServiceHelper
-     * @param executorService                executorService
-     * @param componentStore                 componentStore
-     * @param kernel                         kernel
-     * @param unarchiver                     unarchiver
-     * @param deviceConfiguration            deviceConfiguration
-     * @param nucleusPaths                   path library
+     * @param artifactDownloaderFactory artifactDownloaderFactory
+     * @param componentServiceHelper    greengrassPackageServiceHelper
+     * @param executorService           executorService
+     * @param componentStore            componentStore
+     * @param kernel                    kernel
+     * @param unarchiver                unarchiver
+     * @param deviceConfiguration       deviceConfiguration
+     * @param nucleusPaths              path library
      */
     @Inject
     public ComponentManager(ArtifactDownloaderFactory artifactDownloaderFactory,
-                            ComponentServiceHelper componentServiceHelper,
-                            ExecutorService executorService, ComponentStore componentStore, Kernel kernel,
-                            Unarchiver unarchiver, DeviceConfiguration deviceConfiguration,
-                            NucleusPaths nucleusPaths) {
+                            ComponentServiceHelper componentServiceHelper, ExecutorService executorService,
+                            ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver,
+                            DeviceConfiguration deviceConfiguration, NucleusPaths nucleusPaths) {
         this.artifactDownloaderFactory = artifactDownloaderFactory;
         this.componentServiceHelper = componentServiceHelper;
         this.executorService = executorService;
@@ -112,7 +111,7 @@ public class ComponentManager implements InjectionActions {
     }
 
     ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements,
-            String deploymentConfigurationId) throws PackagingException {
+                                              String deploymentConfigurationId) throws PackagingException {
         logger.atInfo().setEventType("resolve-component-version-start").kv(COMPONENT_STR, componentName)
                 .kv("versionRequirements", versionRequirements).log("Resolving component version starts");
 
@@ -134,7 +133,7 @@ public class ComponentManager implements InjectionActions {
             // If local group has a requirement and a satisfying local version presents, use it and don't negotiate with
             // cloud.
             logger.atInfo().log("Local group has a requirement and found satisfying local candidate. Using the local"
-                                        + " candidate as the resolved version without negotiating with cloud.");
+                    + " candidate as the resolved version without negotiating with cloud.");
             resolvedComponentId = localCandidateOptional.get();
         } else {
             // otherwise try to negotiate with cloud
@@ -152,10 +151,11 @@ public class ComponentManager implements InjectionActions {
         return getComponentMetadata(resolvedComponentId);
     }
 
-    private void storeRecipeDigestSecurelyForPlugin(ComponentIdentifier componentIdentifier, String recipeContent)
+    private void storeRecipeDigestSecurelyForPlugin(
+            com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe, String recipeContent)
             throws PackageLoadingException {
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe =
-                RecipeLoader.parseRecipe(recipeContent);
+        ComponentIdentifier componentIdentifier =
+                new ComponentIdentifier(componentRecipe.getComponentName(), componentRecipe.getComponentVersion());
         if (componentRecipe.getComponentType() != ComponentType.PLUGIN) {
             logger.atInfo().kv(COMPONENT_STR, componentIdentifier)
                     .log("Skip storing digest as component is not plugin");
@@ -195,7 +195,7 @@ public class ComponentManager implements InjectionActions {
             logger.atInfo().setCause(e).kv("componentName", componentName).kv("versionRequirement", versionRequirements)
                     .kv("localVersion", localCandidate)
                     .log("Failed to negotiate version with cloud due to a exception and trying to fall back "
-                                 + "to use the available local version");
+                            + "to use the available local version");
             if (localCandidate != null) {
                 return localCandidate;
             }
@@ -204,24 +204,39 @@ public class ComponentManager implements InjectionActions {
                             + "satisfying requirement '%s'.", componentName, versionRequirements), e);
         }
 
-        ComponentIdentifier resolvedComponentId =
-                new ComponentIdentifier(resolvedComponentVersion.getComponentName(),
-                        new Semver(resolvedComponentVersion.getComponentVersion()));
+        ComponentIdentifier resolvedComponentId = new ComponentIdentifier(resolvedComponentVersion.getComponentName(),
+                new Semver(resolvedComponentVersion.getComponentVersion()));
         String downloadedRecipeContent = StandardCharsets.UTF_8.decode(resolvedComponentVersion.getRecipe()).toString();
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe downloadedRecipe;
+        try {
+            downloadedRecipe = RecipeLoader.parseRecipe(downloadedRecipeContent, RecipeLoader.RecipeFormat.JSON);
+        } catch (PackageLoadingException e) {
+            // TODO remove this backoff operation once cloud switch to send JSON recipe
+            downloadedRecipe = RecipeLoader.parseRecipe(downloadedRecipeContent, RecipeLoader.RecipeFormat.YAML);
+        }
 
         // Save the recipe digest for plugin in a secure place, before persisting recipe
-        storeRecipeDigestSecurelyForPlugin(resolvedComponentId, downloadedRecipeContent);
+        storeRecipeDigestSecurelyForPlugin(downloadedRecipe, downloadedRecipeContent);
 
         // Save the recipe
         boolean saveContent = true;
         Optional<String> recipeContentOnDevice = componentStore.findComponentRecipeContent(resolvedComponentId);
 
-        if (recipeContentOnDevice.filter(recipe -> recipe.equals(downloadedRecipeContent)).isPresent()) {
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe finalDownloadedRecipe = downloadedRecipe;
+        if (recipeContentOnDevice.map(recipeContent -> {
+            try {
+                return RecipeLoader.parseRecipe(recipeContent, RecipeLoader.RecipeFormat.YAML);
+            } catch (PackageLoadingException e) {
+                // if fail to parse local recipe, treat it as not presented
+                logger.atDebug().setCause(e).kv("componentId", resolvedComponentId).log("Failed to parse local recipe");
+                return null;
+            }
+        }).filter(recipe -> recipe.equals(finalDownloadedRecipe)).isPresent()) {
             saveContent = false;
         }
 
         if (saveContent) {
-            componentStore.savePackageRecipe(resolvedComponentId, downloadedRecipeContent);
+            componentStore.saveComponentRecipe(downloadedRecipe);
         }
 
         // Save the arn to the recipe meta data file
@@ -231,7 +246,8 @@ public class ComponentManager implements InjectionActions {
     }
 
     private Optional<ComponentIdentifier> findBestCandidateLocally(String componentName,
-            Map<String, Requirement> versionRequirements) throws PackagingException {
+                                                                   Map<String, Requirement> versionRequirements)
+            throws PackagingException {
         logger.atInfo().kv("ComponentName", componentName).kv("VersionRequirements", versionRequirements)
                 .log("Searching for best candidate locally on the device.");
 
@@ -300,8 +316,8 @@ public class ComponentManager implements InjectionActions {
     }
 
     private void preparePackage(ComponentIdentifier componentIdentifier)
-            throws PackageLoadingException, PackageDownloadException,
-                    InvalidArtifactUriException, InterruptedException {
+            throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException,
+            InterruptedException {
         logger.atInfo().setEventType("prepare-package-start").kv(PACKAGE_IDENTIFIER, componentIdentifier).log();
         try {
             ComponentRecipe pkg = componentStore.getPackageRecipe(componentIdentifier);
@@ -317,8 +333,8 @@ public class ComponentManager implements InjectionActions {
     }
 
     void prepareArtifacts(ComponentIdentifier componentIdentifier, List<ComponentArtifact> artifacts)
-            throws PackageLoadingException, PackageDownloadException,
-            InvalidArtifactUriException, InterruptedException {
+            throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException,
+            InterruptedException {
         if (artifacts == null) {
             logger.atWarn().kv(PACKAGE_IDENTIFIER, componentIdentifier)
                     .log("Artifact list was null, expected non-null and non-empty");
@@ -336,10 +352,10 @@ public class ComponentManager implements InjectionActions {
             if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
                 throw new SizeLimitException(
                         String.format("Disk space critical: %d bytes usable, %d bytes minimum allowed",
-                                      usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
+                                usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
             }
-            ArtifactDownloader downloader = artifactDownloaderFactory.getArtifactDownloader(
-                    componentIdentifier, artifact, packageArtifactDirectory);
+            ArtifactDownloader downloader = artifactDownloaderFactory
+                    .getArtifactDownloader(componentIdentifier, artifact, packageArtifactDirectory);
 
             if (downloader.downloadRequired()) {
                 long downloadSize = downloader.getDownloadSize();
@@ -362,11 +378,11 @@ public class ComponentManager implements InjectionActions {
             if (artifactFile != null) {
                 try {
                     Permissions.setArtifactPermission(artifactFile.toPath(),
-                                                      artifact.getPermission().toFileSystemPermission());
+                            artifact.getPermission().toFileSystemPermission());
                 } catch (IOException e) {
                     throw new PackageDownloadException(
                             String.format("Failed to change permissions of component %s artifact %s",
-                                          componentIdentifier, artifact), e);
+                                    componentIdentifier, artifact), e);
                 }
             }
             Unarchive unarchive = artifact.getUnarchive();
@@ -381,16 +397,16 @@ public class ComponentManager implements InjectionActions {
                     unarchiver.unarchive(unarchive, artifactFile, unarchivePath);
                     try {
                         Permissions.setArtifactPermission(unarchivePath,
-                                                          artifact.getPermission().toFileSystemPermission());
+                                artifact.getPermission().toFileSystemPermission());
                     } catch (IOException e) {
                         throw new PackageDownloadException(
                                 String.format("Failed to change permissions of component %s artifact %s",
-                                              componentIdentifier, artifact), e);
+                                        componentIdentifier, artifact), e);
                     }
                 } catch (IOException e) {
                     throw new PackageDownloadException(
                             String.format("Failed to unarchive component %s artifact %s", componentIdentifier,
-                                          artifact), e);
+                                    artifact), e);
                 }
             }
         }
@@ -422,8 +438,8 @@ public class ComponentManager implements InjectionActions {
                     removeRecipeDigestIfExists(identifier);
                     componentStore.deleteComponent(identifier);
                 } catch (SemverException e) {
-                    logger.atDebug().kv("componentName", compName).kv("version", compVersion).log(
-                            "Failed to clean up component: invalid component version");
+                    logger.atDebug().kv("componentName", compName).kv("version", compVersion)
+                            .log("Failed to clean up component: invalid component version");
                 }
             }
         }
@@ -501,7 +517,8 @@ public class ComponentManager implements InjectionActions {
      * @throws PackagingException if fails to find the target recipe or parse the recipe
      */
     private Optional<ComponentMetadata> findActiveAndSatisfiedPackageMetadata(String componentName,
-            Requirement requirement) throws PackagingException {
+                                                                              Requirement requirement)
+            throws PackagingException {
         Optional<Semver> activeVersionOptional = findActiveVersion(componentName);
 
         if (!activeVersionOptional.isPresent()) {
@@ -526,7 +543,8 @@ public class ComponentManager implements InjectionActions {
      * @throws PackagingException no available version exception
      */
     ComponentMetadata getActiveAndSatisfiedComponentMetadata(String componentName,
-            Map<String, Requirement> requirementMap) throws PackagingException {
+                                                             Map<String, Requirement> requirementMap)
+            throws PackagingException {
         return getActiveAndSatisfiedComponentMetadata(componentName, mergeVersionRequirements(requirementMap));
     }
 
@@ -543,7 +561,7 @@ public class ComponentManager implements InjectionActions {
     }
 
     private Optional<ComponentIdentifier> findActiveAndSatisfiedComponent(String componentName,
-            Requirement requirement) {
+                                                                          Requirement requirement) {
         Optional<Semver> activeVersionOptional = findActiveVersion(componentName);
 
         return activeVersionOptional.filter(requirement::isSatisfiedBy)

@@ -46,7 +46,7 @@ class RecipeLoaderTest {
     }
 
     @Test
-    void GIVEN_a_recipe_file_with_all_fields_and_mocked_resolved_platform_WHEN_converts_THEN_fields_are_populated_correctly()
+    void GIVEN_a_recipe_with_all_fields_and_mocked_resolved_platform_WHEN_converts_THEN_fields_are_populated_correctly()
             throws Exception {
 
         // GIVEN
@@ -82,7 +82,6 @@ class RecipeLoaderTest {
 
         assertThat(recipe.getDependencies(),
                 hasEntry("BazService", new DependencyProperties("^2.0", DependencyType.HARD)));
-
     }
 
     @Test

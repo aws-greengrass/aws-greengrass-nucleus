@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager;
 
+import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -29,6 +30,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -117,6 +119,62 @@ class ComponentStoreTest {
     }
 
     @Test
+    void GIVEN_a_recipe_not_exists_when_saveComponentRecipe_THEN_recipe_file_created() throws Exception {
+        // GIVEN
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
+                com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
+                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020).componentName("MonitoringService")
+                        .componentVersion(new Semver("1.0.0")).componentDescription("a monitor service").build();
+
+        ComponentIdentifier componentIdentifier = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"));
+
+        File expectedRecipeFile = getExpectedRecipeFile(componentIdentifier);
+        assertThat(expectedRecipeFile, not(anExistingFile()));
+
+        // WHEN
+        componentStore.saveComponentRecipe(recipe);
+
+        // THEN
+        assertThat(expectedRecipeFile, anExistingFile());
+        String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()), StandardCharsets.UTF_8);
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe savedRecipe =
+                com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer()
+                        .readValue(fileContent, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
+        assertThat(savedRecipe, is(recipe));
+    }
+
+    @Test
+    void GIVEN_a_recipe_exists_when_saveComponentRecipe_THEN_recipe_file_is_updated() throws Exception {
+        // GIVEN
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
+                com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
+                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020).componentName("MonitoringService")
+                        .componentVersion(new Semver("1.0.0")).componentDescription("a monitor service").build();
+
+        ComponentIdentifier componentIdentifier = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"));
+
+        File expectedRecipeFile = getExpectedRecipeFile(componentIdentifier);
+
+        assertThat(expectedRecipeFile, not(anExistingFile()));
+        String oldContent = "old content that will be replaced";
+        FileUtils.writeStringToFile(expectedRecipeFile, oldContent);
+
+        assertThat(expectedRecipeFile, is(anExistingFile()));
+        String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
+        assertThat(fileContent, is(equalTo(oldContent)));
+
+        // WHEN
+        componentStore.saveComponentRecipe(recipe);
+
+        // THEN
+        fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()), StandardCharsets.UTF_8);
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe savedRecipe =
+                com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer()
+                        .readValue(fileContent, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
+        assertThat(savedRecipe, is(recipe));
+    }
+
+    @Test
     void GIVEN_a_recipe_not_exists_when_savePackageRecipe_THEN_recipe_file_created() throws Exception {
         // GIVEN
         String recipeContent = "recipeContent";
@@ -163,7 +221,6 @@ class ComponentStoreTest {
         String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()));
         assertThat(fileContent, is(equalTo(recipeContent)));
     }
-
 
     @Test
     void GIVEN_a_recipe_exists_WHEN_findPackageRecipe_THEN_return_it() throws Exception {
