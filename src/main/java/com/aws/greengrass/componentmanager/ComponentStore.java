@@ -62,15 +62,38 @@ public class ComponentStore {
 
     /**
      * Constructor. It will initialize recipe, artifact and artifact decompressed directory.
-     * @param nucleusPaths path library
+     *
+     * @param nucleusPaths     path library
      * @param platformResolver platform resolver
-     * @param recipeLoader recipe loader
+     * @param recipeLoader     recipe loader
      */
     @Inject
     public ComponentStore(NucleusPaths nucleusPaths, PlatformResolver platformResolver, RecipeLoader recipeLoader) {
         this.nucleusPaths = nucleusPaths;
         this.platformResolver = platformResolver;
         this.recipeLoader = recipeLoader;
+    }
+
+    /**
+     * Creates or updates a package recipe in the package store on the disk.
+     *
+     * @param componentRecipe raw component recipe
+     * @throws PackageLoadingException if fails to write the package recipe to disk.
+     */
+    void saveComponentRecipe(@NonNull com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe)
+            throws PackageLoadingException {
+        try {
+            Path recipePath =
+                    resolveRecipePath(new ComponentIdentifier(componentRecipe.getComponentName(),
+                            componentRecipe.getComponentVersion()));
+            String recipeContent =
+                    com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer()
+                            .writeValueAsString(componentRecipe);
+            FileUtils.writeStringToFile(recipePath.toFile(), recipeContent);
+        } catch (IOException e) {
+            // TODO: [P41215929]: Better logging and exception messages in component store
+            throw new PackageLoadingException("Failed to save package recipe", e);
+        }
     }
 
     /**
@@ -112,7 +135,7 @@ public class ComponentStore {
      * @return whether the expected digest matches the calculated digest on disk
      */
     public boolean validateComponentRecipeDigest(@NonNull ComponentIdentifier componentIdentifier,
-            String expectedDigest) {
+                                                 String expectedDigest) {
         try {
             Optional<String> recipeContent = findComponentRecipeContent(componentIdentifier);
             if (!recipeContent.isPresent()) {
