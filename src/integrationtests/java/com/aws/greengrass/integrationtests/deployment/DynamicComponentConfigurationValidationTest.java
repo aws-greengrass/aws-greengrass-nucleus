@@ -91,7 +91,8 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
         socketOptions = TestUtils.getSocketOptionsForIPC();
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
-        deploymentConfigMerger = new DeploymentConfigMerger(kernel);
+
+        deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 DynamicComponentConfigurationValidationTest.class.getResource("onlyMain.yaml"));
 

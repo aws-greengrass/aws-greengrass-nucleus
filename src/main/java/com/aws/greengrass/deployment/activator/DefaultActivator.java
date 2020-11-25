@@ -5,9 +5,7 @@
 
 package com.aws.greengrass.deployment.activator;
 
-import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
-import com.aws.greengrass.deployment.DynamicComponentConfigurationValidator;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -23,24 +21,20 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_CONFIG_EVENT_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_ERROR_LOG_EVENT_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.waitForServicesToStart;
-import static com.aws.greengrass.ipc.AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 
 /**
  * Activation and rollback of default deployments.
  */
 public class DefaultActivator extends DeploymentActivator {
-    private final DynamicComponentConfigurationValidator validator;
 
     @Inject
-    public DefaultActivator(Kernel kernel, DynamicComponentConfigurationValidator validator) {
+    public DefaultActivator(Kernel kernel) {
         super(kernel);
-        this.validator = validator;
     }
 
     @Override
@@ -52,12 +46,6 @@ public class DefaultActivator extends DeploymentActivator {
             serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
         } else {
             serviceConfig = new HashMap<>();
-        }
-
-        // Ask all customer components who have signed up for dynamic component configuration changes
-        // without restarting the component to validate their own proposed component configuration.
-        if (!validator.validate(serviceConfig, deployment, totallyCompleteFuture)) {
-            return;
         }
 
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
@@ -74,9 +62,8 @@ public class DefaultActivator extends DeploymentActivator {
         // when deployment adds a new dependency (component B) to component A
         // the config for component B has to be merged in before externalDependenciesTopic of component A trigger
         // executing mergeMap using publish thread ensures this
-        kernel.getContext().runOnPublishQueueAndWait(() ->
-                kernel.getConfig().updateMap(newConfig,
-                        createDeploymentMergeBehavior(deploymentDocument.getTimestamp(), newConfig)));
+        kernel.getContext().runOnPublishQueueAndWait(() -> updateConfiguration(deploymentDocument.getTimestamp(),
+                newConfig));
 
         // wait until topic listeners finished processing mergeMap changes.
         Throwable setDesiredStateFailureCause = kernel.getContext().runOnPublishQueueAndWait(() -> {
@@ -177,48 +164,4 @@ public class DefaultActivator extends DeploymentActivator {
                 deploymentFailureCause));
     }
 
-    private UpdateBehaviorTree createDeploymentMergeBehavior(long deploymentTimestamp, Map<String, Object> newConfig) {
-        // root: MERGE
-        //   services: MERGE
-        //     *: REPLACE
-        //       runtime: MERGE
-        //       _private: MERGE
-        //       configuration: REPLACE with deployment timestamp
-        //     AUTH_TOKEN: MERGE
-
-        long now = System.currentTimeMillis();
-        UpdateBehaviorTree rootMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
-        UpdateBehaviorTree servicesMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
-        UpdateBehaviorTree insideServiceMergeBehavior =
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, now);
-        UpdateBehaviorTree serviceRuntimeMergeBehavior =
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
-        UpdateBehaviorTree servicePrivateMergeBehavior =
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
-
-        rootMergeBehavior.getChildOverride().put(SERVICES_NAMESPACE_TOPIC, servicesMergeBehavior);
-        servicesMergeBehavior.getChildOverride().put(UpdateBehaviorTree.WILDCARD, insideServiceMergeBehavior);
-        servicesMergeBehavior.getChildOverride().put(AUTHENTICATION_TOKEN_LOOKUP_KEY,
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now));
-
-        // Set merge mode for all builtin services
-        kernel.orderedDependencies().stream()
-                .filter(GreengrassService::isBuiltin)
-                // If the builtin service is somehow in the new config, then keep the default behavior of
-                // replacing the existing values
-                .filter(s -> !((Map) newConfig.get(SERVICES_NAMESPACE_TOPIC)).containsKey(s.getServiceName()))
-                .forEach(s -> servicesMergeBehavior.getChildOverride()
-                        .put(s.getServiceName(), new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now)));
-
-        insideServiceMergeBehavior.getChildOverride().put(
-                GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
-        insideServiceMergeBehavior.getChildOverride().put(
-                GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC, servicePrivateMergeBehavior);
-        UpdateBehaviorTree serviceConfigurationMergeBehavior =
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, deploymentTimestamp);
-        insideServiceMergeBehavior.getChildOverride().put(
-                CONFIGURATION_CONFIG_KEY, serviceConfigurationMergeBehavior);
-
-        return rootMergeBehavior;
-    }
 }
