@@ -20,8 +20,6 @@ public class ComponentArtifact {
 
     @NonNull URI artifactUri;
 
-    String fileName;
-
     String checksum;
 
     String algorithm;
