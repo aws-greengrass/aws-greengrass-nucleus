@@ -175,6 +175,10 @@ services:
         format: TEXT
         outputDirectory: /path/to/logs/directory
         outputType: FILE
+      telemetry:
+        enabled: true
+        periodicAggregateMetricsIntervalSeconds: 3600
+        periodicPublishMetricsIntervalSeconds: 86400
 ```
 
 
