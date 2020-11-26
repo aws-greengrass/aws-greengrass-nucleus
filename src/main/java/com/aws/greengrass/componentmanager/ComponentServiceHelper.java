@@ -55,10 +55,7 @@ public class ComponentServiceHelper {
                                                      Map<String, Requirement> versionRequirements)
             throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
 
-        //ComponentPlatform platform = new ComponentPlatform().withAttributes(platformResolver.getCurrentPlatform());
-        ComponentPlatform platform =
-                new ComponentPlatform().withOs(platformResolver.getCurrentPlatform().get(PlatformResolver.OS_KEY))
-                        .withArchitecture(platformResolver.getCurrentPlatform().get(PlatformResolver.ARCHITECTURE_KEY));
+        ComponentPlatform platform = new ComponentPlatform().withAttributes(platformResolver.getCurrentPlatform());
         Map<String, String> versionRequirementsInString = versionRequirements.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().toString()));
         ComponentCandidate candidate = new ComponentCandidate().withComponentName(componentName)
@@ -66,10 +63,6 @@ public class ComponentServiceHelper {
                 .withVersionRequirements(versionRequirementsInString);
         ResolveComponentCandidatesRequest request = new ResolveComponentCandidatesRequest().withPlatform(platform)
                 .withComponentCandidates(Collections.singletonList(candidate));
-        // TODO: [P41215565]: Switch back deploymentConfigurationId once it's removed from URL path
-        // use UUID to avoid ARN complication in URL, deploymentConfigurationId is used for logging purpose
-        // in server, so could have this hack now
-        //.withDeploymentConfigurationId(UUID.randomUUID().toString());
 
         ResolveComponentCandidatesResult result;
         try {
