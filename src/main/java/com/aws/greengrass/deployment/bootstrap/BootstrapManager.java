@@ -431,6 +431,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                     persistBootstrapTaskList(persistedTaskFilePath);
                     break;
                 default:
+                    persistBootstrapTaskList(persistedTaskFilePath);
                     throw new ServiceUpdateException(String.format(
                             "Fail to execute bootstrap step for %s, exit code: %d", next.getComponentName(), exitCode));
             }

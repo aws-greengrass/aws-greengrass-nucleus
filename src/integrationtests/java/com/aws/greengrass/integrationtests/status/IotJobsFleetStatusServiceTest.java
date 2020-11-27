@@ -5,9 +5,7 @@
 
 package com.aws.greengrass.integrationtests.status;
 
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
+import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
@@ -18,9 +16,6 @@ import com.aws.greengrass.deployment.IotJobsClientWrapper;
 import com.aws.greengrass.deployment.IotJobsHelper;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
-import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
-import com.aws.greengrass.deployment.model.FleetConfiguration;
-import com.aws.greengrass.deployment.model.PackageInfo;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
@@ -48,17 +43,14 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
-import software.amazon.awssdk.iot.iotjobs.IotJobsClient;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionResponse;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -86,8 +78,8 @@ import static org.mockito.Mockito.when;
 class IotJobsFleetStatusServiceTest extends BaseITCase {
     private static final String MOCK_FLEET_CONFIG_ARN =
             "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1";
-    private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
     private static DeviceConfiguration deviceConfiguration;
     private static DeploymentService deploymentService;
     private static Kernel kernel;
@@ -96,8 +88,6 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
 
     @Mock
     private MqttClient mqttClient;
-    @Mock
-    private IotJobsClient mockIotJobsClient;
     @Mock
     private IotJobsClientWrapper mockIotJobsClientWrapper;
     @Captor
@@ -117,19 +107,13 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
         CompletableFuture cf = new CompletableFuture();
         cf.complete(null);
-        when(mockIotJobsClient.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
-                any(QualityOfService.class))).thenAnswer(invocationOnMock -> {
-            verify(mockIotJobsClient, atLeastOnce()).SubscribeToUpdateJobExecutionAccepted(any(),
-                    eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
-            Consumer<UpdateJobExecutionResponse> jobResponseConsumer = jobsAcceptedHandlerCaptor.getValue();
-            UpdateJobExecutionResponse mockJobExecutionResponse = mock(UpdateJobExecutionResponse.class);
-            jobResponseConsumer.accept(mockJobExecutionResponse);
-            return cf;
-        });
         when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
                 any(QualityOfService.class))).thenAnswer(invocationOnMock -> {
             verify(mockIotJobsClientWrapper, atLeastOnce()).SubscribeToUpdateJobExecutionAccepted(any(),
                     eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
+            Consumer<UpdateJobExecutionResponse> jobResponseConsumer = jobsAcceptedHandlerCaptor.getValue();
+            UpdateJobExecutionResponse mockJobExecutionResponse = mock(UpdateJobExecutionResponse.class);
+            jobResponseConsumer.accept(mockJobExecutionResponse);
             return cf;
         });
         kernel = new Kernel();
@@ -148,7 +132,6 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
                 deploymentServiceRunning.countDown();
                 deploymentService = (DeploymentService) service;
                 IotJobsHelper iotJobsHelper = deploymentService.getContext().get(IotJobsHelper.class);
-                iotJobsHelper.setIotJobsClient(mockIotJobsClient);
                 iotJobsHelper.setIotJobsClientWrapper(mockIotJobsClientWrapper);
             }
             componentNamesToCheck.add(service.getName());
@@ -227,18 +210,8 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     private void offerSampleIoTJobsDeployment() throws Exception {
         DeploymentQueue deploymentQueue =
                 (DeploymentQueue) kernel.getContext().getvIfExists(DeploymentQueue.class).get();
-        Map<String, PackageInfo> packages = new HashMap<>();
-        packages.putIfAbsent("CustomerApp", new PackageInfo(true, "1.0.0", new HashMap<>()));
-        List<String> platforms = new ArrayList<>();
-        platforms.add("all");
-        FleetConfiguration configuration =
-                new FleetConfiguration(MOCK_FLEET_CONFIG_ARN, packages, platforms, Instant.now().toEpochMilli(),
-                        FailureHandlingPolicy.DO_NOTHING, new DeploymentComponentUpdatePolicy()
-                        .withAction(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS).withTimeoutInSeconds(120),
-                        new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(120));
-        configuration.setCreationTimestamp(Instant.now().toEpochMilli());
-
-        deploymentQueue.offer(new Deployment(OBJECT_MAPPER.writeValueAsString(configuration),
+        Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(getClass().getResource("FleetStatusServiceConfig.json").toURI()), Configuration.class);
+        deploymentQueue.offer(new Deployment(OBJECT_MAPPER.writeValueAsString(deploymentConfiguration),
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
     }
 }

@@ -27,6 +27,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.Getter;
 import org.slf4j.event.Level;
 
 import java.io.IOException;
@@ -79,6 +80,7 @@ public class DeviceConfiguration {
     public static final String COMPONENT_STORE_MAX_SIZE_BYTES = "componentStoreMaxSizeBytes";
     public static final String DEPLOYMENT_POLLING_FREQUENCY_SECONDS = "deploymentPollingFrequencySeconds";
     public static final String NUCLEUS_CONFIG_LOGGING_TOPICS = "logging";
+    public static final String TELEMETRY_CONFIG_LOGGING_TOPICS = "telemetry";
 
     public static final String DEVICE_NETWORK_PROXY_NAMESPACE = "networkProxy";
     public static final String DEVICE_PROXY_NAMESPACE = "proxy";
@@ -102,6 +104,7 @@ public class DeviceConfiguration {
     private final Validator deTildeValidator;
     private final Validator regionValidator;
 
+    @Getter
     private final String nucleusComponentName;
     private Topics loggingTopics;
     private LoggerConfiguration currentConfiguration;
@@ -114,7 +117,7 @@ public class DeviceConfiguration {
     @Inject
     public DeviceConfiguration(Kernel kernel) {
         this.kernel = kernel;
-        this.nucleusComponentName = getNucleusComponentName();
+        this.nucleusComponentName = initNucleusComponentName();
         deTildeValidator = getDeTildeValidator();
         regionValidator = getRegionValidator();
         handleLoggingConfig();
@@ -165,10 +168,18 @@ public class DeviceConfiguration {
     }
 
     /**
+     * Get the telemetry configuration.
+     * @return  Configuration for telemetry agent.
+     */
+    public Topics getTelemetryConfigurationTopics() {
+        return getTopics(TELEMETRY_CONFIG_LOGGING_TOPICS);
+    }
+
+    /**
      * Get the Nucleus component name to lookup the configuration in the right place. If no component of type Nucleus
      * exists, create service config for the default Nucleus component.
      */
-    private String getNucleusComponentName() {
+    private String initNucleusComponentName() {
         Optional<CaseInsensitiveString> nucleusComponent =
                 kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet().stream()
                         .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(s.toString())))

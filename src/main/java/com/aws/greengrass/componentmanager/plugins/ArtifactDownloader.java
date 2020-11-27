@@ -82,7 +82,7 @@ public abstract class ArtifactDownloader {
                     getErrorString("Algorithm requested for artifact checksum is not supported"), e);
         }
 
-        saveToPath = artifactDir.resolve(getArtifactFilename());
+        saveToPath = getArtifactFile().toPath();
         long artifactSize = getDownloadSize();
         final AtomicLong offset = new AtomicLong(0);
 

@@ -25,7 +25,6 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentTask;
 import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
-import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -35,7 +34,6 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
@@ -482,25 +480,14 @@ public class DeploymentService extends GreengrassService {
                     break;
                 case IOT_JOBS:
                 case SHADOW:
-                    JsonNode jsonNode = SerializerFactory.getFailSafeJsonObjectMapper()
-                            .readValue(jobDocumentString, JsonNode.class);
 
-                    if (jsonNode.has("packages")) {
-                        // If "packages" exists, the document is in the old format, which is
-                        // the result of Set/PublishConfiguration
-                        // TODO remove after migrating off Set/PublishConfiguration:
-                        // https://issues.amazon.com/issues/P41383716
-                        FleetConfiguration config = SerializerFactory.getFailSafeJsonObjectMapper()
-                                .readValue(jobDocumentString, FleetConfiguration.class);
-                        document = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
-                    } else {
-                        // Note: This is the data contract that gets sending down from FCS::CreateDeployment
-                        // Configuration is really a bad name choice as it is too generic but we can change it later
-                        // since it is only a internal model
-                        Configuration configuration = SerializerFactory.getFailSafeJsonObjectMapper()
-                                .readValue(jobDocumentString, Configuration.class);
-                        document = DeploymentDocumentConverter.convertFromDeploymentConfiguration(configuration);
-                    }
+                    // Note: This is the data contract that gets sending down from FCS::CreateDeployment
+                    // Configuration is really a bad name choice as it is too generic but we can change it later
+                    // since it is only a internal model
+                    Configuration configuration = SerializerFactory.getFailSafeJsonObjectMapper()
+                            .readValue(jobDocumentString, Configuration.class);
+                    document = DeploymentDocumentConverter.convertFromDeploymentConfiguration(configuration);
+
                     break;
                 default:
                     throw new IllegalArgumentException("Invalid deployment type: " + deployment.getDeploymentType());
