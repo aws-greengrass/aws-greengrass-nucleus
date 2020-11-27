@@ -22,10 +22,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
 import java.nio.file.Paths;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_SCRIPT_TOPIC;
@@ -197,14 +195,12 @@ public class KernelCommandLine {
     }
 
     private void initNucleusBootstrapScript() throws IOException {
-        // get current jvm options. sorted so that the order is consistent
-        String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
-                .collect(Collectors.joining(" "));
-        ComponentIdentifier nucleusComponentId =
-                new ComponentIdentifier(DEFAULT_NUCLEUS_COMPONENT_NAME, new Semver(KernelVersion.KERNEL_VERSION));
         String rootPath = nucleusPaths.rootPath().toAbsolutePath().toString();
-        String unarchivePath = nucleusPaths.unarchiveArtifactPath(nucleusComponentId).toAbsolutePath().toString();
-        String bootstrapScript = String.format(DEFAULT_NUCLEUS_BOOTSTRAP_TEMPLATE, rootPath, unarchivePath, jvmOptions);
+        String unarchivePath = nucleusPaths.unarchiveArtifactPath(
+                new ComponentIdentifier(DEFAULT_NUCLEUS_COMPONENT_NAME, new Semver(KernelVersion.KERNEL_VERSION)))
+                .toAbsolutePath().toString();
+        String bootstrapScript = String.format(DEFAULT_NUCLEUS_BOOTSTRAP_TEMPLATE, rootPath, unarchivePath,
+                deviceConfiguration.getJvmOptions().getOnce());
         kernel.getConfig()
                 .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                         LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, LIFECYCLE_SCRIPT_TOPIC).dflt(bootstrapScript);

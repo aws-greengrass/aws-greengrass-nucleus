@@ -30,12 +30,14 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.slf4j.event.Level;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
@@ -64,6 +66,7 @@ public class DeviceConfiguration {
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String PLATFORM_OVERRIDE_TOPIC = "platformOverride";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
+    public static final String DEVICE_PARAM_JVM_OPTIONS = "jvmOptions";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
     public static final String DEVICE_SPOOLER_NAMESPACE = "spooler";
     public static final String RUN_WITH_TOPIC = "runWithDefault";
@@ -183,6 +186,11 @@ public class DeviceConfiguration {
                 .withValue(ComponentType.NUCLEUS.name());
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY)
                 .withValue(KernelVersion.KERNEL_VERSION);
+        // current jvm options. sorted so that the order is consistent
+        String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
+                .collect(Collectors.joining(" "));
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                DEVICE_PARAM_JVM_OPTIONS).withValue(jvmOptions);
         ArrayList<String> mainDependencies = (ArrayList) kernel.getConfig().getRoot()
                 .findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
                         SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
@@ -336,7 +344,7 @@ public class DeviceConfiguration {
     }
 
     public Topic getEnvironmentStage() {
-        return getTopic(DEVICE_PARAM_ENV_STAGE).withNewerValue(1, DEFAULT_ENV_STAGE);
+        return getTopic(DEVICE_PARAM_ENV_STAGE).dflt(DEFAULT_ENV_STAGE);
     }
 
     public Topics getMQTTNamespace() {
@@ -381,6 +389,10 @@ public class DeviceConfiguration {
 
     public Topic getDeploymentPollingFrequencySeconds() {
         return getTopic(DEPLOYMENT_POLLING_FREQUENCY_SECONDS);
+    }
+
+    public Topic getJvmOptions() {
+        return getTopic(DEVICE_PARAM_JVM_OPTIONS);
     }
 
     /**
