@@ -6,7 +6,6 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -22,10 +21,14 @@ import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.nio.file.Paths;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_JVM_OPTIONS;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_SCRIPT_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -203,12 +206,16 @@ public class KernelCommandLine {
     }
 
     private void initNucleusBootstrapScript() throws IOException {
+        // current jvm options. sorted so that the order is consistent
+        String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
+                .collect(Collectors.joining(" "));
         String rootPath = nucleusPaths.rootPath().toAbsolutePath().toString();
         String unarchivePath = nucleusPaths.unarchiveArtifactPath(
                 new ComponentIdentifier(DEFAULT_NUCLEUS_COMPONENT_NAME, new Semver(KernelVersion.KERNEL_VERSION)))
                 .toAbsolutePath().toString();
-        String bootstrapScript = String.format(DEFAULT_NUCLEUS_BOOTSTRAP_TEMPLATE, rootPath, unarchivePath,
-                deviceConfiguration.getJvmOptions().getOnce());
+        String bootstrapScript = String.format(DEFAULT_NUCLEUS_BOOTSTRAP_TEMPLATE, rootPath, unarchivePath, jvmOptions);
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                DEVICE_PARAM_JVM_OPTIONS).dflt(jvmOptions);
         kernel.getConfig()
                 .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                         LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, LIFECYCLE_SCRIPT_TOPIC).dflt(bootstrapScript);
