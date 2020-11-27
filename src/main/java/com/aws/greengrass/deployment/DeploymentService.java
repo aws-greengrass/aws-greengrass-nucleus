@@ -423,6 +423,7 @@ public class DeploymentService extends GreengrassService {
                                                                  JobStatus.IN_PROGRESS.toString(), new HashMap<>());
         try {
             if (DEFAULT.equals(deployment.getDeploymentStage())) {
+                context.get(KernelAlternatives.class).cleanupLaunchDirectoryLinks();
                 deploymentDirectoryManager.createNewDeploymentDirectory(deployment.getDeploymentDocumentObj()
                         .getDeploymentId());
                 deploymentDirectoryManager.writeDeploymentMetadata(deployment);

@@ -131,6 +131,20 @@ class KernelLifecycleTest {
     }
 
     @Test
+    void GIVEN_deployment_config_override_WHEN_read_THEN_read_persisted_config() throws Exception {
+        String providedConfigPathName = "external_config.yaml";
+        String overrideConfigPathName = "target_config.tlog";
+        when(mockKernelCommandLine.getProvidedConfigPathName())
+                .thenReturn(providedConfigPathName, overrideConfigPathName);
+
+        kernelLifecycle.initConfigAndTlog(overrideConfigPathName);
+        verify(mockConfig).read(eq(overrideConfigPathName));
+        verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel).writeEffectiveConfig(tempRootDir.resolve("config").resolve("config.yaml"));
+        verify(mockKernelCommandLine).setProvidedConfigPathName(eq(overrideConfigPathName));
+    }
+
+    @Test
     void GIVEN_provided_external_config_WHEN_read_THEN_read_external_config() throws Exception {
         String providedConfigPathName = "external_config.yaml";
         when(mockKernelCommandLine.getProvidedConfigPathName()).thenReturn(providedConfigPathName);
