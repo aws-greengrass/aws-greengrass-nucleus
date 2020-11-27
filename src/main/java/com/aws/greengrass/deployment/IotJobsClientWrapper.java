@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.deployment;
 
+import com.aws.greengrass.util.Pair;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -28,7 +29,9 @@ import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionResponse;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionSubscriptionRequest;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
@@ -54,6 +57,16 @@ public class IotJobsClientWrapper extends IotJobsClient {
 
     private final MqttClientConnection connection;
     private final Gson gson = this.getGson();
+    private final Map<Pair<Consumer<UpdateJobExecutionResponse>, Consumer<Exception>>, Consumer<MqttMessage>>
+            updateJobExecutionCbs = new ConcurrentHashMap<>();
+    private final Map<Pair<Consumer<RejectedError>, Consumer<Exception>>, Consumer<MqttMessage>>
+            updateJobExecutionSubscriptionCbs = new ConcurrentHashMap<>();
+    private final Map<Pair<Consumer<DescribeJobExecutionResponse>, Consumer<Exception>>, Consumer<MqttMessage>>
+            describeJobCbs = new ConcurrentHashMap<>();
+    private final Map<Pair<Consumer<RejectedError>, Consumer<Exception>>, Consumer<MqttMessage>>
+            describeJobSubscriptionCbs = new ConcurrentHashMap<>();
+    private final Map<Pair<Consumer<JobExecutionsChangedEvent>, Consumer<Exception>>, Consumer<MqttMessage>>
+            jobExecutionCbs = new ConcurrentHashMap<>();
 
     public IotJobsClientWrapper(MqttClientConnection connection) {
         super(connection);
@@ -100,17 +113,19 @@ public class IotJobsClientWrapper extends IotJobsClient {
             return result;
         }
         String topic = String.format(JOB_UPDATE_ACCEPTED_TOPIC, request.thingName, request.jobId);
-        Consumer<MqttMessage> messageHandler = (message) -> {
-            try {
-                String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
-                UpdateJobExecutionResponse response = this.gson.fromJson(payload, UpdateJobExecutionResponse.class);
-                handler.accept(response);
-            } catch (Exception e) {
-                if (exceptionHandler != null) {
-                    exceptionHandler.accept(e);
-                }
-            }
-        };
+        Consumer<MqttMessage> messageHandler =
+                updateJobExecutionCbs.computeIfAbsent(new Pair<>(handler, exceptionHandler), (k) -> (message) -> {
+                    try {
+                        String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
+                        UpdateJobExecutionResponse response =
+                                this.gson.fromJson(payload, UpdateJobExecutionResponse.class);
+                        handler.accept(response);
+                    } catch (Exception e) {
+                        if (exceptionHandler != null) {
+                            exceptionHandler.accept(e);
+                        }
+                    }
+                });
         return this.connection.subscribe(topic, qos, messageHandler);
     }
 
@@ -125,17 +140,18 @@ public class IotJobsClientWrapper extends IotJobsClient {
             return result;
         }
         String topic = String.format(JOB_UPDATE_REJECTED_TOPIC, request.thingName, request.jobId);
-        Consumer<MqttMessage> messageHandler = (message) -> {
-            try {
-                String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
-                RejectedError response = this.gson.fromJson(payload, RejectedError.class);
-                handler.accept(response);
-            } catch (Exception e) {
-                if (exceptionHandler != null) {
-                    exceptionHandler.accept(e);
-                }
-            }
-        };
+        Consumer<MqttMessage> messageHandler = updateJobExecutionSubscriptionCbs
+                .computeIfAbsent(new Pair<>(handler, exceptionHandler), (k) -> (message) -> {
+                    try {
+                        String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
+                        RejectedError response = this.gson.fromJson(payload, RejectedError.class);
+                        handler.accept(response);
+                    } catch (Exception e) {
+                        if (exceptionHandler != null) {
+                            exceptionHandler.accept(e);
+                        }
+                    }
+                });
         return this.connection.subscribe(topic, qos, messageHandler);
     }
 
@@ -166,17 +182,19 @@ public class IotJobsClientWrapper extends IotJobsClient {
             return result;
         }
         String topic = String.format(JOB_DESCRIBE_ACCEPTED_TOPIC, request.thingName, request.jobId);
-        Consumer<MqttMessage> messageHandler = (message) -> {
-            try {
-                String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
-                DescribeJobExecutionResponse response = this.gson.fromJson(payload, DescribeJobExecutionResponse.class);
-                handler.accept(response);
-            } catch (Exception e) {
-                if (exceptionHandler != null) {
-                    exceptionHandler.accept(e);
-                }
-            }
-        };
+        Consumer<MqttMessage> messageHandler =
+                describeJobCbs.computeIfAbsent(new Pair<>(handler, exceptionHandler), (k) -> (message) -> {
+                    try {
+                        String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
+                        DescribeJobExecutionResponse response =
+                                this.gson.fromJson(payload, DescribeJobExecutionResponse.class);
+                        handler.accept(response);
+                    } catch (Exception e) {
+                        if (exceptionHandler != null) {
+                            exceptionHandler.accept(e);
+                        }
+                    }
+                });
         return this.connection.subscribe(topic, qos, messageHandler);
     }
 
@@ -192,17 +210,18 @@ public class IotJobsClientWrapper extends IotJobsClient {
             return result;
         }
         String topic = String.format(JOB_DESCRIBE_REJECTED_TOPIC, request.thingName, request.jobId);
-        Consumer<MqttMessage> messageHandler = (message) -> {
-            try {
-                String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
-                RejectedError response = this.gson.fromJson(payload, RejectedError.class);
-                handler.accept(response);
-            } catch (Exception e) {
-                if (exceptionHandler != null) {
-                    exceptionHandler.accept(e);
-                }
-            }
-        };
+        Consumer<MqttMessage> messageHandler =
+                describeJobSubscriptionCbs.computeIfAbsent(new Pair<>(handler, exceptionHandler), (k) -> (message) -> {
+                    try {
+                        String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
+                        RejectedError response = this.gson.fromJson(payload, RejectedError.class);
+                        handler.accept(response);
+                    } catch (Exception e) {
+                        if (exceptionHandler != null) {
+                            exceptionHandler.accept(e);
+                        }
+                    }
+                });
         return this.connection.subscribe(topic, qos, messageHandler);
     }
 
@@ -219,18 +238,19 @@ public class IotJobsClientWrapper extends IotJobsClient {
         }
 
         String topic = String.format(JOB_EXECUTIONS_CHANGED_TOPIC, request.thingName);
-        Consumer<MqttMessage> messageHandler = (message) -> {
-            try {
-                String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
-                JobExecutionsChangedEvent response = this.gson.fromJson(payload, JobExecutionsChangedEvent.class);
-                handler.accept(response);
-            } catch (Exception e) {
-                if (exceptionHandler != null) {
-                    exceptionHandler.accept(e);
-                }
-            }
-
-        };
+        Consumer<MqttMessage> messageHandler =
+                jobExecutionCbs.computeIfAbsent(new Pair<>(handler, exceptionHandler), (k) -> (message) -> {
+                    try {
+                        String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
+                        JobExecutionsChangedEvent response =
+                                this.gson.fromJson(payload, JobExecutionsChangedEvent.class);
+                        handler.accept(response);
+                    } catch (Exception e) {
+                        if (exceptionHandler != null) {
+                            exceptionHandler.accept(e);
+                        }
+                    }
+                });
         return this.connection.subscribe(topic, qos, messageHandler);
     }
 }
