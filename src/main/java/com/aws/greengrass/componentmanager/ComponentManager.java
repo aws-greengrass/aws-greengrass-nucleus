@@ -151,27 +151,6 @@ public class ComponentManager implements InjectionActions {
         return getComponentMetadata(resolvedComponentId);
     }
 
-    private void storeRecipeDigestSecurelyForPlugin(
-            com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe, String recipeContent)
-            throws PackageLoadingException {
-        ComponentIdentifier componentIdentifier =
-                new ComponentIdentifier(componentRecipe.getComponentName(), componentRecipe.getComponentVersion());
-        if (componentRecipe.getComponentType() != ComponentType.PLUGIN) {
-            logger.atInfo().kv(COMPONENT_STR, componentIdentifier)
-                    .log("Skip storing digest as component is not plugin");
-            return;
-        }
-        try {
-            String digest = Digest.calculate(recipeContent);
-            kernel.getMain().getRuntimeConfig().lookup(Kernel.SERVICE_DIGEST_TOPIC_KEY, componentIdentifier.toString())
-                    .withValue(digest);
-            logger.atDebug().kv(COMPONENT_STR, componentIdentifier).log("Save calculated digest: " + digest);
-        } catch (NoSuchAlgorithmException e) {
-            // This should never happen as SHA-256 is mandatory for every default JVM provider
-            throw new PackageLoadingException("No security provider found for message digest", e);
-        }
-    }
-
     private void removeRecipeDigestIfExists(ComponentIdentifier componentIdentifier) {
         // clean up digest from store
         Topic digestTopic = kernel.getMain().getRuntimeConfig()
@@ -207,22 +186,19 @@ public class ComponentManager implements InjectionActions {
         ComponentIdentifier resolvedComponentId = new ComponentIdentifier(resolvedComponentVersion.getComponentName(),
                 new Semver(resolvedComponentVersion.getComponentVersion()));
         String downloadedRecipeContent = StandardCharsets.UTF_8.decode(resolvedComponentVersion.getRecipe()).toString();
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe downloadedRecipe;
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe cloudResolvedRecipe;
         try {
-            downloadedRecipe = RecipeLoader.parseRecipe(downloadedRecipeContent, RecipeLoader.RecipeFormat.JSON);
+            cloudResolvedRecipe = RecipeLoader.parseRecipe(downloadedRecipeContent, RecipeLoader.RecipeFormat.JSON);
         } catch (PackageLoadingException e) {
             // TODO remove this backoff operation once cloud switch to send JSON recipe
-            downloadedRecipe = RecipeLoader.parseRecipe(downloadedRecipeContent, RecipeLoader.RecipeFormat.YAML);
+            cloudResolvedRecipe = RecipeLoader.parseRecipe(downloadedRecipeContent, RecipeLoader.RecipeFormat.YAML);
         }
 
-        // Save the recipe digest for plugin in a secure place, before persisting recipe
-        storeRecipeDigestSecurelyForPlugin(downloadedRecipe, downloadedRecipeContent);
-
         // Save the recipe
-        boolean saveContent = true;
+        boolean recipeShouldbeSaved = true;
         Optional<String> recipeContentOnDevice = componentStore.findComponentRecipeContent(resolvedComponentId);
 
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe finalDownloadedRecipe = downloadedRecipe;
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe finalDownloadedRecipe = cloudResolvedRecipe;
         if (recipeContentOnDevice.map(recipeContent -> {
             try {
                 return RecipeLoader.parseRecipe(recipeContent, RecipeLoader.RecipeFormat.YAML);
@@ -232,17 +208,43 @@ public class ComponentManager implements InjectionActions {
                 return null;
             }
         }).filter(recipe -> recipe.equals(finalDownloadedRecipe)).isPresent()) {
-            saveContent = false;
+            recipeShouldbeSaved = false;
         }
 
-        if (saveContent) {
-            componentStore.saveComponentRecipe(downloadedRecipe);
+        if (recipeShouldbeSaved) {
+            String savedRecipeContent = componentStore.saveComponentRecipe(cloudResolvedRecipe);
+
+            // Since plugin runs in the same JVM as Nuleus does, we need to calculate the digest for its recipe and
+            // persist it, so that we can use it to detect and prevent a tampered plugin (recipe) gets loaded
+            storeRecipeDigestInConfigStoreForPlugin(cloudResolvedRecipe, savedRecipeContent);
         }
 
         // Save the arn to the recipe meta data file
         componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(resolvedComponentVersion.getArn()));
 
         return resolvedComponentId;
+    }
+
+
+    private void storeRecipeDigestInConfigStoreForPlugin(
+            com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe, String recipeContent)
+            throws PackageLoadingException {
+        ComponentIdentifier componentIdentifier =
+                new ComponentIdentifier(componentRecipe.getComponentName(), componentRecipe.getComponentVersion());
+        if (componentRecipe.getComponentType() != ComponentType.PLUGIN) {
+            logger.atInfo().kv(COMPONENT_STR, componentIdentifier)
+                    .log("Skip storing digest as component is not plugin");
+            return;
+        }
+        try {
+            String digest = Digest.calculate(recipeContent);
+            kernel.getMain().getRuntimeConfig().lookup(Kernel.SERVICE_DIGEST_TOPIC_KEY, componentIdentifier.toString())
+                    .withValue(digest);
+            logger.atDebug().kv(COMPONENT_STR, componentIdentifier).log("Save calculated digest: " + digest);
+        } catch (NoSuchAlgorithmException e) {
+            // This should never happen as SHA-256 is mandatory for every default JVM provider
+            throw new PackageLoadingException("No security provider found for message digest", e);
+        }
     }
 
     private Optional<ComponentIdentifier> findBestCandidateLocally(String componentName,

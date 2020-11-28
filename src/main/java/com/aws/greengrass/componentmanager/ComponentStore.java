@@ -80,7 +80,7 @@ public class ComponentStore {
      * @param componentRecipe raw component recipe
      * @throws PackageLoadingException if fails to write the package recipe to disk.
      */
-    void saveComponentRecipe(@NonNull com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe)
+    String saveComponentRecipe(@NonNull com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe)
             throws PackageLoadingException {
         try {
             Path recipePath =
@@ -90,6 +90,8 @@ public class ComponentStore {
                     com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer()
                             .writeValueAsString(componentRecipe);
             FileUtils.writeStringToFile(recipePath.toFile(), recipeContent);
+
+            return recipeContent;
         } catch (IOException e) {
             // TODO: [P41215929]: Better logging and exception messages in component store
             throw new PackageLoadingException("Failed to save package recipe", e);

@@ -7,6 +7,7 @@ package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
+import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.amazonaws.services.greengrassv2.model.ResolvedComponentVersion;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
@@ -375,6 +376,10 @@ class ComponentManagerTest {
                 .thenReturn(Optional.of(MAPPER.writeValueAsString(oldRecipe)));
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
 
+        String recipeString = SerializerFactory.getRecipeSerializer().writeValueAsString(newRecipe);
+
+        when(componentStore.saveComponentRecipe(any())).thenReturn(recipeString);
+
         ComponentMetadata componentMetadata = componentManager
                 .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
                                          DEPLOYMENT_CONFIGURATION_ID);
@@ -386,7 +391,6 @@ class ComponentManagerTest {
         verify(componentStore).saveComponentRecipe(newRecipe);
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
         verify(componentStore).saveRecipeMetadata(componentA_1_0_0, new RecipeMetadata(TEST_ARN));
-        String recipeString = new String(resolvedComponentVersion.getRecipe().array(), StandardCharsets.UTF_8);
         verify(digestTopic).withValue(Digest.calculate(recipeString));
     }
 
@@ -431,6 +435,10 @@ class ComponentManagerTest {
                 .thenReturn(Optional.of(MAPPER.writeValueAsString(oldRecipe)));
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
 
+        String recipeString = SerializerFactory.getRecipeSerializer().writeValueAsString(newRecipe);
+
+        when(componentStore.saveComponentRecipe(any())).thenReturn(recipeString);
+
         ComponentMetadata componentMetadata = componentManager
                 .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
                         DEPLOYMENT_CONFIGURATION_ID);
@@ -442,7 +450,6 @@ class ComponentManagerTest {
         verify(componentStore).saveComponentRecipe(newRecipe);
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
         verify(componentStore).saveRecipeMetadata(componentA_1_0_0, new RecipeMetadata(TEST_ARN));
-        String recipeString = new String(resolvedComponentVersion.getRecipe().array(), StandardCharsets.UTF_8);
         verify(digestTopic).withValue(Digest.calculate(recipeString));
     }
 
