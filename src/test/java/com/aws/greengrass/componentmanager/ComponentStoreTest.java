@@ -178,6 +178,35 @@ class ComponentStoreTest {
     }
 
     @Test
+    void GIVEN_a_recipe_exists_with_same_content_when_saveComponentRecipe_THEN_recipe_file_is_not_updated() throws Exception {
+        // GIVEN
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
+                com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
+                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020).componentName("MonitoringService")
+                        .componentVersion(new Semver("1.0.0")).componentDescription("a monitor service").build();
+
+        String recipeString =
+                com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer().writeValueAsString(recipe);
+
+        ComponentIdentifier componentIdentifier = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"));
+
+        File expectedRecipeFile = getExpectedRecipeFile(componentIdentifier);
+
+        assertThat(expectedRecipeFile, not(anExistingFile()));
+        FileUtils.writeStringToFile(expectedRecipeFile, recipeString);
+
+        assertThat(expectedRecipeFile, is(anExistingFile()));
+        long modifiedTime = expectedRecipeFile.lastModified();
+
+        // WHEN
+        String returnedSavedContent = componentStore.saveComponentRecipe(recipe);
+
+        // THEN
+        assertThat(returnedSavedContent, is(recipeString));
+        assertThat(expectedRecipeFile.lastModified(), is(modifiedTime));    // not modified during saveComponentRecipe
+    }
+
+    @Test
     void GIVEN_a_recipe_not_exists_when_savePackageRecipe_THEN_recipe_file_created() throws Exception {
         // GIVEN
         String recipeContent = "recipeContent";

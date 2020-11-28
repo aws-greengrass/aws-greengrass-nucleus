@@ -186,38 +186,15 @@ public class ComponentManager implements InjectionActions {
         ComponentIdentifier resolvedComponentId = new ComponentIdentifier(resolvedComponentVersion.getComponentName(),
                 new Semver(resolvedComponentVersion.getComponentVersion()));
         String downloadedRecipeContent = StandardCharsets.UTF_8.decode(resolvedComponentVersion.getRecipe()).toString();
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe cloudResolvedRecipe;
-        try {
-            cloudResolvedRecipe = RecipeLoader.parseRecipe(downloadedRecipeContent, RecipeLoader.RecipeFormat.JSON);
-        } catch (PackageLoadingException e) {
-            // TODO remove this backoff operation once cloud switch to send JSON recipe
-            cloudResolvedRecipe = RecipeLoader.parseRecipe(downloadedRecipeContent, RecipeLoader.RecipeFormat.YAML);
-        }
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe cloudResolvedRecipe =
+                RecipeLoader.parseRecipe(downloadedRecipeContent, RecipeLoader.RecipeFormat.JSON); // cloud sends JSON
 
-        // Save the recipe
-        boolean recipeShouldbeSaved = true;
-        Optional<String> recipeContentOnDevice = componentStore.findComponentRecipeContent(resolvedComponentId);
+        // Persist the recipe
+        String savedRecipeContent = componentStore.saveComponentRecipe(cloudResolvedRecipe);
 
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe finalDownloadedRecipe = cloudResolvedRecipe;
-        if (recipeContentOnDevice.map(recipeContent -> {
-            try {
-                return RecipeLoader.parseRecipe(recipeContent, RecipeLoader.RecipeFormat.YAML);
-            } catch (PackageLoadingException e) {
-                // if fail to parse local recipe, treat it as not presented
-                logger.atDebug().setCause(e).kv("componentId", resolvedComponentId).log("Failed to parse local recipe");
-                return null;
-            }
-        }).filter(recipe -> recipe.equals(finalDownloadedRecipe)).isPresent()) {
-            recipeShouldbeSaved = false;
-        }
-
-        if (recipeShouldbeSaved) {
-            String savedRecipeContent = componentStore.saveComponentRecipe(cloudResolvedRecipe);
-
-            // Since plugin runs in the same JVM as Nuleus does, we need to calculate the digest for its recipe and
-            // persist it, so that we can use it to detect and prevent a tampered plugin (recipe) gets loaded
-            storeRecipeDigestInConfigStoreForPlugin(cloudResolvedRecipe, savedRecipeContent);
-        }
+        // Since plugin runs in the same JVM as Nucleus does, we need to calculate the digest for its recipe and
+        // persist it, so that we can use it to detect and prevent a tampered plugin (recipe) gets loaded
+        storeRecipeDigestInConfigStoreForPlugin(cloudResolvedRecipe, savedRecipeContent);
 
         // Save the arn to the recipe meta data file
         componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(resolvedComponentVersion.getArn()));
@@ -232,7 +209,7 @@ public class ComponentManager implements InjectionActions {
         ComponentIdentifier componentIdentifier =
                 new ComponentIdentifier(componentRecipe.getComponentName(), componentRecipe.getComponentVersion());
         if (componentRecipe.getComponentType() != ComponentType.PLUGIN) {
-            logger.atInfo().kv(COMPONENT_STR, componentIdentifier)
+            logger.atDebug().kv(COMPONENT_STR, componentIdentifier)
                     .log("Skip storing digest as component is not plugin");
             return;
         }
@@ -240,7 +217,7 @@ public class ComponentManager implements InjectionActions {
             String digest = Digest.calculate(recipeContent);
             kernel.getMain().getRuntimeConfig().lookup(Kernel.SERVICE_DIGEST_TOPIC_KEY, componentIdentifier.toString())
                     .withValue(digest);
-            logger.atDebug().kv(COMPONENT_STR, componentIdentifier).log("Save calculated digest: " + digest);
+            logger.atDebug().kv(COMPONENT_STR, componentIdentifier).kv("digest", digest).log("Save calculated digest");
         } catch (NoSuchAlgorithmException e) {
             // This should never happen as SHA-256 is mandatory for every default JVM provider
             throw new PackageLoadingException("No security provider found for message digest", e);

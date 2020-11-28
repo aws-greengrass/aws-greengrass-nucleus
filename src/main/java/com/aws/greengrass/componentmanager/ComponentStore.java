@@ -82,14 +82,21 @@ public class ComponentStore {
      */
     String saveComponentRecipe(@NonNull com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe)
             throws PackageLoadingException {
+        ComponentIdentifier componentIdentifier =
+                new ComponentIdentifier(componentRecipe.getComponentName(), componentRecipe.getComponentVersion());
+
         try {
-            Path recipePath =
-                    resolveRecipePath(new ComponentIdentifier(componentRecipe.getComponentName(),
-                            componentRecipe.getComponentVersion()));
             String recipeContent =
                     com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer()
                             .writeValueAsString(componentRecipe);
-            FileUtils.writeStringToFile(recipePath.toFile(), recipeContent);
+
+            Optional<String> componentRecipeContent = findComponentRecipeContent(componentIdentifier);
+            if (componentRecipeContent.isPresent() && componentRecipeContent.get().equals(recipeContent)) {
+                // same content and no need to write again
+                return recipeContent;
+            }
+
+            FileUtils.writeStringToFile(resolveRecipePath(componentIdentifier).toFile(), recipeContent);
 
             return recipeContent;
         } catch (IOException e) {
