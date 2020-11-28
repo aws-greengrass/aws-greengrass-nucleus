@@ -7,6 +7,7 @@ package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
+import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.amazonaws.services.greengrassv2.model.ResolvedComponentVersion;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
@@ -33,7 +34,6 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
@@ -51,7 +51,6 @@ import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -97,7 +96,6 @@ import static org.mockito.Mockito.when;
 class ComponentManagerTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
     private static final String TEST_ARN = "testArn";
     private static Path RECIPE_RESOURCE_PATH;
 
@@ -329,26 +327,19 @@ class ComponentManagerTest {
         verify(componentStore).findBestMatchAvailableComponent(componentA, Requirement.buildNPM("^1.0"));
         verify(componentManagementServiceHelper).resolveComponentVersion(componentA, null, Collections
                 .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")));
-        verify(componentStore).findComponentRecipeContent(componentA_1_0_0);
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
         verify(componentStore).saveComponentRecipe(recipe);
         verify(componentStore).saveRecipeMetadata(componentA_1_0_0, new RecipeMetadata(TEST_ARN));
     }
 
     @Test
-    void GIVEN_component_is_local_active_WHEN_cloud_resolve_to_different_recipe_THEN_update_recipe() throws Exception {
+    void GIVEN_component_is_local_active_WHEN_cloud_returns_a_recipe_THEN_use_cloud_recipe() throws Exception {
         ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
         ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
         Topics serviceConfigTopics = mock(Topics.class);
         Topic versionTopic = mock(Topic.class);
         Topics runtimeTopics = mock(Topics.class);
         Topic digestTopic = mock(Topic.class);
-
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe oldRecipe =
-                com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
-                        .componentName("SampleComponent").componentVersion(new Semver("1.0.0"))
-                        .componentType(ComponentType.PLUGIN).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
-                        .build();
 
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe newRecipe =
                 com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
@@ -371,9 +362,11 @@ class ComponentManagerTest {
                 .withRecipe(ByteBuffer.wrap(MAPPER.writeValueAsBytes(newRecipe))).withArn(TEST_ARN);
         when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
                 .thenReturn(resolvedComponentVersion);
-        when(componentStore.findComponentRecipeContent(any()))
-                .thenReturn(Optional.of(MAPPER.writeValueAsString(oldRecipe)));
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
+
+        String recipeString = SerializerFactory.getRecipeSerializer().writeValueAsString(newRecipe);
+
+        when(componentStore.saveComponentRecipe(any())).thenReturn(recipeString);
 
         ComponentMetadata componentMetadata = componentManager
                 .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
@@ -382,67 +375,9 @@ class ComponentManagerTest {
         assertThat(componentMetadata, is(componentA_1_0_0_md));
         verify(componentManagementServiceHelper).resolveComponentVersion(componentA, v1_0_0, Collections
                 .singletonMap("X", Requirement.buildNPM("^1.0")));
-        verify(componentStore).findComponentRecipeContent(componentA_1_0_0);
         verify(componentStore).saveComponentRecipe(newRecipe);
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
         verify(componentStore).saveRecipeMetadata(componentA_1_0_0, new RecipeMetadata(TEST_ARN));
-        String recipeString = new String(resolvedComponentVersion.getRecipe().array(), StandardCharsets.UTF_8);
-        verify(digestTopic).withValue(Digest.calculate(recipeString));
-    }
-
-    @Test
-    void GIVEN_component_is_local_active_WHEN_cloud_resolve_to_different_recipe_in_YAML_format_THEN_update_recipe()
-            throws Exception {
-        ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
-        ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
-        Topics serviceConfigTopics = mock(Topics.class);
-        Topic versionTopic = mock(Topic.class);
-        Topics runtimeTopics = mock(Topics.class);
-        Topic digestTopic = mock(Topic.class);
-
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe oldRecipe =
-                com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
-                        .componentName("SampleComponent").componentVersion(new Semver("1.0.0"))
-                        .componentType(ComponentType.PLUGIN).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
-                        .build();
-
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe newRecipe =
-                com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
-                        .componentName("SampleComponent2").componentVersion(new Semver("2.0.0"))
-                        .componentType(ComponentType.PLUGIN).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
-                        .build();
-
-        GreengrassService mockKernelService = mock(GreengrassService.class);
-        when(kernel.findServiceTopic(componentA)).thenReturn(mock(Topics.class));
-        when(kernel.locate(componentA)).thenReturn(mockService);
-        when(kernel.getMain()).thenReturn(mockKernelService);
-        when(mockKernelService.getRuntimeConfig()).thenReturn(runtimeTopics);
-        when(runtimeTopics.lookup(any(), any())).thenReturn(digestTopic);
-        when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
-        when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());
-
-        ResolvedComponentVersion resolvedComponentVersion =
-                new ResolvedComponentVersion().withComponentName(componentA).withComponentVersion(v1_0_0.getValue())
-                        .withRecipe(ByteBuffer.wrap(YAML_MAPPER.writeValueAsBytes(newRecipe))).withArn(TEST_ARN);
-        when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
-                .thenReturn(resolvedComponentVersion);
-        when(componentStore.findComponentRecipeContent(any()))
-                .thenReturn(Optional.of(MAPPER.writeValueAsString(oldRecipe)));
-        when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
-
-        ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
-                        DEPLOYMENT_CONFIGURATION_ID);
-
-        assertThat(componentMetadata, is(componentA_1_0_0_md));
-        verify(componentManagementServiceHelper).resolveComponentVersion(componentA, v1_0_0, Collections
-                .singletonMap("X", Requirement.buildNPM("^1.0")));
-        verify(componentStore).findComponentRecipeContent(componentA_1_0_0);
-        verify(componentStore).saveComponentRecipe(newRecipe);
-        verify(componentStore).getPackageMetadata(componentA_1_0_0);
-        verify(componentStore).saveRecipeMetadata(componentA_1_0_0, new RecipeMetadata(TEST_ARN));
-        String recipeString = new String(resolvedComponentVersion.getRecipe().array(), StandardCharsets.UTF_8);
         verify(digestTopic).withValue(Digest.calculate(recipeString));
     }
 
