@@ -75,21 +75,38 @@ public class ComponentStore {
     }
 
     /**
-     * Creates or updates a package recipe in the package store on the disk.
+     * Save the given component recipe object into component store on the disk.
      *
+     * <p>If the target recipe file exist, and its content is the same as the content to be written, it skip the
+     * file write operation.
+     * If content is different or the target recipe file does not exist, it will write to the file using YAML
+     * serializer.
+     * </p>
+     *
+     * @see com.amazon.aws.iot.greengrass.component.common.SerializerFactory#getRecipeSerializer
      * @param componentRecipe raw component recipe
+     * @return persisted recipe content in component store on the disk.
      * @throws PackageLoadingException if fails to write the package recipe to disk.
      */
-    void saveComponentRecipe(@NonNull com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe)
+    String saveComponentRecipe(@NonNull com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe)
             throws PackageLoadingException {
+        ComponentIdentifier componentIdentifier =
+                new ComponentIdentifier(componentRecipe.getComponentName(), componentRecipe.getComponentVersion());
+
         try {
-            Path recipePath =
-                    resolveRecipePath(new ComponentIdentifier(componentRecipe.getComponentName(),
-                            componentRecipe.getComponentVersion()));
             String recipeContent =
                     com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer()
                             .writeValueAsString(componentRecipe);
-            FileUtils.writeStringToFile(recipePath.toFile(), recipeContent);
+
+            Optional<String> componentRecipeContent = findComponentRecipeContent(componentIdentifier);
+            if (componentRecipeContent.isPresent() && componentRecipeContent.get().equals(recipeContent)) {
+                // same content and no need to write again
+                return recipeContent;
+            }
+
+            FileUtils.writeStringToFile(resolveRecipePath(componentIdentifier).toFile(), recipeContent);
+
+            return recipeContent;
         } catch (IOException e) {
             // TODO: [P41215929]: Better logging and exception messages in component store
             throw new PackageLoadingException("Failed to save package recipe", e);

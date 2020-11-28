@@ -525,8 +525,9 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             // Second deployment to update the service which is currently running an important task so deployment should
              // wait for a disruptable time to update
             CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest().withDeploymentPolicies(
-                    new DeploymentPolicies().withConfigurationValidationPolicy(
-                            new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(120))
+                    new DeploymentPolicies().withFailureHandlingPolicy(DeploymentFailureHandlingPolicy.DO_NOTHING)
+                            .withConfigurationValidationPolicy(
+                                    new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(120))
                             .withComponentUpdatePolicy(new DeploymentComponentUpdatePolicy()
                                     .withAction(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
                                     .withTimeoutInSeconds(120))).addComponentsEntry("NonDisruptableService",
