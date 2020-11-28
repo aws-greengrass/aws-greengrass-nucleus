@@ -219,11 +219,11 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     public static void setDefaultRunWithUser(Kernel kernel) {
-        new DeviceConfiguration(kernel).getRunWithDefaultPosixUser().dflt("nobody");
+        new DeviceConfiguration(kernel).getRunWithDefaultPosixUser().dflt("shuyeh");
     }
 
     protected void initKernel()
-            throws IOException, DeviceConfigurationException, InterruptedException, ServiceLoadException {
+            throws IOException, DeviceConfigurationException, InterruptedException {
         kernel = new Kernel()
                 .parseArgs("-r", tempRootDir.toAbsolutePath().toString(), "-ar", GAMMA_REGION.toString(), "-es",
                         envStage.toString());
