@@ -50,8 +50,7 @@ public class RpcServer implements AutoCloseable {
     public void runServer() {
         validateServiceHandler();
         if (!serverRunning.compareAndSet(false, true)) {
-            throw new IllegalStateException("Failed to start RpcServer. It's already started or has not completed a " +
-                    "prior shutdown!");
+            throw new IllegalStateException("Failed to start IpcServer. It's already started or has not completed a prior shutdown!");
         }
         serverBootstrap = new ServerBootstrap(eventLoopGroup);
         tlsContext = tlsContextOptions != null ? new ServerTlsContext(tlsContextOptions) : null;
@@ -74,7 +73,7 @@ public class RpcServer implements AutoCloseable {
                     LOGGER.info("Server connection closed code [" + CRT.awsErrorString(errorCode) + "]: " + serverConnection.getResourceLogDescription());
                 }
             });
-        LOGGER.info("RpcServer started...");
+        LOGGER.info("IpcServer started...");
     }
 
     /**

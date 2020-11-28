@@ -15,7 +15,7 @@ import software.amazon.awssdk.crt.io.TlsContextOptions;
  * DEPRECATION WARNING: Stop using this class. Use RpcServer instead
  */
 final public class IpcServer extends RpcServer {
-    private static final Logger LOGGER = LoggerFactory.getLogger(RpcServer.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(IpcServer.class);
 
     public IpcServer(EventLoopGroup eventLoopGroup, SocketOptions socketOptions, TlsContextOptions tlsContextOptions, String hostname, int port, EventStreamRPCServiceHandler serviceHandler) {
         super(eventLoopGroup, socketOptions, tlsContextOptions, hostname, port, serviceHandler);
