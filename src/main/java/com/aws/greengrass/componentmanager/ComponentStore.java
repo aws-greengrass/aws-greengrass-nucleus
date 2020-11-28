@@ -75,9 +75,17 @@ public class ComponentStore {
     }
 
     /**
-     * Creates or updates a package recipe in the package store on the disk.
+     * Save the given component recipe object into component store on the disk.
      *
+     * <p>If the target recipe file exist, and its content is the same as the content to be written, it skip the
+     * file write operation.
+     * If content is different or the target recipe file does not exist, it will write to the file using YAML
+     * serializer.
+     * </p>
+     *
+     * @see com.amazon.aws.iot.greengrass.component.common.SerializerFactory#getRecipeSerializer
      * @param componentRecipe raw component recipe
+     * @return persisted recipe content in component store on the disk.
      * @throws PackageLoadingException if fails to write the package recipe to disk.
      */
     String saveComponentRecipe(@NonNull com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe)

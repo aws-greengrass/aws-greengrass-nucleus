@@ -34,7 +34,6 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
@@ -97,7 +96,6 @@ import static org.mockito.Mockito.when;
 class ComponentManagerTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
     private static final String TEST_ARN = "testArn";
     private static Path RECIPE_RESOURCE_PATH;
 
