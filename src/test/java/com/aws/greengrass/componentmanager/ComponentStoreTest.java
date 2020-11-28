@@ -132,11 +132,13 @@ class ComponentStoreTest {
         assertThat(expectedRecipeFile, not(anExistingFile()));
 
         // WHEN
-        componentStore.saveComponentRecipe(recipe);
+        String returnedSavedContent = componentStore.saveComponentRecipe(recipe);
 
         // THEN
         assertThat(expectedRecipeFile, anExistingFile());
         String fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()), StandardCharsets.UTF_8);
+        assertThat(returnedSavedContent, is(fileContent));
+
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe savedRecipe =
                 com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer()
                         .readValue(fileContent, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
@@ -164,10 +166,11 @@ class ComponentStoreTest {
         assertThat(fileContent, is(equalTo(oldContent)));
 
         // WHEN
-        componentStore.saveComponentRecipe(recipe);
+        String returnedSavedContent = componentStore.saveComponentRecipe(recipe);
 
         // THEN
         fileContent = new String(Files.readAllBytes(expectedRecipeFile.toPath()), StandardCharsets.UTF_8);
+        assertThat(returnedSavedContent, is(fileContent));
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe savedRecipe =
                 com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer()
                         .readValue(fileContent, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
