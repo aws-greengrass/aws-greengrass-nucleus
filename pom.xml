@@ -129,7 +129,6 @@
             <artifactId>semver4j</artifactId>
             <version>3.1.0</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/software.amazon.awssdk.iotdevicesdk/aws-iot-device-sdk -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>apache-client</artifactId>
@@ -178,7 +177,7 @@
         </dependency>
         <dependency>
             <groupId>aws.greengrass.ipc.sdk</groupId>
-            <artifactId>aws-grenngrass-ask</artifactId>
+            <artifactId>aws-grenngrass-sdk</artifactId>
             <version>1.0</version>
             <scope>system</scope>
             <systemPath>${project.basedir}/lib/aws-iot-device-sdk-1.0.0-SNAPSHOT-shaded.jar</systemPath>
