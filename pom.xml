@@ -199,7 +199,7 @@
             <artifactId>aws-grenngrass-ask</artifactId>
             <version>1.0</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/src/main/resources/aws-iot-device-sdk-1.0.0-SNAPSHOT-shaded.jar</systemPath>
+            <systemPath>${project.basedir}/lib/aws-iot-device-sdk-1.0.0-SNAPSHOT-shaded.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
