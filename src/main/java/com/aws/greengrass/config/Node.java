@@ -26,10 +26,7 @@ public abstract class Node {
     protected long modtime;
 
     protected Node(Context c, String n, Topics p) {
-        context = c;
-        name = n;
-        parent = p;
-        fnc = calcFnc();
+        this(c, n, p, 0L);
     }
 
     protected Node(Context c, String n, Topics p, long timestamp) {
