@@ -158,7 +158,7 @@ public class DeviceConfiguration {
      *
      * @return Nucleus component name
      */
-    public String getNucleusComponentName() {
+    public synchronized String getNucleusComponentName() {
         // Check to see if the nucleus is still present in the config. If it isn't present, then
         // recalculate the component's name
         if (nucleusComponentNameCache == null || kernel.findServiceTopic(nucleusComponentNameCache) == null) {
