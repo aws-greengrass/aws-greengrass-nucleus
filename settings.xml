@@ -8,5 +8,10 @@
             <username>${access-key-id}</username>
             <password>${access-key-secret}</password>
         </server>
+        <server>
+            <id>eg-aws-iot-device-sdk-v2-java</id>
+            <username>${access-key-id}</username>
+            <password>${access-key-secret}</password>
+        </server>
     </servers>
 </settings>
