@@ -223,7 +223,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     protected void initKernel()
-            throws IOException, DeviceConfigurationException, InterruptedException, ServiceLoadException {
+            throws IOException, DeviceConfigurationException, InterruptedException {
         kernel = new Kernel()
                 .parseArgs("-r", tempRootDir.toAbsolutePath().toString(), "-ar", GAMMA_REGION.toString(), "-es",
                         envStage.toString());
