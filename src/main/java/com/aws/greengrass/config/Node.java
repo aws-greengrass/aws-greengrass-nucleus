@@ -32,6 +32,14 @@ public abstract class Node {
         fnc = calcFnc();
     }
 
+    protected Node(Context c, String n, Topics p, long timestamp) {
+        context = c;
+        name = n;
+        parent = p;
+        fnc = calcFnc();
+        modtime = timestamp;
+    }
+
     /**
      * Append node's name to the appendable.
      *
