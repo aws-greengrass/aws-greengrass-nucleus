@@ -175,6 +175,7 @@
             <version>0.0.3</version>
             <scope>test</scope>
         </dependency>
+        <!-- TODO: Change when Iot Device SDK with greengrass ipc is released publicly-->
         <dependency>
             <groupId>software.amazon.awssdk.iotdevicesdk</groupId>
             <artifactId>aws-iot-device-sdk-v2</artifactId>
