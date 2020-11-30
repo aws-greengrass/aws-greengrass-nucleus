@@ -126,7 +126,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
     void cleanUp() throws IOException, InterruptedException {
         TelemetryConfig.getInstance().closeContext();
         telemetryAgent.shutdown();
-        ses.shutdown();
+        ses.shutdownNow();
         context.close();
         ses.awaitTermination(2, TimeUnit.SECONDS);
         TestFeatureParameters.internalDisableTestingFeatureParameters();
@@ -236,8 +236,8 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         telemetryAgent.schedulePeriodicPublishMetrics(false);
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
         telemetryAgent.postInject();
-        long milliSeconds = 3000;
-        verify(mockMqttClient, timeout(milliSeconds).atLeastOnce()).publish(publishRequestArgumentCaptor.capture());
+        long timeoutMs = 5000;
+        verify(mockMqttClient, timeout(timeoutMs).atLeastOnce()).publish(publishRequestArgumentCaptor.capture());
         PublishRequest request = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, request.getQos());
         assertEquals("$aws/things/testThing/greengrass/health/json", request.getTopic());
@@ -246,7 +246,6 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         //verify that nothing is published when mqtt is interrupted
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
         // aggregation is continued irrespective of the mqtt connection
-        verify(ma, timeout(milliSeconds).atLeastOnce()).aggregateMetrics(anyLong(), anyLong());
+        verify(ma, timeout(timeoutMs).atLeastOnce()).aggregateMetrics(anyLong(), anyLong());
     }
 }
-

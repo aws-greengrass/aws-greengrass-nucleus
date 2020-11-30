@@ -27,7 +27,6 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import lombok.Getter;
 import org.slf4j.event.Level;
 
 import java.io.IOException;
@@ -101,10 +100,9 @@ public class DeviceConfiguration {
     private final Validator deTildeValidator;
     private final Validator regionValidator;
 
-    @Getter
-    private final String nucleusComponentName;
     private Topics loggingTopics;
     private LoggerConfiguration currentConfiguration;
+    private String nucleusComponentNameCache;
 
     /**
      * Constructor used to read device configuration from the config store.
@@ -114,7 +112,6 @@ public class DeviceConfiguration {
     @Inject
     public DeviceConfiguration(Kernel kernel) {
         this.kernel = kernel;
-        this.nucleusComponentName = initNucleusComponentName();
         deTildeValidator = getDeTildeValidator();
         regionValidator = getRegionValidator();
         handleLoggingConfig();
@@ -154,6 +151,20 @@ public class DeviceConfiguration {
         getIotRoleAlias().withValue(tesRoleAliasName);
 
         validate();
+    }
+
+    /**
+     * Get the Nucleus component's name.
+     *
+     * @return Nucleus component name
+     */
+    public synchronized String getNucleusComponentName() {
+        // Check to see if the nucleus is still present in the config. If it isn't present, then
+        // recalculate the component's name
+        if (nucleusComponentNameCache == null || kernel.findServiceTopic(nucleusComponentNameCache) == null) {
+            nucleusComponentNameCache = initNucleusComponentName();
+        }
+        return nucleusComponentNameCache;
     }
 
     /**
@@ -400,7 +411,7 @@ public class DeviceConfiguration {
      * @param cc Subscribe handler
      */
     public void onAnyChange(ChildChanged cc) {
-        kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, CONFIGURATION_CONFIG_KEY)
+        kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY)
                 .subscribe(cc);
         kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY).subscribe(cc);
     }
@@ -440,12 +451,13 @@ public class DeviceConfiguration {
 
     private Topic getTopic(String parameterName) {
         return kernel.getConfig()
-                .lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, CONFIGURATION_CONFIG_KEY, parameterName);
+                .lookup(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY, parameterName);
     }
 
     private Topics getTopics(String parameterName) {
         return kernel.getConfig()
-                .lookupTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, CONFIGURATION_CONFIG_KEY, parameterName);
+                .lookupTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(),
+                        CONFIGURATION_CONFIG_KEY, parameterName);
     }
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,

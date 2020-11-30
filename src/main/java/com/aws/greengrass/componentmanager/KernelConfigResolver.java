@@ -167,7 +167,8 @@ public class KernelConfigResolver {
                     .put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, interpolatedLifecycle);
         }
 
-        String nucleusComponentName = getNucleusComponentName(servicesConfig);
+        String nucleusComponentName =
+                getNucleusComponentName(servicesConfig);
         servicesConfig.putIfAbsent(nucleusComponentName, getNucleusComponentConfig(nucleusComponentName));
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages, nucleusComponentName));
 
