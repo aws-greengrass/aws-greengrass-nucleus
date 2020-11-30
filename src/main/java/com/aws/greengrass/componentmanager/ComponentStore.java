@@ -62,15 +62,55 @@ public class ComponentStore {
 
     /**
      * Constructor. It will initialize recipe, artifact and artifact decompressed directory.
-     * @param nucleusPaths path library
+     *
+     * @param nucleusPaths     path library
      * @param platformResolver platform resolver
-     * @param recipeLoader recipe loader
+     * @param recipeLoader     recipe loader
      */
     @Inject
     public ComponentStore(NucleusPaths nucleusPaths, PlatformResolver platformResolver, RecipeLoader recipeLoader) {
         this.nucleusPaths = nucleusPaths;
         this.platformResolver = platformResolver;
         this.recipeLoader = recipeLoader;
+    }
+
+    /**
+     * Save the given component recipe object into component store on the disk.
+     *
+     * <p>If the target recipe file exist, and its content is the same as the content to be written, it skip the
+     * file write operation.
+     * If content is different or the target recipe file does not exist, it will write to the file using YAML
+     * serializer.
+     * </p>
+     *
+     * @see com.amazon.aws.iot.greengrass.component.common.SerializerFactory#getRecipeSerializer
+     * @param componentRecipe raw component recipe
+     * @return persisted recipe content in component store on the disk.
+     * @throws PackageLoadingException if fails to write the package recipe to disk.
+     */
+    String saveComponentRecipe(@NonNull com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe)
+            throws PackageLoadingException {
+        ComponentIdentifier componentIdentifier =
+                new ComponentIdentifier(componentRecipe.getComponentName(), componentRecipe.getComponentVersion());
+
+        try {
+            String recipeContent =
+                    com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer()
+                            .writeValueAsString(componentRecipe);
+
+            Optional<String> componentRecipeContent = findComponentRecipeContent(componentIdentifier);
+            if (componentRecipeContent.isPresent() && componentRecipeContent.get().equals(recipeContent)) {
+                // same content and no need to write again
+                return recipeContent;
+            }
+
+            FileUtils.writeStringToFile(resolveRecipePath(componentIdentifier).toFile(), recipeContent);
+
+            return recipeContent;
+        } catch (IOException e) {
+            // TODO: [P41215929]: Better logging and exception messages in component store
+            throw new PackageLoadingException("Failed to save package recipe", e);
+        }
     }
 
     /**
@@ -112,7 +152,7 @@ public class ComponentStore {
      * @return whether the expected digest matches the calculated digest on disk
      */
     public boolean validateComponentRecipeDigest(@NonNull ComponentIdentifier componentIdentifier,
-            String expectedDigest) {
+                                                 String expectedDigest) {
         try {
             Optional<String> recipeContent = findComponentRecipeContent(componentIdentifier);
             if (!recipeContent.isPresent()) {

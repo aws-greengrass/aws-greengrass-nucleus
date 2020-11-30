@@ -50,21 +50,12 @@ if is_directory_link "${GG_ROOT}/alts/new"; then
   flip_link "${GG_ROOT}/alts/new" "${LAUNCH_DIR}"
 fi
 
-if is_directory_link "${GG_ROOT}/alts/broken"; then
-  if is_directory_link "${GG_ROOT}/alts/old"; then
-    flip_link "${GG_ROOT}/alts/old" "${LAUNCH_DIR}"
-  fi
-  # During deployment. Previous working kernel will be launched.
-  CONFIG_FILE="$GG_ROOT/deployments/ongoing/rollback_snapshot.tlog"
+if is_directory_link "${GG_ROOT}/alts/broken" && is_directory_link "${GG_ROOT}/alts/old"; then
+  flip_link "${GG_ROOT}/alts/old" "${LAUNCH_DIR}"
 fi
 
-if is_directory_link "${GG_ROOT}/alts/old"; then
-  if is_directory_link "${LAUNCH_DIR}"; then
-    # During deployment. New kernel will be launched.
-    CONFIG_FILE="$GG_ROOT/deployments/ongoing/target_config.tlog"
-  else
-    flip_link "${GG_ROOT}/alts/old" "${LAUNCH_DIR}"
-  fi
+if is_directory_link "${GG_ROOT}/alts/old" && ! is_directory_link "${LAUNCH_DIR}"; then
+  flip_link "${GG_ROOT}/alts/old" "${LAUNCH_DIR}"
 fi
 
 # Launch Kernel with max 3 retries
