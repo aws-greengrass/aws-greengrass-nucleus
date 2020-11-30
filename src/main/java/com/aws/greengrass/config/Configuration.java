@@ -61,6 +61,17 @@ public class Configuration {
     }
 
     /**
+     * Find, and create if missing, a topic (a name/value pair) in the config
+     * file. Never returns null.
+     * @param timestamp modtime of newly created nodes
+     * @param path String[] of node names to traverse to find or create the Topic
+     * @return
+     */
+    public Topic lookup(long timestamp, String... path) {
+        return root.lookup(timestamp, path);
+    }
+
+    /**
      * Find, and create if missing, a list of topics (name/value pairs) in the
      * config file. Never returns null.
      *
@@ -68,6 +79,17 @@ public class Configuration {
      */
     public Topics lookupTopics(String... path) {
         return root.lookupTopics(path);
+    }
+
+    /**
+     * Find, and create if missing, a list of topics (name/value pairs) in the
+     * config file. Never returns null.
+     *
+     * @param timestamp modtime of newly created nodes
+     * @param path String[] of node names to traverse to find or create the Topics
+     */
+    public Topics lookupTopics(long timestamp, String... path) {
+        return root.lookupTopics(timestamp, path);
     }
 
     /**

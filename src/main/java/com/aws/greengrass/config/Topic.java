@@ -24,6 +24,10 @@ public class Topic extends Node {
         super(c, n, p);
     }
 
+    Topic(Context c, String n, Topics p, long timestamp) {
+        super(c, n, p, timestamp);
+    }
+
     public static Topic of(Context c, String n, Object v) {
         return new Topic(c, n, null).dflt(v);
     }

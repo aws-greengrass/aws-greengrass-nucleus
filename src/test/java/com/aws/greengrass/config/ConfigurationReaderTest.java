@@ -40,15 +40,15 @@ class ConfigurationReaderTest {
             throws Exception {
         // Create this topic with temp value
         config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
-                      SKIP_MERGE_NAMESPACE_KEY, "testTopic").withValue("Test");
+                SKIP_MERGE_NAMESPACE_KEY, "testTopic").withValue("Test");
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, true,
-                                                s -> !s.childOf(SKIP_MERGE_NAMESPACE_KEY));
-         // block until all changes are merged in
+                s -> !s.childOf(SKIP_MERGE_NAMESPACE_KEY));
+        // block until all changes are merged in
         config.context.waitForPublishQueueToClear();
         // Test tlog file has value set to "TLogValue"
         assertEquals("Test", config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
-                                           SKIP_MERGE_NAMESPACE_KEY, "testTopic").getOnce());
+                SKIP_MERGE_NAMESPACE_KEY, "testTopic").getOnce());
     }
 
     @Test
@@ -56,14 +56,14 @@ class ConfigurationReaderTest {
             throws Exception {
         // Create this topic with temp value
         config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
-                      SKIP_MERGE_NAMESPACE_KEY, "testTopic")
-                                .withValue("Test");
+                SKIP_MERGE_NAMESPACE_KEY, "testTopic")
+                .withValue("Test");
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
         // block until all changes are merged in
         config.context.waitForPublishQueueToClear();
         assertEquals("TLogValue", config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
-                                                SKIP_MERGE_NAMESPACE_KEY, "testTopic").getOnce());
+                SKIP_MERGE_NAMESPACE_KEY, "testTopic").getOnce());
     }
 
     @Test
@@ -159,5 +159,43 @@ class ConfigurationReaderTest {
 
         assertEquals("firstline", config.find("test", "firstline").getOnce());
         assertEquals("lastline", config.find("test", "lastline").getOnce());
+    }
+
+    @Test
+    void GIVEN_tlog_WHEN_merge_THEN_removed_topics_is_not_present() throws Exception {
+        Path tlogPath = Paths.get(this.getClass().getResource("removeTopics.tlog").toURI());
+        ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
+
+        // block until all changes are merged in
+        config.context.waitForPublishQueueToClear();
+
+        assertEquals(0, config.findTopics("first", "second").children.size());
+    }
+
+    @Test
+    void GIVEN_tlog_WHEN_merge_THEN_topics_created_with_correct_modtime() throws Exception {
+        Path tlogPath = Paths.get(this.getClass().getResource("createTopics.tlog").toURI());
+        ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
+
+        // block until all changes are merged in
+        config.context.waitForPublishQueueToClear();
+
+        // all parent topics should have modtime as the TS from the tlog
+        assertEquals(5, config.findTopics("first").modtime);
+        assertEquals(5, config.findTopics("first", "second").modtime);
+        assertEquals(5, config.findTopics("first", "second", "third").modtime);
+        assertEquals(5, config.find("first", "second", "third", "DeploymentId").modtime);
+
+        tlogPath = Paths.get(this.getClass().getResource("updateTopics.tlog").toURI());
+        ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
+
+        // block until all changes are merged in
+        config.context.waitForPublishQueueToClear();
+
+        // all parent topics modtime should be updated to TS from tlog
+        assertEquals(6, config.findTopics("first").modtime);
+        assertEquals(6, config.findTopics("first", "second").modtime);
+        assertEquals(6, config.findTopics("first", "second").modtime);
+        assertEquals(6, config.findTopics("first", "second", "newChild").modtime);
     }
 }
