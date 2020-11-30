@@ -213,11 +213,7 @@ public class Topics extends Node implements Iterable<Node> {
      * @param path String[] of node names to traverse to find or create the Topics
      */
     public Topics lookupTopics(String... path) {
-        Topics n = this;
-        for (String s : path) {
-            n = n.createInteriorChild(s);
-        }
-        return n;
+        return lookupTopics(System.currentTimeMillis(), path);
     }
 
     /**
