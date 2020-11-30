@@ -28,6 +28,7 @@ import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.util.Coerce;
@@ -287,6 +288,14 @@ public class DeploymentService extends GreengrassService {
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                                                currentDeploymentTaskMetadata.getDeploymentType(),
                                                                JobStatus.SUCCEEDED.toString(), statusDetails);
+
+                    if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
+                        try {
+                            kernel.getContext().get(KernelAlternatives.class).activationSucceeds();
+                        } catch (IOException e) {
+                            logger.atError().log("Failed to reset Kernel activate directory", e);
+                        }
+                    }
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
                     if (result.getFailureCause() != null) {
@@ -299,6 +308,14 @@ public class DeploymentService extends GreengrassService {
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                                                currentDeploymentTaskMetadata.getDeploymentType(),
                                                                JobStatus.FAILED.toString(), statusDetails);
+
+                    if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
+                        try {
+                            kernel.getContext().get(KernelAlternatives.class).rollbackCompletes();
+                        } catch (IOException e) {
+                            logger.atError().log("Failed to reset Kernel rollback directory", e);
+                        }
+                    }
                     deploymentDirectoryManager.persistLastFailedDeployment();
                 }
             }
@@ -406,6 +423,7 @@ public class DeploymentService extends GreengrassService {
                                                                  JobStatus.IN_PROGRESS.toString(), new HashMap<>());
         try {
             if (DEFAULT.equals(deployment.getDeploymentStage())) {
+                context.get(KernelAlternatives.class).cleanupLaunchDirectoryLinks();
                 deploymentDirectoryManager.createNewDeploymentDirectory(deployment.getDeploymentDocumentObj()
                         .getDeploymentId());
                 deploymentDirectoryManager.writeDeploymentMetadata(deployment);

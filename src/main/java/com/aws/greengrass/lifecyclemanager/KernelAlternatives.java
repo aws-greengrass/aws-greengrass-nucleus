@@ -278,7 +278,10 @@ public class KernelAlternatives {
         Files.createSymbolicLink(link, directory);
     }
 
-    private void cleanupLaunchDirectoryLinks() {
+    /**
+     * Clean up launch directory symlinks left from previous deployments, if any.
+     */
+    public void cleanupLaunchDirectoryLinks() {
         cleanupLaunchDirectoryLink(brokenDir);
         cleanupLaunchDirectoryLink(oldDir);
         cleanupLaunchDirectoryLink(newDir);

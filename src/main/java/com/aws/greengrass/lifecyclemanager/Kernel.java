@@ -35,6 +35,7 @@ import com.aws.greengrass.util.DependencyOrder;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.ProxyUtils;
+import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -46,6 +47,7 @@ import lombok.Setter;
 import java.io.IOException;
 import java.io.Writer;
 import java.lang.reflect.Constructor;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.Collection;
@@ -88,6 +90,7 @@ public class Kernel {
     static final String DEFAULT_CONFIG_YAML_FILE = "config.yaml";
     static final String DEFAULT_CONFIG_TLOG_FILE = "config.tlog";
     public static final String SERVICE_DIGEST_TOPIC_KEY = "service-digest";
+    private static final String DEPLOYMENT_STAGE_LOG_KEY = "stage";
 
     @Getter
     private final Context context;
@@ -103,6 +106,7 @@ public class Kernel {
     private final NucleusPaths nucleusPaths;
 
     private Collection<GreengrassService> cachedOD = null;
+    private DeploymentStage deploymentStageAtLaunch = DeploymentStage.DEFAULT;
 
     /**
      * Construct the Kernel and global Context.
@@ -168,10 +172,10 @@ public class Kernel {
         BootstrapManager bootstrapManager = kernelCommandLine.getBootstrapManager();
         DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
         KernelAlternatives kernelAlts = context.get(KernelAlternatives.class);
-        DeploymentStage stage = kernelAlts.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager);
-        switch (stage) {
+
+        switch (deploymentStageAtLaunch) {
             case BOOTSTRAP:
-                logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
+                logger.atInfo().kv("deploymentStage", deploymentStageAtLaunch).log("Resume deployment");
                 int exitCode;
                 try {
                     exitCode = bootstrapManager.executeAllBootstrapTasksSequentially(
@@ -201,12 +205,12 @@ public class Kernel {
                 break;
             case KERNEL_ACTIVATION:
             case KERNEL_ROLLBACK:
-                logger.atInfo().kv("deploymentStage", stage).log("Resume deployment");
+                logger.atInfo().kv("deploymentStage", deploymentStageAtLaunch).log("Resume deployment");
                 DeploymentQueue deploymentQueue = new DeploymentQueue();
                 context.put(DeploymentQueue.class, deploymentQueue);
                 try {
                     Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
-                    deployment.setDeploymentStage(stage);
+                    deployment.setDeploymentStage(deploymentStageAtLaunch);
                     deploymentQueue.offer(deployment);
                 } catch (IOException e) {
                     logger.atError().setCause(e)
@@ -535,10 +539,58 @@ public class Kernel {
      * @param args CLI args
      * @return Kernel instance
      */
+    @SuppressWarnings("PMD.MissingBreakInSwitch")
     public Kernel parseArgs(String... args) {
         kernelCommandLine.parseArgs(args);
         config.lookupTopics(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
-        kernelLifecycle.initConfigAndTlog();
+
+        BootstrapManager bootstrapManager = kernelCommandLine.getBootstrapManager();
+        DeploymentDirectoryManager deploymentDirectoryManager = kernelCommandLine.getDeploymentDirectoryManager();
+        KernelAlternatives kernelAlts = context.get(KernelAlternatives.class);
+        DeploymentStage stage = kernelAlts.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager);
+
+        String configFileName = "";
+        switch (stage) {
+            case KERNEL_ACTIVATION:
+            case BOOTSTRAP:
+                try {
+                    Path configPath = deploymentDirectoryManager.getTargetConfigFilePath();
+                    if (!Files.exists(configPath)) {
+                        logger.atError().kv(DEPLOYMENT_STAGE_LOG_KEY, stage).kv("targetConfigFile", configPath)
+                                .log("Detected ongoing deployment, but target configuration file not found");
+                        break;
+                    }
+                    configFileName = configPath.toString();
+                    deploymentStageAtLaunch = stage;
+                } catch (IOException e) {
+                    logger.atError().kv(DEPLOYMENT_STAGE_LOG_KEY, stage)
+                            .log("Detected ongoing deployment, but failed to load target configuration file", e);
+                }
+                break;
+            case KERNEL_ROLLBACK:
+                try {
+                    Path configPath = deploymentDirectoryManager.getSnapshotFilePath();
+                    if (!Files.exists(configPath)) {
+                        logger.atError().kv(DEPLOYMENT_STAGE_LOG_KEY, stage).kv("rollbackConfigFile", configPath)
+                                .log("Detected ongoing deployment, but rollback configuration not found");
+                        break;
+                    }
+                    configFileName = configPath.toString();
+                    deploymentStageAtLaunch = stage;
+                } catch (IOException e) {
+                    logger.atError().kv(DEPLOYMENT_STAGE_LOG_KEY, stage)
+                            .log("Detected ongoing deployment, but failed to load rollback configuration file", e);
+                }
+                break;
+            default:
+                logger.atInfo().log("No ongoing deployment detected. Proceed as default");
+        }
+        if (Utils.isEmpty(configFileName)) {
+            kernelLifecycle.initConfigAndTlog();
+        } else {
+            kernelLifecycle.initConfigAndTlog(configFileName);
+        }
+
         // Update device configuration from commandline arguments after loading config files
         kernelCommandLine.updateDeviceConfiguration(getContext().get(DeviceConfiguration.class));
         setupProxy();

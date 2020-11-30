@@ -23,6 +23,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -123,6 +124,17 @@ public class KernelLifecycle {
 
         logger.atInfo().setEventType("system-start").addKeyValue("main", kernel.getMain()).log();
         startupAllServices();
+    }
+
+    void initConfigAndTlog(String configFilePath) {
+        String configFileInput = kernelCommandLine.getProvidedConfigPathName();
+        if (!Utils.isEmpty(configFileInput)) {
+            logger.atWarn().kv("configFileInput", configFileInput).kv("configOverride", configFilePath)
+                    .log("Detected ongoing deployment. Ignore the config file from input and use "
+                    + "config file override");
+        }
+        kernelCommandLine.setProvidedConfigPathName(configFilePath);
+        initConfigAndTlog();
     }
 
     void initConfigAndTlog() {

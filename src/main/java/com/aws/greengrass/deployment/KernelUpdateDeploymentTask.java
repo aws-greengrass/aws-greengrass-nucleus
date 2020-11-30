@@ -51,7 +51,6 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     @Override
     public DeploymentResult call() {
         Deployment.DeploymentStage stage = deployment.getDeploymentStage();
-        KernelAlternatives kernelAlts = kernel.getContext().get(KernelAlternatives.class);
         try {
             List<GreengrassService> servicesToTrack =
                     kernel.orderedDependencies().stream().filter(GreengrassService::shouldAutoStart)
@@ -64,16 +63,14 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
             DeploymentResult result = null;
             if (KERNEL_ACTIVATION.equals(stage)) {
                 result = new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null);
-                kernelAlts.activationSucceeds();
             } else if (KERNEL_ROLLBACK.equals(stage)) {
                 result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE,
                         new ServiceUpdateException(deployment.getStageDetails()));
-                kernelAlts.rollbackCompletes();
             }
 
             componentManager.cleanupStaleVersions();
             return result;
-        } catch (InterruptedException | IOException | PackageLoadingException e) {
+        } catch (InterruptedException | PackageLoadingException e) {
             logger.atError("deployment-interrupted", e).log();
             try {
                 saveDeploymentStatusDetails(e.getMessage());
@@ -90,7 +87,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                     deployment.setDeploymentStage(KERNEL_ROLLBACK);
                     saveDeploymentStatusDetails(e.getMessage());
                     // Rollback workflow. Flip symlinks and restart kernel
-                    kernelAlts.prepareRollback();
+                    kernel.getContext().get(KernelAlternatives.class).prepareRollback();
                     kernel.shutdown(30, REQUEST_RESTART);
                 } catch (IOException ioException) {
                     logger.atError().log("Failed to set up Kernel rollback directory", ioException);
@@ -98,11 +95,6 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                 }
                 return null;
             } else if (KERNEL_ROLLBACK.equals(stage)) {
-                try {
-                    kernelAlts.rollbackCompletes();
-                } catch (IOException ioException) {
-                    logger.atError().log("Failed to reset Kernel launch directory", ioException);
-                }
                 return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, e);
             }
             return null;
