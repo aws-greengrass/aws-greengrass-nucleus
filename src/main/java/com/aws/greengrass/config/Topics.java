@@ -34,6 +34,10 @@ public class Topics extends Node implements Iterable<Node> {
         modtime = System.currentTimeMillis();
     }
 
+    Topics(Context c, String n, Topics p, long timestamp) {
+        super(c, n, p, timestamp);
+    }
+
     public static Topics of(Context c, String n, Topics p) {
         return new Topics(c, n, p);
     }
@@ -94,13 +98,25 @@ public class Topics extends Node implements Iterable<Node> {
      * @return the node
      */
     public Topic createLeafChild(String name) {
-        return createLeafChild(new CaseInsensitiveString(name));
+        return createLeafChild(new CaseInsensitiveString(name), 0L);
     }
 
-    private Topic createLeafChild(CaseInsensitiveString name) {
+    /**
+     * Create a leaf Topic under this Topics with the given name.
+     * Returns the leaf topic if it already existed.
+     *
+     * @param name name of the leaf node
+     * @param timestamp modtime of the leaf node
+     * @return
+     */
+    public Topic createLeafChild(String name, long timestamp) {
+        return createLeafChild(new CaseInsensitiveString(name),  timestamp);
+    }
+
+    private Topic createLeafChild(CaseInsensitiveString name, long timestamp) {
         Node n = children.computeIfAbsent(name,
                 (nm) -> {
-                    Topic t = new Topic(context, nm.toString(), this);
+                    Topic t = new Topic(context, nm.toString(), this, timestamp);
                     context.runOnPublishQueue(() -> childChanged(WhatHappened.childChanged, t));
                     return t;
                 });
@@ -119,13 +135,24 @@ public class Topics extends Node implements Iterable<Node> {
      * @return the node
      */
     public Topics createInteriorChild(String name) {
-       return createInteriorChild(new CaseInsensitiveString(name));
+        return createInteriorChild(new CaseInsensitiveString(name), System.currentTimeMillis());
     }
 
-    private Topics createInteriorChild(CaseInsensitiveString name) {
+    /**
+     * Create an interior Topics node with the provided name and modtime
+     * Returns the new node or the existing node if it already existed.
+     * @param name name for the new node
+     * @param timestamp modtime of the new node
+     * @return
+     */
+    public Topics createInteriorChild(String name, long timestamp) {
+        return createInteriorChild(new CaseInsensitiveString(name), timestamp);
+    }
+
+    private Topics createInteriorChild(CaseInsensitiveString name, long timestamp) {
         Node n = children.computeIfAbsent(name,
                 (nm) -> {
-                    Topics t = new Topics(context, nm.toString(), this);
+                    Topics t = new Topics(context, nm.toString(), this, timestamp);
                     context.runOnPublishQueue(() -> childChanged(WhatHappened.interiorAdded, t));
                     return t;
                 });
@@ -161,6 +188,24 @@ public class Topics extends Node implements Iterable<Node> {
         return n.createLeafChild(path[limit]);
     }
 
+
+
+    /**
+     * Find, and create if missing, a topic (a name/value pair) in the config
+     * file. Never returns null.
+     * @param timestamp modtime of newly created nodes
+     * @param path String[] of node names to traverse to find or create the Topic
+     * @return
+     */
+    public Topic lookup(long timestamp, String... path) {
+        int limit = path.length - 1;
+        Topics n = this;
+        for (int i = 0; i < limit; i++) {
+            n = n.createInteriorChild(path[i], timestamp);
+        }
+        return n.createLeafChild(path[limit], timestamp);
+    }
+
     /**
      * Find, and create if missing, a list of topics (name/value pairs) in the
      * config file. Never returns null.
@@ -168,12 +213,25 @@ public class Topics extends Node implements Iterable<Node> {
      * @param path String[] of node names to traverse to find or create the Topics
      */
     public Topics lookupTopics(String... path) {
+        return lookupTopics(System.currentTimeMillis(), path);
+    }
+
+    /**
+     * Find, and create if missing, a list of topics (name/value pairs) in the
+     * config file. Never returns null.
+     *
+     * @param timestamp modtime of newly created nodes
+     * @param path String[] of node names to traverse to find or create the Topics
+     * @return
+     */
+    public Topics lookupTopics(long timestamp, String... path) {
         Topics n = this;
         for (String s : path) {
-            n = n.createInteriorChild(s);
+            n = n.createInteriorChild(s, timestamp);
         }
         return n;
     }
+
 
     /**
      * Find, but do not create if missing, a topic (a name/value pair) in the
@@ -277,10 +335,10 @@ public class Topics extends Node implements Iterable<Node> {
         if (value instanceof Map) {
             // if existing child is a container node
             if (existingChild == null || existingChild instanceof Topics) {
-                createInteriorChild(key).updateFromMap((Map) value, childMergeBehavior);
+                createInteriorChild(key.toString()).updateFromMap((Map) value, childMergeBehavior);
             } else {
                 remove(existingChild);
-                Topics newNode = createInteriorChild(key);
+                Topics newNode = createInteriorChild(key.toString());
                 for (Watcher watcher : existingChild.watchers) {
                     newNode.addWatcher(watcher);
                 }
@@ -289,10 +347,11 @@ public class Topics extends Node implements Iterable<Node> {
         // if new node is a leaf node
         } else {
             if (existingChild == null || existingChild instanceof Topic) {
-                createLeafChild(key).withNewerValue(childMergeBehavior.getTimestampToUse(), value, false, true);
+                createLeafChild(key.toString())
+                        .withNewerValue(childMergeBehavior.getTimestampToUse(), value, false, true);
             } else {
                 remove(existingChild);
-                Topic newNode = createLeafChild(key);
+                Topic newNode = createLeafChild(key.toString());
                 for (Watcher watcher : existingChild.watchers) {
                     newNode.addWatcher(watcher);
                 }
