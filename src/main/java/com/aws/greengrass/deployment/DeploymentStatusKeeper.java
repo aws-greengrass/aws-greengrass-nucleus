@@ -115,12 +115,11 @@ public class DeploymentStatusKeeper {
                 return -1;
             }).collect(Collectors.toList());
 
+            List<Function<Map<String, Object>, Boolean>> consumers = getConsumersForDeploymentType(type);
+            logger.atDebug().kv("deploymentType", type).kv("numberOfSubscribers", consumers.size())
+                    .log("Updating status of persisted deployments to subscribers");
             for (Topics topics : sortedByTimestamp) {
-                DeploymentType deploymentType =
-                        Coerce.toEnum(DeploymentType.class,
-                                topics.find(DEPLOYMENT_TYPE_KEY_NAME));
-
-                boolean allConsumersUpdated = getConsumersForDeploymentType(deploymentType).stream()
+                boolean allConsumersUpdated = consumers.stream()
                         .allMatch(consumer -> consumer.apply(topics.toPOJO()));
                 if (!allConsumersUpdated) {
                     // If one deployment update fails, exit the loop to ensure the update order.
