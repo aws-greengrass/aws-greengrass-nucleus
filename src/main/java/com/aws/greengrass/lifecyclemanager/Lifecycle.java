@@ -51,6 +51,7 @@ public class Lifecycle {
     public static final String LIFECYCLE_INSTALL_NAMESPACE_TOPIC = "install";
     public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
     public static final String LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC = "shutdown";
+    public static final String LIFECYCLE_RECOVER_NAMESPACE_TOPIC = "recover";
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
     public static final String ERROR_RESET_TIME_TOPIC = "errorResetTime";
     public static final String REQUIRES_PRIVILEGE_NAMESPACE_TOPIC = "RequiresPrivilege";
@@ -610,6 +611,8 @@ public class Lifecycle {
             // Since we run the error handler in this thread, that means we should rethrow
             // in order to shutdown this thread since we were requested to stop
             throw e;
+        } catch (TimeoutException e) {
+            logger.atError("service-errorhandler-timeout").setCause(e).log("Service error handler timed out");
         }
 
         if (!desiredState.isPresent()) {

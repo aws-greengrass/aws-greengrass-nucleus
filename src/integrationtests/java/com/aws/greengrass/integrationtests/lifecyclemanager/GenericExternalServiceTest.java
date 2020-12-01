@@ -13,6 +13,8 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.logging.impl.GreengrassLogMessage;
+import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -33,12 +36,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -109,6 +114,47 @@ class GenericExternalServiceTest extends BaseITCase {
 
         assertTrue(ServicesAErroredLatch.await(5, TimeUnit.SECONDS));
         assertTrue(ServicesBErroredLatch.await(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void GIVEN_service_has_recovery_step_WHEN_recovery_timeout_expires_THEN_move_service_to_broken_state_after_all_recovery_retries(
+            ExtensionContext context) throws Exception {
+        Consumer<GreengrassLogMessage> logListener = null;
+        try {
+            ignoreExceptionUltimateCauseWithMessage(context, "Error recovery handler timed out after 1 seconds");
+            ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                    getClass().getResource("service_error_recovery_step_times_out.yaml"));
+
+            CountDownLatch ServiceAErroredatch = new CountDownLatch(2);
+            CountDownLatch ServiceABrokenLatch = new CountDownLatch(1);
+            kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+                if ("ServiceA".equals(service.getName()) && State.ERRORED.equals(newState)) {
+                    ServiceAErroredatch.countDown();
+                }
+                if ("ServiceA".equals(service.getName()) && State.BROKEN.equals(newState)) {
+                    ServiceABrokenLatch.countDown();
+                }
+            });
+
+            CountDownLatch recoveryExecutionTimeout = new CountDownLatch(2);
+            logListener = m -> {
+                if (m.getMessage() != null && m.getMessage()
+                        .contains("Service error handler timed out")) {
+                    recoveryExecutionTimeout.countDown();
+                }
+            };
+            Slf4jLogAdapter.addGlobalListener(logListener);
+
+            kernel.launch();
+
+            assertTrue(recoveryExecutionTimeout.await(15, TimeUnit.SECONDS));
+            assertTrue(ServiceABrokenLatch.await(15, TimeUnit.SECONDS));
+            assertTrue(ServiceAErroredatch.await(15, TimeUnit.SECONDS));
+        } finally {
+            if (logListener != null) {
+                Slf4jLogAdapter.removeGlobalListener(logListener);
+            }
+        }
     }
 
     @Test

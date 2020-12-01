@@ -45,6 +45,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -145,7 +146,7 @@ class LifecycleTest {
     }
 
     @Test
-    void GIVEN_state_new_WHEN_install_timeout_THEN_service_errored() throws InterruptedException {
+    void GIVEN_state_new_WHEN_install_timeout_THEN_service_errored() throws InterruptedException, TimeoutException {
         //GIVEN
         lifecycle = new Lifecycle(greengrassService, logger, greengrassService.getPrivateConfig());
         initLifecycleState(lifecycle, State.NEW);
@@ -182,7 +183,7 @@ class LifecycleTest {
     }
 
     @Test
-    void GIVEN_state_installed_WHEN_startup_timeout_THEN_service_errored() throws InterruptedException {
+    void GIVEN_state_installed_WHEN_startup_timeout_THEN_service_errored() throws InterruptedException, TimeoutException {
         // GIVEN
         lifecycle = new Lifecycle(greengrassService, logger, greengrassService.getPrivateConfig());
         initLifecycleState(lifecycle, State.INSTALLED);
@@ -304,7 +305,7 @@ class LifecycleTest {
     }
 
     @Test
-    void GIVEN_a_service_WHEN_reportState_THEN_all_state_changes_are_notified() throws InterruptedException {
+    void GIVEN_a_service_WHEN_reportState_THEN_all_state_changes_are_notified() throws InterruptedException, TimeoutException {
         // set lifecycle thread with min priority
         ExecutorService executorService = null;
         try {

@@ -47,6 +47,7 @@ public class GenericExternalService extends GreengrassService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
     public static final String LIFECYCLE_SCRIPT_TOPIC = "script";
     public static final int DEFAULT_BOOTSTRAP_TIMEOUT_SEC = 120;    // 2 min
+    public static final int DEFAULT_ERROR_RECOVERY_HANDLER_TIMEOUT_SEC = 60;
     static final String[] sigCodes =
             {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE", "SIGKILL", "SIGUSR1",
                     "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD", "SIGCONT", "SIGSTOP",
@@ -386,9 +387,17 @@ public class GenericExternalService extends GreengrassService {
     }
 
     @Override
-    public void handleError() throws InterruptedException {
-        // A placeholder for error handling in GenericExternalService
-        run("recover", null, lifecycleProcesses);
+    public void handleError() throws InterruptedException, TimeoutException {
+        Integer timeout = Coerce.toInt(getConfig().findOrDefault(DEFAULT_ERROR_RECOVERY_HANDLER_TIMEOUT_SEC,
+                GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, Lifecycle.LIFECYCLE_RECOVER_NAMESPACE_TOPIC,
+                Lifecycle.TIMEOUT_NAMESPACE_TOPIC));
+
+        CountDownLatch handlerExecutionCdl = new CountDownLatch(1);
+        run(Lifecycle.LIFECYCLE_RECOVER_NAMESPACE_TOPIC, c -> handlerExecutionCdl.countDown(), lifecycleProcesses);
+
+        if (!handlerExecutionCdl.await(timeout, TimeUnit.SECONDS)) {
+            throw new TimeoutException(String.format("Error recovery handler timed out after %d seconds", timeout));
+        }
     }
 
     /**
