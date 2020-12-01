@@ -178,7 +178,7 @@ public class PlatformResolver {
         if (source.keySet().stream().anyMatch(keywords::contains)) {
             // Selectors are provided in priority order with highest priority selector first.
             // Find the first selector (if any) that has a match at this level of the multi-level map.
-            Optional<Object> selected =
+            Optional<Object> selected = selectors == null ? Optional.empty() :
                     selectors.stream().map(source::get)
                             .filter(Objects::nonNull)
                             .findFirst();
