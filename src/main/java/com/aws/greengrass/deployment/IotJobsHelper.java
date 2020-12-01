@@ -281,6 +281,8 @@ public class IotJobsHelper implements InjectionActions {
 
         // GG_NEEDS_REVIEW: TODO: switch back to IotJobsClient after IoT device sdk updated for jobs namespace
         this.iotJobsClientWrapper = iotJobsClientFactory.getIotJobsClientWrapper(connection);
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS,
+                this::deploymentStatusChanged, IotJobsHelper.class.getName());
 
         logger.dfltKv("ThingName", (Supplier<String>) () ->
                 Coerce.toString(deviceConfiguration.getThingName()));
@@ -288,8 +290,7 @@ public class IotJobsHelper implements InjectionActions {
         executorService.submit(() -> {
             subscribeToJobsTopics();
             logger.atInfo().log("Connection established to IoT cloud");
-            deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS,
-                    this::deploymentStatusChanged, IotJobsHelper.class.getName());
+            deploymentStatusKeeper.publishPersistedStatusUpdates(DeploymentType.IOT_JOBS);
             this.fleetStatusService.updateFleetStatusUpdateForAllComponents();
         });
     }
