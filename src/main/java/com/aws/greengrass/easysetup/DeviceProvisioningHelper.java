@@ -474,7 +474,7 @@ public class DeviceProvisioningHelper {
                 new ComponentDeploymentSpecification().withComponentVersion(GREENGRASS_CLI_COMPONENT_VERSION));
 
         greengrassClient.createDeployment(deploymentRequest);
-        outStream.printf("Configured Nucleus to deploy %s component", GREENGRASS_CLI_COMPONENT_NAME);
+        outStream.printf("Configured Nucleus to deploy %s component %n", GREENGRASS_CLI_COMPONENT_NAME);
     }
 
     @AllArgsConstructor
