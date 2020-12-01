@@ -41,7 +41,6 @@ import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.Getter;
 import lombok.Setter;
-import software.amazon.awssdk.aws.greengrass.model.InvalidRecipeDirectoryPathError;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.IOException;
@@ -67,6 +66,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer;
+import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializerJson;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
@@ -435,15 +436,15 @@ public class DeploymentService extends GreengrassService {
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                                                                  JobStatus.IN_PROGRESS.toString(), new HashMap<>());
 
-        if(DeploymentType.LOCAL.equals(deployment.getDeploymentType())) {
+        if (DeploymentType.LOCAL.equals(deployment.getDeploymentType())) {
             try {
                 copyRecipesAndArtifacts(deployment);
             } catch (InvalidRequestException | IOException e) {
                 logger.atError().log("Error copying recipes and artifacts", e);
                 HashMap<String, String> statusDetails = new HashMap<>();
                 statusDetails.put("error", e.getMessage());
-                deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
-                        JobStatus.FAILED.toString(), statusDetails);
+                deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
+                        deployment.getDeploymentType(), JobStatus.FAILED.toString(), statusDetails);
                 return;
             }
         }
@@ -471,6 +472,7 @@ public class DeploymentService extends GreengrassService {
                                            new AtomicInteger(1), deployment.getDeploymentDocumentObj(), cancellable);
     }
 
+    @SuppressWarnings("PMD.ExceptionAsFlowControl")
     private void copyRecipesAndArtifacts(Deployment deployment) throws InvalidRequestException, IOException {
         try {
             LocalOverrideRequest localOverrideRequest = SerializerFactory.getFailSafeJsonObjectMapper()
@@ -512,12 +514,10 @@ public class DeploymentService extends GreengrassService {
                 switch (ext.toLowerCase()) {
                     case "yaml":
                     case "yml":
-                        recipe = com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer()
-                                .readValue(r.toFile(), ComponentRecipe.class);
+                        recipe = getRecipeSerializer().readValue(r.toFile(), ComponentRecipe.class);
                         break;
                     case "json":
-                        recipe = com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializerJson()
-                                .readValue(r.toFile(), ComponentRecipe.class);
+                        recipe = getRecipeSerializerJson().readValue(r.toFile(), ComponentRecipe.class);
                         break;
                     default:
                         break;
@@ -540,7 +540,7 @@ public class DeploymentService extends GreengrassService {
 
             try {
                 componentStore.savePackageRecipe(componentIdentifier,
-                        com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer().writeValueAsString(recipe));
+                        getRecipeSerializer().writeValueAsString(recipe));
             } catch (PackageLoadingException e) {
                 // Throw on error so that the user will receive this message and we will stop the deployment.
                 // This is to fail fast while providing actionable feedback.
