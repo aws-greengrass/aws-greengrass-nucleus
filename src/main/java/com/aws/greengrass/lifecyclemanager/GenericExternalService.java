@@ -45,6 +45,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 
 public class GenericExternalService extends GreengrassService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
+    public static final String LIFECYCLE_SCRIPT_TOPIC = "script";
     public static final int DEFAULT_BOOTSTRAP_TIMEOUT_SEC = 120;    // 2 min
     static final String[] sigCodes =
             {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE", "SIGKILL", "SIGUSR1",
@@ -513,14 +514,15 @@ public class GenericExternalService extends GreengrassService {
             throws InterruptedException {
         try {
             if (shouldSkip(t)) {
-                logger.atDebug().setEventType("generic-service-skipped").addKeyValue("script", t.getFullName()).log();
+                logger.atDebug().setEventType("generic-service-skipped")
+                        .addKeyValue(LIFECYCLE_SCRIPT_TOPIC, t.getFullName()).log();
                 return new Pair<>(RunStatus.OK, null);
             }
         } catch (InputValidationException e) {
             return new Pair<>(RunStatus.Errored, null);
         }
 
-        Node script = t.getChild("script");
+        Node script = t.getChild(LIFECYCLE_SCRIPT_TOPIC);
         if (script instanceof Topic) {
             return run((Topic) script, Coerce.toString(script), background, trackingList, requiresPrivilege);
         } else {

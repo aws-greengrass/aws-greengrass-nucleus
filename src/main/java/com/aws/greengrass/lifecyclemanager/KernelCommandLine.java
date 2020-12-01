@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -15,14 +16,25 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
+import com.vdurmont.semver4j.Semver;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.nio.file.Paths;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_JVM_OPTIONS;
+import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_SCRIPT_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.REQUIRES_PRIVILEGE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.util.Utils.HOME_PATH;
 
 public class KernelCommandLine {
@@ -60,6 +72,12 @@ public class KernelCommandLine {
     private static final String deploymentsPathName = "~root/deployments";
     private static final String cliIpcInfoPathName = "~root/cli_ipc_info";
     private static final String binPathName = "~root/bin";
+    private static final String DEFAULT_NUCLEUS_BOOTSTRAP_TEMPLATE = "set -eu%nKERNEL_ROOT=\"%s\"%n"
+            + "UNPACK_DIR=\"%s/aws.greengrass.nucleus\"%n"
+            + "chmod +x \"$UNPACK_DIR/bin/loader\"%n%n"
+            + "rm -r \"$KERNEL_ROOT\"/alts/current/*%n%n"
+            + "echo \"%s\" > \"$KERNEL_ROOT/alts/current/launch.params\"%n"
+            + "ln -sf \"$UNPACK_DIR\" \"$KERNEL_ROOT/alts/current/distro\"%nexit 100";
 
     public static void main(String[] args) {
         new Kernel().parseArgs(args).launch();
@@ -171,6 +189,9 @@ public class KernelCommandLine {
             // Initialize file and directory managers after kernel root directory is set up
             deploymentDirectoryManager = new DeploymentDirectoryManager(kernel, nucleusPaths);
             kernel.getContext().put(DeploymentDirectoryManager.class, deploymentDirectoryManager);
+
+            // Initialize default nucleus bootstrap script with provided paths
+            initNucleusBootstrapScript();
         } catch (IOException e) {
             RuntimeException rte = new RuntimeException("Cannot create all required directories", e);
             logger.atError("system-boot-error", rte).log();
@@ -184,6 +205,25 @@ public class KernelCommandLine {
         bootstrapManager = new BootstrapManager(kernel);
         kernel.getContext().put(BootstrapManager.class, bootstrapManager);
         kernel.getContext().get(KernelAlternatives.class);
+    }
+
+    private void initNucleusBootstrapScript() throws IOException {
+        // current jvm options. sorted so that the order is consistent
+        String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
+                .collect(Collectors.joining(" "));
+        String rootPath = nucleusPaths.rootPath().toAbsolutePath().toString();
+        String unarchivePath = nucleusPaths.unarchiveArtifactPath(
+                new ComponentIdentifier(DEFAULT_NUCLEUS_COMPONENT_NAME, new Semver(KernelVersion.KERNEL_VERSION)))
+                .toAbsolutePath().toString();
+        String bootstrapScript = String.format(DEFAULT_NUCLEUS_BOOTSTRAP_TEMPLATE, rootPath, unarchivePath, jvmOptions);
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                DEVICE_PARAM_JVM_OPTIONS).dflt(jvmOptions);
+        kernel.getConfig()
+                .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                        LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, LIFECYCLE_SCRIPT_TOPIC).dflt(bootstrapScript);
+        kernel.getConfig()
+                .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                        LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, REQUIRES_PRIVILEGE_NAMESPACE_TOPIC).dflt(true);
     }
 
     /**
