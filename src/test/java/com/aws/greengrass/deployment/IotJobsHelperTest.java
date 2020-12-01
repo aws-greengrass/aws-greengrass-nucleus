@@ -588,7 +588,7 @@ class IotJobsHelperTest {
         verify(mockIotJobsClientWrapper, times(1)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         iotJobsHelper.getCallbacks().onConnectionResumed(false);
         verify(mockIotJobsClientWrapper, times(1)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
-        verify(deploymentStatusKeeper).publishPersistedStatusUpdates(eq(IOT_JOBS));
+        verify(deploymentStatusKeeper, times(2)).publishPersistedStatusUpdates(eq(IOT_JOBS));
     }
 
     private JobExecutionData getMockJobExecutionData(String jobId, Timestamp ts) {
