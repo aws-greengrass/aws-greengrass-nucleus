@@ -52,7 +52,7 @@ public class PublishToTopicRequest implements EventStreamJsonMessage {
   }
 
   public void setTopic(final String topic) {
-    this.topic = Optional.of(topic);
+    this.topic = Optional.ofNullable(topic);
   }
 
   public PublishMessage getPublishMessage() {
@@ -63,7 +63,7 @@ public class PublishToTopicRequest implements EventStreamJsonMessage {
   }
 
   public void setPublishMessage(final PublishMessage publishMessage) {
-    this.publishMessage = Optional.of(publishMessage);
+    this.publishMessage = Optional.ofNullable(publishMessage);
   }
 
   @Override

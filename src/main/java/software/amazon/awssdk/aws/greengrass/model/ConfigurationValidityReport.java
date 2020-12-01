@@ -31,7 +31,7 @@ public class ConfigurationValidityReport implements EventStreamJsonMessage {
       serialize = true,
       deserialize = true
   )
-  private Optional<ConfigurationValidityStatus> status;
+  private Optional<String> status;
 
   @Expose(
       serialize = true,
@@ -53,13 +53,24 @@ public class ConfigurationValidityReport implements EventStreamJsonMessage {
 
   public ConfigurationValidityStatus getStatus() {
     if (status.isPresent()) {
+      return ConfigurationValidityStatus.valueOf(status.get());
+    }
+    return null;
+  }
+
+  public String getStatusAsString() {
+    if (status.isPresent()) {
       return status.get();
     }
     return null;
   }
 
   public void setStatus(final ConfigurationValidityStatus status) {
-    this.status = Optional.of(status);
+    this.status = Optional.ofNullable(status.getValue());
+  }
+
+  public void setStatus(final String status) {
+    this.status = Optional.ofNullable(status);
   }
 
   public String getDeploymentId() {
@@ -70,7 +81,7 @@ public class ConfigurationValidityReport implements EventStreamJsonMessage {
   }
 
   public void setDeploymentId(final String deploymentId) {
-    this.deploymentId = Optional.of(deploymentId);
+    this.deploymentId = Optional.ofNullable(deploymentId);
   }
 
   public String getMessage() {

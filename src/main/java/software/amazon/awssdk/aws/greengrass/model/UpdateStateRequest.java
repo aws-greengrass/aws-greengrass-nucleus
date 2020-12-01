@@ -31,7 +31,7 @@ public class UpdateStateRequest implements EventStreamJsonMessage {
       serialize = true,
       deserialize = true
   )
-  private Optional<ReportedLifecycleState> state;
+  private Optional<String> state;
 
   public UpdateStateRequest() {
     this.state = Optional.empty();
@@ -39,13 +39,24 @@ public class UpdateStateRequest implements EventStreamJsonMessage {
 
   public ReportedLifecycleState getState() {
     if (state.isPresent()) {
+      return ReportedLifecycleState.valueOf(state.get());
+    }
+    return null;
+  }
+
+  public String getStateAsString() {
+    if (state.isPresent()) {
       return state.get();
     }
     return null;
   }
 
   public void setState(final ReportedLifecycleState state) {
-    this.state = Optional.of(state);
+    this.state = Optional.ofNullable(state.getValue());
+  }
+
+  public void setState(final String state) {
+    this.state = Optional.ofNullable(state);
   }
 
   @Override

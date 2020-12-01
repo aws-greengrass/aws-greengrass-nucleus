@@ -64,7 +64,7 @@ public class ValidateConfigurationUpdateEvent implements EventStreamJsonMessage 
   }
 
   public void setDeploymentId(final String deploymentId) {
-    this.deploymentId = Optional.of(deploymentId);
+    this.deploymentId = Optional.ofNullable(deploymentId);
   }
 
   @Override

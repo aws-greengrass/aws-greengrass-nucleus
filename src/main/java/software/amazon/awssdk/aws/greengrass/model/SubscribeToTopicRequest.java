@@ -45,7 +45,7 @@ public class SubscribeToTopicRequest implements EventStreamJsonMessage {
   }
 
   public void setTopic(final String topic) {
-    this.topic = Optional.of(topic);
+    this.topic = Optional.ofNullable(topic);
   }
 
   @Override

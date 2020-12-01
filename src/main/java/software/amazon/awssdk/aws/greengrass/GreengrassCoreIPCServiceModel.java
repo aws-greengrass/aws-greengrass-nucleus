@@ -86,8 +86,6 @@ import software.amazon.awssdk.aws.greengrass.model.SubscriptionResponseMessage;
 import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
 import software.amazon.awssdk.aws.greengrass.model.UpdateConfigurationRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateConfigurationResponse;
-import software.amazon.awssdk.aws.greengrass.model.UpdateRecipesAndArtifactsRequest;
-import software.amazon.awssdk.aws.greengrass.model.UpdateRecipesAndArtifactsResponse;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateResponse;
 import software.amazon.awssdk.aws.greengrass.model.ValidateAuthorizationTokenRequest;
@@ -154,10 +152,6 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
   public static final String VALIDATE_AUTHORIZATION_TOKEN = SERVICE_NAMESPACE + "#" + "ValidateAuthorizationToken";
 
   private static final ValidateAuthorizationTokenOperationContext _VALIDATE_AUTHORIZATION_TOKEN_OPERATION_CONTEXT = new ValidateAuthorizationTokenOperationContext();
-
-  public static final String UPDATE_RECIPES_AND_ARTIFACTS = SERVICE_NAMESPACE + "#" + "UpdateRecipesAndArtifacts";
-
-  private static final UpdateRecipesAndArtifactsOperationContext _UPDATE_RECIPES_AND_ARTIFACTS_OPERATION_CONTEXT = new UpdateRecipesAndArtifactsOperationContext();
 
   public static final String RESTART_COMPONENT = SERVICE_NAMESPACE + "#" + "RestartComponent";
 
@@ -226,8 +220,6 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_VALIDATE_CONFIGURATION_UPDATES);
     SERVICE_OPERATION_MODEL_MAP.put(VALIDATE_AUTHORIZATION_TOKEN, _VALIDATE_AUTHORIZATION_TOKEN_OPERATION_CONTEXT);
     SERVICE_OPERATION_SET.add(VALIDATE_AUTHORIZATION_TOKEN);
-    SERVICE_OPERATION_MODEL_MAP.put(UPDATE_RECIPES_AND_ARTIFACTS, _UPDATE_RECIPES_AND_ARTIFACTS_OPERATION_CONTEXT);
-    SERVICE_OPERATION_SET.add(UPDATE_RECIPES_AND_ARTIFACTS);
     SERVICE_OPERATION_MODEL_MAP.put(RESTART_COMPONENT, _RESTART_COMPONENT_OPERATION_CONTEXT);
     SERVICE_OPERATION_SET.add(RESTART_COMPONENT);
     SERVICE_OPERATION_MODEL_MAP.put(GET_LOCAL_DEPLOYMENT_STATUS, _GET_LOCAL_DEPLOYMENT_STATUS_OPERATION_CONTEXT);
@@ -250,42 +242,35 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OPERATION_SET.add(STOP_COMPONENT);
     SERVICE_OPERATION_MODEL_MAP.put(CREATE_LOCAL_DEPLOYMENT, _CREATE_LOCAL_DEPLOYMENT_OPERATION_CONTEXT);
     SERVICE_OPERATION_SET.add(CREATE_LOCAL_DEPLOYMENT);
-    SERVICE_OBJECT_MODEL_MAP.put(PublishToTopicResponse.APPLICATION_MODEL_TYPE, PublishToTopicResponse.class);
-    SERVICE_OBJECT_MODEL_MAP.put(PublishToIoTCoreResponse.APPLICATION_MODEL_TYPE, PublishToIoTCoreResponse.class);
-    SERVICE_OBJECT_MODEL_MAP.put(ListComponentsRequest.APPLICATION_MODEL_TYPE, ListComponentsRequest.class);
-    SERVICE_OBJECT_MODEL_MAP.put(DeferComponentUpdateResponse.APPLICATION_MODEL_TYPE, DeferComponentUpdateResponse.class);
-    SERVICE_OBJECT_MODEL_MAP.put(SendConfigurationValidityReportResponse.APPLICATION_MODEL_TYPE, SendConfigurationValidityReportResponse.class);
-    SERVICE_OBJECT_MODEL_MAP.put(UpdateConfigurationResponse.APPLICATION_MODEL_TYPE, UpdateConfigurationResponse.class);
-    SERVICE_OBJECT_MODEL_MAP.put(SubscribeToValidateConfigurationUpdatesRequest.APPLICATION_MODEL_TYPE, SubscribeToValidateConfigurationUpdatesRequest.class);
-    SERVICE_OBJECT_MODEL_MAP.put(UpdateRecipesAndArtifactsResponse.APPLICATION_MODEL_TYPE, UpdateRecipesAndArtifactsResponse.class);
-    SERVICE_OBJECT_MODEL_MAP.put(UpdateStateResponse.APPLICATION_MODEL_TYPE, UpdateStateResponse.class);
-    SERVICE_OBJECT_MODEL_MAP.put(SubscribeToComponentUpdatesRequest.APPLICATION_MODEL_TYPE, SubscribeToComponentUpdatesRequest.class);
-    SERVICE_OBJECT_MODEL_MAP.put(ListLocalDeploymentsRequest.APPLICATION_MODEL_TYPE, ListLocalDeploymentsRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToIoTCoreRequest.APPLICATION_MODEL_TYPE, SubscribeToIoTCoreRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToIoTCoreResponse.APPLICATION_MODEL_TYPE, SubscribeToIoTCoreResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(ServiceError.APPLICATION_MODEL_TYPE, ServiceError.class);
     SERVICE_OBJECT_MODEL_MAP.put(UnauthorizedError.APPLICATION_MODEL_TYPE, UnauthorizedError.class);
     SERVICE_OBJECT_MODEL_MAP.put(PublishToTopicRequest.APPLICATION_MODEL_TYPE, PublishToTopicRequest.class);
+    SERVICE_OBJECT_MODEL_MAP.put(PublishToTopicResponse.APPLICATION_MODEL_TYPE, PublishToTopicResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(PublishToIoTCoreRequest.APPLICATION_MODEL_TYPE, PublishToIoTCoreRequest.class);
+    SERVICE_OBJECT_MODEL_MAP.put(PublishToIoTCoreResponse.APPLICATION_MODEL_TYPE, PublishToIoTCoreResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToConfigurationUpdateRequest.APPLICATION_MODEL_TYPE, SubscribeToConfigurationUpdateRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToConfigurationUpdateResponse.APPLICATION_MODEL_TYPE, SubscribeToConfigurationUpdateResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(ResourceNotFoundError.APPLICATION_MODEL_TYPE, ResourceNotFoundError.class);
+    SERVICE_OBJECT_MODEL_MAP.put(ListComponentsRequest.APPLICATION_MODEL_TYPE, ListComponentsRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(ListComponentsResponse.APPLICATION_MODEL_TYPE, ListComponentsResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(CreateDebugPasswordRequest.APPLICATION_MODEL_TYPE, CreateDebugPasswordRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(CreateDebugPasswordResponse.APPLICATION_MODEL_TYPE, CreateDebugPasswordResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(DeferComponentUpdateRequest.APPLICATION_MODEL_TYPE, DeferComponentUpdateRequest.class);
+    SERVICE_OBJECT_MODEL_MAP.put(DeferComponentUpdateResponse.APPLICATION_MODEL_TYPE, DeferComponentUpdateResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(InvalidArgumentsError.APPLICATION_MODEL_TYPE, InvalidArgumentsError.class);
     SERVICE_OBJECT_MODEL_MAP.put(SendConfigurationValidityReportRequest.APPLICATION_MODEL_TYPE, SendConfigurationValidityReportRequest.class);
+    SERVICE_OBJECT_MODEL_MAP.put(SendConfigurationValidityReportResponse.APPLICATION_MODEL_TYPE, SendConfigurationValidityReportResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(UpdateConfigurationRequest.APPLICATION_MODEL_TYPE, UpdateConfigurationRequest.class);
+    SERVICE_OBJECT_MODEL_MAP.put(UpdateConfigurationResponse.APPLICATION_MODEL_TYPE, UpdateConfigurationResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(ConflictError.APPLICATION_MODEL_TYPE, ConflictError.class);
     SERVICE_OBJECT_MODEL_MAP.put(FailedUpdateConditionCheckError.APPLICATION_MODEL_TYPE, FailedUpdateConditionCheckError.class);
+    SERVICE_OBJECT_MODEL_MAP.put(SubscribeToValidateConfigurationUpdatesRequest.APPLICATION_MODEL_TYPE, SubscribeToValidateConfigurationUpdatesRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToValidateConfigurationUpdatesResponse.APPLICATION_MODEL_TYPE, SubscribeToValidateConfigurationUpdatesResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(ValidateAuthorizationTokenRequest.APPLICATION_MODEL_TYPE, ValidateAuthorizationTokenRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(ValidateAuthorizationTokenResponse.APPLICATION_MODEL_TYPE, ValidateAuthorizationTokenResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(InvalidTokenError.APPLICATION_MODEL_TYPE, InvalidTokenError.class);
-    SERVICE_OBJECT_MODEL_MAP.put(UpdateRecipesAndArtifactsRequest.APPLICATION_MODEL_TYPE, UpdateRecipesAndArtifactsRequest.class);
-    SERVICE_OBJECT_MODEL_MAP.put(InvalidRecipeDirectoryPathError.APPLICATION_MODEL_TYPE, InvalidRecipeDirectoryPathError.class);
-    SERVICE_OBJECT_MODEL_MAP.put(InvalidArtifactsDirectoryPathError.APPLICATION_MODEL_TYPE, InvalidArtifactsDirectoryPathError.class);
     SERVICE_OBJECT_MODEL_MAP.put(RestartComponentRequest.APPLICATION_MODEL_TYPE, RestartComponentRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(RestartComponentResponse.APPLICATION_MODEL_TYPE, RestartComponentResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(ComponentNotFoundError.APPLICATION_MODEL_TYPE, ComponentNotFoundError.class);
@@ -294,18 +279,23 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
     SERVICE_OBJECT_MODEL_MAP.put(GetSecretValueRequest.APPLICATION_MODEL_TYPE, GetSecretValueRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(GetSecretValueResponse.APPLICATION_MODEL_TYPE, GetSecretValueResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(UpdateStateRequest.APPLICATION_MODEL_TYPE, UpdateStateRequest.class);
+    SERVICE_OBJECT_MODEL_MAP.put(UpdateStateResponse.APPLICATION_MODEL_TYPE, UpdateStateResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(GetConfigurationRequest.APPLICATION_MODEL_TYPE, GetConfigurationRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(GetConfigurationResponse.APPLICATION_MODEL_TYPE, GetConfigurationResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToTopicRequest.APPLICATION_MODEL_TYPE, SubscribeToTopicRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToTopicResponse.APPLICATION_MODEL_TYPE, SubscribeToTopicResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(GetComponentDetailsRequest.APPLICATION_MODEL_TYPE, GetComponentDetailsRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(GetComponentDetailsResponse.APPLICATION_MODEL_TYPE, GetComponentDetailsResponse.class);
+    SERVICE_OBJECT_MODEL_MAP.put(SubscribeToComponentUpdatesRequest.APPLICATION_MODEL_TYPE, SubscribeToComponentUpdatesRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(SubscribeToComponentUpdatesResponse.APPLICATION_MODEL_TYPE, SubscribeToComponentUpdatesResponse.class);
+    SERVICE_OBJECT_MODEL_MAP.put(ListLocalDeploymentsRequest.APPLICATION_MODEL_TYPE, ListLocalDeploymentsRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(ListLocalDeploymentsResponse.APPLICATION_MODEL_TYPE, ListLocalDeploymentsResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(StopComponentRequest.APPLICATION_MODEL_TYPE, StopComponentRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(StopComponentResponse.APPLICATION_MODEL_TYPE, StopComponentResponse.class);
     SERVICE_OBJECT_MODEL_MAP.put(CreateLocalDeploymentRequest.APPLICATION_MODEL_TYPE, CreateLocalDeploymentRequest.class);
     SERVICE_OBJECT_MODEL_MAP.put(CreateLocalDeploymentResponse.APPLICATION_MODEL_TYPE, CreateLocalDeploymentResponse.class);
+    SERVICE_OBJECT_MODEL_MAP.put(InvalidRecipeDirectoryPathError.APPLICATION_MODEL_TYPE, InvalidRecipeDirectoryPathError.class);
+    SERVICE_OBJECT_MODEL_MAP.put(InvalidArtifactsDirectoryPathError.APPLICATION_MODEL_TYPE, InvalidArtifactsDirectoryPathError.class);
     SERVICE_OBJECT_MODEL_MAP.put(QOS.APPLICATION_MODEL_TYPE, QOS.class);
     SERVICE_OBJECT_MODEL_MAP.put(IoTCoreMessage.APPLICATION_MODEL_TYPE, IoTCoreMessage.class);
     SERVICE_OBJECT_MODEL_MAP.put(PublishMessage.APPLICATION_MODEL_TYPE, PublishMessage.class);
@@ -390,11 +380,6 @@ public class GreengrassCoreIPCServiceModel extends EventStreamRPCServiceModel {
   public static ValidateAuthorizationTokenOperationContext getValidateAuthorizationTokenModelContext(
       ) {
     return _VALIDATE_AUTHORIZATION_TOKEN_OPERATION_CONTEXT;
-  }
-
-  public static UpdateRecipesAndArtifactsOperationContext getUpdateRecipesAndArtifactsModelContext(
-      ) {
-    return _UPDATE_RECIPES_AND_ARTIFACTS_OPERATION_CONTEXT;
   }
 
   public static RestartComponentOperationContext getRestartComponentModelContext() {

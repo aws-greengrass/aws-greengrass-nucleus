@@ -11,9 +11,6 @@ import java.lang.String;
 import java.util.Objects;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-/**
- * Generated empty model type not defined in model
- */
 public class SendConfigurationValidityReportResponse implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#SendConfigurationValidityReportResponse";
 
@@ -22,10 +19,13 @@ public class SendConfigurationValidityReportResponse implements EventStreamJsonM
   static {
     VOID = new SendConfigurationValidityReportResponse() {
       @Override
-      public final boolean isVoid() {
+      public boolean isVoid() {
         return true;
       }
     };
+  }
+
+  public SendConfigurationValidityReportResponse() {
   }
 
   @Override
@@ -34,18 +34,17 @@ public class SendConfigurationValidityReportResponse implements EventStreamJsonM
   }
 
   @Override
-  public boolean isVoid() {
-    return true;
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof SendConfigurationValidityReportResponse)) return false;
+    if (this == rhs) return true;
+    final SendConfigurationValidityReportResponse other = (SendConfigurationValidityReportResponse)rhs;
+    boolean isEquals = true;
+    return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(SendConfigurationValidityReportResponse.class);
-  }
-
-  @Override
-  public boolean equals(Object rhs) {
-    if (rhs == null) return false;
-    return (rhs instanceof SendConfigurationValidityReportResponse);
+    return Objects.hash();
   }
 }

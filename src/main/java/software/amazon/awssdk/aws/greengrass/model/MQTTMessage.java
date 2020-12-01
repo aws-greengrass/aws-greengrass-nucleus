@@ -53,7 +53,7 @@ public class MQTTMessage implements EventStreamJsonMessage {
   }
 
   public void setTopicName(final String topicName) {
-    this.topicName = Optional.of(topicName);
+    this.topicName = Optional.ofNullable(topicName);
   }
 
   public byte[] getPayload() {

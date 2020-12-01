@@ -37,7 +37,7 @@ public class SubscribeToIoTCoreRequest implements EventStreamJsonMessage {
       serialize = true,
       deserialize = true
   )
-  private Optional<QOS> qos;
+  private Optional<String> qos;
 
   public SubscribeToIoTCoreRequest() {
     this.topicName = Optional.empty();
@@ -52,10 +52,17 @@ public class SubscribeToIoTCoreRequest implements EventStreamJsonMessage {
   }
 
   public void setTopicName(final String topicName) {
-    this.topicName = Optional.of(topicName);
+    this.topicName = Optional.ofNullable(topicName);
   }
 
   public QOS getQos() {
+    if (qos.isPresent()) {
+      return QOS.valueOf(qos.get());
+    }
+    return null;
+  }
+
+  public String getQosAsString() {
     if (qos.isPresent()) {
       return qos.get();
     }
@@ -63,7 +70,11 @@ public class SubscribeToIoTCoreRequest implements EventStreamJsonMessage {
   }
 
   public void setQos(final QOS qos) {
-    this.qos = Optional.of(qos);
+    this.qos = Optional.ofNullable(qos.getValue());
+  }
+
+  public void setQos(final String qos) {
+    this.qos = Optional.ofNullable(qos);
   }
 
   @Override

@@ -45,7 +45,7 @@ public class GetLocalDeploymentStatusResponse implements EventStreamJsonMessage 
   }
 
   public void setDeployment(final LocalDeployment deployment) {
-    this.deployment = Optional.of(deployment);
+    this.deployment = Optional.ofNullable(deployment);
   }
 
   @Override

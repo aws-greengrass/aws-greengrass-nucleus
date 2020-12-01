@@ -11,9 +11,6 @@ import java.lang.String;
 import java.util.Objects;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-/**
- * Generated empty model type not defined in model
- */
 public class SubscribeToComponentUpdatesRequest implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#SubscribeToComponentUpdatesRequest";
 
@@ -22,10 +19,13 @@ public class SubscribeToComponentUpdatesRequest implements EventStreamJsonMessag
   static {
     VOID = new SubscribeToComponentUpdatesRequest() {
       @Override
-      public final boolean isVoid() {
+      public boolean isVoid() {
         return true;
       }
     };
+  }
+
+  public SubscribeToComponentUpdatesRequest() {
   }
 
   @Override
@@ -34,18 +34,17 @@ public class SubscribeToComponentUpdatesRequest implements EventStreamJsonMessag
   }
 
   @Override
-  public boolean isVoid() {
-    return true;
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof SubscribeToComponentUpdatesRequest)) return false;
+    if (this == rhs) return true;
+    final SubscribeToComponentUpdatesRequest other = (SubscribeToComponentUpdatesRequest)rhs;
+    boolean isEquals = true;
+    return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(SubscribeToComponentUpdatesRequest.class);
-  }
-
-  @Override
-  public boolean equals(Object rhs) {
-    if (rhs == null) return false;
-    return (rhs instanceof SubscribeToComponentUpdatesRequest);
+    return Objects.hash();
   }
 }

@@ -37,7 +37,7 @@ public class LocalDeployment implements EventStreamJsonMessage {
       serialize = true,
       deserialize = true
   )
-  private Optional<DeploymentStatus> status;
+  private Optional<String> status;
 
   public LocalDeployment() {
     this.deploymentId = Optional.empty();
@@ -52,10 +52,17 @@ public class LocalDeployment implements EventStreamJsonMessage {
   }
 
   public void setDeploymentId(final String deploymentId) {
-    this.deploymentId = Optional.of(deploymentId);
+    this.deploymentId = Optional.ofNullable(deploymentId);
   }
 
   public DeploymentStatus getStatus() {
+    if (status.isPresent()) {
+      return DeploymentStatus.valueOf(status.get());
+    }
+    return null;
+  }
+
+  public String getStatusAsString() {
     if (status.isPresent()) {
       return status.get();
     }
@@ -63,7 +70,11 @@ public class LocalDeployment implements EventStreamJsonMessage {
   }
 
   public void setStatus(final DeploymentStatus status) {
-    this.status = Optional.of(status);
+    this.status = Optional.ofNullable(status.getValue());
+  }
+
+  public void setStatus(final String status) {
+    this.status = Optional.ofNullable(status);
   }
 
   @Override

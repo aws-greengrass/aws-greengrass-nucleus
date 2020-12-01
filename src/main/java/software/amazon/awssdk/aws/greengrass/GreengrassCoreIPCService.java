@@ -44,8 +44,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String VALIDATE_AUTHORIZATION_TOKEN = SERVICE_NAMESPACE + "#ValidateAuthorizationToken";
 
-  public static final String UPDATE_RECIPES_AND_ARTIFACTS = SERVICE_NAMESPACE + "#UpdateRecipesAndArtifacts";
-
   public static final String RESTART_COMPONENT = SERVICE_NAMESPACE + "#RestartComponent";
 
   public static final String GET_LOCAL_DEPLOYMENT_STATUS = SERVICE_NAMESPACE + "#GetLocalDeploymentStatus";
@@ -81,7 +79,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(UPDATE_CONFIGURATION);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_VALIDATE_CONFIGURATION_UPDATES);
     SERVICE_OPERATION_SET.add(VALIDATE_AUTHORIZATION_TOKEN);
-    SERVICE_OPERATION_SET.add(UPDATE_RECIPES_AND_ARTIFACTS);
     SERVICE_OPERATION_SET.add(RESTART_COMPONENT);
     SERVICE_OPERATION_SET.add(GET_LOCAL_DEPLOYMENT_STATUS);
     SERVICE_OPERATION_SET.add(GET_SECRET_VALUE);
@@ -159,11 +156,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setValidateAuthorizationTokenHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractValidateAuthorizationTokenOperationHandler> handler) {
     operationSupplierMap.put(VALIDATE_AUTHORIZATION_TOKEN, handler);
-  }
-
-  public void setUpdateRecipesAndArtifactsHandler(
-      Function<OperationContinuationHandlerContext, GeneratedAbstractUpdateRecipesAndArtifactsOperationHandler> handler) {
-    operationSupplierMap.put(UPDATE_RECIPES_AND_ARTIFACTS, handler);
   }
 
   public void setRestartComponentHandler(

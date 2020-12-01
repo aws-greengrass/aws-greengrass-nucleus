@@ -8,6 +8,7 @@ package software.amazon.awssdk.eventstreamrpc;
 import software.amazon.awssdk.crt.io.*;
 import software.amazon.awssdk.eventstreamrpc.MessageAmendInfo;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 /**
@@ -31,11 +32,11 @@ public class EventStreamRPCConnectionConfig {
      * MessageAmendInfo here is used to add supplied headers to the Connect message, and
      * set the payload of that message as well.
      */
-    private final Supplier<MessageAmendInfo> connectMessageAmender;
+    private final Supplier<CompletableFuture<MessageAmendInfo>> connectMessageAmender;
 
     public EventStreamRPCConnectionConfig(ClientBootstrap clientBootstrap, EventLoopGroup eventLoopGroup,
                                           SocketOptions socketOptions, ClientTlsContext tlsContext,
-                                          String host, int port, Supplier<MessageAmendInfo> connectMessageAmender) {
+                                          String host, int port, Supplier<CompletableFuture<MessageAmendInfo>> connectMessageAmender) {
         this.clientBootstrap = clientBootstrap;
         this.eventLoopGroup = eventLoopGroup;
         this.socketOptions = socketOptions;
@@ -78,7 +79,7 @@ public class EventStreamRPCConnectionConfig {
         return port;
     }
 
-    public Supplier<MessageAmendInfo> getConnectMessageAmender() {
+    public Supplier<CompletableFuture<MessageAmendInfo>> getConnectMessageAmender() {
         return connectMessageAmender;
     }
 }

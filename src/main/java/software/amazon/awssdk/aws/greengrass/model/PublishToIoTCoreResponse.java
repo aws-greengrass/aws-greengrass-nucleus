@@ -11,9 +11,6 @@ import java.lang.String;
 import java.util.Objects;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-/**
- * Generated empty model type not defined in model
- */
 public class PublishToIoTCoreResponse implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#PublishToIoTCoreResponse";
 
@@ -22,10 +19,13 @@ public class PublishToIoTCoreResponse implements EventStreamJsonMessage {
   static {
     VOID = new PublishToIoTCoreResponse() {
       @Override
-      public final boolean isVoid() {
+      public boolean isVoid() {
         return true;
       }
     };
+  }
+
+  public PublishToIoTCoreResponse() {
   }
 
   @Override
@@ -34,18 +34,17 @@ public class PublishToIoTCoreResponse implements EventStreamJsonMessage {
   }
 
   @Override
-  public boolean isVoid() {
-    return true;
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof PublishToIoTCoreResponse)) return false;
+    if (this == rhs) return true;
+    final PublishToIoTCoreResponse other = (PublishToIoTCoreResponse)rhs;
+    boolean isEquals = true;
+    return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(PublishToIoTCoreResponse.class);
-  }
-
-  @Override
-  public boolean equals(Object rhs) {
-    if (rhs == null) return false;
-    return (rhs instanceof PublishToIoTCoreResponse);
+    return Objects.hash();
   }
 }

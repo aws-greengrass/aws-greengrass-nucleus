@@ -53,7 +53,7 @@ public class ConfigurationUpdateEvent implements EventStreamJsonMessage {
   }
 
   public void setComponentName(final String componentName) {
-    this.componentName = Optional.of(componentName);
+    this.componentName = Optional.ofNullable(componentName);
   }
 
   public List<String> getKeyPath() {
@@ -64,7 +64,7 @@ public class ConfigurationUpdateEvent implements EventStreamJsonMessage {
   }
 
   public void setKeyPath(final List<String> keyPath) {
-    this.keyPath = Optional.of(keyPath);
+    this.keyPath = Optional.ofNullable(keyPath);
   }
 
   @Override

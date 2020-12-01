@@ -11,9 +11,6 @@ import java.lang.String;
 import java.util.Objects;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-/**
- * Generated empty model type not defined in model
- */
 public class DeferComponentUpdateResponse implements EventStreamJsonMessage {
   public static final String APPLICATION_MODEL_TYPE = "aws.greengrass#DeferComponentUpdateResponse";
 
@@ -22,10 +19,13 @@ public class DeferComponentUpdateResponse implements EventStreamJsonMessage {
   static {
     VOID = new DeferComponentUpdateResponse() {
       @Override
-      public final boolean isVoid() {
+      public boolean isVoid() {
         return true;
       }
     };
+  }
+
+  public DeferComponentUpdateResponse() {
   }
 
   @Override
@@ -34,18 +34,17 @@ public class DeferComponentUpdateResponse implements EventStreamJsonMessage {
   }
 
   @Override
-  public boolean isVoid() {
-    return true;
+  public boolean equals(Object rhs) {
+    if (rhs == null) return false;
+    if (!(rhs instanceof DeferComponentUpdateResponse)) return false;
+    if (this == rhs) return true;
+    final DeferComponentUpdateResponse other = (DeferComponentUpdateResponse)rhs;
+    boolean isEquals = true;
+    return isEquals;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(DeferComponentUpdateResponse.class);
-  }
-
-  @Override
-  public boolean equals(Object rhs) {
-    if (rhs == null) return false;
-    return (rhs instanceof DeferComponentUpdateResponse);
+    return Objects.hash();
   }
 }
