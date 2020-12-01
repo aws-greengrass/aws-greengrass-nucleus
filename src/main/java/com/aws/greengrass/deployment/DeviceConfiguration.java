@@ -204,7 +204,7 @@ public class DeviceConfiguration {
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY)
                 .withValue(ComponentType.NUCLEUS.name());
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY)
-                .withValue(KernelVersion.KERNEL_VERSION);
+                .dflt(KernelVersion.KERNEL_VERSION);
         ArrayList<String> mainDependencies = (ArrayList) kernel.getConfig().getRoot()
                 .findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
                         SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
