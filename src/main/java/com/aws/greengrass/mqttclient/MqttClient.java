@@ -77,7 +77,7 @@ public class MqttClient implements Closeable {
     static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
     static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     static final String MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY = "maxInFlightPublishes";
-    static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 1;
+    static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 5;
     public static final int MAX_SUBSCRIPTIONS_PER_CONNECTION = 50;
     public static final String CLIENT_ID_KEY = "clientId";
     public static final int EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS = 2;
@@ -440,21 +440,22 @@ public class MqttClient implements Closeable {
             getConnection(false).connect().get();
             List<CompletableFuture<?>> publishRequests = new ArrayList<>();
             while (!Thread.currentThread().isInterrupted() && mqttOnline.get() && spool.getCurrentMessageCount() > 0) {
-                long id = spool.popId();
+                final long id = spool.popId();
                 PublishRequest request = spool.getMessageById(id);
                 if (request == null) {
                     continue;
                 }
 
-                long finalId = id;
-
                 MqttMessage m = new MqttMessage(request.getTopic(), request.getPayload());
                 publishRequests.add(getConnection(false).publish(m, request.getQos(), request.isRetain())
                                 .whenComplete((packetId, throwable) -> {
+                    // packetId is the SDK assigned ID. Ignore this and instead use the spooler ID
                     if (throwable == null) {
-                        spool.removeMessageById(finalId);
+                        spool.removeMessageById(id);
+                        logger.atDebug().kv("id", id).kv("topic", request.getTopic())
+                            .log("Successfully published message");
                     } else {
-                        spool.addId(finalId);
+                        spool.addId(id);
                         logger.atError().log("Failed to publish the message via Spooler", throwable);
                     }
                 }));
