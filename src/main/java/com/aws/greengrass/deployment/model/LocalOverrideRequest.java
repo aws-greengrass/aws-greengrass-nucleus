@@ -37,4 +37,8 @@ public class LocalOverrideRequest {
     Map<String, ConfigurationUpdateOperation> configurationUpdate;
 
     Map<String, RunWithInfo> componentToRunWithInfo;
+
+    String recipeDirectoryPath;
+
+    String artifactsDirectoryPath;
 }
