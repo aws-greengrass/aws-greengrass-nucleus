@@ -134,12 +134,9 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 DEPLOYMENT_POLLING_FREQUENCY_SECONDS)).thenReturn(deploymentPollingFrequency);
         when(configuration.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME)).thenReturn(thingName);
-        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
-                DEVICE_PARAM_PRIVATE_KEY_PATH)).thenReturn(privateKeyPath);
-        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
-                DEVICE_PARAM_CERTIFICATE_FILE_PATH)).thenReturn(certPath);
-        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
-                DEVICE_PARAM_ROOT_CA_PATH)).thenReturn(caPath);
+        when(configuration.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_PRIVATE_KEY_PATH)).thenReturn(privateKeyPath);
+        when(configuration.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_CERTIFICATE_FILE_PATH)).thenReturn(certPath);
+        when(configuration.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_ROOT_CA_PATH)).thenReturn(caPath);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))
                 .thenReturn(mainDependenciesTopic);
         when(configuration.lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV)).thenReturn(ggcVersionVnv);

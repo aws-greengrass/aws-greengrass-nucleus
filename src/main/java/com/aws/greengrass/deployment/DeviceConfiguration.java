@@ -327,15 +327,18 @@ public class DeviceConfiguration {
     }
 
     public Topic getCertificateFilePath() {
-        return getTopic(DEVICE_PARAM_CERTIFICATE_FILE_PATH).dflt("").addValidator(deTildeValidator);
+        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_CERTIFICATE_FILE_PATH).dflt("")
+                .addValidator(deTildeValidator);
     }
 
     public Topic getPrivateKeyFilePath() {
-        return getTopic(DEVICE_PARAM_PRIVATE_KEY_PATH).dflt("").addValidator(deTildeValidator);
+        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_PRIVATE_KEY_PATH).dflt("")
+                .addValidator(deTildeValidator);
     }
 
     public Topic getRootCAFilePath() {
-        return getTopic(DEVICE_PARAM_ROOT_CA_PATH).dflt("").addValidator(deTildeValidator);
+        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_ROOT_CA_PATH).dflt("")
+                .addValidator(deTildeValidator);
     }
 
     public Topic getIotDataEndpoint() {
