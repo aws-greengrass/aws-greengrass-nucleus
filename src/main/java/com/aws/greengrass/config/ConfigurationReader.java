@@ -44,7 +44,8 @@ public final class ConfigurationReader {
                 try {
                     Tlogline tlogline = Coerce.toObject(l, new TypeReference<Tlogline>() {});
                     if (WhatHappened.changed.equals(tlogline.action)) {
-                        Topic targetTopic = config.lookup(tlogline.topicPath);
+
+                        Topic targetTopic = config.lookup(tlogline.timestamp, tlogline.topicPath);
                         if (mergeCondition != null && !mergeCondition.test(targetTopic)) {
                             continue;
                         }
@@ -68,7 +69,7 @@ public final class ConfigurationReader {
                             targetTopic.modtime = tlogline.timestamp;
                         }
                     } else if (WhatHappened.interiorAdded.equals(tlogline.action)) {
-                        config.lookupTopics(tlogline.topicPath).modtime = tlogline.timestamp;
+                        config.lookupTopics(tlogline.timestamp, tlogline.topicPath);
                     }
                 } catch (JsonProcessingException e) {
                     logger.atError().setCause(e).log("Fail to parse log line");

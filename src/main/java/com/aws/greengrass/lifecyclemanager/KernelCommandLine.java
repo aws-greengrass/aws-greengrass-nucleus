@@ -17,6 +17,7 @@ import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -42,6 +43,7 @@ public class KernelCommandLine {
     private final NucleusPaths nucleusPaths;
 
     @Getter
+    @Setter(AccessLevel.PACKAGE)
     private String providedConfigPathName;
     private String[] args;
     private String arg;
