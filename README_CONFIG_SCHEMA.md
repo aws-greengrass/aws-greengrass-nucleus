@@ -149,6 +149,9 @@ and modeled under the system config key
 system: 
   rootPath:
   thingName: "test_thing"
+  certificateFilePath: "root/thingCert.crt"
+  privateKeyPath: "root/privKey.key"
+  rootCaPath: "root/rootCA.pem"
 ```
 
 System configuration that deployments are allowed to update is
@@ -162,11 +165,8 @@ services:
   aws.greengrass.Nucleus:
     configuration:
       awsRegion: "us-east-1"
-      certificateFilePath: "root/thingCert.crt"
       iotCredEndpoint: "c13im2gfya04ip.credentials.iot.us-east-1.amazonaws.com"
       iotDataEndpoint: "aun2g37imm74n-ats.iot.us-east-1.amazonaws.com"
-      privateKeyPath: "root/privKey.key"
-      rootCaPath: "root/rootCA.pem"
       iotRoleAlias: "tes_alias"
       logging:
         level: INFO
