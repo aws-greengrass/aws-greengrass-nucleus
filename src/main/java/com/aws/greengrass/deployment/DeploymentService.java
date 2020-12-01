@@ -510,6 +510,9 @@ public class DeploymentService extends GreengrassService {
                 continue;
             }
 
+            //reading it in as a recipe, so that will fail if it is malformed with a good error.
+            //The second reason to do this is to parse the name and version so that we can properly name
+            //the file when writing it into the local recipe store.
             try {
                 switch (ext.toLowerCase()) {
                     case "yaml":
