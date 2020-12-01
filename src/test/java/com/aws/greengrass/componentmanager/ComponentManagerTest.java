@@ -352,7 +352,7 @@ class ComponentManagerTest {
         when(kernel.locate(componentA)).thenReturn(mockService);
         when(kernel.getMain()).thenReturn(mockKernelService);
         when(mockKernelService.getRuntimeConfig()).thenReturn(runtimeTopics);
-        when(runtimeTopics.lookup(any(), any())).thenReturn(digestTopic);
+        when(runtimeTopics.lookup(any())).thenReturn(digestTopic);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
         when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());

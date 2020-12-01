@@ -32,7 +32,7 @@ public final class RegionUtils {
      * Get Greengrass Control Plane Endpoint by region and stage.
      * @param awsRegion aws region
      * @param stage environment stage
-     * @return Evergreen Endpoint
+     * @return Greengrass control plane endpoint
      */
     public static String getGreengrassControlPlaneEndpoint(String awsRegion,
                                                            IotSdkClientFactory.EnvironmentStage stage) {

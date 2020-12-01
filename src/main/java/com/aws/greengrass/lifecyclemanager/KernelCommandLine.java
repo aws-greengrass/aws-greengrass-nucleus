@@ -19,6 +19,7 @@ import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Semver;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -54,6 +55,7 @@ public class KernelCommandLine {
     private final NucleusPaths nucleusPaths;
 
     @Getter
+    @Setter(AccessLevel.PACKAGE)
     private String providedConfigPathName;
     private String[] args;
     private String arg;

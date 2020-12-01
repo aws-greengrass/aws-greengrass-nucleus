@@ -10,9 +10,6 @@ ComponentConfiguration:
     jvmOptions: -Xms512m -Xmx512m
     iotDataEndpoint: ""
     iotCredEndpoint: ""
-    privateKeyPath: ""
-    certificateFilePath: ""
-    rootCaPath: ""
     awsRegion: ""
     iotRoleAlias: ""
     mqtt: {}
