@@ -256,7 +256,7 @@ class DynamicComponentConfigurationValidatorTest {
             return true;
         });
         createMockGenericExternalService("OldService");
-        createMockEvergreenService("OldInternalService");
+        createMockGreengrassService("OldInternalService");
 
         HashMap<String, Object> servicesConfig = new HashMap<String, Object>() {{
             put("OldService", new HashMap<String, Object>() {{
@@ -341,7 +341,7 @@ class DynamicComponentConfigurationValidatorTest {
         return service;
     }
 
-    private GreengrassService createMockEvergreenService(String name) throws ServiceLoadException {
+    private GreengrassService createMockGreengrassService(String name) throws ServiceLoadException {
         GreengrassService service = mock(GreengrassService.class);
         lenient().when(service.getName()).thenReturn(name);
         lenient().when(kernel.locate(name)).thenReturn(service);
