@@ -108,6 +108,7 @@ public class DeviceProvisioningHelper {
     private static final String IOT_ROLE_POLICY_NAME_PREFIX = "GreengrassTESCertificatePolicy";
     private static final String GREENGRASS_CLI_COMPONENT_NAME = "aws.greengrass.Cli";
     private static final String GREENGRASS_CLI_COMPONENT_VERSION = "2.0.0";
+    private static final String INITIAL_DEPLOYMENT_NAME_FORMAT = "Deployment for %s";
 
     private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
     private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
@@ -461,10 +462,12 @@ public class DeviceProvisioningHelper {
 
         if (Utils.isNotEmpty(thingGroupName)) {
             outStream.println("Creating a deployment for Greengrass first party components to the thing group");
-            deploymentRequest.withTargetArn(thingGroupArn);
+            deploymentRequest.withTargetArn(thingGroupArn)
+                    .withDeploymentName(String.format(INITIAL_DEPLOYMENT_NAME_FORMAT, thingGroupName));
         } else {
             outStream.println("Creating a deployment for Greengrass first party components to the device");
-            deploymentRequest.withTargetArn(thingInfo.thingArn);
+            deploymentRequest.withTargetArn(thingInfo.thingArn)
+                    .withDeploymentName(String.format(INITIAL_DEPLOYMENT_NAME_FORMAT, thingInfo.thingName));
         }
 
         deploymentRequest.addComponentsEntry(GREENGRASS_CLI_COMPONENT_NAME,
