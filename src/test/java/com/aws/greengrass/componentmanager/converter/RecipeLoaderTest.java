@@ -160,6 +160,41 @@ class RecipeLoaderTest {
     }
 
     @Test
+    void GIVEN_recipe_catch_all_manifest_and_no_selectors_WHEN_random_platform_THEN_use_all_selector()
+            throws Exception {
+        // GIVEN
+        // read file
+        String filename = "sample_recipe_with_global_lifecycle_multiplatform.yaml";
+        String recipeFileContent = new String(Files.readAllBytes(Paths.get(getClass().getResource(filename).toURI())));
+
+        // init recipeLoader with overriding unrecognized platform
+        Map<String, Object> platformOverrideMap = new HashMap<>();
+        platformOverrideMap.put(PlatformResolver.OS_KEY, "myWeirdOs");
+        platformOverrideMap.put(PlatformResolver.ARCHITECTURE_KEY, "myWeirdArch");
+
+        Topics platformOverrideTopics = mock(Topics.class);
+        when(platformOverrideTopics.toPOJO()).thenReturn(platformOverrideMap);
+        DeviceConfiguration deviceConfiguration = mock(DeviceConfiguration.class);
+        when(deviceConfiguration.getPlatformOverrideTopic()).thenReturn(platformOverrideTopics);
+        PlatformResolver platformResolver = new PlatformResolver(deviceConfiguration);
+        recipeLoader = new RecipeLoader(platformResolver);
+
+        // WHEN
+        Optional<ComponentRecipe> optionalRecipe = recipeLoader.loadFromFile(recipeFileContent);
+
+        // THEN
+        assertThat(optionalRecipe.isPresent(), is(true));
+        ComponentRecipe recipe = optionalRecipe.get();
+
+        Map<String, Object> expectedLifecycle = new HashMap<>();
+        expectedLifecycle.put(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, "echo \"default install\"");
+
+        assertThat(recipe.getLifecycle(), equalTo(expectedLifecycle));
+        assertThat(recipe.getArtifacts().size(), is(1));
+        assertThat(recipe.getDependencies().size(), is(2));
+    }
+
+    @Test
     void GIVEN_a_recipe_file_and_no_matching_platform_WHEN_converts_THEN_returns_empty() throws Exception {
         // GIVEN
         // read file
