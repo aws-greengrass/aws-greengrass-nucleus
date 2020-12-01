@@ -31,7 +31,7 @@ import static org.mockito.Mockito.mock;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class GGServiceTestUtil {
 
-    protected String serviceFullName = "EvergreenServiceFullName";
+    protected String serviceFullName = "GreengrassServiceFullName";
 
     @Mock
     protected UpdateSystemPolicyService updateSystemPolicyService;

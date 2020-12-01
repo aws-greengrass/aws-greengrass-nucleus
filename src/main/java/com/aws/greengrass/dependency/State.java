@@ -10,7 +10,6 @@ package com.aws.greengrass.dependency;
  */
 public enum State {
     /**
-     * TODO: [P41178790]: Remove STATELESS state
      * Object does not have a state (not a Lifecycle).
      */
     STATELESS(true, false, false, "Stateless"),

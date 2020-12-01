@@ -92,8 +92,8 @@ class DeploymentConfigMergerTest {
     @Test
     void GIVEN_AggregateServicesChangeManager_WHEN_initialized_THEN_compute_service_to_add_or_remove()
             throws Exception {
-        GreengrassService oldService = createMockEvergreenService("oldService");
-        GreengrassService existingService = createMockEvergreenService("existingService");
+        GreengrassService oldService = createMockGreengrassService("oldService");
+        GreengrassService existingService = createMockGreengrassService("existingService");
         Collection<GreengrassService> orderedDependencies = Arrays.asList(oldService, existingService);
         when(kernel.orderedDependencies()).thenReturn(orderedDependencies);
         when(kernel.locate("existingService")).thenReturn(existingService);
@@ -141,13 +141,13 @@ class DeploymentConfigMergerTest {
     void GIVEN_AggregateServicesChangeManager_WHEN_removeObsoleteService_THEN_obsolete_services_are_removed()
             throws Exception {
         // GIVEN
-        GreengrassService oldService = createMockEvergreenService("oldService", kernel);
+        GreengrassService oldService = createMockGreengrassService("oldService", kernel);
         when(oldService.isBuiltin()).thenReturn(false);
 
-        GreengrassService existingAutoStartService = createMockEvergreenService("existingAutoStartService", kernel);
+        GreengrassService existingAutoStartService = createMockGreengrassService("existingAutoStartService", kernel);
         when(existingAutoStartService.isBuiltin()).thenReturn(true);
 
-        GreengrassService existingService = createMockEvergreenService("existingService", kernel);
+        GreengrassService existingService = createMockGreengrassService("existingService", kernel);
 
         Collection<GreengrassService> orderedDependencies =
                 Arrays.asList(oldService, existingService, existingAutoStartService);
@@ -389,13 +389,13 @@ class DeploymentConfigMergerTest {
         return deployment;
     }
 
-    private GreengrassService createMockEvergreenService(String name) {
+    private GreengrassService createMockGreengrassService(String name) {
         GreengrassService service = mock(GreengrassService.class);
         when(service.getName()).thenReturn(name);
         return service;
     }
 
-    private GreengrassService createMockEvergreenService(String name, Kernel kernel) throws ServiceLoadException {
+    private GreengrassService createMockGreengrassService(String name, Kernel kernel) throws ServiceLoadException {
         GreengrassService service = mock(GreengrassService.class);
         lenient().when(service.getName()).thenReturn(name);
         lenient().when(kernel.locate(name)).thenReturn(service);
