@@ -457,7 +457,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 Utils.immutableMap("RedSignal",
                         ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build(), "YellowSignal",
                         ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build(), "CustomerApp",
-                        ComponentDeploymentSpecification.builder().componentVersion("0.9.0"))).build();
+                        ComponentDeploymentSpecification.builder().componentVersion("0.9.0").build())).build();
 
         CreateDeploymentResponse createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest);
 

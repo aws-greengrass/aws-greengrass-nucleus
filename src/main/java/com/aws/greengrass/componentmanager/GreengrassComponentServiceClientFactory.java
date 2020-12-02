@@ -82,6 +82,7 @@ public class GreengrassComponentServiceClientFactory {
 
     private void configureClient(DeviceConfiguration deviceConfiguration) {
         ApacheHttpClient.Builder httpClient = ProxyUtils.getSdkHttpClientBuilder();
+        httpClient = httpClient == null ? ApacheHttpClient.builder() : httpClient;
         try {
             configureClientMutualTLS(httpClient, deviceConfiguration);
         } catch (TLSAuthException e) {
@@ -92,7 +93,7 @@ public class GreengrassComponentServiceClientFactory {
                 // Use an empty credential provider because our requests don't need SigV4
                 // signing, as they are going through IoT Core instead
                 .credentialsProvider(AnonymousCredentialsProvider.create())
-                .httpClient(httpClient == null ? null : httpClient.build())
+                .httpClient(httpClient.build())
                 .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(RetryMode.STANDARD).build());
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
 
@@ -128,9 +129,6 @@ public class GreengrassComponentServiceClientFactory {
 
     private void configureClientMutualTLS(ApacheHttpClient.Builder httpBuilder,
                                           DeviceConfiguration deviceConfiguration) throws TLSAuthException {
-        if (httpBuilder == null) {
-            return;
-        }
         String certificatePath = Coerce.toString(deviceConfiguration.getCertificateFilePath());
         String privateKeyPath = Coerce.toString(deviceConfiguration.getPrivateKeyFilePath());
         String rootCAPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
@@ -171,8 +169,7 @@ public class GreengrassComponentServiceClientFactory {
 
             KeyStore keyStore = KeyStore.getInstance("PKCS12");
             keyStore.load(null);
-            keyStore.setKeyEntry("private-key", privateKey, null,
-                    certificateChain.stream().toArray(Certificate[]::new));
+            keyStore.setKeyEntry("private-key", privateKey, null, certificateChain.toArray(new Certificate[0]));
 
             KeyManagerFactory keyManagerFactory =
                     KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());

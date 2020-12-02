@@ -244,6 +244,7 @@
                         <includeExclusively>true</includeExclusively>
                         <accessModifier>public</accessModifier>
                         <onlyBinaryIncompatible>true</onlyBinaryIncompatible>
+                        <ignoreMissingClasses>true</ignoreMissingClasses>
                     </parameter>
                 </configuration>
             </plugin>

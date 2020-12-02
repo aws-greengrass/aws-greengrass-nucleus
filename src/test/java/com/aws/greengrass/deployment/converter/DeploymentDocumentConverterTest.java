@@ -16,9 +16,11 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.aws.greengrass.model.RunWithInfo;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.nio.file.Files;
@@ -252,5 +254,13 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
                    is(NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(120));
+    }
+
+    @Test
+    void can_serialize_and_deserialize_deployment_document() throws JsonProcessingException {
+        DeploymentDocument doc = DeploymentDocument.builder().configurationValidationPolicy(
+                DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(6000).build()).build();
+
+        assertEquals(doc, mapper.readValue(mapper.writeValueAsString(doc), DeploymentDocument.class));
     }
 }
