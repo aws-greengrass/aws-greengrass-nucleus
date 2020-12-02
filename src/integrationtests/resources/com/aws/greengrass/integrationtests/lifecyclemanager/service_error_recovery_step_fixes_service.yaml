@@ -8,14 +8,18 @@ services:
   ServiceA:
     lifecycle:
       posix:
-        install: |-
-          touch ErrorIndicator
+        install:
+          requiresPrivilege: true
+          script: |-
+            touch ErrorIndicator
         startup: |-
           if [ -f "ErrorIndicator" ]; then
             echo Startup Failed
             exit 1
           fi
-        recover: |-
+        recover:
+          requiresPrivilege: true
+          script: |-
             echo Fixing ServiceA
             rm ErrorIndicator
 
