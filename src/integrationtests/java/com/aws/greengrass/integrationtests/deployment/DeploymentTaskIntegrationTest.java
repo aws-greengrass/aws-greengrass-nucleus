@@ -1182,7 +1182,7 @@ class DeploymentTaskIntegrationTest {
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                         deploymentConfigMerger, logger,
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        deploymentServiceTopics);
+                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class));
         return executorService.submit(deploymentTask);
     }
 }

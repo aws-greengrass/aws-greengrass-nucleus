@@ -10,6 +10,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.RetryUtils;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -90,6 +91,8 @@ public class ArtifactDownloaderTest {
         ComponentArtifact artifact = createTestArtifact("SHA-256", "invalidChecksum");
 
         MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content);
+        downloader.setChecksumMismatchRetryConfig(RetryUtils.RetryConfig.builder().maxAttempt(2)
+                .retryableExceptions(Arrays.asList(ArtifactChecksumMismatchException.class)).build());
         assertThrows(PackageDownloadException.class, downloader::downloadToPath);
     }
 
@@ -128,15 +131,16 @@ public class ArtifactDownloaderTest {
     @Test
     void GIVEN_existing_artifact_corrupt_WHEN_download_THEN_retry() throws Exception {
         String content = "Sample artifact content";
-        String checksum = Base64.getEncoder()
-                .encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
+        String checksum =
+                Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
         ComponentArtifact artifact = createTestArtifact("SHA-256", checksum);
 
         MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content));
 
         File localPartialFile = downloader.getArtifactFile();
         Files.write(localPartialFile.toPath(), "Foo".getBytes());
-
+        downloader.setChecksumMismatchRetryConfig(RetryUtils.RetryConfig.builder().maxAttempt(2)
+                .retryableExceptions(Arrays.asList(ArtifactChecksumMismatchException.class)).build());
         File file = downloader.downloadToPath();
 
         assertThat(Files.readAllBytes(file.toPath()), equalTo(content.getBytes()));
@@ -246,8 +250,7 @@ public class ArtifactDownloaderTest {
     }
 
     private ComponentArtifact createTestArtifact(String algorithm, String checksum) throws URISyntaxException {
-        return ComponentArtifact.builder()
-                .algorithm(algorithm).checksum(checksum)
+        return ComponentArtifact.builder().algorithm(algorithm).checksum(checksum)
                 .artifactUri(new URI("s3://eg-artifacts/ComponentWithS3Artifacts-1.0.0/artifact.txt")).build();
     }
 
@@ -256,29 +259,28 @@ public class ArtifactDownloaderTest {
         final String input;
         InputStream overridingInputStream = null;
 
-        MockDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir, String inputContent) {
+        MockDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir,
+                       String inputContent) {
             super(identifier, artifact, artifactDir);
             this.input = inputContent;
         }
 
         @Override
-        protected String getArtifactFilename() throws PackageDownloadException {
+        protected String getArtifactFilename() {
             return localFileName;
         }
 
         @Override
-        protected long download(long start, long end, MessageDigest digest)
-                throws PackageDownloadException {
+        protected long download(long start, long end, MessageDigest digest) throws PackageDownloadException {
             if (overridingInputStream != null) {
                 return super.download(overridingInputStream, digest);
             }
-            return super.download(new ByteArrayInputStream(
-                    Arrays.copyOfRange(input.getBytes(), (int) start, (int) end + 1)),
-                    digest);
+            return super.download(
+                    new ByteArrayInputStream(Arrays.copyOfRange(input.getBytes(), (int) start, (int) end + 1)), digest);
         }
 
         @Override
-        public Long getDownloadSize() throws PackageDownloadException {
+        public Long getDownloadSize() {
             return (long) input.length();
         }
     }

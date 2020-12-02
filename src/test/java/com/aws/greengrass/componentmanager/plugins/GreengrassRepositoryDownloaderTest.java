@@ -13,6 +13,7 @@ import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.RetryUtils;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
 import software.amazon.awssdk.services.greengrassv2.model.GetComponentVersionArtifactRequest;
 import software.amazon.awssdk.services.greengrassv2.model.GetComponentVersionArtifactResponse;
@@ -120,10 +122,9 @@ class GreengrassRepositoryDownloaderTest {
 
     @Test
     void GIVEN_http_connection_error_WHEN_attempt_download_THEN_retry_called() throws Exception {
-        GreengrassRepositoryDownloader.MAX_RETRY = 2;
         GetComponentVersionArtifactResponse result =
-                GetComponentVersionArtifactResponse.builder()
-                        .preSignedUrl("https://www.amazon.com/artifact.txt").build();
+                GetComponentVersionArtifactResponse.builder().preSignedUrl("https://www.amazon.com/artifact.txt")
+                        .build();
         when(client.getComponentVersionArtifact(any(GetComponentVersionArtifactRequest.class))).thenReturn(result);
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         lenient().when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(TEST_ARN));
@@ -132,14 +133,16 @@ class GreengrassRepositoryDownloaderTest {
         doReturn(connection).when(downloader).connect(any());
         when(connection.getResponseCode()).thenThrow(IOException.class);
 
+        downloader.setClientExceptionRetryConfig(RetryUtils.RetryConfig.builder().maxAttempt(2)
+                .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class)).build());
+
         PackageDownloadException e = assertThrows(PackageDownloadException.class,
                 () -> downloader.download(0, 100, MessageDigest.getInstance("SHA-256")));
 
         // assert retry called
         verify(connection, times(2)).getResponseCode();
         verify(connection, times(2)).disconnect();
-        assertThat(e.getLocalizedMessage(),
-                containsStringIgnoringCase("Fail to execute establish HTTP connection after retrying 2 times"));
+        assertThat(e.getLocalizedMessage(), containsStringIgnoringCase("Failed to download artifact"));
     }
 
     @Test
@@ -161,8 +164,7 @@ class GreengrassRepositoryDownloaderTest {
         // assert retry called
         verify(connection, times(1)).getResponseCode();
         verify(connection, times(1)).disconnect();
-        assertThat(e.getLocalizedMessage(),
-                containsStringIgnoringCase("HTTP Error: " + HttpURLConnection.HTTP_BAD_REQUEST));
+        assertThat(e.getLocalizedMessage(), containsStringIgnoringCase("Failed to download the artifact"));
     }
 
     @Test

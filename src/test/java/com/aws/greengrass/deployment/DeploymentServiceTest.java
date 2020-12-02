@@ -13,8 +13,7 @@ import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
-import com.aws.greengrass.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
-import com.aws.greengrass.deployment.exceptions.RetryableDeploymentTaskFailureException;
+import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus;
@@ -34,7 +33,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.verification.VerificationWithTimeout;
@@ -72,7 +70,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -88,8 +85,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
     private static final String EXPECTED_GROUP_NAME = "thinggroup/group1";
     private static final String EXPECTED_ROOT_PACKAGE_NAME = "component1";
-    private static final String TEST_CONFIGURATION_ARN = "arn:aws:greengrass:us-east-1:12345678910:configuration"
-            + ":thinggroup/group1:1";
+    private static final String TEST_CONFIGURATION_ARN =
+            "arn:aws:greengrass:us-east-1:12345678910:configuration" + ":thinggroup/group1:1";
 
     private static final VerificationWithTimeout WAIT_FOUR_SECONDS = timeout(Duration.ofSeconds(4).toMillis());
     @Mock
@@ -396,9 +393,9 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 throws Exception {
 
             CompletableFuture<DeploymentResult> mockFutureWithException = new CompletableFuture<>();
-            ignoreExceptionUltimateCauseOfType(context, NonRetryableDeploymentTaskFailureException.class);
+            ignoreExceptionUltimateCauseOfType(context, DeploymentTaskFailureException.class);
 
-            Throwable t = new NonRetryableDeploymentTaskFailureException(null);
+            Throwable t = new DeploymentTaskFailureException(null);
             mockFutureWithException.completeExceptionally(t);
             when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFutureWithException);
             startDeploymentServiceInAnotherThread();
@@ -475,39 +472,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                     any());
             verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
-        }
-
-        @Test
-        void GIVEN_deployment_job_WHEN_deployment_process_fails_with_retry_THEN_retry_job(ExtensionContext context)
-                throws Exception {
-            mockGroupToRootPackageMappingStubs();
-            mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
-            CompletableFuture<DeploymentResult> mockFutureWithException = new CompletableFuture<>();
-            ignoreExceptionUltimateCauseOfType(context, RetryableDeploymentTaskFailureException.class);
-            Throwable t = new RetryableDeploymentTaskFailureException(null);
-            mockFutureWithException.completeExceptionally(t);
-            when(mockExecutorService.submit(any(DefaultDeploymentTask.class)))
-                    .thenReturn(mockFutureWithException, mockFutureWithException,
-                            mockFuture);
-            CountDownLatch jobSucceededLatch = new CountDownLatch(1);
-            doAnswer(invocationOnMock -> {
-                jobSucceededLatch.countDown();
-                return null;
-            }).when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
-            doNothing().when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
-
-
-            startDeploymentServiceInAnotherThread();
-            // Expecting three invocations, once for each retry attempt
-            verify(mockExecutorService, WAIT_FOUR_SECONDS.times(3)).submit(any(DefaultDeploymentTask.class));
-            InOrder statusOrdering = inOrder(deploymentStatusKeeper);
-            statusOrdering.verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
-            jobSucceededLatch.await(10, TimeUnit.SECONDS);
-            statusOrdering.verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                    eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.SUCCEEDED.toString()), any());
         }
 
         @Test
