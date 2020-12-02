@@ -533,7 +533,7 @@ public class DeploymentService extends GreengrassService {
                         e);
             }
             if (recipe == null) {
-                logger.atInfo().log("Skipping file {} because it was not recognized as a recipe", r);
+                logger.atError().log("Skipping file {} because it was not recognized as a recipe", r);
                 continue;
             }
 
