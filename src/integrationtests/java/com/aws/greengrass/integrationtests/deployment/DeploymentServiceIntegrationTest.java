@@ -10,8 +10,10 @@ import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiatio
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
+import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
@@ -42,6 +44,8 @@ import java.io.File;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -50,6 +54,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.DEFAULT_IPC_API_TIMEOUT_SECONDS;
 import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_SERVICE_TOPICS;
@@ -65,6 +71,7 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
     private Kernel kernel;
     private DeploymentQueue deploymentQueue;
+    private Path localStoreContentPath;
 
     @BeforeEach
     void before(ExtensionContext context) throws Exception {
@@ -91,7 +98,7 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
         FleetStatusService fleetStatusService = (FleetStatusService) kernel.locate(FLEET_STATUS_SERVICE_TOPICS);
         fleetStatusService.getIsConnected().set(false);
         // pre-load contents to package store
-        Path localStoreContentPath =
+        localStoreContentPath =
                 Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
         PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"),
                 kernel.getNucleusPaths().recipePath());
@@ -183,11 +190,78 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
         }
     }
 
+    @Test
+    void WHEN_multiple_local_deployment_scheduled_THEN_all_deployments_succeed() throws Exception {
+
+        CountDownLatch firstDeploymentCDL = new CountDownLatch(1);
+        CountDownLatch secondDeploymentCDL = new CountDownLatch(1);
+        CountDownLatch thirdDeploymentCDL = new CountDownLatch(1);
+        DeploymentStatusKeeper deploymentStatusKeeper =kernel.getContext().get(DeploymentStatusKeeper.class);
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.LOCAL, (status) -> {
+
+            if(status.get(DEPLOYMENT_ID_KEY_NAME).equals("firstDeployment") &&
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("SUCCEEDED")){
+                firstDeploymentCDL.countDown();
+            }
+
+            if(status.get(DEPLOYMENT_ID_KEY_NAME).equals("secondDeployment") &&
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("SUCCEEDED")){
+                secondDeploymentCDL.countDown();
+            }
+
+            if(status.get(DEPLOYMENT_ID_KEY_NAME).equals("thirdDeployment") &&
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("SUCCEEDED")){
+                thirdDeploymentCDL.countDown();
+            }
+            return true;
+        },"DeploymentServiceIntegrationTest" );
+
+        String recipeDir = localStoreContentPath.resolve("recipes").toAbsolutePath().toString();
+        String artifactsDir = localStoreContentPath.resolve("artifacts").toAbsolutePath().toString();
+
+        Map<String, String> componentsToMerge = new HashMap<>();
+        componentsToMerge.put("YellowSignal", "1.0.0");
+        LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("firstDeployment")
+                .componentsToMerge(componentsToMerge)
+                .requestTimestamp(System.currentTimeMillis())
+                .recipeDirectoryPath(recipeDir).artifactsDirectoryPath(artifactsDir).build();
+
+        submitLocalDocument(request);
+
+        componentsToMerge = new HashMap<>();
+        componentsToMerge.put("SimpleApp", "1.0.0");
+        request = LocalOverrideRequest.builder().requestId("secondDeployment")
+                .componentsToMerge(componentsToMerge)
+                .requestTimestamp(System.currentTimeMillis())
+                .recipeDirectoryPath(recipeDir).artifactsDirectoryPath(artifactsDir).build();
+
+        submitLocalDocument(request);
+
+        componentsToMerge = new HashMap<>();
+        componentsToMerge.put("SomeService", "1.0.0");
+        request = LocalOverrideRequest.builder().requestId("thirdDeployment")
+                .componentsToMerge(componentsToMerge)
+                .requestTimestamp(System.currentTimeMillis())
+                .recipeDirectoryPath(recipeDir).artifactsDirectoryPath(artifactsDir).build();
+
+        submitLocalDocument(request);
+
+        firstDeploymentCDL.await(10, TimeUnit.SECONDS);
+        secondDeploymentCDL.await(10, TimeUnit.SECONDS);
+        thirdDeploymentCDL.await(10, TimeUnit.SECONDS);
+    }
+
+
     private void submitSampleJobDocument(URI uri, String arn, DeploymentType type) throws Exception {
         Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(uri), Configuration.class);
         deploymentConfiguration.setCreationTimestamp(System.currentTimeMillis());
         deploymentConfiguration.setConfigurationArn(arn);
         Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(deploymentConfiguration), type, deploymentConfiguration.getConfigurationArn());
+        deploymentQueue.offer(deployment);
+    }
+
+    private void submitLocalDocument(LocalOverrideRequest request) throws Exception {
+        Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(request), DeploymentType.LOCAL, request.getRequestId());
         deploymentQueue.offer(deployment);
     }
 }
