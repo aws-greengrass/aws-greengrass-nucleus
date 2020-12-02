@@ -526,10 +526,8 @@ public class DeploymentService extends GreengrassService {
             } catch (IOException e) {
                 // Throw on error so that the user will receive this message and we will stop the deployment.
                 // This is to fail fast while providing actionable feedback.
-                if (r.toFile().length() > 0) {
-                    throw new IOException(String.format("Unable to parse %s as a recipe due to: %s",
-                            r.toString(), e.getMessage()), e);
-                }
+                throw new IOException(String.format("Unable to parse %s as a recipe due to: %s",
+                        r.toString(), e.getMessage()), e);
             }
             if (recipe == null) {
                 logger.atError().log("Skipping file {} because it was not recognized as a recipe", r);
