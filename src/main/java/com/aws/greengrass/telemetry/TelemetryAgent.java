@@ -277,39 +277,42 @@ public class TelemetryAgent extends GreengrassService {
     public void postInject() {
         executorService.submit(() -> {
             Topics configurationTopics = deviceConfiguration.getTelemetryConfigurationTopics();
-            configurationTopics.subscribe((why, newv) -> {
-                TelemetryConfiguration newTelemetryConfiguration =
-                        TelemetryConfiguration.fromPojo(configurationTopics.toPOJO());
-                TelemetryConfiguration configuration = currentConfiguration.get();
-                boolean aggregateMetricsIntervalSecChanged = false;
-                boolean publishMetricsIntervalSecChanged = false;
-                if (newTelemetryConfiguration.isEnabled()) {
-                    // If the current aggregation interval is different from the new interval, then reschedule
-                    // the periodic aggregation task
-                    aggregateMetricsIntervalSecChanged = configuration.getPeriodicAggregateMetricsIntervalSeconds()
-                            != newTelemetryConfiguration.getPeriodicAggregateMetricsIntervalSeconds();
-                    // If the current publish interval is different from the new interval, then reschedule
-                    // the publish aggregation task
-                    publishMetricsIntervalSecChanged = configuration.getPeriodicPublishMetricsIntervalSeconds()
-                            != newTelemetryConfiguration.getPeriodicPublishMetricsIntervalSeconds();
-                } else {
-                    // If telemetry is not enabled, then cancel the futures.
-                    cancelAllJobs();
-                }
-                currentConfiguration.set(newTelemetryConfiguration);
-                if (aggregateMetricsIntervalSecChanged) {
-                    schedulePeriodicAggregateMetrics(true);
-                }
-                if (publishMetricsIntervalSecChanged) {
-                    schedulePeriodicPublishMetrics(true);
-                }
-            });
+            configurationTopics.subscribe((why, newv) -> handleTelemetryConfiguration(configurationTopics));
+            handleTelemetryConfiguration(configurationTopics);
             updateThingNameAndPublishTopic(thingName);
             mqttClient.addToCallbackEvents(callbacks);
             TestFeatureParameters.registerHandlerCallback(this.getName(),
                     this::handleTestFeatureParametersHandlerChange);
         });
         super.postInject();
+    }
+
+    private void handleTelemetryConfiguration(Topics configurationTopics) {
+        TelemetryConfiguration newTelemetryConfiguration =
+                TelemetryConfiguration.fromPojo(configurationTopics.toPOJO());
+        TelemetryConfiguration configuration = currentConfiguration.get();
+        boolean aggregateMetricsIntervalSecChanged = false;
+        boolean publishMetricsIntervalSecChanged = false;
+        if (newTelemetryConfiguration.isEnabled()) {
+            // If the current aggregation interval is different from the new interval, then reschedule
+            // the periodic aggregation task
+            aggregateMetricsIntervalSecChanged = configuration.getPeriodicAggregateMetricsIntervalSeconds()
+                    != newTelemetryConfiguration.getPeriodicAggregateMetricsIntervalSeconds();
+            // If the current publish interval is different from the new interval, then reschedule
+            // the publish aggregation task
+            publishMetricsIntervalSecChanged = configuration.getPeriodicPublishMetricsIntervalSeconds()
+                    != newTelemetryConfiguration.getPeriodicPublishMetricsIntervalSeconds();
+        } else {
+            // If telemetry is not enabled, then cancel the futures.
+            cancelAllJobs();
+        }
+        currentConfiguration.set(newTelemetryConfiguration);
+        if (aggregateMetricsIntervalSecChanged) {
+            schedulePeriodicAggregateMetrics(true);
+        }
+        if (publishMetricsIntervalSecChanged) {
+            schedulePeriodicPublishMetrics(true);
+        }
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
