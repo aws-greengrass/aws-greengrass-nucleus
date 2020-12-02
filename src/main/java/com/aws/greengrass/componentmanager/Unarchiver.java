@@ -6,8 +6,8 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
-import com.amazonaws.util.IOUtils;
 import com.aws.greengrass.util.Utils;
+import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.IOException;

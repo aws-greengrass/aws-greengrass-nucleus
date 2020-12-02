@@ -5,9 +5,6 @@
 
 package com.aws.greengrass.util;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
-import com.amazonaws.ProxyAuthenticationMethod;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.http.SdkHttpClient;
@@ -204,17 +201,30 @@ public final class ProxyUtils {
      * @return httpClient built with a ProxyConfiguration or null if no proxy is configured (null is ignored in AWS
      *     SDK clients)
      */
+    @Nullable
     public static SdkHttpClient getSdkHttpClient() {
+        ApacheHttpClient.Builder builder = getSdkHttpClientBuilder();
+        return builder == null ? null : builder.build();
+    }
+
+    /**
+     * <p>Boilerplate for providing a proxy configured ApacheHttpClient builder to AWS SDK v2 client builders.</p>
+     *
+     * <p>If you need to customize the HttpClient, but still need proxy support, use <code>ProxyUtils
+     * .getProxyConfiguration()</code></p>
+     *
+     * @return httpClient built with a ProxyConfiguration or null if no proxy is configured (null is ignored in AWS
+     *     SDK clients)
+     */
+    @Nullable
+    public static ApacheHttpClient.Builder getSdkHttpClientBuilder() {
         ProxyConfiguration proxyConfiguration = getProxyConfiguration();
-        SdkHttpClient httpClient = null;
 
         if (proxyConfiguration != null) {
-            httpClient = ApacheHttpClient.builder()
-                    .proxyConfiguration(proxyConfiguration)
-                    .build();
+            return ApacheHttpClient.builder().proxyConfiguration(proxyConfiguration);
         }
 
-        return httpClient;
+        return null;
     }
 
     private static String removeAuthFromProxyUrl(String proxyUrl) {
@@ -271,61 +281,6 @@ public final class ProxyUtils {
                 .password(password)
                 .nonProxyHosts(nonProxyHosts)
                 .build();
-    }
-
-    /**
-     * <p>Returns a <code>com.amazonaws.Protocol</code> for configuring a proxy in v1 of the AWS SDK.</p>
-     *
-     * <p>SOCKS is not supported (SDK limitation)</p>
-     *
-     * @param url User provided URL value from config
-     * @return Protocol, either HTTP or HTTPS or null for all other values
-     */
-    public static Protocol getProtocolFromProxyUrl(String url) {
-        String scheme = getSchemeFromProxyUrl(url);
-        switch (scheme) {
-            case "http":
-                return Protocol.HTTP;
-            case "https":
-                return Protocol.HTTPS;
-            default:
-                return null;
-        }
-    }
-
-    /**
-     * <p>Boilerplate for providing a <code>ClientConfiguration</code> with proxy values to AWS SDK v1 client
-     * builders.</p>
-     *
-     * <p>SOCKS is not supported (SDK limitation)</p>
-     *
-     * @return ClientConfiguration built with proxy values, if present
-     */
-    @SuppressWarnings("PMD.PrematureDeclaration")
-    public static ClientConfiguration getClientConfiguration() {
-        ClientConfiguration clientConfiguration = new ClientConfiguration();
-
-        if (Utils.isEmpty(proxyUrl)) {
-            return clientConfiguration;
-        }
-
-        clientConfiguration.setProxyProtocol(getProtocolFromProxyUrl(proxyUrl));
-        clientConfiguration.setProxyHost(getHostFromProxyUrl(proxyUrl));
-        clientConfiguration.setProxyPort(getPortFromProxyUrl(proxyUrl));
-
-        String username = getProxyUsername(proxyUrl, proxyUsername);
-        if (Utils.isNotEmpty(username)) {
-            clientConfiguration.setProxyAuthenticationMethods(Arrays.asList(ProxyAuthenticationMethod.BASIC));
-            clientConfiguration.setProxyUsername(username);
-            clientConfiguration.setProxyPassword(getProxyPassword(proxyUrl, proxyPassword));
-        }
-
-        if (Utils.isNotEmpty(proxyNoProxyAddresses)) {
-            // The SDK expects the same delimiter as the http.nonProxyHosts property (i.e. |)
-            clientConfiguration.setNonProxyHosts(proxyNoProxyAddresses.replace(",", "|"));
-        }
-
-        return clientConfiguration;
     }
 
     /**
