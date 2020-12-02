@@ -496,7 +496,7 @@ public class DeploymentService extends GreengrassService {
                 }
             }
         } catch (JsonProcessingException e) {
-            throw new InvalidRequestException("Unable to parse the job document", e);
+            throw new InvalidRequestException("Unable to parse the deployment request - Invalid JSON", e);
         }
     }
 
@@ -505,32 +505,31 @@ public class DeploymentService extends GreengrassService {
         for (Path r : Files.walk(from).collect(Collectors.toList())) {
             String ext = Utils.extension(r.toString());
             ComponentRecipe recipe = null;
-            if (r.toFile().length() == 0) {
-                logger.atInfo().log("Skipping recipe file {} because it is empty", r);
-                continue;
-            }
 
             //reading it in as a recipe, so that will fail if it is malformed with a good error.
             //The second reason to do this is to parse the name and version so that we can properly name
             //the file when writing it into the local recipe store.
             try {
-                switch (ext.toLowerCase()) {
-                    case "yaml":
-                    case "yml":
-                        recipe = getRecipeSerializer().readValue(r.toFile(), ComponentRecipe.class);
-                        break;
-                    case "json":
-                        recipe = getRecipeSerializerJson().readValue(r.toFile(), ComponentRecipe.class);
-                        break;
-                    default:
-                        break;
+                if (r.toFile().length() > 0) {
+                    switch (ext.toLowerCase()) {
+                        case "yaml":
+                        case "yml":
+                            recipe = getRecipeSerializer().readValue(r.toFile(), ComponentRecipe.class);
+                            break;
+                        case "json":
+                            recipe = getRecipeSerializerJson().readValue(r.toFile(), ComponentRecipe.class);
+                            break;
+                        default:
+                            break;
+                    }
                 }
             } catch (IOException e) {
                 // Throw on error so that the user will receive this message and we will stop the deployment.
                 // This is to fail fast while providing actionable feedback.
-                throw new IOException(
-                        String.format("Unable to parse %s as a recipe due to: %s", r.toString(), e.getMessage()),
-                        e);
+                if (r.toFile().length() > 0) {
+                    throw new IOException(String.format("Unable to parse %s as a recipe due to: %s",
+                            r.toString(), e.getMessage()), e);
+                }
             }
             if (recipe == null) {
                 logger.atError().log("Skipping file {} because it was not recognized as a recipe", r);
