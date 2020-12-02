@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.jmh.packagemanager;
 
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
@@ -27,20 +26,16 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static com.aws.greengrass.jmh.PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 
 public class DependencyResolverBenchmark {
 
@@ -50,11 +45,11 @@ public class DependencyResolverBenchmark {
     @Warmup(iterations = 5)
     @State(Scope.Benchmark)
     public abstract static class DRIntegration {
-        private DeploymentDocument jobDoc = new DeploymentDocument("mockJob1",
+        private final DeploymentDocument jobDoc = new DeploymentDocument("mockJob1",
                 Arrays.asList(new DeploymentPackageConfiguration("boto3", true, "1.9.128"),
                         new DeploymentPackageConfiguration("awscli", true, "1.16.144")), "mockGroup1",
                 1L, FailureHandlingPolicy.DO_NOTHING, new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS),
-                new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20));
+                DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(20).build());
 
         private DependencyResolver resolver;
         private List<ComponentIdentifier> result;
@@ -110,22 +105,5 @@ public class DependencyResolverBenchmark {
         protected String getConfigFile() {
             return "DRBStatefulConfig.yaml";
         }
-    }
-
-    private static void copyFolderRecursively(Path src, Path des) throws IOException {
-        Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
-
-            @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                Files.createDirectories(des.resolve(src.relativize(dir)));
-                return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Files.copy(file, des.resolve(src.relativize(file)), StandardCopyOption.REPLACE_EXISTING);
-                return FileVisitResult.CONTINUE;
-            }
-        });
     }
 }

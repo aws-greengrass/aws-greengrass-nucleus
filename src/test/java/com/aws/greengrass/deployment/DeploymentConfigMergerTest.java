@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment;
 
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
@@ -64,6 +63,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 
 @ExtendWith(MockitoExtension.class)
@@ -294,7 +295,7 @@ class DeploymentConfigMergerTest {
         DeploymentDocument doc = new DeploymentDocument();
         doc.setDeploymentId("NoSafetyCheckDeploy");
         doc.setComponentUpdatePolicy(
-                new ComponentUpdatePolicy(0, DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS));
+                new ComponentUpdatePolicy(0, SKIP_NOTIFY_COMPONENTS));
 
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
@@ -302,7 +303,7 @@ class DeploymentConfigMergerTest {
 
         doc.setDeploymentId("DeploymentId");
         doc.setComponentUpdatePolicy(
-                new ComponentUpdatePolicy(60, DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
@@ -331,7 +332,7 @@ class DeploymentConfigMergerTest {
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
-                new ComponentUpdatePolicy(0, DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
 
         Future<DeploymentResult> fut = merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
@@ -367,7 +368,7 @@ class DeploymentConfigMergerTest {
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
-                new ComponentUpdatePolicy(0, DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 

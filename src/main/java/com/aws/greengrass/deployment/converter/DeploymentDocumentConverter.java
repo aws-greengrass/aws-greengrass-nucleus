@@ -13,9 +13,6 @@ package com.aws.greengrass.deployment.converter;
 import com.amazon.aws.iot.greengrass.configuration.common.ComponentUpdate;
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.amazon.aws.iot.greengrass.configuration.common.ConfigurationUpdate;
-import com.amazonaws.arn.Arn;
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -27,6 +24,9 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.SerializerFactory;
 import org.apache.commons.lang3.StringUtils;
+import software.amazon.awssdk.arns.Arn;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,8 +37,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import static com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 import static com.aws.greengrass.deployment.DynamicComponentConfigurationValidator.DEFAULT_TIMEOUT_SECOND;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 public final class DeploymentDocumentConverter {
     private static final Logger logger = LogManager.getLogger(DeploymentDocumentConverter.class);
@@ -90,7 +90,8 @@ public final class DeploymentDocumentConverter {
                 // If we make this configurable in local development then we can plug that input in here
                 // NO_OP_TIMEOUT is not used since the policy is SKIP_NOTIFY_COMPONENTS
                 .configurationValidationPolicy(
-                        new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(DEFAULT_TIMEOUT_SECOND))
+                        DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(DEFAULT_TIMEOUT_SECOND)
+                                .build())
                 .componentUpdatePolicy(new ComponentUpdatePolicy(NO_OP_TIMEOUT, SKIP_NOTIFY_COMPONENTS)).groupName(
                         StringUtils.isEmpty(localOverrideRequest.getGroupName()) ? LOCAL_DEPLOYMENT_GROUP_NAME
                                 : localOverrideRequest.getGroupName()).build();
@@ -184,7 +185,7 @@ public final class DeploymentDocumentConverter {
             // ConfigurationArn formats:
             // configuration:thing/<thing-name>
             // configuration:thinggroup/<thing-group-name>
-            groupName = Arn.fromString(config.getConfigurationArn()).getResource().getResource();
+            groupName = Arn.fromString(config.getConfigurationArn()).resource().resource();
         } catch (IllegalArgumentException e) {
             // so that it can proceed, rather than fail, when the format of configurationArn is wrong.
             groupName = config.getConfigurationArn();
@@ -248,11 +249,11 @@ public final class DeploymentDocumentConverter {
             @Nonnull  com.amazon.aws.iot.greengrass.configuration.common.ConfigurationValidationPolicy
                     configurationValidationPolicy) {
 
-        DeploymentConfigurationValidationPolicy converted = new DeploymentConfigurationValidationPolicy();
+        DeploymentConfigurationValidationPolicy.Builder converted = DeploymentConfigurationValidationPolicy.builder();
         if (configurationValidationPolicy.getTimeout() != null) {
-            converted.setTimeoutInSeconds(configurationValidationPolicy.getTimeout());
+            converted.timeoutInSeconds(configurationValidationPolicy.getTimeout());
         }
-        return converted;
+        return converted.build();
     }
 
     private static FailureHandlingPolicy convertFailureHandlingPolicy(

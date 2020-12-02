@@ -5,21 +5,22 @@
 
 package com.aws.greengrass.integrationtests.e2e.deployment;
 
-import com.amazonaws.services.greengrassv2.model.ComponentDeploymentSpecification;
-import com.amazonaws.services.greengrassv2.model.CreateDeploymentRequest;
-import com.amazonaws.services.greengrassv2.model.CreateDeploymentResult;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.greengrass.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
+import software.amazon.awssdk.services.greengrassv2.model.ComponentDeploymentSpecification;
+import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentRequest;
+import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentResponse;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
@@ -76,12 +77,12 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
 
         // Create multiple jobs
         for (DeploymentJobHelper helper : helpers) {
-            CreateDeploymentRequest createDeploymentRequest = new CreateDeploymentRequest()
-                    .addComponentsEntry(helper.targetPkgName,
-                            new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
+            CreateDeploymentRequest createDeploymentRequest = CreateDeploymentRequest.builder().components(
+                    Utils.immutableMap(helper.targetPkgName,
+                            ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
 
-            CreateDeploymentResult createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest);
-            helper.jobId = createDeploymentResult.getIotJobId();
+            CreateDeploymentResponse createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest);
+            helper.jobId = createDeploymentResult.iotJobId();
 
             IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, helper.jobId, thingInfo.getThingName(),
                     Duration.ofMinutes(1), s -> s.ordinal() >= JobExecutionStatus.QUEUED.ordinal());
