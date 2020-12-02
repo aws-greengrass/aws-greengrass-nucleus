@@ -388,29 +388,4 @@ class IPCPubSubTest {
             }
         });
     }
-
-
-
-    // GG_NEEDS_REVIEW: TODO: review if we want to add future support for the `unsubscribe` operation:
-    // https://issues-iad.amazon.com/issues/V234932355
-//    @Test
-//    void GIVEN_pubsubclient_WHEN_unsubscribe_is_not_authorized_THEN_Fail(ExtensionContext context) throws Exception {
-//
-//        kernel = prepareKernelFromConfigFile("pubsub_unauthorized_unsubscribe.yaml",
-//                TEST_SERVICE_NAME, this.getClass());
-//        KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
-//        client = new IPCClientImpl(config);
-//        PubSub c = new PubSubImpl(client);
-//
-//        Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
-//            assertEquals("some message", new String(m, StandardCharsets.UTF_8));
-//        });
-//
-//        c.subscribeToTopic("a", cb.getRight());
-//        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-//        cb.getLeft().get(2, TimeUnit.SECONDS);
-//
-//        ignoreExceptionOfType(context, AuthorizationException.class);
-//        assertThrows(PubSubException.class, () -> c.unsubscribeFromTopic("a"));
-//    }
 }
