@@ -28,7 +28,7 @@ jobs:
       - run: rm -rf /tmp/*
         continue-on-error: true
       - name: Upload iot device sdk jar to maven
-        run: mvn deploy:deploy-file -DgroupId=software.amazon.awssdk.iotdevicesdk -DartifactId=aws-iot-device-sdk-v2 -Dversion=1.0-newSmithyModel-SNAPSHOT -Dpackaging=jar -Dfile=lib/aws-iot-device-sdk-1.0.0-SNAPSHOT-shaded.jar -DrepositoryId=greengrass-dev-snapshot -Durl=s3://eg-aws-iot-device-sdk-v2-java
+        run: mvn deploy:deploy-file -DgroupId=software.amazon.awssdk.iotdevicesdk -DartifactId=aws-iot-device-sdk-v2 -Dversion=1.0-SNAPSHOT -Dpackaging=jar -Dfile=lib/aws-iot-device-sdk-1.0.0-SNAPSHOT-shaded.jar -DrepositoryId=greengrass-dev-snapshot -Durl=s3://eg-aws-iot-device-sdk-v2-java
       - name: Build with Maven
         run: mvn -ntp -U verify
         shell: cmd
