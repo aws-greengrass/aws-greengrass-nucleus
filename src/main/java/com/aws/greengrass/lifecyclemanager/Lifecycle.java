@@ -62,6 +62,7 @@ public class Lifecycle {
     private static final Integer DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC = 120;
     private static final Integer DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
     private static final Integer DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC = 15;
+    public static final Integer DEFAULT_ERROR_RECOVERY_HANDLER_TIMEOUT_SEC = 60;
     private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
     private static final int MAXIMUM_CONTINUAL_ERROR = 3;
@@ -611,8 +612,6 @@ public class Lifecycle {
             // Since we run the error handler in this thread, that means we should rethrow
             // in order to shutdown this thread since we were requested to stop
             throw e;
-        } catch (TimeoutException e) {
-            logger.atError("service-errorhandler-timeout").setCause(e).log("Service error handler timed out");
         }
 
         if (!desiredState.isPresent()) {

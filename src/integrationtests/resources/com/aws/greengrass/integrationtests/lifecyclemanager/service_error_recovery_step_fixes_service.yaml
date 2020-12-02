@@ -1,0 +1,24 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+
+  ServiceA:
+    lifecycle:
+      posix:
+        install: |-
+          touch ErrorIndicator
+        startup: |-
+          if [ -f "ErrorIndicator" ]; then
+            echo Startup Failed
+            exit 1
+          fi
+        recover: |-
+            echo Fixing ServiceA
+            rm ErrorIndicator
+
+  main:
+    dependencies:
+      - ServiceA

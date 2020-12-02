@@ -229,9 +229,8 @@ public class GreengrassService implements InjectionActions {
      * Custom handler to handle error.
      *
      * @throws InterruptedException if the thread is interrupted while handling the error
-     * @throws TimeoutException if running the handler takes longer than the timeout
      */
-    protected void handleError() throws InterruptedException, TimeoutException {
+    protected void handleError() throws InterruptedException {
     }
 
     /**
