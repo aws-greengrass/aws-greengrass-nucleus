@@ -243,7 +243,6 @@ public class AuthorizationHandler  {
         }
         operations.add(ANY_REGEX);
         componentToOperationsMap.computeIfAbsent(componentName, k -> new HashSet<>()).addAll(operations);
-
     }
 
     /**
