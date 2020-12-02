@@ -5,13 +5,6 @@
 
 package com.aws.greengrass.componentmanager;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.AnonymousAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import com.amazonaws.retry.RetryMode;
-import com.amazonaws.services.greengrassv2.AWSGreengrassV2;
-import com.amazonaws.services.greengrassv2.AWSGreengrassV2ClientBuilder;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
@@ -25,10 +18,16 @@ import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
 import lombok.Getter;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.retry.RetryMode;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
+import software.amazon.awssdk.services.greengrassv2.GreengrassV2ClientBuilder;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
@@ -40,7 +39,6 @@ import java.util.List;
 import javax.inject.Inject;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.security.auth.x500.X500Principal;
@@ -56,7 +54,7 @@ public class GreengrassComponentServiceClientFactory {
 
     private static final Logger logger = LogManager.getLogger(GreengrassComponentServiceClientFactory.class);
 
-    private AWSGreengrassV2 cmsClient;
+    private GreengrassV2Client cmsClient;
 
     /**
      * Constructor with custom endpoint/region configuration.
@@ -83,19 +81,20 @@ public class GreengrassComponentServiceClientFactory {
     }
 
     private void configureClient(DeviceConfiguration deviceConfiguration) {
-        ClientConfiguration clientConfiguration = ProxyUtils.getClientConfiguration();
+        ApacheHttpClient.Builder httpClient = ProxyUtils.getSdkHttpClientBuilder();
+        httpClient = httpClient == null ? ApacheHttpClient.builder() : httpClient;
         try {
-            configureClientMutualTLS(clientConfiguration, deviceConfiguration);
+            configureClientMutualTLS(httpClient, deviceConfiguration);
         } catch (TLSAuthException e) {
             logger.atWarn("configure-greengrass-mutual-auth")
                     .log("Error during configure greengrass client mutual auth", e);
         }
-        clientConfiguration.withRetryMode(RetryMode.STANDARD);
-        AWSGreengrassV2ClientBuilder clientBuilder = AWSGreengrassV2ClientBuilder.standard()
+        GreengrassV2ClientBuilder clientBuilder = GreengrassV2Client.builder()
                 // Use an empty credential provider because our requests don't need SigV4
                 // signing, as they are going through IoT Core instead
-                .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
-                .withClientConfiguration(clientConfiguration);
+                .credentialsProvider(AnonymousCredentialsProvider.create())
+                .httpClient(httpClient.build())
+                .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(RetryMode.STANDARD).build());
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
 
         if (!Utils.isEmpty(region)) {
@@ -104,13 +103,12 @@ public class GreengrassComponentServiceClientFactory {
                 // Region and endpoint are both required when updating endpoint config
                 logger.atInfo("initialize-greengrass-client").addKeyValue("service-endpoint", greengrassServiceEndpoint)
                         .addKeyValue("service-region", region).log();
-                EndpointConfiguration endpointConfiguration =
-                        new EndpointConfiguration(greengrassServiceEndpoint, region);
-                clientBuilder.withEndpointConfiguration(endpointConfiguration);
+                clientBuilder.endpointOverride(URI.create(greengrassServiceEndpoint));
+                clientBuilder.region(Region.of(region));
             } else {
                 // This section is to override default region if needed
                 logger.atInfo("initialize-greengrass-client").addKeyValue("service-region", region).log();
-                clientBuilder.withRegion(region);
+                clientBuilder.region(Region.of(region));
             }
         }
 
@@ -129,11 +127,8 @@ public class GreengrassComponentServiceClientFactory {
         return RegionUtils.getGreengrassDataPlaneEndpoint(Coerce.toString(deviceConfiguration.getAWSRegion()), stage);
     }
 
-    private void configureClientMutualTLS(ClientConfiguration clientConfiguration,
+    private void configureClientMutualTLS(ApacheHttpClient.Builder httpBuilder,
                                           DeviceConfiguration deviceConfiguration) throws TLSAuthException {
-        if (clientConfiguration == null) {
-            return;
-        }
         String certificatePath = Coerce.toString(deviceConfiguration.getCertificateFilePath());
         String privateKeyPath = Coerce.toString(deviceConfiguration.getPrivateKeyFilePath());
         String rootCAPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
@@ -143,17 +138,8 @@ public class GreengrassComponentServiceClientFactory {
 
         TrustManager[] trustManagers = createTrustManagers(rootCAPath);
         KeyManager[] keyManagers = createKeyManagers(privateKeyPath, certificatePath);
-        SSLContext sslContext = null;
-        try {
-            sslContext = SSLContext.getInstance("TLSv1.2");
-            sslContext.init(keyManagers, trustManagers, null);
-        } catch (GeneralSecurityException e) {
-            throw new TLSAuthException("Failed to initialize TLS context", e);
-        }
 
-        SSLConnectionSocketFactory sslConnectionSocketFactory =
-                new SSLConnectionSocketFactory(sslContext, NoopHostnameVerifier.INSTANCE);
-        clientConfiguration.getApacheHttpClientConfig().setSslSocketFactory(sslConnectionSocketFactory);
+        httpBuilder.tlsKeyManagersProvider(() -> keyManagers).tlsTrustManagersProvider(() -> trustManagers);
     }
 
     private TrustManager[] createTrustManagers(String rootCAPath) throws TLSAuthException {
@@ -183,8 +169,7 @@ public class GreengrassComponentServiceClientFactory {
 
             KeyStore keyStore = KeyStore.getInstance("PKCS12");
             keyStore.load(null);
-            keyStore.setKeyEntry("private-key", privateKey, null,
-                    certificateChain.stream().toArray(Certificate[]::new));
+            keyStore.setKeyEntry("private-key", privateKey, null, certificateChain.toArray(new Certificate[0]));
 
             KeyManagerFactory keyManagerFactory =
                     KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
