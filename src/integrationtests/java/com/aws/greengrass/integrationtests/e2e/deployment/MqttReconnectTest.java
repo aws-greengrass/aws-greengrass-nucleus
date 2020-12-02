@@ -5,9 +5,6 @@
 
 package com.aws.greengrass.integrationtests.e2e.deployment;
 
-import com.amazonaws.services.greengrassv2.model.ComponentDeploymentSpecification;
-import com.amazonaws.services.greengrassv2.model.CreateDeploymentRequest;
-import com.amazonaws.services.greengrassv2.model.CreateDeploymentResult;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
@@ -16,6 +13,7 @@ import com.aws.greengrass.integrationtests.e2e.util.NetworkUtils;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -26,6 +24,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
+import software.amazon.awssdk.services.greengrassv2.model.ComponentDeploymentSpecification;
+import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentRequest;
+import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentResponse;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
 import java.time.Duration;
@@ -100,10 +101,11 @@ class MqttReconnectTest extends BaseE2ETestCase {
         CountDownLatch connectionInterrupted = new CountDownLatch(1);
 
         // Create Job
-        CreateDeploymentRequest createDeploymentRequest = new CreateDeploymentRequest()
-                .addComponentsEntry("CustomerApp", new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
-        CreateDeploymentResult result = draftAndCreateDeployment(createDeploymentRequest);
-        String jobId = result.getIotJobId();
+        CreateDeploymentRequest createDeploymentRequest = CreateDeploymentRequest.builder()
+                .components(Utils.immutableMap("CustomerApp",
+                        ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
+        CreateDeploymentResponse result = draftAndCreateDeployment(createDeploymentRequest);
+        String jobId = result.iotJobId();
 
         // Subscribe to persisted deployment status
         Topics deploymentServiceTopics =

@@ -5,8 +5,6 @@
 
 package com.aws.greengrass.easysetup;
 
-import com.amazonaws.arn.Arn;
-import com.amazonaws.services.greengrassv2.AWSGreengrassV2;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.IamSdkClientFactory;
@@ -18,9 +16,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.arns.Arn;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
 import software.amazon.awssdk.services.iam.model.CreateRoleResponse;
@@ -82,7 +82,7 @@ class DeviceProvisioningHelperTest {
     @Mock
     private IamClient iamClient;
     @Mock
-    private AWSGreengrassV2 greengrassClient;
+    private GreengrassV2Client greengrassClient;
     @Mock
     private GetPolicyResponse getPolicyResponse;
     @Mock
@@ -105,8 +105,8 @@ class DeviceProvisioningHelperTest {
     private Kernel kernel;
 
     private String getThingArn() {
-        return Arn.builder().withService("testService")
-                .withRegion(TEST_REGION).withAccountId("12345").withPartition("testPartition").withResource("testResoruce")
+        return Arn.builder().service("testService")
+                .region(TEST_REGION).accountId("12345").partition("testPartition").resource("testResoruce")
                 .build().toString();
     }
 

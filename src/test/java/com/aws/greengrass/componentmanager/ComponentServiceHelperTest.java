@@ -5,12 +5,6 @@
 
 package com.aws.greengrass.componentmanager;
 
-import com.amazonaws.services.greengrassv2.AWSGreengrassV2;
-import com.amazonaws.services.greengrassv2.model.ComponentCandidate;
-import com.amazonaws.services.greengrassv2.model.ResolveComponentCandidatesRequest;
-import com.amazonaws.services.greengrassv2.model.ResolveComponentCandidatesResult;
-import com.amazonaws.services.greengrassv2.model.ResolvedComponentVersion;
-import com.amazonaws.services.greengrassv2.model.ResourceNotFoundException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -24,8 +18,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
+import software.amazon.awssdk.services.greengrassv2.model.ComponentCandidate;
+import software.amazon.awssdk.services.greengrassv2.model.ResolveComponentCandidatesRequest;
+import software.amazon.awssdk.services.greengrassv2.model.ResolveComponentCandidatesResponse;
+import software.amazon.awssdk.services.greengrassv2.model.ResolvedComponentVersion;
+import software.amazon.awssdk.services.greengrassv2.model.ResourceNotFoundException;
 
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -50,7 +50,7 @@ class ComponentServiceHelperTest {
     private static final String COMPONENT_A = "A";
 
     @Mock
-    private AWSGreengrassV2 client;
+    private GreengrassV2Client client;
 
     @Mock
     private GreengrassComponentServiceClientFactory clientFactory;
@@ -72,11 +72,11 @@ class ComponentServiceHelperTest {
         versionRequirements.put("Y", Requirement.buildNPM("^1.5"));
 
         ResolvedComponentVersion componentVersion =
-                new ResolvedComponentVersion().withComponentName(COMPONENT_A).withComponentVersion(v1_0_0.getValue())
-                        .withRecipe(ByteBuffer.wrap("new recipe" .getBytes(Charsets.UTF_8)));
-        ResolveComponentCandidatesResult result = new ResolveComponentCandidatesResult()
-                .withResolvedComponentVersions(Collections.singletonList(componentVersion));
-        when(client.resolveComponentCandidates(any())).thenReturn(result);
+                ResolvedComponentVersion.builder().componentName(COMPONENT_A).componentVersion(v1_0_0.getValue())
+                        .recipe(SdkBytes.fromByteArray("new recipe" .getBytes(Charsets.UTF_8))).build();
+        ResolveComponentCandidatesResponse result = ResolveComponentCandidatesResponse.builder()
+                .resolvedComponentVersions(Collections.singletonList(componentVersion)).build();
+        when(client.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class))).thenReturn(result);
 
         ResolvedComponentVersion componentVersionReturn =
                 helper.resolveComponentVersion(COMPONENT_A, v1_0_0, versionRequirements);
@@ -86,24 +86,25 @@ class ComponentServiceHelperTest {
                 ArgumentCaptor.forClass(ResolveComponentCandidatesRequest.class);
         verify(client).resolveComponentCandidates(requestArgumentCaptor.capture());
         ResolveComponentCandidatesRequest request = requestArgumentCaptor.getValue();
-        assertThat(request.getPlatform(), notNullValue());
-        assertThat(request.getPlatform().getOs(), nullValue());
-        assertThat(request.getPlatform().getArchitecture(), nullValue());
-        assertThat(request.getPlatform().getAttributes(), notNullValue());
-        Map<String, String> attributes = request.getPlatform().getAttributes();
+        assertThat(request.platform(), notNullValue());
+        assertThat(request.platform().os(), nullValue());
+        assertThat(request.platform().architecture(), nullValue());
+        assertThat(request.platform().attributes(), notNullValue());
+        Map<String, String> attributes = request.platform().attributes();
         assertThat(attributes, hasKey(PlatformResolver.OS_KEY));
         assertThat(attributes, hasKey(PlatformResolver.ARCHITECTURE_KEY));
-        assertThat(request.getComponentCandidates().size(), is(1));
-        ComponentCandidate candidate = request.getComponentCandidates().get(0);
-        assertThat(candidate.getComponentName(), is(COMPONENT_A));
-        assertThat(candidate.getComponentVersion(), is("1.0.0"));
-        assertThat(candidate.getVersionRequirements(), IsMapContaining.hasEntry("X", ">=1.0.0 <2.0.0"));
-        assertThat(candidate.getVersionRequirements(), IsMapContaining.hasEntry("Y", ">=1.5.0 <2.0.0"));
+        assertThat(request.componentCandidates().size(), is(1));
+        ComponentCandidate candidate = request.componentCandidates().get(0);
+        assertThat(candidate.componentName(), is(COMPONENT_A));
+        assertThat(candidate.componentVersion(), is("1.0.0"));
+        assertThat(candidate.versionRequirements(), IsMapContaining.hasEntry("X", ">=1.0.0 <2.0.0"));
+        assertThat(candidate.versionRequirements(), IsMapContaining.hasEntry("Y", ">=1.5.0 <2.0.0"));
     }
 
     @Test
     void GIVEN_component_version_requirements_WHEN_service_no_resource_found_THEN_throw_no_available_version_exception() {
-        when(client.resolveComponentCandidates(any())).thenThrow(ResourceNotFoundException.class);
+        when(client.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class)))
+                .thenThrow(ResourceNotFoundException.class);
 
         Exception exp = assertThrows(NoAvailableComponentVersionException.class, () -> helper
                 .resolveComponentVersion(COMPONENT_A, v1_0_0,

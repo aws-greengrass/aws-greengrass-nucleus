@@ -5,13 +5,6 @@
 
 package com.aws.greengrass.componentmanager;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.greengrassv2.model.ComponentCandidate;
-import com.amazonaws.services.greengrassv2.model.ComponentPlatform;
-import com.amazonaws.services.greengrassv2.model.ResolveComponentCandidatesRequest;
-import com.amazonaws.services.greengrassv2.model.ResolveComponentCandidatesResult;
-import com.amazonaws.services.greengrassv2.model.ResolvedComponentVersion;
-import com.amazonaws.services.greengrassv2.model.ResourceNotFoundException;
 import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.config.PlatformResolver;
@@ -20,6 +13,13 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.lang3.Validate;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.greengrassv2.model.ComponentCandidate;
+import software.amazon.awssdk.services.greengrassv2.model.ComponentPlatform;
+import software.amazon.awssdk.services.greengrassv2.model.ResolveComponentCandidatesRequest;
+import software.amazon.awssdk.services.greengrassv2.model.ResolveComponentCandidatesResponse;
+import software.amazon.awssdk.services.greengrassv2.model.ResolvedComponentVersion;
+import software.amazon.awssdk.services.greengrassv2.model.ResourceNotFoundException;
 
 import java.util.Collections;
 import java.util.Map;
@@ -55,16 +55,18 @@ public class ComponentServiceHelper {
                                                      Map<String, Requirement> versionRequirements)
             throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
 
-        ComponentPlatform platform = new ComponentPlatform().withAttributes(platformResolver.getCurrentPlatform());
+        ComponentPlatform platform = ComponentPlatform.builder()
+                .attributes(platformResolver.getCurrentPlatform()).build();
         Map<String, String> versionRequirementsInString = versionRequirements.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().toString()));
-        ComponentCandidate candidate = new ComponentCandidate().withComponentName(componentName)
-                .withComponentVersion(localCandidateVersion == null ? null : localCandidateVersion.getValue())
-                .withVersionRequirements(versionRequirementsInString);
-        ResolveComponentCandidatesRequest request = new ResolveComponentCandidatesRequest().withPlatform(platform)
-                .withComponentCandidates(Collections.singletonList(candidate));
+        ComponentCandidate candidate = ComponentCandidate.builder().componentName(componentName)
+                .componentVersion(localCandidateVersion == null ? null : localCandidateVersion.getValue())
+                .versionRequirements(versionRequirementsInString).build();
+        ResolveComponentCandidatesRequest request = ResolveComponentCandidatesRequest.builder()
+                .platform(platform)
+                .componentCandidates(Collections.singletonList(candidate)).build();
 
-        ResolveComponentCandidatesResult result;
+        ResolveComponentCandidatesResponse result;
         try {
             result = clientFactory.getCmsClient().resolveComponentCandidates(request);
         } catch (ResourceNotFoundException e) {
@@ -73,7 +75,7 @@ public class ComponentServiceHelper {
             throw new NoAvailableComponentVersionException(String.format(
                     "No applicable version found in cloud registry for component: '%s' satisfying requirement: '%s'.",
                     componentName, versionRequirements), e);
-        } catch (AmazonClientException e) {
+        } catch (SdkClientException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
                     .log("Failed to get result from Greengrass cloud when resolving component");
             throw new ComponentVersionNegotiationException(
@@ -82,8 +84,8 @@ public class ComponentServiceHelper {
         }
 
         Validate.isTrue(
-                result.getResolvedComponentVersions() != null && result.getResolvedComponentVersions().size() == 1,
+                result.resolvedComponentVersions() != null && result.resolvedComponentVersions().size() == 1,
                 "Component service returns invalid response. It should have one resolved component version");
-        return result.getResolvedComponentVersions().get(0);
+        return result.resolvedComponentVersions().get(0);
     }
 }

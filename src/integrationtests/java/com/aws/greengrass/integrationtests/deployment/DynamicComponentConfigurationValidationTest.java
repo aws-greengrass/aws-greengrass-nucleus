@@ -5,8 +5,6 @@
 
 package com.aws.greengrass.integrationtests.deployment;
 
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
@@ -43,6 +41,7 @@ import software.amazon.awssdk.aws.greengrass.model.ValidateConfigurationUpdateEv
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -75,6 +74,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 
 @ExtendWith(GGExtension.class)
 class DynamicComponentConfigurationValidationTest extends BaseITCase {
@@ -323,8 +323,9 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .timestamp(System.currentTimeMillis() + 20).failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(
-                        new ComponentUpdatePolicy(60, DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
-                .configurationValidationPolicy(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20))
+                        new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS))
+                .configurationValidationPolicy(DeploymentConfigurationValidationPolicy.builder()
+                        .timeoutInSeconds(20).build())
                 .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }

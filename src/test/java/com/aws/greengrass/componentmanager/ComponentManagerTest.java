@@ -9,7 +9,6 @@ import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
-import com.amazonaws.services.greengrassv2.model.ResolvedComponentVersion;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
@@ -19,10 +18,10 @@ import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
+import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.plugins.ArtifactDownloaderFactory;
 import com.aws.greengrass.config.PlatformResolver;
-import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -46,11 +45,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.internal.util.collections.Sets;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.greengrassv2.model.ResolvedComponentVersion;
 
 import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -307,8 +307,8 @@ class ComponentManagerTest {
                         .build();
 
         ResolvedComponentVersion resolvedComponentVersion =
-                new ResolvedComponentVersion().withComponentName(componentA).withComponentVersion(v1_0_0.getValue())
-                .withRecipe(ByteBuffer.wrap(MAPPER.writeValueAsBytes(recipe))).withArn(TEST_ARN);
+                ResolvedComponentVersion.builder().componentName(componentA).componentVersion(v1_0_0.getValue())
+                .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(recipe))).arn(TEST_ARN).build();
 
         when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
                 .thenReturn(resolvedComponentVersion);
@@ -358,8 +358,8 @@ class ComponentManagerTest {
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());
 
         ResolvedComponentVersion resolvedComponentVersion =
-                new ResolvedComponentVersion().withComponentName(componentA).withComponentVersion(v1_0_0.getValue())
-                .withRecipe(ByteBuffer.wrap(MAPPER.writeValueAsBytes(newRecipe))).withArn(TEST_ARN);
+                ResolvedComponentVersion.builder().componentName(componentA).componentVersion(v1_0_0.getValue())
+                .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(newRecipe))).arn(TEST_ARN).build();
         when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
                 .thenReturn(resolvedComponentVersion);
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);

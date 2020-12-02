@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment;
 
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgent;
 import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.greengrass.config.Topic;
@@ -29,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityReport;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityStatus;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -318,7 +318,7 @@ class DynamicComponentConfigurationValidatorTest {
         doc.setTimestamp(DEFAULT_DEPLOYMENT_TIMESTAMP);
         Deployment deployment = new Deployment();
         DeploymentConfigurationValidationPolicy configurationValidationPolicy =
-                new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20);
+                DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(20).build();
         doc.setConfigurationValidationPolicy(configurationValidationPolicy);
         deployment.setDeploymentDocumentObj(doc);
         return deployment;

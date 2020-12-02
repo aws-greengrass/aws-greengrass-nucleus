@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.integrationtests.e2e.util;
 
-import com.amazonaws.arn.Arn;
+import software.amazon.awssdk.arns.Arn;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
 import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
@@ -102,8 +102,8 @@ public final class IotJobsUtils {
      * @return String formatted ARN
      */
     public static String generateMockConfigurationArn(String resourceIdVersion) {
-        return Arn.builder().withPartition("aws").withAccountId("1234567890").withRegion("test-region")
-                .withService("gg").withResource(String.format("configuration:%s", resourceIdVersion)).build()
+        return Arn.builder().partition("aws").accountId("1234567890").region("test-region")
+                .service("gg").resource(String.format("configuration:%s", resourceIdVersion)).build()
                 .toString();
     }
 

@@ -5,10 +5,17 @@
 
 package com.aws.greengrass.deployment.model;
 
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.type.TypeFactory;
+import com.fasterxml.jackson.databind.util.Converter;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -16,9 +23,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import software.amazon.awssdk.core.SdkPojo;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -61,8 +73,10 @@ public class DeploymentDocument {
 
     @JsonProperty("ConfigurationValidationPolicy")
     @Builder.Default
+    @JsonSerialize(using = SDKSerializer.class)
+    @JsonDeserialize(converter = SDKDeserializer.class)
     private DeploymentConfigurationValidationPolicy configurationValidationPolicy =
-            new DeploymentConfigurationValidationPolicy();
+            DeploymentConfigurationValidationPolicy.builder().build();
 
     /**
      * Get a list of root component names from the deploymentPackageConfigurationList.
@@ -74,9 +88,43 @@ public class DeploymentDocument {
         if (deploymentPackageConfigurationList == null || deploymentPackageConfigurationList.isEmpty()) {
             return Collections.emptyList();
         }
-        return deploymentPackageConfigurationList.stream()
-                                                 .filter(DeploymentPackageConfiguration::isRootComponent)
-                                                 .map(DeploymentPackageConfiguration::getPackageName)
-                                                 .collect(Collectors.toList());
+        return deploymentPackageConfigurationList.stream().filter(DeploymentPackageConfiguration::isRootComponent)
+                .map(DeploymentPackageConfiguration::getPackageName).collect(Collectors.toList());
+    }
+
+    // Custom serializer for AWS SDK model since Jackson can't figure it out itself
+    private static class SDKSerializer extends JsonSerializer {
+        SDKSerializer() {
+            super();
+        }
+
+        @Override
+        public void serialize(Object value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+            HashMap<String, Object> temp = new HashMap<>();
+            SdkPojo pojoValue = (SdkPojo) value;
+            pojoValue.sdkFields().forEach(f -> temp.put(f.locationName(), f.getValueOrDefault(value)));
+            gen.writeObject(temp);
+        }
+    }
+
+    private static class SDKDeserializer implements
+            Converter<Map<String, Object>, DeploymentConfigurationValidationPolicy> {
+
+        @Override
+        public DeploymentConfigurationValidationPolicy convert(Map<String, Object> value) {
+            DeploymentConfigurationValidationPolicy.Builder obj = DeploymentConfigurationValidationPolicy.builder();
+            obj.sdkFields().forEach(f -> f.set(obj, value.get(f.locationName())));
+            return obj.build();
+        }
+
+        @Override
+        public JavaType getInputType(TypeFactory typeFactory) {
+            return typeFactory.constructMapType(Map.class, String.class, Object.class);
+        }
+
+        @Override
+        public JavaType getOutputType(TypeFactory typeFactory) {
+            return typeFactory.constructType(DeploymentConfigurationValidationPolicy.class);
+        }
     }
 }

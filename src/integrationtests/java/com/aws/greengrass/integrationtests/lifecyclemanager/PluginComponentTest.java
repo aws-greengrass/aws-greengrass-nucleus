@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
@@ -50,6 +49,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -65,7 +65,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
-import static com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
@@ -86,6 +85,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 
 @SuppressWarnings("PMD.CouplingBetweenObjects")
 class PluginComponentTest extends BaseITCase {
@@ -337,7 +337,8 @@ class PluginComponentTest extends BaseITCase {
         return DeploymentDocument.builder().timestamp(timestamp).deploymentId(deploymentId)
                 .failureHandlingPolicy(onFailure)
                 .componentUpdatePolicy(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS)).groupName("ANY")
-                .configurationValidationPolicy(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20))
+                .configurationValidationPolicy(DeploymentConfigurationValidationPolicy.builder()
+                        .timeoutInSeconds(20).build())
                 .deploymentPackageConfigurationList(
                         Arrays.asList(DeploymentPackageConfiguration.builder()
                                 .packageName(componentName)

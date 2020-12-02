@@ -6,7 +6,6 @@
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.Crashable;
 import com.aws.greengrass.dependency.State;
@@ -30,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.net.URL;
 import java.nio.file.Path;
@@ -44,7 +44,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
@@ -55,6 +54,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class ServiceDependencyLifecycleTest extends BaseITCase {
@@ -439,7 +439,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
     private Deployment createMockDeployment(DeploymentDocument doc) {
         when(doc.getComponentUpdatePolicy()).thenReturn(new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
         when(doc.getConfigurationValidationPolicy())
-                .thenReturn(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20));
+                .thenReturn(DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(20).build());
         Deployment deployment = mock(Deployment.class);
         doReturn(doc).when(deployment).getDeploymentDocumentObj();
         return deployment;

@@ -5,16 +5,6 @@
 
 package com.aws.greengrass.easysetup;
 
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.greengrassv2.AWSGreengrassV2;
-import com.amazonaws.services.greengrassv2.AWSGreengrassV2ClientBuilder;
-import com.amazonaws.services.greengrassv2.model.ComponentDeploymentSpecification;
-import com.amazonaws.services.greengrassv2.model.CreateDeploymentRequest;
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
-import com.amazonaws.services.greengrassv2.model.DeploymentFailureHandlingPolicy;
-import com.amazonaws.services.greengrassv2.model.DeploymentPolicies;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -28,6 +18,15 @@ import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
+import software.amazon.awssdk.services.greengrassv2.model.ComponentDeploymentSpecification;
+import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentRequest;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentFailureHandlingPolicy;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentPolicies;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.AttachRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.CreatePolicyResponse;
@@ -66,6 +65,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.channels.Channels;
@@ -122,7 +122,7 @@ public class DeviceProvisioningHelper {
     private final PrintStream outStream;
     private final IotClient iotClient;
     private final IamClient iamClient;
-    private final AWSGreengrassV2 greengrassClient;
+    private final GreengrassV2Client greengrassClient;
     private EnvironmentStage envStage = EnvironmentStage.PROD;
     private boolean thingGroupExists = false;
     private String thingGroupArn;
@@ -143,9 +143,10 @@ public class DeviceProvisioningHelper {
                 : EnvironmentStage.fromString(environmentStage);
         this.iotClient = IotSdkClientFactory.getIotClient(awsRegion, envStage);
         this.iamClient = IamSdkClientFactory.getIamClient(awsRegion);
-        this.greengrassClient = AWSGreengrassV2ClientBuilder.standard().withEndpointConfiguration(
-                new AwsClientBuilder.EndpointConfiguration(
-                        RegionUtils.getGreengrassControlPlaneEndpoint(awsRegion, this.envStage), awsRegion)).build();
+        this.greengrassClient = GreengrassV2Client.builder().endpointOverride(
+                        URI.create(RegionUtils.getGreengrassControlPlaneEndpoint(awsRegion, this.envStage)))
+                .region(Region.of(awsRegion))
+                .build();
     }
 
     /**
@@ -157,7 +158,7 @@ public class DeviceProvisioningHelper {
      * @param greengrassClient Greengrass client
      */
     DeviceProvisioningHelper(PrintStream outStream, IotClient iotClient, IamClient iamClient,
-                             AWSGreengrassV2 greengrassClient) {
+                             GreengrassV2Client greengrassClient) {
         this.outStream = outStream;
         this.iotClient = iotClient;
         this.iamClient = iamClient;
@@ -452,29 +453,29 @@ public class DeviceProvisioningHelper {
             return;
         }
 
-        CreateDeploymentRequest deploymentRequest = new CreateDeploymentRequest().withDeploymentPolicies(
-                new DeploymentPolicies().withConfigurationValidationPolicy(
-                        new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(60))
-                        .withComponentUpdatePolicy(new DeploymentComponentUpdatePolicy()
-                                .withAction(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                                .withTimeoutInSeconds(60))
-                        .withFailureHandlingPolicy(DeploymentFailureHandlingPolicy.DO_NOTHING));
+        CreateDeploymentRequest.Builder deploymentRequest = CreateDeploymentRequest.builder().deploymentPolicies(
+                DeploymentPolicies.builder().configurationValidationPolicy(
+                        DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(60).build())
+                        .componentUpdatePolicy(DeploymentComponentUpdatePolicy.builder()
+                                .action(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
+                                .timeoutInSeconds(60).build())
+                        .failureHandlingPolicy(DeploymentFailureHandlingPolicy.DO_NOTHING).build());
 
         if (Utils.isNotEmpty(thingGroupName)) {
             outStream.println("Creating a deployment for Greengrass first party components to the thing group");
-            deploymentRequest.withTargetArn(thingGroupArn)
-                    .withDeploymentName(String.format(INITIAL_DEPLOYMENT_NAME_FORMAT, thingGroupName));
+            deploymentRequest.targetArn(thingGroupArn)
+                    .deploymentName(String.format(INITIAL_DEPLOYMENT_NAME_FORMAT, thingGroupName));
         } else {
             outStream.println("Creating a deployment for Greengrass first party components to the device");
-            deploymentRequest.withTargetArn(thingInfo.thingArn)
-                    .withDeploymentName(String.format(INITIAL_DEPLOYMENT_NAME_FORMAT, thingInfo.thingName));
+            deploymentRequest.targetArn(thingInfo.thingArn)
+                    .deploymentName(String.format(INITIAL_DEPLOYMENT_NAME_FORMAT, thingInfo.thingName));
         }
 
-        deploymentRequest.addComponentsEntry(GREENGRASS_CLI_COMPONENT_NAME,
-                new ComponentDeploymentSpecification().withComponentVersion(GREENGRASS_CLI_COMPONENT_VERSION));
+        deploymentRequest.components(Utils.immutableMap(GREENGRASS_CLI_COMPONENT_NAME,
+                ComponentDeploymentSpecification.builder().componentVersion(GREENGRASS_CLI_COMPONENT_VERSION).build()));
 
-        greengrassClient.createDeployment(deploymentRequest);
-        outStream.printf("Configured Nucleus to deploy %s component %n", GREENGRASS_CLI_COMPONENT_NAME);
+        greengrassClient.createDeployment(deploymentRequest.build());
+        outStream.printf("Configured Nucleus to deploy %s component%n", GREENGRASS_CLI_COMPONENT_NAME);
     }
 
     @AllArgsConstructor

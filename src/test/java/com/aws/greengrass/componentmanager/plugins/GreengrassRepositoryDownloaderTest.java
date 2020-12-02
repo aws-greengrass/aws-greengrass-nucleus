@@ -5,9 +5,6 @@
 
 package com.aws.greengrass.componentmanager.plugins;
 
-import com.amazonaws.services.greengrassv2.AWSGreengrassV2;
-import com.amazonaws.services.greengrassv2.model.GetComponentVersionArtifactRequest;
-import com.amazonaws.services.greengrassv2.model.GetComponentVersionArtifactResult;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.ComponentTestResourceHelper;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
@@ -24,6 +21,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
+import software.amazon.awssdk.services.greengrassv2.model.GetComponentVersionArtifactRequest;
+import software.amazon.awssdk.services.greengrassv2.model.GetComponentVersionArtifactResponse;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -56,7 +56,7 @@ class GreengrassRepositoryDownloaderTest {
     private HttpURLConnection connection;
 
     @Mock
-    private AWSGreengrassV2 client;
+    private GreengrassV2Client client;
 
     @Mock
     private GreengrassComponentServiceClientFactory clientFactory;
@@ -96,8 +96,9 @@ class GreengrassRepositoryDownloaderTest {
         assertThat(downloader.getArtifactFilename(), is("artifact.txt"));
 
         // mock requests to get downloadSize and local file name
-        GetComponentVersionArtifactResult result =
-                new GetComponentVersionArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
+        GetComponentVersionArtifactResponse result =
+                GetComponentVersionArtifactResponse.builder()
+                        .preSignedUrl("https://www.amazon.com/artifact.txt").build();
         when(client.getComponentVersionArtifact(getComponentVersionArtifactRequestArgumentCaptor.capture()))
                 .thenReturn(result);
 
@@ -112,8 +113,8 @@ class GreengrassRepositoryDownloaderTest {
 
         GetComponentVersionArtifactRequest generatedRequest =
                 getComponentVersionArtifactRequestArgumentCaptor.getValue();
-        assertEquals(TEST_ARN, generatedRequest.getArn());
-        assertEquals("774pP05xtua0RCcwj9uALSdAqGr_vC631EdOBkJxnec=/artifact.txt", generatedRequest.getArtifactName());
+        assertEquals(TEST_ARN, generatedRequest.arn());
+        assertEquals("774pP05xtua0RCcwj9uALSdAqGr_vC631EdOBkJxnec=/artifact.txt", generatedRequest.artifactName());
 
         byte[] originalFile = Files.readAllBytes(mockArtifactPath);
         Path artifactFilePath = saveToPath.resolve("artifact.txt");
@@ -125,9 +126,10 @@ class GreengrassRepositoryDownloaderTest {
     @Test
     void GIVEN_http_connection_error_WHEN_attempt_download_THEN_retry_called() throws Exception {
         GreengrassRepositoryDownloader.MAX_RETRY = 2;
-        GetComponentVersionArtifactResult result =
-                new GetComponentVersionArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
-        when(client.getComponentVersionArtifact(any())).thenReturn(result);
+        GetComponentVersionArtifactResponse result =
+                GetComponentVersionArtifactResponse.builder()
+                        .preSignedUrl("https://www.amazon.com/artifact.txt").build();
+        when(client.getComponentVersionArtifact(any(GetComponentVersionArtifactRequest.class))).thenReturn(result);
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         lenient().when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(TEST_ARN));
         GreengrassRepositoryDownloader downloader = spy(new GreengrassRepositoryDownloader(clientFactory, pkgId,
@@ -147,9 +149,10 @@ class GreengrassRepositoryDownloaderTest {
 
     @Test
     void GIVEN_http_connection_bad_request_WHEN_attempt_download_THEN_download_error_thrown() throws Exception {
-        GetComponentVersionArtifactResult result =
-                new GetComponentVersionArtifactResult().withPreSignedUrl("https://www.amazon.com/artifact.txt");
-        when(client.getComponentVersionArtifact(any())).thenReturn(result);
+        GetComponentVersionArtifactResponse result =
+                GetComponentVersionArtifactResponse.builder()
+                        .preSignedUrl("https://www.amazon.com/artifact.txt").build();
+        when(client.getComponentVersionArtifact(any(GetComponentVersionArtifactRequest.class))).thenReturn(result);
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
         lenient().when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(TEST_ARN));
         GreengrassRepositoryDownloader downloader = spy(new GreengrassRepositoryDownloader(clientFactory, pkgId,

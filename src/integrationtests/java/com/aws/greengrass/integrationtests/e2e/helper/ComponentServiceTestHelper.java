@@ -5,20 +5,20 @@
 
 package com.aws.greengrass.integrationtests.e2e.helper;
 
-import com.amazonaws.services.greengrassv2.AWSGreengrassV2;
-import com.amazonaws.services.greengrassv2.model.CreateComponentVersionRequest;
-import com.amazonaws.services.greengrassv2.model.CreateComponentVersionResult;
-import com.amazonaws.services.greengrassv2.model.DeleteComponentRequest;
-import com.amazonaws.services.greengrassv2.model.DeleteComponentResult;
-import com.amazonaws.services.greengrassv2.model.RecipeSource;
 import com.aws.greengrass.componentmanager.ComponentServiceHelper;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
+import software.amazon.awssdk.services.greengrassv2.model.CreateComponentVersionRequest;
+import software.amazon.awssdk.services.greengrassv2.model.CreateComponentVersionResponse;
+import software.amazon.awssdk.services.greengrassv2.model.DeleteComponentRequest;
+import software.amazon.awssdk.services.greengrassv2.model.DeleteComponentResponse;
+import software.amazon.awssdk.services.greengrassv2.model.RecipeSource;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -32,16 +32,17 @@ public class ComponentServiceTestHelper {
      *
      * @param cmsClient      client of Component Management Service
      * @param recipeFilePath the path to the component recipe file
-     * @return {@link CreateComponentVersionResult}
+     * @return {@link CreateComponentVersionResponse}
      * @throws IOException if file reading fails
      */
-    public static CreateComponentVersionResult createComponent(AWSGreengrassV2 cmsClient, Path recipeFilePath)
+    public static CreateComponentVersionResponse createComponent(GreengrassV2Client cmsClient, Path recipeFilePath)
             throws IOException {
-        ByteBuffer recipeBuf = ByteBuffer.wrap(Files.readAllBytes(recipeFilePath));
+        byte[] recipeBuf = Files.readAllBytes(recipeFilePath);
         CreateComponentVersionRequest createComponentRequest =
-                new CreateComponentVersionRequest().withRecipeSource(new RecipeSource().withInlineRecipe(recipeBuf));
+                CreateComponentVersionRequest.builder().recipeSource(RecipeSource.builder()
+                        .inlineRecipe(SdkBytes.fromByteArray(recipeBuf)).build()).build();
         logger.atDebug("create-component").kv("request", createComponentRequest).log();
-        CreateComponentVersionResult createComponentResult = cmsClient.createComponentVersion(createComponentRequest);
+        CreateComponentVersionResponse createComponentResult = cmsClient.createComponentVersion(createComponentRequest);
         logger.atDebug("create-component").kv("result", createComponentResult).log();
         return createComponentResult;
     }
@@ -52,13 +53,13 @@ public class ComponentServiceTestHelper {
      *
      * @param cmsClient        client of Component Management Service
      * @param componentArn   name of the component to delete
-     * @return {@link DeleteComponentResult}
+     * @return {@link DeleteComponentResponse}
      */
-    public static DeleteComponentResult deleteComponent(AWSGreengrassV2 cmsClient, String componentArn) {
-        DeleteComponentRequest deleteComponentVersionRequest =
-                new DeleteComponentRequest().withArn(componentArn);
+    public static DeleteComponentResponse deleteComponent(GreengrassV2Client cmsClient, String componentArn) {
+        DeleteComponentRequest deleteComponentVersionRequest = DeleteComponentRequest.builder()
+                .arn(componentArn).build();
         logger.atDebug("delete-component").kv("request", deleteComponentVersionRequest).log();
-        DeleteComponentResult deleteComponentVersionResult =
+        DeleteComponentResponse deleteComponentVersionResult =
                 cmsClient.deleteComponent(deleteComponentVersionRequest);
         logger.atDebug("delete-component").kv("result", deleteComponentVersionResult).log();
         return deleteComponentVersionResult;

@@ -5,15 +5,15 @@
 
 package com.aws.greengrass.componentmanager.plugins;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.greengrassv2.model.GetComponentVersionArtifactRequest;
-import com.amazonaws.services.greengrassv2.model.GetComponentVersionArtifactResult;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.greengrassv2.model.GetComponentVersionArtifactRequest;
+import software.amazon.awssdk.services.greengrassv2.model.GetComponentVersionArtifactResponse;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -145,13 +145,13 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         }
 
         GetComponentVersionArtifactRequest getComponentArtifactRequest =
-                new GetComponentVersionArtifactRequest().withArtifactName(artifactName).withArn(arn);
+                GetComponentVersionArtifactRequest.builder().artifactName(artifactName).arn(arn).build();
         String preSignedUrl;
         try {
-            GetComponentVersionArtifactResult getComponentArtifactResult =
+            GetComponentVersionArtifactResponse getComponentArtifactResult =
                     clientFactory.getCmsClient().getComponentVersionArtifact(getComponentArtifactRequest);
-            preSignedUrl = getComponentArtifactResult.getPreSignedUrl();
-        } catch (AmazonClientException e) {
+            preSignedUrl = getComponentArtifactResult.preSignedUrl();
+        } catch (SdkClientException e) {
             throw new PackageDownloadException(getErrorString("error in get artifact download URL"), e);
         }
         try {

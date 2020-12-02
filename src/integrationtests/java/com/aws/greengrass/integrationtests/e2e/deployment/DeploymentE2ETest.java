@@ -5,16 +5,6 @@
 
 package com.aws.greengrass.integrationtests.e2e.deployment;
 
-import com.amazonaws.services.greengrassv2.model.ComponentConfigurationUpdate;
-import com.amazonaws.services.greengrassv2.model.ComponentDeploymentSpecification;
-import com.amazonaws.services.greengrassv2.model.CreateDeploymentRequest;
-import com.amazonaws.services.greengrassv2.model.CreateDeploymentResult;
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
-import com.amazonaws.services.greengrassv2.model.DeploymentFailureHandlingPolicy;
-import com.amazonaws.services.greengrassv2.model.DeploymentPolicies;
-import com.amazonaws.services.greengrassv2.model.ResourceNotFoundException;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -31,6 +21,7 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -54,6 +45,14 @@ import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import software.amazon.awssdk.iot.iotshadow.IotShadowClient;
 import software.amazon.awssdk.iot.iotshadow.model.UpdateNamedShadowSubscriptionRequest;
+import software.amazon.awssdk.services.greengrassv2.model.ComponentConfigurationUpdate;
+import software.amazon.awssdk.services.greengrassv2.model.ComponentDeploymentSpecification;
+import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentRequest;
+import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentResponse;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentPolicies;
+import software.amazon.awssdk.services.greengrassv2.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
@@ -85,6 +84,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentFailureHandlingPolicy.DO_NOTHING;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentFailureHandlingPolicy.ROLLBACK;
 
 @ExtendWith(GGExtension.class)
 @Tag("E2E")
@@ -129,11 +132,13 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         };
         Slf4jLogAdapter.addGlobalListener(listener);
         CreateDeploymentRequest createDeploymentRequest =
-                new CreateDeploymentRequest().withTargetArn(thingInfo.getThingArn()).addComponentsEntry("CustomerApp",
-                        new ComponentDeploymentSpecification().withComponentVersion("1.0.0").withConfigurationUpdate(
-                                new ComponentConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}")))
-                        .addComponentsEntry("SomeService",
-                                new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
+                CreateDeploymentRequest.builder().targetArn(thingInfo.getThingArn()).components(
+                        Utils.immutableMap("CustomerApp",
+                                ComponentDeploymentSpecification.builder().componentVersion("1.0.0")
+                                        .configurationUpdate(ComponentConfigurationUpdate.builder()
+                                                .merge("{\"sampleText\":\"FCS integ test\"}").build()).build(),
+                                "SomeService",
+                                ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
         draftAndCreateDeployment(createDeploymentRequest);
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
 
@@ -190,12 +195,13 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
             stdoutCountdown = new CountDownLatch(1);
             // 1st Deployment to have some services running in Kernel with default configuration
-            CreateDeploymentRequest createDeployment1 = new CreateDeploymentRequest().addComponentsEntry("CustomerApp",
-                    new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
+            CreateDeploymentRequest createDeployment1 = CreateDeploymentRequest.builder().components(
+                    Utils.immutableMap("CustomerApp",
+                            ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
 
-            CreateDeploymentResult createDeploymentResult1 = draftAndCreateDeployment(createDeployment1);
+            CreateDeploymentResponse createDeploymentResult1 = draftAndCreateDeployment(createDeployment1);
 
-            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult1.getIotJobId(),
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult1.iotJobId(),
                     thingInfo.getThingName(), Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
             assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
@@ -251,14 +257,14 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             mergeNode.withArray("listKey").add("item3");
             mergeNode.with("path").put("leafKey", "updated");
 
-            CreateDeploymentRequest createDeployment2 = new CreateDeploymentRequest().withTargetArn(thingGroupArn)
-                    .addComponentsEntry("CustomerApp",
-                            new ComponentDeploymentSpecification().withComponentVersion("1.0.0")
-                                    .withConfigurationUpdate(new ComponentConfigurationUpdate()
-                                            .withMerge(mapper.writeValueAsString(mergeNode))));
+            CreateDeploymentRequest createDeployment2 = CreateDeploymentRequest.builder().targetArn(thingGroupArn)
+                    .components(Utils.immutableMap("CustomerApp",
+                            ComponentDeploymentSpecification.builder().componentVersion("1.0.0").configurationUpdate(
+                                    ComponentConfigurationUpdate.builder().merge(mapper.writeValueAsString(mergeNode))
+                                            .build()).build())).build();
 
-            CreateDeploymentResult createDeploymentResult2 = draftAndCreateDeployment(createDeployment2);
-            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult2.getIotJobId(),
+            CreateDeploymentResponse createDeploymentResult2 = draftAndCreateDeployment(createDeployment2);
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult2.iotJobId(),
                     thingInfo.getThingName(), Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
             assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
             assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
@@ -290,14 +296,14 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             stdouts.clear();
 
             // 3rd deployment to reset
-            CreateDeploymentRequest createDeployment3 = new CreateDeploymentRequest().withTargetArn(thingGroupArn)
-                    .addComponentsEntry("CustomerApp",
-                            new ComponentDeploymentSpecification().withComponentVersion("1.0.0")
-                                    .withConfigurationUpdate(
-                                            new ComponentConfigurationUpdate().withReset("/sampleText", "/path")));
+            CreateDeploymentRequest createDeployment3 = CreateDeploymentRequest.builder().targetArn(thingGroupArn)
+                    .components(Utils.immutableMap("CustomerApp",
+                            ComponentDeploymentSpecification.builder().componentVersion("1.0.0").configurationUpdate(
+                                    ComponentConfigurationUpdate.builder().reset("/sampleText", "/path").build())
+                                    .build())).build();
 
-            CreateDeploymentResult createDeploymentResult = draftAndCreateDeployment(createDeployment3);
-            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult.getIotJobId(),
+            CreateDeploymentResponse createDeploymentResult = draftAndCreateDeployment(createDeployment3);
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult.iotJobId(),
                     thingInfo.getThingName(), Duration.ofMinutes(2), s -> s.equals(JobExecutionStatus.SUCCEEDED));
             assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
             assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
@@ -332,23 +338,24 @@ class DeploymentE2ETest extends BaseE2ETestCase {
     void GIVEN_kernel_running_with_deployed_services_WHEN_deployment_removes_packages_THEN_services_should_be_stopped_and_job_is_successful()
             throws Exception {
         // First Deployment to have some services running in Kernel which can be removed later
-        CreateDeploymentRequest createDeploymentRequest = new CreateDeploymentRequest()
-                .addComponentsEntry("CustomerApp", new ComponentDeploymentSpecification().withComponentVersion("1.0.0")
-                        .withConfigurationUpdate(
-                                new ComponentConfigurationUpdate().withMerge("{\"sampleText\":\"FCS integ test\"}")))
-                .addComponentsEntry("SomeService",
-                        new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
-        CreateDeploymentResult createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest);
+        CreateDeploymentRequest.Builder createDeploymentRequest = CreateDeploymentRequest.builder().components(
+                Utils.immutableMap("CustomerApp", ComponentDeploymentSpecification.builder().componentVersion("1.0.0")
+                                .configurationUpdate(
+                                        ComponentConfigurationUpdate.builder().merge(
+                                                "{\"sampleText\":\"FCS integ test\"}")
+                                                .build()).build(),
+                        "SomeService", ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build()));
+        CreateDeploymentResponse createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest.build());
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult.getIotJobId(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult.iotJobId(),
                 thingInfo.getThingName(), Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
-        CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest()
-                .addComponentsEntry("CustomerApp",
-                        new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
-        CreateDeploymentResult createDeploymentResult2 = draftAndCreateDeployment(createDeploymentRequest2);
+        CreateDeploymentRequest createDeploymentRequest2 = CreateDeploymentRequest.builder().components(
+                Utils.immutableMap("CustomerApp",
+                        ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
+        CreateDeploymentResponse createDeploymentResult2 = draftAndCreateDeployment(createDeploymentRequest2);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult2.getIotJobId(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult2.iotJobId(),
                 thingInfo.getThingName(), Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
@@ -363,13 +370,12 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         ignoreExceptionUltimateCauseOfType(context, ResourceNotFoundException.class);
 
         // New deployment contains dependency conflicts
-        CreateDeploymentRequest createDeploymentRequest = new CreateDeploymentRequest()
-                .addComponentsEntry("SomeOldService",
-                        new ComponentDeploymentSpecification().withComponentVersion("0.9.0"))
-                .addComponentsEntry("SomeService",
-                        new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
-        CreateDeploymentResult createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest);
-        String jobId = createDeploymentResult.getIotJobId();
+        CreateDeploymentRequest createDeploymentRequest = CreateDeploymentRequest.builder().components(
+                Utils.immutableMap("SomeOldService",
+                        ComponentDeploymentSpecification.builder().componentVersion("0.9.0").build(), "SomeService",
+                        ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
+        CreateDeploymentResponse createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest);
+        String jobId = createDeploymentResult.iotJobId();
 
         IotJobsUtils
                 .waitForJobExecutionStatusToSatisfy(iotClient, jobId, thingInfo.getThingName(), Duration.ofMinutes(5),
@@ -394,30 +400,31 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 "Service " + getTestComponentNameInCloud("CustomerApp") + " in broken state after deployment");
 
         // Create first Job Doc with a faulty service (CustomerApp-0.9.0)
-        CreateDeploymentRequest createDeploymentRequest = new CreateDeploymentRequest().withDeploymentPolicies(
-                new DeploymentPolicies().withConfigurationValidationPolicy(
-                        new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(120))
-                        .withComponentUpdatePolicy(new DeploymentComponentUpdatePolicy()
-                                .withAction(DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS)
-                                .withTimeoutInSeconds(120))
-                        .withFailureHandlingPolicy(DeploymentFailureHandlingPolicy.DO_NOTHING))
-                .addComponentsEntry("CustomerApp",
-                        new ComponentDeploymentSpecification().withComponentVersion("0.9.0"));
-        CreateDeploymentResult createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest);
+        CreateDeploymentRequest createDeploymentRequest = CreateDeploymentRequest.builder().deploymentPolicies(
+                DeploymentPolicies.builder().configurationValidationPolicy(
+                        DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(120).build())
+                        .componentUpdatePolicy(DeploymentComponentUpdatePolicy.builder()
+                                .action(SKIP_NOTIFY_COMPONENTS)
+                                .timeoutInSeconds(120).build())
+                        .failureHandlingPolicy(DO_NOTHING).build())
+                .components(Utils.immutableMap("CustomerApp",
+                        ComponentDeploymentSpecification.builder().componentVersion("0.9.0").build()))
+                .build();
+        CreateDeploymentResponse createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest);
 
         // Wait for deployment job to fail after three retries of starting CustomerApp
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult.getIotJobId(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult.iotJobId(),
                 thingInfo.getThingName(), Duration.ofMinutes(7), s -> s.equals(JobExecutionStatus.FAILED));
         // CustomerApp should be in BROKEN state
         assertEquals(State.BROKEN, getCloudDeployedComponent("CustomerApp").getState());
 
         // Create another job with a fix to the faulty service (CustomerApp-0.9.1).
-        CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest()
-                .addComponentsEntry("CustomerApp",
-                        new ComponentDeploymentSpecification().withComponentVersion("0.9.1"));
-        CreateDeploymentResult createDeploymentResult2 = draftAndCreateDeployment(createDeploymentRequest2);
+        CreateDeploymentRequest createDeploymentRequest2 = CreateDeploymentRequest.builder()
+                .components(Utils.immutableMap("CustomerApp",
+                        ComponentDeploymentSpecification.builder().componentVersion("0.9.1").build())).build();
+        CreateDeploymentResponse createDeploymentResult2 = draftAndCreateDeployment(createDeploymentRequest2);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult2.getIotJobId(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult2.iotJobId(),
                 thingInfo.getThingName(), Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
         // Ensure that main is FINISHED and CustomerApp is RUNNING.
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
@@ -432,32 +439,29 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                 "Service " + getTestComponentNameInCloud("CustomerApp") + " in broken state after deployment");
 
         // Deploy some services that can be used for verification later
-        CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest()
-                .addComponentsEntry("RedSignal", new ComponentDeploymentSpecification().withComponentVersion("1.0.0"))
-                .addComponentsEntry("YellowSignal",
-                        new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
-        CreateDeploymentResult result1 = draftAndCreateDeployment(createDeploymentRequest1);
+        CreateDeploymentRequest createDeploymentRequest1 = CreateDeploymentRequest.builder().components(
+                Utils.immutableMap("RedSignal",
+                        ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build(), "YellowSignal",
+                        ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
+        CreateDeploymentResponse result1 = draftAndCreateDeployment(createDeploymentRequest1);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getIotJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.iotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         // Create a Job Doc with a faulty service (CustomerApp-0.9.0) requesting rollback on failure
-        CreateDeploymentRequest createDeploymentRequest = new CreateDeploymentRequest().withDeploymentPolicies(
-                new DeploymentPolicies().withConfigurationValidationPolicy(
-                        new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(120))
-                        .withComponentUpdatePolicy(new DeploymentComponentUpdatePolicy()
-                                .withAction(DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS)
-                                .withTimeoutInSeconds(120))
-                        .withFailureHandlingPolicy(DeploymentFailureHandlingPolicy.ROLLBACK))
-                .addComponentsEntry("RedSignal", new ComponentDeploymentSpecification().withComponentVersion("1.0.0"))
-                .addComponentsEntry("YellowSignal",
-                        new ComponentDeploymentSpecification().withComponentVersion("1.0.0"))
-                .addComponentsEntry("CustomerApp",
-                        new ComponentDeploymentSpecification().withComponentVersion("0.9.0"));
+        CreateDeploymentRequest createDeploymentRequest = CreateDeploymentRequest.builder().deploymentPolicies(
+                DeploymentPolicies.builder().configurationValidationPolicy(
+                        DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(120).build())
+                        .componentUpdatePolicy(DeploymentComponentUpdatePolicy.builder().action(SKIP_NOTIFY_COMPONENTS)
+                                .timeoutInSeconds(120).build()).failureHandlingPolicy(ROLLBACK).build()).components(
+                Utils.immutableMap("RedSignal",
+                        ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build(), "YellowSignal",
+                        ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build(), "CustomerApp",
+                        ComponentDeploymentSpecification.builder().componentVersion("0.9.0").build())).build();
 
-        CreateDeploymentResult createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest);
+        CreateDeploymentResponse createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest);
 
-        String jobId2 = createDeploymentResult.getIotJobId();
+        String jobId2 = createDeploymentResult.iotJobId();
         IotJobsUtils
                 .waitForJobExecutionStatusToSatisfy(iotClient, jobId2, thingInfo.getThingName(), Duration.ofMinutes(5),
                         s -> s.equals(JobExecutionStatus.FAILED));
@@ -483,12 +487,12 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             throws Exception {
         // First Deployment to have a service running in Kernel which has a update policy check that always returns
         // false, i.e. keeps waiting forever
-        CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest()
-                .addComponentsEntry("NonDisruptableService",
-                        new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
-        CreateDeploymentResult createDeploymentResult1 = draftAndCreateDeployment(createDeploymentRequest1);
+        CreateDeploymentRequest createDeploymentRequest1 = CreateDeploymentRequest.builder()
+                .components(Utils.immutableMap("NonDisruptableService",
+                        ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
+        CreateDeploymentResponse createDeploymentResult1 = draftAndCreateDeployment(createDeploymentRequest1);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult1.getIotJobId(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult1.iotJobId(),
                 thingInfo.getThingName(), Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         Consumer<GreengrassLogMessage> logListener = null;
@@ -524,15 +528,14 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
             // Second deployment to update the service which is currently running an important task so deployment should
              // wait for a disruptable time to update
-            CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest().withDeploymentPolicies(
-                    new DeploymentPolicies().withFailureHandlingPolicy(DeploymentFailureHandlingPolicy.DO_NOTHING)
-                            .withConfigurationValidationPolicy(
-                                    new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(120))
-                            .withComponentUpdatePolicy(new DeploymentComponentUpdatePolicy()
-                                    .withAction(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                                    .withTimeoutInSeconds(120))).addComponentsEntry("NonDisruptableService",
-                    new ComponentDeploymentSpecification().withComponentVersion("1.0.1"));
-            CreateDeploymentResult createDeploymentResult2 = draftAndCreateDeployment(createDeploymentRequest2);
+            CreateDeploymentRequest createDeploymentRequest2 = CreateDeploymentRequest.builder().deploymentPolicies(
+                    DeploymentPolicies.builder().failureHandlingPolicy(DO_NOTHING).configurationValidationPolicy(
+                            DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(120).build())
+                            .componentUpdatePolicy(DeploymentComponentUpdatePolicy.builder().action(NOTIFY_COMPONENTS)
+                                    .timeoutInSeconds(120).build()).build()).components(
+                    Utils.immutableMap("NonDisruptableService",
+                            ComponentDeploymentSpecification.builder().componentVersion("1.0.1").build())).build();
+            CreateDeploymentResponse createDeploymentResult2 = draftAndCreateDeployment(createDeploymentRequest2);
 
             CountDownLatch updateRegistered = new CountDownLatch(1);
             CountDownLatch deploymentCancelled = new CountDownLatch(1);
@@ -546,7 +549,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             };
             Slf4jLogAdapter.addGlobalListener(logListener);
 
-            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult2.getIotJobId(),
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult2.iotJobId(),
                     thingInfo.getThingName(), Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
 
             // Wait for the second deployment to start waiting for safe time to update and
@@ -557,7 +560,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                     IsCollectionWithSize.hasSize(1));
 
             // GG_NEEDS_REVIEW: TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
-            IotJobsUtils.cancelJob(iotClient, createDeploymentResult2.getIotJobId());
+            IotJobsUtils.cancelJob(iotClient, createDeploymentResult2.iotJobId());
 
             // Wait for indication that cancellation has gone through
             assertTrue(deploymentCancelled.await(60, TimeUnit.SECONDS));
@@ -583,12 +586,12 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         // GIVEN
         // First Deployment to have a service running in Kernel which has a update policy that always returns
         // false, i.e. keeps waiting forever
-        CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest()
-                .addComponentsEntry("NonDisruptableService",
-                        new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
-        CreateDeploymentResult result1 = draftAndCreateDeployment(createDeploymentRequest1);
+        CreateDeploymentRequest createDeploymentRequest1 = CreateDeploymentRequest.builder().components(
+                Utils.immutableMap("NonDisruptableService",
+                        ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
+        CreateDeploymentResponse result1 = draftAndCreateDeployment(createDeploymentRequest1);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getIotJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.iotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         CountDownLatch updatePolicyCheckSkipped = new CountDownLatch(1);
@@ -601,24 +604,23 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
         // WHEN
         // Second deployment to update the service with SKIP_NOTIFY_COMPONENTS
-        CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest().withDeploymentPolicies(
-                new DeploymentPolicies().withConfigurationValidationPolicy(
-                        new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(120))
-                        .withFailureHandlingPolicy(DeploymentFailureHandlingPolicy.DO_NOTHING)
-                        .withComponentUpdatePolicy(new DeploymentComponentUpdatePolicy()
-                                .withAction(DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS)
-                                .withTimeoutInSeconds(120))).addComponentsEntry("NonDisruptableService",
-                new ComponentDeploymentSpecification().withComponentVersion("1.0.1"));
-        CreateDeploymentResult result2 = draftAndCreateDeployment(createDeploymentRequest2);
+        CreateDeploymentRequest createDeploymentRequest2 = CreateDeploymentRequest.builder().deploymentPolicies(
+                DeploymentPolicies.builder().configurationValidationPolicy(
+                        DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(120).build())
+                        .failureHandlingPolicy(DO_NOTHING).componentUpdatePolicy(
+                        DeploymentComponentUpdatePolicy.builder().action(SKIP_NOTIFY_COMPONENTS).timeoutInSeconds(120)
+                                .build()).build()).components(Utils.immutableMap("NonDisruptableService",
+                ComponentDeploymentSpecification.builder().componentVersion("1.0.1").build())).build();
+        CreateDeploymentResponse result2 = draftAndCreateDeployment(createDeploymentRequest2);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getIotJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.iotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
 
         // THEN
         assertTrue(updatePolicyCheckSkipped.await(60, TimeUnit.SECONDS));
         Slf4jLogAdapter.removeGlobalListener(logListener);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getIotJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.iotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
@@ -633,12 +635,12 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             throws Exception {
         // First Deployment to have a service running in Kernel which has a safety check that always returns
         // false, i.e. keeps waiting forever
-        CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest()
-                .addComponentsEntry("NonDisruptableService",
-                        new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
-        CreateDeploymentResult result1 = draftAndCreateDeployment(createDeploymentRequest1);
+        CreateDeploymentRequest createDeploymentRequest1 = CreateDeploymentRequest.builder().components(
+                Utils.immutableMap("NonDisruptableService",
+                        ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
+        CreateDeploymentResponse result1 = draftAndCreateDeployment(createDeploymentRequest1);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getIotJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.iotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
         Consumer<GreengrassLogMessage> logListener = null;
 
@@ -689,28 +691,26 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
             // Second deployment to update the service which is currently running an important task so deployment should
             // keep waiting for a safe time to update
-            CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest().withDeploymentPolicies(
-                    new DeploymentPolicies().withConfigurationValidationPolicy(
-                            new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(120))
-                            .withFailureHandlingPolicy(DeploymentFailureHandlingPolicy.DO_NOTHING)
-                            .withComponentUpdatePolicy(new DeploymentComponentUpdatePolicy()
-                                    .withAction(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                                    .withTimeoutInSeconds(120))).addComponentsEntry("NonDisruptableService",
-                    new ComponentDeploymentSpecification().withComponentVersion("1.0.1"));
-            CreateDeploymentResult result2 = draftAndCreateDeployment(createDeploymentRequest2);
-            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getIotJobId(), thingInfo.getThingName(),
+            CreateDeploymentRequest createDeploymentRequest2 = CreateDeploymentRequest.builder().deploymentPolicies(
+                    DeploymentPolicies.builder().configurationValidationPolicy(
+                            DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(120).build())
+                            .failureHandlingPolicy(DO_NOTHING).componentUpdatePolicy(
+                            DeploymentComponentUpdatePolicy.builder().action(NOTIFY_COMPONENTS).timeoutInSeconds(120)
+                                    .build()).build()).components(Utils.immutableMap("NonDisruptableService",
+                    ComponentDeploymentSpecification.builder().componentVersion("1.0.1").build())).build();
+            CreateDeploymentResponse result2 = draftAndCreateDeployment(createDeploymentRequest2);
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.iotJobId(), thingInfo.getThingName(),
                     Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
 
             // Create one more deployment so that it's queued in cloud
-            CreateDeploymentRequest createDeploymentRequest3 = new CreateDeploymentRequest().withDeploymentPolicies(
-                    new DeploymentPolicies().withConfigurationValidationPolicy(
-                            new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(120))
-                            .withFailureHandlingPolicy(DeploymentFailureHandlingPolicy.DO_NOTHING)
-                            .withComponentUpdatePolicy(new DeploymentComponentUpdatePolicy()
-                                    .withAction(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                                    .withTimeoutInSeconds(120))).addComponentsEntry("NonDisruptableService",
-                    new ComponentDeploymentSpecification().withComponentVersion("1.0.1"));
-            CreateDeploymentResult result3 = draftAndCreateDeployment(createDeploymentRequest3);
+            CreateDeploymentRequest createDeploymentRequest3 = CreateDeploymentRequest.builder().deploymentPolicies(
+                    DeploymentPolicies.builder().configurationValidationPolicy(
+                            DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(120).build())
+                            .failureHandlingPolicy(DO_NOTHING).componentUpdatePolicy(
+                            DeploymentComponentUpdatePolicy.builder().action(NOTIFY_COMPONENTS).timeoutInSeconds(120)
+                                    .build()).build()).components(Utils.immutableMap("NonDisruptableService",
+                    ComponentDeploymentSpecification.builder().componentVersion("1.0.1").build())).build();
+            CreateDeploymentResponse result3 = draftAndCreateDeployment(createDeploymentRequest3);
 
             // Wait for the second deployment to start waiting for safe time to update and
             // then cancel it's corresponding job from cloud
@@ -724,7 +724,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             String pendingAction = updateSystemPolicyService.getPendingActions().iterator().next();
 
             // GG_NEEDS_REVIEW: TODO : Call Fleet configuration service's cancel API when ready instead of calling IoT Jobs API
-            IotJobsUtils.cancelJob(iotClient, result2.getIotJobId());
+            IotJobsUtils.cancelJob(iotClient, result2.iotJobId());
 
             // Wait for indication that cancellation has gone through
             assertTrue(deploymentCancelled.await(240, TimeUnit.SECONDS));
@@ -740,7 +740,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
 
             // Now that we've verified that the job got cancelled, let's verify that the next job was picked up
             // and put into IN_PROGRESS state
-            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result3.getIotJobId(), thingInfo.getThingName(),
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result3.iotJobId(), thingInfo.getThingName(),
                     Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
 
             // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
@@ -760,12 +760,12 @@ class DeploymentE2ETest extends BaseE2ETestCase {
     void GIVEN_updating_Component_WHEN_removing_field_from_recipe_THEN_kernel_config_remove_corresponding_field()
             throws Exception {
         // CustomerApp 0.9.1 has 'startup' key in lifecycle
-        CreateDeploymentRequest createDeploymentRequest1 = new CreateDeploymentRequest()
-                .addComponentsEntry("CustomerApp",
-                        new ComponentDeploymentSpecification().withComponentVersion("0.9.1"));
-        CreateDeploymentResult result1 = draftAndCreateDeployment(createDeploymentRequest1);
+        CreateDeploymentRequest createDeploymentRequest1 = CreateDeploymentRequest.builder().components(
+                Utils.immutableMap("CustomerApp",
+                        ComponentDeploymentSpecification.builder().componentVersion("0.9.1").build())).build();
+        CreateDeploymentResponse result1 = draftAndCreateDeployment(createDeploymentRequest1);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.getIotJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result1.iotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(10), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         GreengrassService customerApp = getCloudDeployedComponent("CustomerApp");
@@ -775,12 +775,12 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         customerApp.getRuntimeConfig().lookup("runtimeKey").withValue("val");
 
         // Second deployment to update CustomerApp, replace 'startup' key with 'run' key.
-        CreateDeploymentRequest createDeploymentRequest2 = new CreateDeploymentRequest()
-                .addComponentsEntry("CustomerApp",
-                        new ComponentDeploymentSpecification().withComponentVersion("1.0.0"));
-        CreateDeploymentResult result2 = draftAndCreateDeployment(createDeploymentRequest2);
+        CreateDeploymentRequest createDeploymentRequest2 = CreateDeploymentRequest.builder().components(
+                Utils.immutableMap("CustomerApp",
+                        ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
+        CreateDeploymentResponse result2 = draftAndCreateDeployment(createDeploymentRequest2);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.getIotJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, result2.iotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done

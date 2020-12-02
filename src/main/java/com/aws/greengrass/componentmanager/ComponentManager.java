@@ -7,7 +7,6 @@ package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
-import com.amazonaws.services.greengrassv2.model.ResolvedComponentVersion;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
@@ -40,6 +39,7 @@ import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.Setter;
+import software.amazon.awssdk.services.greengrassv2.model.ResolvedComponentVersion;
 
 import java.io.File;
 import java.io.IOException;
@@ -183,9 +183,10 @@ public class ComponentManager implements InjectionActions {
                             + "satisfying requirement '%s'.", componentName, versionRequirements), e);
         }
 
-        ComponentIdentifier resolvedComponentId = new ComponentIdentifier(resolvedComponentVersion.getComponentName(),
-                new Semver(resolvedComponentVersion.getComponentVersion()));
-        String downloadedRecipeContent = StandardCharsets.UTF_8.decode(resolvedComponentVersion.getRecipe()).toString();
+        ComponentIdentifier resolvedComponentId = new ComponentIdentifier(resolvedComponentVersion.componentName(),
+                new Semver(resolvedComponentVersion.componentVersion()));
+        String downloadedRecipeContent =
+                StandardCharsets.UTF_8.decode(resolvedComponentVersion.recipe().asByteBuffer()).toString();
         com.amazon.aws.iot.greengrass.component.common.ComponentRecipe cloudResolvedRecipe =
                 RecipeLoader.parseRecipe(downloadedRecipeContent, RecipeLoader.RecipeFormat.JSON); // cloud sends JSON
 
@@ -197,7 +198,7 @@ public class ComponentManager implements InjectionActions {
         storeRecipeDigestInConfigStoreForPlugin(cloudResolvedRecipe, savedRecipeContent);
 
         // Save the arn to the recipe meta data file
-        componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(resolvedComponentVersion.getArn()));
+        componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(resolvedComponentVersion.arn()));
 
         return resolvedComponentId;
     }

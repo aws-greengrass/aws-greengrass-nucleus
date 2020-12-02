@@ -5,8 +5,6 @@
 
 package com.aws.greengrass.integrationtests.deployment;
 
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
@@ -50,6 +48,7 @@ import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRe
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -93,6 +92,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 @ExtendWith(GGExtension.class)
 class DeploymentConfigMergingTest extends BaseITCase {
@@ -695,8 +696,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(
-                        new ComponentUpdatePolicy(3, DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS))
-                .configurationValidationPolicy(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20))
+                        new ComponentUpdatePolicy(3, NOTIFY_COMPONENTS))
+                .configurationValidationPolicy(DeploymentConfigurationValidationPolicy.builder()
+                        .timeoutInSeconds(20).build())
                 .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }
@@ -705,8 +707,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)
                 .componentUpdatePolicy(
-                        new ComponentUpdatePolicy(60, DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS))
-                .configurationValidationPolicy(new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20))
+                        new ComponentUpdatePolicy(60, SKIP_NOTIFY_COMPONENTS))
+                .configurationValidationPolicy(DeploymentConfigurationValidationPolicy.builder()
+                        .timeoutInSeconds(20).build())
                 .build();
         return new Deployment(doc, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT);
     }

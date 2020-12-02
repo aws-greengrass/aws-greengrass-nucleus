@@ -6,8 +6,6 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -34,6 +32,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.IOException;
@@ -61,6 +60,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class DependencyResolverTest {
@@ -91,9 +91,9 @@ class DependencyResolverTest {
     private Topics groupToTargetComponentsTopics;
     private Context context;
     private final ComponentUpdatePolicy componentUpdatePolicy =
-            new ComponentUpdatePolicy(60, DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS);
+            new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS);
     private final DeploymentConfigurationValidationPolicy configurationValidationPolicy =
-            new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(20);
+            DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(20).build();
 
     @BeforeEach
     void setupTopics() throws Exception {

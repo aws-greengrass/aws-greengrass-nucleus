@@ -5,20 +5,6 @@
 
 package com.aws.greengrass.integrationtests.e2e;
 
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.greengrassv2.AWSGreengrassV2;
-import com.amazonaws.services.greengrassv2.AWSGreengrassV2ClientBuilder;
-import com.amazonaws.services.greengrassv2.model.CancelDeploymentRequest;
-import com.amazonaws.services.greengrassv2.model.ComponentDeploymentSpecification;
-import com.amazonaws.services.greengrassv2.model.CreateComponentVersionResult;
-import com.amazonaws.services.greengrassv2.model.CreateDeploymentRequest;
-import com.amazonaws.services.greengrassv2.model.CreateDeploymentResult;
-import com.amazonaws.services.greengrassv2.model.DeleteComponentResult;
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
-import com.amazonaws.services.greengrassv2.model.DeploymentFailureHandlingPolicy;
-import com.amazonaws.services.greengrassv2.model.DeploymentPolicies;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -47,6 +33,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
+import software.amazon.awssdk.services.greengrassv2.model.CancelDeploymentRequest;
+import software.amazon.awssdk.services.greengrassv2.model.ComponentDeploymentSpecification;
+import software.amazon.awssdk.services.greengrassv2.model.CreateComponentVersionResponse;
+import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentRequest;
+import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentResponse;
+import software.amazon.awssdk.services.greengrassv2.model.DeleteComponentResponse;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentPolicies;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
@@ -69,6 +65,7 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -88,6 +85,8 @@ import java.util.stream.Collectors;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentFailureHandlingPolicy.DO_NOTHING;
 
 /**
  * Base class for E2E tests, with the following functionality: * Bootstrap one IoT thing group and one IoT thing, and
@@ -153,10 +152,10 @@ public class BaseE2ETestCase implements AutoCloseable {
         }
     }
 
-    protected static final AWSGreengrassV2 greengrassClient = AWSGreengrassV2ClientBuilder.standard()
-            .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
-                    RegionUtils.getGreengrassControlPlaneEndpoint(GAMMA_REGION.toString(), envStage),
-                    GAMMA_REGION.toString())).build();
+    protected static final GreengrassV2Client greengrassClient = GreengrassV2Client.builder()
+            .endpointOverride(URI.create(RegionUtils.getGreengrassControlPlaneEndpoint(GAMMA_REGION.toString(),
+                    envStage)))
+            .region(GAMMA_REGION).build();
     protected static final IamClient iamClient = IamSdkClientFactory.getIamClient(GAMMA_REGION.toString());
     protected static final S3Client s3Client = S3Client.builder().region(GAMMA_REGION).build();
 
@@ -200,9 +199,9 @@ public class BaseE2ETestCase implements AutoCloseable {
                             .kv("compoenent-version", component.getVersion())
                             .log("No component arn found to make delete request for cleanup");
                 } else {
-                    DeleteComponentResult result =
+                    DeleteComponentResponse result =
                             ComponentServiceTestHelper.deleteComponent(greengrassClient, componentArn);
-                    assertEquals(200, result.getSdkHttpMetadata().getHttpStatusCode());
+                    assertEquals(200, result.sdkHttpResponse().statusCode());
                 }
             }
         } finally {
@@ -301,11 +300,11 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         Files.write(testRecipePath, content.getBytes(StandardCharsets.UTF_8));
 
-        CreateComponentVersionResult createComponentResult =
+        CreateComponentVersionResponse createComponentResult =
                 ComponentServiceTestHelper.createComponent(greengrassClient, testRecipePath);
-        componentArns.put(pkgIdLocal, createComponentResult.getArn());
-        assertEquals(pkgIdCloud.getName(), createComponentResult.getComponentName(), createComponentResult.toString());
-        assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.getComponentVersion());
+        componentArns.put(pkgIdLocal, createComponentResult.arn());
+        assertEquals(pkgIdCloud.getName(), createComponentResult.componentName(), createComponentResult.toString());
+        assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.componentVersion());
     }
 
     private static String getTestRecipeFileName(ComponentIdentifier componentIdentifier) {
@@ -367,34 +366,33 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     @SuppressWarnings("PMD.LinguisticNaming")
-    protected CreateDeploymentResult draftAndCreateDeployment(CreateDeploymentRequest createDeploymentRequest) {
+    protected CreateDeploymentResponse draftAndCreateDeployment(CreateDeploymentRequest createDeploymentRequest) {
 
         // update package name with random suffix to avoid conflict in cloud
         Map<String, ComponentDeploymentSpecification> updatedPkgMetadata = new HashMap<>();
-        createDeploymentRequest.getComponents()
+        createDeploymentRequest.components()
                 .forEach((key, val) -> updatedPkgMetadata.put(getTestComponentNameInCloud(key), val));
-        createDeploymentRequest.setComponents(updatedPkgMetadata);
+        createDeploymentRequest = createDeploymentRequest.toBuilder().components(updatedPkgMetadata).build();
 
         // set default value
-        if (createDeploymentRequest.getTargetArn() == null) {
-            createDeploymentRequest.withTargetArn(thingGroupArn);
+        if (createDeploymentRequest.targetArn() == null) {
+            createDeploymentRequest = createDeploymentRequest.toBuilder().targetArn(thingGroupArn).build();
         }
-        if (createDeploymentRequest.getDeploymentPolicies() == null) {
-            createDeploymentRequest.withDeploymentPolicies(new DeploymentPolicies().withConfigurationValidationPolicy(
-                    new DeploymentConfigurationValidationPolicy().withTimeoutInSeconds(120)).withComponentUpdatePolicy(
-                    new DeploymentComponentUpdatePolicy()
-                            .withAction(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                            .withTimeoutInSeconds(120))
-                    .withFailureHandlingPolicy(DeploymentFailureHandlingPolicy.DO_NOTHING));
+        if (createDeploymentRequest.deploymentPolicies() == null) {
+            createDeploymentRequest = createDeploymentRequest.toBuilder().deploymentPolicies(
+                    DeploymentPolicies.builder().configurationValidationPolicy(
+                            DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(120).build())
+                            .componentUpdatePolicy(DeploymentComponentUpdatePolicy.builder().action(NOTIFY_COMPONENTS)
+                                    .timeoutInSeconds(120).build()).failureHandlingPolicy(DO_NOTHING).build()).build();
         }
 
         logger.atInfo().kv("CreateDeploymentRequest", createDeploymentRequest).log();
-        CreateDeploymentResult createDeploymentResult = greengrassClient.createDeployment(createDeploymentRequest);
+        CreateDeploymentResponse createDeploymentResult = greengrassClient.createDeployment(createDeploymentRequest);
         logger.atInfo().kv("CreateDeploymentResult", createDeploymentResult).log();
 
         // Keep track of deployments to clean up
         createdDeployments
-                .add(new CancelDeploymentRequest().withDeploymentId(createDeploymentResult.getDeploymentId()));
+                .add(CancelDeploymentRequest.builder().deploymentId(createDeploymentResult.deploymentId()).build());
 
         return createDeploymentResult;
     }
@@ -432,8 +430,8 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
-        greengrassClient.shutdown();
+    public void close() {
+        greengrassClient.close();
         iotClient.close();
         iamClient.close();
         s3Client.close();
