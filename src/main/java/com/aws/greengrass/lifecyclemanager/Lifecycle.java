@@ -51,6 +51,7 @@ public class Lifecycle {
     public static final String LIFECYCLE_INSTALL_NAMESPACE_TOPIC = "install";
     public static final String LIFECYCLE_STARTUP_NAMESPACE_TOPIC = "startup";
     public static final String LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC = "shutdown";
+    public static final String LIFECYCLE_RECOVER_NAMESPACE_TOPIC = "recover";
     public static final String TIMEOUT_NAMESPACE_TOPIC = "timeout";
     public static final String ERROR_RESET_TIME_TOPIC = "errorResetTime";
     public static final String REQUIRES_PRIVILEGE_NAMESPACE_TOPIC = "RequiresPrivilege";
@@ -61,6 +62,7 @@ public class Lifecycle {
     private static final Integer DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC = 120;
     private static final Integer DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
     private static final Integer DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC = 15;
+    public static final Integer DEFAULT_ERROR_RECOVERY_HANDLER_TIMEOUT_SEC = 60;
     private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
     private static final int MAXIMUM_CONTINUAL_ERROR = 3;
