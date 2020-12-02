@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -194,24 +195,33 @@ class AuthorizationHandlerTest {
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
     }
 
-    // GG_NEEDS_REVIEW: TODO: Add component registration logic back in along with this test:
-    // https://issues-iad.amazon.com/issues/V234938383
-//    @Test
-//    void GIVEN_AuthZ_handler_WHEN_component_registered_twice_THEN_errors() throws AuthorizationException {
-//        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel);
-//        final Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
-//        authorizationHandler.registerComponent("ServiceA", serviceOps);
-//
-//        authorizationHandler.registerComponent("ServiceA", serviceOps);
-//        final Set<String> serviceOps_2 = new HashSet<>(Arrays.asList("OpA"));
-//        authorizationHandler.registerComponent("ServiceA", serviceOps_2);
+    @Test
+    void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_works() throws AuthorizationException {
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
+        final Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
+        authorizationHandler.registerComponent("ServiceA", serviceOps);
 
-//        // Another component can be registered
-//        authorizationHandler.registerComponent("ServiceB", serviceOps_2);
+        authorizationHandler.registerComponent("ServiceA", serviceOps);
+        final Set<String> serviceOps_2 = new HashSet<>(Arrays.asList("OpD"));
+        authorizationHandler.registerComponent("ServiceA", serviceOps_2);
 
-//        //assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceC",
-//        //Permission.builder().principal("*").operation("*").resource(null).build()));
-//    }
+        AuthorizationPolicy mockPolicy = mock(AuthorizationPolicy.class);
+        when(mockPolicy.getOperations()).thenReturn(serviceOps_2);
+
+        // Service A has both operations supported now
+        authorizationHandler.validateOperations("ServiceA", mockPolicy);
+        when(mockPolicy.getOperations()).thenReturn(serviceOps);
+        authorizationHandler.validateOperations("ServiceA", mockPolicy);
+
+        // Another component can be registered
+        authorizationHandler.registerComponent("ServiceB", serviceOps_2);
+        when(mockPolicy.getOperations()).thenReturn(serviceOps_2);
+        authorizationHandler.validateOperations("ServiceB", mockPolicy);
+        // It throws if its not a known operation
+        when(mockPolicy.getOperations()).thenReturn(serviceOps);
+        assertThrows(AuthorizationException.class,
+                () -> authorizationHandler.validateOperations("ServiceB", mockPolicy));
+    }
 
     @ParameterizedTest
     @NullAndEmptySource
