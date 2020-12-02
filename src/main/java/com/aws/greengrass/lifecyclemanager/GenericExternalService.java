@@ -388,6 +388,12 @@ public class GenericExternalService extends GreengrassService {
 
     @Override
     public void handleError() throws InterruptedException, TimeoutException {
+        if (getConfig().findNode(GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                Lifecycle.LIFECYCLE_RECOVER_NAMESPACE_TOPIC) == null) {
+            // No recovery step defined in lifecycle
+            return;
+        }
+
         Integer timeout = Coerce.toInt(getConfig().findOrDefault(DEFAULT_ERROR_RECOVERY_HANDLER_TIMEOUT_SEC,
                 GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, Lifecycle.LIFECYCLE_RECOVER_NAMESPACE_TOPIC,
                 Lifecycle.TIMEOUT_NAMESPACE_TOPIC));
