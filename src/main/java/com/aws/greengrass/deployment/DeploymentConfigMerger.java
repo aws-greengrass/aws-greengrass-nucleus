@@ -6,7 +6,6 @@
 package com.aws.greengrass.deployment;
 
 
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.activator.DeploymentActivator;
@@ -27,6 +26,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 
 import java.util.Collection;
 import java.util.HashMap;

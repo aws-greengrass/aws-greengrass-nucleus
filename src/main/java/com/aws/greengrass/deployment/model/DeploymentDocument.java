@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment.model;
 
-import com.amazonaws.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -16,6 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.util.Collections;
 import java.util.List;
@@ -62,7 +62,7 @@ public class DeploymentDocument {
     @JsonProperty("ConfigurationValidationPolicy")
     @Builder.Default
     private DeploymentConfigurationValidationPolicy configurationValidationPolicy =
-            new DeploymentConfigurationValidationPolicy();
+            DeploymentConfigurationValidationPolicy.builder().build();
 
     /**
      * Get a list of root component names from the deploymentPackageConfigurationList.

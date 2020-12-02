@@ -6,8 +6,6 @@
 package com.aws.greengrass.deployment;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
-import com.amazonaws.SdkClientException;
-import com.amazonaws.regions.DefaultAwsRegionProviderChain;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
@@ -28,6 +26,8 @@ import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.slf4j.event.Level;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -271,7 +271,7 @@ public class DeviceConfiguration {
             // If the region value is empty/null, then try to get the region from the SDK lookup path
             if (!(newV instanceof String) || Utils.isEmpty(region)) {
                 try {
-                    region = new DefaultAwsRegionProviderChain().getRegion();
+                    region = DefaultAwsRegionProviderChain.builder().build().getRegion().toString();
                 } catch (SdkClientException ex) {
                     region = null;
                     logger.atWarn().log("Error looking up AWS region", ex);

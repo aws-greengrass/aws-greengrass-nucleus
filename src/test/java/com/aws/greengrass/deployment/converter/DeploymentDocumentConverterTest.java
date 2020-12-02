@@ -11,7 +11,6 @@
 package com.aws.greengrass.deployment.converter;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
-import com.amazonaws.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
@@ -19,7 +18,6 @@ import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-
 import software.amazon.awssdk.aws.greengrass.model.RunWithInfo;
 import software.amazon.awssdk.utils.ImmutableMap;
 
@@ -37,6 +35,7 @@ import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 
 class DeploymentDocumentConverterTest {
     private static final String ROOT_COMPONENT_TO_REMOVE_1 = "componentToRemove1";
@@ -160,7 +159,7 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentDocument.getFailureHandlingPolicy(), is(FailureHandlingPolicy.DO_NOTHING));
         assertThat(deploymentDocument.getTimestamp(), is(1604067741583L));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
-                   is(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                   is(NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(120));
 
         assertThat(deploymentDocument.getDeploymentId(),
@@ -217,7 +216,7 @@ class DeploymentDocumentConverterTest {
 
         // Default for ComponentUpdatePolicy is NOTIFY_COMPONENTS with 60 sec as timeout
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
-                   is(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                   is(NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(60));
     }
 
@@ -251,9 +250,7 @@ class DeploymentDocumentConverterTest {
 
         // Default for ComponentUpdatePolicy is NOTIFY_COMPONENTS with 60 sec as timeout
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
-                   is(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                   is(NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(120));
-
     }
-
 }
