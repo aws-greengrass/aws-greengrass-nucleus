@@ -118,6 +118,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         configurationTopics.createLeafChild("periodicAggregateMetricsIntervalSeconds").withValue(100);
         configurationTopics.createLeafChild("periodicPublishMetricsIntervalSeconds").withValue(300);
         when(mockDeviceConfiguration.getTelemetryConfigurationTopics()).thenReturn(configurationTopics);
+        doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
         telemetryAgent = new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses, executorService,
                 3, 1);
     }
@@ -219,7 +220,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC), any()))
                 .thenReturn(1);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC), any()))
-                .thenReturn(3);
+                .thenReturn(2);
         Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap = new HashMap<>();
         List<AggregatedNamespaceData> data = new ArrayList<>();
         data.add(AggregatedNamespaceData.builder().namespace("SomeNameSpace").build());
@@ -234,7 +235,6 @@ class TelemetryAgentTest extends GGServiceTestUtil {
                 .build());
 
         telemetryAgent.schedulePeriodicPublishMetrics(false);
-        doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
         telemetryAgent.postInject();
         long timeoutMs = 5000;
         verify(mockMqttClient, timeout(timeoutMs).atLeastOnce()).publish(publishRequestArgumentCaptor.capture());
