@@ -25,6 +25,7 @@ import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.Deployment.DeploymentStage;
+import com.aws.greengrass.lifecyclemanager.exceptions.DependencyLoadException;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
@@ -75,6 +76,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE_NAME;
+import static com.aws.greengrass.lifecyclemanager.ServiceLoadPolicy.SURFACE_DEPENDENCY_ERROR;
 
 /**
  * Greengrass-kernel.
@@ -336,16 +338,34 @@ public class Kernel {
         return config.findTopics(SERVICES_NAMESPACE_TOPIC, serviceName);
     }
 
+
     /**
      * Locate a GreengrassService by name in the kernel context.
      *
      * @param name name of the service to find
      * @return found service or null
      * @throws ServiceLoadException if service cannot load
+     * @throws DependencyLoadException if any dependency of the service cannot load
      */
     @SuppressWarnings(
             {"UseSpecificCatch", "PMD.AvoidCatchingThrowable", "PMD.AvoidDeeplyNestedIfStmts", "PMD.ConfusingTernary"})
     public GreengrassService locate(String name) throws ServiceLoadException {
+        return locate(name, SURFACE_DEPENDENCY_ERROR);
+    }
+
+    /**
+     * Locate a GreengrassService by name in the kernel context.
+     *
+     * @param name name of the service to find
+     * @param serviceLoadPolicy policy on service dependency loading exception
+     * @return found service or null
+     * @throws ServiceLoadException if service cannot load
+     * @throws DependencyLoadException if any dependency of the service cannot load when throwOnDependencyError is true
+     */
+    @SuppressWarnings({"UseSpecificCatch", "PMD.AvoidCatchingThrowable", "PMD.AvoidDeeplyNestedIfStmts",
+            "PMD.ConfusingTernary", "PMD.ExceptionAsFlowControl"})
+    public GreengrassService locate(String name, final ServiceLoadPolicy serviceLoadPolicy)
+            throws ServiceLoadException {
         return context.getValue(GreengrassService.class, name).computeObjectIfEmpty(v -> {
             Topics serviceRootTopics = findServiceTopic(name);
 
@@ -360,10 +380,29 @@ public class Kernel {
                     try {
                         for (Pair<String, DependencyType> p : GreengrassService
                                 .parseDependencies((Collection<String>) dependenciesTopic.getOnce())) {
-                            locate(p.getLeft());
+                            String errorMsg = String.format("Unable to load dependency %s of service %s",
+                                    p.getLeft(), name);
+                            try {
+                                locate(p.getLeft(), serviceLoadPolicy);
+                            } catch (DependencyLoadException e) {
+                                // throw original error if downstream dependency fails
+                                if (SURFACE_DEPENDENCY_ERROR.equals(serviceLoadPolicy)) {
+                                    throw e;
+                                }
+                                logger.atError().log(errorMsg, e);
+                            } catch (ServiceLoadException e) {
+                                if (SURFACE_DEPENDENCY_ERROR.equals(serviceLoadPolicy)) {
+                                    throw new DependencyLoadException(errorMsg, e);
+                                }
+                                logger.atError().log(errorMsg, e);
+                            }
                         }
-                    } catch (ServiceLoadException | InputValidationException e) {
-                        throw new ServiceLoadException("Unable to load service " + name, e);
+                    } catch (InputValidationException e) {
+                        String errorMsg = String.format("Unable to to parse dependencies of service %s", name);
+                        if (SURFACE_DEPENDENCY_ERROR.equals(serviceLoadPolicy)) {
+                            throw new DependencyLoadException(errorMsg, e);
+                        }
+                        logger.atError().log(errorMsg, e);
                     }
                 }
 

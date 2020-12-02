@@ -120,10 +120,19 @@ class PluginComponentTest extends BaseITCase {
     @Test
     void GIVEN_kernel_WHEN_locate_plugin_without_digest_THEN_plugin_is_not_loaded_into_JVM(ExtensionContext context)
             throws Exception {
-        ignoreExceptionOfType(context, RuntimeException.class);
+        ignoreExceptionOfType(context, ServiceLoadException.class);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("plugin.yaml"));
         setupPackageStore();
-        assertThrows(RuntimeException.class, () -> kernel.launch());
+        CountDownLatch nucleusFinished = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("aws.greengrass.Nucleus") && newState.equals(State.FINISHED)) {
+                nucleusFinished.countDown();
+            }
+        });
+        kernel.launch();
+
+        assertTrue(nucleusFinished.await(5, TimeUnit.SECONDS));
+        assertThrows(ServiceLoadException.class, () -> kernel.locate(componentName));
     }
 
     @Test

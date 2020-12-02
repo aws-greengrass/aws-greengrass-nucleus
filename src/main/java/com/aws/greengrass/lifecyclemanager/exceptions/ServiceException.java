@@ -5,6 +5,9 @@
 
 package com.aws.greengrass.lifecyclemanager.exceptions;
 
+/**
+ * Generic exception in Greengrass services.
+ */
 public class ServiceException extends Exception {
     static final long serialVersionUID = -3387516993124229948L;
 

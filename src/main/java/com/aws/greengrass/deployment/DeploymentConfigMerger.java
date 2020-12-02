@@ -41,6 +41,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_NAME_KEY;
+import static com.aws.greengrass.lifecyclemanager.ServiceLoadPolicy.IGNORE_DEPENDENCY_ERROR;
 
 @AllArgsConstructor(onConstructor = @__(@Inject))
 public class DeploymentConfigMerger {
@@ -208,7 +209,7 @@ public class DeploymentConfigMerger {
                 try {
                     return kernel.locate(name).currentOrReportedStateIs(State.BROKEN);
                 } catch (ServiceLoadException e) {
-                    return false;
+                    return true;
                 }
             }).collect(Collectors.toSet());
         }
@@ -263,7 +264,7 @@ public class DeploymentConfigMerger {
             Set<Future<Void>> serviceClosedFutures = new HashSet<>();
             servicesToRemove = servicesToRemove.stream().filter(serviceName -> {
                 try {
-                    GreengrassService eg = kernel.locate(serviceName);
+                    GreengrassService eg = kernel.locate(serviceName, IGNORE_DEPENDENCY_ERROR);
 
                     // If the service is builtin, then do not close it and do not
                     // remove it from the config

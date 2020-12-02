@@ -349,7 +349,7 @@ class ComponentManagerTest {
 
         GreengrassService mockKernelService = mock(GreengrassService.class);
         when(kernel.findServiceTopic(componentA)).thenReturn(mock(Topics.class));
-        when(kernel.locate(componentA)).thenReturn(mockService);
+        when(kernel.locate(eq(componentA), any())).thenReturn(mockService);
         when(kernel.getMain()).thenReturn(mockKernelService);
         when(mockKernelService.getRuntimeConfig()).thenReturn(runtimeTopics);
         when(runtimeTopics.lookup(any())).thenReturn(digestTopic);
@@ -392,7 +392,8 @@ class ComponentManagerTest {
         Topic versionTopic = mock(Topic.class);
 
         when(kernel.findServiceTopic(componentA)).thenReturn(mock(Topics.class));
-        when(kernel.locate(componentA)).thenReturn(mockService);
+        when(kernel.locate(eq(componentA), any())).thenReturn(mockService);
+        when(kernel.locate(eq(componentA))).thenReturn(mockService);
         when(mockService.getServiceConfig()).thenReturn(serviceConfigTopics);
         when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
         when(versionTopic.getOnce()).thenReturn(v1_0_0.getValue());

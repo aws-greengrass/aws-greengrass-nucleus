@@ -35,6 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -64,10 +66,10 @@ class GreengrassServiceTest {
         cService = new GreengrassService(root.findTopics(SERVICES_NAMESPACE_TOPIC, "C"));
         dService = new GreengrassService(root.findTopics(SERVICES_NAMESPACE_TOPIC, "D"));
         eService = new GreengrassService(root.findTopics(SERVICES_NAMESPACE_TOPIC, "E"));
-        when(kernel.locate("B")).thenReturn(bService);
-        when(kernel.locate("C")).thenReturn(cService);
-        when(kernel.locate("D")).thenReturn(dService);
-        lenient().when(kernel.locate("E")).thenReturn(eService);
+        when(kernel.locate(eq("B"), any())).thenReturn(bService);
+        when(kernel.locate(eq("C"), any())).thenReturn(cService);
+        when(kernel.locate(eq("D"), any())).thenReturn(dService);
+        lenient().when(kernel.locate(eq("E"), any())).thenReturn(eService);
         aService = spy(new GreengrassService(root.findTopics(SERVICES_NAMESPACE_TOPIC, "A")));
 
     }

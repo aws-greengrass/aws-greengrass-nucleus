@@ -73,6 +73,7 @@ import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
+import static com.aws.greengrass.lifecyclemanager.ServiceLoadPolicy.IGNORE_DEPENDENCY_ERROR;
 
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
 public class DeploymentService extends GreengrassService {
@@ -665,7 +666,7 @@ public class DeploymentService extends GreengrassService {
         while (!pendingComponentsList.isEmpty()) {
             String componentName = pendingComponentsList.get(0);
             try {
-                GreengrassService greengrassService = kernel.locate(componentName);
+                GreengrassService greengrassService = kernel.locate(componentName, IGNORE_DEPENDENCY_ERROR);
                 Map<String, Object> groupNamesForComponent = (Map<String, Object>) componentsToGroupsMappingCache
                         .getOrDefault(greengrassService.getName(), new HashMap<>());
 

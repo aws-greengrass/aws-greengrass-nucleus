@@ -9,6 +9,7 @@ import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.IPCEventStreamService;
 import com.aws.greengrass.ipc.Startable;
 import com.aws.greengrass.ipc.modules.AuthorizationService;
@@ -51,6 +52,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
+import static com.aws.greengrass.lifecyclemanager.ServiceLoadPolicy.IGNORE_DEPENDENCY_ERROR;
 import static com.aws.greengrass.util.Utils.close;
 import static com.aws.greengrass.util.Utils.deepToString;
 
@@ -103,7 +105,7 @@ public class KernelLifecycle {
         final Queue<String> autostart = findBuiltInServicesAndPlugins(); //NOPMD
 
         try {
-            mainService = kernel.locate(KernelCommandLine.MAIN_SERVICE_NAME);
+            mainService = kernel.locate(KernelCommandLine.MAIN_SERVICE_NAME, IGNORE_DEPENDENCY_ERROR);
         } catch (ServiceLoadException sle) {
             RuntimeException rte = new RuntimeException("Cannot load main service", sle);
             logger.atError("system-boot-error", rte).log();
@@ -175,6 +177,8 @@ public class KernelLifecycle {
     @SuppressWarnings("PMD.CloseResource")
     private Queue<String> findBuiltInServicesAndPlugins() {
         Queue<String> autostart = new LinkedList<>();
+        // Add Nucleus to autostart so that it's always set up as a Main dependency
+        autostart.add(kernel.getContext().get(DeviceConfiguration.class).getNucleusComponentName());
         try {
             EZPlugins pim = kernel.getContext().get(EZPlugins.class);
             pim.withCacheDirectory(nucleusPaths.pluginPath());

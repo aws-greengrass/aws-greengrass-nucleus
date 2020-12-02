@@ -56,6 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
@@ -399,7 +400,8 @@ class DeploymentConfigMergerTest {
     private GreengrassService createMockGreengrassService(String name, Kernel kernel) throws ServiceLoadException {
         GreengrassService service = mock(GreengrassService.class);
         lenient().when(service.getName()).thenReturn(name);
-        lenient().when(kernel.locate(name)).thenReturn(service);
+        lenient().when(kernel.locate(eq(name))).thenReturn(service);
+        lenient().when(kernel.locate(eq(name), any())).thenReturn(service);
         return service;
     }
 

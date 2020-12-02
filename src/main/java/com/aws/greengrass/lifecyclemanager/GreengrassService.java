@@ -44,6 +44,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
+import static com.aws.greengrass.lifecyclemanager.ServiceLoadPolicy.IGNORE_DEPENDENCY_ERROR;
 import static com.aws.greengrass.util.Utils.getUltimateCause;
 
 public class GreengrassService implements InjectionActions {
@@ -543,7 +544,7 @@ public class GreengrassService implements InjectionActions {
             throws InputValidationException, ServiceLoadException {
         HashMap<GreengrassService, DependencyType> ret = new HashMap<>();
         for (Pair<String, DependencyType> dep : parseDependencies(dependencyList)) {
-            ret.put(context.get(Kernel.class).locate(dep.getLeft()), dep.getRight());
+            ret.put(context.get(Kernel.class).locate(dep.getLeft(), IGNORE_DEPENDENCY_ERROR), dep.getRight());
         }
         return ret;
     }

@@ -6,20 +6,20 @@
 package com.aws.greengrass.lifecyclemanager.exceptions;
 
 /**
- * Exception when loading Greengrass services.
+ * Exception when loading dependencies of Greengrass services.
  */
-public class ServiceLoadException extends ServiceException {
+public class DependencyLoadException extends ServiceLoadException {
     static final long serialVersionUID = -3387516993124229948L;
 
-    public ServiceLoadException(String message) {
+    public DependencyLoadException(String message) {
         super(message);
     }
 
-    public ServiceLoadException(String message, Throwable cause) {
+    public DependencyLoadException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public ServiceLoadException(Throwable cause) {
+    public DependencyLoadException(Throwable cause) {
         super(cause);
     }
 }

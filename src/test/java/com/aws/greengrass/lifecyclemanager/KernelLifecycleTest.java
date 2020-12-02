@@ -12,11 +12,13 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.IPCEventStreamService;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
@@ -48,8 +50,8 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.AdditionalMatchers.not;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
@@ -109,8 +111,19 @@ class KernelLifecycleTest {
             throws Exception {
         GreengrassService mockMain = mock(GreengrassService.class);
         GreengrassService mockOthers = mock(GreengrassService.class);
-        doReturn(mockMain).when(mockKernel).locate(eq("main"));
-        doReturn(mockOthers).when(mockKernel).locate(not(eq("main")));
+        GreengrassService mockNucleus = mock(GreengrassService.class);
+        doReturn(mockMain).when(mockKernel).locate(eq("main"), any());
+        doAnswer(invocationOnMock -> {
+            String name = Coerce.toString(invocationOnMock.getArguments()[0]);
+            if ("nucleus".equals(name)) {
+                return mockNucleus;
+            }
+            return mockOthers;
+        }).when(mockKernel).locate(anyString());
+
+        DeviceConfiguration mockDeviceConfig = mock(DeviceConfiguration.class);
+        doReturn("nucleus").when(mockDeviceConfig).getNucleusComponentName();
+        doReturn(mockDeviceConfig).when(mockContext).get(eq(DeviceConfiguration.class));
 
         // Mock out EZPlugins so I can return a deterministic set of services to be added as auto-start
         EZPlugins pluginMock = mock(EZPlugins.class);
@@ -126,6 +139,7 @@ class KernelLifecycleTest {
         }).when(pluginMock).annotated(eq(ImplementsService.class), any());
 
         kernelLifecycle.launch();
+        verify(mockMain).addOrUpdateDependency(eq(mockNucleus), eq(DependencyType.HARD), eq(true));
         // Expect 2 times because I returned 2 plugins from above: SafeUpdate and Deployment
         verify(mockMain, times(2)).addOrUpdateDependency(eq(mockOthers), eq(DependencyType.HARD), eq(true));
     }

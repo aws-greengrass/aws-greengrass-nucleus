@@ -224,7 +224,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(groupTopics);
             Topics componentToGroupsTopics =  mock(Topics.class);
             when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(componentToGroupsTopics);
-            when(mockKernel.locate(EXPECTED_ROOT_PACKAGE_NAME)).thenReturn(mockGreengrassService);
+            when(mockKernel.locate(eq(EXPECTED_ROOT_PACKAGE_NAME), any())).thenReturn(mockGreengrassService);
             when(mockGreengrassService.getDependencies()).thenReturn(new HashMap<>());
             when(mockGreengrassService.getName()).thenReturn(EXPECTED_ROOT_PACKAGE_NAME);
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
@@ -334,7 +334,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(deploymentGroupTopics);
             when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
 
-            when(mockKernel.locate(any())).thenReturn(mockGreengrassService);
+            when(mockKernel.locate(any(), any())).thenReturn(mockGreengrassService);
             when(mockGreengrassService.getName()).thenReturn(EXPECTED_ROOT_PACKAGE_NAME);
             CompletableFuture<DeploymentResult> mockFuture = new CompletableFuture<>();
             mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));

@@ -61,6 +61,7 @@ import javax.inject.Inject;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
+import static com.aws.greengrass.lifecyclemanager.ServiceLoadPolicy.IGNORE_DEPENDENCY_ERROR;
 import static org.apache.commons.io.FileUtils.ONE_MB;
 
 public class ComponentManager implements InjectionActions {
@@ -462,7 +463,7 @@ public class ComponentManager implements InjectionActions {
         }
 
         try {
-            GreengrassService service = kernel.locate(packageName);
+            GreengrassService service = kernel.locate(packageName, IGNORE_DEPENDENCY_ERROR);
             return Optional.ofNullable(getPackageVersionFromService(service));
         } catch (ServiceLoadException e) {
             logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)

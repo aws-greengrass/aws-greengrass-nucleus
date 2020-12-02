@@ -128,7 +128,7 @@ class BootstrapManagerTest {
     void GIVEN_components_without_changes_in_bootstrap_WHEN_check_serviceBootstrapRequired_THEN_return_service_decision() throws Exception {
         GenericExternalService serviceA = mock(GenericExternalService.class);
         doReturn(true).when(serviceA).isBootstrapRequired(anyMap());
-        doReturn(serviceA).when(kernel).locate(eq(componentA));
+        doReturn(serviceA).when(kernel).locate(eq(componentA), any());
 
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
         assertTrue(bootstrapManager.serviceBootstrapRequired(componentA, Collections.emptyMap()));
@@ -136,7 +136,7 @@ class BootstrapManagerTest {
 
     @Test
     void GIVEN_new_component_with_bootstrap_WHEN_check_serviceBootstrapRequired_THEN_return_true() throws Exception {
-        when(kernel.locate(componentA)).thenThrow(new ServiceLoadException("mock error"));
+        when(kernel.locate(eq(componentA), any())).thenThrow(new ServiceLoadException("mock error"));
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
 
         assertTrue(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
@@ -148,7 +148,7 @@ class BootstrapManagerTest {
 
     @Test
     void GIVEN_new_component_without_bootstrap_WHEN_check_serviceBootstrapRequired_THEN_return_false() throws Exception {
-        when(kernel.locate(componentA)).thenThrow(new ServiceLoadException("mock error"));
+        when(kernel.locate(eq(componentA), any())).thenThrow(new ServiceLoadException("mock error"));
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
 
         assertFalse(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
@@ -283,7 +283,7 @@ class BootstrapManagerTest {
         when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
         GenericExternalService service = mock(GenericExternalService.class);
         doReturn(false).when(service).isBootstrapRequired(anyMap());
-        when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(service);
+        when(kernel.locate(eq(DEFAULT_NUCLEUS_COMPONENT_NAME), any())).thenReturn(service);
 
         Map<String, Object> runWith = new HashMap<String, Object>() {{
             put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo:bar");
@@ -315,7 +315,7 @@ class BootstrapManagerTest {
 
         GenericExternalService service = mock(GenericExternalService.class);
         doReturn(false).when(service).isBootstrapRequired(anyMap());
-        when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(service);
+        when(kernel.locate(eq(DEFAULT_NUCLEUS_COMPONENT_NAME), any())).thenReturn(service);
         when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(new HashMap<String, Object>() {{
             put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo:bar");
             put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");

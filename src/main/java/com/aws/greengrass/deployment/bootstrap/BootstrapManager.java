@@ -66,6 +66,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPE
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.ServiceLoadPolicy.IGNORE_DEPENDENCY_ERROR;
 
 /**
  * Generates a list of bootstrap tasks from deployments, manages the execution and persists status.
@@ -327,7 +328,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     boolean serviceBootstrapRequired(String componentName, Map<String, Object> newServiceConfig) {
         // For existing components, call service to decide
         try {
-            GreengrassService service = kernel.locate(componentName);
+            GreengrassService service = kernel.locate(componentName, IGNORE_DEPENDENCY_ERROR);
             return service.isBootstrapRequired(newServiceConfig);
         } catch (ServiceLoadException ignore) {
         }

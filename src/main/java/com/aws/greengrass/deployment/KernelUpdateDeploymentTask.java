@@ -14,6 +14,8 @@ import com.aws.greengrass.deployment.model.DeploymentTask;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
+import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 
 import java.io.IOException;
@@ -52,6 +54,9 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     public DeploymentResult call() {
         Deployment.DeploymentStage stage = deployment.getDeploymentStage();
         try {
+            // Check if entire service dependency tree is correctly loaded
+            kernel.locate(KernelCommandLine.MAIN_SERVICE_NAME);
+            // All loaded services should be tracked in orderedDependencies(). Checking service health of all.
             List<GreengrassService> servicesToTrack =
                     kernel.orderedDependencies().stream().filter(GreengrassService::shouldAutoStart)
                             .filter(o -> !kernel.getMain().equals(o)).collect(Collectors.toList());
@@ -80,7 +85,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
             // Interrupted workflow. Shutdown kernel and retry this stage.
             kernel.shutdown(30, REQUEST_RESTART);
             return null;
-        } catch (ServiceUpdateException e) {
+        } catch (ServiceUpdateException | ServiceLoadException e) {
             logger.atError("deployment-errored", e).log();
             if (KERNEL_ACTIVATION.equals(stage)) {
                 try {

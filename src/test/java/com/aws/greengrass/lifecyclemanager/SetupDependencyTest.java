@@ -18,6 +18,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -80,9 +81,9 @@ class SetupDependencyTest extends GGServiceTestUtil {
         GreengrassService svcA = mock(GreengrassService.class);
         GreengrassService svcB = mock(GreengrassService.class);
         GreengrassService svcC = mock(GreengrassService.class);
-        when(mockKernel.locate("svcA")).thenReturn(svcA);
-        when(mockKernel.locate("svcB")).thenReturn(svcB);
-        when(mockKernel.locate("svcC")).thenReturn(svcC);
+        when(mockKernel.locate(eq("svcA"), any())).thenReturn(svcA);
+        when(mockKernel.locate(eq("svcB"), any())).thenReturn(svcB);
+        when(mockKernel.locate(eq("svcC"), any())).thenReturn(svcC);
 
         Map<GreengrassService, DependencyType> dependencyMap = greengrassService.getDependencyTypeMap(Arrays
                 .asList("svcA", "svcB:Hard", "svcC:sOFT"));
