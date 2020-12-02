@@ -1,0 +1,21 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+
+  ServiceA:
+    lifecycle:
+      startup:
+        script:
+          posix:
+            exit 1;
+      recover:
+        script:
+          posix:
+            echo Not going to fix anything;
+
+  main:
+    dependencies:
+      - ServiceA

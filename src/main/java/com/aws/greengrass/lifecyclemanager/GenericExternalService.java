@@ -387,8 +387,22 @@ public class GenericExternalService extends GreengrassService {
 
     @Override
     public void handleError() throws InterruptedException {
-        // A placeholder for error handling in GenericExternalService
-        run("recover", null, lifecycleProcesses);
+        if (getConfig().findNode(GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                Lifecycle.LIFECYCLE_RECOVER_NAMESPACE_TOPIC) == null) {
+            // No recovery step defined in lifecycle
+            return;
+        }
+
+        Integer timeout = Coerce.toInt(getConfig().findOrDefault(Lifecycle.DEFAULT_ERROR_RECOVERY_HANDLER_TIMEOUT_SEC,
+                GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, Lifecycle.LIFECYCLE_RECOVER_NAMESPACE_TOPIC,
+                Lifecycle.TIMEOUT_NAMESPACE_TOPIC));
+
+        CountDownLatch handlerExecutionCdl = new CountDownLatch(1);
+        run(Lifecycle.LIFECYCLE_RECOVER_NAMESPACE_TOPIC, c -> handlerExecutionCdl.countDown(), lifecycleProcesses);
+
+        if (!handlerExecutionCdl.await(timeout, TimeUnit.SECONDS)) {
+            logger.atError().log(String.format("Error recovery handler timed out after %d seconds", timeout));
+        }
     }
 
     /**

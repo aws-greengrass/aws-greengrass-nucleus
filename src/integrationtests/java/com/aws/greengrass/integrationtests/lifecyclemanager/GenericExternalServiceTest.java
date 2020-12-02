@@ -13,6 +13,8 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.logging.impl.GreengrassLogMessage;
+import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -33,6 +35,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
@@ -109,6 +112,125 @@ class GenericExternalServiceTest extends BaseITCase {
 
         assertTrue(ServicesAErroredLatch.await(5, TimeUnit.SECONDS));
         assertTrue(ServicesBErroredLatch.await(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void GIVEN_service_has_recovery_step_WHEN_recovery_logic_fixes_issue_THEN_service_recovers() throws Exception {
+        Consumer<GreengrassLogMessage> logListener = null;
+        try {
+            ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                    getClass().getResource("service_error_recovery_step_fixes_service.yaml"));
+
+            CountDownLatch ServiceAErroredLatch = new CountDownLatch(1);
+            CountDownLatch ServiceARunningLatch = new CountDownLatch(1);
+            kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+                if ("ServiceA".equals(service.getName()) && State.ERRORED.equals(newState)) {
+                    ServiceAErroredLatch.countDown();
+                }
+                if ("ServiceA".equals(service.getName()) && State.RUNNING.equals(newState)) {
+                    ServiceARunningLatch.countDown();
+                }
+            });
+
+            CountDownLatch recoveryLogicWorks = new CountDownLatch(1);
+            logListener = m -> {
+                if (m.getJSONMessage() != null && m.getJSONMessage()
+                        .contains("Fixing ServiceA")) {
+                    recoveryLogicWorks.countDown();
+                }
+            };
+            Slf4jLogAdapter.addGlobalListener(logListener);
+
+            kernel.launch();
+
+            assertTrue(recoveryLogicWorks.await(15, TimeUnit.SECONDS));
+            assertTrue(ServiceARunningLatch.await(15, TimeUnit.SECONDS));
+            assertTrue(ServiceAErroredLatch.await(15, TimeUnit.SECONDS));
+        } finally {
+            if (logListener != null) {
+                Slf4jLogAdapter.removeGlobalListener(logListener);
+            }
+        }
+    }
+
+    @Test
+    void GIVEN_service_has_recovery_step_WHEN_recovery_logic_cannot_fix_issue_THEN_service_goes_to_broken_state()
+            throws Exception {
+        Consumer<GreengrassLogMessage> logListener = null;
+        try {
+            ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                    getClass().getResource("service_error_recovery_step_does_not_fix_service.yaml"));
+
+            CountDownLatch ServiceAErroredLatch = new CountDownLatch(2);
+            CountDownLatch ServiceABrokenLatch = new CountDownLatch(1);
+            kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+                if ("ServiceA".equals(service.getName()) && State.ERRORED.equals(newState)) {
+                    ServiceAErroredLatch.countDown();
+                }
+                if ("ServiceA".equals(service.getName()) && State.BROKEN.equals(newState)) {
+                    ServiceABrokenLatch.countDown();
+                }
+            });
+
+            CountDownLatch recoveryLogicInvoked = new CountDownLatch(2);
+            logListener = m -> {
+                if (m.getJSONMessage() != null && m.getJSONMessage()
+                        .contains("Not going to fix anything")) {
+                    recoveryLogicInvoked.countDown();
+                }
+            };
+            Slf4jLogAdapter.addGlobalListener(logListener);
+
+            kernel.launch();
+
+            assertTrue(recoveryLogicInvoked.await(15, TimeUnit.SECONDS));
+            assertTrue(ServiceABrokenLatch.await(15, TimeUnit.SECONDS));
+            assertTrue(ServiceAErroredLatch.await(15, TimeUnit.SECONDS));
+        } finally {
+            if (logListener != null) {
+                Slf4jLogAdapter.removeGlobalListener(logListener);
+            }
+        }
+    }
+
+    @Test
+    void GIVEN_service_has_recovery_step_WHEN_recovery_timeout_expires_THEN_move_service_to_broken_state_after_all_recovery_retries()
+            throws Exception {
+        Consumer<GreengrassLogMessage> logListener = null;
+        try {
+            ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                    getClass().getResource("service_error_recovery_step_times_out.yaml"));
+
+            CountDownLatch ServiceAErroredLatch = new CountDownLatch(2);
+            CountDownLatch ServiceABrokenLatch = new CountDownLatch(1);
+            kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+                if ("ServiceA".equals(service.getName()) && State.ERRORED.equals(newState)) {
+                    ServiceAErroredLatch.countDown();
+                }
+                if ("ServiceA".equals(service.getName()) && State.BROKEN.equals(newState)) {
+                    ServiceABrokenLatch.countDown();
+                }
+            });
+
+            CountDownLatch recoveryExecutionTimeout = new CountDownLatch(2);
+            logListener = m -> {
+                if (m.getMessage() != null && m.getMessage()
+                        .contains("Error recovery handler timed out after 1 seconds")) {
+                    recoveryExecutionTimeout.countDown();
+                }
+            };
+            Slf4jLogAdapter.addGlobalListener(logListener);
+
+            kernel.launch();
+
+            assertTrue(recoveryExecutionTimeout.await(15, TimeUnit.SECONDS));
+            assertTrue(ServiceABrokenLatch.await(15, TimeUnit.SECONDS));
+            assertTrue(ServiceAErroredLatch.await(15, TimeUnit.SECONDS));
+        } finally {
+            if (logListener != null) {
+                Slf4jLogAdapter.removeGlobalListener(logListener);
+            }
+        }
     }
 
     @Test
