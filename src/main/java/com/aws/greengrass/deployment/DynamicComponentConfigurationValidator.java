@@ -160,7 +160,7 @@ public class DynamicComponentConfigurationValidator {
                                     CompletableFuture<DeploymentResult> deploymentResultFuture) {
         String deploymentId = deployment.getId();
         Integer timeoutSec =
-                deployment.getDeploymentDocumentObj().getConfigurationValidationPolicy().getTimeoutInSeconds();
+                deployment.getDeploymentDocumentObj().getConfigurationValidationPolicy().timeoutInSeconds();
         Long timeoutMs = Duration.ofSeconds(DEFAULT_TIMEOUT_SECOND).toMillis();
         if (timeoutSec != null) {
             timeoutMs = Duration.ofSeconds(timeoutSec).toMillis();

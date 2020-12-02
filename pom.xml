@@ -104,36 +104,14 @@
             <version>0.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <!-- TODO: Change this dependency to the AWS SDK public maven repo once the V2 SDK is published there -->
             <groupId>com.amazonaws.services</groupId>
-            <artifactId>evergreen</artifactId>
-            <version>1.0.0-GGV2-SNAPSHOT</version>
+            <artifactId>greengrassv2</artifactId>
+            <version>2.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.aws.iot</groupId>
             <artifactId>component-common</artifactId>
             <version>0.0.0-SNAPSHOT</version>
-        </dependency>
-        <!-- TODO: This is temporary, adding because there is some confusion about which version
-        of core should be used for the AWS SDK (2.x or 1.x). Will be removed once the pom file for
-        service SDK is updated. Remove both the sdk-core and jcl-over-slf4j.
-        -->
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>jcl-over-slf4j</artifactId>
-            <version>1.7.6</version>
-        </dependency>
-        <dependency>
-            <artifactId>aws-java-sdk-core</artifactId>
-            <groupId>com.amazonaws</groupId>
-            <optional>false</optional>
-            <version>1.11.873</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>commons-logging</groupId>
-                    <artifactId>commons-logging</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -264,6 +242,7 @@
                         <includeExclusively>true</includeExclusively>
                         <accessModifier>public</accessModifier>
                         <onlyBinaryIncompatible>true</onlyBinaryIncompatible>
+                        <ignoreMissingClasses>true</ignoreMissingClasses>
                     </parameter>
                 </configuration>
             </plugin>
