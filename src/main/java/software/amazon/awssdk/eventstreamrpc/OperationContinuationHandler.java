@@ -25,9 +25,7 @@ public abstract class OperationContinuationHandler
             StreamingRequestType extends EventStreamJsonMessage, StreamingResponseType extends EventStreamJsonMessage>
         extends ServerConnectionContinuationHandler
         implements StreamEventPublisher<StreamingResponseType> {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(OperationContinuationHandler.class);
-
+    private static Logger LOGGER = LoggerFactory.getLogger(OperationContinuationHandler.class);
 
     private OperationContinuationHandlerContext context;
     private List<Header> initialRequestHeaders;
@@ -43,16 +41,15 @@ public abstract class OperationContinuationHandler
 
     @Override
     final protected void onContinuationClosed() {
-        LOGGER.trace(String.format("%s stream continuation closed.", getOperationName()));
+        LOGGER.debug("{} stream continuation closed.", getOperationName());
         try {
             onStreamClosed();
         }
         catch(Exception e) {
-            LOGGER.error(String.format("%s threw %s: %s", getOperationName(), e.getClass().getCanonicalName(), e.getMessage()));
+            LOGGER.error("{} threw {}: {}", getOperationName(), e.getClass().getCanonicalName(), e.getMessage());
         }
     }
-
-
+    
     final protected Class<RequestType> getRequestClass() {
         return getOperationModelContext().getRequestTypeClass();
     }
@@ -165,15 +162,15 @@ public abstract class OperationContinuationHandler
      */
     @Override
     final public CompletableFuture<Void> closeStream() {
-        LOGGER.debug(String.format("[%s] closing stream", getOperationName()));
+        LOGGER.debug("[{}] closing stream", getOperationName());
         return continuation.sendMessage(null, null,
                 MessageType.ApplicationMessage, MessageFlags.TerminateStream.getByteValue())
             .whenComplete((res, ex) -> {
                 if (ex != null) {
-                    LOGGER.debug(String.format("[%s] closed stream", getOperationName()));
+                    LOGGER.debug("[{}] closed stream", getOperationName());
                 } else {
-                    LOGGER.debug(String.format("[%s] %s closing stream: ", getOperationName(),
-                            ex.getClass().getName(), ex.getMessage()));
+                    LOGGER.debug("[{}] {} closing stream: ", getOperationName(),
+                            ex.getClass().getName(), ex.getMessage());
                 }
                 continuation.close();
             });
@@ -237,10 +234,10 @@ public abstract class OperationContinuationHandler
         try {
             afterHandleRequest();
         } catch (Exception e) {
-            LOGGER.warn(String.format("%s.%s afterHandleRequest() threw %s: %s",
+            LOGGER.warn("{}.{} afterHandleRequest() threw {}: {}",
                     getOperationModelContext().getServiceModel().getServiceName(),
                     getOperationName(), e.getClass().getCanonicalName(),
-                    e.getMessage()));
+                    e.getMessage());
         }
     }
 
@@ -290,8 +287,8 @@ public abstract class OperationContinuationHandler
                     EventStreamRPCServiceModel.CONTENT_TYPE_APPLICATION_TEXT));
             // TODO: are there any exceptions we wouldn't want to return a generic server fault?
             // TODO: this is the kind of exception that should be logged with a request ID especially in a server-client context
-            LOGGER.error(String.format("[%s] operation threw unexpected %s: %s", getOperationName(),
-                    e.getClass().getCanonicalName(), e.getMessage()));
+            LOGGER.error("[{}] operation threw unexpected {}: {}", getOperationName(),
+                    e.getClass().getCanonicalName(), e.getMessage());
 
             continuation.sendMessage(responseHeaders, outputPayload, MessageType.ApplicationError, MessageFlags.TerminateStream.getByteValue())
                     .whenComplete((res, ex) -> {

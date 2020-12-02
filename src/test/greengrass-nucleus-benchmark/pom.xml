@@ -16,6 +16,12 @@
             <version>${jmh.version}</version>
         </dependency>
         <dependency>
+            <!-- TODO: Change this dependency to the AWS SDK public maven repo once the V2 SDK is published there -->
+            <groupId>com.amazonaws.services</groupId>
+            <artifactId>evergreen</artifactId>
+            <version>1.0.0-GGV2-SNAPSHOT</version>
+        </dependency>
+        <dependency>
             <groupId>org.openjdk.jmh</groupId>
             <artifactId>jmh-generator-annprocess</artifactId>
             <version>${jmh.version}</version>

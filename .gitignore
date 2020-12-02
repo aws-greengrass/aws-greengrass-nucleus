@@ -2,7 +2,8 @@
 .DS_Store
 ._*
 *.class
-**/*.jar
+*.jar
+!lib/*.jar
 *~
 *.log*
 *.metrics

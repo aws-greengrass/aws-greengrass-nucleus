@@ -5,12 +5,6 @@
 
 package software.amazon.awssdk.eventstreamrpc;
 
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import java.util.stream.Collectors;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.crt.CRT;
@@ -18,14 +12,15 @@ import software.amazon.awssdk.crt.eventstream.ServerConnection;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionHandler;
 import software.amazon.awssdk.crt.eventstream.ServerListener;
 import software.amazon.awssdk.crt.eventstream.ServerListenerHandler;
-import software.amazon.awssdk.crt.io.EventLoopGroup;
-import software.amazon.awssdk.crt.io.ServerBootstrap;
-import software.amazon.awssdk.crt.io.ServerTlsContext;
-import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.awssdk.crt.io.TlsContextOptions;
+import software.amazon.awssdk.crt.io.*;
 
-public class IpcServer implements AutoCloseable {
-    private static final Logger LOGGER = LoggerFactory.getLogger(IpcServer.class);
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+
+public class RpcServer implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(RpcServer.class);
 
     private final EventLoopGroup eventLoopGroup;
     private final SocketOptions socketOptions;
@@ -39,7 +34,7 @@ public class IpcServer implements AutoCloseable {
     private ServerListener listener;
     private AtomicBoolean serverRunning;
 
-    public IpcServer(EventLoopGroup eventLoopGroup, SocketOptions socketOptions, TlsContextOptions tlsContextOptions, String hostname, int port, EventStreamRPCServiceHandler serviceHandler) {
+    public RpcServer(EventLoopGroup eventLoopGroup, SocketOptions socketOptions, TlsContextOptions tlsContextOptions, String hostname, int port, EventStreamRPCServiceHandler serviceHandler) {
         this.eventLoopGroup = eventLoopGroup;
         this.socketOptions = socketOptions;
         this.tlsContextOptions = tlsContextOptions;
@@ -68,7 +63,7 @@ public class IpcServer implements AutoCloseable {
                                 new ServiceOperationMappingContinuationHandler(serverConnection, eventStreamRPCServiceHandler);
                         return operationHandler;
                     } catch (Throwable e) {
-                        LOGGER.error("Throwable caught in new connection: " + e.getMessage());
+                        LOGGER.error("Throwable caught in new connection: " + e.getMessage(), e);
                         return null;
                     }
                 }

@@ -5,17 +5,6 @@
 
 package software.amazon.awssdk.eventstreamrpc;
 
-import org.slf4j.LoggerFactory;
-import org.slf4j.Logger;
-import software.amazon.awssdk.crt.eventstream.Header;
-import software.amazon.awssdk.crt.eventstream.HeaderType;
-import software.amazon.awssdk.crt.eventstream.MessageFlags;
-import software.amazon.awssdk.crt.eventstream.MessageType;
-import software.amazon.awssdk.crt.eventstream.ServerConnection;
-import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
-import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
-import software.amazon.awssdk.crt.eventstream.ServerConnectionHandler;
-
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +12,10 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.crt.eventstream.*;
 
 public class ServiceOperationMappingContinuationHandler extends ServerConnectionHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(ServiceOperationMappingContinuationHandler.class);
@@ -114,7 +107,7 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                         Version.getInstance().getVersionString()));
             }
         } catch (Exception e) {
-            LOGGER.error(String.format("%s occurred while attempting to authN/authZ connect: %s", e.getClass(), e.getMessage()));
+            LOGGER.error(String.format("%s occurred while attempting to authN/authZ connect: %s", e.getClass(), e.getMessage()), e);
         } finally {
             final String authLabel =  authenticationData != null ? authenticationData.getIdentityLabel() : "null";
             LOGGER.info("Sending connect response for " + authLabel);
@@ -122,8 +115,8 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                 .whenComplete((res, ex) -> {
                     //TODO: removing log statements due to known issue of locking up
                     if (ex != null) {
-                        LOGGER.error(String.format("Sending connection response for %s threw exception (%s): %s",
-                           authLabel, ex.getClass().getCanonicalName(), ex.getMessage()));
+                        //LOGGER.severe(String.format("Sending connection response for %s threw exception (%s): %s",
+                        //   authLabel, ex.getClass().getCanonicalName(), ex.getMessage()));
                     }
                     else {
                         //LOGGER.info("Successfully sent connection response for: " + authLabel);
