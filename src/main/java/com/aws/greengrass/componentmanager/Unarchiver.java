@@ -41,8 +41,11 @@ public class Unarchiver {
                     Utils.createPaths(newFile.toPath());
                 } else {
                     Utils.createPaths(newFile.getParentFile().toPath());
-                    try (OutputStream fos = Files.newOutputStream(newFile.toPath())) {
-                        IOUtils.copy(zis, fos);
+                    // Only unarchive when the destination file doesn't exist or the file sizes don't match
+                    if (!newFile.exists() || zipEntry.getSize() != newFile.length()) {
+                        try (OutputStream fos = Files.newOutputStream(newFile.toPath())) {
+                            IOUtils.copy(zis, fos);
+                        }
                     }
                 }
                 zipEntry = zis.getNextEntry();
