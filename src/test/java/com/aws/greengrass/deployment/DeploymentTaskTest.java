@@ -56,7 +56,11 @@ import static org.mockito.Mockito.when;
 class DeploymentTaskTest {
 
     private static final String COMPONENT_2_ROOT_PACKAGE_NAME = "component2";
-
+    private static Context context;
+    private final DeploymentDocument deploymentDocument =
+            DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis())
+                    .groupName(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME).build();
+    private final Logger logger = LogManager.getLogger("unit test");
     @Mock
     private DependencyResolver mockDependencyResolver;
     @Mock
@@ -72,14 +76,6 @@ class DeploymentTaskTest {
     @Mock
     private Topics mockDeploymentServiceConfig;
     private Topics mockGroupToRootConfig;
-    private static Context context;
-
-    private final DeploymentDocument deploymentDocument =
-            DeploymentDocument.builder().deploymentId("TestDeployment").timestamp(System.currentTimeMillis())
-                    .groupName(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME).build();
-
-    private final Logger logger = LogManager.getLogger("unit test");
-
     private DefaultDeploymentTask deploymentTask;
 
     @BeforeAll
