@@ -66,6 +66,9 @@ import javax.inject.Inject;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
+import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_DESCRIBE_ACCEPTED_TOPIC;
+import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_DESCRIBE_REJECTED_TOPIC;
+import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_EXECUTIONS_CHANGED_TOPIC;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_ACCEPTED_TOPIC;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_REJECTED_TOPIC;
 
@@ -494,24 +497,12 @@ public class IotJobsHelper implements InjectionActions {
 
     private void unsubscribeFromJobDescription() {
         if (connection != null) {
-            String topic = "$aws/things/{thingName}/jobs/{jobId}/get/accepted";
-            topic = topic.replace(THING_NAME_PLACEHOLDER, Coerce.toString(deviceConfiguration.getThingName()));
-            topic = topic.replace(JOB_ID_PLACEHOLDER, NEXT_JOB_LITERAL);
+            String topic = String.format(JOB_DESCRIBE_ACCEPTED_TOPIC,
+                    Coerce.toString(deviceConfiguration.getThingName()), NEXT_JOB_LITERAL);
             connection.unsubscribe(topic);
 
-            topic = "$aws/things/{thingName}/jobs/{jobId}/get/rejected";
-            topic = topic.replace(THING_NAME_PLACEHOLDER, Coerce.toString(deviceConfiguration.getThingName()));
-            topic = topic.replace(JOB_ID_PLACEHOLDER, NEXT_JOB_LITERAL);
-            connection.unsubscribe(topic);
-
-            topic = "$aws/things/{thingName}/jobs/{jobId}/namespace-cust-deployment/get/accepted";
-            topic = topic.replace(THING_NAME_PLACEHOLDER, Coerce.toString(deviceConfiguration.getThingName()));
-            topic = topic.replace(JOB_ID_PLACEHOLDER, NEXT_JOB_LITERAL);
-            connection.unsubscribe(topic);
-
-            topic = "$aws/things/{thingName}/jobs/{jobId}/namespace-cust-deployment/get/rejected";
-            topic = topic.replace(THING_NAME_PLACEHOLDER, Coerce.toString(deviceConfiguration.getThingName()));
-            topic = topic.replace(JOB_ID_PLACEHOLDER, NEXT_JOB_LITERAL);
+            topic = String.format(JOB_DESCRIBE_REJECTED_TOPIC,
+                    Coerce.toString(deviceConfiguration.getThingName()), NEXT_JOB_LITERAL);
             connection.unsubscribe(topic);
         }
     }
@@ -566,8 +557,8 @@ public class IotJobsHelper implements InjectionActions {
 
     private void unsubscribeFromEventNotifications() {
         if (connection != null) {
-            String topic = "$aws/things/{thingName}/jobs/notify";
-            topic = topic.replace(THING_NAME_PLACEHOLDER, Coerce.toString(deviceConfiguration.getThingName()));
+            String topic = String.format(JOB_EXECUTIONS_CHANGED_TOPIC,
+                    Coerce.toString(deviceConfiguration.getThingName()));
             connection.unsubscribe(topic);
         }
     }
