@@ -94,8 +94,6 @@ public class IotJobsHelper implements InjectionActions {
     //This value needs to be revisited and set to more realistic numbers
     private static final long TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS = Duration.ofMinutes(1).getSeconds();
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
-    private static final String THING_NAME_PLACEHOLDER = "{thingName}";
-    private static final String JOB_ID_PLACEHOLDER = "{jobId}";
     private static final String NEXT_JOB_LITERAL = "$next";
     // Sometimes when we are notified that a new job is queued and request the next pending job document immediately,
     // we get an empty response. This unprocessedJobs is to track the number of new queued jobs that we are notified
