@@ -11,11 +11,14 @@ import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentTask;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
@@ -48,24 +51,26 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     @Override
     public DeploymentResult call() {
         Deployment.DeploymentStage stage = deployment.getDeploymentStage();
-        KernelAlternatives kernelAlts = kernel.getContext().get(KernelAlternatives.class);
         try {
-            DeploymentConfigMerger.waitForServicesToStart(kernel.orderedDependencies(),
-                    kernel.getConfig().lookup("system", "rootpath").getModtime());
+            List<GreengrassService> servicesToTrack =
+                    kernel.orderedDependencies().stream().filter(GreengrassService::shouldAutoStart)
+                            .filter(o -> !kernel.getMain().equals(o)).collect(Collectors.toList());
+            long mergeTimestamp = kernel.getConfig().lookup("system", "rootpath").getModtime();
+            logger.atDebug().kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTimestamp)
+                    .log("Nucleus update workflow waiting for services to complete update");
+            DeploymentConfigMerger.waitForServicesToStart(servicesToTrack, mergeTimestamp);
 
             DeploymentResult result = null;
             if (KERNEL_ACTIVATION.equals(stage)) {
                 result = new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null);
-                kernelAlts.activationSucceeds();
             } else if (KERNEL_ROLLBACK.equals(stage)) {
                 result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE,
                         new ServiceUpdateException(deployment.getStageDetails()));
-                kernelAlts.rollbackCompletes();
             }
 
             componentManager.cleanupStaleVersions();
             return result;
-        } catch (InterruptedException | IOException | PackageLoadingException e) {
+        } catch (InterruptedException | PackageLoadingException e) {
             logger.atError("deployment-interrupted", e).log();
             try {
                 saveDeploymentStatusDetails(e.getMessage());
@@ -82,7 +87,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                     deployment.setDeploymentStage(KERNEL_ROLLBACK);
                     saveDeploymentStatusDetails(e.getMessage());
                     // Rollback workflow. Flip symlinks and restart kernel
-                    kernelAlts.prepareRollback();
+                    kernel.getContext().get(KernelAlternatives.class).prepareRollback();
                     kernel.shutdown(30, REQUEST_RESTART);
                 } catch (IOException ioException) {
                     logger.atError().log("Failed to set up Kernel rollback directory", ioException);
@@ -90,11 +95,6 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                 }
                 return null;
             } else if (KERNEL_ROLLBACK.equals(stage)) {
-                try {
-                    kernelAlts.rollbackCompletes();
-                } catch (IOException ioException) {
-                    logger.atError().log("Failed to reset Kernel launch directory", ioException);
-                }
                 return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, e);
             }
             return null;

@@ -38,7 +38,6 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCA
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class})
@@ -46,9 +45,6 @@ class DeploymentStatusKeeperTest {
 
     @Mock
     private DeploymentService deploymentService;
-
-    @Mock
-    private DeploymentDirectoryManager deploymentDirectoryManager;
 
     @TempDir
     Path mockPath;
@@ -60,17 +56,14 @@ class DeploymentStatusKeeperTest {
     private Context context;
 
     @BeforeEach
-    void setup() throws IOException {
+    void setup() {
         context = new Context();
         Configuration config = new Configuration(context);
         when(deploymentService.getRuntimeConfig()).thenReturn(
                 config.lookupTopics(GreengrassService.SERVICES_NAMESPACE_TOPIC,
                         DeploymentService.DEPLOYMENT_SERVICE_TOPICS, GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC));
-        lenient().when(deploymentDirectoryManager.getSnapshotFilePath()).thenReturn(mockPath.resolve("snapshot"));
-        lenient().when(deploymentDirectoryManager.getOngoingDir()).thenReturn(mockPath);
         deploymentStatusKeeper = new DeploymentStatusKeeper();
         deploymentStatusKeeper.setDeploymentService(deploymentService);
-        deploymentStatusKeeper.setDeploymentDirectoryManager(deploymentDirectoryManager);
         processedDeployments = deploymentStatusKeeper.getProcessedDeployments();
     }
 

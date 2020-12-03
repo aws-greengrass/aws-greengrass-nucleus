@@ -488,7 +488,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         void GIVEN_deployment_job_cancelled_WHEN_waiting_for_safe_time_THEN_then_cancel_deployment()
                 throws Exception {
             when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
-            when(mockSafeUpdateService.discardPendingUpdateAction(any())).thenReturn(true);
+            when(updateSystemPolicyService.discardPendingUpdateAction(any())).thenReturn(true);
             startDeploymentServiceInAnotherThread();
 
             // Simulate a cancellation deployment
@@ -498,7 +498,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
-            verify(mockSafeUpdateService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_CONFIGURATION_ARN);
+            verify(updateSystemPolicyService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_CONFIGURATION_ARN);
             verify(mockFuture, WAIT_FOUR_SECONDS).cancel(true);
         }
 
@@ -506,7 +506,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         void GIVEN_deployment_job_cancelled_WHEN_already_executing_update_THEN_then_finish_deployment()
                 throws Exception {
             when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
-            when(mockSafeUpdateService.discardPendingUpdateAction(any())).thenReturn(false);
+            when(updateSystemPolicyService.discardPendingUpdateAction(any())).thenReturn(false);
             startDeploymentServiceInAnotherThread();
 
             // Simulate a cancellation deployment
@@ -514,7 +514,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
             // Expecting three invocations, once for each retry attempt
             verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
-            verify(mockSafeUpdateService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_CONFIGURATION_ARN);
+            verify(updateSystemPolicyService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_CONFIGURATION_ARN);
             verify(mockFuture, times(0)).cancel(true);
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
@@ -545,7 +545,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
             // Expecting three invocations, once for each retry attempt
             verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
-            verify(mockSafeUpdateService, times(0)).discardPendingUpdateAction(any());
+            verify(updateSystemPolicyService, times(0)).discardPendingUpdateAction(any());
             verify(mockFuture, times(0)).cancel(true);
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());

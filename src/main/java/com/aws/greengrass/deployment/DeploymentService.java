@@ -6,10 +6,14 @@
 package com.aws.greengrass.deployment;
 
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
+import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -25,22 +29,25 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentTask;
 import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
-import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
+import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
+import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -56,8 +63,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer;
+import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializerJson;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
@@ -111,6 +121,9 @@ public class DeploymentService extends GreengrassService {
 
     @Inject
     private DeploymentQueue deploymentQueue;
+
+    @Inject
+    private ComponentStore componentStore;
 
     /**
      * Constructor.
@@ -293,6 +306,14 @@ public class DeploymentService extends GreengrassService {
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                                                currentDeploymentTaskMetadata.getDeploymentType(),
                                                                JobStatus.SUCCEEDED.toString(), statusDetails);
+
+                    if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
+                        try {
+                            kernel.getContext().get(KernelAlternatives.class).activationSucceeds();
+                        } catch (IOException e) {
+                            logger.atError().log("Failed to reset Kernel activate directory", e);
+                        }
+                    }
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
                     if (result.getFailureCause() != null) {
@@ -305,6 +326,14 @@ public class DeploymentService extends GreengrassService {
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                                                currentDeploymentTaskMetadata.getDeploymentType(),
                                                                JobStatus.FAILED.toString(), statusDetails);
+
+                    if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
+                        try {
+                            kernel.getContext().get(KernelAlternatives.class).rollbackCompletes();
+                        } catch (IOException e) {
+                            logger.atError().log("Failed to reset Kernel rollback directory", e);
+                        }
+                    }
                     deploymentDirectoryManager.persistLastFailedDeployment();
                 }
             }
@@ -354,7 +383,7 @@ public class DeploymentService extends GreengrassService {
                     .isCancellable()) {
                 logger.atInfo().log("Deployment already finished processing or cannot be cancelled");
             } else {
-                boolean canCancelDeployment = context.get(UpdateSystemSafelyService.class).discardPendingUpdateAction(
+                boolean canCancelDeployment = context.get(UpdateSystemPolicyService.class).discardPendingUpdateAction(
                         ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask()).getDeployment()
                                 .getDeploymentDocumentObj().getDeploymentId());
                 if (canCancelDeployment) {
@@ -410,8 +439,24 @@ public class DeploymentService extends GreengrassService {
         }
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                                                                  JobStatus.IN_PROGRESS.toString(), new HashMap<>());
+
+        if (DEFAULT.equals(deployment.getDeploymentStage())
+                && DeploymentType.LOCAL.equals(deployment.getDeploymentType())) {
+            try {
+                copyRecipesAndArtifacts(deployment);
+            } catch (InvalidRequestException | IOException e) {
+                logger.atError().log("Error copying recipes and artifacts", e);
+                HashMap<String, String> statusDetails = new HashMap<>();
+                statusDetails.put("error", e.getMessage());
+                deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
+                        deployment.getDeploymentType(), JobStatus.FAILED.toString(), statusDetails);
+                return;
+            }
+        }
+
         try {
             if (DEFAULT.equals(deployment.getDeploymentStage())) {
+                context.get(KernelAlternatives.class).cleanupLaunchDirectoryLinks();
                 deploymentDirectoryManager.createNewDeploymentDirectory(deployment.getDeploymentDocumentObj()
                         .getDeploymentId());
                 deploymentDirectoryManager.writeDeploymentMetadata(deployment);
@@ -430,6 +475,84 @@ public class DeploymentService extends GreengrassService {
         currentDeploymentTaskMetadata =
                 new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(), deployment.getDeploymentType(),
                                            new AtomicInteger(1), deployment.getDeploymentDocumentObj(), cancellable);
+    }
+
+    @SuppressWarnings("PMD.ExceptionAsFlowControl")
+    private void copyRecipesAndArtifacts(Deployment deployment) throws InvalidRequestException, IOException {
+        try {
+            LocalOverrideRequest localOverrideRequest = SerializerFactory.getFailSafeJsonObjectMapper()
+                    .readValue(deployment.getDeploymentDocument(), LocalOverrideRequest.class);
+            if (!Utils.isEmpty(localOverrideRequest.getRecipeDirectoryPath())) {
+                Path recipeDirectoryPath = Paths.get(localOverrideRequest.getRecipeDirectoryPath());
+                copyRecipesToComponentStore(recipeDirectoryPath);
+
+            }
+
+            if (!Utils.isEmpty(localOverrideRequest.getArtifactsDirectoryPath())) {
+                Path kernelArtifactsDirectoryPath = kernel.getNucleusPaths().componentStorePath()
+                        .resolve(ComponentStore.ARTIFACT_DIRECTORY);
+                Path artifactsDirectoryPath = Paths.get(localOverrideRequest.getArtifactsDirectoryPath());
+                try {
+                    Utils.copyFolderRecursively(artifactsDirectoryPath, kernelArtifactsDirectoryPath,
+                            StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException e) {
+                    throw new IOException(String.format("Unable to copy artifacts from  %s due to: %s",
+                            artifactsDirectoryPath.toString(), e.getMessage()), e);
+                }
+            }
+        } catch (JsonProcessingException e) {
+            throw new InvalidRequestException("Unable to parse the deployment request - Invalid JSON", e);
+        }
+    }
+
+
+    private void copyRecipesToComponentStore(Path from) throws IOException {
+        for (Path r : Files.walk(from).collect(Collectors.toList())) {
+            String ext = Utils.extension(r.toString());
+            ComponentRecipe recipe = null;
+
+            //reading it in as a recipe, so that will fail if it is malformed with a good error.
+            //The second reason to do this is to parse the name and version so that we can properly name
+            //the file when writing it into the local recipe store.
+            try {
+                if (r.toFile().length() > 0) {
+                    switch (ext.toLowerCase()) {
+                        case "yaml":
+                        case "yml":
+                            recipe = getRecipeSerializer().readValue(r.toFile(), ComponentRecipe.class);
+                            break;
+                        case "json":
+                            recipe = getRecipeSerializerJson().readValue(r.toFile(), ComponentRecipe.class);
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            } catch (IOException e) {
+                // Throw on error so that the user will receive this message and we will stop the deployment.
+                // This is to fail fast while providing actionable feedback.
+                throw new IOException(String.format("Unable to parse %s as a recipe due to: %s",
+                        r.toString(), e.getMessage()), e);
+            }
+            if (recipe == null) {
+                logger.atError().log("Skipping file {} because it was not recognized as a recipe", r);
+                continue;
+            }
+
+            // Write the recipe as YAML with the proper filename into the store
+            ComponentIdentifier componentIdentifier =
+                    new ComponentIdentifier(recipe.getComponentName(), recipe.getComponentVersion());
+
+            try {
+                componentStore.savePackageRecipe(componentIdentifier,
+                        getRecipeSerializer().writeValueAsString(recipe));
+            } catch (PackageLoadingException e) {
+                // Throw on error so that the user will receive this message and we will stop the deployment.
+                // This is to fail fast while providing actionable feedback.
+                throw new IOException(String.format("Unable to copy recipe for '%s' to component store due to: %s",
+                        componentIdentifier.toString(), e.getMessage()), e);
+            }
+        }
     }
 
     private KernelUpdateDeploymentTask createKernelUpdateDeployment(Deployment deployment) {
@@ -464,7 +587,7 @@ public class DeploymentService extends GreengrassService {
         try {
             switch (deployment.getDeploymentType()) {
                 case LOCAL:
-                    LocalOverrideRequest localOverrideRequest = SerializerFactory.getJsonObjectMapper()
+                    LocalOverrideRequest localOverrideRequest = SerializerFactory.getFailSafeJsonObjectMapper()
                             .readValue(jobDocumentString, LocalOverrideRequest.class);
                     Map<String, String> rootComponents = new HashMap<>();
                     Set<String> rootComponentsInRequestedGroup = new HashSet<>();
@@ -486,25 +609,14 @@ public class DeploymentService extends GreengrassService {
                     break;
                 case IOT_JOBS:
                 case SHADOW:
-                    JsonNode jsonNode =
-                            SerializerFactory.getJsonObjectMapper().readValue(jobDocumentString, JsonNode.class);
 
-                    if (jsonNode.has("packages")) {
-                        // If "packages" exists, the document is in the old format, which is
-                        // the result of Set/PublishConfiguration
-                        // TODO remove after migrating off Set/PublishConfiguration:
-                        // https://issues.amazon.com/issues/P41383716
-                        FleetConfiguration config = SerializerFactory.getJsonObjectMapper()
-                                .readValue(jobDocumentString, FleetConfiguration.class);
-                        document = DeploymentDocumentConverter.convertFromFleetConfiguration(config);
-                    } else {
-                        // Note: This is the data contract that gets sending down from FCS::CreateDeployment
-                        // Configuration is really a bad name choice as it is too generic but we can change it later
-                        // since it is only a internal model
-                        Configuration configuration = SerializerFactory.getJsonObjectMapper()
-                                .readValue(jobDocumentString, Configuration.class);
-                        document = DeploymentDocumentConverter.convertFromDeploymentConfiguration(configuration);
-                    }
+                    // Note: This is the data contract that gets sending down from FCS::CreateDeployment
+                    // Configuration is really a bad name choice as it is too generic but we can change it later
+                    // since it is only a internal model
+                    Configuration configuration = SerializerFactory.getFailSafeJsonObjectMapper()
+                            .readValue(jobDocumentString, Configuration.class);
+                    document = DeploymentDocumentConverter.convertFromDeploymentConfiguration(configuration);
+
                     break;
                 default:
                     throw new IllegalArgumentException("Invalid deployment type: " + deployment.getDeploymentType());

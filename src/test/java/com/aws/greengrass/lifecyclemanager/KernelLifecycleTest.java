@@ -119,7 +119,7 @@ class KernelLifecycleTest {
         doAnswer((i) -> {
             ClassAnnotationMatchProcessor func = i.getArgument(1);
 
-            func.processMatch(UpdateSystemSafelyService.class);
+            func.processMatch(UpdateSystemPolicyService.class);
             func.processMatch(DeploymentService.class);
 
             return null;
@@ -128,6 +128,20 @@ class KernelLifecycleTest {
         kernelLifecycle.launch();
         // Expect 2 times because I returned 2 plugins from above: SafeUpdate and Deployment
         verify(mockMain, times(2)).addOrUpdateDependency(eq(mockOthers), eq(DependencyType.HARD), eq(true));
+    }
+
+    @Test
+    void GIVEN_deployment_config_override_WHEN_read_THEN_read_persisted_config() throws Exception {
+        String providedConfigPathName = "external_config.yaml";
+        String overrideConfigPathName = "target_config.tlog";
+        when(mockKernelCommandLine.getProvidedConfigPathName())
+                .thenReturn(providedConfigPathName, overrideConfigPathName);
+
+        kernelLifecycle.initConfigAndTlog(overrideConfigPathName);
+        verify(mockConfig).read(eq(overrideConfigPathName));
+        verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel).writeEffectiveConfig(tempRootDir.resolve("config").resolve("config.yaml"));
+        verify(mockKernelCommandLine).setProvidedConfigPathName(eq(overrideConfigPathName));
     }
 
     @Test

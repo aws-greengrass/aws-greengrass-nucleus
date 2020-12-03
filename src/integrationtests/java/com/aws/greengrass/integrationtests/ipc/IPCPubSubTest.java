@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.publishToTopicOverIpcAsBinaryMessage;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.subscribeToTopicOveripcForBinaryMessages;
@@ -180,7 +180,7 @@ class IPCPubSubTest {
                     () -> subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight()));
             assertTrue(executionException.getCause() instanceof UnauthorizedError);
 
-            Topics aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+            Topics aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
             Map<String, Object> newAcl = OBJECT_MAPPER.readValue(newAclStr, new TypeReference<Map<String, Object>>(){});
             aclTopic.updateFromMap(newAcl,
                     new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
@@ -195,7 +195,7 @@ class IPCPubSubTest {
 
             cb.getLeft().get(TIMEOUT_FOR_PUBSUB_SECONDS, TimeUnit.SECONDS);
 
-            aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+            aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
             Map<String, Object> oldAcl = OBJECT_MAPPER.readValue(oldAclStr, new TypeReference<Map<String, Object>>(){});
             aclTopic.updateFromMap(oldAcl,
                     new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
@@ -216,13 +216,13 @@ class IPCPubSubTest {
         AtomicInteger atomicInteger = new AtomicInteger();
 
         CountDownLatch subscriptionLatch = new CountDownLatch(1);
-        
+
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, "SubscribeAndPublish");
         SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
         try (EventStreamRPCConnection clientConnection =
                      IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
             AutoCloseable l = TestUtils.createCloseableLogListener(m -> {
-                if (m.getMessage().contains("Subscribing to topic")) {
+                if (m.getMessage().contains("Subscribed to topic")) {
                     subscriptionLatch.countDown();
                 }
             })){
@@ -312,7 +312,7 @@ class IPCPubSubTest {
         subscribeToTopicRequest.setTopic(topicName);
         CountDownLatch subscriptionLatch = new CountDownLatch(1);
         Slf4jLogAdapter.addGlobalListener(m -> {
-            if (m.getMessage().contains("Subscribing to topic")) {
+            if (m.getMessage().contains("Subscribed to topic")) {
                 subscriptionLatch.countDown();
             }
         });
@@ -335,7 +335,7 @@ class IPCPubSubTest {
                     unauthorizedError.getMessage());
 
         }
-        Topics aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+        Topics aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
         Map<String, Object> newAcl = OBJECT_MAPPER.readValue(newAclStr, new TypeReference<Map<String, Object>>(){});
         aclTopic.updateFromMap(newAcl,
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
@@ -359,7 +359,7 @@ class IPCPubSubTest {
             assertTrue(subscriptionLatch.await(10, TimeUnit.SECONDS));
         }
 
-        aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(PARAMETERS_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
+        aclTopic = kernel.findServiceTopic("OnlyPublish").findTopics(CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC);
         Map<String, Object> oldAcl = OBJECT_MAPPER.readValue(oldAclStr, new TypeReference<Map<String, Object>>(){});
         aclTopic.updateFromMap(oldAcl,
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
@@ -388,29 +388,4 @@ class IPCPubSubTest {
             }
         });
     }
-
-
-
-    // GG_NEEDS_REVIEW: TODO: review if we want to add future support for the `unsubscribe` operation:
-    // https://issues-iad.amazon.com/issues/V234932355
-//    @Test
-//    void GIVEN_pubsubclient_WHEN_unsubscribe_is_not_authorized_THEN_Fail(ExtensionContext context) throws Exception {
-//
-//        kernel = prepareKernelFromConfigFile("pubsub_unauthorized_unsubscribe.yaml",
-//                TEST_SERVICE_NAME, this.getClass());
-//        KernelIPCClientConfig config = getIPCConfigForService(TEST_SERVICE_NAME, kernel);
-//        client = new IPCClientImpl(config);
-//        PubSub c = new PubSubImpl(client);
-//
-//        Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
-//            assertEquals("some message", new String(m, StandardCharsets.UTF_8));
-//        });
-//
-//        c.subscribeToTopic("a", cb.getRight());
-//        c.publishToTopic("a", "some message".getBytes(StandardCharsets.UTF_8));
-//        cb.getLeft().get(2, TimeUnit.SECONDS);
-//
-//        ignoreExceptionOfType(context, AuthorizationException.class);
-//        assertThrows(PubSubException.class, () -> c.unsubscribeFromTopic("a"));
-//    }
 }

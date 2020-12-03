@@ -83,11 +83,15 @@ class KernelTest {
     @TempDir
     protected Path tempRootDir;
     private Kernel kernel;
+    private Path mockFile;
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws Exception{
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = new Kernel();
+
+        mockFile = tempRootDir.resolve("mockFile");
+        Files.createFile(mockFile);
     }
 
     @AfterEach
@@ -102,7 +106,9 @@ class KernelTest {
             throws Exception {
         KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, new KernelCommandLine(kernel), mock(
                 NucleusPaths.class)));
+        doNothing().when(kernelLifecycle).initConfigAndTlog();
         kernel.setKernelLifecycle(kernelLifecycle);
+        kernel.parseArgs();
 
         GreengrassService mockMain = new GreengrassService(
                 kernel.getConfig().lookupTopics(GreengrassService.SERVICES_NAMESPACE_TOPIC, "main"));
@@ -168,7 +174,9 @@ class KernelTest {
             throws InputValidationException {
         KernelLifecycle kernelLifecycle = spy(new KernelLifecycle(kernel, mock(KernelCommandLine.class),
                 mock(NucleusPaths.class)));
+        doNothing().when(kernelLifecycle).initConfigAndTlog();
         kernel.setKernelLifecycle(kernelLifecycle);
+        kernel.parseArgs();
 
         GreengrassService mockMain =
                 new GreengrassService(kernel.getConfig()
@@ -312,6 +320,7 @@ class KernelTest {
             throws Exception {
         KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
         doNothing().when(kernelLifecycle).launch();
+        doNothing().when(kernelLifecycle).initConfigAndTlog(any());
         kernel.setKernelLifecycle(kernelLifecycle);
 
         KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
@@ -321,6 +330,7 @@ class KernelTest {
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doReturn(mock(Deployment.class)).when(deploymentDirectoryManager).readDeploymentMetadata();
+        doReturn(mockFile).when(deploymentDirectoryManager).getTargetConfigFilePath();
         doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
 
         doReturn(mock(BootstrapManager.class)).when(kernelCommandLine).getBootstrapManager();
@@ -345,6 +355,7 @@ class KernelTest {
         ignoreExceptionOfType(context, IOException.class);
 
         KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        doNothing().when(kernelLifecycle).initConfigAndTlog(any());
         doNothing().when(kernelLifecycle).launch();
         kernel.setKernelLifecycle(kernelLifecycle);
 
@@ -355,6 +366,7 @@ class KernelTest {
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doThrow(new IOException()).when(deploymentDirectoryManager).readDeploymentMetadata();
+        doReturn(mockFile).when(deploymentDirectoryManager).getSnapshotFilePath();
         doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
 
         doReturn(mock(BootstrapManager.class)).when(kernelCommandLine).getBootstrapManager();
@@ -383,6 +395,7 @@ class KernelTest {
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doReturn(mock(Path.class)).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
+        doReturn(mockFile).when(deploymentDirectoryManager).getTargetConfigFilePath();
         doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
 
         BootstrapManager bootstrapManager = mock(BootstrapManager.class);
@@ -413,6 +426,7 @@ class KernelTest {
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doReturn(mock(Path.class)).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
+        doReturn(mockFile).when(deploymentDirectoryManager).getTargetConfigFilePath();
         doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
 
         BootstrapManager bootstrapManager = mock(BootstrapManager.class);
@@ -447,6 +461,7 @@ class KernelTest {
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doReturn(mock(Path.class)).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
+        doReturn(mockFile).when(deploymentDirectoryManager).getTargetConfigFilePath();
         doReturn(deployment).when(deploymentDirectoryManager).readDeploymentMetadata();
         doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
 
@@ -462,7 +477,7 @@ class KernelTest {
 
         verify(kernelAlternatives).prepareRollback();
         verify(deploymentDirectoryManager).writeDeploymentMetadata(eq(deployment));
-        verify(kernelLifecycle).shutdown(eq(30), eq(2));
+        verify(kernelLifecycle).shutdown(eq(30), eq(REQUEST_RESTART));
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
@@ -484,6 +499,7 @@ class KernelTest {
         Deployment deployment = mock(Deployment.class);
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doReturn(mock(Path.class)).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
+        doReturn(mockFile).when(deploymentDirectoryManager).getTargetConfigFilePath();
         doReturn(deployment).when(deploymentDirectoryManager).readDeploymentMetadata();
         doNothing().when(deploymentDirectoryManager).writeDeploymentMetadata(any());
         doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
@@ -499,7 +515,7 @@ class KernelTest {
         }
 
         verify(kernelAlternatives).prepareRollback();
-        verify(kernelLifecycle).shutdown(eq(30), eq(2));
+        verify(kernelLifecycle).shutdown(eq(30), eq(REQUEST_RESTART));
     }
 
     static class TestClass extends GreengrassService {

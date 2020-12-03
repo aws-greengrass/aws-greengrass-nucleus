@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment;
 
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
@@ -22,7 +21,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.UpdateAction;
-import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
+import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -64,6 +63,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 
 @ExtendWith(MockitoExtension.class)
@@ -73,13 +74,15 @@ class DeploymentConfigMergerTest {
 
     @Mock
     private Kernel kernel;
-
+    @Mock
+    private DynamicComponentConfigurationValidator validator;
     @Mock
     private Context context;
 
     @BeforeEach
     void beforeEach() {
         lenient().when(kernel.getContext()).thenReturn(context);
+        lenient().when(validator.validate(anyMap(), any(), any())).thenReturn(true);
     }
 
     @AfterEach
@@ -90,8 +93,8 @@ class DeploymentConfigMergerTest {
     @Test
     void GIVEN_AggregateServicesChangeManager_WHEN_initialized_THEN_compute_service_to_add_or_remove()
             throws Exception {
-        GreengrassService oldService = createMockEvergreenService("oldService");
-        GreengrassService existingService = createMockEvergreenService("existingService");
+        GreengrassService oldService = createMockGreengrassService("oldService");
+        GreengrassService existingService = createMockGreengrassService("existingService");
         Collection<GreengrassService> orderedDependencies = Arrays.asList(oldService, existingService);
         when(kernel.orderedDependencies()).thenReturn(orderedDependencies);
         when(kernel.locate("existingService")).thenReturn(existingService);
@@ -139,13 +142,13 @@ class DeploymentConfigMergerTest {
     void GIVEN_AggregateServicesChangeManager_WHEN_removeObsoleteService_THEN_obsolete_services_are_removed()
             throws Exception {
         // GIVEN
-        GreengrassService oldService = createMockEvergreenService("oldService", kernel);
+        GreengrassService oldService = createMockGreengrassService("oldService", kernel);
         when(oldService.isBuiltin()).thenReturn(false);
 
-        GreengrassService existingAutoStartService = createMockEvergreenService("existingAutoStartService", kernel);
+        GreengrassService existingAutoStartService = createMockGreengrassService("existingAutoStartService", kernel);
         when(existingAutoStartService.isBuiltin()).thenReturn(true);
 
-        GreengrassService existingService = createMockEvergreenService("existingService", kernel);
+        GreengrassService existingService = createMockGreengrassService("existingService", kernel);
 
         Collection<GreengrassService> orderedDependencies =
                 Arrays.asList(oldService, existingService, existingAutoStartService);
@@ -280,44 +283,44 @@ class DeploymentConfigMergerTest {
 
     @Test
     void GIVEN_deployment_WHEN_check_safety_selected_THEN_check_safety_before_update() throws Exception {
-        UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
-        when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
+        UpdateSystemPolicyService updateSystemPolicyService = mock(UpdateSystemPolicyService.class);
+        when(context.get(UpdateSystemPolicyService.class)).thenReturn(updateSystemPolicyService);
         DeploymentActivatorFactory deploymentActivatorFactory = mock(DeploymentActivatorFactory.class);
         DeploymentActivator deploymentActivator = mock(DeploymentActivator.class);
         when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
         when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
 
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, validator);
 
         DeploymentDocument doc = new DeploymentDocument();
         doc.setDeploymentId("NoSafetyCheckDeploy");
         doc.setComponentUpdatePolicy(
-                new ComponentUpdatePolicy(0, ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS));
+                new ComponentUpdatePolicy(0, SKIP_NOTIFY_COMPONENTS));
 
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
-        verify(updateSystemSafelyService, times(0)).addUpdateAction(any(), any());
+        verify(updateSystemPolicyService, times(0)).addUpdateAction(any(), any());
 
         doc.setDeploymentId("DeploymentId");
         doc.setComponentUpdatePolicy(
-                new ComponentUpdatePolicy(60, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
-        verify(updateSystemSafelyService).addUpdateAction(any(), any());
+        verify(updateSystemPolicyService).addUpdateAction(any(), any());
     }
 
     @Test
     void GIVEN_deployment_WHEN_task_cancelled_THEN_update_is_cancelled() throws Throwable {
         ArgumentCaptor<UpdateAction> cancelledTaskCaptor = ArgumentCaptor.forClass(UpdateAction.class);
-        UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
+        UpdateSystemPolicyService updateSystemPolicyService = mock(UpdateSystemPolicyService.class);
         DeploymentActivatorFactory factory = mock(DeploymentActivatorFactory.class);
         when(factory.getDeploymentActivator(anyMap())).thenReturn(mock(KernelUpdateActivator.class));
 
         when(context.get(any())).thenAnswer(invocationOnMock -> {
             Object argument = invocationOnMock.getArgument(0);
-            if (UpdateSystemSafelyService.class.equals(argument)) {
-                return updateSystemSafelyService;
+            if (UpdateSystemPolicyService.class.equals(argument)) {
+                return updateSystemPolicyService;
             } else if (DeploymentActivatorFactory.class.equals(argument)) {
                 return factory;
             }
@@ -325,15 +328,15 @@ class DeploymentConfigMergerTest {
         });
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, validator);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
-                new ComponentUpdatePolicy(0, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
 
         Future<DeploymentResult> fut = merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
-        verify(updateSystemSafelyService)
+        verify(updateSystemPolicyService)
                 .addUpdateAction(any(), cancelledTaskCaptor.capture());
 
         assertEquals(0, cancelledTaskCaptor.getValue().getTimeout());
@@ -350,8 +353,8 @@ class DeploymentConfigMergerTest {
     @Test
     void GIVEN_deployment_WHEN_task_not_cancelled_THEN_update_is_continued() throws Throwable {
         ArgumentCaptor<UpdateAction> taskCaptor = ArgumentCaptor.forClass(UpdateAction.class);
-        UpdateSystemSafelyService updateSystemSafelyService = mock(UpdateSystemSafelyService.class);
-        when(context.get(UpdateSystemSafelyService.class)).thenReturn(updateSystemSafelyService);
+        UpdateSystemPolicyService updateSystemPolicyService = mock(UpdateSystemPolicyService.class);
+        when(context.get(UpdateSystemPolicyService.class)).thenReturn(updateSystemPolicyService);
         DeploymentActivatorFactory deploymentActivatorFactory = new DeploymentActivatorFactory(kernel);
         when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
         BootstrapManager bootstrapManager = mock(BootstrapManager.class);
@@ -361,15 +364,15 @@ class DeploymentConfigMergerTest {
         when(context.get(DefaultActivator.class)).thenReturn(defaultActivator);
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, validator);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
-                new ComponentUpdatePolicy(0, ComponentUpdatePolicyAction.NOTIFY_COMPONENTS));
+                new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
-        verify(updateSystemSafelyService).addUpdateAction(any(), taskCaptor.capture());
+        verify(updateSystemPolicyService).addUpdateAction(any(), taskCaptor.capture());
 
         assertEquals(0, taskCaptor.getValue().getTimeout());
         assertEquals("DeploymentId", taskCaptor.getValue().getDeploymentId());
@@ -387,13 +390,13 @@ class DeploymentConfigMergerTest {
         return deployment;
     }
 
-    private GreengrassService createMockEvergreenService(String name) {
+    private GreengrassService createMockGreengrassService(String name) {
         GreengrassService service = mock(GreengrassService.class);
         when(service.getName()).thenReturn(name);
         return service;
     }
 
-    private GreengrassService createMockEvergreenService(String name, Kernel kernel) throws ServiceLoadException {
+    private GreengrassService createMockGreengrassService(String name, Kernel kernel) throws ServiceLoadException {
         GreengrassService service = mock(GreengrassService.class);
         lenient().when(service.getName()).thenReturn(name);
         lenient().when(kernel.locate(name)).thenReturn(service);

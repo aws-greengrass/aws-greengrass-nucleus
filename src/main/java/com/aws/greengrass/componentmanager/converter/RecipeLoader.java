@@ -19,6 +19,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,20 +51,37 @@ public class RecipeLoader {
 
     /**
      * Parse the recipe content to recipe object.
+     *
      * @param recipe recipe content as string
+     * @param recipeFormat format of recipe content
      * @return recipe object
      * @throws PackageLoadingException when there are issues parsing the string
      */
-    public static com.amazon.aws.iot.greengrass.component.common.ComponentRecipe parseRecipe(String recipe)
+    public static com.amazon.aws.iot.greengrass.component.common.ComponentRecipe parseRecipe(String recipe,
+                                                                                             RecipeFormat recipeFormat)
             throws PackageLoadingException {
+        ObjectMapper mapper = getObjectMapperForRecipeFormat(recipeFormat);
+
         try {
-            return SerializerFactory.getRecipeSerializer().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                            .readValue(recipe, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
+            return mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                    .readValue(recipe, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
         } catch (JsonProcessingException e) {
             // TODO: [P41216539]: move this to common model
             throw new PackageLoadingException(
                     String.format("Failed to parse recipe file content to contract model. Recipe file content: '%s'.",
                             recipe), e);
+        }
+    }
+
+    private static ObjectMapper getObjectMapperForRecipeFormat(RecipeFormat recipeFormat) {
+        switch (recipeFormat) {
+            case JSON:
+                return SerializerFactory.getRecipeSerializerJson();
+            case YAML:
+                return SerializerFactory.getRecipeSerializer();
+            default:
+                throw new IllegalArgumentException(
+                        String.format("No object mapper for recipe format %s", recipeFormat));
         }
     }
 
@@ -76,7 +94,8 @@ public class RecipeLoader {
      */
     public Optional<ComponentRecipe> loadFromFile(String recipeFileContent) throws PackageLoadingException {
 
-        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe = parseRecipe(recipeFileContent);
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe =
+                parseRecipe(recipeFileContent, RecipeFormat.YAML);
         if (componentRecipe.getManifests() == null || componentRecipe.getManifests().isEmpty()) {
             throw new PackageLoadingException(
                     String.format("Recipe file %s-%s.yaml is missing manifests", componentRecipe.getComponentName(),
@@ -101,9 +120,8 @@ public class RecipeLoader {
         ComponentRecipe packageRecipe = ComponentRecipe.builder().componentName(componentRecipe.getComponentName())
                 .version(componentRecipe.getComponentVersion()).publisher(componentRecipe.getComponentPublisher())
                 .recipeTemplateVersion(componentRecipe.getRecipeFormatVersion())
-                .componentType(componentRecipe.getComponentType()).dependencies(dependencyPropertiesMap)
-                .lifecycle(convertLifecycleFromFile(componentRecipe.getLifecycle(), platformSpecificManifest,
-                        selectors))
+                .componentType(componentRecipe.getComponentType()).dependencies(dependencyPropertiesMap).lifecycle(
+                        convertLifecycleFromFile(componentRecipe.getLifecycle(), platformSpecificManifest, selectors))
                 .artifacts(convertArtifactsFromFile(platformSpecificManifest.getArtifacts()))
                 .componentConfiguration(componentRecipe.getComponentConfiguration())
                 .componentParameters(convertParametersFromFile(platformSpecificManifest.getParameters())).build();
@@ -146,6 +164,7 @@ public class RecipeLoader {
 
     /**
      * Folds all selectors into one set that is specific to this recipe, used for lifecycle filtering.
+     *
      * @param manifests Collection of manifests
      * @return Set of all selectors
      */
@@ -160,50 +179,37 @@ public class RecipeLoader {
 
     /**
      * Performs filtering on a lifecycle map that is manifest specific.
+     *
      * @param lifecycleMap Recipe lifecycle map
      * @param manifest     Selected manifest
      * @param allSelectors All selectors defined in this recipe
      * @return filtered lifecycle
      */
-    private static Map<String, Object> convertLifecycleFromFile(
-            @Nonnull Map<String, Object> lifecycleMap,
-            @Nonnull PlatformSpecificManifest manifest,
-            @Nonnull Set<String> allSelectors) {
-
-        Map<String, Object> effectiveLifecycleMap = lifecycleMap;
-
-        if (manifest.getSelections() == null || manifest.getSelections().isEmpty()) {
-            // BEGIN BETA Compatibility code
-            // TODO: These need to be removed for re:Invent
-            // We might be running with old lifecycle
-            if (effectiveLifecycleMap.isEmpty()) {
-                effectiveLifecycleMap = manifest.getLifecycle();
-            }
-            if (effectiveLifecycleMap.isEmpty()) {
-                LOGGER.warn("Non-empty lifecycle section ignored after (old style) platform selection filtering");
-                return Collections.emptyMap();
-            }
-
-            return effectiveLifecycleMap;
-            // END BETA Compatibility code
-        } else {
-            // selections were applied to the lifecycle section
-            // we allow the following syntax forms (combined)
-            //
-            // Lifecycle:
-            //    <selector>: (optional)
-            //       Section:
-            //          <selector>: (optional)
-            //              body
-            Object filtered = PlatformResolver.filterPlatform(effectiveLifecycleMap, allSelectors,
-                    manifest.getSelections()).orElse(Collections.emptyMap());
-            if (filtered instanceof Map && !((Map<?, ?>) filtered).isEmpty()) {
-                return (Map<String, Object>) filtered;
-            } else {
-                LOGGER.warn("Non-empty lifecycle section ignored after platform selection filtering");
-                return Collections.emptyMap();
-            }
+    private static Map<String, Object> convertLifecycleFromFile(@Nonnull Map<String, Object> lifecycleMap,
+                                                                @Nonnull PlatformSpecificManifest manifest,
+                                                                @Nonnull Set<String> allSelectors) {
+        // If there is manifest level lifecycle
+        Map<String, Object> manifestLifecycle = manifest.getLifecycle();
+        if (manifestLifecycle != null && !manifestLifecycle.isEmpty()) {
+            return manifestLifecycle;
         }
+
+        // selections were applied to the lifecycle section
+        // we allow the following syntax forms (combined)
+        //
+        // Lifecycle:
+        //    <selector>: (optional)
+        //       Section:
+        //          <selector>: (optional)
+        //              body
+        Object filtered = PlatformResolver.filterPlatform(lifecycleMap, allSelectors,
+                manifest.getSelections()).orElse(Collections.emptyMap());
+        if (filtered instanceof Map && !((Map<?, ?>) filtered).isEmpty()) {
+            return (Map<String, Object>) filtered;
+        } else if (!lifecycleMap.isEmpty()) {
+            LOGGER.warn("Non-empty lifecycle section ignored after platform selection filtering");
+        }
+        return Collections.emptyMap();
     }
 
     private static Permission convertPermissionFromFile(
@@ -214,5 +220,9 @@ public class RecipeLoader {
             builder.execute(PermissionType.fromString(permission.getExecute().name()));
         }
         return builder.build();
+    }
+
+    public enum RecipeFormat {
+        JSON, YAML
     }
 }

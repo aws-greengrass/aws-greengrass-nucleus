@@ -13,22 +13,20 @@ package com.aws.greengrass.deployment.converter;
 import com.amazon.aws.iot.greengrass.configuration.common.ComponentUpdate;
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.amazon.aws.iot.greengrass.configuration.common.ConfigurationUpdate;
-import com.amazonaws.arn.Arn;
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
-import com.amazonaws.services.evergreen.model.ConfigurationValidationPolicy;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
-import com.aws.greengrass.deployment.model.FleetConfiguration;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
-import com.aws.greengrass.deployment.model.PackageInfo;
 import com.aws.greengrass.deployment.model.RunWith;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.SerializerFactory;
 import org.apache.commons.lang3.StringUtils;
+import software.amazon.awssdk.arns.Arn;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,8 +37,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import static com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 import static com.aws.greengrass.deployment.DynamicComponentConfigurationValidator.DEFAULT_TIMEOUT_SECOND;
+import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 public final class DeploymentDocumentConverter {
     private static final Logger logger = LogManager.getLogger(DeploymentDocumentConverter.class);
@@ -88,103 +86,21 @@ public final class DeploymentDocumentConverter {
                 .deploymentId(localOverrideRequest.getRequestId())
                 .deploymentPackageConfigurationList(packageConfigurations)
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)    // Can't rollback for local deployment
-                // Currently we always skip safety check for local deployment to not slow down testing for customers
+                // Currently we skip update policy check for local deployment to not slow down testing for customers
                 // If we make this configurable in local development then we can plug that input in here
                 // NO_OP_TIMEOUT is not used since the policy is SKIP_NOTIFY_COMPONENTS
-                .configurationValidationPolicy(new ConfigurationValidationPolicy().withTimeout(DEFAULT_TIMEOUT_SECOND))
+                .configurationValidationPolicy(
+                        DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(DEFAULT_TIMEOUT_SECOND)
+                                .build())
                 .componentUpdatePolicy(new ComponentUpdatePolicy(NO_OP_TIMEOUT, SKIP_NOTIFY_COMPONENTS)).groupName(
                         StringUtils.isEmpty(localOverrideRequest.getGroupName()) ? LOCAL_DEPLOYMENT_GROUP_NAME
                                 : localOverrideRequest.getGroupName()).build();
     }
 
-    /**
-     * Convert {@link FleetConfiguration} to a {@link DeploymentDocument}.
-     *
-     * @param config config received from Iot cloud
-     * @return equivalent {@link DeploymentDocument}
-     */
-    @SuppressWarnings("PMD:NullAssignment") // this will be remove soon after switching to new createDeployment API
-    public static DeploymentDocument convertFromFleetConfiguration(FleetConfiguration config) {
-        ComponentUpdatePolicy componentUpdatePolicy =
-                new ComponentUpdatePolicy(config.getComponentUpdatePolicy().getTimeout(), ComponentUpdatePolicyAction
-                        .fromValue(config.getComponentUpdatePolicy().getAction()));
-        ConfigurationValidationPolicy configurationValidationPolicy = new ConfigurationValidationPolicy();
-        configurationValidationPolicy.setTimeout(config.getConfigurationValidationPolicy().getTimeout());
-
-        DeploymentDocument deploymentDocument = DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
-                .timestamp(config.getCreationTimestamp()).failureHandlingPolicy(config.getFailureHandlingPolicy())
-                .componentUpdatePolicy(componentUpdatePolicy).deploymentPackageConfigurationList(new ArrayList<>())
-                .configurationValidationPolicy(configurationValidationPolicy)
-                .build();
-
-        String groupName;
-        try {
-            // Resource name formats:
-            // configuration:thing/<thing-name>:version
-            // configuration:thinggroup/<thing-group-name>:version
-            groupName = Arn.fromString(config.getConfigurationArn()).getResource().getResource();
-        } catch (IllegalArgumentException e) {
-            groupName = config.getConfigurationArn();
-        }
-        deploymentDocument.setGroupName(groupName);
-
-        if (config.getPackages() == null) {
-            return deploymentDocument;
-        }
-        for (Map.Entry<String, PackageInfo> entry : config.getPackages().entrySet()) {
-            String pkgName = entry.getKey();
-            PackageInfo pkgInfo = entry.getValue();
-
-            // Create component config update from the config field for backward compatibility
-            // GG_NEEDS_REVIEW: TODO This will be removed along with the function when migrating to
-            // new createDeployment API
-            ConfigurationUpdateOperation configurationUpdateOperation = new ConfigurationUpdateOperation();
-            boolean isConfigUpdate = false;
-
-            Map<String, Object> configuration = pkgInfo.getConfiguration();
-            if (configuration.containsKey(ConfigurationUpdateOperation.MERGE_KEY)) {
-                isConfigUpdate = true;
-
-
-                Object mergeVal = configuration.get(ConfigurationUpdateOperation.MERGE_KEY);
-                if (mergeVal instanceof Map) {
-                    configurationUpdateOperation.setValueToMerge((Map) mergeVal);
-                }
-            }
-            if (configuration.containsKey(ConfigurationUpdateOperation.RESET_KEY)) {
-                isConfigUpdate = true;
-
-                Object resetPaths = configuration.get(ConfigurationUpdateOperation.RESET_KEY);
-                if (resetPaths instanceof List) {
-                    configurationUpdateOperation.setPathsToReset((List<String>) resetPaths);
-                }
-            }
-
-            deploymentDocument.getDeploymentPackageConfigurationList()
-                    .add(isConfigUpdate ? new DeploymentPackageConfiguration(pkgName, pkgInfo.isRootComponent(),
-                                                                             pkgInfo.getVersion(),
-                                                                             configurationUpdateOperation)
-                                 : new DeploymentPackageConfiguration(pkgName, pkgInfo.isRootComponent(),
-                                                                      pkgInfo.getVersion(),
-                                                                      pkgInfo.getConfiguration()));
-        }
-        return deploymentDocument;
-    }
 
     private static List<DeploymentPackageConfiguration> buildDeploymentPackageConfigurations(
             LocalOverrideRequest localOverrideRequest, Map<String, String> newRootComponents) {
-        Map<String, DeploymentPackageConfiguration> packageConfigurations;
-
-        // convert Deployment Config from getComponentNameToConfig, which doesn't include root components necessarily
-        if (localOverrideRequest.getComponentNameToConfig() == null || localOverrideRequest.getComponentNameToConfig()
-                .isEmpty()) {
-            packageConfigurations = new HashMap<>();
-        } else {
-            packageConfigurations = localOverrideRequest.getComponentNameToConfig().entrySet().stream().collect(
-                    Collectors.toMap(Map.Entry::getKey,
-                                     entry -> new DeploymentPackageConfiguration(entry.getKey(), false, ANY_VERSION,
-                                                                                 entry.getValue())));
-        }
+        Map<String, DeploymentPackageConfiguration> packageConfigurations = new HashMap<>();
 
         if (localOverrideRequest.getConfigurationUpdate() != null) {
             localOverrideRequest.getConfigurationUpdate().forEach((componentName, configUpdate) -> {
@@ -269,7 +185,7 @@ public final class DeploymentDocumentConverter {
             // ConfigurationArn formats:
             // configuration:thing/<thing-name>
             // configuration:thinggroup/<thing-group-name>
-            groupName = Arn.fromString(config.getConfigurationArn()).getResource().getResource();
+            groupName = Arn.fromString(config.getConfigurationArn()).resource().resource();
         } catch (IllegalArgumentException e) {
             // so that it can proceed, rather than fail, when the format of configurationArn is wrong.
             groupName = config.getConfigurationArn();
@@ -305,8 +221,8 @@ public final class DeploymentDocumentConverter {
 
         Map mapToMerge = null;
         if (configurationUpdate.getMerge() != null) {
-            mapToMerge =
-                    SerializerFactory.getJsonObjectMapper().convertValue(configurationUpdate.getMerge(), Map.class);
+            mapToMerge = SerializerFactory.getFailSafeJsonObjectMapper()
+                    .convertValue(configurationUpdate.getMerge(), Map.class);
         }
 
         return new ConfigurationUpdateOperation(mapToMerge, configurationUpdate.getReset());
@@ -323,21 +239,21 @@ public final class DeploymentDocumentConverter {
 
         if (componentUpdatePolicy.getAction() != null) {
             converted.setComponentUpdatePolicyAction(
-                    ComponentUpdatePolicyAction.fromValue(componentUpdatePolicy.getAction().name()));
+                    DeploymentComponentUpdatePolicyAction.fromValue(componentUpdatePolicy.getAction().name()));
         }
 
         return converted;
     }
 
-    private static ConfigurationValidationPolicy convertConfigurationValidationPolicy(
+    private static DeploymentConfigurationValidationPolicy convertConfigurationValidationPolicy(
             @Nonnull  com.amazon.aws.iot.greengrass.configuration.common.ConfigurationValidationPolicy
                     configurationValidationPolicy) {
 
-        ConfigurationValidationPolicy converted = new ConfigurationValidationPolicy();
+        DeploymentConfigurationValidationPolicy.Builder converted = DeploymentConfigurationValidationPolicy.builder();
         if (configurationValidationPolicy.getTimeout() != null) {
-            converted.setTimeout(configurationValidationPolicy.getTimeout());
+            converted.timeoutInSeconds(configurationValidationPolicy.getTimeout());
         }
-        return converted;
+        return converted.build();
     }
 
     private static FailureHandlingPolicy convertFailureHandlingPolicy(

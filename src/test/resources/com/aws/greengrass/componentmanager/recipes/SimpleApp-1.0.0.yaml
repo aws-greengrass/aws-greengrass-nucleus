@@ -7,12 +7,8 @@ ComponentVersion: '1.0.0'
 Manifests:
   - Platform:
       os: all
-    Parameters:
-      - name: sampleText
-        value: This is a test
-        type: STRING
     Lifecycle:
       run:
-        echo "Hello From Simple App. {{params:sampleText.value}}"
+        echo "Hello From Simple App"
     Artifacts:
       - URI: greengrass:simpleApp.txt

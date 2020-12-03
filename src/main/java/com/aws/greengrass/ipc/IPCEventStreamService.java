@@ -26,7 +26,7 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
 import software.amazon.awssdk.eventstreamrpc.Authorization;
 import software.amazon.awssdk.eventstreamrpc.GreengrassEventStreamConnectMessage;
-import software.amazon.awssdk.eventstreamrpc.IpcServer;
+import software.amazon.awssdk.eventstreamrpc.RpcServer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -65,7 +65,7 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IPCEventStreamService.class);
 
-    private IpcServer ipcServer;
+    private RpcServer rpcServer;
 
     @Inject
     private Kernel kernel;
@@ -151,12 +151,12 @@ public class IPCEventStreamService implements Startable, Closeable {
             }
 
             // For domain sockets:
-            // 1. Port number is ignored. IpcServer does not accept a null value so we are using a default value.
+            // 1. Port number is ignored. RpcServer does not accept a null value so we are using a default value.
             // 2. The hostname parameter expects the socket filepath
-            ipcServer = new IpcServer(eventLoopGroup, socketOptions, null,
+            rpcServer = new RpcServer(eventLoopGroup, socketOptions, null,
                     symLinkCreated ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK : ipcServerSocketAbsolutePath,
                     DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
-            ipcServer.runServer();
+            rpcServer.runServer();
         } catch (RuntimeException e) {
             // Make sure to cleanup anything we created since we don't know where exactly we failed
             close();
@@ -228,8 +228,8 @@ public class IPCEventStreamService implements Startable, Closeable {
     @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.AvoidCatchingGenericException"})
     public void close() {
         // GG_NEEDS_REVIEW: TODO: Future does not complete, wait on them when fixed.
-        if (ipcServer != null) {
-            ipcServer.stopServer();
+        if (rpcServer != null) {
+            rpcServer.stopServer();
         }
         if (eventLoopGroup != null) {
             eventLoopGroup.close();

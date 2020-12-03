@@ -11,8 +11,6 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import lombok.Setter;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,9 +19,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import javax.inject.Inject;
 
-import static com.aws.greengrass.deployment.DeploymentDirectoryManager.CONFIG_SNAPSHOT_ERROR;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 
 public class DeploymentStatusKeeper {
@@ -39,9 +35,6 @@ public class DeploymentStatusKeeper {
     @Setter
     private DeploymentService deploymentService;
     private Topics processedDeployments;
-    @Inject
-    @Setter
-    private DeploymentDirectoryManager deploymentDirectoryManager;
 
     /**
      * Register call backs for receiving deployment status updates for a particular deployment type .
@@ -86,17 +79,6 @@ public class DeploymentStatusKeeper {
             Topics processedDeployments = getProcessedDeployments();
             Topics thisJob = processedDeployments.createInteriorChild(String.valueOf(System.currentTimeMillis()));
             thisJob.replaceAndWait(deploymentDetails);
-            try {
-                // File exists only when deployment has started. For very first updates of IN_PROGRESS this is not
-                // needed
-                if (Files.exists(deploymentDirectoryManager.getOngoingDir())
-                        && Files.exists(deploymentDirectoryManager.getSnapshotFilePath())) {
-                    deploymentDirectoryManager.takeConfigSnapshot(deploymentDirectoryManager.getSnapshotFilePath());
-                }
-            } catch (IOException e) {
-                logger.atError().setEventType(CONFIG_SNAPSHOT_ERROR).setCause(e)
-                        .log("Failed to take a snapshot on deployment status update");
-            }
         }
         publishPersistedStatusUpdates(deploymentType);
     }
@@ -133,12 +115,11 @@ public class DeploymentStatusKeeper {
                 return -1;
             }).collect(Collectors.toList());
 
+            List<Function<Map<String, Object>, Boolean>> consumers = getConsumersForDeploymentType(type);
+            logger.atDebug().kv("deploymentType", type).kv("numberOfSubscribers", consumers.size())
+                    .log("Updating status of persisted deployments to subscribers");
             for (Topics topics : sortedByTimestamp) {
-                DeploymentType deploymentType =
-                        Coerce.toEnum(DeploymentType.class,
-                                topics.find(DEPLOYMENT_TYPE_KEY_NAME));
-
-                boolean allConsumersUpdated = getConsumersForDeploymentType(deploymentType).stream()
+                boolean allConsumersUpdated = consumers.stream()
                         .allMatch(consumer -> consumer.apply(topics.toPOJO()));
                 if (!allConsumersUpdated) {
                     // If one deployment update fails, exit the loop to ensure the update order.
@@ -146,17 +127,6 @@ public class DeploymentStatusKeeper {
                     break;
                 }
                 processedDeployments.remove(topics);
-                try {
-                    // File exists only when deployment has started. For very first updates of IN_PROGRESS this is not
-                    // needed
-                    if (Files.exists(deploymentDirectoryManager.getOngoingDir())
-                            && Files.exists(deploymentDirectoryManager.getSnapshotFilePath())) {
-                        deploymentDirectoryManager.takeConfigSnapshot(deploymentDirectoryManager.getSnapshotFilePath());
-                    }
-                } catch (IOException e) {
-                    logger.atError().setEventType(CONFIG_SNAPSHOT_ERROR).setCause(e)
-                            .log("Failed to take a snapshot after deployment status update sent to consumers");
-                }
             }
         }
     }

@@ -6,6 +6,7 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
@@ -66,6 +67,8 @@ class KernelUpdateDeploymentTaskTest {
     @Mock
     GreengrassService greengrassService;
     @Mock
+    GreengrassService mainService;
+    @Mock
     ComponentManager componentManager;
 
     KernelUpdateDeploymentTask task;
@@ -76,6 +79,8 @@ class KernelUpdateDeploymentTaskTest {
         lenient().doReturn(deploymentDirectoryManager).when(context).get(DeploymentDirectoryManager.class);
         lenient().doReturn(context).when(kernel).getContext();
         lenient().doReturn("A").when(greengrassService).getName();
+        lenient().doReturn(mainService).when(kernel).getMain();
+        lenient().doReturn(true).when(greengrassService).shouldAutoStart();
         lenient().doReturn(Arrays.asList(greengrassService)).when(kernel).orderedDependencies();
         lenient().doNothing().when(componentManager).cleanupStaleVersions();
 
@@ -128,20 +133,19 @@ class KernelUpdateDeploymentTaskTest {
         doReturn(true).when(greengrassService).reachedDesiredState();
 
         assertEquals(new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null), task.call());
-        verify(kernelAlternatives).activationSucceeds();
     }
 
     @Test
-    void GIVEN_deployment_activation_WHEN_IOException_THEN_retry(ExtensionContext context) throws Exception{
-        ignoreExceptionOfType(context, IOException.class);
+    void GIVEN_deployment_activation_WHEN_Exception_THEN_retry(ExtensionContext context) throws Exception{
+        ignoreExceptionOfType(context, PackageLoadingException.class);
 
         doReturn(KERNEL_ACTIVATION).when(deployment).getDeploymentStage();
         doReturn(STARTING, RUNNING).when(greengrassService).getState();
         doReturn(true).when(greengrassService).reachedDesiredState();
-        doThrow(new IOException("any io error")).when(kernelAlternatives).activationSucceeds();
+        doThrow(new PackageLoadingException("any error")).when(componentManager).cleanupStaleVersions();
 
         task.call();
-        verify(deployment).setStageDetails(matches("any io error"));
+        verify(deployment).setStageDetails(matches("any error"));
         verify(kernel).shutdown(eq(30), eq(REQUEST_RESTART));
     }
 
@@ -155,7 +159,6 @@ class KernelUpdateDeploymentTaskTest {
         DeploymentResult result = task.call();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, result.getDeploymentStatus());
         assertThat(result.getFailureCause(), isA(ServiceUpdateException.class));
-        verify(kernelAlternatives).rollbackCompletes();
     }
 
     @Test
@@ -169,6 +172,5 @@ class KernelUpdateDeploymentTaskTest {
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
         assertThat(result.getFailureCause(), isA(ServiceUpdateException.class));
         assertEquals("mock message", result.getFailureCause().getMessage());
-        verify(kernelAlternatives).rollbackCompletes();
     }
 }

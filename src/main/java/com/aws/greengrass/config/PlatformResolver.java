@@ -136,7 +136,12 @@ public class PlatformResolver {
             return null;
         }
         try {
-            return Exec.sh("uname -m").toLowerCase();
+            String archDetail = Exec.sh("uname -m").toLowerCase();
+            // TODO: "uname -m" is not sufficient to capture arch details on all platforms.
+            // Currently only return if detected arm, as required by lambda launcher.
+            if ("armv6l".equals(archDetail) || "armv7l".equals(archDetail) || "armv8l".equals(archDetail)) {
+                return archDetail;
+            }
         } catch (IOException | InterruptedException e) {
             logger.error("Error trying to determine architecture detail - assuming not available", e);
         }
@@ -173,7 +178,7 @@ public class PlatformResolver {
         if (source.keySet().stream().anyMatch(keywords::contains)) {
             // Selectors are provided in priority order with highest priority selector first.
             // Find the first selector (if any) that has a match at this level of the multi-level map.
-            Optional<Object> selected =
+            Optional<Object> selected = selectors == null ? Optional.empty() :
                     selectors.stream().map(source::get)
                             .filter(Objects::nonNull)
                             .findFirst();

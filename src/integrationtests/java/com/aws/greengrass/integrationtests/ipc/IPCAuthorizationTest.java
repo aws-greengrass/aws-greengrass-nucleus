@@ -70,9 +70,9 @@ class IPCAuthorizationTest {
 
     @Test
     void GIVEN_authorizationClient_WHEN_null_token_provided_THEN_Fail() {
-        //TODO: update the exception type when sdk return correct error
-        assertThrows(NullPointerException.class,
+        ExecutionException executionException = assertThrows(ExecutionException.class,
                 () -> validateAuthorizationToken(null));
+        assertEquals(UnauthorizedError.class, executionException.getCause().getClass());
     }
 
     @Test

@@ -1,6 +1,6 @@
 {
   "configurationArn": "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1",
-  "packages": {
+  "components": {
     "component1": {
       "rootComponent": true,
       "version": "1.0.0"

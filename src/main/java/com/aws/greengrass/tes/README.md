@@ -19,16 +19,13 @@ services:
     dependencies:
       - TokenExchangeService
   aws.greengrass.Nucleus:
-    parameters:
+    configuration:
       awsRegion: "us-east-1"
-      certificateFilePath: "root/thingCert.crt"
       iotCredEndpoint: "c13im2gfya04ip.credentials.iot.us-east-1.amazonaws.com"
       iotDataEndpoint: "aun2g37imm74n-ats.iot.us-east-1.amazonaws.com"
-      privateKeyPath: "root/privKey.key"
-      rootCaPath: "root/rootCA.pem"
       iotRoleAlias: "tes_alias"
   TokenExchangeService:
-    parameters:
+    configuration:
       port: 2020
     lifecycle:
 ```

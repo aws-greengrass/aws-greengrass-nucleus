@@ -40,7 +40,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.PARAMETERS_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.AWS_IOT_THING_NAME_ENV;
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
@@ -135,12 +134,9 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 DEPLOYMENT_POLLING_FREQUENCY_SECONDS)).thenReturn(deploymentPollingFrequency);
         when(configuration.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME)).thenReturn(thingName);
-        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
-                DEVICE_PARAM_PRIVATE_KEY_PATH)).thenReturn(privateKeyPath);
-        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
-                DEVICE_PARAM_CERTIFICATE_FILE_PATH)).thenReturn(certPath);
-        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
-                DEVICE_PARAM_ROOT_CA_PATH)).thenReturn(caPath);
+        when(configuration.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_PRIVATE_KEY_PATH)).thenReturn(privateKeyPath);
+        when(configuration.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_CERTIFICATE_FILE_PATH)).thenReturn(certPath);
+        when(configuration.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_ROOT_CA_PATH)).thenReturn(caPath);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))
                 .thenReturn(mainDependenciesTopic);
         when(configuration.lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV)).thenReturn(ggcVersionVnv);
@@ -180,7 +176,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         Topic mockUriTopic = mock(Topic.class);
         Topics mockConfig = mock(Topics.class);
         when(config.getRoot()).thenReturn(mockConfig);
-        when(config.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
+        when(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
         when(mockConfig.lookup(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME)).thenReturn(mockUriTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
@@ -241,7 +237,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(portTopic.getOnce()).thenReturn(8080);
 
 
-        when(config.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
+        when(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
 
@@ -278,7 +274,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
             return null;
         });
         when(portTopic.getOnce()).thenReturn(8080);
-        when(config.lookup(PARAMETERS_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
+        when(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
 

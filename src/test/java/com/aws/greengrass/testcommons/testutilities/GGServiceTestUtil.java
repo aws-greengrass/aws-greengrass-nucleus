@@ -9,7 +9,8 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
+import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
+import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -30,10 +31,10 @@ import static org.mockito.Mockito.mock;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class GGServiceTestUtil {
 
-    protected String serviceFullName = "EvergreenServiceFullName";
+    protected String serviceFullName = "GreengrassServiceFullName";
 
     @Mock
-    protected UpdateSystemSafelyService mockSafeUpdateService;
+    protected UpdateSystemPolicyService updateSystemPolicyService;
 
     @Mock
     protected Topics config;
@@ -53,6 +54,9 @@ public class GGServiceTestUtil {
     @Mock
     protected Context context;
 
+    @Mock
+    private KernelAlternatives kernelAlternatives;
+
     public Topics initializeMockedConfig() {
         lenient().when(config.lookupTopics(eq(RUNTIME_STORE_NAMESPACE_TOPIC), anyString(), anyString()))
                 .thenReturn(runtimeStoreTopic);
@@ -68,7 +72,8 @@ public class GGServiceTestUtil {
         lenient().when(config.getContext()).thenReturn(context);
         lenient().when(context.get(ExecutorService.class)).thenReturn(mock(ExecutorService.class));
         lenient().when(context.get(Kernel.class)).thenReturn(mock(Kernel.class));
-        lenient().when(context.get(eq(UpdateSystemSafelyService.class))).thenReturn(mockSafeUpdateService);
+        lenient().when(context.get(eq(UpdateSystemPolicyService.class))).thenReturn(updateSystemPolicyService);
+        lenient().when(context.get(KernelAlternatives.class)).thenReturn(kernelAlternatives);
         return config;
     }
 }

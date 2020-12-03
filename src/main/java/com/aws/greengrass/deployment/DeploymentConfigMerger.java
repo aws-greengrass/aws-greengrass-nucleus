@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.deployment;
 
-import com.amazonaws.services.evergreen.model.ComponentUpdatePolicyAction;
+
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.activator.DeploymentActivator;
@@ -19,15 +19,17 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.UpdateAction;
-import com.aws.greengrass.lifecyclemanager.UpdateSystemSafelyService;
+import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -37,9 +39,10 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_NAME_KEY;
 
-@AllArgsConstructor
+@AllArgsConstructor(onConstructor = @__(@Inject))
 public class DeploymentConfigMerger {
     public static final String MERGE_CONFIG_EVENT_KEY = "merge-config";
     public static final String MERGE_ERROR_LOG_EVENT_KEY = "config-update-error";
@@ -48,8 +51,8 @@ public class DeploymentConfigMerger {
 
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
 
-    @Inject
     private Kernel kernel;
+    private DynamicComponentConfigurationValidator validator;
 
     /**
      * Merge in new configuration values and new services.
@@ -79,16 +82,17 @@ public class DeploymentConfigMerger {
         }
 
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
-        if (ComponentUpdatePolicyAction.NOTIFY_COMPONENTS
+        if (DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS
                 .equals(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction())) {
-            kernel.getContext().get(UpdateSystemSafelyService.class)
+            kernel.getContext().get(UpdateSystemPolicyService.class)
                     .addUpdateAction(deploymentDocument.getDeploymentId(),
                             new UpdateAction(deploymentDocument.getDeploymentId(),
                                     ggcRestart, deploymentDocument.getComponentUpdatePolicy().getTimeout(),
                                     () -> updateActionForDeployment(newConfig, deployment, activator,
                                             totallyCompleteFuture)));
         } else {
-            logger.atInfo().log("Deployment is configured to skip safety check, not waiting for safe time to update");
+            logger.atInfo().log("Deployment is configured to skip update policy check,"
+                    + " not waiting for disruptable time to update");
             updateActionForDeployment(newConfig, deployment, activator, totallyCompleteFuture);
         }
 
@@ -106,6 +110,19 @@ public class DeploymentConfigMerger {
                     .log("Future was cancelled so no need to go through with the update");
             return;
         }
+        Map<String, Object> serviceConfig;
+        if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
+            serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
+        } else {
+            serviceConfig = new HashMap<>();
+        }
+
+        // Ask all customer components who have signed up for dynamic component configuration changes
+        // without restarting the component to validate their own proposed component configuration.
+        if (!validator.validate(serviceConfig, deployment, totallyCompleteFuture)) {
+            return;
+        }
+
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
                 .log("Applying deployment changes, deployment cannot be cancelled now");
         activator.activate(newConfig, deployment, totallyCompleteFuture);
