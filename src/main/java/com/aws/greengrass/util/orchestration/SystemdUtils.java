@@ -9,6 +9,7 @@ import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -41,11 +42,12 @@ public class SystemdUtils implements SystemServiceUtils {
             Path serviceConfig = kernelAlternatives.getServiceConfigPath();
             interpolateServiceTemplate(serviceTemplate, serviceConfig, kernelAlternatives);
 
-            runCommand(String.format("sudo cp %s %s", serviceConfig, SERVICE_CONFIG_FILE_PATH));
-            runCommand("sudo systemctl daemon-reload");
-            runCommand("sudo systemctl unmask greengrass.service");
-            runCommand("sudo systemctl start greengrass.service");
-            runCommand("sudo systemctl enable greengrass.service");
+            runCommand(String.format("cp %s %s", serviceConfig, SERVICE_CONFIG_FILE_PATH));
+            runCommand("systemctl daemon-reload");
+            runCommand("systemctl unmask greengrass.service");
+            runCommand("systemctl stop greengrass.service");
+            runCommand("systemctl start greengrass.service");
+            runCommand("systemctl enable greengrass.service");
 
             logger.atInfo(LOG_EVENT_NAME).log("Successfully set up systemd service");
             return true;
@@ -75,7 +77,7 @@ public class SystemdUtils implements SystemServiceUtils {
 
     private void runCommand(String command) throws IOException, InterruptedException {
         logger.atDebug(LOG_EVENT_NAME).log(command);
-        boolean success = new Exec().withShell(command)
+        boolean success = new Exec().withShell(command).withUser(Platform.getInstance().getPrivilegedUser())
                 .withOut(s ->
                         logger.atWarn(LOG_EVENT_NAME).kv("command", command).kv("stdout", s.toString().trim()).log())
                 .withErr(s ->
