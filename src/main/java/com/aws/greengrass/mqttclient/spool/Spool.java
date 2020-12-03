@@ -104,12 +104,12 @@ public class Spool {
      * @param request publish request
      * @return MessageID identifying the spooled PublishRequest
      * @throws InterruptedException result from the queue implementation
-     * @throws SpoolerStoreException  leads to the failure to insert the message to the spooler
+     * @throws SpoolerStoreException  if the message cannot be inserted into the message spool
      */
     public synchronized long addMessage(PublishRequest request) throws InterruptedException, SpoolerStoreException {
         int messageSizeInBytes = request.getPayload().length;
         if (messageSizeInBytes > getSpoolConfig().getSpoolSizeInBytes()) {
-            throw new SpoolerStoreException("The size of message has exceeds the maximum size of message spool.");
+            throw new SpoolerStoreException("Message is larger than the size of message spool.");
         }
 
         curMessageQueueSizeInBytes.getAndAdd(messageSizeInBytes);
