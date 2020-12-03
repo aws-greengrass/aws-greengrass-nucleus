@@ -51,21 +51,16 @@ import static org.mockito.Mockito.when;
 class GreengrassRepositoryDownloaderTest {
     private static final String SHA256 = "SHA-256";
     private static final String TEST_ARN = "arn";
-
-    @Mock
-    private HttpURLConnection connection;
-
-    @Mock
-    private GreengrassV2Client client;
-
-    @Mock
-    private GreengrassComponentServiceClientFactory clientFactory;
-
-    @Mock
-    private ComponentStore componentStore;
-
     @Captor
     ArgumentCaptor<GetComponentVersionArtifactRequest> getComponentVersionArtifactRequestArgumentCaptor;
+    @Mock
+    private HttpURLConnection connection;
+    @Mock
+    private GreengrassV2Client client;
+    @Mock
+    private GreengrassComponentServiceClientFactory clientFactory;
+    @Mock
+    private ComponentStore componentStore;
 
     @BeforeEach
     void beforeEach() {

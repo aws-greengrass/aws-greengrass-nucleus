@@ -30,19 +30,17 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class ArtifactDownloader {
-    @SuppressFBWarnings({"MS_SHOULD_BE_FINAL"})
-    protected static int MAX_RETRY = 5;
-
-    protected static final int MAX_RETRY_INTERVAL_MILLI = 30_000;
-    protected static final int INIT_RETRY_INTERVAL_MILLI = 1000;
-    private static final int DOWNLOAD_BUFFER_SIZE = 1024;
-    static final String ARTIFACT_DOWNLOAD_EXCEPTION_FMT =
-            "Failed to download artifact name: '%s' for component %s-%s, reason: ";
     public static final String ARTIFACT_URI_LOG_KEY = "artifactUri";
     public static final String COMPONENT_IDENTIFIER_LOG_KEY = "componentIdentifier";
+    protected static final int MAX_RETRY_INTERVAL_MILLI = 30_000;
+    protected static final int INIT_RETRY_INTERVAL_MILLI = 1000;
     protected static final String HTTP_RANGE_HEADER_FORMAT = "bytes=%d-%d";
     protected static final String HTTP_RANGE_HEADER_KEY = "Range";
-
+    static final String ARTIFACT_DOWNLOAD_EXCEPTION_FMT =
+            "Failed to download artifact name: '%s' for component %s-%s, reason: ";
+    private static final int DOWNLOAD_BUFFER_SIZE = 1024;
+    @SuppressFBWarnings({"MS_SHOULD_BE_FINAL"})
+    protected static int MAX_RETRY = 5;
     protected final Logger logger;
     protected final ComponentIdentifier identifier;
     protected final ComponentArtifact artifact;
@@ -58,6 +56,56 @@ public abstract class ArtifactDownloader {
         this.logger = LogManager.getLogger(this.getClass()).createChild();
         this.logger.addDefaultKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
                 .addDefaultKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, identifier.getName());
+    }
+
+    /**
+     * Checks the given artifact file exists at given path and has the right checksum.
+     *
+     * @param artifact an artifact object
+     * @param filePath path to the local artifact file
+     * @return true if the file exists and has the right checksum
+     * @throws PackageDownloadException if No local artifact found and recipe does not have required digest information
+     */
+    protected static boolean artifactExistsAndChecksum(ComponentArtifact artifact, Path filePath)
+            throws PackageDownloadException {
+        // Local recipes don't have digest or algorithm and that's expected, in such case, use the
+        // locally present artifact. On the other hand, recipes downloaded from cloud will always
+        // have digest and algorithm
+        if (Files.exists(filePath) && !recipeHasDigest(artifact)) {
+            return true;
+        } else if (!Files.exists(filePath)) {
+            if (recipeHasDigest(artifact)) {
+                return false;
+            } else {
+                throw new PackageDownloadException(
+                        "No local artifact found and recipe does not have required digest information");
+            }
+        }
+
+        // If the file already exists and has the right content, skip download
+        try {
+            MessageDigest messageDigest = MessageDigest.getInstance(artifact.getAlgorithm());
+            updateDigestFromFile(filePath, messageDigest);
+            String digest = Base64.getEncoder().encodeToString(messageDigest.digest());
+            return digest.equals(artifact.getChecksum());
+        } catch (IOException | NoSuchAlgorithmException e) {
+            return false;
+        }
+    }
+
+    private static void updateDigestFromFile(Path filePath, MessageDigest digest) throws IOException {
+        try (InputStream existingArtifact = Files.newInputStream(filePath)) {
+            byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
+            int readBytes = existingArtifact.read(buffer);
+            while (readBytes > -1) {
+                digest.update(buffer, 0, readBytes);
+                readBytes = existingArtifact.read(buffer);
+            }
+        }
+    }
+
+    private static boolean recipeHasDigest(ComponentArtifact artifact) {
+        return !Utils.isEmpty(artifact.getAlgorithm()) && !Utils.isEmpty(artifact.getChecksum());
     }
 
     /**
@@ -212,42 +260,6 @@ public abstract class ArtifactDownloader {
                 identifier.getName(), identifier.getVersion().toString()) + reason;
     }
 
-
-    /**
-     * Checks the given artifact file exists at given path and has the right checksum.
-     *
-     * @param artifact an artifact object
-     * @param filePath path to the local artifact file
-     * @return true if the file exists and has the right checksum
-     * @throws PackageDownloadException if No local artifact found and recipe does not have required digest information
-     */
-    protected static boolean artifactExistsAndChecksum(ComponentArtifact artifact, Path filePath)
-            throws PackageDownloadException {
-        // Local recipes don't have digest or algorithm and that's expected, in such case, use the
-        // locally present artifact. On the other hand, recipes downloaded from cloud will always
-        // have digest and algorithm
-        if (Files.exists(filePath) && !recipeHasDigest(artifact)) {
-            return true;
-        } else if (!Files.exists(filePath)) {
-            if (recipeHasDigest(artifact)) {
-                return false;
-            } else {
-                throw new PackageDownloadException(
-                        "No local artifact found and recipe does not have required digest information");
-            }
-        }
-
-        // If the file already exists and has the right content, skip download
-        try {
-            MessageDigest messageDigest = MessageDigest.getInstance(artifact.getAlgorithm());
-            updateDigestFromFile(filePath, messageDigest);
-            String digest = Base64.getEncoder().encodeToString(messageDigest.digest());
-            return digest.equals(artifact.getChecksum());
-        } catch (IOException | NoSuchAlgorithmException e) {
-            return false;
-        }
-    }
-
     protected <T> T runWithRetry(String taskDescription, int maxRetry,
                                  CrashableSupplier<T, Exception> taskToRetry)
             throws PackageDownloadException, InterruptedException {
@@ -298,22 +310,6 @@ public abstract class ArtifactDownloader {
         throw new PackageDownloadException(
                 String.format("Fail to execute %s after retrying %d times", taskDescription, maxRetry),
                 lastRetryableException);
-    }
-
-    private static void updateDigestFromFile(Path filePath, MessageDigest digest) throws IOException {
-        try (InputStream existingArtifact = Files.newInputStream(filePath)) {
-            byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
-            int readBytes = existingArtifact.read(buffer);
-            while (readBytes > -1) {
-                digest.update(buffer, 0, readBytes);
-                readBytes = existingArtifact.read(buffer);
-            }
-        }
-    }
-
-
-    private static boolean recipeHasDigest(ComponentArtifact artifact) {
-        return !Utils.isEmpty(artifact.getAlgorithm()) && !Utils.isEmpty(artifact.getChecksum());
     }
 }
 
