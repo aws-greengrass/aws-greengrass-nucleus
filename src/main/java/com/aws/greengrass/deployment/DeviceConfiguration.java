@@ -64,7 +64,6 @@ public class DeviceConfiguration {
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String PLATFORM_OVERRIDE_TOPIC = "platformOverride";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
-    public static final String DEVICE_PARAM_JVM_OPTIONS = "jvmOptions";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
     public static final String DEVICE_SPOOLER_NAMESPACE = "spooler";
     public static final String RUN_WITH_TOPIC = "runWithDefault";
@@ -362,7 +361,7 @@ public class DeviceConfiguration {
     }
 
     public Topic getEnvironmentStage() {
-        return getTopic(DEVICE_PARAM_ENV_STAGE).dflt(DEFAULT_ENV_STAGE);
+        return getTopic(DEVICE_PARAM_ENV_STAGE).withNewerValue(1, DEFAULT_ENV_STAGE);
     }
 
     public Topics getMQTTNamespace() {
@@ -407,10 +406,6 @@ public class DeviceConfiguration {
 
     public Topic getDeploymentPollingFrequencySeconds() {
         return getTopic(DEPLOYMENT_POLLING_FREQUENCY_SECONDS);
-    }
-
-    public Topic getJvmOptions() {
-        return getTopic(DEVICE_PARAM_JVM_OPTIONS);
     }
 
     /**
