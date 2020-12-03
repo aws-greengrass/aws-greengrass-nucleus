@@ -39,14 +39,13 @@ import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMP
 
 @NoArgsConstructor
 public class DependencyResolver {
+    static final String NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT = "The deployment attempts to update the "
+            + "nucleus from %s-%s to %s-%s but no component of type nucleus was included as target component, please "
+            + "add the desired nucleus version as top level component if you wish to update the nucleus";
     private static final Logger logger = LogManager.getLogger(DependencyResolver.class);
     private static final String VERSION_KEY = "version";
     private static final String COMPONENT_NAME_KEY = "componentName";
     private static final String COMPONENT_VERSION_REQUIREMENT_KEY = "componentToVersionRequirements";
-    static final String NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT = "The deployment attempts to update the "
-            + "nucleus from %s-%s to %s-%s but no component of type nucleus was included as target component, please "
-            + "add the desired nucleus version as top level component if you wish to update the nucleus";
-
     @Inject
     private ComponentManager componentManager;
 
