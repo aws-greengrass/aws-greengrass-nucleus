@@ -37,6 +37,7 @@ import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
  */
 public class DefaultDeploymentTask implements DeploymentTask {
+    private static final String DEPLOYMENT_TASK_EVENT_TYPE = "deployment-task-execution";
     private final DependencyResolver dependencyResolver;
     private final ComponentManager componentManager;
     private final KernelConfigResolver kernelConfigResolver;
@@ -45,8 +46,6 @@ public class DefaultDeploymentTask implements DeploymentTask {
     @Getter
     private final Deployment deployment;
     private final Topics deploymentServiceConfig;
-
-    private static final String DEPLOYMENT_TASK_EVENT_TYPE = "deployment-task-execution";
 
     /**
      * Constructor for DefaultDeploymentTask.

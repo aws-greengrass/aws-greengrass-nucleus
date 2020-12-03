@@ -81,7 +81,6 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         return artifactSize;
     }
 
-
     @Override
     protected long download(long rangeStart, long rangeEnd, MessageDigest messageDigest)
             throws PackageDownloadException, InterruptedException {

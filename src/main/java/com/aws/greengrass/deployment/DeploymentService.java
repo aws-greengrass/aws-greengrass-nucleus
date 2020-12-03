@@ -89,7 +89,11 @@ public class DeploymentService extends GreengrassService {
 
     private static final int DEPLOYMENT_MAX_ATTEMPTS = 3;
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
-
+    @Getter
+    private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
+    private final AtomicLong pollingFrequency = new AtomicLong();
+    @Inject
+    DeviceConfiguration deviceConfiguration;
     @Inject
     @Setter
     private ExecutorService executorService;
@@ -105,20 +109,9 @@ public class DeploymentService extends GreengrassService {
     private DeploymentDirectoryManager deploymentDirectoryManager;
     @Inject
     private DeploymentStatusKeeper deploymentStatusKeeper;
-
     @Inject
     private Kernel kernel;
-
-    @Inject
-    DeviceConfiguration deviceConfiguration;
-
     private DeploymentTaskMetadata currentDeploymentTaskMetadata = null;
-
-    @Getter
-    private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
-
-    private final AtomicLong pollingFrequency = new AtomicLong();
-
     @Inject
     private DeploymentQueue deploymentQueue;
 
@@ -686,7 +679,6 @@ public class DeploymentService extends GreengrassService {
         if (componentsToGroupsTopics != null) {
             componentsToGroupsTopics.replaceAndWait(componentsToGroupsMappingCache);
         }
-
     }
 
     /**

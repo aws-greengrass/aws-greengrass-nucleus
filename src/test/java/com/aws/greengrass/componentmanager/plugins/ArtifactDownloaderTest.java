@@ -57,38 +57,6 @@ public class ArtifactDownloaderTest {
 
     Path artifactDir;
 
-    static class MockDownloader extends ArtifactDownloader {
-        final String localFileName = LOCAL_FILE_NAME;
-        final String input;
-        InputStream overridingInputStream = null;
-
-        MockDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir, String inputContent) {
-            super(identifier, artifact, artifactDir);
-            this.input = inputContent;
-        }
-
-        @Override
-        protected String getArtifactFilename() throws PackageDownloadException {
-            return localFileName;
-        }
-
-        @Override
-        protected long download(long start, long end, MessageDigest digest)
-                throws PackageDownloadException {
-            if (overridingInputStream != null) {
-                return super.download(overridingInputStream, digest);
-            }
-            return super.download(new ByteArrayInputStream(
-                    Arrays.copyOfRange(input.getBytes(), (int) start, (int) end + 1)),
-                    digest);
-        }
-
-        @Override
-        public Long getDownloadSize() throws PackageDownloadException {
-            return (long) input.length();
-        }
-    }
-
     @BeforeEach
     public void setup() throws IOException {
         artifactDir = tempDir.resolve("artifacts");
@@ -281,5 +249,37 @@ public class ArtifactDownloaderTest {
         return ComponentArtifact.builder()
                 .algorithm(algorithm).checksum(checksum)
                 .artifactUri(new URI("s3://eg-artifacts/ComponentWithS3Artifacts-1.0.0/artifact.txt")).build();
+    }
+
+    static class MockDownloader extends ArtifactDownloader {
+        final String localFileName = LOCAL_FILE_NAME;
+        final String input;
+        InputStream overridingInputStream = null;
+
+        MockDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir, String inputContent) {
+            super(identifier, artifact, artifactDir);
+            this.input = inputContent;
+        }
+
+        @Override
+        protected String getArtifactFilename() throws PackageDownloadException {
+            return localFileName;
+        }
+
+        @Override
+        protected long download(long start, long end, MessageDigest digest)
+                throws PackageDownloadException {
+            if (overridingInputStream != null) {
+                return super.download(overridingInputStream, digest);
+            }
+            return super.download(new ByteArrayInputStream(
+                    Arrays.copyOfRange(input.getBytes(), (int) start, (int) end + 1)),
+                    digest);
+        }
+
+        @Override
+        public Long getDownloadSize() throws PackageDownloadException {
+            return (long) input.length();
+        }
     }
 }

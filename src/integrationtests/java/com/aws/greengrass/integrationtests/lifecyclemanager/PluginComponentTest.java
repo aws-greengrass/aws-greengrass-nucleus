@@ -91,9 +91,23 @@ import static software.amazon.awssdk.services.greengrassv2.model.DeploymentCompo
 class PluginComponentTest extends BaseITCase {
     private static final String componentName = "plugin";
     private static final String brokenComponentName = "brokenPlugin";
-    private Kernel kernel;
     private final ComponentIdentifier componentId = new ComponentIdentifier(componentName, new Semver("1.0.0"));
     private final ComponentIdentifier brokenComponentId = new ComponentIdentifier(brokenComponentName, new Semver("1.0.0"));
+    private Kernel kernel;
+
+    private static Future<DeploymentResult> submitSampleJobDocument(DeploymentDocument sampleJobDocument,
+                                                                    Kernel kernel) {
+        ComponentManager componentManager = kernel.getContext().get(ComponentManager.class);
+        DependencyResolver dependencyResolver = kernel.getContext().get(DependencyResolver.class);
+        KernelConfigResolver kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);
+        DeploymentConfigMerger deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
+        DefaultDeploymentTask deploymentTask =
+                new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
+                        deploymentConfigMerger, LogManager.getLogger("Deployer"),
+                        new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
+                        Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null));
+        return kernel.getContext().get(ExecutorService.class).submit(deploymentTask);
+    }
 
     @BeforeEach
     void beforeEach() {
@@ -346,19 +360,5 @@ class PluginComponentTest extends BaseITCase {
                                 .resolvedVersion(version)
                                 .build()))
                 .build();
-    }
-
-    private static Future<DeploymentResult> submitSampleJobDocument(DeploymentDocument sampleJobDocument,
-                                                                    Kernel kernel) {
-        ComponentManager componentManager = kernel.getContext().get(ComponentManager.class);
-        DependencyResolver dependencyResolver = kernel.getContext().get(DependencyResolver.class);
-        KernelConfigResolver kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);
-        DeploymentConfigMerger deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
-        DefaultDeploymentTask deploymentTask =
-                new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
-                        deploymentConfigMerger, LogManager.getLogger("Deployer"),
-                        new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null));
-        return kernel.getContext().get(ExecutorService.class).submit(deploymentTask);
     }
 }
