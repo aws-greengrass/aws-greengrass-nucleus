@@ -201,18 +201,8 @@ public class MqttClient implements Closeable {
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         this.builderProvider = builderProvider;
 
-        mqttTopics.lookup(MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY)
-                .dflt(DEFAULT_MAX_IN_FLIGHT_PUBLISHES)
-                .subscribe((what, node) -> {
-                    if (node == null) {
-                        maxInFlightPublishes = DEFAULT_MAX_IN_FLIGHT_PUBLISHES;
-                        logger.atWarn().kv("value", maxInFlightPublishes)
-                                .log("maxInFlightPublishes key is null, using default value");
-                    } else {
-                        maxInFlightPublishes = Coerce.toInt(node);
-                        logger.atInfo().kv("value", maxInFlightPublishes).log("updating maxInFlightPublishes");
-                    }
-                });
+        maxInFlightPublishes = Coerce.toInt(
+                mqttTopics.findOrDefault(DEFAULT_MAX_IN_FLIGHT_PUBLISHES, MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY));
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
@@ -240,6 +230,11 @@ public class MqttClient implements Closeable {
                         .childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH) || node
                         .childOf(DEVICE_PARAM_AWS_REGION))) {
                     return;
+                }
+
+                if (node.childOf(DEVICE_MQTT_NAMESPACE)) {
+                    maxInFlightPublishes = Coerce.toInt(mqttTopics.lookup(MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY));
+                    logger.atInfo().kv("value", maxInFlightPublishes).log("updating maxInFlightPublishes");
                 }
 
                 // Only reconnect when the region changed if the proxy exists
@@ -409,8 +404,8 @@ public class MqttClient implements Closeable {
 
         CompletableFuture<Integer> future = new CompletableFuture<>();
         if (willDropTheRequest) {
-            SpoolerStoreException e = new SpoolerStoreException("Will not store the publish request"
-                    + " with Qos 0 when MqttClient is offline");
+            SpoolerStoreException e = new SpoolerStoreException("Device is offline. Dropping QoS 0 message.");
+            logger.atDebug().kv("topic", request.getTopic()).log(e.getMessage());
             future.completeExceptionally(e);
             return future;
         }
@@ -419,7 +414,7 @@ public class MqttClient implements Closeable {
             spool.addMessage(request);
             spoolMessage();
         } catch (InterruptedException | SpoolerStoreException e) {
-            logger.atWarn().log("Fail to add publish request to spooler queue", e);
+            logger.atDebug().log("Fail to add publish request to spooler queue", e);
             future.completeExceptionally(e);
             return future;
         }

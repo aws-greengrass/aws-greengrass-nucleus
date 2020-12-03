@@ -49,6 +49,7 @@ public class MqttProxyIPCAgent {
     private static final Logger LOGGER = LogManager.getLogger(MqttProxyIPCAgent.class);
     private static final String COMPONENT_NAME = "componentName";
     private static final String TOPIC_KEY = "topic";
+    private static final String UNAUTHORIZED_ERROR = "Not Authorized";
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
@@ -91,8 +92,8 @@ public class MqttProxyIPCAgent {
                 try {
                     doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
                 } catch (AuthorizationException e) {
-                    LOGGER.atError().cause(e).log();
-                    throw new UnauthorizedError(String.format("Authorization failed with error %s", e));
+                    LOGGER.atInfo().kv("error", e.getMessage()).log(UNAUTHORIZED_ERROR);
+                    throw new UnauthorizedError(UNAUTHORIZED_ERROR);
                 }
 
                 PublishRequest publishRequest = PublishRequest.builder().payload(request.getPayload()).topic(topic)
@@ -103,9 +104,8 @@ public class MqttProxyIPCAgent {
                 try {
                     future.getNow(0);
                 } catch (CompletionException e) {
-                    LOGGER.atWarn().cause(e.getCause()).kv(TOPIC_KEY, topic).kv(COMPONENT_NAME, serviceName)
-                            .log("Unable to spool the publish request");
-                    throw new ServiceError(String.format("Publish to topic %s failed with error %s", topic, e));
+                    throw new ServiceError(String.format("Publish to topic %s failed: %s", topic,
+                            e.getCause().getMessage()));
                 }
 
                 return new PublishToIoTCoreResponse();
@@ -155,8 +155,8 @@ public class MqttProxyIPCAgent {
                 try {
                     doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
                 } catch (AuthorizationException e) {
-                    LOGGER.atError().cause(e).log();
-                    throw new UnauthorizedError(String.format("Authorization failed with error %s", e));
+                    LOGGER.atInfo().kv("error", e.getMessage()).log(UNAUTHORIZED_ERROR);
+                    throw new UnauthorizedError(UNAUTHORIZED_ERROR);
                 }
 
                 Consumer<MqttMessage> callback = this::forwardToSubscriber;
