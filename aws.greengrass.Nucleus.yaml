@@ -15,8 +15,8 @@ ComponentConfiguration:
     mqtt: {}
     networkProxy: {}
     runWithDefault: {}
-    deploymentPollingFrequencySeconds: 15
-    componentStoreMaxSizeBytes: 10000000000
+    deploymentPollingFrequency: 15L
+    componentStoreMaxSizeBytes: 10_000_000_000L
     platformOverride: {}
 Manifests:
   - Platform:
