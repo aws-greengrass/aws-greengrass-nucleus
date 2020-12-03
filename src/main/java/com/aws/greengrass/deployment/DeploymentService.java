@@ -436,7 +436,8 @@ public class DeploymentService extends GreengrassService {
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                                                                  JobStatus.IN_PROGRESS.toString(), new HashMap<>());
 
-        if (DeploymentType.LOCAL.equals(deployment.getDeploymentType())) {
+        if (DEFAULT.equals(deployment.getDeploymentStage())
+                && DeploymentType.LOCAL.equals(deployment.getDeploymentType())) {
             try {
                 copyRecipesAndArtifacts(deployment);
             } catch (InvalidRequestException | IOException e) {
