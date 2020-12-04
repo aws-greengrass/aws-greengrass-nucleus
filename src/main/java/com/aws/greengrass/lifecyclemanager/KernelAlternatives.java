@@ -130,6 +130,7 @@ public class KernelAlternatives {
      */
     public void setupInitLaunchDirIfAbsent() throws IOException {
         if (isLaunchDirSetup()) {
+            logger.atDebug().log("Launch directory has been set up");
             return;
         }
         Path unpackDir;
@@ -144,12 +145,17 @@ public class KernelAlternatives {
             }
             return;
         }
-        Files.deleteIfExists(initialLaunchDir);
+        cleanupLaunchDirectorySingleLevel(initialLaunchDir.toFile());
         Utils.createPaths(initialLaunchDir);
 
         setupLinkToDirectory(initialLaunchDir.resolve(KERNEL_DISTRIBUTION_DIR), unpackDir);
         Files.deleteIfExists(currentDir);
         setupLinkToDirectory(currentDir, initialLaunchDir);
+
+        if (!isLaunchDirSetup()) {
+            throw new IOException("Failed to setup initial launch directory. Expecting loader script at: "
+                    + getLoaderPath());
+        }
     }
 
     /**

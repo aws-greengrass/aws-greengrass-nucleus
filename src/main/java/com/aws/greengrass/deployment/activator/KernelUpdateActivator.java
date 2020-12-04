@@ -64,9 +64,8 @@ public class KernelUpdateActivator extends DeploymentActivator {
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         KernelLifecycle lifecycle = kernel.getContext().get(KernelLifecycle.class);
         // Preserve tlog state before launch directory is updated to reflect ongoing deployment.
-        lifecycle.getTlog().close();
         // Wait for all services to close.
-        lifecycle.stopAllServices(30);
+        lifecycle.softShutdown(30);
 
         updateConfiguration(deploymentDocument.getTimestamp(), newConfig);
 

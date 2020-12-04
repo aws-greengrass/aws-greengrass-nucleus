@@ -9,6 +9,7 @@ import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -21,25 +22,39 @@ public class SystemdUtils implements SystemServiceUtils {
     private static final String PID_FILE_PARAM = "REPLACE_WITH_GG_LOADER_PID_FILE";
     private static final String LOADER_FILE_PARAM = "REPLACE_WITH_GG_LOADER_FILE";
     private static final String SERVICE_CONFIG_FILE_PATH = "/etc/systemd/system/greengrass.service";
+    private static final String LOG_EVENT_NAME = "systemd-setup";
 
     @Override
     public boolean setupSystemService(KernelAlternatives kernelAlternatives) {
+        logger.atDebug(LOG_EVENT_NAME).log("Start systemd setup");
         try {
             kernelAlternatives.setupInitLaunchDirIfAbsent();
+
+            Path serviceTemplate = kernelAlternatives.getServiceTemplatePath();
+            if (!Files.exists(serviceTemplate)) {
+                throw new IOException("Missing service template file at: " + serviceTemplate);
+            }
+            Path loaderPath = kernelAlternatives.getLoaderPath();
+            if (!Files.exists(serviceTemplate)) {
+                throw new IOException("Missing loader file at: " + loaderPath);
+            }
+
             Path serviceConfig = kernelAlternatives.getServiceConfigPath();
-            interpolateServiceTemplate(kernelAlternatives.getServiceTemplatePath(), serviceConfig, kernelAlternatives);
+            interpolateServiceTemplate(serviceTemplate, serviceConfig, kernelAlternatives);
 
-            runCommand(String.format("sudo cp %s %s", serviceConfig, SERVICE_CONFIG_FILE_PATH));
-            runCommand("sudo systemctl daemon-reload");
-            runCommand("sudo systemctl unmask greengrass.service");
-            runCommand("sudo systemctl start greengrass.service");
-            runCommand("sudo systemctl enable greengrass.service");
+            runCommand(String.format("cp %s %s", serviceConfig, SERVICE_CONFIG_FILE_PATH));
+            runCommand("systemctl daemon-reload");
+            runCommand("systemctl unmask greengrass.service");
+            runCommand("systemctl stop greengrass.service");
+            runCommand("systemctl start greengrass.service");
+            runCommand("systemctl enable greengrass.service");
 
-            logger.atInfo().log("Successfully set up systemd service");
+            logger.atInfo(LOG_EVENT_NAME).log("Successfully set up systemd service");
             return true;
         } catch (IOException ioe) {
-            logger.atError().log("Failed to set up systemd service", ioe);
+            logger.atError(LOG_EVENT_NAME).log("Failed to set up systemd service", ioe);
         } catch (InterruptedException e) {
+            logger.atError(LOG_EVENT_NAME).log("Interrupted", e);
             Thread.currentThread().interrupt();
         }
         return false;
@@ -61,9 +76,12 @@ public class SystemdUtils implements SystemServiceUtils {
     }
 
     private void runCommand(String command) throws IOException, InterruptedException {
-        boolean success = new Exec().withShell(command)
-                .withOut(s -> logger.atWarn().kv("command", command).kv("stdout", s.toString().trim()).log())
-                .withErr(s -> logger.atError().kv("command", command).kv("stderr", s.toString().trim()).log())
+        logger.atDebug(LOG_EVENT_NAME).log(command);
+        boolean success = new Exec().withShell(command).withUser(Platform.getInstance().getPrivilegedUser())
+                .withOut(s ->
+                        logger.atWarn(LOG_EVENT_NAME).kv("command", command).kv("stdout", s.toString().trim()).log())
+                .withErr(s ->
+                        logger.atError(LOG_EVENT_NAME).kv("command", command).kv("stderr", s.toString().trim()).log())
                 .successful(true);
         if (!success) {
             throw new IOException(String.format("Command %s failed", command));
