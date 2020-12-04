@@ -14,9 +14,9 @@
     </licenses>
     <repositories>
         <repository>
-            <id>greengrass-ipc-java-sdk</id>
-            <name>greengrass Ipc Java Sdk</name>
-            <!-- cloud front url fronting the greengrass Ipc Java Sdk artifact in S3-->
+            <id>greengrass-common</id>
+            <name>greengrass common</name>
+            <!-- CloudFront url fronting the device sdk,logging library and component common in S3-->
             <url>https://d10d248laylpoq.cloudfront.net/</url>
         </repository>
     </repositories>
