@@ -32,6 +32,7 @@ public class SystemServiceUtilsFactory {
         try {
             String bootPath = Files.readSymbolicLink(Paths.get("/sbin/init")).toString();
             if (bootPath.contains("systemd")) {
+                logger.atDebug().log("Detected systemd on the device");
                 return context.get(SystemdUtils.class);
             }
         } catch (IOException e) {
