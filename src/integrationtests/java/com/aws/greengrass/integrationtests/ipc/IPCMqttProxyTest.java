@@ -15,7 +15,7 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.mqttclient.SubscribeRequest;
 import com.aws.greengrass.mqttclient.UnsubscribeRequest;
-import com.aws.greengrass.mqttclient.spool.SpoolerLoadException;
+import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
@@ -196,14 +196,13 @@ public class IPCMqttProxyTest {
     void GIVEN_MqttProxyEventStreamClient_WHEN_publish_throws_error_THEN_client_gets_error(ExtensionContext context)
             throws InterruptedException {
         ignoreExceptionOfType(context, ExecutionException.class);
-        ignoreExceptionOfType(context, SpoolerLoadException.class);
+        ignoreExceptionOfType(context, SpoolerStoreException.class);
         ignoreExceptionOfType(context, ServiceError.class);
 
         CompletableFuture<Integer> completableFuture = new CompletableFuture<>();
         String spoolerExceptionMessage = "Spooler queue is full and new message would not be added into spooler";
-        completableFuture.completeExceptionally(new SpoolerLoadException(spoolerExceptionMessage));
+        completableFuture.completeExceptionally(new SpoolerStoreException(spoolerExceptionMessage));
         when(mqttClient.publish(any())).thenReturn(completableFuture);
-        String expectedSpoolerException = SpoolerLoadException.class.getCanonicalName() + ": " + spoolerExceptionMessage;
 
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
@@ -217,6 +216,6 @@ public class IPCMqttProxyTest {
         } catch (ExecutionException e) {
             clientException = e.getCause().getMessage();
         }
-        assertThat(clientException, containsString(expectedSpoolerException));
+        assertThat(clientException, containsString(spoolerExceptionMessage));
     }
 }

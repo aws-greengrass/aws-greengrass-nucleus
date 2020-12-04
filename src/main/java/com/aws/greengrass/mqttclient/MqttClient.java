@@ -11,7 +11,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.spool.Spool;
-import com.aws.greengrass.mqttclient.spool.SpoolerLoadException;
+import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.ProxyUtils;
@@ -29,6 +29,7 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -75,6 +76,8 @@ public class MqttClient implements Closeable {
     private static final int DEFAULT_MQTT_SOCKET_TIMEOUT = (int) Duration.ofSeconds(3).toMillis();
     static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
     static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
+    static final String MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY = "maxInFlightPublishes";
+    static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 5;
     public static final int MAX_SUBSCRIPTIONS_PER_CONNECTION = 50;
     public static final String CLIENT_ID_KEY = "clientId";
     public static final int EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS = 2;
@@ -100,6 +103,7 @@ public class MqttClient implements Closeable {
     private final Spool spool;
     private final ScheduledExecutorService ses;
     private final AtomicReference<Future<?>> spoolingFuture = new AtomicReference<>();
+    private int maxInFlightPublishes;
 
     private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
@@ -197,6 +201,8 @@ public class MqttClient implements Closeable {
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         this.builderProvider = builderProvider;
 
+        maxInFlightPublishes = Coerce.toInt(
+                mqttTopics.findOrDefault(DEFAULT_MAX_IN_FLIGHT_PUBLISHES, MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY));
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
@@ -224,6 +230,11 @@ public class MqttClient implements Closeable {
                         .childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH) || node
                         .childOf(DEVICE_PARAM_AWS_REGION))) {
                     return;
+                }
+
+                if (node.childOf(DEVICE_MQTT_NAMESPACE)) {
+                    maxInFlightPublishes = Coerce.toInt(mqttTopics.lookup(MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY));
+                    logger.atInfo().kv("value", maxInFlightPublishes).log("updating maxInFlightPublishes");
                 }
 
                 // Only reconnect when the region changed if the proxy exists
@@ -393,8 +404,8 @@ public class MqttClient implements Closeable {
 
         CompletableFuture<Integer> future = new CompletableFuture<>();
         if (willDropTheRequest) {
-            SpoolerLoadException e = new SpoolerLoadException("Will not store the publish request"
-                    + " with Qos 0 when MqttClient is offline");
+            SpoolerStoreException e = new SpoolerStoreException("Device is offline. Dropping QoS 0 message.");
+            logger.atDebug().kv("topic", request.getTopic()).log(e.getMessage());
             future.completeExceptionally(e);
             return future;
         }
@@ -402,8 +413,8 @@ public class MqttClient implements Closeable {
         try {
             spool.addMessage(request);
             spoolMessage();
-        } catch (InterruptedException | SpoolerLoadException e) {
-            logger.atError().log("Fail to add publish request to spooler queue", e);
+        } catch (InterruptedException | SpoolerStoreException e) {
+            logger.atDebug().log("Fail to add publish request to spooler queue", e);
             future.completeExceptionally(e);
             return future;
         }
@@ -421,28 +432,34 @@ public class MqttClient implements Closeable {
      */
     protected void spoolTask() {
         try {
-            // TODO: Revisit this loop later. It is currently expensive.
             getConnection(false).connect().get();
+            List<CompletableFuture<?>> publishRequests = new ArrayList<>();
             while (!Thread.currentThread().isInterrupted() && mqttOnline.get() && spool.getCurrentMessageCount() > 0) {
-                long id = spool.popId();
+                final long id = spool.popId();
                 PublishRequest request = spool.getMessageById(id);
                 if (request == null) {
                     continue;
                 }
 
-                long finalId = id;
-
-                // TODO: Revisit later: currently only 1 message got sent each time.
-                // Should make the sending in more efficient way.
-                getConnection(false).publish(new MqttMessage(request.getTopic(),request.getPayload()),
-                        request.getQos(), request.isRetain()).whenComplete((packetId, throwable) -> {
+                MqttMessage m = new MqttMessage(request.getTopic(), request.getPayload());
+                publishRequests.add(getConnection(false).publish(m, request.getQos(), request.isRetain())
+                                .whenComplete((packetId, throwable) -> {
+                    // packetId is the SDK assigned ID. Ignore this and instead use the spooler ID
                     if (throwable == null) {
-                        spool.removeMessageById(finalId);
+                        spool.removeMessageById(id);
+                        logger.atDebug().kv("id", id).kv("topic", request.getTopic())
+                            .log("Successfully published message");
                     } else {
-                        spool.addId(finalId);
+                        spool.addId(id);
                         logger.atError().log("Failed to publish the message via Spooler", throwable);
                     }
-                }).get();
+                }));
+
+                if (publishRequests.size() >= maxInFlightPublishes) {
+                    CompletableFuture.anyOf(
+                            publishRequests.toArray(new CompletableFuture[0])).get();
+                    publishRequests = publishRequests.stream().filter(f -> !f.isDone()).collect(Collectors.toList());
+                }
             }
         } catch (InterruptedException e) {
             logger.atDebug().log("Shutting down spooler task");

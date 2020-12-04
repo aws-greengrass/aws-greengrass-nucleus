@@ -196,7 +196,7 @@ public class BaseE2ETestCase implements AutoCloseable {
                 String componentArn = componentArns.get(component);
                 if (Utils.isEmpty(componentArn)) {
                     logger.atWarn().kv("component-name", component.getName())
-                            .kv("compoenent-version", component.getVersion())
+                            .kv("component-version", component.getVersion())
                             .log("No component arn found to make delete request for cleanup");
                 } else {
                     DeleteComponentResponse result =
