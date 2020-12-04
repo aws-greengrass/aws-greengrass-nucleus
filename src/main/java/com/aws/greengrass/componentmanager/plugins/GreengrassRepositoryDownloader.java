@@ -88,11 +88,12 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             if (responseCode == HttpURLConnection.HTTP_OK) {
                 long length = httpConn.getContentLengthLong();
                 if (length == -1) {
-                    throw new PackageDownloadException("Failed to get download size");
+                    throw new PackageDownloadException(getErrorString("Failed to get download size"));
                 }
                 return length;
             } else {
-                throw new PackageDownloadException("Failed to get download size. HTTP response: " + responseCode);
+                throw new PackageDownloadException(
+                        getErrorString("Failed to get download size. HTTP response: " + responseCode));
             }
         } finally {
             if (httpConn != null) {
@@ -121,18 +122,18 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     if (responseCode == HttpURLConnection.HTTP_PARTIAL) {
                         long downloaded = download(httpConn.getInputStream(), messageDigest);
                         if (downloaded == 0) {
-                            // If 0 byte is read, it's fairly certain that the inputStream is closed.
+                            // If 0 byte is read, it's fairly certain that the input stream is closed.
                             // Therefore throw IOException to trigger the retry logic.
-                            throw new IOException("Failed to read any byte from the inputStream");
+                            throw new IOException(getErrorString("Failed to read any byte from the stream"));
                         } else {
                             return downloaded;
                         }
                     } else if (responseCode == HttpURLConnection.HTTP_OK) {
                         if (httpConn.getContentLengthLong() < rangeEnd) {
                             String errMsg = String.format(
-                                    "Artifact size mismatch. " + "Expected artifact size %d. HTTP contentLength %d",
+                                    "Artifact size mismatch. Expected artifact size %d. HTTP contentLength %d",
                                     rangeEnd, httpConn.getContentLengthLong());
-                            throw new PackageDownloadException(errMsg);
+                            throw new PackageDownloadException(getErrorString(errMsg));
                         }
                         // 200 means server doesn't recognize the Range header and returns all contents.
                         // try to discard the offset number of bytes.
@@ -152,7 +153,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                         }
                     } else {
                         throw new PackageDownloadException(getErrorString(
-                                "Unable to download Greengrass artifact. " + "HTTP Error: " + responseCode));
+                                "Unable to download Greengrass artifact. HTTP Error: " + responseCode));
                     }
                 } finally {
                     if (httpConn != null) {

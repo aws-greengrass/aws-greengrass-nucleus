@@ -37,7 +37,6 @@ public class RetryUtils {
         long retryInterval = retryConfig.getInitialRetryInterval().toMillis();
         int attempt = 1;
         Exception lastException = null;
-        boolean retryable = false;
         while (attempt <= retryConfig.maxAttempt) {
             if (Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException(taskDescription + " task is interrupted");
@@ -48,14 +47,7 @@ public class RetryUtils {
                 if (e instanceof InterruptedException) {
                     throw e;
                 }
-
-                for (Class retryableException : retryConfig.retryableExceptions) {
-                    if (retryableException.isInstance(e)) {
-                        retryable = true;
-                    }
-                }
-                if (retryable) {
-                    retryable = false;
+                if (retryConfig.retryableExceptions.stream().anyMatch(c -> c.isInstance(e))) {
                     logger.atDebug(taskDescription).kv("task-attempt", attempt).setCause(e)
                             .log("task failed and will be retried");
                     lastException = e;
