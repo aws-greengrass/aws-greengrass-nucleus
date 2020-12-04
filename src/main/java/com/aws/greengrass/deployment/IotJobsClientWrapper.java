@@ -48,11 +48,11 @@ public class IotJobsClientWrapper extends IotJobsClient {
             "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/update/rejected";
     private static final String DESCRIBE_JOB_TOPIC =
             "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/get";
-    private static final String JOB_DESCRIBE_ACCEPTED_TOPIC =
+    static final String JOB_DESCRIBE_ACCEPTED_TOPIC =
             "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/get/accepted";
-    private static final String JOB_DESCRIBE_REJECTED_TOPIC =
+    static final String JOB_DESCRIBE_REJECTED_TOPIC =
             "$aws/things/%s/jobs/%s/namespace-aws-gg-deployment/get/rejected";
-    private static final String JOB_EXECUTIONS_CHANGED_TOPIC =
+    static final String JOB_EXECUTIONS_CHANGED_TOPIC =
             "$aws/things/%s/jobs/notify-namespace-aws-gg-deployment";
 
     private final MqttClientConnection connection;

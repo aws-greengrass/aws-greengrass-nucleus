@@ -258,7 +258,6 @@ class KernelTest {
             kernel.parseArgs().launch();
         } catch (RuntimeException ignored) {
         }
-
         Configuration config = kernel.getConfig();
         config.lookup(GreengrassService.SERVICES_NAMESPACE_TOPIC, "1", "class")
                 .withValue(TestClass.class.getName());

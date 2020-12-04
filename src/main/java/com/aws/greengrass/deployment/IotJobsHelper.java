@@ -66,6 +66,9 @@ import javax.inject.Inject;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
+import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_DESCRIBE_ACCEPTED_TOPIC;
+import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_DESCRIBE_REJECTED_TOPIC;
+import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_EXECUTIONS_CHANGED_TOPIC;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_ACCEPTED_TOPIC;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_REJECTED_TOPIC;
 
@@ -91,6 +94,7 @@ public class IotJobsHelper implements InjectionActions {
     //This value needs to be revisited and set to more realistic numbers
     private static final long TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS = Duration.ofMinutes(1).getSeconds();
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
+    private static final String NEXT_JOB_LITERAL = "$next";
     // Sometimes when we are notified that a new job is queued and request the next pending job document immediately,
     // we get an empty response. This unprocessedJobs is to track the number of new queued jobs that we are notified
     // with, and keep retrying the request until we get a non-empty response.
@@ -180,7 +184,9 @@ public class IotJobsHelper implements InjectionActions {
             }
             return;
         }
-        unprocessedJobs.decrementAndGet();
+        if (unprocessedJobs.get() > 0) {
+            unprocessedJobs.decrementAndGet();
+        }
         JobExecutionData jobExecutionData = response.execution;
 
         logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobExecutionData.jobId).kv(STATUS_LOG_KEY_NAME, jobExecutionData.status)
@@ -393,7 +399,7 @@ public class IotJobsHelper implements InjectionActions {
     public void requestNextPendingJobDocument() {
         DescribeJobExecutionRequest describeJobExecutionRequest = new DescribeJobExecutionRequest();
         describeJobExecutionRequest.thingName = Coerce.toString(deviceConfiguration.getThingName());
-        describeJobExecutionRequest.jobId = "$next";
+        describeJobExecutionRequest.jobId = NEXT_JOB_LITERAL;
         describeJobExecutionRequest.includeJobDocument = true;
         //This method is specifically called from an async event notification handler. Async handler cannot block on
         // this future as that will freeze the MQTT connection.
@@ -409,11 +415,23 @@ public class IotJobsHelper implements InjectionActions {
      * @throws ConnectionUnavailableException When connection to cloud is not available
      */
     public void subscribeToJobsTopics() {
-        subscribeToEventNotifications(eventHandler);
+
         subscribeToGetNextJobDescription(describeJobExecutionResponseConsumer, rejectedError -> {
             logger.error("Job subscription got rejected", rejectedError);
         });
+        subscribeToEventNotifications(eventHandler);
+        // To receive the description of jobs which were created before the subscription was created (before the device
+        // came online)
         requestNextPendingJobDocument();
+    }
+
+    /**
+     * Unsubscribe from Iot Jobs topics.
+     */
+    public void unsubscribeFromIotJobsTopics() {
+        logger.atDebug().log("Unsubscribing from Iot Jobs topics");
+        unsubscribeFromEventNotifications();
+        unsubscribeFromJobDescription();
     }
 
     /**
@@ -434,7 +452,7 @@ public class IotJobsHelper implements InjectionActions {
         DescribeJobExecutionSubscriptionRequest describeJobExecutionSubscriptionRequest =
                 new DescribeJobExecutionSubscriptionRequest();
         describeJobExecutionSubscriptionRequest.thingName = Coerce.toString(deviceConfiguration.getThingName());
-        describeJobExecutionSubscriptionRequest.jobId = "$next";
+        describeJobExecutionSubscriptionRequest.jobId = NEXT_JOB_LITERAL;
 
         while (true) {
             CompletableFuture<Integer> subscribed = iotJobsClientWrapper
@@ -472,6 +490,18 @@ public class IotJobsHelper implements InjectionActions {
                 logger.atWarn().log(SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED);
                 break;
             }
+        }
+    }
+
+    private void unsubscribeFromJobDescription() {
+        if (connection != null) {
+            String topic = String.format(JOB_DESCRIBE_ACCEPTED_TOPIC,
+                    Coerce.toString(deviceConfiguration.getThingName()), NEXT_JOB_LITERAL);
+            connection.unsubscribe(topic);
+
+            topic = String.format(JOB_DESCRIBE_REJECTED_TOPIC,
+                    Coerce.toString(deviceConfiguration.getThingName()), NEXT_JOB_LITERAL);
+            connection.unsubscribe(topic);
         }
     }
 
@@ -520,6 +550,14 @@ public class IotJobsHelper implements InjectionActions {
                 logger.atWarn().log(SUBSCRIPTION_EVENT_NOTIFICATIONS_INTERRUPTED);
                 break;
             }
+        }
+    }
+
+    private void unsubscribeFromEventNotifications() {
+        if (connection != null) {
+            String topic = String.format(JOB_EXECUTIONS_CHANGED_TOPIC,
+                    Coerce.toString(deviceConfiguration.getThingName()));
+            connection.unsubscribe(topic);
         }
     }
 
