@@ -14,6 +14,7 @@ import java.util.List;
 
 public class RetryUtils {
 
+    // Need this to make spotbug check happy
     private RetryUtils() {
     }
 
