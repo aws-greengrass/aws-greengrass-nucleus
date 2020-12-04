@@ -448,8 +448,12 @@ public class DeviceProvisioningHelper {
      */
     public void createInitialDeploymentIfNeeded(ThingInfo thingInfo, String thingGroupName) {
         if (Utils.isNotEmpty(thingGroupName) && thingGroupExists) {
+            // Skip creating a dev tools deployment to existing thing group since it can remove existing components if
+            // and can add to cost because it will be applied to all existing devices in the group
             outStream.println(
-                    "Thing group exists, no need to create a deployment for Greengrass first party components");
+                    "Thing group exists, it could have existing deployment and devices, hence NOT creating deployment "
+                            + "for Greengrass first party dev tools, please manually create a deployment if you wish "
+                            + "to");
             return;
         }
 
