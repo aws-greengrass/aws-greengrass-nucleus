@@ -16,7 +16,7 @@
         <repository>
             <id>greengrass-common</id>
             <name>greengrass common</name>
-            <!-- cloud front url fronting the device sdk,logging library and component common in S3-->
+            <!-- CloudFront url fronting the device sdk,logging library and component common in S3-->
             <url>https://d10d248laylpoq.cloudfront.net/</url>
         </repository>
     </repositories>
