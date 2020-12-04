@@ -10,6 +10,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
+import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.tes.TokenExchangeService;
@@ -291,7 +292,7 @@ public class GreengrassSetup {
         }
 
         if (setupSystemService) {
-            kernel.shutdown();
+            kernel.getContext().get(KernelLifecycle.class).softShutdown(30);
             boolean ok = kernel.getContext().get(SystemServiceUtilsFactory.class).getInstance().setupSystemService(
                     kernel.getContext().get(KernelAlternatives.class));
             if (ok) {
@@ -300,6 +301,7 @@ public class GreengrassSetup {
             } else {
                 outStream.println("Unable to set up Kernel as a system service");
             }
+            kernel.shutdown();
             return;
         }
         if (!kernelStart) {

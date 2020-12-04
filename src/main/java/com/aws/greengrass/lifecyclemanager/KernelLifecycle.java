@@ -253,6 +253,16 @@ public class KernelLifecycle {
         }
     }
 
+    /**
+     * Shutdown transaction log and all services with given timeout.
+     * @param timeoutSeconds Timeout in seconds
+     */
+    public void softShutdown(int timeoutSeconds) {
+        logger.atDebug("system-shutdown").log("Start soft shutdown");
+        close(tlog);
+        stopAllServices(timeoutSeconds);
+    }
+
     public void shutdown() {
         shutdown(EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS);
     }
@@ -282,10 +292,9 @@ public class KernelLifecycle {
             logger.info("Shutdown already initiated, returning...");
             return;
         }
-        close(tlog);
         try {
             logger.atInfo().setEventType("system-shutdown").addKeyValue("main", getMain()).log();
-            stopAllServices(timeoutSeconds);
+            softShutdown(timeoutSeconds);
 
             // Do not wait for tasks in the executor to end.
             ScheduledExecutorService scheduledExecutorService = kernel.getContext().get(ScheduledExecutorService.class);
