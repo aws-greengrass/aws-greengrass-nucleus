@@ -81,6 +81,10 @@ public class ComponentManager implements InjectionActions {
     private final Kernel kernel;
     private final Unarchiver unarchiver;
     private final NucleusPaths nucleusPaths;
+    private final RetryUtils.RetryConfig clientExceptionRetryConfig =
+            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
+                    .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(Integer.MAX_VALUE)
+                    .retryableExceptions(Arrays.asList(SdkClientException.class)).build();
 
     @Inject
     @Setter
@@ -174,11 +178,6 @@ public class ComponentManager implements InjectionActions {
 
         if (localCandidate == null) {
             try {
-                RetryUtils.RetryConfig clientExceptionRetryConfig =
-                        RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
-                                .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(Integer.MAX_VALUE)
-                                .retryableExceptions(Arrays.asList(SdkClientException.class)).build();
-
                 resolvedComponentVersion = RetryUtils.runWithRetry(clientExceptionRetryConfig,
                         () -> componentServiceHelper.resolveComponentVersion(componentName, null, versionRequirements),
                         "resolve-component-version", logger);

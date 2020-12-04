@@ -19,7 +19,8 @@ public class RetryUtils {
     }
 
     /**
-     * Run a task with retry.
+     * Run a task with retry. Only exceptions in the retryable exception list are retried. Stop the retry when
+     * interrupted.
      *
      * @param retryConfig     retry configuration
      * @param task            task to run
@@ -38,6 +39,9 @@ public class RetryUtils {
         Exception lastException = null;
         boolean retryable = false;
         while (attempt <= retryConfig.maxAttempt) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw new InterruptedException(taskDescription + " task is interrupted");
+            }
             try {
                 return task.apply();
             } catch (Exception e) {
