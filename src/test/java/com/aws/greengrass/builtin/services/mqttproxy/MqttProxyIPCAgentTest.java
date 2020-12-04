@@ -11,6 +11,7 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.mqttclient.SubscribeRequest;
 import com.aws.greengrass.mqttclient.UnsubscribeRequest;
+import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ import software.amazon.awssdk.aws.greengrass.model.MQTTMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreResponse;
 import software.amazon.awssdk.aws.greengrass.model.QOS;
+import software.amazon.awssdk.aws.greengrass.model.ServiceError;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreResponse;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
@@ -123,6 +125,27 @@ class MqttProxyIPCAgentTest {
             assertThat(capturedPublishRequest.getPayload(), is(TEST_PAYLOAD));
             assertThat(capturedPublishRequest.getTopic(), is(TEST_TOPIC));
             assertThat(capturedPublishRequest.getQos(), is(QualityOfService.AT_LEAST_ONCE));
+        }
+    }
+
+    @Test
+    void GIVEN_full_mqtt_spool_WHEN_publish_on_topic_THEN_service_error_thrown() throws Exception {
+        PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
+        publishToIoTCoreRequest.setPayload(TEST_PAYLOAD);
+        publishToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        publishToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
+
+        CompletableFuture<Integer> f = new CompletableFuture<>();
+        f.completeExceptionally(new SpoolerStoreException("Spool full"));
+        when(mqttClient.publish(any())).thenReturn(f);
+        when(authorizationHandler.getAuthorizedResources(any(), any(), any()))
+                .thenReturn(Collections.singletonList(TEST_TOPIC));
+
+        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
+            assertThrows(ServiceError.class, () -> {
+                publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
+            });
         }
     }
 

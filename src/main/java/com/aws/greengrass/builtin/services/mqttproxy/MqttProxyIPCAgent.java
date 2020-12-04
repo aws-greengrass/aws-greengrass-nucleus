@@ -35,8 +35,8 @@ import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import javax.inject.Inject;
@@ -49,6 +49,7 @@ public class MqttProxyIPCAgent {
     private static final Logger LOGGER = LogManager.getLogger(MqttProxyIPCAgent.class);
     private static final String COMPONENT_NAME = "componentName";
     private static final String TOPIC_KEY = "topic";
+    private static final String UNAUTHORIZED_ERROR = "Not Authorized";
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
@@ -91,23 +92,20 @@ public class MqttProxyIPCAgent {
                 try {
                     doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
                 } catch (AuthorizationException e) {
-                    LOGGER.atError().cause(e).log();
-                    throw new UnauthorizedError(String.format("Authorization failed with error %s", e));
+                    LOGGER.atInfo().kv("error", e.getMessage()).log(UNAUTHORIZED_ERROR);
+                    throw new UnauthorizedError(UNAUTHORIZED_ERROR);
                 }
 
                 PublishRequest publishRequest = PublishRequest.builder().payload(request.getPayload()).topic(topic)
                         .qos(getQualityOfServiceFromQOS(request.getQos())).build();
                 CompletableFuture<Integer> future = mqttClient.publish(publishRequest);
 
+                // If the future is completed exceptionally then the MqttClient was unable to spool the request
                 try {
-                    future.get(2, TimeUnit.SECONDS);
-                } catch (TimeoutException | InterruptedException ignored) {
-                    // If it times out or we're interrupted, then just return the positive response
-                    // it is most likely in the spooler since it didn't fail immediately.
-                } catch (ExecutionException e) {
-                    LOGGER.atError().cause(e).kv(TOPIC_KEY, topic).kv(COMPONENT_NAME, serviceName)
-                            .log("Unable to spool the publish request");
-                    throw new ServiceError(String.format("Publish to topic %s failed with error %s", topic, e));
+                    future.getNow(0);
+                } catch (CompletionException e) {
+                    throw new ServiceError(String.format("Publish to topic %s failed: %s", topic,
+                            e.getCause().getMessage()));
                 }
 
                 return new PublishToIoTCoreResponse();
@@ -157,8 +155,8 @@ public class MqttProxyIPCAgent {
                 try {
                     doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
                 } catch (AuthorizationException e) {
-                    LOGGER.atError().cause(e).log();
-                    throw new UnauthorizedError(String.format("Authorization failed with error %s", e));
+                    LOGGER.atInfo().kv("error", e.getMessage()).log(UNAUTHORIZED_ERROR);
+                    throw new UnauthorizedError(UNAUTHORIZED_ERROR);
                 }
 
                 Consumer<MqttMessage> callback = this::forwardToSubscriber;

@@ -140,7 +140,7 @@ public class IotConnectionManager implements Closeable {
         } catch (ExecutionException e) {
             LOGGER.atError().log("Error shutting down event loop", e);
         } catch (TimeoutException e) {
-            LOGGER.atError().log("Timed out shutting down event loop", e);
+            LOGGER.atError().log("Timed out shutting down event loop");
         }
     }
 }
