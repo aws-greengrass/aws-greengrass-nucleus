@@ -127,39 +127,32 @@ import static org.junit.jupiter.api.Assertions.fail;
         // This test is essential and verified many details. Could be breakdown.
 class DeploymentTaskIntegrationTest {
 
+    public static final String SIMPLE_APP_NAME = "SimpleApp";
     private static final String TEST_CUSTOMER_APP_STRING = "Hello Greengrass. This is a test";
     private static final String MOCK_GROUP_NAME = "thinggroup/group1";
-
     // Based on the recipe files of the packages in sample job document
     private static final String TEST_MOSQUITTO_STRING = "Hello this is mosquitto getting started";
     private static final String TEST_TICK_TOCK_STRING = "Go ahead with 2 approvals";
-
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
-    public static final String SIMPLE_APP_NAME = "SimpleApp";
-
+    @TempDir
+    static Path rootDir;
     private static Logger logger;
-
     private static DependencyResolver dependencyResolver;
     private static ComponentManager componentManager;
     private static ComponentStore componentStore;
     private static KernelConfigResolver kernelConfigResolver;
     private static DeploymentConfigMerger deploymentConfigMerger;
-
-    private DeploymentDocument sampleJobDocument;
     private static Kernel kernel;
 
     private static Map<String, Long> outputMessagesToTimestamp;
-    private CountDownLatch countDownLatch;
+    private static SocketOptions socketOptions;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private final AtomicInteger deploymentCount = new AtomicInteger();
+    private DeploymentDocument sampleJobDocument;
+    private CountDownLatch countDownLatch;
     private Topics groupToRootComponentsTopics;
     private Topics deploymentServiceTopics;
-
-    private final AtomicInteger deploymentCount = new AtomicInteger();
-
-    @TempDir
-    static Path rootDir;
-    private static SocketOptions socketOptions;
 
     @BeforeAll
     static void initialize() {
@@ -186,6 +179,63 @@ class DeploymentTaskIntegrationTest {
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
     }
 
+    @AfterAll
+    static void tearDown() {
+        if (socketOptions != null) {
+            socketOptions.close();
+        }
+        kernel.shutdown();
+    }
+
+    private static void assertRecipeArtifactExists(ComponentIdentifier compId) throws PackageLoadingException {
+        assertThat(componentStore.resolveRecipePath(compId).toFile(), anExistingFile());
+        Path artifactDirPath = kernel.getNucleusPaths().artifactPath().resolve(compId.getName())
+                .resolve(compId.getVersion().getValue());
+        assertThat(artifactDirPath.toFile(), anExistingDirectory());
+    }
+
+    private static void assertRecipeArtifactNotExists(ComponentIdentifier compId) throws PackageLoadingException {
+        assertThat(componentStore.resolveRecipePath(compId).toFile(), not(anExistingFile()));
+        Path artifactDirPath = kernel.getNucleusPaths().artifactPath().resolve(compId.getName())
+                .resolve(compId.getVersion().getValue());
+        assertThat(artifactDirPath.toFile(), not(anExistingDirectory()));
+    }
+
+    /* sync packages directory with local_store_content */
+    private static void preloadLocalStoreContent() throws URISyntaxException, IOException {
+        Path localStoreContentPath =
+                Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
+        PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"),
+                kernel.getNucleusPaths().recipePath());
+        copyFolderRecursively(localStoreContentPath.resolve("artifacts"), kernel.getNucleusPaths().artifactPath(),
+                REPLACE_EXISTING);
+    }
+
+    /* just copy recipe and artifacts of a single component-version */
+    private static void preloadLocalStoreContent(String compName, String version)
+            throws URISyntaxException, IOException {
+        String recipeFileName = String.format("%s-%s.yaml", compName,
+                version); // naming convention under 'local_store_content/recipes/'
+
+        Path localStoreContentPath =
+                Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
+
+        // copy over recipe
+        Path recipeFromTestResource = localStoreContentPath.resolve("recipes").resolve(recipeFileName);
+        Path destRecipe = kernel.getNucleusPaths().recipePath()
+                .resolve(PreloadComponentStoreHelper.getRecipeStorageFilenameFromTestSource(recipeFileName));
+        Files.copy(recipeFromTestResource, destRecipe, REPLACE_EXISTING);
+
+        // copy over artifacts
+        copyFolderRecursively(resolveArtifactPathFromCompStoreRoot(localStoreContentPath, compName, version),
+                resolveArtifactPathFromCompStoreRoot(kernel.getNucleusPaths().componentStorePath(), compName, version),
+                REPLACE_EXISTING);
+    }
+
+    private static Path resolveArtifactPathFromCompStoreRoot(Path compStoreRootPath, String name, String version) {
+        return compStoreRootPath.resolve("artifacts").resolve(name).resolve(version);
+    }
+
     @BeforeEach
     void beforeEach(ExtensionContext context) throws Exception {
         // This test suite will not be able to call cloud as it uses all local resources
@@ -206,14 +256,6 @@ class DeploymentTaskIntegrationTest {
     @AfterEach
     void afterEach() {
         executorService.shutdownNow();
-    }
-
-    @AfterAll
-    static void tearDown() {
-        if (socketOptions != null) {
-            socketOptions.close();
-        }
-        kernel.shutdown();
     }
 
     /**
@@ -684,7 +726,6 @@ class DeploymentTaskIntegrationTest {
         }
     }
 
-
     @Test
     @Order(2)
     void GIVEN_a_deployment_has_component_use_system_config_WHEN_submitted_THEN_system_configs_are_interpolated()
@@ -1127,55 +1168,6 @@ class DeploymentTaskIntegrationTest {
         assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "NonDisruptableService"));
         assertEquals("1.0.1", kernel.findServiceTopic("NonDisruptableService").find("version").getOnce());
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
-    }
-
-    private static void assertRecipeArtifactExists(ComponentIdentifier compId) throws PackageLoadingException {
-        assertThat(componentStore.resolveRecipePath(compId).toFile(), anExistingFile());
-        Path artifactDirPath = kernel.getNucleusPaths().artifactPath().resolve(compId.getName())
-                .resolve(compId.getVersion().getValue());
-        assertThat(artifactDirPath.toFile(), anExistingDirectory());
-    }
-
-    private static void assertRecipeArtifactNotExists(ComponentIdentifier compId) throws PackageLoadingException {
-        assertThat(componentStore.resolveRecipePath(compId).toFile(), not(anExistingFile()));
-        Path artifactDirPath = kernel.getNucleusPaths().artifactPath().resolve(compId.getName())
-                .resolve(compId.getVersion().getValue());
-        assertThat(artifactDirPath.toFile(), not(anExistingDirectory()));
-    }
-
-    /* sync packages directory with local_store_content */
-    private static void preloadLocalStoreContent() throws URISyntaxException, IOException {
-        Path localStoreContentPath =
-                Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
-        PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"),
-                kernel.getNucleusPaths().recipePath());
-        copyFolderRecursively(localStoreContentPath.resolve("artifacts"), kernel.getNucleusPaths().artifactPath(),
-                REPLACE_EXISTING);
-    }
-
-    /* just copy recipe and artifacts of a single component-version */
-    private static void preloadLocalStoreContent(String compName, String version)
-            throws URISyntaxException, IOException {
-        String recipeFileName = String.format("%s-%s.yaml", compName,
-                version); // naming convention under 'local_store_content/recipes/'
-
-        Path localStoreContentPath =
-                Paths.get(DeploymentTaskIntegrationTest.class.getResource("local_store_content").toURI());
-
-        // copy over recipe
-        Path recipeFromTestResource = localStoreContentPath.resolve("recipes").resolve(recipeFileName);
-        Path destRecipe = kernel.getNucleusPaths().recipePath()
-                .resolve(PreloadComponentStoreHelper.getRecipeStorageFilenameFromTestSource(recipeFileName));
-        Files.copy(recipeFromTestResource, destRecipe, REPLACE_EXISTING);
-
-        // copy over artifacts
-        copyFolderRecursively(resolveArtifactPathFromCompStoreRoot(localStoreContentPath, compName, version),
-                resolveArtifactPathFromCompStoreRoot(kernel.getNucleusPaths().componentStorePath(), compName, version),
-                REPLACE_EXISTING);
-    }
-
-    private static Path resolveArtifactPathFromCompStoreRoot(Path compStoreRootPath, String name, String version) {
-        return compStoreRootPath.resolve("artifacts").resolve(name).resolve(version);
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")

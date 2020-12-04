@@ -32,8 +32,8 @@ import java.util.regex.Pattern;
  * Downloads component artifacts from S3 bucket URI specified in the component recipe.
  */
 public class S3Downloader extends ArtifactDownloader {
-    private static final Pattern S3_PATH_REGEX = Pattern.compile("s3:\\/\\/([^\\/]+)\\/(.*)");
     protected static final String REGION_EXPECTING_STRING = "expecting '";
+    private static final Pattern S3_PATH_REGEX = Pattern.compile("s3:\\/\\/([^\\/]+)\\/(.*)");
     private final S3SdkClientFactory s3ClientFactory;
     private final S3ObjectPath s3ObjectPath;
 
