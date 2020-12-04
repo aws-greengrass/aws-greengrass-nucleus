@@ -74,7 +74,7 @@ public abstract class ArtifactDownloader {
     }
 
     /**
-     * Download an artifact from remote.
+     * Download an artifact from remote. This call can take a long time if the network is intermittent.
      *
      * @return file handle of the downloaded file
      * @throws IOException              if I/O error occurred in network/disk
