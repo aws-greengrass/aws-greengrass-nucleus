@@ -32,6 +32,7 @@ import java.util.Objects;
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private final ComponentStore componentStore;
     private final GreengrassComponentServiceClientFactory clientFactory;
+    private Long artifactSize = null;
     // Setter for unit test
     @Setter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig clientExceptionRetryConfig =
@@ -60,10 +61,14 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     @Override
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidInstanceofChecksInCatchClause"})
     public Long getDownloadSize() throws PackageDownloadException, InterruptedException {
+        if (artifactSize != null) {
+            return artifactSize;
+        }
         try {
-            return RetryUtils
+            artifactSize = RetryUtils
                     .runWithRetry(clientExceptionRetryConfig, () -> getDownloadSizeWithoutRetry(), "get-artifact-size",
                             logger);
+            return artifactSize;
         } catch (Exception e) {
             if (e instanceof InterruptedException) {
                 throw (InterruptedException) e;
@@ -118,14 +123,14 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                         if (downloaded == 0) {
                             // If 0 byte is read, it's fairly certain that the inputStream is closed.
                             // Therefore throw IOException to trigger the retry logic.
-                            throw new IOException("Fail to read any byte from the inputStream");
+                            throw new IOException("Failed to read any byte from the inputStream");
                         } else {
                             return downloaded;
                         }
                     } else if (responseCode == HttpURLConnection.HTTP_OK) {
                         if (httpConn.getContentLengthLong() < rangeEnd) {
                             String errMsg = String.format(
-                                    "Artifact size mismatch." + "Expected artifact size %d. HTTP contentLength %d",
+                                    "Artifact size mismatch. " + "Expected artifact size %d. HTTP contentLength %d",
                                     rangeEnd, httpConn.getContentLengthLong());
                             throw new PackageDownloadException(errMsg);
                         }
@@ -141,13 +146,13 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                         if (downloaded == 0) {
                             // If 0 byte is read, it's fairly certain that the inputStream is closed.
                             // Therefore throw IOException to trigger the retry logic.
-                            throw new IOException("Fail to read any byte from the inputStream");
+                            throw new IOException("Failed to read any byte from the inputStream");
                         } else {
                             return downloaded;
                         }
                     } else {
                         throw new PackageDownloadException(getErrorString(
-                                "Unable to download greengrass artifact. " + "HTTP Error: " + responseCode));
+                                "Unable to download Greengrass artifact. " + "HTTP Error: " + responseCode));
                     }
                 } finally {
                     if (httpConn != null) {

@@ -85,7 +85,7 @@ public class S3Downloader extends ArtifactDownloader {
                     if (downloaded == 0) {
                         // If 0 byte is read, it's fairly certain that the inputStream is closed.
                         // Therefore throw IOException to trigger the retry logic.
-                        throw new IOException("Fail to read any byte from the inputStream");
+                        throw new IOException("Failed to read any byte from the inputStream");
                     } else {
                         return downloaded;
                     }

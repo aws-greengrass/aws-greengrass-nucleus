@@ -174,7 +174,7 @@ public abstract class ArtifactDownloader {
             return totalReadBytes;
         } catch (IOException e) {
             logger.atWarn().kv("bytes-read", totalReadBytes).setCause(e)
-                    .log("Fail to read from input stream and will retry");
+                    .log("Failed to read from input stream and will retry");
             return totalReadBytes;
         }
     }

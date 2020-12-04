@@ -7,6 +7,7 @@ package com.aws.greengrass.integrationtests.e2e.deployment;
 
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
@@ -384,7 +385,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         // Make sure IoT Job was marked as failed and provided correct reason
         String deploymentError = iotClient.describeJobExecution(
                 DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingInfo.getThingName()).build())
-                .execution().statusDetails().detailsMap().get("error");
+                .execution().statusDetails().detailsMap().get(DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY);
         assertThat(deploymentError,
                 containsString("com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException"));
         assertThat(deploymentError, containsString(getTestComponentNameInCloud("Mosquitto")));
