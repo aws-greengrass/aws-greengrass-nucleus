@@ -92,12 +92,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             + ":thinggroup/group1:1";
 
     private static final VerificationWithTimeout WAIT_FOUR_SECONDS = timeout(Duration.ofSeconds(4).toMillis());
-
-    @Mock
-    private Kernel mockKernel;
-
     @Mock
     ExecutorService mockExecutorService;
+    @Mock
+    private Kernel mockKernel;
     @Mock
     private DependencyResolver dependencyResolver;
     @Mock
@@ -157,6 +155,34 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             deploymentServiceThread.interrupt();
         }
         mockKernel.shutdown();
+    }
+
+    private void startDeploymentServiceInAnotherThread() throws InterruptedException {
+        CountDownLatch cdl = new CountDownLatch(1);
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null && m.getMessage().equals("Running deployment service")) {
+                cdl.countDown();
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(listener);
+
+        deploymentServiceThread = new Thread(() -> {
+            try {
+                deploymentService.startup();
+            } catch (InterruptedException ignore) {
+            }
+        });
+        deploymentServiceThread.start();
+
+        boolean running = cdl.await(1, TimeUnit.SECONDS);
+        Slf4jLogAdapter.removeGlobalListener(listener);
+        assertTrue(running, "Deployment service must be running");
+    }
+
+    private void mockGroupToRootPackageMappingStubs() {
+        doNothing().when(mockGroupPackages).replaceAndWait(any());
+        when(mockGroupPackages.iterator()).thenReturn(mock(Iterator.class));
+        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(mockGroupPackages);
     }
 
     @Nested
@@ -550,34 +576,5 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                     eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
         }
-    }
-
-
-    private void startDeploymentServiceInAnotherThread() throws InterruptedException {
-        CountDownLatch cdl = new CountDownLatch(1);
-        Consumer<GreengrassLogMessage> listener = m -> {
-            if (m.getMessage() != null && m.getMessage().equals("Running deployment service")) {
-                cdl.countDown();
-            }
-        };
-        Slf4jLogAdapter.addGlobalListener(listener);
-
-        deploymentServiceThread = new Thread(() -> {
-            try {
-                deploymentService.startup();
-            } catch (InterruptedException ignore) {
-            }
-        });
-        deploymentServiceThread.start();
-
-        boolean running = cdl.await(1, TimeUnit.SECONDS);
-        Slf4jLogAdapter.removeGlobalListener(listener);
-        assertTrue(running, "Deployment service must be running");
-    }
-
-    private void mockGroupToRootPackageMappingStubs() {
-        doNothing().when(mockGroupPackages).replaceAndWait(any());
-        when(mockGroupPackages.iterator()).thenReturn(mock(Iterator.class));
-        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME)).thenReturn(mockGroupPackages);
     }
 }

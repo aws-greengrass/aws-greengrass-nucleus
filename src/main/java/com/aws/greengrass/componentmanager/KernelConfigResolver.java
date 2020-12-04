@@ -57,23 +57,23 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFE
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 
 public class KernelConfigResolver {
-    private static final Logger LOGGER = LogManager.getLogger(KernelConfigResolver.class);
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PREV_VERSION_CONFIG_KEY = "previousVersion";
-
     public static final String CONFIGURATION_CONFIG_KEY = "configuration";
-
     static final String ARTIFACTS_NAMESPACE = "artifacts";
     static final String KERNEL_NAMESPACE = "kernel";
     static final String KERNEL_ROOT_PATH = "rootPath";
-
+    static final String PARAM_NAMESPACE = "params";
+    static final String CONFIGURATION_NAMESPACE = "configuration";
+    static final String PARAM_VALUE_SUFFIX = ".value";
+    static final String PATH_KEY = "path";
+    static final String DECOMPRESSED_PATH_KEY = "decompressedPath";
+    private static final Logger LOGGER = LogManager.getLogger(KernelConfigResolver.class);
     // pattern matches {group1:group2}. ex. {configuration:/singleLevelKey}
     // Group 1 could only be word or dot (.). It is for the namespace such as "artifacts" and "configuration".
     // Group 2 is the key. For namespace "configuration", it needs to support arbitrary JSON pointer.
     // so it can take any character but not be ':' or '}', because these breaks the interpolation placeholder format.
     private static final Pattern SAME_COMPONENT_INTERPOLATION_REGEX = Pattern.compile("\\{([.\\w]+):([^:}]+)}");
-
-
     // pattern matches {group1:group2:group3}.
     // ex. {aws.iot.aws.iot.gg.test.integ.ComponentConfigTestService:configuration:/singleLevelKey}
     // Group 1 could only be word or dot (.). It is for the component name.
@@ -82,27 +82,17 @@ public class KernelConfigResolver {
     // so it can take any character but not be ':' or '}', because these breaks the interpolation placeholder format.
     private static final Pattern CROSS_COMPONENT_INTERPOLATION_REGEX =
             Pattern.compile("\\{([.\\w]+):([.\\w]+):([^:}]+)}");
-
-    static final String PARAM_NAMESPACE = "params";
-    static final String CONFIGURATION_NAMESPACE = "configuration";
-    static final String PARAM_VALUE_SUFFIX = ".value";
-    static final String PATH_KEY = "path";
-    static final String DECOMPRESSED_PATH_KEY = "decompressedPath";
-
     // https://tools.ietf.org/html/rfc6901#section-5
     private static final String JSON_POINTER_WHOLE_DOC = "";
-
-    // Map from Namespace -> Key -> Function which returns the replacement value
-    private final Map<String, Map<String, CrashableFunction<ComponentIdentifier, String, IOException>>>
-            systemParameters = new HashMap<>();
-
-    private final ComponentStore componentStore;
-    private final Kernel kernel;
-    private final DeviceConfiguration deviceConfiguration;
-
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
             .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+    // Map from Namespace -> Key -> Function which returns the replacement value
+    private final Map<String, Map<String, CrashableFunction<ComponentIdentifier, String, IOException>>>
+            systemParameters = new HashMap<>();
+    private final ComponentStore componentStore;
+    private final Kernel kernel;
+    private final DeviceConfiguration deviceConfiguration;
 
 
     /**
