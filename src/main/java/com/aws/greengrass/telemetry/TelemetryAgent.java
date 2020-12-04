@@ -160,6 +160,10 @@ public class TelemetryAgent extends GreengrassService {
         }
         cancelJob(periodicAggregateMetricsFuture, periodicAggregateMetricsInProgressLock, false);
         TelemetryConfiguration configuration = currentConfiguration.get();
+        // If telemetry is disabled, then return.
+        if (!configuration.isEnabled()) {
+            return;
+        }
         if (isReconfigured) {
             synchronized (periodicAggregateMetricsInProgressLock) {
                 Instant lastPeriodicAggTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicAggregateTimeTopic()));
@@ -199,6 +203,10 @@ public class TelemetryAgent extends GreengrassService {
         // cancel the previously scheduled job.
         cancelJob(periodicPublishMetricsFuture, periodicPublishMetricsInProgressLock, false);
         TelemetryConfiguration configuration = currentConfiguration.get();
+        // If telemetry is disabled, then return.
+        if (!configuration.isEnabled()) {
+            return;
+        }
         if (isReconfigured) {
             synchronized (periodicPublishMetricsInProgressLock) {
                 Instant lastPeriodicPubTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicPublishTimeTopic()));
@@ -333,7 +341,7 @@ public class TelemetryAgent extends GreengrassService {
                 .enabled(telemetryConfiguration.isEnabled())
                 .build());
         synchronized (periodicPublishMetricsInProgressLock) {
-            if (periodicPublishMetricsFuture != null) {
+            if (periodicPublishMetricsFuture != null && telemetryConfiguration.isEnabled()) {
                 schedulePeriodicPublishMetrics(true);
             }
         }
@@ -351,7 +359,7 @@ public class TelemetryAgent extends GreengrassService {
                 .build());
 
         synchronized (periodicAggregateMetricsInProgressLock) {
-            if (periodicAggregateMetricsFuture != null) {
+            if (periodicAggregateMetricsFuture != null && telemetryConfiguration.isEnabled()) {
                 schedulePeriodicAggregateMetrics(true);
             }
         }
