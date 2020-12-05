@@ -20,6 +20,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 import software.amazon.awssdk.aws.greengrass.model.IoTCoreMessage;
 import software.amazon.awssdk.aws.greengrass.model.MQTTMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreRequest;
@@ -221,5 +222,23 @@ class MqttProxyIPCAgentTest {
         when(authorizationHandler.getAuthorizedResources(any(), any(), any())).thenReturn(Arrays.asList(ANY_REGEX));
 
         mqttProxyIPCAgent.doAuthorization(GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE, TEST_SERVICE, TEST_TOPIC);
+    }
+
+    @Test
+    void GIVEN_MqttProxyIPCAgent_WHEN_publish_with_invalid_qos_THEN_error_thrown() throws Exception {
+        PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
+        publishToIoTCoreRequest.setPayload(TEST_PAYLOAD);
+        publishToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        publishToIoTCoreRequest.setQos((String) null);
+
+        when(authorizationHandler.getAuthorizedResources(any(), any(), any()))
+                .thenReturn(Collections.singletonList(TEST_TOPIC));
+
+        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
+            assertThrows(InvalidArgumentsError.class, () -> {
+                publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
+            });
+        }
     }
 }
