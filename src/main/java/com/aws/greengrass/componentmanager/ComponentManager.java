@@ -201,7 +201,7 @@ public class ComponentManager implements InjectionActions {
             try {
                 resolvedComponentVersion = componentServiceHelper
                         .resolveComponentVersion(componentName, localCandidate.getVersion(), versionRequirements);
-            } catch (NoAvailableComponentVersionException e) {
+            } catch (Exception e) {
                 logger.atInfo().setCause(e).kv("componentName", componentName)
                         .kv("versionRequirement", versionRequirements).kv("localVersion", localCandidate)
                         .log("Failed to negotiate version with cloud and fall back to use the local version");
