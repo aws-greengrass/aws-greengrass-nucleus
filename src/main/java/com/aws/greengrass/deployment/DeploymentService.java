@@ -684,14 +684,61 @@ public class DeploymentService extends GreengrassService {
     }
 
     /**
+     * Gets the list of all the groups that the component is a part of. This method is used by log manager.
+     *
+     * @param componentName The name of the component.
+     * @return The list of groups the component is a part of.
+     */
+    public Set<String> getGroupNamesForUserComponent(String componentName) {
+        Topics componentsToGroupsTopics = config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
+
+        Set<String> componentGroups = new HashSet<>();
+        if (componentsToGroupsTopics != null) {
+            Topics groupsTopics = componentsToGroupsTopics.lookupTopics(componentName);
+            groupsTopics.children.values().stream().map(n -> (Topic) n).forEach(topic -> {
+                String groupName = Coerce.toString(topic);
+                if (!Utils.isEmpty(groupName)) {
+                    componentGroups.add(groupName);
+                }
+            });
+        }
+        return componentGroups;
+    }
+
+    /**
+     * Gets the list of all the groups that the thing is a part of. This method is used by log manager.
+     *
+     * @return All the group configs.
+     */
+    public Set<String> getAllGroupNames() {
+        Topics componentsToGroupsTopics = config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
+
+        Set<String> allGroupNames = new HashSet<>();
+        if (componentsToGroupsTopics != null) {
+            componentsToGroupsTopics.iterator().forEachRemaining(node -> {
+                Topics groupsTopics = (Topics) node;
+                groupsTopics.children.values().stream().map(n -> (Topic) n).forEach(topic -> {
+                    String groupName = Coerce.toString(topic);
+                    if (!Utils.isEmpty(groupName)) {
+                        allGroupNames.add(groupName);
+                    }
+                });
+
+            });
+        }
+        return allGroupNames;
+    }
+
+    /**
      * Checks whether a component is a root component or not.
+     *
      * @param componentName The name of the component.
      * @return a boolean indicating whether a component is a root component or not.
      */
     public boolean isComponentRoot(String componentName) {
         Topics groupToRootComponentsTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
         if (groupToRootComponentsTopics != null) {
-            for (Node node: groupToRootComponentsTopics.children.values()) {
+            for (Node node : groupToRootComponentsTopics.children.values()) {
                 if (node instanceof Topics) {
                     Topics groupTopics = (Topics) node;
                     for (Node componentNode: groupTopics.children.values()) {

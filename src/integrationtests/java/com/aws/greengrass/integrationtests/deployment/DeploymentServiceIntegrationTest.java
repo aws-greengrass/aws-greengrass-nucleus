@@ -6,7 +6,6 @@
 package com.aws.greengrass.integrationtests.deployment;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
-import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
@@ -37,6 +36,7 @@ import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
@@ -76,7 +76,7 @@ public class DeploymentServiceIntegrationTest extends BaseITCase {
     @BeforeEach
     void before(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
-        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
+        ignoreExceptionOfType(context, SdkClientException.class);
 
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
