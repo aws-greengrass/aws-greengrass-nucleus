@@ -10,7 +10,7 @@ import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
-import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
+import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.exceptions.SizeLimitException;
@@ -32,6 +32,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.RetryUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
@@ -46,6 +47,7 @@ import org.mockito.Mock;
 import org.mockito.internal.util.collections.Sets;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2.model.ResolvedComponentVersion;
 
 import java.io.File;
@@ -54,6 +56,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -97,6 +100,15 @@ class ComponentManagerTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String TEST_ARN = "testArn";
+    private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
+    private static final String ACTIVE_VERSION_STR = "2.0.0";
+    private static final Semver ACTIVE_VERSION = new Semver(ACTIVE_VERSION_STR);
+    private static final String DEPLOYMENT_CONFIGURATION_ID = "deploymentConfigurationId";
+    private static final Semver v1_2_0 = new Semver("1.2.0");
+    private static final Semver v1_0_0 = new Semver("1.0.0");
+    private static final String componentA = "A";
+    private static final long TEN_TERA_BYTES = 10_000_000_000_000L;
+    private static final long TEN_BYTES = 10L;
     private static Path RECIPE_RESOURCE_PATH;
 
     static {
@@ -106,31 +118,15 @@ class ComponentManagerTest {
         }
     }
 
-    private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
-    private static final String ACTIVE_VERSION_STR = "2.0.0";
-    private static final Semver ACTIVE_VERSION = new Semver(ACTIVE_VERSION_STR);
-
-    private static final String DEPLOYMENT_CONFIGURATION_ID = "deploymentConfigurationId";
-
-    private static final Semver v1_2_0 = new Semver("1.2.0");
-    private static final Semver v1_0_0 = new Semver("1.0.0");
-    private static final String componentA = "A";
-    private static final long TEN_TERA_BYTES = 10_000_000_000_000L;
-    private static final long TEN_BYTES = 10L;
-
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
     @TempDir
     Path tempDir;
-
     private ComponentManager componentManager;
-
     private RecipeLoader recipeLoader;
-
     @Mock
     private ArtifactDownloader artifactDownloader;
-
     @Mock
     private ArtifactDownloaderFactory artifactDownloaderFactory;
-
     @Mock
     private ComponentServiceHelper componentManagementServiceHelper;
     @Mock
@@ -147,7 +143,6 @@ class ComponentManagerTest {
     private DeviceConfiguration deviceConfiguration;
     @Mock
     private NucleusPaths nucleusPaths;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @BeforeEach
     void beforeEach() throws Exception {
@@ -399,18 +394,62 @@ class ComponentManagerTest {
         when(mockService.isBuiltin()).thenReturn(true);
 
         when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
-                .thenThrow(ComponentVersionNegotiationException.class);
+                .thenThrow(NoAvailableComponentVersionException.class);
         when(componentStore.getPackageMetadata(any())).thenThrow(PackagingException.class);
 
-        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
+        ignoreExceptionOfType(context, NoAvailableComponentVersionException.class);
 
         ComponentMetadata componentMetadata = componentManager
                 .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
-                                         DEPLOYMENT_CONFIGURATION_ID);
+                        DEPLOYMENT_CONFIGURATION_ID);
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
         verify(componentStore, never()).findComponentRecipeContent(any());
         verify(componentStore, never()).saveComponentRecipe(any());
+        verify(componentStore).getPackageMetadata(componentA_1_0_0);
+    }
+
+    @Test
+    void GIVEN_component_no_local_version_WHEN_cloud_service_client_exception_THEN_retry() throws Exception {
+
+        componentManager.setClientExceptionRetryConfig(
+                RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1))
+                        .maxRetryInterval(Duration.ofSeconds(1)).maxAttempt(Integer.MAX_VALUE)
+                        .retryableExceptions(Arrays.asList(SdkClientException.class)).build());
+
+        ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
+        ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
+
+        // no local version
+        when(componentStore.findBestMatchAvailableComponent(eq(componentA), any()))
+                .thenReturn(Optional.empty());
+
+        // has cloud version
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
+                com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
+                        .componentName(componentA).componentVersion(v1_0_0)
+                        .componentType(ComponentType.GENERIC).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                        .build();
+
+        ResolvedComponentVersion resolvedComponentVersion =
+                ResolvedComponentVersion.builder().componentName(componentA).componentVersion(v1_0_0.getValue())
+                        .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(recipe))).arn(TEST_ARN).build();
+
+        // Retry succeeds
+        when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
+                .thenThrow(SdkClientException.class).thenReturn(resolvedComponentVersion);
+        // mock return metadata from the id
+        when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
+
+        ComponentMetadata componentMetadata = componentManager
+                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
+                        DEPLOYMENT_CONFIGURATION_ID);
+
+        assertThat(componentMetadata, is(componentA_1_0_0_md));
+        verify(componentManagementServiceHelper, times(2)).resolveComponentVersion(componentA, null, Collections
+                .singletonMap("X", Requirement.buildNPM("^1.0")));
+        verify(componentStore, never()).findComponentRecipeContent(any());
+        verify(componentStore).saveComponentRecipe(any());
         verify(componentStore).getPackageMetadata(componentA_1_0_0);
     }
 

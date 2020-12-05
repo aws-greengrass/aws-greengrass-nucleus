@@ -8,7 +8,6 @@ package com.aws.greengrass.componentmanager;
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
-import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
@@ -38,6 +37,8 @@ import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.RetryUtils;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
+import com.vdurmont.semver4j.SemverException;
+import lombok.AccessLevel;
 import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2.model.ResolvedComponentVersion;
@@ -81,7 +82,9 @@ public class ComponentManager implements InjectionActions {
     private final Kernel kernel;
     private final Unarchiver unarchiver;
     private final NucleusPaths nucleusPaths;
-    private final RetryUtils.RetryConfig clientExceptionRetryConfig =
+    // Setter for unit tests
+    @Setter(AccessLevel.PACKAGE)
+    private RetryUtils.RetryConfig clientExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
                     .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(Integer.MAX_VALUE)
                     .retryableExceptions(Arrays.asList(SdkClientException.class)).build();
@@ -198,7 +201,7 @@ public class ComponentManager implements InjectionActions {
             try {
                 resolvedComponentVersion = componentServiceHelper
                         .resolveComponentVersion(componentName, localCandidate.getVersion(), versionRequirements);
-            } catch (ComponentVersionNegotiationException | NoAvailableComponentVersionException e) {
+            } catch (NoAvailableComponentVersionException e) {
                 logger.atInfo().setCause(e).kv("componentName", componentName)
                         .kv("versionRequirement", versionRequirements).kv("localVersion", localCandidate)
                         .log("Failed to negotiate version with cloud and fall back to use the local version");
@@ -438,7 +441,7 @@ public class ComponentManager implements InjectionActions {
                     ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
                     removeRecipeDigestIfExists(identifier);
                     componentStore.deleteComponent(identifier);
-                } catch (PackageLoadingException e) {
+                } catch (SemverException | PackageLoadingException e) {
                     // Log a warn here. This shouldn't cause a deployment to fail.
                     logger.atWarn().kv("componentName", compName).kv("version", compVersion).setCause(e)
                             .log("Failed to clean up component");

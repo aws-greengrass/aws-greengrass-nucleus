@@ -234,6 +234,12 @@ public class DeploymentService extends GreengrassService {
                         deploymentQueue.remove();
                         createNewDeployment(deployment);
                     }
+                } else if (deployment.getDeploymentType().equals(DeploymentType.LOCAL)) {
+                    deploymentQueue.remove();
+                    createNewDeployment(deployment);
+                } else {
+                    logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
+                            .kv("DeploymentType", deployment.getDeploymentType()).log("Unknown deployment type");
                 }
             }
             Thread.sleep(pollingFrequency.get());
@@ -554,8 +560,9 @@ public class DeploymentService extends GreengrassService {
                     .log("Invalid document for deployment");
             HashMap<String, String> statusDetails = new HashMap<>();
             statusDetails.put("error", e.getMessage());
-            deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
-                                                                     JobStatus.FAILED.toString(), statusDetails);
+            deploymentStatusKeeper
+                    .persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
+                            JobStatus.FAILED.toString(), statusDetails);
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
@@ -674,52 +681,6 @@ public class DeploymentService extends GreengrassService {
         if (componentsToGroupsTopics != null) {
             componentsToGroupsTopics.replaceAndWait(componentsToGroupsMappingCache);
         }
-    }
-
-    /**
-     * Gets the list of all the groups that the component is a part of.
-     *
-     * @param componentName The name of the component.
-     * @return The list of groups the component is a part of.
-     */
-    public Set<String> getGroupNamesForUserComponent(String componentName) {
-        Topics componentsToGroupsTopics = config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
-
-        Set<String> componentGroups = new HashSet<>();
-        if (componentsToGroupsTopics != null) {
-            Topics groupsTopics = componentsToGroupsTopics.lookupTopics(componentName);
-            groupsTopics.children.values().stream().map(n -> (Topic) n).forEach(topic -> {
-                String groupName = Coerce.toString(topic);
-                if (!Utils.isEmpty(groupName)) {
-                    componentGroups.add(groupName);
-                }
-            });
-        }
-        return componentGroups;
-    }
-
-    /**
-     * Gets the list of all the groups that the thing is a part of.
-     *
-     * @return All the group configs.
-     */
-    public Set<String> getAllGroupNames() {
-        Topics componentsToGroupsTopics = config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
-
-        Set<String> allGroupNames = new HashSet<>();
-        if (componentsToGroupsTopics != null) {
-            componentsToGroupsTopics.iterator().forEachRemaining(node -> {
-                Topics groupsTopics = (Topics) node;
-                groupsTopics.children.values().stream().map(n -> (Topic) n).forEach(topic -> {
-                    String groupName = Coerce.toString(topic);
-                    if (!Utils.isEmpty(groupName)) {
-                        allGroupNames.add(groupName);
-                    }
-                });
-
-            });
-        }
-        return allGroupNames;
     }
 
     /**
