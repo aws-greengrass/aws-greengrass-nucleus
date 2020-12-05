@@ -51,7 +51,7 @@ public class MqttProxyIPCAgent {
     private static final String COMPONENT_NAME = "componentName";
     private static final String TOPIC_KEY = "topic";
     private static final String UNAUTHORIZED_ERROR = "Not Authorized";
-    private static final String INVALID_QOS_ERROR = "Invalid QoS value in PublishToIoTCore request";
+    private static final String INVALID_QOS_ERROR = "Invalid QoS value in request";
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
