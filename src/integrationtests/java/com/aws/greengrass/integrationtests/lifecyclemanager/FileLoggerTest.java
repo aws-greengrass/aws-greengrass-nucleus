@@ -32,7 +32,7 @@ class FileLoggerTest extends BaseITCase {
 
     @BeforeAll
     static void beforeAll() {
-        LogManager.getRootLogConfiguration().setStoreType(LogStore.FILE);
+        LogManager.getRootLogConfiguration().setStore(LogStore.FILE);
         LogManager.getRootLogConfiguration().setFormat(LogFormat.TEXT);
     }
 
