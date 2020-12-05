@@ -7,6 +7,7 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
 
 /**
@@ -24,14 +25,10 @@ public final class LogManagerHelper {
      * component if the logs are configured to be written to the disk.
      *
      * @param service The green grass service instance to use to subscribe to logger config.
-     * @return a logger with configuration to log to a los file with the same name.
+     * @return a logger with configuration to log to a log file with the same name.
      */
     public static Logger getComponentLogger(GreengrassService service) {
         // TODO: [P41214167]: Dynamically reconfigure service loggers
-        service.getConfig().lookupTopics(SERVICE_CONFIG_LOGGING_TOPICS)
-                .subscribe((why, newv) -> {
-                });
-
         return getComponentLogger(service.getServiceName(), service.getServiceName() + LOG_FILE_EXTENSION);
     }
 
@@ -41,9 +38,14 @@ public final class LogManagerHelper {
      *
      * @param name     The name of the component
      * @param fileName The name of the log file.
-     * @return a logger with configuration to log to a los file with the same name.
+     * @return a logger with configuration to log to a log file with the same name.
      */
     private static Logger getComponentLogger(String name, String fileName) {
-        return LogManager.getLogger(name, LoggerConfiguration.builder().fileName(fileName).build());
+        LoggerConfiguration config = LoggerConfiguration.builder()
+                // Explicitly inherit the format, otherwise the default from the builder would be used
+                .format(LogConfig.getInstance().getFormat())
+                .fileName(fileName)
+                .build();
+        return LogManager.getLogger(name, config);
     }
 }
