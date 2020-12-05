@@ -9,6 +9,7 @@ import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -20,6 +21,7 @@ import com.aws.greengrass.logging.impl.config.LogStore;
 import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -40,6 +42,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.NUCLEUS_CONFIG_LOGGING_TOPICS;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.telemetry.impl.MetricFactory.METRIC_LOGGER_PREFIX;
@@ -48,6 +52,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.io.FileMatchers.aFileNamed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -203,5 +208,31 @@ class LogManagerHelperTest {
         Logger logger = LogManagerHelper.getComponentLogger(mockGreengrassService);
         assertTrue(logger.isTraceEnabled());
         assertEquals(LogFormat.JSON, LogManager.getLogConfigurations().get("MockService2").getFormat());
+    }
+
+    @Test
+    void loggers_created_before_or_after_log_level_change_get_the_correct_level() throws IOException {
+        try (Context context = new Context()) {
+            Configuration config = new Configuration(context);
+            Topics logTopics = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME,
+                    CONFIGURATION_CONFIG_KEY, NUCLEUS_CONFIG_LOGGING_TOPICS);
+            when(kernel.getConfig()).thenReturn(config);
+            lenient().when(kernel.getNucleusPaths()).thenReturn(mock(NucleusPaths.class));
+
+            when(mockGreengrassService.getServiceName()).thenReturn("MockService3");
+            Logger logger1 = LogManagerHelper.getComponentLogger(mockGreengrassService);
+            assertFalse(logger1.isDebugEnabled());
+
+            new DeviceConfiguration(kernel);
+
+            logTopics.updateFromMap(Utils.immutableMap("level", "DEBUG"), new UpdateBehaviorTree(
+                    UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
+            context.waitForPublishQueueToClear();
+
+            when(mockGreengrassService.getServiceName()).thenReturn("MockService4");
+            Logger logger2 = LogManagerHelper.getComponentLogger(mockGreengrassService);
+            assertTrue(logger2.isDebugEnabled());
+            assertTrue(logger1.isDebugEnabled());
+        }
     }
 }
