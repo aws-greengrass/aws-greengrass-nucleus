@@ -19,6 +19,7 @@ import lombok.AccessLevel;
 import lombok.Setter;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractPublishToIoTCoreOperationHandler;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractSubscribeToIoTCoreOperationHandler;
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 import software.amazon.awssdk.aws.greengrass.model.IoTCoreMessage;
 import software.amazon.awssdk.aws.greengrass.model.MQTTMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreRequest;
@@ -50,6 +51,7 @@ public class MqttProxyIPCAgent {
     private static final String COMPONENT_NAME = "componentName";
     private static final String TOPIC_KEY = "topic";
     private static final String UNAUTHORIZED_ERROR = "Not Authorized";
+    private static final String INVALID_QOS_ERROR = "Invalid QoS value in PublishToIoTCore request";
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
@@ -200,7 +202,9 @@ public class MqttProxyIPCAgent {
         } else if (qos == QOS.AT_MOST_ONCE) {
             return QualityOfService.AT_MOST_ONCE;
         }
-        return QualityOfService.AT_LEAST_ONCE; //default value
+
+        LOGGER.atError().log(INVALID_QOS_ERROR);
+        throw new InvalidArgumentsError(INVALID_QOS_ERROR);
     }
 
     void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
