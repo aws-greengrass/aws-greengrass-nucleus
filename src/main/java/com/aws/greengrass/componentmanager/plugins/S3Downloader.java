@@ -124,18 +124,30 @@ public class S3Downloader extends ArtifactDownloader {
         }
     }
 
-    private S3Client getRegionClientForBucket(String bucket) {
+    @SuppressWarnings(
+            {"PMD.AvoidCatchingGenericException", "PMD.AvoidInstanceofChecksInCatchClause"})
+    private S3Client getRegionClientForBucket(String bucket) throws InterruptedException, PackageDownloadException {
         GetBucketLocationRequest getBucketLocationRequest = GetBucketLocationRequest.builder().bucket(bucket).build();
         String region = null;
         try {
+            region = RetryUtils.runWithRetry(s3ClientExceptionRetryConfig,
+                    () -> s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
+                            .locationConstraintAsString(), "get-bucket-location", logger);
             region = s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
                     .locationConstraintAsString();
-        } catch (S3Exception e) {
-            String message = e.getMessage();
-            if (message.contains(REGION_EXPECTING_STRING)) {
-                message =
-                        message.substring(message.indexOf(REGION_EXPECTING_STRING) + REGION_EXPECTING_STRING.length());
-                region = message.substring(0, message.indexOf('\''));
+        } catch (Exception e) {
+            if (e instanceof S3Exception) {
+                String message = e.getMessage();
+                if (message.contains(REGION_EXPECTING_STRING)) {
+                    message =
+                            message.substring(
+                                    message.indexOf(REGION_EXPECTING_STRING) + REGION_EXPECTING_STRING.length());
+                    region = message.substring(0, message.indexOf('\''));
+                }
+            } else if (e instanceof InterruptedException) {
+                throw (InterruptedException) e;
+            } else {
+                throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
             }
         }
         // If the region is empty, it is us-east-1
