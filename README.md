@@ -1,17 +1,15 @@
-# Greengrass Kernel
-![Java CI](https://github.com/aws/aws-greengrass-kernel/workflows/Java%20CI/badge.svg?branch=master)
+# Greengrass Nucleus
+![Java CI](https://github.com/aws-greengrass/aws-greengrass-nucleus/workflows/Java%20CI/badge.svg?branch=main)
 
 ### *Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.*
 #### *SPDX-License-Identifier: Apache-2.0*
 
-This is the kernel of AWS's Greengrass IoT device management framework.  It manages the model that describes the
+This is the nucleus of AWS's Greengrass IoT device management framework.  It manages the model that describes the
  software running on the device.  The model is a dependency graph of *services*.  Services have three primary aspects:
 
 * Parameters
 * Dependencies on other services
 * A set of lifecycle phases in the form of a finite state machine.
-
-> *A note on the term* **service**:  It's not great.  It just sucks the least of any we've thought of. It isn't too overloaded with connotations.  Suggestions welcomed.
 
 A *service* may have processes, threads, code, network connections, ... But not
 necessarily.  Some have all of these, some have only 1.
@@ -19,10 +17,6 @@ necessarily.  Some have all of these, some have only 1.
 You can think of the kernel as a mashup of `make`, a super-lightweight publish/subscribe system, and a small hierarchic key-value data store.  The various services have continuously varying states that the kernel monitors and manages.  A dependent service is not started until it's dependencies are started, and if they become unstable, the dependent service is notified.  The internal interconnections are handled via dependency injection. Restarts are managed automatically.
 
 When parameters changes, all users of them are notified.  Everything adapts continuously.
-
-Supposedly  **&#129327;**
-
-Error handling is woefully inadequate, *for now*.
 
 ### A quick tour through com.aws.greengrass
 1. [**config**](src/main/java/com/aws/greengrass/config) Manages the system configuration (model).  It's fundamentally a hierarchic key-value store with timestamps.  It can be serialized to/from yaml, json, or a transaction log.  The transaction log can be replayed to reconstruct the config, or streamed live to another process to maintain a mirror. The terminology is borrowed from the world of publish/subscribe systems.  Node values can have validators and watcher.
@@ -53,7 +47,7 @@ You can set this up in your project as follows:
 ```xml
 <dependency>
     <groupId>com.aws.iot</groupId>
-    <artifactId>evergreen-kernel</artifactId>
+    <artifactId>evergreen-nucleus</artifactId>
     <version>1.0-SNAPSHOT</version>
 </dependency>
 ```
