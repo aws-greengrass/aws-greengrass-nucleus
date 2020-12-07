@@ -20,6 +20,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 import software.amazon.awssdk.aws.greengrass.model.IoTCoreMessage;
 import software.amazon.awssdk.aws.greengrass.model.MQTTMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreRequest;
@@ -221,5 +222,117 @@ class MqttProxyIPCAgentTest {
         when(authorizationHandler.getAuthorizedResources(any(), any(), any())).thenReturn(Arrays.asList(ANY_REGEX));
 
         mqttProxyIPCAgent.doAuthorization(GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE, TEST_SERVICE, TEST_TOPIC);
+    }
+
+    @Test
+    void GIVEN_MqttProxyIPCAgent_WHEN_publish_with_invalid_qos_THEN_error_thrown() throws Exception {
+        PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
+        publishToIoTCoreRequest.setPayload(TEST_PAYLOAD);
+        publishToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        publishToIoTCoreRequest.setQos("10");
+
+        when(authorizationHandler.getAuthorizedResources(any(), any(), any()))
+                .thenReturn(Collections.singletonList(TEST_TOPIC));
+
+        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
+            assertThrows(InvalidArgumentsError.class, () -> {
+                publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
+            });
+        }
+    }
+
+    @Test
+    void GIVEN_MqttProxyIPCAgent_WHEN_publish_with_no_qos_THEN_error_thrown() throws Exception {
+        PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
+        publishToIoTCoreRequest.setPayload(TEST_PAYLOAD);
+        publishToIoTCoreRequest.setTopicName(TEST_TOPIC);
+
+        when(authorizationHandler.getAuthorizedResources(any(), any(), any()))
+                .thenReturn(Collections.singletonList(TEST_TOPIC));
+
+        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
+            assertThrows(InvalidArgumentsError.class, () -> {
+                publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
+            });
+        }
+    }
+
+    @Test
+    void GIVEN_MqttProxyIPCAgent_WHEN_publish_with_no_topic_THEN_error_thrown() throws Exception {
+        PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
+        publishToIoTCoreRequest.setPayload(TEST_PAYLOAD);
+        publishToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
+
+        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
+            assertThrows(InvalidArgumentsError.class, () -> {
+                publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
+            });
+        }
+    }
+
+    @Test
+    void GIVEN_MqttProxyIPCAgent_WHEN_publish_with_no_payload_THEN_error_thrown() throws Exception {
+        PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
+        publishToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        publishToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
+
+        when(authorizationHandler.getAuthorizedResources(any(), any(), any()))
+                .thenReturn(Collections.singletonList(TEST_TOPIC));
+
+        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
+            assertThrows(InvalidArgumentsError.class, () -> {
+                publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
+            });
+        }
+    }
+
+    @Test
+    void GIVEN_MqttProxyIPCAgent_WHEN_subscribe_with_invalid_qos_THEN_error_thrown() throws Exception {
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
+        subscribeToIoTCoreRequest.setQos("10");
+
+        when(authorizationHandler.getAuthorizedResources(any(), any(), any()))
+                .thenReturn(Collections.singletonList(TEST_TOPIC));
+
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
+            assertThrows(InvalidArgumentsError.class, () -> {
+                subscribeToIoTCoreOperationHandler.handleRequest(subscribeToIoTCoreRequest);
+            });
+        }
+    }
+
+    @Test
+    void GIVEN_MqttProxyIPCAgent_WHEN_subscribe_with_no_qos_THEN_error_thrown() throws Exception {
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setTopicName(TEST_TOPIC);
+
+        when(authorizationHandler.getAuthorizedResources(any(), any(), any()))
+                .thenReturn(Collections.singletonList(TEST_TOPIC));
+
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
+            assertThrows(InvalidArgumentsError.class, () -> {
+                subscribeToIoTCoreOperationHandler.handleRequest(subscribeToIoTCoreRequest);
+            });
+        }
+    }
+
+    @Test
+    void GIVEN_MqttProxyIPCAgent_WHEN_subscribe_with_no_topic_THEN_error_thrown() throws Exception {
+        SubscribeToIoTCoreRequest subscribeToIoTCoreRequest = new SubscribeToIoTCoreRequest();
+        subscribeToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
+
+        try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
+            assertThrows(InvalidArgumentsError.class, () -> {
+                subscribeToIoTCoreOperationHandler.handleRequest(subscribeToIoTCoreRequest);
+            });
+        }
     }
 }
