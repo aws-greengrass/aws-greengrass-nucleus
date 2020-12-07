@@ -122,6 +122,7 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         // Ignore error from MQTT during shutdown
         ignoreExceptionUltimateCauseWithMessageSubstring(context, "MQTT operation interrupted by connection shutdown");
         ignoreExceptionUltimateCauseWithMessageSubstring(context, "Connection has started destroying process");
+        ignoreExceptionUltimateCauseWithMessage(context, "Unable to locate the unpack directory of Kernel Jar file");
 
         // Ignore error from AWS ERROR
         ignoreExceptionWithMessageSubstring(context, "AWS_ERROR_INVALID_ARGUMENT(33), An invalid argument");

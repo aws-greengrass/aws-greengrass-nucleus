@@ -12,6 +12,7 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.IPCEventStreamService;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
@@ -93,6 +94,7 @@ class KernelLifecycleTest {
         when(mockContext.get(eq(EZPlugins.class))).thenReturn(mock(EZPlugins.class));
         when(mockContext.get(eq(ExecutorService.class))).thenReturn(mock(ExecutorService.class));
         when(mockContext.get(eq(ScheduledExecutorService.class))).thenReturn(mock(ScheduledExecutorService.class));
+        when(mockContext.get(eq(DeviceConfiguration.class))).thenReturn(mock(DeviceConfiguration.class));
 
         mockKernelCommandLine = Mockito.spy(new KernelCommandLine(mockKernel));
         kernelLifecycle = new KernelLifecycle(mockKernel, mockKernelCommandLine, mockPaths);

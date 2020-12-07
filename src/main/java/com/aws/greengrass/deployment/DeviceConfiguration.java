@@ -15,7 +15,6 @@ import com.aws.greengrass.config.Validator;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.lifecyclemanager.KernelVersion;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogFormat;
@@ -30,12 +29,16 @@ import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Properties;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
@@ -44,6 +47,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
+import static com.aws.greengrass.lifecyclemanager.KernelAlternatives.locateCurrentKernelUnpackDir;
 import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE_NAME;
 
 /**
@@ -103,6 +107,7 @@ public class DeviceConfiguration {
     private Topics loggingTopics;
     private LoggerConfiguration currentConfiguration;
     private String nucleusComponentNameCache;
+    private static final Properties NUCLEUS_PROPERTIES = new Properties();
 
     /**
      * Constructor used to read device configuration from the config store.
@@ -119,8 +124,7 @@ public class DeviceConfiguration {
         getComponentStoreMaxSizeBytes().dflt(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         getDeploymentPollingFrequencySeconds().dflt(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
 
-        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV)
-                .withValue(KernelVersion.KERNEL_VERSION);
+        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).withValue(getNucleusVersion());
     }
 
     /**
@@ -204,7 +208,7 @@ public class DeviceConfiguration {
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY)
                 .withValue(ComponentType.NUCLEUS.name());
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY)
-                .dflt(KernelVersion.KERNEL_VERSION);
+                .dflt(getVersionFromZip());
         ArrayList<String> mainDependencies = (ArrayList) kernel.getConfig().getRoot()
                 .findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
                         SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
@@ -461,6 +465,47 @@ public class DeviceConfiguration {
         return kernel.getConfig()
                 .lookupTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(),
                         CONFIGURATION_CONFIG_KEY, parameterName);
+    }
+
+    /**
+     * Get the nucleus version from the running configuration or nucleus zip.
+     *
+     * @return nucleus version
+     */
+    public String getNucleusVersion() {
+        String version = null;
+        // Prefer to get the version from the active config
+        Topics componentTopic = kernel.findServiceTopic(getNucleusComponentName());
+        if (componentTopic != null && componentTopic.find(VERSION_CONFIG_KEY) != null) {
+            version = Coerce.toString(componentTopic.find(VERSION_CONFIG_KEY));
+        }
+        if (version == null) {
+            return getVersionFromZip();
+        } else {
+            return version;
+        }
+    }
+
+    /**
+     * Get the Nucleus version from the ZIP file.
+     *
+     * @return version from the zip file, or a default if the version can't be determined
+     */
+    public static String getVersionFromZip() {
+        try {
+            try (InputStream is = Files
+                    .newInputStream(locateCurrentKernelUnpackDir().resolve("conf").resolve("nucleus.properties"))) {
+                NUCLEUS_PROPERTIES.load(is);
+            }
+
+            String version = NUCLEUS_PROPERTIES.getProperty("nucleus.version");
+            if (version != null) {
+                return version;
+            }
+        } catch (IOException | URISyntaxException e) {
+            logger.atWarn().log("Unable to determine Greengrass version", e);
+        }
+        return "2.0.0"; // Default fallback
     }
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,
