@@ -51,7 +51,10 @@ public class MqttProxyIPCAgent {
     private static final String COMPONENT_NAME = "componentName";
     private static final String TOPIC_KEY = "topic";
     private static final String UNAUTHORIZED_ERROR = "Not Authorized";
-    private static final String INVALID_QOS_ERROR = "Invalid QoS value in request";
+    private static final String NO_PAYLOAD_ERROR = "Payload is required";
+    private static final String NO_TOPIC_ERROR = "Topic is required";
+    private static final String NO_QOS_ERROR = "QoS is required";
+    private static final String INVALID_QOS_ERROR = "Invalid QoS value";
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
@@ -89,7 +92,7 @@ public class MqttProxyIPCAgent {
         @Override
         public PublishToIoTCoreResponse handleRequest(PublishToIoTCoreRequest request) {
             return translateExceptions(() -> {
-                String topic = request.getTopicName();
+                String topic = validateTopic(request.getTopicName(), serviceName);
 
                 try {
                     doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
@@ -98,8 +101,9 @@ public class MqttProxyIPCAgent {
                     throw new UnauthorizedError(UNAUTHORIZED_ERROR);
                 }
 
-                PublishRequest publishRequest = PublishRequest.builder().payload(request.getPayload()).topic(topic)
-                        .qos(getQualityOfServiceFromQOS(request.getQos())).build();
+                byte[] payload = validatePayload(request.getPayload(), serviceName);
+                QualityOfService qos = validateQoS(request.getQosAsString(), serviceName);
+                PublishRequest publishRequest = PublishRequest.builder().payload(payload).topic(topic).qos(qos).build();
                 CompletableFuture<Integer> future = mqttClient.publish(publishRequest);
 
                 // If the future is completed exceptionally then the MqttClient was unable to spool the request
@@ -152,7 +156,7 @@ public class MqttProxyIPCAgent {
         @Override
         public SubscribeToIoTCoreResponse handleRequest(SubscribeToIoTCoreRequest request) {
             return translateExceptions(() -> {
-                String topic = request.getTopicName();
+                String topic = validateTopic(request.getTopicName(), serviceName);
 
                 try {
                     doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
@@ -162,8 +166,9 @@ public class MqttProxyIPCAgent {
                 }
 
                 Consumer<MqttMessage> callback = this::forwardToSubscriber;
+                QualityOfService qos = validateQoS(request.getQosAsString(), serviceName);
                 SubscribeRequest subscribeRequest = SubscribeRequest.builder().callback(callback).topic(topic)
-                        .qos(getQualityOfServiceFromQOS(request.getQos())).build();
+                        .qos(qos).build();
 
                 try {
                     mqttClient.subscribe(subscribeRequest);
@@ -196,15 +201,36 @@ public class MqttProxyIPCAgent {
         }
     }
 
-    private QualityOfService getQualityOfServiceFromQOS(QOS qos) {
-        if (qos == QOS.AT_LEAST_ONCE) {
-            return QualityOfService.AT_LEAST_ONCE;
-        } else if (qos == QOS.AT_MOST_ONCE) {
-            return QualityOfService.AT_MOST_ONCE;
+    private String validateTopic(String topic, String serviceName) {
+        if (topic == null) {
+            LOGGER.atError().kv(COMPONENT_NAME, serviceName).log(NO_TOPIC_ERROR);
+            throw new InvalidArgumentsError(NO_TOPIC_ERROR);
+        }
+        return topic;
+    }
+
+    private byte[] validatePayload(byte[] payload, String serviceName) {
+        if (payload == null) {
+            LOGGER.atError().kv(COMPONENT_NAME, serviceName).log(NO_PAYLOAD_ERROR);
+            throw new InvalidArgumentsError(NO_PAYLOAD_ERROR);
+        }
+        return payload;
+    }
+
+    private QualityOfService validateQoS(String qosAsString, String serviceName) {
+        if (qosAsString == null) {
+            LOGGER.atError().kv(COMPONENT_NAME, serviceName).log(NO_QOS_ERROR);
+            throw new InvalidArgumentsError(NO_QOS_ERROR);
         }
 
-        LOGGER.atError().log(INVALID_QOS_ERROR);
-        throw new InvalidArgumentsError(INVALID_QOS_ERROR);
+        if (qosAsString.equals(QOS.AT_LEAST_ONCE.getValue())) {
+            return QualityOfService.AT_LEAST_ONCE;
+        } else if (qosAsString.equals(QOS.AT_MOST_ONCE.getValue())) {
+            return QualityOfService.AT_MOST_ONCE;
+        } else {
+            LOGGER.atError().kv(COMPONENT_NAME, serviceName).kv("QoS", qosAsString).log(INVALID_QOS_ERROR);
+            throw new InvalidArgumentsError(INVALID_QOS_ERROR + ": " + qosAsString);
+        }
     }
 
     void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
