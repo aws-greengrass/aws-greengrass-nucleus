@@ -254,9 +254,10 @@ public class GreengrassSetup {
             return;
         }
         if (showVersion) {
-            // Use getVersionFromZip so that we don't need to startup the kernel which is slow and will
+            // Use getVersionFromBuildMetadataFile so that we don't need to startup the kernel which is slow and will
             // start creating files and directories which may not be desired
-            outStream.println(String.format(SHOW_VERSION_RESPONSE, DeviceConfiguration.getVersionFromZip()));
+            outStream.println(String.format(SHOW_VERSION_RESPONSE,
+                    DeviceConfiguration.getVersionFromBuildMetadataFile()));
             return;
         }
 

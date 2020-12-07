@@ -98,6 +98,10 @@ public class DeviceConfiguration {
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
     public static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
     public static final String GGC_VERSION_ENV = "GGC_VERSION";
+    protected static final String NUCLEUS_VERSION_BUILD_METADATA_KEY = "nucleus.version";
+    protected static final String NUCLEUS_BUILD_METADATA_FILENAME = "nucleus.properties";
+    protected static final String NUCLEUS_BUILD_METADATA_DIRECTORY = "conf";
+    protected static final String FALLBACK_VERSION = "2.0.0";
 
     private final Kernel kernel;
 
@@ -107,7 +111,7 @@ public class DeviceConfiguration {
     private Topics loggingTopics;
     private LoggerConfiguration currentConfiguration;
     private String nucleusComponentNameCache;
-    private static final Properties NUCLEUS_PROPERTIES = new Properties();
+    private static final Properties NUCLEUS_BUILD_PROPERTIES = new Properties();
 
     /**
      * Constructor used to read device configuration from the config store.
@@ -208,7 +212,7 @@ public class DeviceConfiguration {
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY)
                 .withValue(ComponentType.NUCLEUS.name());
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY)
-                .dflt(getVersionFromZip());
+                .dflt(getVersionFromBuildMetadataFile());
         ArrayList<String> mainDependencies = (ArrayList) kernel.getConfig().getRoot()
                 .findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
                         SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
@@ -480,7 +484,7 @@ public class DeviceConfiguration {
             version = Coerce.toString(componentTopic.find(VERSION_CONFIG_KEY));
         }
         if (version == null) {
-            return getVersionFromZip();
+            return getVersionFromBuildMetadataFile();
         } else {
             return version;
         }
@@ -491,21 +495,24 @@ public class DeviceConfiguration {
      *
      * @return version from the zip file, or a default if the version can't be determined
      */
-    public static String getVersionFromZip() {
+    public static String getVersionFromBuildMetadataFile() {
         try {
             try (InputStream is = Files
-                    .newInputStream(locateCurrentKernelUnpackDir().resolve("conf").resolve("nucleus.properties"))) {
-                NUCLEUS_PROPERTIES.load(is);
+                    .newInputStream(locateCurrentKernelUnpackDir().resolve(NUCLEUS_BUILD_METADATA_DIRECTORY)
+                            .resolve(NUCLEUS_BUILD_METADATA_FILENAME))) {
+                NUCLEUS_BUILD_PROPERTIES.load(is);
             }
 
-            String version = NUCLEUS_PROPERTIES.getProperty("nucleus.version");
+            String version = NUCLEUS_BUILD_PROPERTIES.getProperty(NUCLEUS_VERSION_BUILD_METADATA_KEY);
             if (version != null) {
                 return version;
             }
         } catch (IOException | URISyntaxException e) {
-            logger.atWarn().log("Unable to determine Greengrass version", e);
+            logger.atError().log("Unable to determine Greengrass version", e);
         }
-        return "2.0.0"; // Default fallback
+        logger.atError().log("Unable to determine Greengrass version from build metadata file. "
+                        + "Build file not found, or version not found in file. Falling back to {}", FALLBACK_VERSION);
+        return FALLBACK_VERSION;
     }
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,
