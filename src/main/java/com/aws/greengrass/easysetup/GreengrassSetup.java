@@ -420,7 +420,8 @@ public class GreengrassSetup {
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion, tesRoleAliasName);
         outStream.println("Successfully configured kernel with provisioned resource details!");
         if (deployDevTools) {
-            deviceProvisioningHelper.createInitialDeploymentIfNeeded(thingInfo, thingGroupName);
+            deviceProvisioningHelper.createInitialDeploymentIfNeeded(thingInfo, thingGroupName,
+                    kernel.getContext().get(DeviceConfiguration.class).getNucleusVersion());
         }
 
     }
