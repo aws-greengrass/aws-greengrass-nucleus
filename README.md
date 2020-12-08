@@ -28,26 +28,3 @@ When parameters changes, all users of them are notified.  Everything adapts cont
 4. [**util**](src/main/java/com/aws/greengrass/util) A grab-bag of useful utilities.
 
 You'll probably find the coding style to be a trifle odd.  It is very paranoid about failures and tries to catch, cope with, and (maybe) repair failures locally.  Mike Duigou did a nice talk on this topic: [Always Be Running: long running and fault tolerant java services](https://youtu.be/agXce0lSo60).
-
-### Building
-This project has continuous integration implemented using AWS CodeBuild. For each push to the master branch, the library is built and deployed to a private maven repository.
-
-You can set this up in your project as follows: 
-
-```xml
-<repositories>
-    <repository>
-        <id>evergreen-dev-snapshot</id>
-        <name>Kernel Snapshot</name>
-        <url>https://decmzyi1cnv6r.cloudfront.net/snapshot</url>
-    </repository>
-</repositories>
-```
-
-```xml
-<dependency>
-    <groupId>com.aws.iot</groupId>
-    <artifactId>evergreen-nucleus</artifactId>
-    <version>1.0-SNAPSHOT</version>
-</dependency>
-```
