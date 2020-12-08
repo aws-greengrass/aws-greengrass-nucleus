@@ -65,7 +65,7 @@ public class S3Downloader extends ArtifactDownloader {
     }
 
     @SuppressWarnings(
-            {"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidInstanceofChecksInCatchClause"})
+            {"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     @Override
     protected long download(long rangeStart, long rangeEnd, MessageDigest messageDigest)
             throws InterruptedException, PackageDownloadException {
@@ -91,17 +91,14 @@ public class S3Downloader extends ArtifactDownloader {
                     }
                 }
             }, "download-S3-artifact", logger);
+        } catch (InterruptedException e) {
+            throw e;
         } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-                throw (InterruptedException) e;
-            } else {
-                throw new PackageDownloadException(getErrorString("Failed to download object from S3"), e);
-            }
+            throw new PackageDownloadException(getErrorString("Failed to download object from S3"), e);
         }
     }
 
-    @SuppressWarnings(
-            {"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidInstanceofChecksInCatchClause"})
+    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     @Override
     public Long getDownloadSize() throws InterruptedException, PackageDownloadException {
         logger.atInfo().setEventType("get-download-size-from-s3").log();
@@ -115,17 +112,14 @@ public class S3Downloader extends ArtifactDownloader {
                 HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
                 return headObjectResponse.contentLength();
             }, "get-download-size-from-s3", logger);
+        } catch (InterruptedException e) {
+            throw e;
         } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-                throw (InterruptedException) e;
-            } else {
-                throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
-            }
+            throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
         }
     }
 
-    @SuppressWarnings(
-            {"PMD.AvoidCatchingGenericException", "PMD.AvoidInstanceofChecksInCatchClause"})
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     private S3Client getRegionClientForBucket(String bucket) throws InterruptedException, PackageDownloadException {
         GetBucketLocationRequest getBucketLocationRequest = GetBucketLocationRequest.builder().bucket(bucket).build();
         String region = null;
@@ -135,20 +129,18 @@ public class S3Downloader extends ArtifactDownloader {
                             .locationConstraintAsString(), "get-bucket-location", logger);
             region = s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
                     .locationConstraintAsString();
-        } catch (Exception e) {
-            if (e instanceof S3Exception) {
-                String message = e.getMessage();
-                if (message.contains(REGION_EXPECTING_STRING)) {
-                    message =
-                            message.substring(
-                                    message.indexOf(REGION_EXPECTING_STRING) + REGION_EXPECTING_STRING.length());
-                    region = message.substring(0, message.indexOf('\''));
-                }
-            } else if (e instanceof InterruptedException) {
-                throw (InterruptedException) e;
-            } else {
-                throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
+        } catch (InterruptedException e) {
+            throw e;
+        } catch (S3Exception e) {
+            String message = e.getMessage();
+            if (message.contains(REGION_EXPECTING_STRING)) {
+                message =
+                        message.substring(
+                                message.indexOf(REGION_EXPECTING_STRING) + REGION_EXPECTING_STRING.length());
+                region = message.substring(0, message.indexOf('\''));
             }
+        } catch (Exception e) {
+            throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
         }
         // If the region is empty, it is us-east-1
         return s3ClientFactory.getClientForRegion(Utils.isEmpty(region) ? Region.US_EAST_1 : Region.of(region));

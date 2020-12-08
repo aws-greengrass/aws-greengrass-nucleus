@@ -59,7 +59,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     }
 
     @Override
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidInstanceofChecksInCatchClause"})
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     public Long getDownloadSize() throws PackageDownloadException, InterruptedException {
         if (artifactSize != null) {
             return artifactSize;
@@ -69,12 +69,10 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     .runWithRetry(clientExceptionRetryConfig, () -> getDownloadSizeWithoutRetry(), "get-artifact-size",
                             logger);
             return artifactSize;
+        } catch (InterruptedException e) {
+            throw e;
         } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-                throw (InterruptedException) e;
-            } else {
-                throw new PackageDownloadException(getErrorString("Failed to get download size"), e);
-            }
+            throw new PackageDownloadException(getErrorString("Failed to get download size"), e);
         }
     }
 
@@ -102,8 +100,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         }
     }
 
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     @Override
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidInstanceofChecksInCatchClause"})
     protected long download(long rangeStart, long rangeEnd, MessageDigest messageDigest)
             throws PackageDownloadException, InterruptedException {
         URL url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
@@ -161,16 +159,14 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     }
                 }
             }, "download-artifact", logger);
+        } catch (InterruptedException e) {
+            throw e;
         } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-                throw (InterruptedException) e;
-            } else {
-                throw new PackageDownloadException(getErrorString("Failed to download the artifact"), e);
-            }
+            throw new PackageDownloadException(getErrorString("Failed to download the artifact"), e);
         }
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidInstanceofChecksInCatchClause"})
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     private URL getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws InterruptedException, PackageDownloadException {
         String arn;
@@ -189,12 +185,10 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                         clientFactory.getCmsClient().getComponentVersionArtifact(getComponentArtifactRequest);
                 return new URL(getComponentArtifactResult.preSignedUrl());
             }, "get-artifact-size", logger);
+        } catch (InterruptedException e) {
+            throw e;
         } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-                throw (InterruptedException) e;
-            } else {
-                throw new PackageDownloadException(getErrorString("Failed to get download size"), e);
-            }
+            throw new PackageDownloadException(getErrorString("Failed to get download size"), e);
         }
     }
 

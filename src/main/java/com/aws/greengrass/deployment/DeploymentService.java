@@ -193,22 +193,28 @@ public class DeploymentService extends GreengrassService {
                 if (deployment.isCancelled()) {
                     // Handle IoT Jobs cancellation
                     deploymentQueue.remove();
+
                     if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentType()
                             .equals(deployment.getDeploymentType()) && currentDeploymentTaskMetadata.isCancellable()) {
+                        // Cancel the current deployment if it's an IoT Jobs deployment
+                        // that is in progress and still cancellable.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                                 .log("Canceling current deployment");
                         // Send interrupt signal to the deployment task.
                         cancelCurrentDeployment();
                     } else if (currentDeploymentTaskMetadata != null && !currentDeploymentTaskMetadata
                             .isCancellable()) {
+                        // Ignore the cancelling signal if the deployment is NOT cancellable any more.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                                 .log("The current deployment cannot be cancelled");
                     }
                 } else if (deployment.getDeploymentType().equals(DeploymentType.SHADOW)) {
-                    // On device start up, Shadow listener will fetch the shadow and schedule a shadow deployment
-                    // Discard the deployment if Kernel starts up from a tlog file and has already processed deployment
+                    // The deployment type is shadow
                     if (deployment.getId()
                             .equals(Coerce.toString(config.lookup(LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC)))) {
+                        // On device start up, Shadow listener will fetch the shadow and schedule a shadow deployment
+                        // Discard the deployment if Kernel starts up from a tlog file
+                        // and has already processed deployment
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
                                 .log("Skip the already processed shadow deployment");
                         deploymentQueue.remove();
@@ -220,23 +226,31 @@ public class DeploymentService extends GreengrassService {
                                 .log("Canceling current device deployment");
                         cancelCurrentDeployment();
                     } else if (currentDeploymentTaskMetadata == null) {
+                        // Since no in progress deployment, just create a deployment.
                         deploymentQueue.remove();
                         createNewDeployment(deployment);
                     }
                 } else if (deployment.getDeploymentType().equals(DeploymentType.IOT_JOBS)) {
+                    // The deployment type is IoT Jobs
                     if (currentDeploymentTaskMetadata != null && deployment.getId()
                             .equals(currentDeploymentTaskMetadata.getDeploymentId()) && deployment.getDeploymentType()
                             .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
+                        // The new deployment is duplicate of current in progress deployment. Ignore the new one.
                         deploymentQueue.remove();
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
                                 .log("Skip the duplicated IoT Jobs deployment");
                     } else if (currentDeploymentTaskMetadata == null) {
+                        // Since no in progress deployment, just create a new deployment.
                         deploymentQueue.remove();
                         createNewDeployment(deployment);
                     }
                 } else if (deployment.getDeploymentType().equals(DeploymentType.LOCAL)) {
-                    deploymentQueue.remove();
-                    createNewDeployment(deployment);
+                    // The deployment type is local
+                    if (currentDeploymentTaskMetadata == null) {
+                        // Since no in progress deployment, just create a new deployment.
+                        deploymentQueue.remove();
+                        createNewDeployment(deployment);
+                    }
                 } else {
                     logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
                             .kv("DeploymentType", deployment.getDeploymentType()).log("Unknown deployment type");

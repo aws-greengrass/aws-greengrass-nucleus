@@ -81,7 +81,7 @@ public abstract class ArtifactDownloader {
      * @throws InterruptedException     if interrupted in downloading
      * @throws PackageDownloadException if error occurred in download process
      */
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidInstanceofChecksInCatchClause"})
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     public final File downloadToPath() throws PackageDownloadException, IOException, InterruptedException {
         MessageDigest messageDigest;
         try {
@@ -134,12 +134,10 @@ public abstract class ArtifactDownloader {
                 logger.atDebug().setEventType("download-artifact").log("Passed integrity check");
                 return saveToPath.toFile();
             }, "download-artifact", logger);
+        } catch (InterruptedException e) {
+            throw e;
         } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-                throw (InterruptedException) e;
-            } else {
-                throw new PackageDownloadException(getErrorString("Failed to download the artifact"), e);
-            }
+            throw new PackageDownloadException(getErrorString("Failed to download the artifact"), e);
         }
     }
 

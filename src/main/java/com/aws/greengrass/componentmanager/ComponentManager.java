@@ -172,7 +172,7 @@ public class ComponentManager implements InjectionActions {
         }
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidInstanceofChecksInCatchClause"})
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     private ComponentIdentifier negotiateVersionWithCloud(String componentName,
             Map<String, Requirement> versionRequirements,
             ComponentIdentifier localCandidate)
@@ -184,15 +184,9 @@ public class ComponentManager implements InjectionActions {
                 resolvedComponentVersion = RetryUtils.runWithRetry(clientExceptionRetryConfig,
                         () -> componentServiceHelper.resolveComponentVersion(componentName, null, versionRequirements),
                         "resolve-component-version", logger);
-
+            } catch (InterruptedException e) {
+                throw e;
             } catch (Exception e) {
-                if (e instanceof InterruptedException) {
-                    throw (InterruptedException) e;
-                }
-
-                logger.atError().setCause(e).kv("componentName", componentName)
-                        .kv("versionRequirement", versionRequirements).log("Failed to negotiate version with cloud");
-
                 throw new NoAvailableComponentVersionException(String.format(
                         "Failed to negotiate component '%s' version with cloud and no local applicable version "
                                 + "satisfying requirement '%s'.", componentName, versionRequirements), e);
