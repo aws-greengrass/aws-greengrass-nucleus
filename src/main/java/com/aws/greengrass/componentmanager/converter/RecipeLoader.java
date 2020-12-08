@@ -10,7 +10,6 @@ import com.amazon.aws.iot.greengrass.component.common.PlatformSpecificManifest;
 import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
-import com.aws.greengrass.componentmanager.models.ComponentParameter;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.models.Permission;
 import com.aws.greengrass.componentmanager.models.PermissionType;
@@ -123,26 +122,9 @@ public class RecipeLoader {
                 .componentType(componentRecipe.getComponentType()).dependencies(dependencyPropertiesMap).lifecycle(
                         convertLifecycleFromFile(componentRecipe.getLifecycle(), platformSpecificManifest, selectors))
                 .artifacts(convertArtifactsFromFile(platformSpecificManifest.getArtifacts()))
-                .componentConfiguration(componentRecipe.getComponentConfiguration())
-                .componentParameters(convertParametersFromFile(platformSpecificManifest.getParameters())).build();
+                .componentConfiguration(componentRecipe.getComponentConfiguration()).build();
 
         return Optional.of(packageRecipe);
-    }
-
-    private static Set<ComponentParameter> convertParametersFromFile(
-            List<com.amazon.aws.iot.greengrass.component.common.ComponentParameter> parameters) {
-        if (parameters == null || parameters.isEmpty()) {
-            return Collections.emptySet();
-        }
-        return parameters.stream().filter(Objects::nonNull).map(RecipeLoader::convertParameterFromFile)
-                .collect(Collectors.toSet());
-    }
-
-    private static ComponentParameter convertParameterFromFile(
-            @Nonnull com.amazon.aws.iot.greengrass.component.common.ComponentParameter parameter) {
-        return ComponentParameter.builder().name(parameter.getName()).value(parameter.getValue())
-                .type(ComponentParameter.ParameterType.valueOf(parameter.getType().name())).build();
-
     }
 
     private static List<ComponentArtifact> convertArtifactsFromFile(
