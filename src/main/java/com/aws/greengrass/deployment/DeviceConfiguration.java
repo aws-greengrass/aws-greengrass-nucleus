@@ -99,7 +99,7 @@ public class DeviceConfiguration {
     public static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
     public static final String GGC_VERSION_ENV = "GGC_VERSION";
     protected static final String NUCLEUS_VERSION_BUILD_METADATA_KEY = "nucleus.version";
-    protected static final String NUCLEUS_BUILD_METADATA_FILENAME = "nucleus.properties";
+    protected static final String NUCLEUS_BUILD_METADATA_FILENAME = "nucleus-build.properties";
     protected static final String NUCLEUS_BUILD_METADATA_DIRECTORY = "conf";
     protected static final String FALLBACK_VERSION = "2.0.0";
 

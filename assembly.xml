@@ -26,7 +26,7 @@
             <directory>${basedir}/conf</directory>
             <outputDirectory>/conf</outputDirectory>
             <includes>
-                <include>nucleus.properties</include>
+                <include>nucleus-build.properties</include>
             </includes>
         </fileSet>
     </fileSets>
