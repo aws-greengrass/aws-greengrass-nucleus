@@ -107,7 +107,6 @@ public class DeviceProvisioningHelper {
     private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
     private static final String IOT_ROLE_POLICY_NAME_PREFIX = "GreengrassTESCertificatePolicy";
     private static final String GREENGRASS_CLI_COMPONENT_NAME = "aws.greengrass.Cli";
-    private static final String GREENGRASS_CLI_COMPONENT_VERSION = "2.0.0";
     private static final String INITIAL_DEPLOYMENT_NAME_FORMAT = "Deployment for %s";
 
     private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
@@ -445,8 +444,9 @@ public class DeviceProvisioningHelper {
      *
      * @param thingInfo thing info for the device
      * @param thingGroupName thing group name
+     * @param cliVersion CLI version to install
      */
-    public void createInitialDeploymentIfNeeded(ThingInfo thingInfo, String thingGroupName) {
+    public void createInitialDeploymentIfNeeded(ThingInfo thingInfo, String thingGroupName, String cliVersion) {
         if (Utils.isNotEmpty(thingGroupName) && thingGroupExists) {
             // Skip creating a dev tools deployment to existing thing group since it can remove existing components if
             // and can add to cost because it will be applied to all existing devices in the group
@@ -476,7 +476,7 @@ public class DeviceProvisioningHelper {
         }
 
         deploymentRequest.components(Utils.immutableMap(GREENGRASS_CLI_COMPONENT_NAME,
-                ComponentDeploymentSpecification.builder().componentVersion(GREENGRASS_CLI_COMPONENT_VERSION).build()));
+                ComponentDeploymentSpecification.builder().componentVersion(cliVersion).build()));
 
         greengrassClient.createDeployment(deploymentRequest.build());
         outStream.printf("Configured Nucleus to deploy %s component%n", GREENGRASS_CLI_COMPONENT_NAME);

@@ -46,7 +46,6 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
-import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
 import static com.aws.greengrass.status.DeploymentInformation.ARN_FOR_STATUS_KEY;
 import static com.aws.greengrass.status.DeploymentInformation.STATUS_DETAILS_KEY;
 import static com.aws.greengrass.status.DeploymentInformation.STATUS_KEY;
@@ -223,7 +222,7 @@ public class ShadowDeploymentListener implements InjectionActions {
         reported.put(ARN_FOR_STATUS_KEY, deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME));
         reported.put(STATUS_KEY, deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME));
         reported.put(STATUS_DETAILS_KEY, statusDetails);
-        reported.put(GGC_VERSION_KEY, KERNEL_VERSION);
+        reported.put(GGC_VERSION_KEY, deviceConfiguration.getNucleusVersion());
 
         return reported;
     }

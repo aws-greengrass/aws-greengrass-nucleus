@@ -62,7 +62,6 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ST
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
-import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
 import static com.aws.greengrass.status.FleetStatusService.DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC;
 import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC;
 import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC;
@@ -110,6 +109,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
     private ScheduledThreadPoolExecutor ses;
     private FleetStatusService fleetStatusService;
+    private static final String VERSION = "2.0.0";
 
     @BeforeEach
     void setup() {
@@ -120,6 +120,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(mockGreengrassService2.getName()).thenReturn("MockService2");
         lenient().when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
+        lenient().when(mockDeviceConfiguration.getNucleusVersion()).thenReturn(VERSION);
         Topic sequenceNumberTopic = Topic.of(context, FLEET_STATUS_SEQUENCE_NUMBER_TOPIC, "0");
         lenient().when(config.lookup(FLEET_STATUS_SEQUENCE_NUMBER_TOPIC)).thenReturn(sequenceNumberTopic);
         Topic lastPeriodicUpdateTime = Topic.of(context, FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC, Instant.now().toEpochMilli());
@@ -210,7 +211,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         serviceNamesToCheck.add("MockService2");
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-        assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
+        assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(JobStatus.SUCCEEDED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
@@ -293,7 +294,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-        assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
+        assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(JobStatus.FAILED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
@@ -417,7 +418,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-        assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
+        assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
@@ -510,7 +511,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-        assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
+        assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(JobStatus.SUCCEEDED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
@@ -570,7 +571,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-        assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
+        assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
@@ -681,7 +682,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
             assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
             assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
             FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-            assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
+            assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
             assertEquals("testThing", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
             assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
@@ -745,7 +746,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
         ObjectMapper mapper = new ObjectMapper();
         FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-        assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
+        assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
@@ -821,7 +822,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
             assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
             assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
             FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
-            assertEquals(KERNEL_VERSION, fleetStatusDetails.getGgcVersion());
+            assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
             assertEquals("testThing", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
             assertEquals(500, fleetStatusDetails.getComponentStatusDetails().size());
