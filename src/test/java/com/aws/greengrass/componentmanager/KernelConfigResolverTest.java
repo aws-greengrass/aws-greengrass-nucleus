@@ -10,7 +10,6 @@ import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.componentmanager.models.ComponentParameter;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topics;
@@ -48,7 +47,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -152,11 +150,9 @@ class KernelConfigResolverTest {
 
         ComponentRecipe rootComponentRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2.0",
                 Collections.singletonMap(TEST_INPUT_PACKAGE_B,
-                        DependencyProperties.builder().versionRequirement("2.3").build()), Collections.emptyMap(),
-                TEST_INPUT_PACKAGE_A);
+                        DependencyProperties.builder().versionRequirement("2.3").build()), TEST_INPUT_PACKAGE_A);
         ComponentRecipe dependencyComponentRecipe =
-                getPackage(TEST_INPUT_PACKAGE_B, "2.3.0", Collections.emptyMap(), Collections.emptyMap(),
-                        TEST_INPUT_PACKAGE_B);
+                getPackage(TEST_INPUT_PACKAGE_B, "2.3.0", Collections.emptyMap(), TEST_INPUT_PACKAGE_B);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
                 .packageName(TEST_INPUT_PACKAGE_A)
@@ -227,8 +223,7 @@ class KernelConfigResolverTest {
         List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
 
         ComponentRecipe rootComponentRecipe =
-                getPackage(TEST_INPUT_PACKAGE_A, "1.2.0", Collections.emptyMap(), Collections.emptyMap(),
-                        TEST_INPUT_PACKAGE_A);
+                getPackage(TEST_INPUT_PACKAGE_A, "1.2.0", Collections.emptyMap(), TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2");
@@ -274,7 +269,7 @@ class KernelConfigResolverTest {
         List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
 
         ComponentRecipe rootComponentRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2.0", Collections.emptyMap(),
-                getSimpleParameterMap(TEST_INPUT_PACKAGE_A), TEST_INPUT_PACKAGE_A);
+                TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 DeploymentPackageConfiguration.builder().packageName(TEST_INPUT_PACKAGE_A)
@@ -329,7 +324,7 @@ class KernelConfigResolverTest {
         List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
 
         ComponentRecipe rootComponentRecipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
-                rootComponentIdentifier.getVersion(), "", "", null, Collections.emptySet(), new HashMap<String, Object>() {{
+                rootComponentIdentifier.getVersion(), "", "", null, new HashMap<String, Object>() {{
             put(LIFECYCLE_RUN_KEY, "java -jar {artifacts:path}/test.jar -x arg");
         }}, Collections.emptyList(), Collections.emptyMap(), null);
 
@@ -444,7 +439,7 @@ class KernelConfigResolverTest {
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
                 equalTo("echo running service in Component PackageA with param valueB"));
 
-        assertThat("no runwith is present", getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig), 
+        assertThat("no runwith is present", getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig),
                 not(hasKey(RUN_WITH_NAMESPACE_TOPIC)));
     }
 
@@ -659,7 +654,7 @@ class KernelConfigResolverTest {
         List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
 
         ComponentRecipe rootComponentRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2.0", Collections.emptyMap(),
-                getSimpleParameterMap(TEST_INPUT_PACKAGE_A), TEST_INPUT_PACKAGE_A);
+                TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2");
@@ -714,11 +709,9 @@ class KernelConfigResolverTest {
 
         ComponentRecipe rootComponentRecipe = getPackage(TEST_INPUT_PACKAGE_A, "1.2.0",
                 Collections.singletonMap(TEST_INPUT_PACKAGE_B,
-                        DependencyProperties.builder().versionRequirement("2.3").build()), Collections.emptyMap(),
-                TEST_INPUT_PACKAGE_A);
+                        DependencyProperties.builder().versionRequirement("2.3").build()), TEST_INPUT_PACKAGE_A);
         ComponentRecipe dependencyComponentRecipe =
-                getPackage(TEST_INPUT_PACKAGE_B, "2.3.0", Collections.emptyMap(), Collections.emptyMap(),
-                        TEST_INPUT_PACKAGE_B);
+                getPackage(TEST_INPUT_PACKAGE_B, "2.3.0", Collections.emptyMap(), TEST_INPUT_PACKAGE_B);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
                 .packageName(TEST_INPUT_PACKAGE_A)
@@ -820,18 +813,11 @@ class KernelConfigResolverTest {
     // utilities for mocking input
     private ComponentRecipe getPackage(String packageName, String packageVersion,
                                        Map<String, DependencyProperties> dependencies,
-                                       Map<String, String> packageParamsWithDefaultsRaw, String crossComponentName) {
-
-        Set<ComponentParameter> parameters = packageParamsWithDefaultsRaw.entrySet()
-                                                                       .stream()
-                                                                       .map(entry -> new ComponentParameter(
-                                                                               entry.getKey(), entry.getValue(),
-                                                                               ComponentParameter.ParameterType.STRING))
-                                                                       .collect(Collectors.toSet());
+                                       String crossComponentName) {
 
         Semver version = new Semver(packageVersion);
         return new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, packageName, version, "Test package", "Publisher",
-                null, parameters, getSimplePackageLifecycle(packageName, crossComponentName), Collections.emptyList(),
+                null, getSimplePackageLifecycle(packageName, crossComponentName), Collections.emptyList(),
                 dependencies, null);
     }
 
@@ -843,19 +829,9 @@ class KernelConfigResolverTest {
 
         Semver version = new Semver(componentVersion);
         return new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, componentName, version, "component in test",
-                "publisher", componentConfiguration, Collections.emptySet(), getSimpleComponentLifecycle(componentName,
-                jsonPointerStr, crossComponentName, crossComponentJsonPointerStr),
-                Collections.emptyList(),
-                dependencies, null);
-    }
-
-    private Map<String, String> getSimpleParameterMap(String packageName) {
-        Map<String, String> simpleParameterMap = new HashMap<>();
-        simpleParameterMap.put(String.format("%s_Param_1", packageName),
-                String.format("%s_Param_1_default_value", packageName));
-        simpleParameterMap.put(String.format("%s_Param_2", packageName),
-                String.format("%s_Param_2_default_value", packageName));
-        return simpleParameterMap;
+                "publisher", componentConfiguration,
+                getSimpleComponentLifecycle(componentName, jsonPointerStr, crossComponentName,
+                        crossComponentJsonPointerStr), Collections.emptyList(), dependencies, null);
     }
 
     private Map<String, Object> getSimplePackageLifecycle(String packageName, String crossComponentName) {

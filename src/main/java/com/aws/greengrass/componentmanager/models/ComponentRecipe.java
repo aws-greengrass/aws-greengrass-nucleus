@@ -17,7 +17,6 @@ import lombok.Value;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Value
 @Builder
@@ -37,8 +36,6 @@ public class ComponentRecipe {
     ComponentConfiguration componentConfiguration;
 
     // The following fields are the platform specific and has already been resolved when loading from the recipe file
-    @Builder.Default
-    Set<ComponentParameter> componentParameters = Collections.emptySet();
 
     @Builder.Default
     Map<String, Object> lifecycle = Collections.emptyMap();
