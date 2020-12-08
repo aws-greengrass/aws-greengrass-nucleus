@@ -21,9 +21,8 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
+import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
-import com.aws.greengrass.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
-import com.aws.greengrass.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -55,6 +54,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -87,7 +87,6 @@ public class DeploymentService extends GreengrassService {
     public static final String DEPLOYMENT_DETAILED_STATUS_KEY = "detailed-deployment-status";
     public static final String DEPLOYMENT_FAILURE_CAUSE_KEY = "deployment-failure-cause";
 
-    private static final int DEPLOYMENT_MAX_ATTEMPTS = 3;
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
     @Getter
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
@@ -191,46 +190,70 @@ public class DeploymentService extends GreengrassService {
             // the waiting on currentProcessStatus in its own thread. I currently choose to not do this.
             Deployment deployment = deploymentQueue.peek();
             if (deployment != null) {
-                if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentType()
-                        .equals(deployment.getDeploymentType()) && deployment.isCancelled()
-                        && currentDeploymentTaskMetadata.isCancellable()) {
-                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                            .log("Canceling current deployment");
-                    // Assuming cancel will either cancel the current deployment or wait till it finishes
-                    cancelCurrentDeployment();
-                }
-                if (currentDeploymentTaskMetadata != null && deployment.getId()
-                        .equals(currentDeploymentTaskMetadata.getDeploymentId()) && deployment.getDeploymentType()
-                        .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
-                    // Duplicate message and already processing this deployment so nothing is needed
+                if (deployment.isCancelled()) {
+                    // Handle IoT Jobs cancellation
                     deploymentQueue.remove();
-                    continue;
-                }
-                if (deployment.getDeploymentType().equals(DeploymentType.SHADOW)) {
-                    // A new device deployment invalidates the previous deployment, cancel the ongoing device deployment
-                    // and wait till the new device deployment can be picked up.
-                    if (currentDeploymentTaskMetadata != null && DeploymentType.SHADOW.equals(
-                            currentDeploymentTaskMetadata.getDeploymentType())) {
+
+                    if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentType()
+                            .equals(deployment.getDeploymentType()) && currentDeploymentTaskMetadata.isCancellable()) {
+                        // Cancel the current deployment if it's an IoT Jobs deployment
+                        // that is in progress and still cancellable.
+                        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                                .log("Canceling current deployment");
+                        // Send interrupt signal to the deployment task.
+                        cancelCurrentDeployment();
+                    } else if (currentDeploymentTaskMetadata != null && !currentDeploymentTaskMetadata
+                            .isCancellable()) {
+                        // Ignore the cancelling signal if the deployment is NOT cancellable any more.
+                        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                                .log("The current deployment cannot be cancelled");
+                    }
+                } else if (deployment.getDeploymentType().equals(DeploymentType.SHADOW)) {
+                    // The deployment type is shadow
+                    if (deployment.getId()
+                            .equals(Coerce.toString(config.lookup(LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC)))) {
+                        // On device start up, Shadow listener will fetch the shadow and schedule a shadow deployment
+                        // Discard the deployment if Kernel starts up from a tlog file
+                        // and has already processed deployment
+                        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
+                                .log("Skip the already processed shadow deployment");
+                        deploymentQueue.remove();
+                    } else if (currentDeploymentTaskMetadata != null && DeploymentType.SHADOW
+                            .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
+                        // A new device deployment invalidates the previous deployment, cancel the ongoing device
+                        //deployment and wait till the new device deployment can be picked up.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                                 .log("Canceling current device deployment");
                         cancelCurrentDeployment();
-                        continue;
-                    }
-                    // On device start up, Shadow listener will fetch the shadow and schedule a shadow deployment
-                    // Discard the deployment if Kernel starts up from a tlog file and has already processed deployment
-                    if (deployment.getId()
-                            .equals(Coerce.toString(config.lookup(LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC)))) {
+                    } else if (currentDeploymentTaskMetadata == null) {
+                        // Since no in progress deployment, just create a deployment.
                         deploymentQueue.remove();
-                        continue;
+                        createNewDeployment(deployment);
                     }
-                }
-                if (currentDeploymentTaskMetadata != null) {
-                    // wait till the current deployment finishes
-                    continue;
-                }
-                deploymentQueue.remove();
-                if (!deployment.isCancelled()) {
-                    createNewDeployment(deployment);
+                } else if (deployment.getDeploymentType().equals(DeploymentType.IOT_JOBS)) {
+                    // The deployment type is IoT Jobs
+                    if (currentDeploymentTaskMetadata != null && deployment.getId()
+                            .equals(currentDeploymentTaskMetadata.getDeploymentId()) && deployment.getDeploymentType()
+                            .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
+                        // The new deployment is duplicate of current in progress deployment. Ignore the new one.
+                        deploymentQueue.remove();
+                        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
+                                .log("Skip the duplicated IoT Jobs deployment");
+                    } else if (currentDeploymentTaskMetadata == null) {
+                        // Since no in progress deployment, just create a new deployment.
+                        deploymentQueue.remove();
+                        createNewDeployment(deployment);
+                    }
+                } else if (deployment.getDeploymentType().equals(DeploymentType.LOCAL)) {
+                    // The deployment type is local
+                    if (currentDeploymentTaskMetadata == null) {
+                        // Since no in progress deployment, just create a new deployment.
+                        deploymentQueue.remove();
+                        createNewDeployment(deployment);
+                    }
+                } else {
+                    logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
+                            .kv("DeploymentType", deployment.getDeploymentType()).log("Unknown deployment type");
                 }
             }
             Thread.sleep(pollingFrequency.get());
@@ -331,25 +354,25 @@ public class DeploymentService extends GreengrassService {
                 }
             }
         } catch (ExecutionException e) {
-            logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId()).setCause(e)
-                    .log("Caught exception while getting the status of the Job");
             Throwable t = e.getCause();
-            HashMap<String, String> statusDetails = new HashMap<>();
-            statusDetails.put("error", t.getMessage());
-            if (t instanceof NonRetryableDeploymentTaskFailureException
-                    || currentDeploymentTaskMetadata.getDeploymentAttemptCount().get() >= DEPLOYMENT_MAX_ATTEMPTS) {
+            if (t instanceof InterruptedException) {
+                logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                        .log("Deployment task is interrupted");
+            } else {
+                // This code path can only occur when DeploymentTask throws unchecked exception.
+                logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                        .setCause(t).log("Deployment task throws unknown exception");
+                HashMap<String, String> statusDetails = new HashMap<>();
+                statusDetails.put("error", t.getMessage());
                 deploymentStatusKeeper
                         .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                                           currentDeploymentTaskMetadata.getDeploymentType(),
-                                                           JobStatus.FAILED.toString(), statusDetails);
+                                currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED.toString(),
+                                statusDetails);
                 deploymentDirectoryManager.persistLastFailedDeployment();
-            } else if (t instanceof RetryableDeploymentTaskFailureException) {
-                // Resubmit task, increment attempt count and return
-                currentDeploymentTaskMetadata.setDeploymentResultFuture(
-                        executorService.submit(currentDeploymentTaskMetadata.getDeploymentTask()));
-                currentDeploymentTaskMetadata.getDeploymentAttemptCount().incrementAndGet();
-                return;
             }
+        } catch (CancellationException e) {
+            logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                    .log("Deployment task is cancelled");
         }
         // Setting this to null to indicate there is not current deployment being processed
         // Did not use optionals over null due to performance
@@ -381,32 +404,20 @@ public class DeploymentService extends GreengrassService {
                                 .getDeploymentDocumentObj().getDeploymentId());
                 if (canCancelDeployment) {
                     currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
+                    if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {
+                        deploymentStatusKeeper
+                                .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
+                                        currentDeploymentTaskMetadata.getDeploymentType(),
+                                        JobStatus.CANCELED.toString(), new HashMap<>());
+                    }
                     logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                             .log("Deployment was cancelled");
                 } else {
                     logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                             .log("Deployment is in a stage where it cannot be cancelled,"
                                          + " need to wait for it to finish");
-                    try {
-                        currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
-                    } catch (ExecutionException | InterruptedException e) {
-                        logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                                .log("Error while finishing "
-                                             + "deployment, no-op since the deployment was canceled at the source");
-                    }
                 }
             }
-            // Currently cancellation for only IoT Jobs based deployments is supported and for such deployments job
-            // status should not be reported back since once a job is cancelled IoT Jobs will reject any status
-            // updates for it. however, if we later support cancellation for more deployment types this may need to
-            // be handled on case by case basis
-            if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {
-                deploymentStatusKeeper
-                        .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.CANCELED.toString(),
-                                new HashMap<>());
-            }
-            currentDeploymentTaskMetadata = null;
         }
     }
 
@@ -457,7 +468,7 @@ public class DeploymentService extends GreengrassService {
         } catch (IOException ioException) {
             logger.atError().log("Unable to create deployment directory", ioException);
             CompletableFuture<DeploymentResult> process = new CompletableFuture<>();
-            process.completeExceptionally(new NonRetryableDeploymentTaskFailureException(ioException));
+            process.completeExceptionally(new DeploymentTaskFailureException(ioException));
             currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(),
                     deployment.getDeploymentType(), new AtomicInteger(1), deployment.getDeploymentDocumentObj(), false);
             return;
@@ -563,12 +574,13 @@ public class DeploymentService extends GreengrassService {
                     .log("Invalid document for deployment");
             HashMap<String, String> statusDetails = new HashMap<>();
             statusDetails.put("error", e.getMessage());
-            deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
-                                                                     JobStatus.FAILED.toString(), statusDetails);
+            deploymentStatusKeeper
+                    .persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
+                            JobStatus.FAILED.toString(), statusDetails);
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
-                                         deploymentConfigMerger, logger.createChild(), deployment, config);
+                deploymentConfigMerger, logger.createChild(), deployment, config, executorService);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {
@@ -686,7 +698,7 @@ public class DeploymentService extends GreengrassService {
     }
 
     /**
-     * Gets the list of all the groups that the component is a part of.
+     * Gets the list of all the groups that the component is a part of. This method is used by log manager.
      *
      * @param componentName The name of the component.
      * @return The list of groups the component is a part of.
@@ -708,7 +720,7 @@ public class DeploymentService extends GreengrassService {
     }
 
     /**
-     * Gets the list of all the groups that the thing is a part of.
+     * Gets the list of all the groups that the thing is a part of. This method is used by log manager.
      *
      * @return All the group configs.
      */
@@ -733,13 +745,14 @@ public class DeploymentService extends GreengrassService {
 
     /**
      * Checks whether a component is a root component or not.
+     *
      * @param componentName The name of the component.
      * @return a boolean indicating whether a component is a root component or not.
      */
     public boolean isComponentRoot(String componentName) {
         Topics groupToRootComponentsTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
         if (groupToRootComponentsTopics != null) {
-            for (Node node: groupToRootComponentsTopics.children.values()) {
+            for (Node node : groupToRootComponentsTopics.children.values()) {
                 if (node instanceof Topics) {
                     Topics groupTopics = (Topics) node;
                     for (Node componentNode: groupTopics.children.values()) {

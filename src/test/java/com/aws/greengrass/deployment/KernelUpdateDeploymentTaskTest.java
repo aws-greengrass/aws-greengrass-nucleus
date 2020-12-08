@@ -6,7 +6,6 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
-import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
@@ -133,20 +132,6 @@ class KernelUpdateDeploymentTaskTest {
         doReturn(true).when(greengrassService).reachedDesiredState();
 
         assertEquals(new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null), task.call());
-    }
-
-    @Test
-    void GIVEN_deployment_activation_WHEN_Exception_THEN_retry(ExtensionContext context) throws Exception{
-        ignoreExceptionOfType(context, PackageLoadingException.class);
-
-        doReturn(KERNEL_ACTIVATION).when(deployment).getDeploymentStage();
-        doReturn(STARTING, RUNNING).when(greengrassService).getState();
-        doReturn(true).when(greengrassService).reachedDesiredState();
-        doThrow(new PackageLoadingException("any error")).when(componentManager).cleanupStaleVersions();
-
-        task.call();
-        verify(deployment).setStageDetails(matches("any error"));
-        verify(kernel).shutdown(eq(30), eq(REQUEST_RESTART));
     }
 
     @Test

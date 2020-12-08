@@ -9,6 +9,7 @@ import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriExceptio
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.S3SdkClientFactory;
 import com.aws.greengrass.util.Utils;
 import lombok.AllArgsConstructor;
@@ -21,10 +22,13 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,6 +40,10 @@ public class S3Downloader extends ArtifactDownloader {
     private static final Pattern S3_PATH_REGEX = Pattern.compile("s3:\\/\\/([^\\/]+)\\/(.*)");
     private final S3SdkClientFactory s3ClientFactory;
     private final S3ObjectPath s3ObjectPath;
+    private final RetryUtils.RetryConfig s3ClientExceptionRetryConfig =
+            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
+                    .maxRetryInterval(Duration.ofMinutes(1L)).maxAttempt(Integer.MAX_VALUE)
+                    .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class)).build();
 
     /**
      * Constructor.
@@ -43,8 +51,7 @@ public class S3Downloader extends ArtifactDownloader {
      * @param clientFactory S3 client factory
      */
     protected S3Downloader(S3SdkClientFactory clientFactory, ComponentIdentifier identifier, ComponentArtifact artifact,
-                        Path artifactDir)
-            throws InvalidArtifactUriException {
+                           Path artifactDir) throws InvalidArtifactUriException {
         super(identifier, artifact, artifactDir);
         this.s3ClientFactory = clientFactory;
         this.s3ObjectPath = getS3PathForURI(artifact.getArtifactUri());
@@ -57,33 +64,43 @@ public class S3Downloader extends ArtifactDownloader {
         return pathStrings[pathStrings.length - 1];
     }
 
-    @SuppressWarnings("PMD.CloseResource")
+    @SuppressWarnings(
+            {"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     @Override
     protected long download(long rangeStart, long rangeEnd, MessageDigest messageDigest)
-            throws PackageDownloadException, InterruptedException {
+            throws InterruptedException, PackageDownloadException {
         String bucket = s3ObjectPath.bucket;
         String key = s3ObjectPath.key;
 
         S3Client regionClient = getRegionClientForBucket(bucket);
         GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucket).key(key)
                 .range(String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd)).build();
-        logger.atDebug().kv("bucket", getObjectRequest.bucket())
-                .kv("s3-key", getObjectRequest.key())
+        logger.atDebug().kv("bucket", getObjectRequest.bucket()).kv("s3-key", getObjectRequest.key())
                 .kv("range", getObjectRequest.range()).log("Getting s3 object request");
 
-        return runWithRetry("download-S3-artifact", MAX_RETRY,() -> {
-            try (InputStream inputStream = regionClient.getObject(getObjectRequest)) {
-                return download(inputStream, messageDigest);
-            } catch (SdkClientException | S3Exception e) {
-                String errorMsg = getErrorString("Failed to get artifact object from S3");
-                throw new PackageDownloadException(errorMsg, e);
-            }
-        });
+        try {
+            return RetryUtils.runWithRetry(s3ClientExceptionRetryConfig, () -> {
+                try (InputStream inputStream = regionClient.getObject(getObjectRequest)) {
+                    long downloaded = download(inputStream, messageDigest);
+                    if (downloaded == 0) {
+                        // If 0 byte is read, it's fairly certain that the inputStream is closed.
+                        // Therefore throw IOException to trigger the retry logic.
+                        throw new IOException("Failed to read any byte from the inputStream");
+                    } else {
+                        return downloaded;
+                    }
+                }
+            }, "download-S3-artifact", logger);
+        } catch (InterruptedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new PackageDownloadException(getErrorString("Failed to download object from S3"), e);
+        }
     }
 
-    @SuppressWarnings("PMD.CloseResource")
+    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     @Override
-    public Long getDownloadSize() throws PackageDownloadException {
+    public Long getDownloadSize() throws InterruptedException, PackageDownloadException {
         logger.atInfo().setEventType("get-download-size-from-s3").log();
         // Parse artifact path
         String key = s3ObjectPath.key;
@@ -91,26 +108,39 @@ public class S3Downloader extends ArtifactDownloader {
         try {
             S3Client regionClient = getRegionClientForBucket(bucket);
             HeadObjectRequest headObjectRequest = HeadObjectRequest.builder().bucket(bucket).key(key).build();
-            HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
-            return headObjectResponse.contentLength();
-        } catch (SdkClientException | S3Exception e) {
+            return RetryUtils.runWithRetry(s3ClientExceptionRetryConfig, () -> {
+                HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
+                return headObjectResponse.contentLength();
+            }, "get-download-size-from-s3", logger);
+        } catch (InterruptedException e) {
+            throw e;
+        } catch (Exception e) {
             throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
         }
     }
 
-    private S3Client getRegionClientForBucket(String bucket) {
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    private S3Client getRegionClientForBucket(String bucket) throws InterruptedException, PackageDownloadException {
         GetBucketLocationRequest getBucketLocationRequest = GetBucketLocationRequest.builder().bucket(bucket).build();
         String region = null;
         try {
+            region = RetryUtils.runWithRetry(s3ClientExceptionRetryConfig,
+                    () -> s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
+                            .locationConstraintAsString(), "get-bucket-location", logger);
             region = s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
                     .locationConstraintAsString();
+        } catch (InterruptedException e) {
+            throw e;
         } catch (S3Exception e) {
             String message = e.getMessage();
             if (message.contains(REGION_EXPECTING_STRING)) {
                 message =
-                        message.substring(message.indexOf(REGION_EXPECTING_STRING) + REGION_EXPECTING_STRING.length());
+                        message.substring(
+                                message.indexOf(REGION_EXPECTING_STRING) + REGION_EXPECTING_STRING.length());
                 region = message.substring(0, message.indexOf('\''));
             }
+        } catch (Exception e) {
+            throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
         }
         // If the region is empty, it is us-east-1
         return s3ClientFactory.getClientForRegion(Utils.isEmpty(region) ? Region.US_EAST_1 : Region.of(region));

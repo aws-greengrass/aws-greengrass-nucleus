@@ -8,7 +8,6 @@ package com.aws.greengrass.componentmanager;
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
-import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
@@ -35,10 +34,13 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Permissions;
+import com.aws.greengrass.util.RetryUtils;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
+import lombok.AccessLevel;
 import lombok.Setter;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2.model.ResolvedComponentVersion;
 
 import java.io.File;
@@ -46,6 +48,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -78,6 +82,12 @@ public class ComponentManager implements InjectionActions {
     private final Kernel kernel;
     private final Unarchiver unarchiver;
     private final NucleusPaths nucleusPaths;
+    // Setter for unit tests
+    @Setter(AccessLevel.PACKAGE)
+    private RetryUtils.RetryConfig clientExceptionRetryConfig =
+            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
+                    .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(Integer.MAX_VALUE)
+                    .retryableExceptions(Arrays.asList(SdkClientException.class)).build();
 
     @Inject
     @Setter
@@ -111,7 +121,8 @@ public class ComponentManager implements InjectionActions {
     }
 
     ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements,
-                                              String deploymentConfigurationId) throws PackagingException {
+                                              String deploymentConfigurationId)
+            throws InterruptedException, PackagingException {
         logger.atInfo().setEventType("resolve-component-version-start").kv(COMPONENT_STR, componentName)
                 .kv("versionRequirements", versionRequirements).log("Resolving component version starts");
 
@@ -157,30 +168,39 @@ public class ComponentManager implements InjectionActions {
                 .find(Kernel.SERVICE_DIGEST_TOPIC_KEY, componentIdentifier.toString());
         if (digestTopic != null) {
             digestTopic.remove();
-            logger.atInfo().kv(COMPONENT_STR, componentIdentifier).log("Remove digest from store");
+            logger.atDebug().kv(COMPONENT_STR, componentIdentifier).log("Remove digest from store");
         }
     }
 
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     private ComponentIdentifier negotiateVersionWithCloud(String componentName,
-                                                          Map<String, Requirement> versionRequirements,
-                                                          ComponentIdentifier localCandidate)
-            throws PackagingException {
+            Map<String, Requirement> versionRequirements,
+            ComponentIdentifier localCandidate)
+            throws PackagingException, InterruptedException {
         ResolvedComponentVersion resolvedComponentVersion;
-        try {
-            resolvedComponentVersion = componentServiceHelper
-                    .resolveComponentVersion(componentName, localCandidate == null ? null : localCandidate.getVersion(),
-                            versionRequirements);
-        } catch (ComponentVersionNegotiationException | NoAvailableComponentVersionException e) {
-            logger.atInfo().setCause(e).kv("componentName", componentName).kv("versionRequirement", versionRequirements)
-                    .kv("localVersion", localCandidate)
-                    .log("Failed to negotiate version with cloud due to a exception and trying to fall back "
-                            + "to use the available local version");
-            if (localCandidate != null) {
+
+        if (localCandidate == null) {
+            try {
+                resolvedComponentVersion = RetryUtils.runWithRetry(clientExceptionRetryConfig,
+                        () -> componentServiceHelper.resolveComponentVersion(componentName, null, versionRequirements),
+                        "resolve-component-version", logger);
+            } catch (InterruptedException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new NoAvailableComponentVersionException(String.format(
+                        "Failed to negotiate component '%s' version with cloud and no local applicable version "
+                                + "satisfying requirement '%s'.", componentName, versionRequirements), e);
+            }
+        } else {
+            try {
+                resolvedComponentVersion = componentServiceHelper
+                        .resolveComponentVersion(componentName, localCandidate.getVersion(), versionRequirements);
+            } catch (Exception e) {
+                logger.atInfo().setCause(e).kv("componentName", componentName)
+                        .kv("versionRequirement", versionRequirements).kv("localVersion", localCandidate)
+                        .log("Failed to negotiate version with cloud and fall back to use the local version");
                 return localCandidate;
             }
-            throw new NoAvailableComponentVersionException(String.format(
-                    "Failed to negotiate component '%s' version with cloud and no local applicable version "
-                            + "satisfying requirement '%s'.", componentName, versionRequirements), e);
         }
 
         ComponentIdentifier resolvedComponentId = new ComponentIdentifier(resolvedComponentVersion.componentName(),
@@ -397,12 +417,10 @@ public class ComponentManager implements InjectionActions {
     }
 
     /**
-     * Delete stale versions from local store.
-     *
-     * @throws PackageLoadingException if I/O exception during deletion
+     * Delete stale versions from local store. It's best effort and all the errors are logged.
      */
-    public void cleanupStaleVersions() throws PackageLoadingException {
-        logger.atInfo("cleanup-stale-versions-start").log();
+    public void cleanupStaleVersions() {
+        logger.atDebug("cleanup-stale-versions-start").log();
         Map<String, Set<String>> versionsToKeep = getVersionsToKeep();
         Map<String, Set<String>> versionsToRemove = componentStore.listAvailableComponentVersions();
         // remove all local versions that does not exist in versionsToKeep
@@ -417,13 +435,14 @@ public class ComponentManager implements InjectionActions {
                     ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
                     removeRecipeDigestIfExists(identifier);
                     componentStore.deleteComponent(identifier);
-                } catch (SemverException e) {
-                    logger.atDebug().kv("componentName", compName).kv("version", compVersion)
-                            .log("Failed to clean up component: invalid component version");
+                } catch (SemverException | PackageLoadingException e) {
+                    // Log a warn here. This shouldn't cause a deployment to fail.
+                    logger.atWarn().kv("componentName", compName).kv("version", compVersion).setCause(e)
+                            .log("Failed to clean up component");
                 }
             }
         }
-        logger.atInfo("cleanup-stale-versions-finish").log();
+        logger.atDebug("cleanup-stale-versions-finish").log();
     }
 
     /**

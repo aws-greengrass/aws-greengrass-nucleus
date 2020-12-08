@@ -6,7 +6,6 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
-import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -70,7 +69,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
 
             componentManager.cleanupStaleVersions();
             return result;
-        } catch (InterruptedException | PackageLoadingException e) {
+        } catch (InterruptedException e) {
             logger.atError("deployment-interrupted", e).log();
             try {
                 saveDeploymentStatusDetails(e.getMessage());

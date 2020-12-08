@@ -167,7 +167,7 @@ class S3DownloaderTest {
                             .checksum(VALID_ARTIFACT_CHECKSUM).algorithm(VALID_ALGORITHM).build(),
                     saveToPath);
             Exception e = assertThrows(PackageDownloadException.class, () -> s3Downloader.downloadToPath());
-            assertThat(e.getMessage(), containsString("Failed to get artifact object from S3"));
+            assertThat(e.getMessage(), containsString("Failed to download artifact"));
         } finally {
             ComponentTestResourceHelper.cleanDirectory(testCache);
         }

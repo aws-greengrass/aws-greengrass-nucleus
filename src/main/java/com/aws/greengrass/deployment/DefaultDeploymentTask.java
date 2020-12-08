@@ -8,13 +8,9 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
-import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
-import com.aws.greengrass.componentmanager.exceptions.PackagingException;
-import com.aws.greengrass.componentmanager.exceptions.UnexpectedPackagingException;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
-import com.aws.greengrass.deployment.exceptions.RetryableDeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -29,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
@@ -42,6 +39,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
     private final ComponentManager componentManager;
     private final KernelConfigResolver kernelConfigResolver;
     private final DeploymentConfigMerger deploymentConfigMerger;
+    private final ExecutorService executorService;
     private final Logger logger;
     @Getter
     private final Deployment deployment;
@@ -50,18 +48,19 @@ public class DefaultDeploymentTask implements DeploymentTask {
     /**
      * Constructor for DefaultDeploymentTask.
      *
-     * @param dependencyResolver DependencyResolver instance
-     * @param componentManager PackageManager instance
-     * @param kernelConfigResolver KernelConfigResolver instance
-     * @param deploymentConfigMerger DeploymentConfigMerger instance
-     * @param logger Logger instance
-     * @param deployment Deployment instance
+     * @param dependencyResolver      DependencyResolver instance
+     * @param componentManager        PackageManager instance
+     * @param kernelConfigResolver    KernelConfigResolver instance
+     * @param deploymentConfigMerger  DeploymentConfigMerger instance
+     * @param logger                  Logger instance
+     * @param deployment              Deployment instance
      * @param deploymentServiceConfig Deployment service configuration Topics
+     * @param executorService         Executor service
      */
     public DefaultDeploymentTask(DependencyResolver dependencyResolver, ComponentManager componentManager,
                                  KernelConfigResolver kernelConfigResolver,
                                  DeploymentConfigMerger deploymentConfigMerger, Logger logger, Deployment deployment,
-                                 Topics deploymentServiceConfig) {
+                                 Topics deploymentServiceConfig, ExecutorService executorService) {
         this.dependencyResolver = dependencyResolver;
         this.componentManager = componentManager;
         this.kernelConfigResolver = kernelConfigResolver;
@@ -69,12 +68,13 @@ public class DefaultDeploymentTask implements DeploymentTask {
         this.logger = logger.dfltKv(DEPLOYMENT_ID_LOG_KEY, deployment.getDeploymentDocumentObj().getDeploymentId());
         this.deployment = deployment;
         this.deploymentServiceConfig = deploymentServiceConfig;
+        this.executorService = executorService;
     }
 
     @Override
     @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.PrematureDeclaration"})
-    public DeploymentResult call()
-            throws NonRetryableDeploymentTaskFailureException, RetryableDeploymentTaskFailureException {
+    public DeploymentResult call() throws InterruptedException {
+        Future<List<ComponentIdentifier>> resolveDependenciesFuture = null;
         Future<Void> preparePackagesFuture = null;
         Future<DeploymentResult> deploymentMergeFuture = null;
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
@@ -94,8 +94,10 @@ public class DefaultDeploymentTask implements DeploymentTask {
                 }
             });
 
-            List<ComponentIdentifier> desiredPackages =
-                    dependencyResolver.resolveDependencies(deploymentDocument, groupsToRootPackages);
+            resolveDependenciesFuture = executorService
+                    .submit(() -> dependencyResolver.resolveDependencies(deploymentDocument, groupsToRootPackages));
+
+            List<ComponentIdentifier> desiredPackages = resolveDependenciesFuture.get();
 
             // Block this without timeout because a device can be offline and it can take quite a long time
             // to download a package.
@@ -105,8 +107,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             Map<String, Object> newConfig =
                     kernelConfigResolver.resolve(desiredPackages, deploymentDocument, new ArrayList<>(rootPackages));
             if (Thread.currentThread().isInterrupted()) {
-                logger.atInfo().log("Received interrupt before attempting deployment merge, skipping merge");
-                return null;
+                throw new InterruptedException("Deployment task is interrupted");
             }
             deploymentMergeFuture = deploymentConfigMerger.mergeInNewConfig(deployment, newConfig);
 
@@ -119,34 +120,35 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
             componentManager.cleanupStaleVersions();
             return result;
-        } catch (IOException | NoAvailableComponentVersionException | UnexpectedPackagingException e) {
-            throw new NonRetryableDeploymentTaskFailureException(e);
+        } catch (PackageLoadingException | IOException e) {
+            return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
         } catch (ExecutionException e) {
             Throwable t = e.getCause();
-            if (t instanceof PackagingException || t instanceof InterruptedException || t instanceof IOException) {
-                throw new RetryableDeploymentTaskFailureException(t);
+            if (t instanceof InterruptedException) {
+                throw (InterruptedException) t;
+            } else {
+                return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, t);
             }
-            throw new NonRetryableDeploymentTaskFailureException(t);
         } catch (InterruptedException e) {
-            // DeploymentTask got interrupted while waiting or blocked on either prepare packages
-            // or deployment merge step and landed here
-            handleCancellation(preparePackagesFuture, deploymentMergeFuture);
-            return null;
-        } catch (PackagingException e) {
-            throw new RetryableDeploymentTaskFailureException(e);
+            // DeploymentTask got interrupted while performing a blocking step.
+            cancelDeploymentTask(resolveDependenciesFuture, preparePackagesFuture, deploymentMergeFuture);
+            // Populate the exception up to the stack
+            throw e;
         }
     }
 
-    /*
-     * Handle deployment cancellation
-     */
-    private void handleCancellation(Future<Void> preparePackagesFuture,
-                                    Future<DeploymentResult> deploymentMergeFuture) {
+    private void cancelDeploymentTask(Future<List<ComponentIdentifier>> resolveDependenciesFuture,
+                                      Future<Void> preparePackagesFuture,
+                                      Future<DeploymentResult> deploymentMergeFuture) {
+        if (resolveDependenciesFuture != null && !resolveDependenciesFuture.isDone()) {
+            resolveDependenciesFuture.cancel(true);
+            logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE).log("Cancelled dependency resolution due to received interrupt");
+            return;
+        }
         // Stop downloading packages since the task was cancelled
         if (preparePackagesFuture != null && !preparePackagesFuture.isDone()) {
             preparePackagesFuture.cancel(true);
-            logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE)
-                    .log("Cancelled package download due to received interrupt");
+            logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE).log("Cancelled package download due to received interrupt");
             return;
         }
         // Cancel deployment config merge future

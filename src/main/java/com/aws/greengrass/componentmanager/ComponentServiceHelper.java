@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.componentmanager;
 
-import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.logging.api.Logger;
@@ -13,7 +12,6 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.lang3.Validate;
-import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2.model.ComponentCandidate;
 import software.amazon.awssdk.services.greengrassv2.model.ComponentPlatform;
 import software.amazon.awssdk.services.greengrassv2.model.ResolveComponentCandidatesRequest;
@@ -49,11 +47,9 @@ public class ComponentServiceHelper {
      * @param versionRequirements       component dependents version requirement map
      * @return resolved component version and recipe
      * @throws NoAvailableComponentVersionException if no applicable version available in cloud service
-     * @throws ComponentVersionNegotiationException if service exception happens
      */
     ResolvedComponentVersion resolveComponentVersion(String componentName, Semver localCandidateVersion,
-                                                     Map<String, Requirement> versionRequirements)
-            throws NoAvailableComponentVersionException, ComponentVersionNegotiationException {
+            Map<String, Requirement> versionRequirements) throws NoAvailableComponentVersionException {
 
         ComponentPlatform platform = ComponentPlatform.builder()
                 .attributes(platformResolver.getCurrentPlatform()).build();
@@ -75,12 +71,6 @@ public class ComponentServiceHelper {
             throw new NoAvailableComponentVersionException(String.format(
                     "No applicable version found in cloud registry for component: '%s' satisfying requirement: '%s'.",
                     componentName, versionRequirements), e);
-        } catch (SdkClientException e) {
-            logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
-                    .log("Failed to get result from Greengrass cloud when resolving component");
-            throw new ComponentVersionNegotiationException(
-                    String.format("Failed to get result from Greengrass cloud when resolving component: '%s'.",
-                                  componentName), e);
         }
 
         Validate.isTrue(
