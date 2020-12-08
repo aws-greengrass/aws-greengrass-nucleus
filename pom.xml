@@ -111,7 +111,7 @@
         <dependency>
             <groupId>com.aws.iot</groupId>
             <artifactId>component-common</artifactId>
-            <version>0.0.0-037e3e0f0ab1e4e1bd0338d14eadb19b364c3612</version>
+            <version>0.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
