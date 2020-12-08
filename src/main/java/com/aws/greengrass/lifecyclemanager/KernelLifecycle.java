@@ -9,6 +9,7 @@ import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.IPCEventStreamService;
 import com.aws.greengrass.ipc.Startable;
 import com.aws.greengrass.ipc.modules.AuthorizationService;
@@ -50,7 +51,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
 import static com.aws.greengrass.util.Utils.close;
 import static com.aws.greengrass.util.Utils.deepToString;
 
@@ -89,7 +89,9 @@ public class KernelLifecycle {
      * Startup the Kernel and all services.
      */
     public void launch() {
-        logger.atInfo("system-start").kv("version", KERNEL_VERSION).kv("rootPath", nucleusPaths.rootPath())
+        logger.atInfo("system-start").kv("version",
+                kernel.getContext().get(DeviceConfiguration.class).getNucleusVersion())
+                .kv("rootPath", nucleusPaths.rootPath())
                 .kv("configPath", nucleusPaths.configPath()).log("Launch Kernel");
 
         // Startup builtin non-services. This is blocking, so it will wait for them to be running.

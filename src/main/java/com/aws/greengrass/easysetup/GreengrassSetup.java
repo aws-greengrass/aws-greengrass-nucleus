@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.ThingInfo;
-import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
 
 /**
  * Easy setup for getting started with Greengrass kernel on a device.
@@ -255,7 +254,10 @@ public class GreengrassSetup {
             return;
         }
         if (showVersion) {
-            outStream.println(String.format(SHOW_VERSION_RESPONSE, KERNEL_VERSION));
+            // Use getVersionFromBuildMetadataFile so that we don't need to startup the kernel which is slow and will
+            // start creating files and directories which may not be desired
+            outStream.println(String.format(SHOW_VERSION_RESPONSE,
+                    DeviceConfiguration.getVersionFromBuildMetadataFile()));
             return;
         }
 
@@ -265,7 +267,6 @@ public class GreengrassSetup {
         kernel.parseArgs(kernelArgs.toArray(new String[]{}));
 
         DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
-
         if (Utils.isEmpty(awsRegion)) {
             awsRegion = Coerce.toString(deviceConfiguration.getAWSRegion());
         }
@@ -420,7 +421,8 @@ public class GreengrassSetup {
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion, tesRoleAliasName);
         outStream.println("Successfully configured kernel with provisioned resource details!");
         if (deployDevTools) {
-            deviceProvisioningHelper.createInitialDeploymentIfNeeded(thingInfo, thingGroupName);
+            deviceProvisioningHelper.createInitialDeploymentIfNeeded(thingInfo, thingGroupName,
+                    kernel.getContext().get(DeviceConfiguration.class).getNucleusVersion());
         }
 
     }

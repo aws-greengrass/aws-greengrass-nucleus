@@ -22,5 +22,12 @@
                 <include>greengrass.service.template</include>
             </includes>
         </fileSet>
+        <fileSet>
+            <directory>${basedir}/conf</directory>
+            <outputDirectory>/conf</outputDirectory>
+            <includes>
+                <include>nucleus-build.properties</include>
+            </includes>
+        </fileSet>
     </fileSets>
 </assembly>

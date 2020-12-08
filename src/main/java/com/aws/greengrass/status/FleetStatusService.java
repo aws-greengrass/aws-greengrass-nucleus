@@ -55,7 +55,6 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TY
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCAL;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.SHADOW;
-import static com.aws.greengrass.lifecyclemanager.KernelVersion.KERNEL_VERSION;
 
 @ImplementsService(name = FleetStatusService.FLEET_STATUS_SERVICE_TOPICS, autostart = true)
 public class FleetStatusService extends GreengrassService {
@@ -68,6 +67,7 @@ public class FleetStatusService extends GreengrassService {
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
+    private final DeviceConfiguration deviceConfiguration;
 
     private String updateTopic;
     private String thingName;
@@ -154,6 +154,7 @@ public class FleetStatusService extends GreengrassService {
         updateThingNameAndPublishTopic(Coerce.toString(deviceConfiguration.getThingName()));
         deviceConfiguration.getThingName()
                 .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
+        this.deviceConfiguration = deviceConfiguration;
 
         topics.lookup(CONFIGURATION_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC)
@@ -421,7 +422,7 @@ public class FleetStatusService extends GreengrassService {
                 .architecture(this.architecture)
                 .platform(this.platform)
                 .thing(thingName)
-                .ggcVersion(KERNEL_VERSION)
+                .ggcVersion(deviceConfiguration.getNucleusVersion())
                 .sequenceNumber(sequenceNumber)
                 .deploymentInformation(deploymentInformation)
                 .build();

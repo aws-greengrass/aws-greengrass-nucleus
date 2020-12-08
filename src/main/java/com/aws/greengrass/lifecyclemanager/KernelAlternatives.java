@@ -165,9 +165,13 @@ public class KernelAlternatives {
      * │   └── loader
      * └── lib
      *     └── Greengrass.jar
+     *
+     * @return Path of the unpack directory
+     * @throws IOException if directory structure does not match the expectation
+     * @throws URISyntaxException if the source code location isn't a proper URI
      */
     @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
-    private Path locateCurrentKernelUnpackDir() throws IOException, URISyntaxException {
+    public static Path locateCurrentKernelUnpackDir() throws IOException, URISyntaxException {
         Path parentDir = new File(KernelAlternatives.class.getProtectionDomain().getCodeSource().getLocation()
                 .toURI()).toPath().getParent();
         if (parentDir == null || ! Files.exists(parentDir)

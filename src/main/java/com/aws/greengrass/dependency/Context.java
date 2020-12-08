@@ -66,7 +66,7 @@ public class Context implements Closeable {
                     Runnable task = serialized.takeFirst();
                     task.run();
                 } catch (InterruptedException ie) {
-                    logger.atWarn().log("Interrupted while running tasks. Publish thread will exit now.");
+                    logger.atInfo().log("Interrupted while running tasks. Publish thread will exit now.");
                     return;
                 } catch (Throwable t) {
                     logger.atError().setEventType("run-on-publish-queue-error").setCause(t).log();

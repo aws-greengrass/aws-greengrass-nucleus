@@ -122,6 +122,11 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         // Ignore error from MQTT during shutdown
         ignoreExceptionUltimateCauseWithMessageSubstring(context, "MQTT operation interrupted by connection shutdown");
         ignoreExceptionUltimateCauseWithMessageSubstring(context, "Connection has started destroying process");
+        // This exception will occur because our tests are not running with the directory structure expected by
+        // Greengrass. As such, it is safe to ignore since Greengrass will just fallback to a default version, which
+        // doesn't matter for almost all tests. Tests which care about the version should override the version in the
+        // config.
+        ignoreExceptionUltimateCauseWithMessage(context, "Unable to locate the unpack directory of Kernel Jar file");
 
         // Ignore error from AWS ERROR
         ignoreExceptionWithMessageSubstring(context, "AWS_ERROR_INVALID_ARGUMENT(33), An invalid argument");
