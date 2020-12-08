@@ -41,7 +41,8 @@ import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMP
 public class DependencyResolver {
     static final String NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT = "The deployment attempts to update the "
             + "nucleus from %s-%s to %s-%s but no component of type nucleus was included as target component, please "
-            + "add the desired nucleus version as top level component if you wish to update the nucleus";
+            + "add the desired nucleus version as top level component if you wish to update the nucleus to a different "
+            + "minor/major version";
     private static final Logger logger = LogManager.getLogger(DependencyResolver.class);
     private static final String VERSION_KEY = "version";
     private static final String COMPONENT_NAME_KEY = "componentName";
@@ -143,9 +144,13 @@ public class DependencyResolver {
         ComponentIdentifier resolvedNucleusId = resolvedNucleusComponents.get(0);
 
         if (!resolvedNucleusId.equals(activeNucleusId) && !targetComponents.contains(resolvedNucleusId.getName())) {
-            throw new PackagingException(String.format(NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT,
-                    activeNucleusId.getName(), activeNucleusId.getVersion().toString(), resolvedNucleusId.getName(),
-                    resolvedNucleusId.getVersion().toString()));
+            Semver.VersionDiff diff = activeNucleusVersion.diff(resolvedNucleusId.getVersion());
+            if (Semver.VersionDiff.MINOR.equals(diff) || Semver.VersionDiff.MAJOR.equals(diff)) {
+                throw new PackagingException(
+                        String.format(NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT, activeNucleusId.getName(),
+                                activeNucleusId.getVersion().toString(), resolvedNucleusId.getName(),
+                                resolvedNucleusId.getVersion().toString()));
+            }
         }
     }
 

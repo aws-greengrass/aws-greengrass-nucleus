@@ -418,7 +418,7 @@ class DependencyResolverTest {
     }
 
     @Test
-    void GIVEN_resolved_components_contains_custom_nucleus_WHEN_active_nucleus_is_not_custom_nucleus_THEN_fail()
+    void GIVEN_resolved_components_contains_new_nucleus_patch_version_WHEN_minor_version_is_unchanged_THEN_pass()
             throws Exception {
         GreengrassService activeNucleus = mock(GreengrassService.class);
         when(activeNucleus.getServiceName()).thenReturn("defaultNucleus");
@@ -432,20 +432,18 @@ class DependencyResolverTest {
 
         ComponentIdentifier componentA = new ComponentIdentifier("A", new Semver("1.0.0"));
         ComponentIdentifier componentB = new ComponentIdentifier("B", new Semver("1.0.0"));
-        ComponentIdentifier customNucleus = new ComponentIdentifier("customNucleus", new Semver("1.2.0"));
-        ComponentRecipe customNucleusRecipe = mock(ComponentRecipe.class);
-        when(customNucleusRecipe.getComponentType()).thenReturn(ComponentType.NUCLEUS);
-        when(componentStore.getPackageRecipe(customNucleus)).thenReturn(customNucleusRecipe);
+        // Only path version is proposed to change
+        ComponentIdentifier defaultNucleusNewVersion = new ComponentIdentifier("defaultNucleus", new Semver("1.0.3"));
+        ComponentRecipe defaultNucleusNewVersionRecipe = mock(ComponentRecipe.class);
+        when(defaultNucleusNewVersionRecipe.getComponentType()).thenReturn(ComponentType.NUCLEUS);
+        when(componentStore.getPackageRecipe(defaultNucleusNewVersion)).thenReturn(defaultNucleusNewVersionRecipe);
 
-        Exception e = assertThrows(PackagingException.class, () -> dependencyResolver
-                .checkNonExplicitNucleusUpdate(Arrays.asList("A", "B"),
-                        Arrays.asList(componentA, componentB, customNucleus)));
-        assertEquals(String.format(NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT, "defaultNucleus", "1.0.0",
-                "customNucleus", "1.2.0"), e.getMessage());
+        dependencyResolver.checkNonExplicitNucleusUpdate(Arrays.asList("A", "B"),
+                Arrays.asList(componentA, componentB, defaultNucleusNewVersion));
     }
 
     @Test
-    void GIVEN_resolved_components_contains_nucleus_WHEN_active_nucleus_version_is_different_THEN_fail()
+    void GIVEN_resolved_components_contains_new_nucleus_minor_version_WHEN_active_nucleus_minor_version_is_different_THEN_fail()
             throws Exception {
         GreengrassService activeNucleus = mock(GreengrassService.class);
         when(activeNucleus.getServiceName()).thenReturn("defaultNucleus");
@@ -472,7 +470,34 @@ class DependencyResolverTest {
     }
 
     @Test
-    void GIVEN_resolved_components_contains_default_nucleus_WHEN_active_nucleus_version_is_unchanged_THEN_pass()
+    void GIVEN_resolved_components_contains_new_nucleus_major_version_WHEN_active_nucleus_major_version_is_different_THEN_fail()
+            throws Exception {
+        GreengrassService activeNucleus = mock(GreengrassService.class);
+        when(activeNucleus.getServiceName()).thenReturn("defaultNucleus");
+        Topic versionTopic = Topic.of(context, "version", "1.0.0");
+        Topics serviceConfig = mock(Topics.class);
+        when(serviceConfig.find("version")).thenReturn(versionTopic);
+        when(activeNucleus.getServiceConfig()).thenReturn(serviceConfig);
+        when(activeNucleus.getServiceType()).thenReturn(ComponentType.NUCLEUS.name());
+        List<GreengrassService> activeServices = Collections.singletonList(activeNucleus);
+        when(kernel.orderedDependencies()).thenReturn(activeServices);
+
+        ComponentIdentifier componentA = new ComponentIdentifier("A", new Semver("1.0.0"));
+        ComponentIdentifier componentB = new ComponentIdentifier("B", new Semver("1.0.0"));
+        ComponentIdentifier defaultNucleusNewVersion = new ComponentIdentifier("defaultNucleus", new Semver("2.0.0"));
+        ComponentRecipe defaultNucleusNewVersionRecipe = mock(ComponentRecipe.class);
+        when(defaultNucleusNewVersionRecipe.getComponentType()).thenReturn(ComponentType.NUCLEUS);
+        when(componentStore.getPackageRecipe(defaultNucleusNewVersion)).thenReturn(defaultNucleusNewVersionRecipe);
+
+        Exception e = assertThrows(PackagingException.class, () -> dependencyResolver
+                .checkNonExplicitNucleusUpdate(Arrays.asList("A", "B"),
+                        Arrays.asList(componentA, componentB, defaultNucleusNewVersion)));
+        assertEquals(String.format(NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT, "defaultNucleus", "1.0.0",
+                "defaultNucleus", "2.0.0"), e.getMessage());
+    }
+
+    @Test
+    void GIVEN_resolved_components_contains_nucleus_WHEN_active_nucleus_version_is_unchanged_THEN_pass()
             throws Exception {
         GreengrassService activeNucleus = mock(GreengrassService.class);
         when(activeNucleus.getServiceName()).thenReturn("defaultNucleus");
@@ -506,7 +531,79 @@ class DependencyResolverTest {
     }
 
     @Test
-    void GIVEN_resolved_components_contains_new_nucleus_WHEN_new_nucleus_is_target_component_THEN_pass()
+    void GIVEN_resolved_components_contains_new_nucleus_minor_version_WHEN_new_nucleus_is_target_component_THEN_pass()
+            throws Exception {
+        GreengrassService activeNucleus = mock(GreengrassService.class);
+        when(activeNucleus.getServiceName()).thenReturn("defaultNucleus");
+        Topic versionTopic = Topic.of(context, "version", "1.0.0");
+        Topics serviceConfig = mock(Topics.class);
+        when(serviceConfig.find("version")).thenReturn(versionTopic);
+        when(activeNucleus.getServiceConfig()).thenReturn(serviceConfig);
+        when(activeNucleus.getServiceType()).thenReturn(ComponentType.NUCLEUS.name());
+        List<GreengrassService> activeServices = Collections.singletonList(activeNucleus);
+        when(kernel.orderedDependencies()).thenReturn(activeServices);
+
+        ComponentIdentifier componentA = new ComponentIdentifier("A", new Semver("1.0.0"));
+        ComponentIdentifier componentB = new ComponentIdentifier("B", new Semver("1.0.0"));
+        ComponentIdentifier newNucleus = new ComponentIdentifier("defaultNucleus", new Semver("1.2.0"));
+        ComponentRecipe newNucleusRecipe = mock(ComponentRecipe.class);
+        when(newNucleusRecipe.getComponentType()).thenReturn(ComponentType.NUCLEUS);
+        when(componentStore.getPackageRecipe(newNucleus)).thenReturn(newNucleusRecipe);
+
+        dependencyResolver.checkNonExplicitNucleusUpdate(Arrays.asList("A", "B", "defaultNucleus"),
+                Arrays.asList(componentA, componentB, newNucleus));
+    }
+
+    @Test
+    void GIVEN_resolved_components_contains_new_nucleus_major_version_WHEN_new_nucleus_is_target_component_THEN_pass()
+            throws Exception {
+        GreengrassService activeNucleus = mock(GreengrassService.class);
+        when(activeNucleus.getServiceName()).thenReturn("defaultNucleus");
+        Topic versionTopic = Topic.of(context, "version", "1.0.0");
+        Topics serviceConfig = mock(Topics.class);
+        when(serviceConfig.find("version")).thenReturn(versionTopic);
+        when(activeNucleus.getServiceConfig()).thenReturn(serviceConfig);
+        when(activeNucleus.getServiceType()).thenReturn(ComponentType.NUCLEUS.name());
+        List<GreengrassService> activeServices = Collections.singletonList(activeNucleus);
+        when(kernel.orderedDependencies()).thenReturn(activeServices);
+
+        ComponentIdentifier componentA = new ComponentIdentifier("A", new Semver("1.0.0"));
+        ComponentIdentifier componentB = new ComponentIdentifier("B", new Semver("1.0.0"));
+        ComponentIdentifier newNucleus = new ComponentIdentifier("defaultNucleus", new Semver("2.0.0"));
+        ComponentRecipe newNucleusRecipe = mock(ComponentRecipe.class);
+        when(newNucleusRecipe.getComponentType()).thenReturn(ComponentType.NUCLEUS);
+        when(componentStore.getPackageRecipe(newNucleus)).thenReturn(newNucleusRecipe);
+
+        dependencyResolver.checkNonExplicitNucleusUpdate(Arrays.asList("A", "B", "defaultNucleus"),
+                Arrays.asList(componentA, componentB, newNucleus));
+    }
+
+    @Test
+    void GIVEN_resolved_components_contains_custom_nucleus_WHEN_custom_nucleus_is_target_component_THEN_pass()
+            throws Exception {
+        GreengrassService activeNucleus = mock(GreengrassService.class);
+        when(activeNucleus.getServiceName()).thenReturn("defaultNucleus");
+        Topic versionTopic = Topic.of(context, "version", "1.0.0");
+        Topics serviceConfig = mock(Topics.class);
+        when(serviceConfig.find("version")).thenReturn(versionTopic);
+        when(activeNucleus.getServiceConfig()).thenReturn(serviceConfig);
+        when(activeNucleus.getServiceType()).thenReturn(ComponentType.NUCLEUS.name());
+        List<GreengrassService> activeServices = Collections.singletonList(activeNucleus);
+        when(kernel.orderedDependencies()).thenReturn(activeServices);
+
+        ComponentIdentifier componentA = new ComponentIdentifier("A", new Semver("1.0.0"));
+        ComponentIdentifier componentB = new ComponentIdentifier("B", new Semver("1.0.0"));
+        ComponentIdentifier customNucleus = new ComponentIdentifier("customNucleus", new Semver("3.4.5"));
+        ComponentRecipe customNucleusRecipe = mock(ComponentRecipe.class);
+        when(customNucleusRecipe.getComponentType()).thenReturn(ComponentType.NUCLEUS);
+        when(componentStore.getPackageRecipe(customNucleus)).thenReturn(customNucleusRecipe);
+
+        dependencyResolver.checkNonExplicitNucleusUpdate(Arrays.asList("A", "B", "customNucleus"),
+                Arrays.asList(componentA, componentB, customNucleus));
+    }
+
+    @Test
+    void GIVEN_resolved_components_contains_custom_nucleus_WHEN_custom_nucleus_is_not_target_component_THEN_fail()
             throws Exception {
         GreengrassService activeNucleus = mock(GreengrassService.class);
         when(activeNucleus.getServiceName()).thenReturn("defaultNucleus");
@@ -525,8 +622,11 @@ class DependencyResolverTest {
         when(customNucleusRecipe.getComponentType()).thenReturn(ComponentType.NUCLEUS);
         when(componentStore.getPackageRecipe(customNucleus)).thenReturn(customNucleusRecipe);
 
-        dependencyResolver.checkNonExplicitNucleusUpdate(Arrays.asList("A", "B", "customNucleus"),
-                Arrays.asList(componentA, componentB, customNucleus));
+        Exception e = assertThrows(PackagingException.class, () -> dependencyResolver
+                .checkNonExplicitNucleusUpdate(Arrays.asList("A", "B"),
+                        Arrays.asList(componentA, componentB, customNucleus)));
+        assertEquals(String.format(NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT, "defaultNucleus", "1.0.0",
+                "customNucleus", "1.2.0"), e.getMessage());
     }
 
     @Test
