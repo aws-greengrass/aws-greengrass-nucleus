@@ -288,9 +288,9 @@ public class UnixPlatform extends Platform {
 
         if (force) {
             process.destroyForcibly();
-        } else {
-            process.destroy();
         }
+        // calling process.destroy() here when force==false will cause the child process (component process) to be
+        // terminated immediately. This prevents the component process from shutting down gracefully.
 
         return pids;
     }
