@@ -338,7 +338,7 @@ public class Topics extends Node implements Iterable<Node> {
                 createInteriorChild(key.toString()).updateFromMap((Map) value, childMergeBehavior);
             } else {
                 remove(existingChild);
-                Topics newNode = createInteriorChild(key.toString());
+                Topics newNode = createInteriorChild(key.toString(), mergeBehavior.getTimestampToUse());
                 for (Watcher watcher : existingChild.watchers) {
                     newNode.addWatcher(watcher);
                 }
