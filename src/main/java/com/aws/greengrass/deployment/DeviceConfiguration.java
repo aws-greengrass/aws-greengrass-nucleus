@@ -101,7 +101,7 @@ public class DeviceConfiguration {
     protected static final String NUCLEUS_VERSION_BUILD_METADATA_KEY = "nucleus.version";
     protected static final String NUCLEUS_BUILD_METADATA_FILENAME = "nucleus-build.properties";
     protected static final String NUCLEUS_BUILD_METADATA_DIRECTORY = "conf";
-    protected static final String FALLBACK_VERSION = "2.0.0";
+    protected static final String FALLBACK_VERSION = "0.0.0";
 
     private final Kernel kernel;
 
