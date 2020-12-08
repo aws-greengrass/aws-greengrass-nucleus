@@ -288,8 +288,6 @@ public class UnixPlatform extends Platform {
 
         if (force) {
             process.destroyForcibly();
-        } else {
-            process.destroy();
         }
 
         return pids;
