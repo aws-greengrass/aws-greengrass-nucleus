@@ -5,10 +5,10 @@
 
 package com.aws.greengrass.deployment.exceptions;
 
-public class NonRetryableDeploymentTaskFailureException extends DeploymentException {
+public class DeploymentTaskFailureException extends DeploymentException {
     static final long serialVersionUID = -3387516993124229948L;
 
-    public NonRetryableDeploymentTaskFailureException(Throwable e) {
+    public DeploymentTaskFailureException(Throwable e) {
         super(e);
     }
 

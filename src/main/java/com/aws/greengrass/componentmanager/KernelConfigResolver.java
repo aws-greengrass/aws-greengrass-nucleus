@@ -173,7 +173,6 @@ public class KernelConfigResolver {
      * @param document                    deployment doc for the current deployment
      * @return a built map representing the kernel config under "services" key for a particular component
      * @throws PackageLoadingException if any service package was unable to be loaded
-     * @throws IOException             for directory issues
      */
     private Map<String, Object> getServiceConfig(ComponentIdentifier componentIdentifier, DeploymentDocument document)
             throws PackageLoadingException {

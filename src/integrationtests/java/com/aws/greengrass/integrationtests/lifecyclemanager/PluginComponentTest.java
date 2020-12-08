@@ -9,7 +9,6 @@ import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
-import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -49,6 +48,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.io.IOException;
@@ -105,7 +105,8 @@ class PluginComponentTest extends BaseITCase {
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                         deploymentConfigMerger, LogManager.getLogger("Deployer"),
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null));
+                        Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null),
+                        kernel.getContext().get(ExecutorService.class));
         return kernel.getContext().get(ExecutorService.class).submit(deploymentTask);
     }
 
@@ -187,7 +188,7 @@ class PluginComponentTest extends BaseITCase {
     @Test
     void GIVEN_kernel_WHEN_deploy_new_plugin_THEN_plugin_is_loaded_into_JVM(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
-        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
+        ignoreExceptionOfType(context, SdkClientException.class);
 
         // launch kernel
         kernel.parseArgs();
@@ -213,7 +214,7 @@ class PluginComponentTest extends BaseITCase {
     @Test
     void GIVEN_kernel_WHEN_deploy_new_plugin_broken_THEN_rollback_succeeds(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
-        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
+        ignoreExceptionOfType(context, SdkClientException.class);
         ignoreExceptionOfType(context, ServiceLoadException.class);
 
         // launch kernel
@@ -237,7 +238,7 @@ class PluginComponentTest extends BaseITCase {
             throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         ignoreExceptionOfType(context, IOException.class);
-        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
+        ignoreExceptionOfType(context, SdkClientException.class);
 
         Kernel kernelSpy = spy(kernel.parseArgs());
         setupPackageStoreAndConfigWithDigest();

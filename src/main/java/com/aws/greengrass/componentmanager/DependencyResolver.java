@@ -66,10 +66,11 @@ public class DependencyResolver {
      * @return a list of components to be run on the device
      * @throws NoAvailableComponentVersionException no version of the component can fulfill the deployment
      * @throws PackagingException                   for other component operation errors
+     * @throws InterruptedException                 InterruptedException
      */
     public List<ComponentIdentifier> resolveDependencies(DeploymentDocument document,
                                                          Topics groupToTargetComponentDetails)
-            throws NoAvailableComponentVersionException, PackagingException {
+            throws NoAvailableComponentVersionException, PackagingException, InterruptedException {
 
         // A map of component version constraints {componentName => {dependentComponentName => versionConstraint}} to be
         // maintained and updated. This information needs to be tracked because: 1. One component can have multiple
@@ -177,7 +178,8 @@ public class DependencyResolver {
 
     private Map<String, ComponentIdentifier> populateOtherGroupsComponentsDependencies(
             Topics groupToTargetComponentDetails, String deploymentGroupName,
-            Map<String, Map<String, Requirement>> componentNameToVersionConstraints) throws PackagingException {
+            Map<String, Map<String, Requirement>> componentNameToVersionConstraints)
+            throws PackagingException, InterruptedException {
         Set<String> otherGroupTargetComponents =
                 getOtherGroupsTargetComponents(groupToTargetComponentDetails, deploymentGroupName,
                         componentNameToVersionConstraints);
@@ -196,11 +198,9 @@ public class DependencyResolver {
     }
 
     // Breadth first traverse of dependency tree, use component resolve to resolve every component
-    private Map<String, ComponentIdentifier> resolveComponentDependencies(String targetComponentName,
-                                                                          Map<String, Map<String, Requirement>>
-                                                                                  componentNameToVersionConstraints,
-                                                                          ComponentResolver componentResolver)
-            throws PackagingException {
+    private Map<String, ComponentIdentifier> resolveComponentDependencies(
+            String targetComponentName, Map<String, Map<String, Requirement>> componentNameToVersionConstraints,
+            ComponentResolver componentResolver) throws PackagingException, InterruptedException {
         logger.atDebug().setEventType("traverse-dependencies-start").kv("targetComponent", targetComponentName)
                 .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
                 .log("Start traversing dependencies");
@@ -229,6 +229,7 @@ public class DependencyResolver {
 
     @FunctionalInterface
     public interface ComponentResolver {
-        ComponentMetadata resolve(String name, Map<String, Requirement> requirements) throws PackagingException;
+        ComponentMetadata resolve(String name, Map<String, Requirement> requirements)
+                throws PackagingException, InterruptedException;
     }
 }

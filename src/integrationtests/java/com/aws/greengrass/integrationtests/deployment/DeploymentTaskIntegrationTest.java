@@ -9,7 +9,6 @@ import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
-import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -63,6 +62,7 @@ import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesResponse;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
@@ -240,7 +240,7 @@ class DeploymentTaskIntegrationTest {
     void beforeEach(ExtensionContext context) throws Exception {
         // This test suite will not be able to call cloud as it uses all local resources
         ignoreExceptionOfType(context, PackageDownloadException.class);
-        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
+        ignoreExceptionOfType(context, SdkClientException.class);
 
         deploymentServiceTopics = Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null);
         groupToRootComponentsTopics =
@@ -1182,7 +1182,7 @@ class DeploymentTaskIntegrationTest {
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                         deploymentConfigMerger, logger,
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        deploymentServiceTopics);
+                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class));
         return executorService.submit(deploymentTask);
     }
 }

@@ -6,7 +6,6 @@
 package com.aws.greengrass.integrationtests.status;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
-import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
@@ -42,6 +41,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionResponse;
@@ -83,9 +83,8 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     private static DeviceConfiguration deviceConfiguration;
     private static DeploymentService deploymentService;
     private static Kernel kernel;
-    private Consumer<GreengrassLogMessage> logListener;
     private final Set<String> componentNamesToCheck = new HashSet<>();
-
+    private Consumer<GreengrassLogMessage> logListener;
     @Mock
     private MqttClient mqttClient;
     @Mock
@@ -101,7 +100,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             InterruptedException {
         ignoreExceptionOfType(context, TLSAuthException.class);
         ignoreExceptionOfType(context, PackageDownloadException.class);
-        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
+        ignoreExceptionOfType(context, SdkClientException.class);
 
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
