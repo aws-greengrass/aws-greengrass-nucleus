@@ -14,7 +14,7 @@ This is the nucleus of AWS's Greengrass IoT device management framework.  It man
 A *service* may have processes, threads, code, network connections, ... But not
 necessarily.  Some have all of these, some have only 1.
 
-You can think of the kernel as a mashup of `make`, a super-lightweight publish/subscribe system, and a small hierarchic key-value data store.  The various services have continuously varying states that the kernel monitors and manages.  A dependent service is not started until it's dependencies are started, and if they become unstable, the dependent service is notified.  The internal interconnections are handled via dependency injection. Restarts are managed automatically.
+You can think of the nucleus as a mashup of `make`, a super-lightweight publish/subscribe system, and a small hierarchic key-value data store.  The various services have continuously varying states that the nucleus monitors and manages.  A dependent service is not started until it's dependencies are started, and if they become unstable, the dependent service is notified.  The internal interconnections are handled via dependency injection. Restarts are managed automatically.
 
 When parameters changes, all users of them are notified.  Everything adapts continuously.
 
