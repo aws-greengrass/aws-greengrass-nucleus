@@ -423,9 +423,7 @@ public class UnixPlatform extends Platform {
                     .withOut(o -> {
                         out.accept(o);
                         output.append(o);
-                    }).withErr(e -> {
-                        error.append(e);
-                    }).exec();
+                    }).withErr(error::append).exec();
             if (!exit.isPresent() || exit.get() != 0) {
                 throw new IOException(String.format(
                         String.format("%s - command: %s, output: %s , error: %s ", msg, cmdStr, output.toString(),

@@ -78,6 +78,7 @@ public class RunWithPathOwnershipHandler {
         setPermissions(workPath, permission, true);
     }
 
+    @SuppressWarnings("PMD.ForLoopCanBeForeach")
     void setPermissions(Path p, FileSystemPermission permission,  boolean applyToRoot) throws IOException {
         if (Files.notExists(p)) {
             return;

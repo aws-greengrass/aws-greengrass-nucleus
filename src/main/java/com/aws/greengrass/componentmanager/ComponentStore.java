@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.LongStream;
 import javax.inject.Inject;
 
 public class ComponentStore {
@@ -401,8 +402,10 @@ public class ComponentStore {
      */
     public long getContentSize() throws PackageLoadingException {
         try {
-            return Files.walk(nucleusPaths.componentStorePath()).map(Path::toFile).filter(File::isFile)
-                    .mapToLong(File::length).sum();
+            try (LongStream lengths = Files.walk(nucleusPaths.componentStorePath()).map(Path::toFile)
+                    .filter(File::isFile).mapToLong(File::length)) {
+                return lengths.sum();
+            }
         } catch (IOException e) {
             throw new PackageLoadingException("Failed to access package store", e);
         }

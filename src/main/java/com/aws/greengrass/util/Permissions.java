@@ -36,6 +36,7 @@ public final class Permissions {
      * @param permission the permission to apply.
      * @throws IOException if an error occurs.
      */
+    @SuppressWarnings("PMD.ForLoopCanBeForeach")
     public static void setArtifactPermission(Path p, FileSystemPermission permission) throws IOException {
         if (p == null || !Files.exists(p)) {
             return;

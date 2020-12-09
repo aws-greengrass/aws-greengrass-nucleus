@@ -142,7 +142,7 @@ public class DeploymentStatusKeeper {
         if (stringFunctionMap != null) {
             return new ArrayList<>(stringFunctionMap.values());
         }
-        return Collections.EMPTY_LIST;
+        return Collections.emptyList();
     }
 
     /**

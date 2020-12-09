@@ -14,10 +14,10 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 
 @ExtendWith({GGExtension.class})
-public class WindowsPlatformTest {
+class WindowsPlatformTest {
 
     @Test
-    public void GIVEN_command_WHEN_decorate_THEN_is_decorated() {
+    void GIVEN_command_WHEN_decorate_THEN_is_decorated() {
         assertThat(new WindowsPlatform.CmdDecorator()
                         .decorate("echo", "hello"),
                 is(arrayContaining("cmd.exe", "/C", "echo", "hello")));

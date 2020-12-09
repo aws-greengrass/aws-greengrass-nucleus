@@ -39,7 +39,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
-public class RunWithPathOwnershipHandlerTest {
+class RunWithPathOwnershipHandlerTest {
 
     RunWithPathOwnershipHandler handler;
 
@@ -97,7 +97,7 @@ public class RunWithPathOwnershipHandlerTest {
     }
 
     @Test
-    public void GIVEN_paths_and_run_with_WHEN_updateOwner_THEN_update_paths() throws IOException {
+    void GIVEN_paths_and_run_with_WHEN_updateOwner_THEN_update_paths() throws IOException {
         doReturn(existing).when(paths).artifactPath(id);
         doReturn(existing).when(paths).unarchiveArtifactPath(id);
         doReturn(workPath).when(paths).workPath(any());
@@ -115,7 +115,7 @@ public class RunWithPathOwnershipHandlerTest {
     }
 
     @Test
-    public void GIVEN_archive_path_and_run_with_WHEN_updateOwner_THEN_update_paths() throws IOException {
+    void GIVEN_archive_path_and_run_with_WHEN_updateOwner_THEN_update_paths() throws IOException {
         doReturn(existing).when(paths).artifactPath(id);
         doReturn(nonExisting).when(paths).unarchiveArtifactPath(id);
         doReturn(nonExisting).when(paths).workPath(any());
@@ -127,7 +127,7 @@ public class RunWithPathOwnershipHandlerTest {
     }
 
     @Test
-    public void GIVEN_unarchive_path_and_run_with_WHEN_updateOwner_THEN_update_paths() throws IOException {
+    void GIVEN_unarchive_path_and_run_with_WHEN_updateOwner_THEN_update_paths() throws IOException {
         doReturn(nonExisting).when(paths).artifactPath(id);
         doReturn(existing).when(paths).unarchiveArtifactPath(id);
         doReturn(nonExisting).when(paths).workPath(any());
@@ -137,7 +137,7 @@ public class RunWithPathOwnershipHandlerTest {
     }
 
     @Test
-    public void GIVEN_no_path_and_run_with_WHEN_updateOwner_THEN_no_update_paths() throws IOException {
+    void GIVEN_no_path_and_run_with_WHEN_updateOwner_THEN_no_update_paths() throws IOException {
         doReturn(nonExisting).when(paths).artifactPath(id);
         doReturn(nonExisting).when(paths).unarchiveArtifactPath(id);
         doReturn(nonExisting).when(paths).workPath(any());
@@ -147,7 +147,7 @@ public class RunWithPathOwnershipHandlerTest {
     }
 
     @Test
-    public void GIVEN_work_path_and_run_with_WHEN_updateOwner_THEN_update_paths() throws IOException {
+    void GIVEN_work_path_and_run_with_WHEN_updateOwner_THEN_update_paths() throws IOException {
         doReturn(nonExisting).when(paths).artifactPath(id);
         doReturn(nonExisting).when(paths).unarchiveArtifactPath(id);
         doReturn(workPath).when(paths).workPath(any());

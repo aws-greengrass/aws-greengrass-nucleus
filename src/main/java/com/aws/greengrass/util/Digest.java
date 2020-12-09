@@ -56,11 +56,9 @@ public final class Digest {
      * @param digest1 first digest to compare
      * @param digest2 second digest to compare
      * @return whether two digests are equal
-     * @throws NoSuchAlgorithmException when no implementation for message digest is available
      */
-    public static boolean isEqual(String digest1, String digest2) throws NoSuchAlgorithmException {
-        MessageDigest messageDigest = MessageDigest.getInstance(DIGEST_ALGO);
-        return messageDigest.isEqual(digest1.getBytes(StandardCharsets.UTF_8),
+    public static boolean isEqual(String digest1, String digest2) {
+        return MessageDigest.isEqual(digest1.getBytes(StandardCharsets.UTF_8),
                 digest2.getBytes(StandardCharsets.UTF_8));
     }
 }

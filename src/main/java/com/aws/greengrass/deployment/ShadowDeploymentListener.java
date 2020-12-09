@@ -94,6 +94,7 @@ public class ShadowDeploymentListener implements InjectionActions {
     };
     private String lastConfigurationArn;
     private Integer lastVersion;
+    protected static final Random JITTER = new Random();
 
     @Override
     public void postInject() {
@@ -165,8 +166,7 @@ public class ShadowDeploymentListener implements InjectionActions {
             }
             try {
                 // Wait for sometime and then try to subscribe again
-                Random jitter = new Random();
-                Thread.sleep(WAIT_TIME_TO_SUBSCRIBE_AGAIN_IN_MS + jitter.nextInt(10_000));
+                Thread.sleep(WAIT_TIME_TO_SUBSCRIBE_AGAIN_IN_MS + JITTER.nextInt(10_000));
             } catch (InterruptedException interruptedException) {
                 logger.atWarn().log("Interrupted while subscribing to device shadow topics");
                 return;

@@ -39,7 +39,7 @@ import javax.inject.Inject;
 
 public class RecipeLoader {
     // GG_NEEDS_REVIEW: TODO:[P41216663]: add logging
-    private static final Logger LOGGER = LogManager.getLogger(PlatformResolver.class);
+    private static final Logger LOGGER = LogManager.getLogger(RecipeLoader.class);
 
     private final PlatformResolver platformResolver;
 
@@ -152,9 +152,8 @@ public class RecipeLoader {
      */
     private static Set<String> collectAllSelectors(@Nonnull List<PlatformSpecificManifest> manifests) {
         Set<String> allSelectors = new HashSet<>();
-        manifests.stream().map(m -> m.getSelections()).filter(s -> s != null).forEach(s -> {
-            allSelectors.addAll(s);
-        });
+        manifests.stream().map(PlatformSpecificManifest::getSelections)
+                .filter(Objects::nonNull).forEach(allSelectors::addAll);
         allSelectors.add(PlatformResolver.ALL_KEYWORD); // implicit, it is ok if it was specified explicitly
         return allSelectors;
     }
