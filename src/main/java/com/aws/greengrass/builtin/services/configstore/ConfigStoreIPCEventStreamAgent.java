@@ -422,8 +422,9 @@ public class ConfigStoreIPCEventStreamAgent {
         }
 
         private void handleConfigNodeUpdate(WhatHappened whatHappened, Node changedNode, String componentName) {
-            // Blocks from sending an event on subscription
-            if (changedNode == null || WhatHappened.initialized.equals(whatHappened)) {
+            // Blocks from sending an event on subscription, or events IPC subscriber isn't interested in knowing about
+            if (changedNode == null || WhatHappened.initialized.equals(whatHappened) || WhatHappened.timestampUpdated
+                    .equals(whatHappened) || WhatHappened.interiorAdded.equals(whatHappened)) {
                 return;
             }
             // The path sent in config update event should be the path for the changed node within the component

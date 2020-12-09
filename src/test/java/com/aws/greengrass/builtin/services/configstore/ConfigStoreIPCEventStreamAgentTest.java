@@ -8,6 +8,7 @@ package com.aws.greengrass.builtin.services.configstore;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -66,6 +67,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -514,6 +516,33 @@ class ConfigStoreIPCEventStreamAgentTest {
         assertEquals(TEST_COMPONENT_A, sentMessage.getConfigurationUpdateEvent().getComponentName());
         assertThat(sentMessage.getConfigurationUpdateEvent().getKeyPath(),
                 containsInAnyOrder("Level1ContainerNode", "Level2ContainerNode", "SomeLeafNode"));
+    }
+
+    @Test
+    void GIVEN_subscribe_to_config_update_request_WHEN_timestamp_changes_but_not_value_THEN_no_event_triggered() {
+        when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_B);
+        Topics componentAConfiguration =
+                configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
+        when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
+        SubscribeToConfigurationUpdateRequest subscribe = new SubscribeToConfigurationUpdateRequest();
+        subscribe.setComponentName(TEST_COMPONENT_A);
+        subscribe.setKeyPath(Collections.singletonList(TEST_CONFIG_KEY_1));
+        SubscribeToConfigurationUpdateResponse response = agent.getConfigurationUpdateHandler(mockContext).handleRequest(subscribe);
+        assertNotNull(response);
+
+        // Add the same key-value to the parent but with a newer timestamp so timestampUpdated event for the topic
+        // will be triggered
+        long modTime = System.currentTimeMillis();
+        Topics parent = configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A,
+                CONFIGURATION_CONFIG_KEY);
+        parent.updateFromMap(Collections.singletonMap(TEST_CONFIG_KEY_1, TEST_CONFIG_KEY_1_INITIAL_VALUE),
+                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, modTime));
+        // Wait until config watchers finish processing changes, ipc subscription is a watcher too
+        configuration.context.waitForPublishQueueToClear();
+        // Mod time should be updated but event shouldn't be sent
+        assertEquals(modTime, parent.find(TEST_CONFIG_KEY_1).getModtime());
+        verify(mockServerConnectionContinuation, never())
+                .sendMessage(anyList(), any(), any(MessageType.class), anyInt());
     }
 
     @Test
