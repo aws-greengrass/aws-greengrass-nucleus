@@ -208,7 +208,7 @@ public class DependencyResolver {
         componentsToResolve.add(targetComponentName);
 
         Map<String, ComponentIdentifier> resolvedComponents = new HashMap<>();
-        while (componentsToResolve.size() != 0) {
+        while (!componentsToResolve.isEmpty()) {
             String componentToResolve = componentsToResolve.poll();
             Map<String, Requirement> versionConstraints =
                     new HashMap<>(componentNameToVersionConstraints.get(componentToResolve));

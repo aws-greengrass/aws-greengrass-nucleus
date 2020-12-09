@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.stream.Stream;
 
 import static com.aws.greengrass.util.FileSystemPermission.Option.SetMode;
 
@@ -35,6 +36,7 @@ public final class Permissions {
      * @param permission the permission to apply.
      * @throws IOException if an error occurs.
      */
+    @SuppressWarnings("PMD.ForLoopCanBeForeach")
     public static void setArtifactPermission(Path p, FileSystemPermission permission) throws IOException {
         if (p == null || !Files.exists(p)) {
             return;
@@ -42,8 +44,10 @@ public final class Permissions {
         // default artifact permissions - readable by owner but everyone can access dirs
         if (Files.isDirectory(p)) {
             platform.setPermissions(OWNER_RWX_EVERYONE_RX, p);
-            for (Iterator<Path> it = Files.list(p).iterator(); it.hasNext(); ) {
-                setArtifactPermission(it.next(), permission);
+            try (Stream<Path> files = Files.list(p)) {
+                for (Iterator<Path> it = files.iterator(); it.hasNext(); ) {
+                    setArtifactPermission(it.next(), permission);
+                }
             }
         } else {
             if (!platform.lookupCurrentUser().isSuperUser() && !permission.isOwnerWrite()) {

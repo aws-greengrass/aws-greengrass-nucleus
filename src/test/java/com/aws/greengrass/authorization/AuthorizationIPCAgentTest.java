@@ -26,7 +26,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class AuthorizationIPCAgentTest {
+class AuthorizationIPCAgentTest {
     private static final String TEST_TOKEN = "token";
     @Mock
     OperationContinuationHandlerContext mockContext;

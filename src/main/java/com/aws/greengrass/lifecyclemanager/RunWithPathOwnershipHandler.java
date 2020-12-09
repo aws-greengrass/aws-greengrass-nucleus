@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.util.FileSystemPermission.Option.Recurse;
@@ -77,6 +78,7 @@ public class RunWithPathOwnershipHandler {
         setPermissions(workPath, permission, true);
     }
 
+    @SuppressWarnings("PMD.ForLoopCanBeForeach")
     void setPermissions(Path p, FileSystemPermission permission,  boolean applyToRoot) throws IOException {
         if (Files.notExists(p)) {
             return;
@@ -84,8 +86,10 @@ public class RunWithPathOwnershipHandler {
         if (applyToRoot) {
             platform.setPermissions(permission, p, Recurse, SetOwner);
         } else {
-            for (Iterator<Path> it = Files.list(p).iterator(); it.hasNext(); ) {
-                platform.setPermissions(permission, it.next(), Recurse, SetOwner);
+            try (Stream<Path> files = Files.list(p)) {
+                for (Iterator<Path> it = files.iterator(); it.hasNext(); ) {
+                    platform.setPermissions(permission, it.next(), Recurse, SetOwner);
+                }
             }
         }
     }

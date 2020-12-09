@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.doReturn;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class UnixRunWithGeneratorTest {
+class UnixRunWithGeneratorTest {
 
 
     UnixRunWithGenerator generator;
@@ -58,7 +58,7 @@ public class UnixRunWithGeneratorTest {
     }
 
     @Test
-    public void GIVEN_component_run_with_uid_gid_WHEN_generate_THEN_use_component() {
+    void GIVEN_component_run_with_uid_gid_WHEN_generate_THEN_use_component() {
         doReturn(Topic.of(context, POSIX_USER_KEY, "123:456"))
                 .when(config).find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY);
         Optional<RunWith> result = generator.generate(deviceConfig, config);
@@ -69,7 +69,7 @@ public class UnixRunWithGeneratorTest {
     }
 
     @Test
-    public void GIVEN_component_run_with_user_group_WHEN_generate_THEN_use_component() {
+    void GIVEN_component_run_with_user_group_WHEN_generate_THEN_use_component() {
         doReturn(Topic.of(context, POSIX_USER_KEY, "foo:bar"))
                 .when(config).find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY);
         Optional<RunWith> result = generator.generate(deviceConfig, config);
@@ -80,7 +80,7 @@ public class UnixRunWithGeneratorTest {
     }
 
     @Test
-    public void GIVEN_component_run_with_user_WHEN_generate_THEN_use_component() throws IOException {
+    void GIVEN_component_run_with_user_WHEN_generate_THEN_use_component() throws IOException {
         doReturn(Topic.of(context, POSIX_USER_KEY, "foo"))
                 .when(config).find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY);
 
@@ -95,7 +95,7 @@ public class UnixRunWithGeneratorTest {
     }
 
     @Test
-    public void GIVEN_component_run_with_user_WHEN_no_group_generate_THEN_return_empty() throws IOException {
+    void GIVEN_component_run_with_user_WHEN_no_group_generate_THEN_return_empty() throws IOException {
         doReturn(Topic.of(context, POSIX_USER_KEY, "foo"))
                 .when(config).find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY);
 
@@ -107,7 +107,7 @@ public class UnixRunWithGeneratorTest {
     }
 
     @Test
-    public void GIVEN_valid_default_run_with_user_WHEN_generate_and_group_exists_THEN_use_default()
+    void GIVEN_valid_default_run_with_user_WHEN_generate_and_group_exists_THEN_use_default()
             throws IOException  {
         doReturn(Topic.of(context, POSIX_USER_KEY, "foo"))
                 .when(deviceConfig).getRunWithDefaultPosixUser();
@@ -123,7 +123,7 @@ public class UnixRunWithGeneratorTest {
     }
 
     @Test
-    public void GIVEN_default_run_with_user_group_WHEN_generate_THEN_use_default() throws IOException {
+    void GIVEN_default_run_with_user_group_WHEN_generate_THEN_use_default() throws IOException {
         doReturn(Topic.of(context, RUN_WITH_DEFAULT_POSIX_USER, "foo:bar"))
                 .when(deviceConfig).getRunWithDefaultPosixUser();
         doReturn(Topic.of(context,  RUN_WITH_DEFAULT_POSIX_SHELL, "/foo/bar"))
@@ -138,7 +138,7 @@ public class UnixRunWithGeneratorTest {
     }
 
     @Test
-    public void GIVEN_is_root_WHEN_generate_THEN_return_empty() throws IOException {
+    void GIVEN_is_root_WHEN_generate_THEN_return_empty() throws IOException {
         doReturn(userAttr).when(platform).lookupCurrentUser();
         doReturn(true).when(userAttr).isSuperUser();
 
@@ -148,7 +148,7 @@ public class UnixRunWithGeneratorTest {
 
 
     @Test
-    public void GIVEN_non_root_WHEN_generate_THEN_use_user()throws IOException  {
+    void GIVEN_non_root_WHEN_generate_THEN_use_user()throws IOException  {
         doReturn(userAttr).when(platform).lookupCurrentUser();
         doReturn(false).when(userAttr).isSuperUser();
 

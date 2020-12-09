@@ -29,7 +29,7 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class ArtifactDownloaderFactoryTest {
+class ArtifactDownloaderFactoryTest {
 
     Path testDir = Paths.get("foo");
 
