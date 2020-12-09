@@ -59,11 +59,7 @@ public class DefaultActivator extends DeploymentActivator {
         // Get the timestamp before updateMap(). It will be used to check whether services have started.
         long mergeTime = System.currentTimeMillis();
 
-        // when deployment adds a new dependency (component B) to component A
-        // the config for component B has to be merged in before externalDependenciesTopic of component A trigger
-        // executing mergeMap using publish thread ensures this
-        kernel.getContext().runOnPublishQueueAndWait(() -> updateConfiguration(deploymentDocument.getTimestamp(),
-                newConfig));
+        updateConfiguration(deploymentDocument.getTimestamp(), newConfig);
 
         // wait until topic listeners finished processing mergeMap changes.
         Throwable setDesiredStateFailureCause = kernel.getContext().runOnPublishQueueAndWait(() -> {
