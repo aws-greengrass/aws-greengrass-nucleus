@@ -66,7 +66,7 @@ while [ $j -le 3 ]; do
   100|0)
     echo "Restarting kernel"
     # Exec loader from the same path, but the script might have changed due to kernel update
-    exec "${LAUNCH_DIR}/distro/bin/loader"
+    exec /bin/sh "${LAUNCH_DIR}/distro/bin/loader"
     ;;
   101)
     echo "Rebooting host"

@@ -32,10 +32,7 @@ Manifests:
             set -eu
             KERNEL_ROOT="{kernel:rootPath}"
             UNPACK_DIR="{artifacts:decompressedPath}/aws.greengrass.nucleus"
-            chmod +x "$UNPACK_DIR/bin/loader"
-
             rm -r "$KERNEL_ROOT"/alts/current/*
-
             echo "{configuration:/jvmOptions}" > "$KERNEL_ROOT/alts/current/launch.params"
             ln -sf "$UNPACK_DIR" "$KERNEL_ROOT/alts/current/distro"
             exit 100
@@ -53,10 +50,7 @@ Manifests:
           set -eu
           KERNEL_ROOT="{kernel:rootPath}"
           UNPACK_DIR="{artifacts:decompressedPath}/aws.greengrass.nucleus"
-          chmod +x "$UNPACK_DIR/bin/loader"
-
           rm -r "$KERNEL_ROOT"/alts/current/*
-
           echo "{configuration:/jvmOptions}" > "$KERNEL_ROOT/alts/current/launch.params"
           ln -sf "$UNPACK_DIR" "$KERNEL_ROOT/alts/current/distro"
           exit 100
