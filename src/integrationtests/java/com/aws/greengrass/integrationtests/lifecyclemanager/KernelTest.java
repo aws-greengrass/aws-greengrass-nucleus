@@ -145,8 +145,7 @@ class KernelTest extends BaseITCase {
     @SuppressWarnings("PMD.AssignmentInOperand")
     private AutoCloseable getLogListener() {
         return TestUtils.createCloseableLogListener(structuredLogMessage -> {
-            String stdoutStr = structuredLogMessage.getContexts().get("stdout");
-
+            String stdoutStr = structuredLogMessage.getMessage();
             if (stdoutStr == null || stdoutStr.length() == 0) {
                 return;
             }

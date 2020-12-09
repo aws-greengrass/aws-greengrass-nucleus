@@ -45,13 +45,11 @@ public interface ShellRunner {
                         .withShell(command)
                         .withOut(s -> {
                             String ss = s.toString().trim();
-                            logger.atInfo().setEventType("shell-runner-stdout").kv(SCRIPT_NAME_KEY, note)
-                                    .kv("stdout", ss).log();
+                            logger.atInfo().setEventType("stdout").kv(SCRIPT_NAME_KEY, note).log(ss);
                         })
                         .withErr(s -> {
                             String ss = s.toString().trim();
-                            logger.atWarn().setEventType("shell-runner-stderr").kv(SCRIPT_NAME_KEY, note)
-                                    .kv("stderr", ss).log();
+                            logger.atWarn().setEventType("stderr").kv(SCRIPT_NAME_KEY, note).log(ss);
                         })
                         .setenv("SVCUID",
                                 String.valueOf(onBehalfOf.getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
