@@ -77,7 +77,11 @@ public abstract class DeploymentActivator {
     }
 
     protected void updateConfiguration(long timestamp, Map<String, Object> newConfig) {
-        kernel.getConfig().updateMap(newConfig, createDeploymentMergeBehavior(timestamp, newConfig));
+        // when deployment adds a new dependency (component B) to component A
+        // the config for component B has to be merged in before externalDependenciesTopic of component A trigger
+        // executing mergeMap using publish thread ensures this
+        kernel.getContext().runOnPublishQueueAndWait(() -> kernel.getConfig().updateMap(
+                newConfig, createDeploymentMergeBehavior(timestamp, newConfig)));
     }
 
     protected UpdateBehaviorTree createDeploymentMergeBehavior(long deploymentTimestamp,
