@@ -186,8 +186,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         // Set up stdout listener to capture stdout for verify interpolation
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
-            Map<String, String> contexts = m.getContexts();
-            String messageOnStdout = contexts.get("stdout");
+            String messageOnStdout = m.getMessage();
             if (messageOnStdout != null && messageOnStdout.contains("CustomerApp output.")) {
                 stdouts.add(messageOnStdout);
                 stdoutCountdown.countDown(); // countdown when received output to verify
