@@ -212,12 +212,15 @@
         </extensions>
         <resources>
             <resource>
-                <directory>${basedir}</directory>
+                <directory>${project.basedir}</directory>
                 <includes>
                     <include>LICENSE</include>
                     <include>NOTICE</include>
                     <include>THIRD-PARTY-LICENSES</include>
                 </includes>
+            </resource>
+            <resource>
+                <directory>${project.basedir}/src/main/resources</directory>
             </resource>
         </resources>
         <plugins>
