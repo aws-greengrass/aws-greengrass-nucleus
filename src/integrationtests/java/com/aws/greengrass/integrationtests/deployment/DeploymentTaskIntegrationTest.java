@@ -350,8 +350,7 @@ class DeploymentTaskIntegrationTest {
 
     @Test
     @Order(3)
-    void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel(
-            ExtensionContext context) throws Exception {
+    void GIVEN_sample_deployment_doc_WHEN_submitted_to_deployment_task_THEN_services_start_in_kernel() throws Exception {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get())
                 .put("plugin", GreengrassService.class.getName());
         outputMessagesToTimestamp.clear();
@@ -359,8 +358,7 @@ class DeploymentTaskIntegrationTest {
                 Arrays.asList(TEST_TICK_TOCK_STRING, TEST_MOSQUITTO_STRING, TEST_CUSTOMER_APP_STRING);
         countDownLatch = new CountDownLatch(3);
         Consumer<GreengrassLogMessage> listener = m -> {
-            Map<String, String> contexts = m.getContexts();
-            String messageOnStdout = contexts.get("stdout");
+            String messageOnStdout = m.getMessage();
             if (messageOnStdout == null) {
                 return;
             }
@@ -408,8 +406,7 @@ class DeploymentTaskIntegrationTest {
         // Set up stdout listener to capture stdout for verify #2 interpolation
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
-            Map<String, String> contexts = m.getContexts();
-            String messageOnStdout = contexts.get("stdout");
+            String messageOnStdout = m.getMessage();
             if (messageOnStdout != null && messageOnStdout
                     .contains("aws.iot.gg.test.integ.ComponentConfigTestService output")) {
                 stdouts.add(messageOnStdout);
@@ -622,8 +619,7 @@ class DeploymentTaskIntegrationTest {
         // Set up stdout listener to capture stdout for verify #2 interpolation
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
-            Map<String, String> contexts = m.getContexts();
-            String messageOnStdout = contexts.get("stdout");
+            String messageOnStdout = m.getMessage();
             if (messageOnStdout != null && messageOnStdout
                     .contains("aws.iot.gg.test.integ.ComponentConfigTestService output")) {
                 stdouts.add(messageOnStdout);
@@ -695,8 +691,7 @@ class DeploymentTaskIntegrationTest {
         countDownLatch = new CountDownLatch(1);
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
-            Map<String, String> contexts = m.getContexts();
-            String messageOnStdout = contexts.get("stdout");
+            String messageOnStdout = m.getMessage();
             if (messageOnStdout != null && messageOnStdout
                     .contains("aws.iot.gg.test.integ.ComponentConfigTestMain output")) {
                 countDownLatch.countDown();
@@ -734,8 +729,7 @@ class DeploymentTaskIntegrationTest {
         // Set up stdout listener to capture stdout for verify #2 interpolation
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
-            Map<String, String> contexts = m.getContexts();
-            String messageOnStdout = contexts.get("stdout");
+            String messageOnStdout = m.getMessage();
             if (messageOnStdout != null && messageOnStdout.contains("aws.iot.gg.test.integ.SystemConfigTest output")) {
                 stdouts.add(messageOnStdout);
             }
@@ -843,8 +837,7 @@ class DeploymentTaskIntegrationTest {
         // Set up stdout listener to capture stdout for verifying users
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
-            Map<String, String> contexts = m.getContexts();
-            String messageOnStdout = contexts.get("stdout");
+            String messageOnStdout = m.getMessage();
             if (messageOnStdout != null && messageOnStdout.contains("with user")) {
                 stdouts.add(messageOnStdout);
                 countDownLatch.countDown();

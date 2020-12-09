@@ -639,8 +639,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         List<String> stdouts = new ArrayList<>();
         try (AutoCloseable l = createCloseableLogListener((m) -> {
-            Map<String, String> contexts = m.getContexts();
-            String messageOnStdout = contexts.get("stdout");
+            String messageOnStdout = m.getMessage();
             if (messageOnStdout != null
                     && (messageOnStdout.contains("run as")
                     || messageOnStdout.contains("install as") )) {

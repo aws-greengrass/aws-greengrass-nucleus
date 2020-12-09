@@ -29,7 +29,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -462,8 +461,7 @@ class GenericExternalServiceTest extends BaseITCase {
         // Set up stdout listener to capture stdout for verifying users
         List<String> stdouts = new CopyOnWriteArrayList<>();
         try (AutoCloseable l = createCloseableLogListener((m) -> {
-            Map<String, String> contexts = m.getContexts();
-            String messageOnStdout = contexts.get("stdout");
+            String messageOnStdout = m.getMessage();
             if (messageOnStdout != null
                     && (messageOnStdout.contains("run as")
                         || messageOnStdout.contains("install as") )) {
