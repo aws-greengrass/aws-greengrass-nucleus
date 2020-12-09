@@ -80,6 +80,7 @@ public class GreengrassService implements InjectionActions {
     protected final ConcurrentHashMap<GreengrassService, DependencyInfo> dependencies = new ConcurrentHashMap<>();
     // Service logger instance
     protected final Logger logger;
+    private Subscriber dependencyTopicSubscriber;
 
     /**
      * Constructor.
@@ -158,8 +159,8 @@ public class GreengrassService implements InjectionActions {
 
 
     private synchronized void initDependenciesTopic() {
-        externalDependenciesTopic.subscribe((what, node) -> {
-            if (!WhatHappened.changed.equals(what) || node.getModtime() <= 1) {
+        dependencyTopicSubscriber = (what, node) -> {
+            if (!WhatHappened.changed.equals(what) || node.getModtime() <= 1 || isClosed()) {
                 return;
             }
             Collection<String> depList = (Collection<String>) node.getOnce();
@@ -169,7 +170,8 @@ public class GreengrassService implements InjectionActions {
             } catch (ServiceLoadException | InputValidationException e) {
                 logger.atError().log("Error while setting up dependencies from subscription", e);
             }
-        });
+        };
+        externalDependenciesTopic.subscribe(dependencyTopicSubscriber);
 
         try {
             setupDependencies((Collection<String>) externalDependenciesTopic.getOnce());
@@ -337,6 +339,7 @@ public class GreengrassService implements InjectionActions {
             // removing listeners on dependencies
             dependencies.forEach((service, dependencyInfo) ->
                     service.removeStateSubscriber(dependencyInfo.stateTopicSubscriber));
+            externalDependenciesTopic.remove(dependencyTopicSubscriber);
             try {
                 Periodicity t = periodicityInformation;
                 if (t != null) {
@@ -671,6 +674,10 @@ public class GreengrassService implements InjectionActions {
 
     protected Topics getLifecycleTopic() {
         return config.findInteriorChild(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
+    }
+
+    protected boolean isClosed() {
+        return lifecycle.isClosed();
     }
 
     public enum RunStatus {

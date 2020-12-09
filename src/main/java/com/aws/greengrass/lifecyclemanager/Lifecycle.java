@@ -730,6 +730,10 @@ public class Lifecycle {
         isClosed.set(b);
     }
 
+    boolean isClosed() {
+        return isClosed.get();
+    }
+
     /**
      * Start Service.
      */

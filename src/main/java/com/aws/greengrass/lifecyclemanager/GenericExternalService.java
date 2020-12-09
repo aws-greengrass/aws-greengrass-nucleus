@@ -112,6 +112,10 @@ public class GenericExternalService extends GreengrassService {
                 return;
             }
 
+            if (isClosed()) {
+                return;
+            }
+
             if (child.childOf(Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC)) {
                 return;
             }
