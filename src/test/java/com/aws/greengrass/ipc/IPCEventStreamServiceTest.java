@@ -50,7 +50,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class IPCEventStreamServiceTest {
+class IPCEventStreamServiceTest {
     private IPCEventStreamService ipcEventStreamService;
     protected static ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
@@ -114,7 +114,7 @@ public class IPCEventStreamServiceTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    public void testClientConnection() throws Exception {
+    void testClientConnection() throws Exception {
         CountDownLatch connectionLatch = new CountDownLatch(1);
         EventStreamRPCConnection connection = null;
         try (EventLoopGroup elg = new EventLoopGroup(1);

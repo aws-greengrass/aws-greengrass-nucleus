@@ -15,18 +15,18 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 
 @ExtendWith({GGExtension.class})
-public class UnixPlatformTest   {
+class UnixPlatformTest   {
 
     private static String[] command = {"echo", "hello", "world"};
 
     @Test
-    public void GIVEN_no_user_and_no_group_WHEN_decorate_THEN_do_not_generate_sudo_with_user_and_group() {
+    void GIVEN_no_user_and_no_group_WHEN_decorate_THEN_do_not_generate_sudo_with_user_and_group() {
         assertThat(new UnixPlatform.SudoDecorator().decorate(command),
                 is(arrayContaining(command)));
     }
 
     @Test
-    public void GIVEN_user_and_group_WHEN_decorate_THEN_generate_sudo_with_user_and_group() {
+    void GIVEN_user_and_group_WHEN_decorate_THEN_generate_sudo_with_user_and_group() {
         assertThat(new UnixPlatform.SudoDecorator()
                         .withUser("foo")
                         .withGroup("bar")
@@ -36,7 +36,7 @@ public class UnixPlatformTest   {
     }
 
     @Test
-    public void GIVEN_numeric_user_and_group_WHEN_decorate_THEN_generate_sudo_with_prefix() {
+    void GIVEN_numeric_user_and_group_WHEN_decorate_THEN_generate_sudo_with_prefix() {
         assertThat(new UnixPlatform.SudoDecorator()
                         .withUser("100")
                         .withGroup("200")
@@ -47,7 +47,7 @@ public class UnixPlatformTest   {
     }
 
     @Test
-    public void GIVEN_user_WHEN_decorate_THEN_generate_sudo_without_group() {
+    void GIVEN_user_WHEN_decorate_THEN_generate_sudo_without_group() {
         assertThat(new UnixPlatform.SudoDecorator()
                         .withUser("foo")
                         .decorate(command),

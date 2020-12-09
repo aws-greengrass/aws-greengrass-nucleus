@@ -25,7 +25,7 @@ import java.util.function.Function;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class LifecycleIPCServiceTest {
+class LifecycleIPCServiceTest {
 
     LifecycleIPCService lifecycleIPCService;
 
@@ -46,7 +46,7 @@ public class LifecycleIPCServiceTest {
     }
 
     @Test
-    public void testHandlersRegistered() {
+    void testHandlersRegistered() {
         lifecycleIPCService.startup();
         ArgumentCaptor<Function> argumentCaptor = ArgumentCaptor.forClass(Function.class);
 

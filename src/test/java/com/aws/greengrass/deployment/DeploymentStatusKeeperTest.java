@@ -15,14 +15,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.model.DeploymentStatus;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,9 +43,6 @@ class DeploymentStatusKeeperTest {
 
     @Mock
     private DeploymentService deploymentService;
-
-    @TempDir
-    Path mockPath;
 
     private static final Function<Map<String, Object>, Boolean> DUMMY_CONSUMER = (details) -> false;
     private static final String DUMMY_SERVICE_NAME = "dummyService";

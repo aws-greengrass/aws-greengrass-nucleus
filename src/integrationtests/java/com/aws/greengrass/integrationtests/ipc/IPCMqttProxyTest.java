@@ -64,7 +64,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(GGExtension.class)
-public class IPCMqttProxyTest {
+class IPCMqttProxyTest {
     private static final Logger logger = LogManager.getLogger(IPCMqttProxyTest.class);
     private static final int TIMEOUT_FOR_MQTTPROXY_SECONDS = 20;
     private static final String TEST_PUBLISH_TOPIC = "A/B/C";

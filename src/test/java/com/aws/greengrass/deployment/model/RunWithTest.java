@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 @ExtendWith(GGExtension.class)
-public class RunWithTest {
+class RunWithTest {
     static final ObjectMapper MAPPER = new ObjectMapper();
 
     @ParameterizedTest

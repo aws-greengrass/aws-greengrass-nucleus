@@ -32,7 +32,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
-public class InMemorySpoolTest {
+class InMemorySpoolTest {
 
     @Mock
     DeviceConfiguration deviceConfiguration;

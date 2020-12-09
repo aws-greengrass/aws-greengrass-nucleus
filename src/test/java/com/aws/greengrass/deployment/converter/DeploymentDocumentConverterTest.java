@@ -132,8 +132,8 @@ class DeploymentDocumentConverterTest {
                         .findAny().get();
 
         assertThat(newRootComponentConfig.getResolvedVersion(), is("2.0.0"));
-        assertEquals(newRootComponentConfig.getConfigurationUpdateOperation(), null);
-        assertEquals(newRootComponentConfig.getRunWith().getPosixUser(), "foo:bar");
+        assertNull(newRootComponentConfig.getConfigurationUpdateOperation());
+        assertEquals("foo:bar", newRootComponentConfig.getRunWith().getPosixUser());
 
 
         DeploymentPackageConfiguration DependencyComponentConfig =

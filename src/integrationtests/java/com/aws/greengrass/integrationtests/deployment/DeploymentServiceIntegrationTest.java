@@ -65,7 +65,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(GGExtension.class)
-public class DeploymentServiceIntegrationTest extends BaseITCase {
+class DeploymentServiceIntegrationTest extends BaseITCase {
     private static final Logger logger = LogManager.getLogger(DeploymentServiceIntegrationTest.class);
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);

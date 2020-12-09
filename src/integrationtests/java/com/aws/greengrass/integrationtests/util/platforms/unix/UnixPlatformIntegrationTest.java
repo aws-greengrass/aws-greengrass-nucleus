@@ -33,7 +33,7 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 @ExtendWith(GGExtension.class)
 @EnabledOnOs({OS.LINUX, OS.MAC})
-public class UnixPlatformIntegrationTest {
+class UnixPlatformIntegrationTest {
 
     UnixPlatform platform;
 

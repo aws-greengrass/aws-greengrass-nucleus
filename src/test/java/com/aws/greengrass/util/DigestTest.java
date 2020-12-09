@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(GGExtension.class)
-public class DigestTest {
+class DigestTest {
 
     @Test
     void GIVEN_digest_WHEN_calculate_THEN_correct_value_returned() throws NoSuchAlgorithmException {

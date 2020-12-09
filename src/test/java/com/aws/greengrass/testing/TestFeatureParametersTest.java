@@ -18,15 +18,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class TestFeatureParametersTest {
+class TestFeatureParametersTest {
 
     @AfterEach
-    public void disableFeatureParametersAfter() {
+    void disableFeatureParametersAfter() {
         TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 
     @Test
-    public void GIVEN_feature_flag_retrieved_WHEN_not_enabled_THEN_use_provided_value() {
+    void GIVEN_feature_flag_retrieved_WHEN_not_enabled_THEN_use_provided_value() {
         String providedValue = "ThisValueWasProvided";
         String featureFlag = "SomeFeatureFlagThatDoesNotGetValidated";
 
@@ -36,7 +36,7 @@ public class TestFeatureParametersTest {
     }
 
     @Test
-    public void GIVEN_feature_flag_retrieved_WHEN_enabled_THEN_use_override_value() {
+    void GIVEN_feature_flag_retrieved_WHEN_enabled_THEN_use_override_value() {
         String featureFlag = "SomeFeatureFlagThatWouldBeHandled";
         Integer someInputValue = 1234;
         Integer specificReturnValue = 5678; // checked by reference
@@ -51,7 +51,7 @@ public class TestFeatureParametersTest {
     }
 
     @Test
-    public void GIVEN_feature_flag_retrieved_WHEN_disabled_THEN_use_provided_value() {
+    void GIVEN_feature_flag_retrieved_WHEN_disabled_THEN_use_provided_value() {
         String featureFlag = "SomeFeatureFlagThatWouldBeHandled";
         Integer someInputValue = 1234;
         Integer specificReturnValue = 5678; // checked by reference

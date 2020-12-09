@@ -320,7 +320,7 @@ public class ConfigStoreIPCEventStreamAgent {
                 keyPath = request.getKeyPath().toArray(new String[0]);
             }
             if (keyPath.length == 0 && request.getValueToMerge().keySet().stream()
-                    .filter(key -> restrictedConfigurationFields.contains(key)).findAny().isPresent()
+                    .anyMatch(key -> restrictedConfigurationFields.contains(key))
             || keyPath.length != 0 && restrictedConfigurationFields.contains(request.getKeyPath().get(0))) {
                 throw new InvalidArgumentsError("Config update is not allowed for following fields "
                         + restrictedConfigurationFields);

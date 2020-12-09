@@ -49,7 +49,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class ArtifactDownloaderTest {
+class ArtifactDownloaderTest {
 
     private static final String LOCAL_FILE_NAME = "artifact.txt";
 
