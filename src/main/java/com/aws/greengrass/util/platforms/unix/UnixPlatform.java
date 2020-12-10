@@ -61,7 +61,7 @@ public class UnixPlatform extends Platform {
     public static final String PRIVILEGED_USER = "root";
     public static final String STDOUT = "stdout";
     public static final String STDERR = "stderr";
-    protected static final int SIGINT = 2;
+    protected static final int SIGTERM = 15;
     protected static final int SIGKILL = 9;
     private static final String POSIX_GROUP_FILE = "/etc/group";
     public static final String SET_PERMISSIONS_EVENT = "set-permissions";
@@ -270,16 +270,16 @@ public class UnixPlatform extends Platform {
                 continue;
             }
 
-            String[] cmd = {"kill", "-" + (force ? SIGKILL : SIGINT), Integer.toString(pid)};
+            String[] cmd = {"kill", "-" + (force ? SIGKILL : SIGTERM), Integer.toString(pid)};
             if (decorator != null) {
                 cmd = decorator.decorate(cmd);
             }
-            logger.atDebug().log("Killing pid {} with signal {} using {}", pid, force ? SIGKILL : SIGINT,
+            logger.atDebug().log("Killing pid {} with signal {} using {}", pid, force ? SIGKILL : SIGTERM,
                     String.join(" ", cmd));
             Process proc = Runtime.getRuntime().exec(cmd);
             proc.waitFor();
             if (proc.exitValue() != 0) {
-                logger.atWarn().kv("pid", pp.getPid()).kv("exit-code", proc.exitValue())
+                logger.atWarn().kv("pid", pid).kv("exit-code", proc.exitValue())
                     .kv(STDOUT, inputStreamToString(proc.getInputStream()))
                     .kv(STDERR, inputStreamToString(proc.getErrorStream()))
                         .log("kill exited non-zero (process not found or other error)");

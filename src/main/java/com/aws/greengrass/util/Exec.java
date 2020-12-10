@@ -11,6 +11,8 @@ import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.UserDecorator;
 import lombok.Getter;
+import org.zeroturnaround.process.PidProcess;
+import org.zeroturnaround.process.Processes;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -24,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -33,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 /**
@@ -500,10 +504,23 @@ public final class Exec implements Closeable {
             // Wait for it to die, but ignore the outcome and just forcefully kill it and all its
             // children anyway. This way, any misbehaving children or grandchildren will be killed
             // whether or not the parent behaved appropriately.
-            boolean died = p.waitFor(2, TimeUnit.SECONDS);
-            if (!died) {
-                logger.atWarn().log("Command {} did not respond to interruption within 2 seconds. "
-                        + "Going to kill it now", this);
+
+            // Wait up to 5 seconds for each child process to stop
+            List<PidProcess> pidProcesses = pids.stream().map(Processes::newPidProcess).collect(Collectors.toList());
+            for (PidProcess pp : pidProcesses) {
+                pp.waitFor(5, TimeUnit.SECONDS);
+            }
+            if (pidProcesses.stream().anyMatch(pidProcess -> {
+                try {
+                    return pidProcess.isAlive();
+                } catch (IOException ignored) {
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return false;
+            })) {
+                logger.atWarn()
+                        .log("Command {} did not respond to interruption within timeout. Going to kill it now", this);
             }
             platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
             if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
