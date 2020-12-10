@@ -10,6 +10,7 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -23,7 +24,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -96,6 +99,32 @@ class AwsIotMqttClientTest {
         assertFalse(client.connected());
         verify(connection, times(2)).disconnect();
         verify(connection, times(2)).close();
+    }
+
+    @Test
+    void GIVEN_no_connection_WHEN_call_any_operation_THEN_attempts_connection(ExtensionContext context)
+            throws ExecutionException, InterruptedException {
+        ignoreExceptionUltimateCauseWithMessage(context, "ex");
+        CompletableFuture<Boolean> fut = new CompletableFuture<>();
+        fut.completeExceptionally(new Exception("ex"));
+        when(connection.connect()).thenReturn(fut);
+        when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
+
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
+                callbackEventManager);
+        assertFalse(client.connected());
+
+        when(builder.build()).thenReturn(connection);
+        // Call subscribe which will cause the client to connect
+        assertThrows(ExecutionException.class, () ->
+        client.subscribe("A", QualityOfService.AT_LEAST_ONCE).get());
+
+        assertFalse(client.connected());
+
+        when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
+        client.subscribe("A", QualityOfService.AT_LEAST_ONCE).get();
+        assertTrue(client.connected());
     }
 
     @Test

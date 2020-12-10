@@ -48,6 +48,7 @@ class AwsIotMqttClient implements Closeable {
     private final String clientId;
     private MqttClientConnection connection;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
+    private CompletableFuture<Boolean> connectionFuture;
     private final CallbackEventManager callbackEventManager;
 
     @Getter(AccessLevel.PACKAGE)
@@ -149,41 +150,53 @@ class AwsIotMqttClient implements Closeable {
     }
 
     protected synchronized CompletableFuture<Boolean> connect() {
-        if (connection != null) {
+        // We're already connected, there's nothing to do
+        if (currentlyConnected.get()) {
             return CompletableFuture.completedFuture(true);
         }
-
-        // Always use the builder provider here so that the builder is updated with whatever
-        // the latest device config is
-        try (AwsIotMqttConnectionBuilder builder = builderProvider.get()) {
-            builder.withConnectionEventCallbacks(connectionEventCallback);
-            builder.withClientId(clientId);
-
-            connection = builder.build();
-            // Set message handler for this connection to be our global message handler in MqttClient.
-            // The handler will then send out the message to all subscribers after appropriate filtering.
-            connection.onMessage(messageHandler);
-            logger.atInfo().log("Connecting to AWS IoT Core");
-            return connection.connect().thenApply((sessionPresent) -> {
-                currentlyConnected.set(true);
-                logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
-                if (!sessionPresent) {
-                    resubscribe();
-                }
-                callbackEventManager.runOnInitialConnect(sessionPresent);
-                return sessionPresent;
-            }).whenComplete((session, error) -> {
-                if (error != null) {
-                    logger.atError().log("Unable to connect to AWS IoT Core", error);
-                    if (ProxyUtils.getProxyConfiguration() != null) {
-                        logger.atInfo().log("You are using a proxy which uses a websocket connection and "
-                                + "TokenExchangeService credentials. Verify that the IAM role which the IoT Role "
-                                + "Alias is aliasing has a policy which allows for iot:Connect, iot:Subscribe, "
-                                + "iot:Publish, and iot:Receive.");
-                    }
-                }
-            });
+        // If we're currently in the process of connecting, then return the future
+        // which represents that ongoing process
+        if (connectionFuture != null && !connectionFuture.isCompletedExceptionally()) {
+            return connectionFuture;
         }
+
+        // Connection is null, so we need to make a new connection and connect
+        if (connection == null) {
+            // Always use the builder provider here so that the builder is updated with whatever
+            // the latest device config is
+            try (AwsIotMqttConnectionBuilder builder = builderProvider.get()) {
+                builder.withConnectionEventCallbacks(connectionEventCallback);
+                builder.withClientId(clientId);
+
+                connection = builder.build();
+                // Set message handler for this connection to be our global message handler in MqttClient.
+                // The handler will then send out the message to all subscribers after appropriate filtering.
+                connection.onMessage(messageHandler);
+            }
+        }
+
+        // Either a new connection or a failed previous attempt to connect, so call connect()
+        logger.atInfo().log("Connecting to AWS IoT Core");
+        connectionFuture = connection.connect().thenApply((sessionPresent) -> {
+            currentlyConnected.set(true);
+            logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
+            if (!sessionPresent) {
+                resubscribe();
+            }
+            callbackEventManager.runOnInitialConnect(sessionPresent);
+            return sessionPresent;
+        }).whenComplete((session, error) -> {
+            if (error != null) {
+                logger.atError().log("Unable to connect to AWS IoT Core", error);
+                if (ProxyUtils.getProxyConfiguration() != null) {
+                    logger.atInfo().log("You are using a proxy which uses a websocket connection and "
+                            + "TokenExchangeService credentials. Verify that the IAM role which the IoT Role "
+                            + "Alias is aliasing has a policy which allows for iot:Connect, iot:Subscribe, "
+                            + "iot:Publish, and iot:Receive.");
+                }
+            }
+        });
+        return connectionFuture;
     }
 
     int getTimeout() {
@@ -224,6 +237,7 @@ class AwsIotMqttClient implements Closeable {
                 } finally {
                     connection.close();
                     connection = null;
+                    connectionFuture = null;
                 }
                 logger.atDebug().log("Successfully disconnected from AWS IoT Core");
             }
