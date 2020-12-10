@@ -61,6 +61,7 @@ import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapTaskStatus.ExecutionStatus.DONE;
+import static com.aws.greengrass.lifecyclemanager.GenericExternalService.serviceLifecycleDefined;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -74,6 +75,7 @@ import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_
 public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     private static final String COMPONENT_NAME_LOG_KEY_NAME = "componentName";
     private static final String RESTART_REQUIRED_MESSAGE = "Restart required due to configuration change";
+
     private static final Logger logger = LogManager.getLogger(BootstrapManager.class);
     @Setter(AccessLevel.PACKAGE)
     @Getter(AccessLevel.PACKAGE)
@@ -339,8 +341,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         }
         Map<String, Object> newServiceLifecycle =
                 (Map<String, Object>) newServiceConfig.get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
-        if (!newServiceLifecycle.containsKey(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC)
-                || newServiceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC) == null) {
+        if (serviceLifecycleDefined(newServiceLifecycle, LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC).isEmpty()) {
             logger.atDebug().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
                     .log("Bootstrap is not required: service lifecycle bootstrap not found");
             return false;
