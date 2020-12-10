@@ -1,11 +1,11 @@
 # Component Recipe Reference
 ## Reference and guidelines
-This reference describes version 2020-xx-xx of component recipe file format.
+This reference describes version 2020-01-25 of component recipe file format.
 
 Component recipe is a single yaml/json file for the component author to define component deployment and runtime
  characteristics in the AWS Greengrass ecosystem.
 ## Recipe file structure and examples
-Here is a sample recipe file in yaml format which defines a simple HelloWorld application can run on AWS Greengrass
+Here is a sample recipe file in yaml format. It defines a simple HelloWorld application which can run on AWS Greengrass
  managed devices. It defines a manifest for x86_64 windows as well as a manifest for arm32 linux.
  
  > recipe key name use [PascalCase](https://wiki.c2.com/?PascalCase), and is case-sensitive
@@ -13,9 +13,9 @@ Here is a sample recipe file in yaml format which defines a simple HelloWorld ap
 ```yaml
 ---
 RecipeFormatVersion: 2020-01-25
-ComponentName: com.aws.greengrass.HelloWorld
+ComponentName: aws.greengrass.HelloWorld
 ComponentVersion: 1.0.0
-ComponentDescription: hello world from greengrass!
+ComponentDescription: Hello world from greengrass!
 ComponentPublisher: Amazon
 ComponentType: aws.greengrass.generic
 ComponentConfiguration:
@@ -36,7 +36,7 @@ Manifests:
       architecture: x86_64
     Lifecycle:
       Run:
-        python3 {artifacts:path}/hello_windows_server.py {configuration:/args/windowsArg}
+        python3 {artifacts:decompressedPath}/hello_windows_server.py {configuration:/args/windowsArg}
     Artifacts:
       - URI: s3://some-bucket/hello_windows.zip
         Unarchive: ZIP
@@ -49,30 +49,27 @@ Manifests:
     Artifacts:
       - URI: s3://some-bucket/hello_world.py
 ```
-The topics on this reference are organized by top-level keys in terms of providing component metadata or
- defining platform specific manifest. Top-level keys can have options that support them as sub-topics. This
-  maps to the `<key>: <options>: <value>` indent structure of recipe file.
 
 ### Recipe Format Version
-Define the version of recipe format
+Define the version of recipe format.
 ```yaml
 RecipeFormatVersion: 2020-01-25
 ```
 ### Component Name
-Component name identifier, reverse DNS notation is recommended. Component name is unique within a private component
- registry. A private component which has same name occludes public available component.
+Component name identifier. Reverse DNS notation is recommended. Component name is unique within a private component
+ registry. A private component occludes the public component with the same name.
 > note: component name is also used as service name, since component to service is 1:1 mapping.
 
 ```yaml
-ComponentName: com.aws.greengrass.HelloWorld
+ComponentName: aws.greengrass.HelloWorld
 ```
 ### Component Version
-Component verison, use [semantic versioning](https://semver.org/) standard
+Component version follows [semantic versioning](https://semver.org/) standard.
 ```yaml
 ComponentVersion: 1.0.0
 ```
 ### Component Description
-Text description of component
+Text description of the component.
 ```yaml
 ComponentDescription: Hello World App
 ```
@@ -88,7 +85,7 @@ ComponentType: aws.greengrass.generic
 ```
 
 #### Component Dependencies
-Describe component dependencies, the versions of dependencies will be resolved during deployment.
+Describe component dependencies. The versions of dependencies will be resolved during deployment.
 > note: Services represented by components will be started/stopped with respect to dependency order.
 
 ```yaml
@@ -101,7 +98,7 @@ ComponentDependencies:
 Specify dependency version requirements, the requirements use NPM-style syntax.
 ##### Dependency Type
 Specify if dependency is `HARD` or `SOFT` dependency. `HARD` means dependent service will be restarted if the dependency
- service changes state. In the opposite, `SOFT` means the service will wait the dependency to start when first
+ service changes state. In the opposite, `SOFT` means the service will make sure the dependency is present when first
   starting, but will not be restarted if the dependency changes state.
   
 #### ComponentConfiguration
@@ -123,55 +120,55 @@ Platform:
 * supported architecture [list](to be added).
 
 #### Manifest.Lifecycle
-Specify lifecycle management scripts for component represented service
+Specify lifecycle management scripts for component represented service. See details in
+ [README_CONFIG_SCHEMA](README_CONFIG_SCHEMA.md#Lifecycle).
 ```yaml
 Lifecycle:
-  Setenv: # apply to all commands to the service.
+  Setenv:
     <key>: <defaultValue>
         
-  Install:
+  Bootstrap:
+    RequiresPrivilege:
     Skipif: onpath <executable>|exists <file>
     Script:
-    Timeout: # default to be 120 seconds.
-    Environment: # optional
+    Timeout:
+    Setenv:
+
+  Install:
+    RequiresPrivilege:
+    Skipif: onpath <executable>|exists <file>
+    Script:
+    Timeout:
+    Setenv:
       <key>: <overrideValue>
     
-  Startup: # mutually exclusive from 'run'
-    Script: # eg: brew services start influxdb
-    Timeout: # optional
-    Environment:  # optional, override
+  Startup:
+    RequiresPrivilege:
+    Skipif: onpath <executable>|exists <file>
+    Script:
+    Timeout:
+    Setenv:
       
-  Run: # mutually exclusive from 'startup'
+  Run:
+    RequiresPrivilege:
+    Skipif: onpath <executable>|exists <file>
     Script:
-    Environment: # optional, override
-    Timeout: # optional
-    Periodicity: # perodically run the command
+    Timeout:
+    Setenv:
     
-  Shutdown: # can co-exist with both startup/run
+  Shutdown:
+    RequiresPrivilege:
+    Skipif: onpath <executable>|exists <file>
     Script:
-    Environment: # optional, override
-    Timeout: # optional
-  
-  Healthcheck: # do health check when service is in Running
-    Script: # non-zero exit trigger error
-    RecheckPeriod: # optional, default to be 0
-    Environment: # override
-    
+    Timeout:
+    Setenv:
+
   Recover:
-    Script: # will be run every time service enters error.
-    Environment: # optional, override
-    # referring to https://docs.docker.com/v17.12/compose/compose-file/#restart_policy
-    RetryPolicy:
-      Delay: # default to be 0. Time to wait between retry.
-      MaxAttempts: # default to be infinite. After N times of error, service enter Broken state.
-      Window: # how long to wait before deciding if a restart has succeeded
-  
-  CheckIfSafeToUpdate:
-    RecheckPeriod: 5
-    Script: 
-    
-  UpdatesCompleted:
+    RequiresPrivilege:
+    Skipif: onpath <executable>|exists <file>
     Script:
+    Timeout:
+    Setenv:
 ```
 
 ---
@@ -194,18 +191,18 @@ Note a JSON pointer could point to 4 different possible node type, including:
 2. Container node: the place holder will be replacedd by the serialized JSON String representation for that container. Note the JSON string
 usually contains double quotes. If you are using it in the command line, make sure you escape it appropriately.
 3. `null`: the placeholder will be replaced as: **null**
-4. missing node: the placeholder **will remain**.
+4. Missing node: the placeholder **will remain** unchanged.
 
 You can use this variable to provide a configuration value to a script that you run in the component lifecycle.
 
-2. {artifacts:path}
+1. {artifacts:path}:
 The root path of the artifacts for the component that this recipe defines. When a component installs, AWS IoT Greengrass copies the component's artifacts to the folder that this variable exposes. 
 You can use this variable to identify the location of a script to run in the component lifecycle.
 
-3. {artifacts:decompressedPath}
+1. {artifacts:decompressedPath}:
 The root path of the decompressed archive artifacts for the component that this recipe defines. When a component installs, AWS IoT Greengrass unpacks the component's archive artifacts to the folder that this variable exposes. 
 You can use this variable to identify the location of a script to run in the component lifecycle. 
-Each artifact unzips to a folder within the decompressed path, where the folder has the same name as the artifact minus its extension. For example, a ZIP artifact named models.zip unpacks to the {{artifacts:decompressedPath}}/models folder
+Each artifact unzips to a folder within the decompressed path, where the folder has the same name as the artifact minus its extension. For example, a ZIP artifact named models.zip unpacks to the {artifacts:decompressedPath}/models folder
 
 ##### Use Direct Dependencies' variables
 If a component has dependencies, it sometimes require reading its dependencies's info at runtime, such as configuration and artifact path.
@@ -216,7 +213,7 @@ Similarly, you could use the variables above.
 1. {\<componentName\>:artifacts:path}
 1. {\<componentName\>:artifacts:decompressedPath}
 
-If you refer to a componentName that is not a direct dependency, **the placeholder will remain**.
+If you refer to a componentName that is not a direct dependency, **the placeholder will remain unchanged**.
 
 #### Global recipe variables
 Global recipe variables could be used by any component.
@@ -236,4 +233,4 @@ Artifacts:
 Artifacts are referenced by artifact URIs. Currently Greengrass supports Greengrass repository and s3 as artifact
  storage location.
 ##### Unarchive
-Indicate whether automatically unarchive artifact
+Indicate to automatically unarchive artifact. Support ZIP files.
