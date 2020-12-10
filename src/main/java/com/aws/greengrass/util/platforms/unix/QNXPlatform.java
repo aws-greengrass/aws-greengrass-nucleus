@@ -37,9 +37,9 @@ public class QNXPlatform extends UnixPlatform {
 
     private void killUsingSlay(int pid, boolean force, UserDecorator userDecorator)
             throws IOException, InterruptedException {
-        logger.atInfo().log("Slaying pid {} with signal {}", pid, force ? SIGKILL : SIGINT);
+        logger.atInfo().log("Slaying pid {} with signal {}", pid, force ? SIGKILL : SIGTERM);
         // Use slay on QNX because kill doesn't exist, and we can't link to libc
-        String[] cmd = {"slay", "-" + (force ? SIGKILL : SIGINT), "-f", "-Q", Integer.toString(pid)};
+        String[] cmd = {"slay", "-" + (force ? SIGKILL : SIGTERM), "-f", "-Q", Integer.toString(pid)};
         if (userDecorator != null) {
             cmd = userDecorator.decorate(cmd);
         }
