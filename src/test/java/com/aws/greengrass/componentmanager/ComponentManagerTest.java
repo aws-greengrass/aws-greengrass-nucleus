@@ -410,7 +410,9 @@ class ComponentManagerTest {
     }
 
     @Test
-    void GIVEN_component_no_local_version_WHEN_cloud_service_client_exception_THEN_retry() throws Exception {
+    void GIVEN_component_no_local_version_WHEN_cloud_service_client_exception_THEN_retry(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, SdkClientException.class);
 
         componentManager.setClientExceptionRetryConfig(
                 RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1))

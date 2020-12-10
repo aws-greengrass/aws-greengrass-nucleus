@@ -74,6 +74,7 @@ public class ComponentManager implements InjectionActions {
     private static final String COMPONENT_STR = "component";
 
     private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
+    protected static final String COMPONENT_NAME = "componentName";
 
     private final ArtifactDownloaderFactory artifactDownloaderFactory;
     private final ComponentServiceHelper componentServiceHelper;
@@ -172,7 +173,8 @@ public class ComponentManager implements InjectionActions {
         }
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException", "PMD.NullAssignment",
+            "PMD.AvoidInstanceofChecksInCatchClause"})
     private ComponentIdentifier negotiateVersionWithCloud(String componentName,
             Map<String, Requirement> versionRequirements,
             ComponentIdentifier localCandidate)
@@ -187,6 +189,13 @@ public class ComponentManager implements InjectionActions {
             } catch (InterruptedException e) {
                 throw e;
             } catch (Exception e) {
+                // Don't bother logging the full stacktrace when it is NoAvailableComponentVersionException since we
+                // know the reason for that error
+                logger.atInfo().setCause(e instanceof NoAvailableComponentVersionException ? null : e)
+                        .kv(COMPONENT_NAME, componentName)
+                        .kv("versionRequirement", versionRequirements)
+                        .log("Failed to negotiate version with cloud and no local version to fall back to");
+
                 throw new NoAvailableComponentVersionException(String.format(
                         "Failed to negotiate component '%s' version with cloud and no local applicable version "
                                 + "satisfying requirement '%s'.", componentName, versionRequirements), e);
@@ -196,7 +205,7 @@ public class ComponentManager implements InjectionActions {
                 resolvedComponentVersion = componentServiceHelper
                         .resolveComponentVersion(componentName, localCandidate.getVersion(), versionRequirements);
             } catch (Exception e) {
-                logger.atInfo().setCause(e).kv("componentName", componentName)
+                logger.atInfo().setCause(e).kv(COMPONENT_NAME, componentName)
                         .kv("versionRequirement", versionRequirements).kv("localVersion", localCandidate)
                         .log("Failed to negotiate version with cloud and fall back to use the local version");
                 return localCandidate;
@@ -437,7 +446,7 @@ public class ComponentManager implements InjectionActions {
                     componentStore.deleteComponent(identifier);
                 } catch (SemverException | PackageLoadingException e) {
                     // Log a warn here. This shouldn't cause a deployment to fail.
-                    logger.atWarn().kv("componentName", compName).kv("version", compVersion).setCause(e)
+                    logger.atWarn().kv(COMPONENT_NAME, compName).kv("version", compVersion).setCause(e)
                             .log("Failed to clean up component");
                 }
             }
