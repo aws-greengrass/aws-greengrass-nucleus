@@ -148,6 +148,7 @@ class AwsIotMqttClient implements Closeable {
         }
     }
 
+    @SuppressWarnings("PMD.NullAssignment")
     protected synchronized CompletableFuture<Boolean> connect() {
         if (connection != null) {
             return CompletableFuture.completedFuture(true);
@@ -163,6 +164,7 @@ class AwsIotMqttClient implements Closeable {
             // Set message handler for this connection to be our global message handler in MqttClient.
             // The handler will then send out the message to all subscribers after appropriate filtering.
             connection.onMessage(messageHandler);
+
             logger.atInfo().log("Connecting to AWS IoT Core");
             return connection.connect().thenApply((sessionPresent) -> {
                 currentlyConnected.set(true);
@@ -174,6 +176,12 @@ class AwsIotMqttClient implements Closeable {
                 return sessionPresent;
             }).whenComplete((session, error) -> {
                 if (error != null) {
+                    // Must synchronize since we're messing with the shared connection object and this block
+                    // is executed in some other thread
+                    synchronized (this) {
+                        connection.close();
+                        connection = null;
+                    }
                     logger.atError().log("Unable to connect to AWS IoT Core", error);
                     if (ProxyUtils.getProxyConfiguration() != null) {
                         logger.atInfo().log("You are using a proxy which uses a websocket connection and "
