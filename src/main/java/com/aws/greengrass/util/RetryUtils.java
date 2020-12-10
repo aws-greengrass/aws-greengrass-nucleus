@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.util;
 
+import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.api.Logger;
 import lombok.Builder;
 import lombok.Getter;
@@ -48,7 +49,12 @@ public class RetryUtils {
                     throw e;
                 }
                 if (retryConfig.retryableExceptions.stream().anyMatch(c -> c.isInstance(e))) {
-                    logger.atDebug(taskDescription).kv("task-attempt", attempt).setCause(e)
+                    LogEventBuilder logBuild = logger.atDebug(taskDescription);
+                    // Log first failed attempt at info so as not to spam logs
+                    if (attempt == 1) {
+                        logBuild = logger.atInfo(taskDescription);
+                    }
+                    logBuild.kv("task-attempt", attempt).setCause(e)
                             .log("task failed and will be retried");
                     lastException = e;
                     Thread.sleep(retryInterval);

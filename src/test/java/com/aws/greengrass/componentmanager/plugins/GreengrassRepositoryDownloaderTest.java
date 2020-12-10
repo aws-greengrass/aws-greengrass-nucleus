@@ -18,6 +18,7 @@ import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -36,6 +37,7 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Base64;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.core.Is.is;
@@ -121,7 +123,9 @@ class GreengrassRepositoryDownloaderTest {
     }
 
     @Test
-    void GIVEN_http_connection_error_WHEN_attempt_download_THEN_retry_called() throws Exception {
+    void GIVEN_http_connection_error_WHEN_attempt_download_THEN_retry_called(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, IOException.class);
+
         GetComponentVersionArtifactResponse result =
                 GetComponentVersionArtifactResponse.builder().preSignedUrl("https://www.amazon.com/artifact.txt")
                         .build();
