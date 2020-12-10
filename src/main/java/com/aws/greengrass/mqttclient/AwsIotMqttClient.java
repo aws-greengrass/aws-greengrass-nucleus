@@ -21,16 +21,21 @@ import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
+import java.time.Duration;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.inject.Provider;
 
 /**
@@ -46,9 +51,13 @@ class AwsIotMqttClient implements Closeable {
     private final Provider<AwsIotMqttConnectionBuilder> builderProvider;
     @Getter
     private final String clientId;
+    private final ExecutorService executorService;
     private MqttClientConnection connection;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
     private final CallbackEventManager callbackEventManager;
+    private static final long WAIT_TIME_MS_TO_SUBSCRIBE_AGAIN = Duration.ofMinutes(2).toMillis();
+    private static final Random RANDOM = new Random();
+    private static final AtomicBoolean resubscribing = new AtomicBoolean();
 
     @Getter(AccessLevel.PACKAGE)
     private final MqttClientConnectionEvents connectionEventCallback = new MqttClientConnectionEvents() {
@@ -69,7 +78,7 @@ class AwsIotMqttClient implements Closeable {
             logger.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
             // If we didn't reconnect using the same session, then resubscribe to all the topics
             if (!sessionPresent) {
-                resubscribe();
+                executorService.execute(() -> resubscribe());
             }
             // To run the callbacks shared by the different AwsIotMqttClient.
             callbackEventManager.runOnConnectionResumed(sessionPresent);
@@ -84,12 +93,14 @@ class AwsIotMqttClient implements Closeable {
     AwsIotMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
                      Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler,
                      String clientId, Topics mqttTopics,
-                     CallbackEventManager callbackEventManager) {
+                     CallbackEventManager callbackEventManager,
+                     ExecutorService executorService) {
         this.builderProvider = builderProvider;
         this.clientId = clientId;
         this.mqttTopics = mqttTopics;
         this.messageHandler = messageHandler.apply(this);
         this.callbackEventManager = callbackEventManager;
+        this.executorService = executorService;
     }
 
     // Notes about the CRT MQTT client:
@@ -200,17 +211,36 @@ class AwsIotMqttClient implements Closeable {
     }
 
     private void resubscribe() {
-        subscriptionTopics.forEach((key, value) -> {
-            subscribe(key, value).whenComplete((i, t) -> {
-                if (t != null) {
-                    logger.atError().kv(TOPIC_KEY, key).kv(QOS_KEY, value.name()).log("Unable to resubscribe to topic");
+        if (!resubscribing.compareAndSet(false, true)) {
+            return;
+        }
+        while (true) {
+            List<CompletableFuture<Integer>> subscriptionFutures = subscriptionTopics.entrySet().stream()
+                    .map((k) -> subscribe(k.getKey(), k.getValue())).collect(Collectors.toList());
+
+            try {
+                CompletableFuture.allOf(subscriptionFutures.toArray(new CompletableFuture[0]))
+                        .get(getTimeout(), TimeUnit.MILLISECONDS);
+                resubscribing.set(false);
+                logger.atDebug().log("Finished resubscribing to all topics");
+                break;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (TimeoutException | ExecutionException e) {
+                logger.atInfo().log("Failed to resubscribe to all topics. Will retry later.", e);
+                try {
+                    Thread.sleep(WAIT_TIME_MS_TO_SUBSCRIBE_AGAIN + RANDOM.nextInt(10_000));
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
-            });
-        });
+            }
+        }
     }
 
     boolean canAddNewSubscription() {
-        return subscriptionTopics.size() < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
+        return subscriptionCount() < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
     }
 
     int subscriptionCount() {

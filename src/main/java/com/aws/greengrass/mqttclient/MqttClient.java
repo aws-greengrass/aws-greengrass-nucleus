@@ -39,6 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -81,6 +82,7 @@ public class MqttClient implements Closeable {
     public static final int MAX_SUBSCRIPTIONS_PER_CONNECTION = 50;
     public static final String CLIENT_ID_KEY = "clientId";
     public static final int EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS = 2;
+    private static final boolean CLEAN_SESSION = false; // use persistent session
 
     // Use read lock for MQTT operations and write lock when changing the MQTT connection
     private final ReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
@@ -102,6 +104,7 @@ public class MqttClient implements Closeable {
     private final CallbackEventManager callbackEventManager = new CallbackEventManager();
     private final Spool spool;
     private final ScheduledExecutorService ses;
+    private final ExecutorService executorService;
     private final AtomicReference<Future<?>> spoolingFuture = new AtomicReference<>();
     private int maxInFlightPublishes;
 
@@ -130,11 +133,13 @@ public class MqttClient implements Closeable {
      * Constructor for injection.
      * @param deviceConfiguration device configuration
      * @param ses                 scheduled executor service
+     * @param executorService     executor service
      */
     @Inject
     public MqttClient(DeviceConfiguration deviceConfiguration,
-                      ScheduledExecutorService ses) {
-        this(deviceConfiguration, null, ses);
+                      ScheduledExecutorService ses,
+                      ExecutorService executorService) {
+        this(deviceConfiguration, null, ses, executorService);
 
         HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
 
@@ -145,7 +150,7 @@ public class MqttClient implements Closeable {
                     .withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
                     .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
                     .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
-                    .withCleanSession(false).withBootstrap(clientBootstrap).withKeepAliveMs(Coerce.toInt(
+                    .withCleanSession(CLEAN_SESSION).withBootstrap(clientBootstrap).withKeepAliveMs(Coerce.toInt(
                             mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
                     .withPingTimeoutMs(
                             Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
@@ -194,9 +199,11 @@ public class MqttClient implements Closeable {
 
     protected MqttClient(DeviceConfiguration deviceConfiguration,
                          Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
-                         ScheduledExecutorService ses) {
+                         ScheduledExecutorService ses,
+                         ExecutorService executorService) {
         this.deviceConfiguration = deviceConfiguration;
         this.ses = ses;
+        this.executorService = executorService;
 
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         this.builderProvider = builderProvider;
@@ -287,6 +294,7 @@ public class MqttClient implements Closeable {
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
         this.spool = spool;
         this.ses = ses;
+        this.executorService = ses;
         this.mqttOnline.set(mqttOnline);
     }
 
@@ -537,7 +545,7 @@ public class MqttClient implements Closeable {
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
                 : "-" + connections.size() + 1);
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
-                clientId, mqttTopics, callbackEventManager);
+                clientId, mqttTopics, callbackEventManager, executorService);
     }
 
     public boolean connected() {

@@ -22,6 +22,7 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
@@ -51,6 +52,9 @@ class AwsIotMqttClientTest {
     @Mock
     MqttClientConnectionEvents mockCallback2;
 
+    @Mock
+    ExecutorService executorService;
+
     @Captor
     ArgumentCaptor<MqttClientConnectionEvents> events;
 
@@ -75,7 +79,7 @@ class AwsIotMqttClientTest {
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
 
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager);
+                callbackEventManager, executorService);
         assertFalse(client.connected());
 
         when(builder.build()).thenReturn(connection);
@@ -112,7 +116,7 @@ class AwsIotMqttClientTest {
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
 
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager);
+                callbackEventManager, executorService);
         assertFalse(client.connected());
 
         when(builder.build()).thenReturn(connection);
@@ -131,9 +135,9 @@ class AwsIotMqttClientTest {
     void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_resumed_THEN_oneTimeCallbacks_would_be_executed_once() {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager);
+                callbackEventManager, executorService);
         AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
-                callbackEventManager);
+                callbackEventManager, executorService);
         boolean sessionPresent = false;
         // callbackEventManager.hasCallBacked is originally set as False
         assertFalse(callbackEventManager.hasCallbacked());
@@ -159,9 +163,9 @@ class AwsIotMqttClientTest {
     void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_interrupted_THEN_oneTimeCallbacks_would_be_executed_once() {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager);
+                callbackEventManager, executorService);
         AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
-                callbackEventManager);
+                callbackEventManager, executorService);
         callbackEventManager.runOnConnectionResumed(false);
         assertTrue(callbackEventManager.hasCallbacked());
         int errorCode = 0;
