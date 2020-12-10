@@ -176,6 +176,8 @@ class AwsIotMqttClient implements Closeable {
                 return sessionPresent;
             }).whenComplete((session, error) -> {
                 if (error != null) {
+                    // Must synchronize since we're messing with the shared connection object and this block
+                    // is executed in some other thread
                     synchronized (this) {
                         connection.close();
                         connection = null;
