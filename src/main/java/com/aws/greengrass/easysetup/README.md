@@ -22,8 +22,8 @@ OPTIONS
                                 create the AWS resources that it requires.
 --root, -r                      (Optional) The path to the folder to use as the root for the AWS IoT Greengrass Core software. 
                                 Defaults to ~/.greengrass.
---config, -i                    (Optional) The path to the configuration file with which to run the AWS IoT Greengrass Core
-                                software. Defaults to config/config.yaml in the root folder.
+--init-config, -init            (Optional) The path to the configuration file with which to run the AWS IoT Greengrass Core
+                                software.
 --provision, -p                 (Optional) Specify true or false. If this argument is true, then the AWS IoT Greengrass Core
                                 software registers this device as an AWS IoT thing and provisions the AWS resources that
                                 the software requires. The software provisions an AWS IoT thing, (optional) an AWS IoT
