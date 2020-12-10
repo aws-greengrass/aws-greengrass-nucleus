@@ -510,6 +510,7 @@ public final class Exec implements Closeable {
                 throw new IOException("Could not stop " + this);
             }
         } catch (InterruptedException e) {
+            logger.atDebug().log("Interrupted while waiting for process to exit: {}", this);
             // If we're interrupted make sure to kill the process before returning
             try {
                 platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
