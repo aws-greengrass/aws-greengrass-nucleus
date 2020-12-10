@@ -39,7 +39,6 @@ import software.amazon.awssdk.services.greengrassv2.model.ComponentDeploymentSpe
 import software.amazon.awssdk.services.greengrassv2.model.CreateComponentVersionResponse;
 import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentRequest;
 import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentResponse;
-import software.amazon.awssdk.services.greengrassv2.model.DeleteComponentResponse;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentPolicies;
@@ -199,9 +198,7 @@ public class BaseE2ETestCase implements AutoCloseable {
                             .kv("component-version", component.getVersion())
                             .log("No component arn found to make delete request for cleanup");
                 } else {
-                    DeleteComponentResponse result =
-                            ComponentServiceTestHelper.deleteComponent(greengrassClient, componentArn);
-                    assertEquals(200, result.sdkHttpResponse().statusCode());
+                    ComponentServiceTestHelper.deleteComponent(greengrassClient, componentArn);
                 }
             }
         } finally {
@@ -302,7 +299,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
         CreateComponentVersionResponse createComponentResult =
                 ComponentServiceTestHelper.createComponent(greengrassClient, testRecipePath);
-        componentArns.put(pkgIdLocal, createComponentResult.arn());
+        componentArns.put(pkgIdCloud, createComponentResult.arn());
         assertEquals(pkgIdCloud.getName(), createComponentResult.componentName(), createComponentResult.toString());
         assertEquals(pkgIdCloud.getVersion().toString(), createComponentResult.componentVersion());
     }
