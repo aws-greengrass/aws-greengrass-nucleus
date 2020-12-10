@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -86,7 +87,9 @@ class ArtifactDownloaderTest {
     }
 
     @Test
-    void GIVEN_wrong_checksum_WHEN_download_to_path_THEN_fail() throws Exception {
+    void GIVEN_wrong_checksum_WHEN_download_to_path_THEN_fail(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, ArtifactChecksumMismatchException.class);
+
         String content = "Sample artifact content";
         ComponentArtifact artifact = createTestArtifact("SHA-256", "invalidChecksum");
 
@@ -129,7 +132,9 @@ class ArtifactDownloaderTest {
 
     @EnabledOnOs({OS.LINUX, OS.MAC})
     @Test
-    void GIVEN_existing_artifact_corrupt_WHEN_download_THEN_retry() throws Exception {
+    void GIVEN_existing_artifact_corrupt_WHEN_download_THEN_retry(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, ArtifactChecksumMismatchException.class);
+
         String content = "Sample artifact content";
         String checksum =
                 Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
