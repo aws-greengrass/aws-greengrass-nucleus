@@ -285,8 +285,15 @@ public class Kernel {
         return cachedOD = dependencyFoundServices;
     }
 
+    /**
+     * When a config file gets read, it gets woven together from fragments from multiple sources.  This writes a fresh
+     * copy of the config file, as it is, after the weaving-together process.
+     */
     public void writeEffectiveConfig() {
-        writeEffectiveConfig(context.get(NucleusPaths.class).configPath().resolve(DEFAULT_CONFIG_YAML_FILE_WRITE));
+        Path p = context.get(NucleusPaths.class).configPath();
+        if (p != null) {
+            writeEffectiveConfig(p.resolve(DEFAULT_CONFIG_YAML_FILE_WRITE));
+        }
     }
 
     /**
