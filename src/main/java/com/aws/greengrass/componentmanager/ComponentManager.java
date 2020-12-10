@@ -191,7 +191,7 @@ public class ComponentManager implements InjectionActions {
             } catch (Exception e) {
                 // Don't bother logging the full stacktrace when it is NoAvailableComponentVersionException since we
                 // know the reason for that error
-                logger.atInfo().setCause(e instanceof NoAvailableComponentVersionException ? null : e)
+                logger.atError().setCause(e instanceof NoAvailableComponentVersionException ? null : e)
                         .kv(COMPONENT_NAME, componentName)
                         .kv("versionRequirement", versionRequirements)
                         .log("Failed to negotiate version with cloud and no local version to fall back to");
