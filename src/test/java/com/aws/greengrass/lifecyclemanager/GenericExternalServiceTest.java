@@ -58,6 +58,11 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
                 put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, null);
             }});
         }}));
+        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("Bootstrap", null);
+            }});
+        }}));
     }
 
     @Test
@@ -66,6 +71,13 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
             put(VERSION_CONFIG_KEY, "1.0.1");
             put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, "echo done");
+            }});
+        }}));
+
+        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(VERSION_CONFIG_KEY, "1.0.1");
+            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("Bootstrap", "echo done");
             }});
         }}));
     }
@@ -79,6 +91,12 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
             put(VERSION_CONFIG_KEY, "1.0.0");
             put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, "echo done");
+            }});
+        }}));
+        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(VERSION_CONFIG_KEY, "1.0.0");
+            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("Bootstrap", "echo done");
             }});
         }}));
     }

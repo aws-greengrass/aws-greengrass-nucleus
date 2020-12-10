@@ -144,6 +144,12 @@ class BootstrapManagerTest {
                 put(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, "echo done");
             }});
         }}));
+
+        assertTrue(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
+            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("Bootstrap", Collections.emptyMap());
+            }});
+        }}));
     }
 
     @Test
@@ -160,6 +166,12 @@ class BootstrapManagerTest {
         assertFalse(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
             put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, null);
+            }});
+        }}));
+
+        assertFalse(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
+            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("Bootstrap", null);
             }});
         }}));
     }

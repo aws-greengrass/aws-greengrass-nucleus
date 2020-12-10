@@ -6,6 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -28,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -223,8 +225,9 @@ public class GenericExternalService extends GreengrassService {
         }
         Map<String, Object> newServiceLifecycle =
                 (Map<String, Object>) newServiceConfig.get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
-        if (!newServiceLifecycle.containsKey(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC)
-                || newServiceLifecycle.get(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC) == null) {
+        String lifecycleKey = serviceLifecycleDefined(newServiceLifecycle,
+                Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC);
+        if (lifecycleKey.isEmpty()) {
             logger.atDebug().log("Bootstrap is not required: service lifecycle bootstrap not found");
             return false;
         }
@@ -236,11 +239,26 @@ public class GenericExternalService extends GreengrassService {
         Node serviceOldBootstrap = getConfig().findNode(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                 Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC);
         boolean bootstrapStepChanged =  serviceOldBootstrap == null
-                || !serviceOldBootstrap.toPOJO().equals(newServiceLifecycle.get(
-                Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
+                || !serviceOldBootstrap.toPOJO().equals(newServiceLifecycle.get(lifecycleKey));
         logger.atDebug().log(String.format("Bootstrap is %srequired: bootstrap step %schanged",
                 bootstrapStepChanged ? "" : "not ", bootstrapStepChanged ? "" : "un"));
         return bootstrapStepChanged;
+    }
+
+    /**
+     * Check if the case-insensitive lifecycle key is defined in the service lifecycle configuration map.
+     * @param newServiceLifecycle service lifecycle configuration map
+     * @param lifecycleKey        case-insensitive lifecycle key
+     * @return key in the map that matches the lifecycle key; empty string if no match
+     */
+    public static String serviceLifecycleDefined(Map<String, Object> newServiceLifecycle, String lifecycleKey) {
+        CaseInsensitiveString key = new CaseInsensitiveString(lifecycleKey);
+        for (Map.Entry<String, Object> entry : newServiceLifecycle.entrySet()) {
+            if (key.equals(new CaseInsensitiveString(entry.getKey())) && Objects.nonNull(entry.getValue())) {
+                return entry.getKey();
+            }
+        }
+        return "";
     }
 
     @SuppressWarnings("PMD.NullAssignment")
