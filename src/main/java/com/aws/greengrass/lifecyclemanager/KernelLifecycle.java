@@ -147,7 +147,7 @@ public class KernelLifecycle {
             if (Objects.nonNull(kernelCommandLine.getProvidedConfigPathName())) {
                 // If a config file is provided, kernel will use the provided file as a new base
                 // and ignore existing config and tlog files.
-                // This ideally should only used for testing and not in production
+                // This is used by the nucleus bootstrap workflow
                 kernel.getConfig().read(kernelCommandLine.getProvidedConfigPathName());
             } else {
                 Path externalConfig = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_YAML_FILE_READ);
@@ -174,7 +174,7 @@ public class KernelLifecycle {
             kernel.writeEffectiveConfigAsTransactionLog(transactionLogPath);
             kernel.writeEffectiveConfig();
 
-            // hook tlog to config
+            // hook tlog to config so that changes over time are persisted to the tlog
             tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), transactionLogPath)
                     .flushImmediately(true).withAutoTruncate(kernel.getContext());
         } catch (IOException ioe) {
