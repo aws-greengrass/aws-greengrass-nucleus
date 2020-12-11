@@ -16,7 +16,6 @@ import software.amazon.awssdk.services.greengrassv2.model.CreateComponentVersion
 import software.amazon.awssdk.services.greengrassv2.model.CreateComponentVersionResponse;
 import software.amazon.awssdk.services.greengrassv2.model.DeleteComponentRequest;
 import software.amazon.awssdk.services.greengrassv2.model.DeleteComponentResponse;
-import software.amazon.awssdk.services.greengrassv2.model.RecipeSource;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,8 +38,7 @@ public class ComponentServiceTestHelper {
             throws IOException {
         byte[] recipeBuf = Files.readAllBytes(recipeFilePath);
         CreateComponentVersionRequest createComponentRequest =
-                CreateComponentVersionRequest.builder().recipeSource(RecipeSource.builder()
-                        .inlineRecipe(SdkBytes.fromByteArray(recipeBuf)).build()).build();
+                CreateComponentVersionRequest.builder().inlineRecipe(SdkBytes.fromByteArray(recipeBuf)).build();
         logger.atDebug("create-component").kv("request", createComponentRequest).log();
         CreateComponentVersionResponse createComponentResult = cmsClient.createComponentVersion(createComponentRequest);
         logger.atDebug("create-component").kv("result", createComponentResult).log();

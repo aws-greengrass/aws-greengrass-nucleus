@@ -34,7 +34,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -87,8 +86,6 @@ class ComponentServiceHelperTest {
         verify(client).resolveComponentCandidates(requestArgumentCaptor.capture());
         ResolveComponentCandidatesRequest request = requestArgumentCaptor.getValue();
         assertThat(request.platform(), notNullValue());
-        assertThat(request.platform().os(), nullValue());
-        assertThat(request.platform().architecture(), nullValue());
         assertThat(request.platform().attributes(), notNullValue());
         Map<String, String> attributes = request.platform().attributes();
         assertThat(attributes, hasKey(PlatformResolver.OS_KEY));
