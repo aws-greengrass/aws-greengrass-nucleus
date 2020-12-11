@@ -3,6 +3,8 @@ The purpose of this guide is to get you up to speed with developing Greengrass.
 
 ## Prerequisite
 1. Install JDK 8 and set up JAVA_HOME
+> Note: JDK 8 is required because we want to be _able_ to run Greengrass on devices where only JDK8 is available.
+> Greengrass is often run on more modern JDKs.
 
 ## Pull Down Repositories From GitHub
 To begin developing with Greengrass you will need to clone the repositories. 
