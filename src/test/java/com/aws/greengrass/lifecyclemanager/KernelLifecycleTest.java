@@ -44,6 +44,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static com.aws.greengrass.lifecyclemanager.Kernel.DEFAULT_CONFIG_YAML_FILE_READ;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -142,7 +143,7 @@ class KernelLifecycleTest {
         kernelLifecycle.initConfigAndTlog(overrideConfigPathName);
         verify(mockConfig).read(eq(overrideConfigPathName));
         verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
-        verify(mockKernel).writeEffectiveConfig(tempRootDir.resolve("config").resolve("config.yaml"));
+        verify(mockKernel).writeEffectiveConfig();
         verify(mockKernelCommandLine).setProvidedConfigPathName(eq(overrideConfigPathName));
     }
 
@@ -154,7 +155,22 @@ class KernelLifecycleTest {
         kernelLifecycle.initConfigAndTlog();
         verify(mockConfig).read(eq(providedConfigPathName));
         verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
-        verify(mockKernel).writeEffectiveConfig(tempRootDir.resolve("config").resolve("config.yaml"));
+        verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
+    void GIVEN_provided_external_initial_config_WHEN_read_THEN_read_external_config() throws Exception {
+        File externalFile = mockPaths.configPath().resolve("external_config.yaml").toFile();
+        externalFile.createNewFile();
+        when(mockKernelCommandLine.getProvidedInitialConfigPath()).thenReturn(externalFile.toString());
+        File configTlog = mockPaths.configPath().resolve("config.tlog").toFile();
+        configTlog.createNewFile();
+
+        kernelLifecycle.initConfigAndTlog();
+        verify(mockConfig).read(eq(configTlog.toPath()));
+        verify(mockConfig).read(eq(externalFile.toPath()));
+        verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel).writeEffectiveConfig();
     }
 
     @Test
@@ -172,13 +188,13 @@ class KernelLifecycleTest {
     @Test
     void GIVEN_kernel_WHEN_launch_without_config_THEN_config_read_from_disk() throws Exception {
         // Create configYaml so that the kernel will try to read it in
-        File configYaml = mockPaths.configPath().resolve("config.yaml").toFile();
+        File configYaml = mockPaths.configPath().resolve(DEFAULT_CONFIG_YAML_FILE_READ).toFile();
         configYaml.createNewFile();
 
         kernelLifecycle.initConfigAndTlog();
         verify(mockKernel.getConfig()).read(eq(configYaml.toPath()));
         verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
-        verify(mockKernel).writeEffectiveConfig(tempRootDir.resolve("config").resolve("config.yaml"));
+        verify(mockKernel).writeEffectiveConfig();
     }
 
     @Test
@@ -190,7 +206,7 @@ class KernelLifecycleTest {
         kernelLifecycle.initConfigAndTlog();
         verify(mockKernel.getConfig()).read(eq(configTlog.toPath()));
         verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
-        verify(mockKernel).writeEffectiveConfig(tempRootDir.resolve("config").resolve("config.yaml"));
+        verify(mockKernel).writeEffectiveConfig();
     }
 
     @Test
@@ -199,8 +215,7 @@ class KernelLifecycleTest {
         doReturn(mockMain).when(mockKernel).locate(eq("main"));
 
         kernelLifecycle.initConfigAndTlog();
-        Path configPath = mockPaths.configPath().resolve("config.yaml");
-        verify(mockKernel).writeEffectiveConfig(eq(configPath));
+        verify(mockKernel).writeEffectiveConfig();
     }
 
     @Test
