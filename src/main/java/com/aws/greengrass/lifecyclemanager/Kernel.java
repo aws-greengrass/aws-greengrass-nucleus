@@ -87,7 +87,8 @@ public class Kernel {
     public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
     public static final String SERVICE_TYPE_TO_CLASS_MAP_KEY = "componentTypeToClassMap";
     private static final String PLUGIN_SERVICE_TYPE_NAME = "plugin";
-    static final String DEFAULT_CONFIG_YAML_FILE = "config.yaml";
+    static final String DEFAULT_CONFIG_YAML_FILE_READ = "config.yaml";
+    static final String DEFAULT_CONFIG_YAML_FILE_WRITE = "effectiveConfig.yaml";
     static final String DEFAULT_CONFIG_TLOG_FILE = "config.tlog";
     public static final String SERVICE_DIGEST_TOPIC_KEY = "service-digest";
     private static final String DEPLOYMENT_STAGE_LOG_KEY = "stage";
@@ -284,8 +285,15 @@ public class Kernel {
         return cachedOD = dependencyFoundServices;
     }
 
+    /**
+     * When a config file gets read, it gets woven together from fragments from multiple sources.  This writes a fresh
+     * copy of the config file, as it is, after the weaving-together process.
+     */
     public void writeEffectiveConfig() {
-        writeEffectiveConfig(context.get(NucleusPaths.class).configPath().resolve(DEFAULT_CONFIG_YAML_FILE));
+        Path p = context.get(NucleusPaths.class).configPath();
+        if (p != null) {
+            writeEffectiveConfig(p.resolve(DEFAULT_CONFIG_YAML_FILE_WRITE));
+        }
     }
 
     /**
@@ -483,7 +491,7 @@ public class Kernel {
                     .log("Local plugin does not match the version in cloud!!");
             throw new ServiceLoadException("Plugin has been modified after it was downloaded");
         }
-        
+
         Class<?> clazz;
         try {
             AtomicReference<Class<?>> classReference = new AtomicReference<>();

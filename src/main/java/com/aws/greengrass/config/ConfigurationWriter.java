@@ -65,12 +65,11 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
      *
      * @param c configuration to write out
      * @param p path to write to
+     * @throws IOException if writing fails
      */
-    public static void dump(Configuration c, Path p) {
+    public static void dump(Configuration c, Path p) throws IOException {
         try (ConfigurationWriter cs = new ConfigurationWriter(c, p)) {
             cs.writeAll();
-        } catch (IOException ex) {
-            logger.atError().setEventType("config-dump-error").setCause(ex).addKeyValue("path", p).log();
         }
     }
 

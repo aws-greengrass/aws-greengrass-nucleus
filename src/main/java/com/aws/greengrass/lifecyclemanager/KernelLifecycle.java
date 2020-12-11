@@ -33,6 +33,7 @@ import lombok.Setter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -142,29 +143,38 @@ public class KernelLifecycle {
     void initConfigAndTlog() {
         try {
             Path transactionLogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_TLOG_FILE);
-            Path configurationFile = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_YAML_FILE);
+
             if (Objects.nonNull(kernelCommandLine.getProvidedConfigPathName())) {
                 // If a config file is provided, kernel will use the provided file as a new base
                 // and ignore existing config and tlog files.
-                // This ideally should only used for testing and not in production
+                // This is used by the nucleus bootstrap workflow
                 kernel.getConfig().read(kernelCommandLine.getProvidedConfigPathName());
             } else {
-                // if tlog presents, read the tlog first, because the yaml config file may not be up to date
-                if (Files.exists(transactionLogPath)) {
+                Path externalConfig = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_YAML_FILE_READ);
+                boolean externalConfigFromCmd = Utils.isNotEmpty(kernelCommandLine.getProvidedInitialConfigPath());
+                if (externalConfigFromCmd) {
+                    externalConfig = Paths.get(kernelCommandLine.getProvidedInitialConfigPath());
+                }
+
+                boolean tlogExists = Files.exists(transactionLogPath);
+                boolean externalConfigExists = Files.exists(externalConfig);
+
+                // if tlog is present, read the tlog first because the yaml config file may not be up to date
+                if (tlogExists) {
                     kernel.getConfig().read(transactionLogPath);
                 }
 
-                // if configuration file is available, merge it. It will be merged with file's last modified timestamp
-                if (Files.exists(configurationFile)) {
-                    kernel.getConfig().read(configurationFile);
+                // If there is no tlog, or the path was provided via commandline, read in that file
+                if ((externalConfigFromCmd || !tlogExists) && externalConfigExists) {
+                    kernel.getConfig().read(externalConfig);
                 }
             }
 
             // write new tlog and config files
             kernel.writeEffectiveConfigAsTransactionLog(transactionLogPath);
-            kernel.writeEffectiveConfig(configurationFile);
+            kernel.writeEffectiveConfig();
 
-            // hook tlog to config
+            // hook tlog to config so that changes over time are persisted to the tlog
             tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), transactionLogPath)
                     .flushImmediately(true).withAutoTruncate(kernel.getContext());
         } catch (IOException ioe) {
@@ -262,6 +272,8 @@ public class KernelLifecycle {
     public void softShutdown(int timeoutSeconds) {
         logger.atDebug("system-shutdown").log("Start soft shutdown");
         close(tlog);
+        // Update effective config with our last known state
+        kernel.writeEffectiveConfig();
         stopAllServices(timeoutSeconds);
     }
 
