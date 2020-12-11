@@ -28,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import software.amazon.awssdk.aws.greengrass.GetConfigurationResponseHandler;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.SubscribeToComponentUpdatesResponseHandler;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationUpdateEvents;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityReport;
@@ -552,9 +553,10 @@ class IPCServicesTest {
         assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
     }
 
+
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
-    void GIVEN_LifeCycleEventStreamClient_WHEN_subscribe_to_component_update_THEN_service_receives_update() throws Exception {
+    void GIVEN_LifeCycleEventStreamClient_WHEN_subscribe_to_component_update_THEN_service_receives_update_and_close_stream() throws Exception {
 
         SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest =
                 new SubscribeToComponentUpdatesRequest();
@@ -566,37 +568,40 @@ class IPCServicesTest {
         });
         CompletableFuture<Future> futureFuture = new CompletableFuture<>();
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
-        CompletableFuture<SubscribeToComponentUpdatesResponse> fut =
+        StreamResponseHandler<ComponentUpdatePolicyEvents> responseHandler =  new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+            @Override
+            public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                if (streamEvent.getPreUpdateEvent() != null) {
+                    cdl.countDown();
+                    DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
+                    deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(1).toMillis());
+                    deferComponentUpdateRequest.setDeploymentId(streamEvent.getPreUpdateEvent()
+                            .getDeploymentId());
+                    deferComponentUpdateRequest.setMessage("Test");
+                    futureFuture.complete(greengrassCoreIPCClient.deferComponentUpdate(
+                            deferComponentUpdateRequest, Optional.empty()).getResponse());
+                }
+                if (streamEvent.getPostUpdateEvent() != null) {
+                    cdl.countDown();
+                }
+            }
+
+            @Override
+            public boolean onStreamError(Throwable error) {
+                logger.atError().setCause(error).log("Caught stream error");
+                return false;
+            }
+
+            @Override
+            public void onStreamClosed() {
+
+            }
+        };
+        SubscribeToComponentUpdatesResponseHandler streamHandler =
                 greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest,
-                        Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
-                            @Override
-                            public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
-                                if (streamEvent.getPreUpdateEvent() != null) {
-                                    cdl.countDown();
-                                    DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
-                                    deferComponentUpdateRequest.setRecheckAfterMs(Duration.ofSeconds(1).toMillis());
-                                    deferComponentUpdateRequest.setDeploymentId(streamEvent.getPreUpdateEvent()
-                                            .getDeploymentId());
-                                    deferComponentUpdateRequest.setMessage("Test");
-                                    futureFuture.complete(greengrassCoreIPCClient.deferComponentUpdate(
-                                            deferComponentUpdateRequest, Optional.empty()).getResponse());
-                                }
-                                if (streamEvent.getPostUpdateEvent() != null) {
-                                    cdl.countDown();
-                                }
-                            }
-
-                            @Override
-                            public boolean onStreamError(Throwable error) {
-                                logger.atError().setCause(error).log("Caught stream error");
-                                return false;
-                            }
-
-                            @Override
-                            public void onStreamClosed() {
-
-                            }
-                        })).getResponse();
+                Optional.of(responseHandler));
+        CompletableFuture<SubscribeToComponentUpdatesResponse> fut =
+                streamHandler.getResponse();
 
         fut.get(3, TimeUnit.SECONDS);
 
@@ -614,5 +619,11 @@ class IPCServicesTest {
         futureList.get(0).get(5, TimeUnit.SECONDS);
         lifecycleIPCEventStreamAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
         assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
+        streamHandler.closeStream();
+        // Checking if a request can be made on teh same connection after closing the stream
+        UpdateStateRequest updateStateRequest = new UpdateStateRequest();
+        updateStateRequest.setState(ReportedLifecycleState.RUNNING);
+        greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty()).getResponse()
+                .get(3, TimeUnit.SECONDS);
     }
 }
