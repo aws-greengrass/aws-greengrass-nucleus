@@ -125,7 +125,6 @@ public final class DeploymentDocumentConverter {
                     RunWith runWith = RunWith.builder().posixUser(runWithInfo.getPosixUser()).build();
                     packageConfigurations.get(componentName).setRunWith(runWith);
                 }
-
             });
         }
         return new ArrayList<>(packageConfigurations.values());
@@ -145,8 +144,6 @@ public final class DeploymentDocumentConverter {
                 DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
                         .deploymentPackageConfigurationList(convertComponents(config.getComponents()))
                         .groupName(parseGroupNameFromConfigurationArn(config)).timestamp(config.getCreationTimestamp());
-
-
         if (config.getFailureHandlingPolicy() == null) {
             // FailureHandlingPolicy should be provided per contract with CreateDeployment API.
             // However if it is not, device could proceed with default for resilience.
@@ -175,7 +172,6 @@ public final class DeploymentDocumentConverter {
                     config.getConfigurationValidationPolicy())
             );
         }
-
         return builder.build();
     }
 
@@ -206,11 +202,16 @@ public final class DeploymentDocumentConverter {
     private static DeploymentPackageConfiguration convertComponent(String componentName,
             ComponentUpdate componentUpdate) {
 
-        return DeploymentPackageConfiguration.builder().packageName(componentName)
+        DeploymentPackageConfiguration.DeploymentPackageConfigurationBuilder builder =
+                DeploymentPackageConfiguration.builder().packageName(componentName)
                 .resolvedVersion(componentUpdate.getVersion().getValue())
                 .rootComponent(true) // As of now, CreateDeployment API only gives root component
-                .configurationUpdateOperation(convertComponentUpdateOperation(componentUpdate.getConfigurationUpdate()))
-                .build();
+                .configurationUpdateOperation(
+                        convertComponentUpdateOperation(componentUpdate.getConfigurationUpdate()));
+        if (componentUpdate.getRunWith() != null && componentUpdate.getRunWith().getPosixUser() != null) {
+            builder = builder.runWith(RunWith.builder().posixUser(componentUpdate.getRunWith().getPosixUser()).build());
+        }
+        return builder.build();
     }
 
     private static ConfigurationUpdateOperation convertComponentUpdateOperation(

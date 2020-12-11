@@ -61,6 +61,7 @@ import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapTaskStatus.ExecutionStatus.DONE;
+import static com.aws.greengrass.lifecyclemanager.GenericExternalService.serviceLifecycleDefined;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -74,6 +75,7 @@ import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_
 public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     private static final String COMPONENT_NAME_LOG_KEY_NAME = "componentName";
     private static final String RESTART_REQUIRED_MESSAGE = "Restart required due to configuration change";
+
     private static final Logger logger = LogManager.getLogger(BootstrapManager.class);
     @Setter(AccessLevel.PACKAGE)
     @Getter(AccessLevel.PACKAGE)
@@ -153,12 +155,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                                            DeviceConfiguration currentDeviceConfiguration) {
         Map<String, Object> newNetworkProxy =
                 (Map<String, Object>) newNucleusParameters.get(DEVICE_NETWORK_PROXY_NAMESPACE);
-        if (newNetworkProxy == null && Utils.isNotEmpty(currentDeviceConfiguration.getProxyUrl())) {
-            return true;
-        }
-
         if (newNetworkProxy == null) {
-            return false;
+            return Utils.isNotEmpty(currentDeviceConfiguration.getProxyUrl());
         }
 
         // deviceconfig defaults to empty string on null for network proxy parameters so we must do the same
@@ -170,6 +168,9 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         }
 
         Map<String, Object> newProxy = (Map<String, Object>) newNetworkProxy.get(DEVICE_PROXY_NAMESPACE);
+        if (newProxy == null) {
+            return Utils.isNotEmpty(currentDeviceConfiguration.getProxyUrl());
+        }
         String newProxyUrl = Coerce.toString(newProxy.getOrDefault(DEVICE_PARAM_PROXY_URL, ""));
         String currentProxyUrl = Coerce.toString(currentDeviceConfiguration.getProxyUrl());
         if (Utils.stringHasChanged(newProxyUrl, currentProxyUrl)) {
@@ -339,8 +340,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         }
         Map<String, Object> newServiceLifecycle =
                 (Map<String, Object>) newServiceConfig.get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
-        if (!newServiceLifecycle.containsKey(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC)
-                || newServiceLifecycle.get(LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC) == null) {
+        if (serviceLifecycleDefined(newServiceLifecycle, LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC).isEmpty()) {
             logger.atDebug().kv(COMPONENT_NAME_LOG_KEY_NAME, componentName)
                     .log("Bootstrap is not required: service lifecycle bootstrap not found");
             return false;

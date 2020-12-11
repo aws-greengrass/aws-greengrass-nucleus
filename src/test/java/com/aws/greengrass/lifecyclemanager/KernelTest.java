@@ -44,6 +44,7 @@ import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUE
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.lifecyclemanager.Kernel.DEFAULT_CONFIG_YAML_FILE_WRITE;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -231,7 +232,7 @@ class KernelTest {
         kernel.writeEffectiveConfig();
         String readFile =
                 new String(Files.readAllBytes(kernel.getNucleusPaths().configPath()
-                        .resolve("config.yaml")),
+                        .resolve(DEFAULT_CONFIG_YAML_FILE_WRITE)),
                 StandardCharsets.UTF_8);
         assertThat(readFile, containsString(EXPECTED_CONFIG_OUTPUT));
     }

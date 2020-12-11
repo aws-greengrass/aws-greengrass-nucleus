@@ -494,6 +494,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult1.iotJobId(),
                 thingInfo.getThingName(), Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
+        CountDownLatch postUpdateEventReceived = new CountDownLatch(1);
         Consumer<GreengrassLogMessage> logListener = null;
         try (EventStreamRPCConnection connection = IPCTestUtils
                 .getEventStreamRpcConnection(kernel, "NonDisruptableService" + testComponentSuffix)) {
@@ -510,6 +511,9 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                                 deferComponentUpdateRequest.setMessage("NonDisruptableService");
                                 // Cannot wait for response inside a callback
                                 ipcClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty());
+                            }
+                            if (streamEvent.getPostUpdateEvent() != null) {
+                                postUpdateEventReceived.countDown();
                             }
                         }
 
@@ -566,6 +570,8 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             assertThat("The UpdateSystemService's one pending action should be be removed.",
                     kernel.getContext().get(UpdateSystemPolicyService.class).getPendingActions(),
                     IsCollectionWithSize.hasSize(0));
+            // Component should be told to resume its work since the change it has been waiting for is cancelled
+            assertTrue(postUpdateEventReceived.await(60, TimeUnit.SECONDS));
 
             // Ensure that main is finished, which is its terminal state, so this means that all updates ought to be done
             assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));

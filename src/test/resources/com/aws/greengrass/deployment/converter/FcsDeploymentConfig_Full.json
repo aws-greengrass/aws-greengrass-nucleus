@@ -6,6 +6,9 @@
   "components": {
     "CustomerApp": {
       "version": "1.0.0",
+      "runWith": {
+        "posixUser": "foo"
+      },
       "configurationUpdate": {
         "merge": {
           "key": "val"

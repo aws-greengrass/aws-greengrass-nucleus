@@ -49,8 +49,8 @@ public class GreengrassSetup {
             + "\t\t\t\t\t to retrieve or create the AWS resources that it requires\n"
             + "\t--root, -r\t\t\t(Optional) The path to the folder to use as the root for the AWS IoT Greengrass Core\n"
             + "\t\t\t\t\tsoftware. Defaults to ~/.greengrass.\n"
-            + "\t--config, -i\t\t\t(Optional) The path to the configuration file that you use to run the AWS IoT "
-            + "Greengrass Core\n"
+            + "\t--init-config, -init\t\t\t(Optional) The path to the configuration file that you use to run the AWS "
+            + "IoT Greengrass Core software.\n"
             + "\t\t\t\t\tsoftware. Defaults to ~/.greengrass.\n"
             + "\t--provision, -p\t\t\t(Optional) Specify true or false. If true, the AWS IoT Greengrass Core software"
             + " registers this\n"
@@ -116,6 +116,8 @@ public class GreengrassSetup {
 
     private static final String KERNEL_CONFIG_ARG = "--config";
     private static final String KERNEL_CONFIG_ARG_SHORT = "-i";
+    private static final String KERNEL_INIT_CONFIG_ARG = "--init-config";
+    private static final String KERNEL_INIT_CONFIG_ARG_SHORT = "-init";
     private static final String KERNEL_ROOT_ARG = "--root";
     private static final String KERNEL_ROOT_ARG_SHORT = "-r";
 
@@ -330,6 +332,8 @@ public class GreengrassSetup {
                 case KERNEL_CONFIG_ARG_SHORT:
                 case KERNEL_ROOT_ARG:
                 case KERNEL_ROOT_ARG_SHORT:
+                case KERNEL_INIT_CONFIG_ARG:
+                case KERNEL_INIT_CONFIG_ARG_SHORT:
                     kernelArgs.add(arg);
                     kernelArgs.add(getArg());
                     break;

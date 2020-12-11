@@ -45,6 +45,8 @@ public class KernelCommandLine {
     @Getter
     @Setter(AccessLevel.PACKAGE)
     private String providedConfigPathName;
+    @Getter
+    private String providedInitialConfigPath;
     private String[] args;
     private String arg;
     private int argpos = 0;
@@ -92,6 +94,12 @@ public class KernelCommandLine {
                     String configArg = getArg();
                     Objects.requireNonNull(configArg, "-i or --config requires an argument");
                     providedConfigPathName = deTilde(configArg);
+                    break;
+                case "--init-config":
+                case "-init":
+                    String initArg = getArg();
+                    Objects.requireNonNull(initArg, "-init or --init-config requires an argument");
+                    providedInitialConfigPath = deTilde(initArg);
                     break;
                 case "--root":
                 case "-r":
