@@ -533,9 +533,9 @@ public class MqttClient implements Closeable {
     }
 
     protected AwsIotMqttClient getNewMqttClient() {
-        // Name client by thingName-<number> except for the first connection which will just be thingName
+        // Name client by thingName#<number> except for the first connection which will just be thingName
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
-                : "-" + connections.size() + 1);
+                : "#" + (connections.size() + 1));
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
                 clientId, mqttTopics, callbackEventManager);
     }
