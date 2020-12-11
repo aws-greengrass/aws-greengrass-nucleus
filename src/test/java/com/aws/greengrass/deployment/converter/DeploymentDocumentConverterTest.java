@@ -32,6 +32,7 @@ import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -175,6 +176,8 @@ class DeploymentDocumentConverterTest {
 
         assertThat(componentConfiguration.getPackageName(), equalTo("CustomerApp"));
         assertThat(componentConfiguration.getResolvedVersion(), equalTo("1.0.0"));
+        assertThat(componentConfiguration.getRunWith(), is(notNullValue()));
+        assertThat(componentConfiguration.getRunWith().getPosixUser(), equalTo("foo"));
         assertThat(componentConfiguration.getConfigurationUpdateOperation().getPathsToReset(),
                    equalTo(Arrays.asList("/sampleText", "/path")));
         assertThat(componentConfiguration.getConfigurationUpdateOperation().getValueToMerge(),
