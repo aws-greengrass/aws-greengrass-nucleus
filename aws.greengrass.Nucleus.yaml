@@ -7,7 +7,7 @@ ComponentPublisher: AWS
 ComponentVersion: '2.0.0'
 ComponentConfiguration:
   DefaultConfiguration:
-    jvmOptions: -Xms512m -Xmx512m
+    jvmOptions: ""
     iotDataEndpoint: ""
     iotCredEndpoint: ""
     awsRegion: ""
@@ -15,8 +15,8 @@ ComponentConfiguration:
     mqtt: {}
     networkProxy: {}
     runWithDefault: {}
-    deploymentPollingFrequency: 15L
-    componentStoreMaxSizeBytes: 10_000_000_000L
+    deploymentPollingFrequency: 15
+    componentStoreMaxSizeBytes: 10000000000
     platformOverride: {}
 Manifests:
   - Platform:
