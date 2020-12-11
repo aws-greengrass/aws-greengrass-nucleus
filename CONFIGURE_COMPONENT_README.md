@@ -114,10 +114,10 @@ Greengrass V2 will reset the configuration to the default value as is, including
 #### 2.3.2 MERGE
 `MERGE` takes a map object, representing the new configuration.
 
-The given object will be merged to the existing configuration object level by level. 
+The given object will be merged to the existing configuration object level by level.
 
 At every level, we go over all the key-value pairs in the new config map, and look up the key in the existing
- configuration:  
+ configuration:
 1. If a key already exists, its value will be overwritten by the new configuration value.
 2. If a key doesn't exist, the key-value pair will be added to the existing configuration. Note: a new key could
  be added, even it does not exist in the default configuration.

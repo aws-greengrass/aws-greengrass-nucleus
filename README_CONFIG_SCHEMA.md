@@ -19,15 +19,36 @@ services:
   <service1>: # service name uniquely identifies a service
     version: # service version. In the format of x.y.z
 
-    componentType: [GENERIC|PLUGIN|LAMBDA|NUCLEUS] # component type. 
+    componentType: [GENERIC|PLUGIN|LAMBDA|NUCLEUS] # component type.
 
-    dependencies: # dependency on other services 
+    dependencies: # dependency on other services
       - <serviceName>:[SOFT/HARD]
         
+    runWith:
+      posixUser: <username[:groupname]> # Optional. Posix user (and group) to run lifecycle steps as. Overrides runWithDefault in Nucleus config
+
     lifecycle: # lifecycle commands.
-          
+
     configuration: # custom config.
-    
+      <configName>: <configValue>
+
+      accessControl: # authorization to access Greengrass resources
+        aws.greengrass.ipc.pubsub:
+          policyId1:
+            operations:
+              - 'aws.greengrass#PublishToTopic'
+              - "aws.greengrass#SubscribeToTopic"
+            policyDescription: "access to pubsub topics"
+            resources:
+              - "test/topic"
+        aws.greengrass.SecretManager:
+          policyId1:
+            policyDescription: "access to secret"
+            operations:
+              - "aws.greengrass#GetSecretValue"
+            resources:
+              - "secret arn"
+
   <service2>:
     lifecycle:
 
@@ -46,9 +67,6 @@ Root keys have to be recognized keys.
 
 ```
 <serviceName>:
-  runWith:
-    posixUser: <username[:groupname]> # Optional. Posix user (and group) to run lifecycle steps as. Overrides runWithDefault in Nucleus config
-
   lifecycle:
     setenv: # This applies to all lifecycle steps
       <key>: <defaultValue>
@@ -90,7 +108,7 @@ Root keys have to be recognized keys.
     
     recover: # This step runs every time service enters error state.
       requiresPrivilege: # Optional. Run with root privileges.
-      script: 
+      script:
       setenv:
       skipif: onpath <executable>|exists <file> # Optional.
       timeout: # Optional. timeout in number of seconds. Default to 60 sec.
@@ -104,7 +122,7 @@ myCustomService:
     - <serviceName>:<dependencyType>
 ```
 
-DependencyType is either **SOFT or HARD**. 
+DependencyType is either **SOFT or HARD**.
 - SOFT – The dependent service doesn't restart if the dependency changes state.
 - HARD – The dependent service restarts if the dependency changes state.
 
@@ -132,7 +150,7 @@ services:
     configuration:
       awsRegion: "us-east-1"
       componentStoreMaxSizeBytes: 10000000000
-      deploymentPollingFrequencySeconds: 1
+      deploymentPollingFrequencySeconds: 15
       iotCredEndpoint: "xxxxxx.credentials.iot.us-east-1.amazonaws.com"
       iotDataEndpoint: "xxxxxx-ats.iot.us-east-1.amazonaws.com"
       iotRoleAlias: "tes_alias"
@@ -144,13 +162,20 @@ services:
         outputDirectory: /path/to/logs/directory
         outputType: FILE
       mqtt:
+        port: 8883
+        keepAliveTimeoutMs: 60000
+        pingTimeoutMs: 30000
+        operationTimeoutMs: 30000
+        maxInFlightPublishes: 5
         spooler:
           keepQos0WhenOffline: false
           maxSizeInBytes: 2621440
-          storageType: "Memory"
       networkProxy:
+        noProxyAddresses: "example.com,a.b.c"
         proxy:
           url: "proxy_url"
+          username: ""
+          password: ""
       platformOverride:
         os: "customOs"
       runWithDefault:

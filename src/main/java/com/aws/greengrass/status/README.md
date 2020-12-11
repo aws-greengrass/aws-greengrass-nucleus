@@ -13,7 +13,7 @@ There is an initial jitter added for each device to emit the periodic updates. T
 update their fleet statuses at the same time.
 
 Since there is a limit of 128 KB per message on IoT Core, the fleet status service will chunk the message to make sure
- that each message does not exceed the max size of 128 KB. 
+ that each message does not exceed the max size of 128 KB.
 
 # Startup
 1. [***FleetStatusService***](FleetStatusService.java) starts as a greengrass service, and is by default enabled. It

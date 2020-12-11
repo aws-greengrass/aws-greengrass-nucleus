@@ -48,7 +48,7 @@ Run both: `mvn verify`
 ### End-To-End Tests
 End-To-End (E2E) tests differ from our integration tests in that they require AWS credentials and network
 access. In order to run these tests, first you must put AWS credentials into your environment. Once you have credentials
-with the following access, you can then use our E2E tests. 
+with the following access, you can then use our E2E tests.
 - `iot:*`
 - `greengrass:*`
 - `s3:*`

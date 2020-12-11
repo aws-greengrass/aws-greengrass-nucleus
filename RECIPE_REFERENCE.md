@@ -24,6 +24,7 @@ ComponentConfiguration:
     args:
       x86Arg: Hello x86_64
       armArg: Hello armv7
+    AccessControl: {}
 
 ComponentDependencies:
   foo.bar:
@@ -122,54 +123,6 @@ Platform:
 #### Manifest.Lifecycle
 Specify lifecycle management scripts for component represented service. See details in
  [README_CONFIG_SCHEMA](README_CONFIG_SCHEMA.md#Lifecycle).
-```yaml
-Lifecycle:
-  Setenv:
-    <key>: <defaultValue>
-        
-  Bootstrap:
-    RequiresPrivilege:
-    Skipif: onpath <executable>|exists <file>
-    Script:
-    Timeout:
-    Setenv:
-
-  Install:
-    RequiresPrivilege:
-    Skipif: onpath <executable>|exists <file>
-    Script:
-    Timeout:
-    Setenv:
-      <key>: <overrideValue>
-    
-  Startup:
-    RequiresPrivilege:
-    Skipif: onpath <executable>|exists <file>
-    Script:
-    Timeout:
-    Setenv:
-      
-  Run:
-    RequiresPrivilege:
-    Skipif: onpath <executable>|exists <file>
-    Script:
-    Timeout:
-    Setenv:
-    
-  Shutdown:
-    RequiresPrivilege:
-    Skipif: onpath <executable>|exists <file>
-    Script:
-    Timeout:
-    Setenv:
-
-  Recover:
-    RequiresPrivilege:
-    Skipif: onpath <executable>|exists <file>
-    Script:
-    Timeout:
-    Setenv:
-```
 
 ---
 #### Manifest.Lifecycle with recipe variables
@@ -218,7 +171,7 @@ If you refer to a componentName that is not a direct dependency, **the placehold
 #### Global recipe variables
 Global recipe variables could be used by any component.
 
-1. {kernel:root}
+1. {kernel:rootPath}
 The absolute root path that the kernel is running at runtime. 
 
 ---
