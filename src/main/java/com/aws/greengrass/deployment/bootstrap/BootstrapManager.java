@@ -156,10 +156,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         Map<String, Object> newNetworkProxy =
                 (Map<String, Object>) newNucleusParameters.get(DEVICE_NETWORK_PROXY_NAMESPACE);
         if (newNetworkProxy == null) {
-            if (Utils.isNotEmpty(currentDeviceConfiguration.getProxyUrl())) {
-                return true;
-            }
-            return false;
+            return Utils.isNotEmpty(currentDeviceConfiguration.getProxyUrl());
         }
 
         // deviceconfig defaults to empty string on null for network proxy parameters so we must do the same
@@ -172,10 +169,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
 
         Map<String, Object> newProxy = (Map<String, Object>) newNetworkProxy.get(DEVICE_PROXY_NAMESPACE);
         if (newProxy == null) {
-            if (Utils.isNotEmpty(currentDeviceConfiguration.getProxyUrl())) {
-                return true;
-            }
-            return false;
+            return Utils.isNotEmpty(currentDeviceConfiguration.getProxyUrl());
         }
         String newProxyUrl = Coerce.toString(newProxy.getOrDefault(DEVICE_PARAM_PROXY_URL, ""));
         String currentProxyUrl = Coerce.toString(currentDeviceConfiguration.getProxyUrl());
