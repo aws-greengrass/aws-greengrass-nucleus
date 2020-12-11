@@ -169,9 +169,9 @@ public abstract class OperationContinuationHandler
             .whenComplete((res, ex) -> {
                 continuation.close();
                 if (ex != null) {
-                    LOGGER.info("[{}] closed stream", getOperationName());
+                    LOGGER.debug("[{}] closed stream", getOperationName());
                 } else {
-                    LOGGER.info("[{}] {} error closing stream: ", getOperationName(),
+                    LOGGER.error("[{}] {} error closing stream: ", getOperationName(),
                             ex.getClass().getName(), ex.getMessage());
                 }
             });
@@ -249,7 +249,8 @@ public abstract class OperationContinuationHandler
         //We can prevent a client from sending a request, and hanging up before receiving a response
         //but doing so will prevent any work from being done
         if (initialRequest == null && (messageFlags & MessageFlags.TerminateStream.getByteValue()) != 0) {
-            LOGGER.warn("Not invoking " + getOperationName() + " operation for client request received with a terminate flag set to 1");
+            LOGGER.debug("Not invoking " + getOperationName() + " operation for client request received with a " +
+                    "terminate flag set to 1");
             return;
         }
         final EventStreamRPCServiceModel serviceModel = getOperationModelContext().getServiceModel();
