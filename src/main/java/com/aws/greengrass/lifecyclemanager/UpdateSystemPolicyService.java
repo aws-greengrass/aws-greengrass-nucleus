@@ -25,7 +25,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -48,7 +48,7 @@ public class UpdateSystemPolicyService extends GreengrassService {
     // represents the value in seconds the kernel will wait for components to respond to
     // an precomponent update event
     private final Map<String, UpdateAction> pendingActions = new LinkedHashMap<>();
-    private final AtomicBoolean runningUpdateActions = new AtomicBoolean(false);
+    private final AtomicReference<String> actionInProgress = new AtomicReference<>();
 
     @Inject
     private LifecycleIPCEventStreamAgent lifecycleIPCAgent;
@@ -88,9 +88,9 @@ public class UpdateSystemPolicyService extends GreengrassService {
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     protected synchronized void runUpdateActions() {
-        runningUpdateActions.set(true);
         for (Map.Entry<String, UpdateAction> todo : pendingActions.entrySet()) {
             try {
+                actionInProgress.set(todo.getKey());
                 todo.getValue().getAction().run();
                 logger.atDebug().setEventType("service-update-action").addKeyValue("action", todo.getKey()).log();
             } catch (Throwable t) {
@@ -100,17 +100,7 @@ public class UpdateSystemPolicyService extends GreengrassService {
         }
         pendingActions.clear();
         lifecycleIPCAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
-        runningUpdateActions.set(false);
-    }
-
-    /**
-     * Check if a pending action with the tag currently exists.
-     *
-     * @param tag tag to identify an update action
-     * @return true if there is a pending action for specified tag
-     */
-    public boolean hasPendingUpdateAction(String tag) {
-        return pendingActions.containsKey(tag);
+        actionInProgress.set(null);
     }
 
     /**
@@ -121,9 +111,11 @@ public class UpdateSystemPolicyService extends GreengrassService {
      *         false if update actions were already in progress
      */
     public boolean discardPendingUpdateAction(String tag) {
-        if (runningUpdateActions.get()) {
+        if (tag.equals(actionInProgress.get())) {
             return false;
         }
+        // Signal components that they can resume their work since the update is not going to happen
+        lifecycleIPCAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
         return pendingActions.remove(tag) != null;
     }
 
