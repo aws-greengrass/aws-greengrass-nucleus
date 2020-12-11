@@ -46,9 +46,12 @@ Root keys have to be recognized keys.
 
 ```
 <serviceName>:
+  runWith:
+    posixUser: <username[:groupname]> # Optional. Posix user (and group) to run lifecycle steps as. Overrides runWithDefault in Nucleus config
+
   lifecycle:
     setenv: # This applies to all lifecycle steps
-      <key>: defaultValue
+      <key>: <defaultValue>
 
     bootstrap:
       requiresPrivilege: true|false # Optional. Run with root privileges.
@@ -128,6 +131,8 @@ services:
   aws.greengrass.Nucleus:
     configuration:
       awsRegion: "us-east-1"
+      componentStoreMaxSizeBytes: 10000000000
+      deploymentPollingFrequencySeconds: 1
       iotCredEndpoint: "xxxxxx.credentials.iot.us-east-1.amazonaws.com"
       iotDataEndpoint: "xxxxxx-ats.iot.us-east-1.amazonaws.com"
       iotRoleAlias: "tes_alias"
@@ -138,6 +143,18 @@ services:
         format: TEXT
         outputDirectory: /path/to/logs/directory
         outputType: FILE
+      mqtt:
+        spooler:
+          keepQos0WhenOffline: false
+          maxSizeInBytes: 2621440
+          storageType: "Memory"
+      networkProxy:
+        proxy:
+          url: "proxy_url"
+      platformOverride:
+        os: "customOs"
+      runWithDefault:
+        posixUser: "username[:groupname]"
       telemetry:
         enabled: true
         periodicAggregateMetricsIntervalSeconds: 3600

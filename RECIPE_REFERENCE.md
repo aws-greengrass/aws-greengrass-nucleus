@@ -6,7 +6,7 @@ Component recipe is a single yaml/json file for the component author to define c
  characteristics in the AWS Greengrass ecosystem.
 ## Recipe file structure and examples
 Here is a sample recipe file in yaml format. It defines a simple HelloWorld application which can run on AWS Greengrass
- managed devices. It defines a manifest for x86_64 windows as well as a manifest for arm32 linux.
+ managed devices. It defines a manifest for x86_64 linux as well as a manifest for armv7 linux.
  
  > recipe key name use [PascalCase](https://wiki.c2.com/?PascalCase), and is case-sensitive
  
@@ -22,30 +22,30 @@ ComponentConfiguration:
   DefaultConfiguration:
     singleLevelKey: default value of singleLevelKey
     args:
-      windowsArg: Hello Windows
-      linuxArg: Hello Linux
+      x86Arg: Hello x86_64
+      armArg: Hello armv7
 
 ComponentDependencies:
-  variant.Python3:
-    VersionRequirement: ^3.5
+  foo.bar:
+    VersionRequirement: 2.0.*
     DependencyType: SOFT
 
 Manifests:
   - Platform:
-      os: windows
+      os: linux
       architecture: x86_64
     Lifecycle:
       Run:
-        python3 {artifacts:decompressedPath}/hello_windows_server.py {configuration:/args/windowsArg}
+        python3 {artifacts:decompressedPath}/hello_world.py {configuration:/args/x86Arg}
     Artifacts:
-      - URI: s3://some-bucket/hello_windows.zip
+      - URI: s3://some-bucket/hello_world_x86.zip
         Unarchive: ZIP
   - Platform:
       os: linux
-      architecture: arm
+      architecture: armv7
     Lifecycle:
       Run:
-        python3 {artifacts:path}/hello_world.py {configuration:/args/linuxArg}
+        python3 {artifacts:path}/hello_world.py {configuration:/args/armArg}
     Artifacts:
       - URI: s3://some-bucket/hello_world.py
 ```
@@ -90,9 +90,9 @@ Describe component dependencies. The versions of dependencies will be resolved d
 
 ```yaml
 ComponentDependencies:
-    shared.python:
-      VersionRequirement: ~3.6
-      DependencyType: SOFT
+  foo.bar:
+    VersionRequirement: 2.0.*
+    DependencyType: SOFT
 ```
 ##### Version Requirement
 Specify dependency version requirements, the requirements use NPM-style syntax.
@@ -113,7 +113,7 @@ Define a list of manifests, a manifest is specific to one platform or default to
 Define the platform the manifest is specifically for.
 ```yaml
 Platform:
-  os: windows
+  os: linux
   architecture: x86_64
 ```
 * supported operating system [list](to be added).
@@ -226,11 +226,18 @@ The absolute root path that the kernel is running at runtime.
 A list of artifacts that component uses as resources, such as binary, scripts, images etc.
 ```yaml
 Artifacts:
-    - URI: s3://some-bucket/hello_windows.zip
-      Unarchive: ZIP
+  - URI: s3://some-bucket/hello_world.zip
+    Unarchive: NONE|ZIP
+    Permission:
+      Read: NONE|OWNER|ALL
+      Execute: NONE|OWNER|ALL
 ```
 ##### URI
 Artifacts are referenced by artifact URIs. Currently Greengrass supports Greengrass repository and s3 as artifact
  storage location.
 ##### Unarchive
-Indicate to automatically unarchive artifact. Support ZIP files.
+Indicate whether or not to automatically unarchive artifact. Support ZIP files.
+##### Permission
+Specify whether the artifact should be readable and/or executable. By default, the artifact is
+ readonly to the user running the component. If the artifact is unarchived automatically, the same permission setting
+  applies all files in the archive.

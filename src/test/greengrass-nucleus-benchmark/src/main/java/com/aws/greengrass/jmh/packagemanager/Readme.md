@@ -1,5 +1,5 @@
 # Setup of Dependency Resolution Benchmark
-## Kernel Config
+## Nucleus Config
 The benchmark uses the following config files for two different scenarios:
 1. `DRBNewConfig.yaml`: GIVEN main without any existing packages, WHEN resolve 2 top-level packages, THEN 13 new packages
  are resolved and
@@ -7,7 +7,7 @@ The benchmark uses the following config files for two different scenarios:
 1. `DRBStatefulConfig.yaml`: GIVEN 7 packages exist on the device (Using <service>.version keyword in config), WHEN
  resolve 2 top-level
  packages, THEN 6 packages remain the same, 1 updated, and 6 new packages added.
-## Local Package Artifact Store
+## Local Component Store
 The test package example is constructed based on the dependency tree of Python packages `awscli` and `boto3`
 ```
 awscli==1.16.144

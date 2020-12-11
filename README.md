@@ -36,6 +36,3 @@ When configuration changes, all users of them are notified.  Everything adapts c
   subclass that implements a service whose behavior is defined by commands and scripts.  Either of these classes may be
    subclassed to provide services whose behavior is defined by code running within Greengrass.
 4. [**util**](src/main/java/com/aws/greengrass/util) A grab-bag of useful utilities.
-
-You'll probably find the coding style to be a trifle odd.  It is very paranoid about failures and tries to catch
-, cope with, and (maybe) repair failures locally.  Mike Duigou did a nice talk on this topic: [Always Be Running: long running and fault tolerant java services](https://youtu.be/agXce0lSo60).

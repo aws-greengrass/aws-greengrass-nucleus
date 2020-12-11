@@ -64,7 +64,7 @@ If they are not in sync, the cloud sets the desired cstate with value from repor
 2. Deployment service will make a best effort attempt to cancel the ongoing deployment. 
     1. If the ongoing deployment cannot be cancelled then, it would run its course and then  new deployment will bring the device to desired state
  
-## Successful deployment via LOCAL
+## Successful deployment via CLI
 1. [***LocalDeploymentListener***](/src/main/java/com/aws/greengrass/deployment/LocalDeploymentListener.java) 
 receives 
 the instruction from CLI to create a deployment. Upon getting such instruction *LocalDeploymentListener* create a 
@@ -116,6 +116,7 @@ Deployment stage can be interpreted by both Kernel and [***DeploymentService***]
  
 Below is the state diagram of deployment stages.
 ![Deployment Stages](DeploymentStages.svg)
+
 Deployment Task Workflow.
 ![Deployment Task](DeploymentTaskFlowChart.svg)
 
