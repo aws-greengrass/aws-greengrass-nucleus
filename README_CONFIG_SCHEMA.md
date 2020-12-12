@@ -33,6 +33,14 @@ services:
       <configName>: <configValue>
 
       accessControl: # authorization to access Greengrass resources
+        aws.greengrass.ipc.mqttproxy:
+          policyId1:
+            operations:
+              - 'aws.greengrass#PublishToIoTCore'
+              - "aws.greengrass#SubscribeToIoTCore"
+            policyDescription: "access to IoT topics"
+            resources:
+              - "test/topic"
         aws.greengrass.ipc.pubsub:
           policyId1:
             operations:
@@ -75,7 +83,6 @@ Root keys have to be recognized keys.
       requiresPrivilege: true|false # Optional. Run with root privileges.
       script:
       setenv: # Optional. Key-value environment variables. It can override the parent 'setenv'.
-      skipif: onpath <executable>|exists <file> # Optional. Condition to skip this lifecycle step.
       timeout: # Optional. Timeout in number of seconds. Default to 120 sec.
 
     install:
