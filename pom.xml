@@ -103,6 +103,11 @@
         </dependency>
         <dependency>
             <groupId>com.aws.greengrass</groupId>
+            <artifactId>component-common</artifactId>
+            <version>2.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.aws.greengrass</groupId>
             <artifactId>logging</artifactId>
             <version>2.0.0-SNAPSHOT</version>
         </dependency>
@@ -110,11 +115,6 @@
             <groupId>com.amazonaws.services</groupId>
             <artifactId>greengrassv2</artifactId>
             <version>2.0.0-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>com.aws.iot</groupId>
-            <artifactId>component-common</artifactId>
-            <version>0.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
