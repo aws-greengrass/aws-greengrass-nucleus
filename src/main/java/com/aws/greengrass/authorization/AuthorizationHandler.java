@@ -141,7 +141,7 @@ public class AuthorizationHandler  {
                             }
                         }
 
-                        //Now we reload the policies that reflect the current state of the kernel config
+                        //Now we reload the policies that reflect the current state of the Nucleus config
                         for (Map.Entry<String, List<AuthorizationPolicy>> acl : reloadedPolicies.entrySet()) {
                             this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), true);
                         }

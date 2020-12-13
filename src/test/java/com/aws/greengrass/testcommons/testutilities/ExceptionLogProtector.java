@@ -126,7 +126,7 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         // Greengrass. As such, it is safe to ignore since Greengrass will just fallback to a default version, which
         // doesn't matter for almost all tests. Tests which care about the version should override the version in the
         // config.
-        ignoreExceptionUltimateCauseWithMessage(context, "Unable to locate the unpack directory of Kernel Jar file");
+        ignoreExceptionUltimateCauseWithMessage(context, "Unable to locate the unpack directory of Nucleus Jar file");
 
         // Ignore error from AWS ERROR
         ignoreExceptionWithMessageSubstring(context, "AWS_ERROR_INVALID_ARGUMENT(33), An invalid argument");

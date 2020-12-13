@@ -89,7 +89,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                     kernel.getContext().get(KernelAlternatives.class).prepareRollback();
                     kernel.shutdown(30, REQUEST_RESTART);
                 } catch (IOException ioException) {
-                    logger.atError().log("Failed to set up Kernel rollback directory", ioException);
+                    logger.atError().log("Failed to set up Nucleus rollback directory", ioException);
                     return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, e);
                 }
                 return null;

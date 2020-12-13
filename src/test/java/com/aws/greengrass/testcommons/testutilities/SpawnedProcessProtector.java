@@ -77,7 +77,7 @@ public class SpawnedProcessProtector implements AfterAllCallback, AfterEachCallb
             }
 
             fail("Child PIDs not all cleaned up: " + childPids.toString()
-                    + ".\n Processes not killed or kernel not shutdown.");
+                    + ".\n Processes not killed or Nucleus not shutdown.");
         }
     }
 

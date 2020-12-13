@@ -82,7 +82,7 @@ class KernelRestartTest extends BaseITCase {
         kernel.shutdown();
 
         // WHEN
-        // start kernel with parseArgs input so previous config tlog will be ignored.
+        // start Nucleus with parseArgs input so previous config tlog will be ignored.
         kernel = new Kernel().parseArgs("-i",
                 this.getClass().getResource("kernel_restart_new_config.yaml").toString());
         kernel.launch();
