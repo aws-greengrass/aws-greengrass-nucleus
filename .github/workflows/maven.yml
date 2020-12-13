@@ -113,19 +113,3 @@ jobs:
       - run: rm -rf ~/.m2/repository/com/aws/greengrass/nucleus
         continue-on-error: true
         if: always()
-  publish:
-    runs-on: [self-hosted, Linux, greengrass]
-    if: github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up JDK 1.8
-        uses: actions/setup-java@v1
-        with:
-          java-version: 1.8
-      - name: Publish with Maven
-        run: mvn -ntp -U --settings settings.xml deploy -DskipTests -Dstargate-snapshot-repository-url=${{ secrets.stargate_dev_snapshot_repository_url }}
-      - run: sudo apt-get install -y awscli
-      - name: Upload to S3
-        run: |
-          aws s3 cp target/aws.greengrass.nucleus.zip s3://greengrass-artifacts-releases/${{github.repository}}-zip/${{github.ref}}/greengrass-${{github.sha}}.zip
-          aws s3 cp target/Greengrass.jar s3://greengrass-artifacts-releases/${{github.repository}}/${{github.ref}}/greengrass-${{github.sha}}.jar
