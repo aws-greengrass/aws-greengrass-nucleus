@@ -77,7 +77,7 @@ public class MqttClient implements Closeable {
     static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
     static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     static final String MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY = "maxInFlightPublishes";
-    static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 5;
+    static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 1;
     public static final int MAX_SUBSCRIPTIONS_PER_CONNECTION = 50;
     public static final String CLIENT_ID_KEY = "clientId";
     public static final int EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS = 2;
@@ -103,7 +103,7 @@ public class MqttClient implements Closeable {
     private final Spool spool;
     private final ScheduledExecutorService ses;
     private final AtomicReference<Future<?>> spoolingFuture = new AtomicReference<>();
-    private int maxInFlightPublishes;
+    private final int maxInFlightPublishes = DEFAULT_MAX_IN_FLIGHT_PUBLISHES;
 
     private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
@@ -201,8 +201,6 @@ public class MqttClient implements Closeable {
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         this.builderProvider = builderProvider;
 
-        maxInFlightPublishes = Coerce.toInt(
-                mqttTopics.findOrDefault(DEFAULT_MAX_IN_FLIGHT_PUBLISHES, MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY));
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
@@ -230,11 +228,6 @@ public class MqttClient implements Closeable {
                         .childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH) || node
                         .childOf(DEVICE_PARAM_AWS_REGION))) {
                     return;
-                }
-
-                if (node.childOf(DEVICE_MQTT_NAMESPACE)) {
-                    maxInFlightPublishes = Coerce.toInt(mqttTopics.lookup(MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY));
-                    logger.atInfo().kv("value", maxInFlightPublishes).log("updating maxInFlightPublishes");
                 }
 
                 // Only reconnect when the region changed if the proxy exists
