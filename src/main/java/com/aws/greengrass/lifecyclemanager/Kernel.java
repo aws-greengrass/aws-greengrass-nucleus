@@ -186,7 +186,7 @@ public class Kernel {
                     }
                     // If exitCode is 0, which happens when all bootstrap tasks are completed, restart in new launch
                     // directories and verify handover is complete. As a result, exit code 0 is treated as 100 here.
-                    logger.atInfo().log((exitCode == REQUEST_REBOOT ? "device reboot" : "kernel restart")
+                    logger.atInfo().log((exitCode == REQUEST_REBOOT ? "device reboot" : "Nucleus restart")
                             + " requested to complete bootstrap task");
 
                     shutdown(30, exitCode == REQUEST_REBOOT ? REQUEST_REBOOT : REQUEST_RESTART);

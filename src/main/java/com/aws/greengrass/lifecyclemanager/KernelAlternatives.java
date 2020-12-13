@@ -176,11 +176,11 @@ public class KernelAlternatives {
                 .toURI()).toPath().getParent();
         if (parentDir == null || ! Files.exists(parentDir)
                 || parentDir.getFileName() != null && !KERNEL_LIB_DIR.equals(parentDir.getFileName().toString())) {
-            throw new IOException("Unable to locate the unpack directory of Kernel Jar file");
+            throw new IOException("Unable to locate the unpack directory of Nucleus Jar file");
         }
         Path unpackDir = parentDir.getParent();
         if (unpackDir == null || ! Files.exists(unpackDir) || !Files.isDirectory(unpackDir.resolve(KERNEL_BIN_DIR))) {
-            throw new IOException("Unable to locate the unpack directory of Kernel artifacts");
+            throw new IOException("Unable to locate the unpack directory of Nucleus artifacts");
         }
         return unpackDir;
     }
@@ -261,7 +261,7 @@ public class KernelAlternatives {
      * @throws IOException if file or directory changes fail
      */
     public void prepareBootstrap(String deploymentId) throws IOException {
-        logger.atInfo().log("Setting up launch directory for new Kernel");
+        logger.atInfo().log("Setting up launch directory for new Nucleus");
         Path newLaunchDir = altsDir.resolve(getSafeFileName(deploymentId)).toAbsolutePath();
         Path existingLaunchDir = Files.readSymbolicLink(currentDir).toAbsolutePath();
         copyFolderRecursively(existingLaunchDir, newLaunchDir, REPLACE_EXISTING, NOFOLLOW_LINKS, COPY_ATTRIBUTES);
@@ -273,7 +273,7 @@ public class KernelAlternatives {
 
         setupLinkToDirectory(currentDir, newLaunchDir);
         Files.delete(newDir);
-        logger.atInfo().log("Finish setup of launch directory for new Kernel");
+        logger.atInfo().log("Finish setup of launch directory for new Nucleus");
     }
 
     /**

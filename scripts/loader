@@ -16,7 +16,7 @@ is_directory_link() {
 
 launch_kernel() {
   if ! is_directory_link "${LAUNCH_DIR}"; then
-    echo FATAL: No Kernel found!
+    echo FATAL: No Nucleus found!
     exit 1
   fi
 
@@ -29,11 +29,11 @@ launch_kernel() {
   if [ ! -z ${CONFIG_FILE} ]; then
     OPTIONS="$OPTIONS --config $CONFIG_FILE"
   fi
-  echo "jvm options: "${JVM_OPTIONS}
-  echo "kernel options: "${OPTIONS}
+  echo "JVM options: "${JVM_OPTIONS}
+  echo "Nucleus options: "${OPTIONS}
   java -Dlog.store=FILE ${JVM_OPTIONS} -jar "$LAUNCH_DIR/distro/lib/Greengrass.jar" ${OPTIONS}
   kernel_exit_code=$?
-  echo "kernel exit at code: "${kernel_exit_code}
+  echo "Nucleus exit at code: "${kernel_exit_code}
 }
 
 flip_link() {
@@ -42,7 +42,7 @@ flip_link() {
   rm $1 || true
 }
 
-# Determine Kernel stage and proper config files based on launch directory
+# Determine Nucleus stage and proper config files based on launch directory
 if is_directory_link "${GG_ROOT}/alts/new"; then
   if ! is_directory_link "${GG_ROOT}/alts/old" && is_directory_link "${LAUNCH_DIR}"; then
     flip_link "${LAUNCH_DIR}" "${GG_ROOT}/alts/old"
@@ -58,14 +58,14 @@ if is_directory_link "${GG_ROOT}/alts/old" && ! is_directory_link "${LAUNCH_DIR}
   flip_link "${GG_ROOT}/alts/old" "${LAUNCH_DIR}"
 fi
 
-# Launch Kernel with max 3 retries
+# Launch Nucleus with max 3 retries
 j=1
 while [ $j -le 3 ]; do
   launch_kernel
   case ${kernel_exit_code} in
   100|0)
-    echo "Restarting kernel"
-    # Exec loader from the same path, but the script might have changed due to kernel update
+    echo "Restarting Nucleus"
+    # Exec loader from the same path, but the script might have changed due to Nucleus update
     exec "${LAUNCH_DIR}/distro/bin/loader"
     ;;
   101)
@@ -73,13 +73,13 @@ while [ $j -le 3 ]; do
     sudo reboot
     ;;
   *)
-    echo "Kernel exit ${kernel_exit_code}. Retrying $j times"
+    echo "Nucleus exited ${kernel_exit_code}. Retrying $j times"
     ;;
   esac
   j=$(( j + 1 ))
 done
 
-# when reaching here, kernel has restarted 3 times and fails. Keep the current status and flip symlink.
+# when reaching here, Nucleus has restarted 3 times and fails. Keep the current status and flip symlink.
 if is_directory_link "${GG_ROOT}/alts/old" && is_directory_link "${LAUNCH_DIR}"; then
   flip_link "${LAUNCH_DIR}" "${GG_ROOT}/alts/broken"
   flip_link "${GG_ROOT}/alts/old" "${LAUNCH_DIR}"

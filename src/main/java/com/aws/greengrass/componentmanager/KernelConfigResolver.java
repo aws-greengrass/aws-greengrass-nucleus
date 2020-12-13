@@ -448,7 +448,7 @@ public class KernelConfigResolver {
             if (!resolvedKernelServiceConfig.containsKey(targetComponent)) {
                 LOGGER.atError().kv("interpolation text", matcher.group()).kv("target component", targetComponent)
                         .kv("main component", componentIdentifier.getName())
-                        .log("Failed to interpolate because the target component is not in resolved kernel services."
+                        .log("Failed to interpolate because the target component is not in resolved Nucleus services."
                                      + " This indicates the dependency resolution is broken.");
                 continue;
             }

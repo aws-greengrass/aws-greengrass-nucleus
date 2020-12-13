@@ -275,7 +275,7 @@ public class FleetStatusService extends GreengrassService {
         Set<GreengrassService> greengrassServiceSet = new HashSet<>();
         AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
 
-        // Get all running services from the kernel to update the fleet status.
+        // Get all running services from the Nucleus to update the fleet status.
         this.kernel.orderedDependencies().forEach(greengrassService -> {
             greengrassServiceSet.add(greengrassService);
             overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), greengrassService));

@@ -494,7 +494,7 @@ public class ComponentManager implements InjectionActions {
             return Optional.ofNullable(getPackageVersionFromService(service));
         } catch (ServiceLoadException e) {
             logger.atDebug().addKeyValue(PACKAGE_NAME_KEY, packageName)
-                    .log("Didn't find a active service for this package running in the kernel.");
+                    .log("Didn't find an active service for this package running in the Nucleus.");
             return Optional.empty();
         }
     }
