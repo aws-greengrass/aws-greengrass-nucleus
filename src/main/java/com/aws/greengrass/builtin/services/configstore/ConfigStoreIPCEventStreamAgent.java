@@ -524,13 +524,15 @@ public class ConfigStoreIPCEventStreamAgent {
             throws ValidateEventRegistrationException {
         for (Map.Entry<String, BiConsumer<String, Map<String, Object>>> e : configValidationListeners.entrySet()) {
             if (e.getKey().equals(componentName)) {
+                Pair componentToDeploymentId = new Pair<>(componentName, deploymentId);
                 try {
+                    configValidationReportFutures.put(componentToDeploymentId, reportFuture);
                     e.getValue().accept(deploymentId, configuration);
-                    configValidationReportFutures.put(new Pair<>(componentName, deploymentId), reportFuture);
                     return true;
                 } catch (Exception ex) {
                     // TODO: [P41211196]: Retries, timeouts & and better exception handling in sending server event to
                     //  components
+                    configValidationReportFutures.remove(componentToDeploymentId);
                     throw new ValidateEventRegistrationException(ex);
                 }
             }
