@@ -8,7 +8,8 @@ on:
 
 jobs:
   e2e-test:
-    runs-on: [self-hosted, Linux, greengrass]
+    # E2E test require AWS credentials
+    runs-on: []
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 1.8
