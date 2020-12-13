@@ -190,7 +190,7 @@ class PluginComponentTest extends BaseITCase {
         ignoreExceptionOfType(context, PackageDownloadException.class);
         ignoreExceptionOfType(context, SdkClientException.class);
 
-        // launch kernel
+        // launch Nucleus
         kernel.parseArgs();
         setupPackageStoreAndConfigWithDigest();
         launchAndWait();
@@ -217,7 +217,7 @@ class PluginComponentTest extends BaseITCase {
         ignoreExceptionOfType(context, SdkClientException.class);
         ignoreExceptionOfType(context, ServiceLoadException.class);
 
-        // launch kernel
+        // launch Nucleus
         kernel.parseArgs();
         setupPackageStoreAndConfigWithDigest();
         launchAndWait();
@@ -252,7 +252,7 @@ class PluginComponentTest extends BaseITCase {
         kernelSpy.getContext().put(KernelUpdateActivator.class,
                 new KernelUpdateActivator(kernelSpy, kernelSpy.getContext().get(BootstrapManager.class)));
 
-        // launch kernel
+        // launch Nucleus
         kernelSpy.launch();
 
         // Ensure that the dependency isn't somehow in our class loader already

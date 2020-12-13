@@ -229,7 +229,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         try {
             context.get(Kernel.class).writeEffectiveConfigAsTransactionLog(tlogOutputPath);
         } catch (IOException e) {
-            logger.atError(TRUNCATE_TLOG_EVENT, e).log("failed to persist kernel config");
+            logger.atError(TRUNCATE_TLOG_EVENT, e).log("failed to persist Nucleus config");
             // recover: undo renaming and keep using old tlog
             try {
                 Files.move(oldTlogPath, tlogOutputPath, StandardCopyOption.REPLACE_EXISTING);

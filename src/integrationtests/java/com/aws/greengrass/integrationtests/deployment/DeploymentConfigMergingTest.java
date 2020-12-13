@@ -353,7 +353,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // GIVEN
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
 
-        // launch kernel
+        // launch Nucleus
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
@@ -466,7 +466,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         Map<String, Map> servicesConfig = (Map<String, Map>) currentConfig.get(SERVICES_NAMESPACE_TOPIC);
 
-        //removing all services in the current kernel config except sleeperB, main, and nucleus
+        //removing all services in the current Nucleus config except sleeperB, main, and nucleus
         servicesConfig.keySet().removeIf(serviceName -> !"sleeperB".equals(serviceName)
                 && !"main".equals(serviceName)
                 && !DEFAULT_NUCLEUS_COMPONENT_NAME.equalsIgnoreCase(serviceName));
@@ -494,7 +494,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // ensuring config value for sleeperA is removed
         assertFalse(kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC).children.containsKey("sleeperA"),
                 "sleeperA removed");
-        // ensure kernel no longer holds a reference of sleeperA
+        // ensure Nucleus no longer holds a reference of sleeperA
         assertThrows(ServiceLoadException.class, () -> kernel.locate("sleeperA"));
 
         List<String> orderedDependencies = kernel.orderedDependencies().stream()

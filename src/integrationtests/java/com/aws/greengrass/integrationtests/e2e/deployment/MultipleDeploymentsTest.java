@@ -91,7 +91,7 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
         // Only the last job should execute
         subscribeToLocalDeploymentStatus(kernel, Arrays.asList(mostRecentJobHelper));
 
-        // Start kernel and connect IoT cloud
+        // Start Nucleus and connect IoT cloud
         kernel.launch();
 
         // Wait for all jobs to finish

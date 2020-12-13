@@ -49,7 +49,7 @@ class FileLoggerTest extends BaseITCase {
     @Test
     void GIVEN_root_path_given_as_system_param_WHEN_kernel_launches_THEN_logs_written_to_correct_directory()
             throws Exception {
-        // launch kernel without config arg
+        // launch Nucleus without config arg
         kernel = new Kernel().parseArgs().launch();
 
         GreengrassService mainService = kernel.locate("main");
@@ -64,7 +64,7 @@ class FileLoggerTest extends BaseITCase {
     @Test
     void GIVEN_root_path_given_as_kernel_param_WHEN_kernel_launches_THEN_logs_written_to_correct_directory()
             throws Exception {
-        // launch kernel without config arg
+        // launch Nucleus without config arg
         String randomDirectory = UUID.randomUUID().toString();
         kernel = new Kernel().parseArgs("-r", tempRootDir.resolve(randomDirectory).toAbsolutePath().toString())
                 .launch();

@@ -121,7 +121,7 @@ public class GreengrassComponentServiceClientFactory {
             stage = IotSdkClientFactory.EnvironmentStage
                     .fromString(Coerce.toString(deviceConfiguration.getEnvironmentStage()));
         } catch (InvalidEnvironmentStageException e) {
-            logger.atError().setCause(e).log("Caught exception while parsing kernel args");
+            logger.atError().setCause(e).log("Caught exception while parsing Nucleus args");
             throw new RuntimeException(e);
         }
         return RegionUtils.getGreengrassDataPlaneEndpoint(Coerce.toString(deviceConfiguration.getAWSRegion()), stage);
