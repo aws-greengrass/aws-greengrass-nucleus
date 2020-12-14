@@ -81,7 +81,7 @@ class KernelTest extends BaseITCase {
 
     @Test
     void GIVEN_config_path_not_given_WHEN_kernel_launches_THEN_load_empty_main_service() throws Exception {
-        // launch kernel without config arg
+        // launch Nucleus without config arg
         kernel = new Kernel().parseArgs().launch();
 
         // verify
@@ -93,7 +93,7 @@ class KernelTest extends BaseITCase {
     @Test
     void GIVEN_expected_stdout_patterns_WHEN_kernel_launches_THEN_all_expected_patterns_are_seen() throws Exception {
 
-        // launch kernel
+        // launch Nucleus
         kernel = new Kernel();
 
         try (AutoCloseable l = getLogListener()) {
@@ -120,7 +120,7 @@ class KernelTest extends BaseITCase {
         kernel = new Kernel();
         try (AutoCloseable l = getLogListener()) {
             ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config.yaml"));
-            // launch kernel 1st time
+            // launch Nucleus 1st time
             kernel.launch();
 
             testGroup(0);
@@ -134,7 +134,7 @@ class KernelTest extends BaseITCase {
                 COUNT_DOWN_LATCHES.put(pattern.group, new CountDownLatch(existingCdl == null ? 1 : (int) (existingCdl.getCount() + 1)));
             }
 
-            // launch kernel 2nd time with empty arg but same root dir, as specified in the base IT case
+            // launch Nucleus 2nd time with empty arg but same root dir, as specified in the base IT case
             kernel = new Kernel().parseArgs().launch();
             testGroup(0);
         } finally {

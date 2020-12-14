@@ -241,8 +241,8 @@ public class GreengrassSetup {
             greengrassSetup.parseArgs();
             greengrassSetup.performSetup();
         } catch (Throwable t) {
-            logger.atError().setCause(t).log("Error while trying to setup Greengrass kernel");
-            System.err.println("Error while trying to setup Greengrass kernel");
+            logger.atError().setCause(t).log("Error while trying to setup Greengrass Nucleus");
+            System.err.println("Error while trying to setup Greengrass Nucleus");
             t.printStackTrace(greengrassSetup.errStream);
             System.exit(1);
         }
@@ -256,7 +256,7 @@ public class GreengrassSetup {
             return;
         }
         if (showVersion) {
-            // Use getVersionFromBuildMetadataFile so that we don't need to startup the kernel which is slow and will
+            // Use getVersionFromBuildMetadataFile so that we don't need to startup the Nucleus which is slow and will
             // start creating files and directories which may not be desired
             outStream.println(String.format(SHOW_VERSION_RESPONSE,
                     DeviceConfiguration.getVersionFromBuildMetadataFile()));
@@ -279,7 +279,7 @@ public class GreengrassSetup {
             throw new RuntimeException(String.format("%s is invalid AWS region", awsRegion));
         }
 
-        // Attempt this only after config file and kernel args have been parsed
+        // Attempt this only after config file and Nucleus args have been parsed
         setComponentDefaultUserAndGroup(deviceConfiguration);
         try {
             IotSdkClientFactory.EnvironmentStage.fromString(environmentStage);
@@ -299,22 +299,22 @@ public class GreengrassSetup {
             boolean ok = kernel.getContext().get(SystemServiceUtilsFactory.class).getInstance().setupSystemService(
                     kernel.getContext().get(KernelAlternatives.class));
             if (ok) {
-                outStream.println("Successfully set up Kernel as a system service");
-                // Kernel will be launched by OS as a service
+                outStream.println("Successfully set up Nucleus as a system service");
+                // Nucleus will be launched by OS as a service
             } else {
-                outStream.println("Unable to set up Kernel as a system service");
+                outStream.println("Unable to set up Nucleus as a system service");
             }
             kernel.shutdown();
             return;
         }
         if (!kernelStart) {
-            outStream.println("Kernel start set to false, exiting...");
+            outStream.println("Nucleus start set to false, exiting...");
             kernel.shutdown();
             return;
         }
-        outStream.println("Launching kernel...");
+        outStream.println("Launching Nucleus...");
         kernel.launch();
-        outStream.println("Launched kernel successfully.");
+        outStream.println("Launched Nucleus successfully.");
     }
 
     void parseArgs() {
@@ -423,7 +423,7 @@ public class GreengrassSetup {
         deviceProvisioningHelper.createAndAttachRolePolicy(tesRoleName);
         outStream.println("Configuring Nucleus with provisioned resource details...");
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion, tesRoleAliasName);
-        outStream.println("Successfully configured kernel with provisioned resource details!");
+        outStream.println("Successfully configured Nucleus with provisioned resource details!");
         if (deployDevTools) {
             deviceProvisioningHelper.createInitialDeploymentIfNeeded(thingInfo, thingGroupName,
                     kernel.getContext().get(DeviceConfiguration.class).getNucleusVersion());

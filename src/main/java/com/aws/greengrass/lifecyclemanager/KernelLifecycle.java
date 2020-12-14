@@ -93,7 +93,7 @@ public class KernelLifecycle {
         logger.atInfo("system-start").kv("version",
                 kernel.getContext().get(DeviceConfiguration.class).getNucleusVersion())
                 .kv("rootPath", nucleusPaths.rootPath())
-                .kv("configPath", nucleusPaths.configPath()).log("Launch Kernel");
+                .kv("configPath", nucleusPaths.configPath()).log("Launch Nucleus");
 
         // Startup builtin non-services. This is blocking, so it will wait for them to be running.
         // This guarantees that IPC, for example, is running before any user code
@@ -178,7 +178,7 @@ public class KernelLifecycle {
             tlog = ConfigurationWriter.logTransactionsTo(kernel.getConfig(), transactionLogPath)
                     .flushImmediately(true).withAutoTruncate(kernel.getContext());
         } catch (IOException ioe) {
-            logger.atError().setEventType("kernel-read-config-error").setCause(ioe).log();
+            logger.atError().setEventType("nucleus-read-config-error").setCause(ioe).log();
             throw new RuntimeException(ioe);
         }
 
@@ -271,6 +271,7 @@ public class KernelLifecycle {
      */
     public void softShutdown(int timeoutSeconds) {
         logger.atDebug("system-shutdown").log("Start soft shutdown");
+        kernel.getContext().waitForPublishQueueToClear();
         close(tlog);
         // Update effective config with our last known state
         kernel.writeEffectiveConfig();

@@ -328,7 +328,7 @@ public class DeploymentService extends GreengrassService {
                         try {
                             kernel.getContext().get(KernelAlternatives.class).activationSucceeds();
                         } catch (IOException e) {
-                            logger.atError().log("Failed to reset Kernel activate directory", e);
+                            logger.atError().log("Failed to reset Nucleus activate directory", e);
                         }
                     }
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
@@ -348,7 +348,7 @@ public class DeploymentService extends GreengrassService {
                         try {
                             kernel.getContext().get(KernelAlternatives.class).rollbackCompletes();
                         } catch (IOException e) {
-                            logger.atError().log("Failed to reset Kernel rollback directory", e);
+                            logger.atError().log("Failed to reset Nucleus rollback directory", e);
                         }
                     }
                     deploymentDirectoryManager.persistLastFailedDeployment();

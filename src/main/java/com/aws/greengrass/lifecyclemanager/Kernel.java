@@ -126,7 +126,10 @@ public class Kernel {
         context.put(ThreadPoolExecutor.class, ses);
 
         Thread.setDefaultUncaughtExceptionHandler(new KernelExceptionHandler());
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> this.shutdown(-1)));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            logger.atWarn().log("Shutting down Nucleus due to external signal");
+            this.shutdown(-1);
+        }));
 
         nucleusPaths = new NucleusPaths();
         context.put(NucleusPaths.class, nucleusPaths);
@@ -186,7 +189,7 @@ public class Kernel {
                     }
                     // If exitCode is 0, which happens when all bootstrap tasks are completed, restart in new launch
                     // directories and verify handover is complete. As a result, exit code 0 is treated as 100 here.
-                    logger.atInfo().log((exitCode == REQUEST_REBOOT ? "device reboot" : "kernel restart")
+                    logger.atInfo().log((exitCode == REQUEST_REBOOT ? "device reboot" : "Nucleus restart")
                             + " requested to complete bootstrap task");
 
                     shutdown(30, exitCode == REQUEST_REBOOT ? REQUEST_REBOOT : REQUEST_RESTART);
