@@ -3,11 +3,11 @@ name: Benchmark
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   benchmark:
-    runs-on: [self-hosted, Linux, greengrass]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 1.8
