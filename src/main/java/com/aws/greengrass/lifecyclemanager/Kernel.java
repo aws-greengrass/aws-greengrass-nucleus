@@ -126,7 +126,10 @@ public class Kernel {
         context.put(ThreadPoolExecutor.class, ses);
 
         Thread.setDefaultUncaughtExceptionHandler(new KernelExceptionHandler());
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> this.shutdown(-1)));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            logger.atWarn().log("Shutting down Nucleus due to external signal");
+            this.shutdown(-1);
+        }));
 
         nucleusPaths = new NucleusPaths();
         context.put(NucleusPaths.class, nucleusPaths);
