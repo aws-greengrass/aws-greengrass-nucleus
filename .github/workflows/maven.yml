@@ -11,10 +11,7 @@ on:
 
 jobs:
   build:
-    runs-on:
-      - self-hosted
-      - ${{ matrix.os }}
-      - greengrass
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         os: [Linux]
@@ -32,7 +29,9 @@ jobs:
         shell: cmd
         if: matrix.os == 'Windows'
       - name: Build with Maven
-        run: mvn -U clean verify
+        env:
+          AWS_REGION: us-west-2
+        run: mvn -ntp -U clean verify
         if: matrix.os != 'Windows'
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
@@ -110,6 +109,3 @@ jobs:
           mvn -ntp -U install -DskipTests
           mvn -ntp -U -f src/test/greengrass-nucleus-benchmark install
         if: matrix.os == 'Linux'
-      - run: rm -rf ~/.m2/repository/com/aws/greengrass/nucleus
-        continue-on-error: true
-        if: always()

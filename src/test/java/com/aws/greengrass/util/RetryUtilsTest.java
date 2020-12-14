@@ -12,16 +12,10 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RetryUtilsTest {
 
@@ -40,21 +34,6 @@ class RetryUtilsTest {
             return invoked;
         }, "", logger);
         assertEquals(2, invoked.get());
-    }
-
-    @Test
-    void GIVEN_interrupted_WHEN_runWithRetry_THEN_throw_InterruptedException() throws Exception {
-        ExecutorService service = Executors.newSingleThreadExecutor();
-        CountDownLatch latch = new CountDownLatch(1);
-        Future<?> fu = service.submit(() -> RetryUtils.runWithRetry(config, () -> {
-            latch.countDown();
-            throw new IOException();
-        }, "", logger));
-
-        latch.await();
-        service.shutdownNow();
-        ExecutionException ex = assertThrows(ExecutionException.class, () -> fu.get());
-        assertTrue(ex.getCause() instanceof InterruptedException);
     }
 
     @Test
