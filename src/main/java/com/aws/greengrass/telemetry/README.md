@@ -1,6 +1,8 @@
 # Telemetry
 
-Telemetry agent(TA) is a service that is responsible for publishing telemetry data from the device to the IoT cloud via an MQTT topic. TA periodically aggregates and publishes various types of metrics related to kernel, system, mqtt and so on based on the telemetric configuration set by the customer.
+Telemetry agent (TA) is a service that is responsible for publishing telemetry data from the device to the IoT cloud
+ via an MQTT topic. TA periodically aggregates and publishes various types of metrics related to nucleus, system, mqtt
+  and so on based on the telemetric configuration set by the customer.
 
 ## Workflow
 There are three major steps involved in order for the TA to publish the telemetry data.
@@ -9,7 +11,8 @@ There are three major steps involved in order for the TA to publish the telemetr
   - Publishing the aggregated metrics
 
 ### Creating a metric and emitting the data points
-Typically, metric creation and emission are component/service specific(excluding system /kernel component state metrics).
+Typically, metric creation and emission are component/service specific (excluding system/nucleus component state
+ metrics).
 ##### Create a metric
 Each metric has to be specified with its name, namespace it belongs to, aggregation type that we want to perform on it and unit of the metric. It is enough to create a metric just once.
 ```

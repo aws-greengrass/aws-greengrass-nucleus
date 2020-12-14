@@ -80,9 +80,6 @@ There are two related diagrams that help to understand how these fit together:
 
 ![Dependency-State-Time](DependencyStateTime.png)
 
-On the left is the dependency diagram which shows the interdependencies of all of the services.  On the right is a timeline of the state changes of the individual services.  They all get installed at the beginning, then then get started up in dependency order.  Periodically services will enter some error state, and (usually) recover eventually.
-
-![lifecycle](lifecycle.svg)
-
-            
-
+On the left is the dependency diagram which shows the interdependencies of all of the services. On the right is a
+ timeline of the state changes of the individual services. They all get installed at the beginning, then then get
+  started up in dependency order.  Periodically services will enter some error state, and (usually) recover eventually.

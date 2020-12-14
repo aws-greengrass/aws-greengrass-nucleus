@@ -1,19 +1,26 @@
 # Models
 1. [***DeploymentDocument***](/src/main/java/com/aws/greengrass/deployment/model/DeploymentDocument.java) 
-Represents the json document which contains the desired state for the device 
+Represents the json document which contains the desired state for the device.
 2. [***Deployment***](/src/main/java/com/aws/greengrass/deployment/model/Deployment.java) Represents creation of a
  new desired state for the device. This can come from multiple sources like IotJobs, device shadow or local CLI. Each
-  Deployment is uniquely identified
+  Deployment is uniquely identified.
 
 # Startup
 1. [***DeploymentService***](/src/main/java/com/aws/greengrass/deployment/DeploymentService.java) starts as a
-Greengrass service and initializes [***IotJobsHelper***](/src/main/java/com/aws/greengrass/deployment/IotJobsHelper.java).   
-2. *IotJobsHelper* connects to AWS Iot cloud and subscribes to the Iot jobs mqtt topics. 
+Greengrass service and initializes [***IotJobsHelper***](/src/main/java/com/aws/greengrass/deployment/IotJobsHelper.java)
+and [***ShadowDeploymentListener***](/src/main/java/com/aws/greengrass/deployment/ShadowDeploymentListener.java).
+2. *IotJobsHelper* and *ShadowDeploymentListener* connects to AWS Iot cloud and subscribes to the Iot jobs mqtt
+ topics and shadow topics respectively.
 3. As part of dependency injection, DeploymentService also initializes a Queue called *DeploymentsQueue*, which holds 
-*Deployment* objects. *IotJobsHelper* and *DeploymentService* communicate via the *DeploymentsQueue*. 
+*Deployment* objects. *IotJobsHelper* and *ShadowDeploymentListener* communicate deployment notifications to *DeploymentService*
+via the *DeploymentsQueue*.
+1. (Optional) If component [aws.greengrass.Cli](https://github.com/aws-greengrass/aws-greengrass-cli) is deployed to the
+ device running Nucleus, customers can also use CLI to create local deployment requests. Local deployment will also
+  be added to *DeploymentsQueue* and then processed by DeploymentService.
  
 # Workflow
-## Successful deployment via IotJobs
+## Thing Group Deployment (IoT Jobs)
+### Successful deployment via IotJobs
 1. [***IotJobsHelper***](/src/main/java/com/aws/greengrass/deployment/IotJobsHelper.java) receives notification when
     - A new job is created in cloud.
     - A job is completed (FAILED/SUCCEEDED)
@@ -32,13 +39,14 @@ current deployment metadata (id and type (IOT_JOBS) of the deployment) it is cur
 to update the status of the job in the cloud. Deployment Service then resets the current deployment metadata. Service 
 only processes one deployment at a time
 
-## Cancellation of deployment via IotJobs
+### Cancellation of deployment via IotJobs
 1. For cancellation of any job which was not yet processed by device does not require any action from device
 2. If a job "Job1" is in progress and user cancels "Job1" from cloud. Device will receive the notification and will 
 request the next pending job and will get either the next job in list or an empty list (if nothing is there)
 3. Device then identifies that the current job "Job1" has been cancelled and attempts to cancel the ongoing "Job1" 
   
-## Successful deployment via Shadow
+## Thing Deployment (Thing Shadow)
+### Successful deployment via Shadow
 1. [***ShadowDeploymentListener***](/src/main/java/com/aws/greengrass/deployment/ShadowDeploymentListener.java) subscribes to the below topics of device's classic shadow
     - update/accepted topic to listen to changes in the shadows desired state
     - get/accepted topic. ShadowDeploymentListener publishes to get topic to retrieve the shadow state when the device starts up or re-connects after being offline.
@@ -53,40 +61,44 @@ DeploymentService makes a best effort attempt to cancel an ongoing deployment if
 
 4. Once deployment is successful, ShadowDeploymentListener updates the reported state of the device classic shadow
  
-## Cancellation of deployment via Shadow
+### Cancellation of deployment via Shadow
+
 #### What happens on the cloud side
 When cancelDeployment is called for shadow based deployment, the cloud service checks if the desired state and reported state of the
-device classic shadow are in sync. If they are in sync the deployment is complete and cannot be cancelled.
-If they are not in sync, the cloud sets the desired cstate with value from reported state.
+device classic shadow are in sync. If they are in sync, the deployment is complete and cannot be cancelled.
+If they are not in sync, the cloud sets the desired state with value from reported state.
 
-####What happens on the device side
-1. ShadowDeploymentListener get the notification that the desired state change and it schedules a new deployment with DeploymentService
+#### What happens on the device side
+1. ShadowDeploymentListener gets the notification that the desired state changes and it schedules a new deployment
+ with DeploymentService
 2. Deployment service will make a best effort attempt to cancel the ongoing deployment. 
-    1. If the ongoing deployment cannot be cancelled then, it would run its course and then  new deployment will bring the device to desired state
+    1. If the ongoing deployment cannot be cancelled then, it would run its course and then the new deployment will
+     bring the device to desired state
  
-## Successful deployment via LOCAL
-1. [***LocalDeploymentListener***](/src/main/java/com/aws/greengrass/deployment/LocalDeploymentListener.java) 
-receives 
-the instruction from CLI to create a deployment. Upon getting such instruction *LocalDeploymentListener* create a 
-*Deployment* object and put it in *DeploymentsQueue*
+## Local Deployment via CLI
+1. Greengrass CLI receives the instruction from customers to create a deployment. Upon getting such instruction
+ CLI create a *Deployment* object and put it in *DeploymentsQueue*
 2. *DeploymentService* polls the queue and upon receiving a Deployment, starts processing the deployment and stores 
    the id and type (LOCAL) of the deployment it is currently processing
 3. *DeploymentService* waits for the deployment to get completed and then invokes [***DeploymentStatusKeeper***](/src/main/java/com/aws/greengrass/deployment/DeploymentStatusKeeper.java) 
-to update the status of the job. Currently *DeploymentStatusKeeper* does not do anything for LOCAL deployment types
+to update CLI with the status of the job.
+1. Customers can use CLI again to check the status of local deployments.
     
 ## Multiple Group Deployments
 An Iot device can belong to multiple Iot ThingGroups. When a configuration is set and published for any such group, 
 that results in a deployment on every device in that group. As device can belong to multiple groups, the device needs
  to maintain a status of what components are being deployed as part of which groups. This is needed so that a 
- deployment for one group does not remove the components deployed previously as part of another group. Any 
- deployments done outside of ThingGroup are treated as belonging to DEFAULT group. This would include individual 
- device deployment (done via Iot Device shadows), local deployment (without mentioning any group).
+ deployment for one group does not remove the components deployed previously as part of another group.
+> - ThingGroup deployments can belong to different groups named `thinggroup/<group-name>`
+> - Thing deployments belong to group `thing/<thing-name>`
+> - Local deployments belong to group `LOCAL_DEPLOYMENTS`
+
  1. [***DeploymentService***](/src/main/java/com/aws/greengrass/deployment/DeploymentService.java) maintains a 
  mapping of groupName to the root components and their version constraints, deployed as 
  part of that group. This 
  mapping is stored in the DeploymentService's [***Configuration***](/src/main/java/com/aws/greengrass/config/Configuration.java).
  2. Upon receiving a new deployment from the *DeploymentsQueue*, when constructing the new configuration for the 
- kernel, the [***DeploymentTask***](/src/main/java/com/aws/greengrass/deployment/model/DeploymentTask.java) uses the 
+ Nucleus, the [***DeploymentTask***](/src/main/java/com/aws/greengrass/deployment/model/DeploymentTask.java) uses the
  saved mapping to calculate the set of root components. For the group that is being deployed, it takes the root 
  components from the deployment document. For all other groups it takes the root components from the saved mapping.
  3. [***DependencyResolver***](/src/main/java/com/aws/greengrass/componentmanager/DependencyResolver.java) uses the
@@ -98,24 +110,25 @@ that results in a deployment on every device in that group. As device can belong
  of failure the entry is not changed.    
 
 ## DeploymentTask in details
-Based on the recipe definition, changes to a component in deployments can be intrusive (to Kernel lifecycle and as a
+Based on the recipe definition, changes to a component in deployments can be intrusive (to Nucleus lifecycle and as a
  result, to all other services), or non-intrusive (only impacting its own runtime and those of depending components
- ). Examples of intrusive deployments are, changing JVM options of Kernel runtime, and updating Kernel version.
+). Examples of intrusive deployments are, changing JVM options of Nucleus runtime, and updating Nucleus version.
 
-During an intrusive deployment, multiple Kernel instances will be launched to complete the workflow (one instance
+During an intrusive deployment, multiple Nucleus instances will be launched to complete the workflow (one instance
  running at a time). The old instance has to persist and hand over deployment information and progress to the next
   one.
   
-Deployment stage can be interpreted by both Kernel and [***DeploymentService***](/src/main/java/com/aws/greengrass/deployment/DeploymentService.java). 
+Deployment stage can be interpreted by both Nucleus and [***DeploymentService***](/src/main/java/com/aws/greengrass/deployment/DeploymentService.java).
 * DEFAULT: No ongoing deployment or in non-intrusive workflow of deployments
 * BOOTSTRAP: Execution of bootstrap lifecycle steps, which can be intrusive
-* KERNEL_ACTIVATION: Kernel restarts into a new instance with new configurations, and DeploymentService will continue
+* ACTIVATION: Nucleus restarts into a new instance with new configurations, and DeploymentService will continue
  to monitor health and report the deployment result. 
-* KERNEL_ROLLBACK: Error occurred in BOOTSTRAP or KERNEL_ACTIVATION. Kernel rolls back to the old instance with
+* ROLLBACK: Error occurred in BOOTSTRAP or ACTIVATION. Nucleus rolls back to the old instance with
  previous configurations. DeploymentService will monitor the rollback and report deployment results.
  
 Below is the state diagram of deployment stages.
 ![Deployment Stages](DeploymentStages.svg)
+
 Deployment Task Workflow.
 ![Deployment Task](DeploymentTaskFlowChart.svg)
 

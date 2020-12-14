@@ -71,7 +71,7 @@ This workflow has been implemented for Ubuntu. Use as a reference.
 # Move aws.greengrass.nucleus.zip to test device
 # Set up aws creds
 unzip aws.greengrass.nucleus.zip -d GreengrassCore
-java -Droot=~/gg_home -Dlog.level=WARN -jar ./GreengrassCore/lib/Greengrass.jar --provision true --aws-region us-east-1 --thing-name <test-device> -tra <test-role-alias> -ss true
+sudo java -Droot=~/gg_home -jar ./GreengrassCore/lib/Greengrass.jar -p true -ar us-east-1 -tn <test-device> -tgn <test-group> -ss true -u <posixUser>:<posixGroup>
 
 # Verify the setup
 tree ~/gg_home/
