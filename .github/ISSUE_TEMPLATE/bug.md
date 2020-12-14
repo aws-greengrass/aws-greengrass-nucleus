@@ -25,3 +25,4 @@ Tell us what actually happened.
 **Additional context**
 Add any other context about the problem here.
 
+E.g. what is the impact of the bug?
