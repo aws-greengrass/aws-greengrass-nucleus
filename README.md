@@ -4,7 +4,7 @@
 ### *Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.*
 #### *SPDX-License-Identifier: Apache-2.0*
 
-This is the nucleus of AWS's Greengrass IoT device management framework.  It manages the model that describes the
+The Greengrass nucleus component provides functionality for device side orchestration of deployments and lifecycle management for execution of Greengrass components and applications. This includes features such as starting, stopping, and monitoring execution of components and apps, interprocess communication server for communication between components, component installation and configuration management. It manages the model that describes the
  software running on the device.  The model is a dependency graph of *services*.  Services have three primary aspects:
 
 * Configuration
