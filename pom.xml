@@ -178,11 +178,10 @@
             <version>0.0.3</version>
             <scope>test</scope>
         </dependency>
-        <!-- TODO: Change when Iot Device SDK with greengrass ipc is released publicly-->
         <dependency>
             <groupId>software.amazon.awssdk.iotdevicesdk</groupId>
-            <artifactId>aws-iot-device-sdk-v2</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <artifactId>aws-iot-device-sdk</artifactId>
+            <version>1.2.10</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
@@ -192,6 +191,16 @@
         </dependency>
     </dependencies>
     <pluginRepositories>
+        <pluginRepository>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2</url>
+        </pluginRepository>
         <pluginRepository>
             <id>maven-releases</id>
             <name>Maven releases</name>
