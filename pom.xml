@@ -28,7 +28,7 @@
             <dependency>
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>bom</artifactId>
-                <version>2.15.17</version>
+                <version>2.15.47</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -112,9 +112,8 @@
             <version>2.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>com.amazonaws.services</groupId>
+            <groupId>software.amazon.awssdk</groupId>
             <artifactId>greengrassv2</artifactId>
-            <version>2.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -200,12 +199,6 @@
             </snapshots>
             <id>central</id>
             <url>https://repo1.maven.org/maven2</url>
-        </pluginRepository>
-        <pluginRepository>
-            <id>maven-releases</id>
-            <name>Maven releases</name>
-            <layout>default</layout>
-            <url>https://repository.apache.org/content/repositories/releases/</url>
         </pluginRepository>
         <pluginRepository>
             <id>yle-public</id>
