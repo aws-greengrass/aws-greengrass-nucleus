@@ -14,6 +14,7 @@ import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
 
 import java.time.Clock;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -47,7 +48,7 @@ public class UpdateSystemPolicyService extends GreengrassService {
     // String identifies the action, the pair consist of timeout and an action. The timeout
     // represents the value in seconds the kernel will wait for components to respond to
     // an precomponent update event
-    private final Map<String, UpdateAction> pendingActions = new LinkedHashMap<>();
+    private final Map<String, UpdateAction> pendingActions = Collections.synchronizedMap(new LinkedHashMap<>());
     private final AtomicReference<String> actionInProgress = new AtomicReference<>();
 
     @Inject
@@ -116,7 +117,8 @@ public class UpdateSystemPolicyService extends GreengrassService {
         }
         // Signal components that they can resume their work since the update is not going to happen
         lifecycleIPCAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
-        return pendingActions.remove(tag) != null;
+        pendingActions.remove(tag);
+        return true;
     }
 
     @SuppressWarnings({"SleepWhileInLoop"})

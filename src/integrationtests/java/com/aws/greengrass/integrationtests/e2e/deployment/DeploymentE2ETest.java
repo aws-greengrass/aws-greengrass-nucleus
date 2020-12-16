@@ -14,6 +14,7 @@ import com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase;
 import com.aws.greengrass.integrationtests.e2e.util.IotJobsUtils;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
@@ -40,12 +41,15 @@ import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import software.amazon.awssdk.iot.iotshadow.IotShadowClient;
 import software.amazon.awssdk.iot.iotshadow.model.UpdateNamedShadowSubscriptionRequest;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.greengrassv2.model.CancelDeploymentRequest;
 import software.amazon.awssdk.services.greengrassv2.model.ComponentConfigurationUpdate;
 import software.amazon.awssdk.services.greengrassv2.model.ComponentDeploymentSpecification;
 import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentRequest;
@@ -72,6 +76,7 @@ import java.util.function.Consumer;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
 import static com.aws.greengrass.deployment.ShadowDeploymentListener.DEPLOYMENT_SHADOW_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
@@ -578,6 +583,68 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             assertThat(getCloudDeployedComponent("NonDisruptableService")::getState, eventuallyEval(is(State.RUNNING)));
             assertEquals("1.0.0",
                     getCloudDeployedComponent("NonDisruptableService").getConfig().find("version").getOnce());
+        } finally {
+            if (logListener != null) {
+                Slf4jLogAdapter.removeGlobalListener(logListener);
+            }
+        }
+    }
+
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
+    @Test
+    void GIVEN_deployment_in_dependency_resolution_stage_WHEN_cancel_event_received_THEN_deployment_should_be_cancelled(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, SdkClientException.class);
+
+        // Change region configuration to a bad value and relaunch nucleus such that it cannot talk to GCS but can
+        // receive deployments, this gives enough time to test cancellation when deployment retries failed GCS calls
+        setDeviceConfig(kernel, DeviceConfiguration.DEVICE_PARAM_AWS_REGION, Region.US_WEST_2.toString());
+        kernel.shutdown();
+        kernel = new Kernel()
+                .parseArgs("-r", tempRootDir.toAbsolutePath().toString(), "-ar", Region.US_WEST_2.toString(), "-es",
+                        envStage.toString());
+        setDefaultRunWithUser(kernel);
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, Region.US_WEST_2.toString(),
+                TES_ROLE_ALIAS_NAME);
+        kernel.launch();
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+
+        // Create a deployment, it should start execution and get stuck in dependency resolution
+        CreateDeploymentRequest createDeploymentRequest1 = CreateDeploymentRequest.builder().components(
+                Utils.immutableMap("CustomerApp",
+                        ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
+        CreateDeploymentResponse createDeploymentResult1 = draftAndCreateDeployment(createDeploymentRequest1);
+
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult1.iotJobId(),
+                thingInfo.getThingName(), Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
+
+        Consumer<GreengrassLogMessage> logListener = null;
+        try {
+            CountDownLatch deploymentCancelled = new CountDownLatch(1);
+            logListener = m -> {
+                if (m.getMessage() != null && m.getMessage().contains("Deployment was cancelled")) {
+                    deploymentCancelled.countDown();
+                }
+            };
+            Slf4jLogAdapter.addGlobalListener(logListener);
+
+            greengrassClient.cancelDeployment(
+                    CancelDeploymentRequest.builder().deploymentId(createDeploymentResult1.deploymentId()).build());
+
+            // Wait for indication that cancellation has gone through
+            assertTrue(deploymentCancelled.await(60, TimeUnit.SECONDS));
+
+            // Create another deployment to check if that can start, it will not finish because the nucleus is still
+            // mis-configured, but we want to verify that deployments don't get stuck in deployment queue because previous
+            // deployment could not be cancelled
+            CreateDeploymentRequest createDeploymentRequest2 = CreateDeploymentRequest.builder().components(
+                    Utils.immutableMap("CustomerApp",
+                            ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
+            CreateDeploymentResponse createDeploymentResult2 = draftAndCreateDeployment(createDeploymentRequest2);
+
+            // Ensure that the second deployment starts executing and does not get stuck in the deployment queue
+            IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult2.iotJobId(),
+                    thingInfo.getThingName(), Duration.ofMinutes(3), s -> s.equals(JobExecutionStatus.IN_PROGRESS));
         } finally {
             if (logListener != null) {
                 Slf4jLogAdapter.removeGlobalListener(logListener);
