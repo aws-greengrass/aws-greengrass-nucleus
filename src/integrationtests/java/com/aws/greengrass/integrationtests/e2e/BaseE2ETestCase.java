@@ -257,10 +257,12 @@ public class BaseE2ETestCase implements AutoCloseable {
      *         └── KernelIntegTestDependency-1.0.0.yaml
      */
     private static void uploadTestComponentsToCms(ComponentIdentifier... pkgIds)
-            throws IOException, PackagingException {
+            throws IOException, PackagingException, InterruptedException {
         List<String> errors = new ArrayList<>();
         for (ComponentIdentifier pkgId : pkgIds) {
             try {
+                // GCS createComponentVersion requests have to be made with <=1TPS
+                Thread.sleep(1_000);
                 draftComponent(pkgId);
             } catch (ResourceAlreadyExistsException e) {
                 // Don't fail the test if the component exists
@@ -422,6 +424,11 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     protected static void setDeviceConfig(Kernel kernel, String key, Number value) {
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY, key).withValue(value);
+    }
+
+    protected static void setDeviceConfig(Kernel kernel, String key, String value) {
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME,
                 CONFIGURATION_CONFIG_KEY, key).withValue(value);
     }
