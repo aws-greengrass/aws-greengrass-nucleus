@@ -127,8 +127,6 @@ public class S3Downloader extends ArtifactDownloader {
             region = RetryUtils.runWithRetry(s3ClientExceptionRetryConfig,
                     () -> s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
                             .locationConstraintAsString(), "get-bucket-location", logger);
-            region = s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
-                    .locationConstraintAsString();
         } catch (InterruptedException e) {
             throw e;
         } catch (S3Exception e) {
