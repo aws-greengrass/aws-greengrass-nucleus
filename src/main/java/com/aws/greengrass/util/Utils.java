@@ -610,7 +610,7 @@ public final class Utils {
                 // This only supports POSIX compliant file permission right now. We will need to
                 // change this when trying to support Greengrass in Non-POSIX OS.
                 Files.createDirectories(p,
-                        PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+                        PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwxr-xr-x")));
             }
         }
     }
