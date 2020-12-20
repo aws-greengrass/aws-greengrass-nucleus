@@ -29,5 +29,15 @@
                 <include>nucleus-build.properties</include>
             </includes>
         </fileSet>
+        <fileSet>
+            <directory>${basedir}</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>LICENSE</include>
+                <include>NOTICE</include>
+                <include>README.md</include>
+                <include>THIRD-PARTY-LICENSES</include>
+            </includes>
+        </fileSet>
     </fileSets>
 </assembly>
