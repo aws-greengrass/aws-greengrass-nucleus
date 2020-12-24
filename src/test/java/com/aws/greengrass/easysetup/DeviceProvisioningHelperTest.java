@@ -53,6 +53,7 @@ import software.amazon.awssdk.services.iot.model.Policy;
 import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.RoleAliasDescription;
 import software.amazon.awssdk.services.iot.model.UpdateCertificateRequest;
+import software.amazon.awssdk.services.sts.StsClient;
 
 import java.net.URISyntaxException;
 import java.nio.file.Path;
@@ -81,6 +82,8 @@ class DeviceProvisioningHelperTest {
     private IotClient iotClient;
     @Mock
     private IamClient iamClient;
+    @Mock
+    private StsClient stsClient;
     @Mock
     private GreengrassV2Client greengrassClient;
     @Mock
@@ -112,7 +115,8 @@ class DeviceProvisioningHelperTest {
 
     @BeforeEach
     void setup() {
-        deviceProvisioningHelper = new DeviceProvisioningHelper(System.out, iotClient, iamClient, greengrassClient);
+        deviceProvisioningHelper = new DeviceProvisioningHelper(System.out, iotClient, iamClient, stsClient,
+                greengrassClient);
     }
 
     @AfterEach

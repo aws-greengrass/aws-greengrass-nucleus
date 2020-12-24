@@ -97,7 +97,7 @@ class GreengrassSetupTest {
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any());
+        verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any(), any());
     }
 
     @Test
@@ -337,7 +337,7 @@ class GreengrassSetupTest {
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any());
+        verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any(), any());
     }
 
     @Test
@@ -355,7 +355,7 @@ class GreengrassSetupTest {
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any());
+        verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any(), any());
     }
 
     @Test
