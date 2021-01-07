@@ -19,6 +19,7 @@ import lombok.Getter;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractPublishToTopicOperationHandler;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractSubscribeToTopicOperationHandler;
 import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 import software.amazon.awssdk.aws.greengrass.model.JsonMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.PublishToTopicResponse;
@@ -107,9 +108,13 @@ public class PubSubIPCEventStreamAgent {
         return handlePublishToTopicRequest(topic, serviceName, Optional.empty(), Optional.of(binaryMessage));
     }
 
+    @SuppressWarnings("PMD.PreserveStackTrace")
     private PublishToTopicResponse handlePublishToTopicRequest(String topic, String serviceName,
                                                                Optional<Map<String, Object>> jsonMessage,
                                                                Optional<byte[]> binaryMessage) {
+        if (topic == null) {
+            throw new InvalidArgumentsError("Publish topic must not be null");
+        }
         Set<Object> contexts = listeners.get(topic);
         if (contexts == null || contexts.isEmpty()) {
             log.atDebug().kv(COMPONENT_NAME, serviceName).log("No one subscribed to topic {}. Returning.", topic);
@@ -126,6 +131,7 @@ public class PubSubIPCEventStreamAgent {
                 publishedEvent.setPayload(SERIALIZER.writeValueAsBytes(jsonMessage.get()));
             } catch (JsonProcessingException e) {
                 log.atError().cause(e).kv(COMPONENT_NAME, serviceName).log("Unable to serialize JSON message.");
+                throw new InvalidArgumentsError("Unable to serialize payload as JSON");
             }
         }
         if (binaryMessage.isPresent()) {
