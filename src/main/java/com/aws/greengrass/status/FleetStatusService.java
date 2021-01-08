@@ -184,6 +184,10 @@ public class FleetStatusService extends GreengrassService {
         this.mqttClient.addToCallbackEvents(callbacks);
 
         TestFeatureParameters.registerHandlerCallback(this.getName(), this::handleTestFeatureParametersHandlerChange);
+
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            this.isConnected.set(false);
+        }
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")

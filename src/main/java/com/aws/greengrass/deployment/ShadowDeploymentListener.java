@@ -98,9 +98,8 @@ public class ShadowDeploymentListener implements InjectionActions {
 
     @Override
     public void postInject() {
-
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            logger.atWarn().log("Device not configured to talk to AWS Iot cloud. Device will run in offline mode");
+            logger.atWarn().log("Device not configured to talk to AWS Iot cloud. Single device deployment is offline");
             return;
         }
 

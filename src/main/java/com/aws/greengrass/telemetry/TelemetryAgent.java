@@ -147,6 +147,10 @@ public class TelemetryAgent extends GreengrassService {
         // Subscribe to thing name changes.
         deviceConfiguration.getThingName()
                 .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
+
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            this.isConnected.set(false);
+        }
     }
 
     /**

@@ -215,7 +215,12 @@ public class MqttClient implements Closeable {
         deviceConfiguration.getSpoolerNamespace();
         deviceConfiguration.getAWSRegion();
 
-        // If anything in the device configuration changes, then we wil need to reconnect to the cloud
+        // Skip the reconnect logic below if device is running offline
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            return;
+        }
+
+        // If anything in the device configuration changes, then we will need to reconnect to the cloud
         // using the new settings. We do this by calling reconnect() on all of our connections
         this.deviceConfiguration.onAnyChange((what, node) -> {
             if (connections.isEmpty()) {
@@ -294,6 +299,10 @@ public class MqttClient implements Closeable {
     @SuppressWarnings("PMD.CloseResource")
     public synchronized void subscribe(SubscribeRequest request)
             throws ExecutionException, InterruptedException, TimeoutException {
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            throw new ExecutionException(new Exception("Cannot subscribe because device is configured to run offline"));
+        }
+
         AwsIotMqttClient connection = null;
         // Use the write scope when identifying the subscriptionTopics that exist
         try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
@@ -424,6 +433,11 @@ public class MqttClient implements Closeable {
      * Iterate the spooler queue to publish all the spooled message.
      */
     protected void spoolTask() {
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            logger.atDebug().log("Not publishing spooled message because device is configured to run offline");
+            return;
+        }
+
         try {
             getConnection(false).connect().get();
             List<CompletableFuture<?>> publishRequests = new ArrayList<>();

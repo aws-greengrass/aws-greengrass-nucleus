@@ -93,6 +93,7 @@ class MqttClientTest {
         Topics spoolerNamespace = config.lookupTopics("spooler");
         mqttNamespace.lookup(MqttClient.MQTT_OPERATION_TIMEOUT_KEY).withValue(0);
         when(deviceConfiguration.getMQTTNamespace()).thenReturn(mqttNamespace);
+        lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(spoolerNamespace);
         lenient().when(builder.build()).thenReturn(mockConnection);
         lenient().when(mockConnection.connect()).thenReturn(CompletableFuture.completedFuture(false));
