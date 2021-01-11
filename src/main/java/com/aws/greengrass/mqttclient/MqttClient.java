@@ -300,7 +300,9 @@ public class MqttClient implements Closeable {
     public synchronized void subscribe(SubscribeRequest request)
             throws ExecutionException, InterruptedException, TimeoutException {
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            throw new ExecutionException(new Exception("Cannot subscribe because device is configured to run offline"));
+            logger.atError().kv(TOPIC_KEY, request.getTopic())
+                    .log("Cannot subscribe because device is configured to run offline");
+            return;
         }
 
         AwsIotMqttClient connection = null;
@@ -400,11 +402,19 @@ public class MqttClient implements Closeable {
      * @param request publish request
      */
     public CompletableFuture<Integer> publish(PublishRequest request) {
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            SpoolerStoreException e =
+                    new SpoolerStoreException("Cannot publish because device is configured to run offline");
+            logger.atDebug().kv("topic", request.getTopic()).log(e.getMessage());
+            future.completeExceptionally(e);
+            return future;
+        }
 
         boolean willDropTheRequest = !mqttOnline.get() && request.getQos().getValue() == 0
                 && !spool.getSpoolConfig().isKeepQos0WhenOffline();
 
-        CompletableFuture<Integer> future = new CompletableFuture<>();
         if (willDropTheRequest) {
             SpoolerStoreException e = new SpoolerStoreException("Device is offline. Dropping QoS 0 message.");
             logger.atDebug().kv("topic", request.getTopic()).log(e.getMessage());
@@ -433,11 +443,6 @@ public class MqttClient implements Closeable {
      * Iterate the spooler queue to publish all the spooled message.
      */
     protected void spoolTask() {
-        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            logger.atDebug().log("Not publishing spooled message because device is configured to run offline");
-            return;
-        }
-
         try {
             getConnection(false).connect().get();
             List<CompletableFuture<?>> publishRequests = new ArrayList<>();
