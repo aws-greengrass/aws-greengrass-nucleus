@@ -151,6 +151,12 @@ public class ComponentManager implements InjectionActions {
             // otherwise try to negotiate with cloud
             logger.atInfo().setEventType("negotiate-version-with-cloud-start").log("Negotiating version with cloud");
 
+            if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+                throw new NoAvailableComponentVersionException(String.format(
+                        "Device is configured to run offline and no local applicable version found for component '%s' "
+                                + "satisfying requirement '%s'.", componentName, versionRequirements));
+            }
+
             resolvedComponentId =
                     negotiateVersionWithCloud(componentName, versionRequirements, localCandidateOptional.orElse(null));
 
