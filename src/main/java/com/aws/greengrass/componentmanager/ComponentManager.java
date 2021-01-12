@@ -367,18 +367,21 @@ public class ComponentManager implements InjectionActions {
                 .addKeyValue(PACKAGE_IDENTIFIER, componentIdentifier).log();
 
         for (ComponentArtifact artifact : artifacts) {
-            // check disk space before download
-            // TODO: [P41215447]: Check artifact size for all artifacts to download early to fail early
-            long usableSpaceBytes = componentStore.getUsableSpace();
-            if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
-                throw new SizeLimitException(
-                        String.format("Disk space critical: %d bytes usable, %d bytes minimum allowed",
-                                usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
-            }
             ArtifactDownloader downloader = artifactDownloaderFactory
                     .getArtifactDownloader(componentIdentifier, artifact, packageArtifactDirectory);
-
             if (downloader.downloadRequired()) {
+                if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+                    throw new PackageDownloadException("Artifact download required but device is configured to run "
+                            + "offline");
+                }
+                // Check disk size limits before download
+                // TODO: [P41215447]: Check artifact size for all artifacts to download early to fail early
+                long usableSpaceBytes = componentStore.getUsableSpace();
+                if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
+                    throw new SizeLimitException(
+                            String.format("Disk space critical: %d bytes usable, %d bytes minimum allowed",
+                                    usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
+                }
                 long downloadSize = downloader.getDownloadSize();
                 long storeContentSize = componentStore.getContentSize();
                 if (storeContentSize + downloadSize > getConfiguredMaxSize()) {
