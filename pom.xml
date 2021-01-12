@@ -608,6 +608,17 @@
                                         <exclude>org/slf4j/impl/StaticLoggerBinder.class</exclude>
                                     </excludes>
                                 </filter>
+                                <!-- We provide our own SdkTlsSocketFactory to support ALPN, so make sure not to
+                                include this version from the SDK (though ours should be preferred anyway, just make
+                                sure here)
+                                Remove this if/when the SDK supports ALPN officially.
+                                !-->
+                                <filter>
+                                    <artifact>software.amazon.awssdk:apache-client:jar:*</artifact>
+                                    <excludes>
+                                        <exclude>software.amazon.awssdk.http.apache.internal.conn.SdkTlsSocketFactory.class</exclude>
+                                    </excludes>
+                                </filter>
                             </filters>
                         </configuration>
                     </execution>
