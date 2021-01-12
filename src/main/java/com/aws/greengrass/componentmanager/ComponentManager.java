@@ -136,7 +136,6 @@ public class ComponentManager implements InjectionActions {
                     .log("Found the best local candidate that satisfies the requirement.");
         } else {
             logger.atInfo().log("Can't find a local candidate that satisfies the requirement.");
-
         }
         ComponentIdentifier resolvedComponentId;
 
@@ -148,17 +147,24 @@ public class ComponentManager implements InjectionActions {
                     + " candidate as the resolved version without negotiating with cloud.");
             resolvedComponentId = localCandidateOptional.get();
         } else {
-            // otherwise try to negotiate with cloud
+            // Otherwise try to negotiate with cloud
             logger.atInfo().setEventType("negotiate-version-with-cloud-start").log("Negotiating version with cloud");
 
-            if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-                throw new NoAvailableComponentVersionException(String.format(
-                        "Device is configured to run offline and no local applicable version found for component '%s' "
-                                + "satisfying requirement '%s'.", componentName, versionRequirements));
+            if (deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+                resolvedComponentId = negotiateVersionWithCloud(componentName, versionRequirements,
+                        localCandidateOptional.orElse(null));
+            } else {
+                // Device running offline. Use the local candidate if present, otherwise fails
+                if (localCandidateOptional.isPresent()) {
+                    logger.atInfo().log("Device is running offline and found satisfying local candidate. Using the "
+                            + "local candidate as the resolved version without negotiating with cloud.");
+                    resolvedComponentId = localCandidateOptional.get();
+                } else {
+                    throw new NoAvailableComponentVersionException(String.format(
+                            "Device is configured to run offline and no local applicable version found for component"
+                                    + " '%s' satisfying requirement '%s'.", componentName, versionRequirements));
+                }
             }
-
-            resolvedComponentId =
-                    negotiateVersionWithCloud(componentName, versionRequirements, localCandidateOptional.orElse(null));
 
             logger.atInfo().setEventType("negotiate-version-with-cloud-end").log("Negotiated version with cloud");
         }
