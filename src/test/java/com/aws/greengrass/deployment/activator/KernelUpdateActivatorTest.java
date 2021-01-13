@@ -118,6 +118,7 @@ class KernelUpdateActivatorTest {
         when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
         Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-west-2.amazonaws.com");
         when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
+        when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
         ArgumentCaptor<String> regionCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> credEndpointCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> dataEndpointCaptor = ArgumentCaptor.forClass(String.class);
@@ -149,6 +150,7 @@ class KernelUpdateActivatorTest {
         when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
         Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-west-2.amazonaws.com");
         when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
+        when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
         ArgumentCaptor<String> regionCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> credEndpointCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> dataEndpointCaptor = ArgumentCaptor.forClass(String.class);

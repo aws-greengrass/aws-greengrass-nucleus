@@ -69,7 +69,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
 
         if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
             Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
-            if (serviceConfig.containsKey(DEFAULT_NUCLEUS_COMPONENT_NAME)) {
+            if (serviceConfig.containsKey(deviceConfiguration.getNucleusComponentName())) {
                 Map<String, Object> kernelConfig =
                         (Map<String, Object>) serviceConfig.get(DEFAULT_NUCLEUS_COMPONENT_NAME);
                 String awsRegion = tryGetAwsRegionFromNewConfig(kernelConfig);

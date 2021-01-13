@@ -48,7 +48,7 @@ public class DefaultActivator extends DeploymentActivator {
         Map<String, Object> kernelConfig = null;
         if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
             serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
-            if (serviceConfig.containsKey(DEFAULT_NUCLEUS_COMPONENT_NAME)) {
+            if (serviceConfig.containsKey(deviceConfiguration.getNucleusComponentName())) {
                 kernelConfig = (Map<String, Object>) serviceConfig.get(DEFAULT_NUCLEUS_COMPONENT_NAME);
             }
         } else {
