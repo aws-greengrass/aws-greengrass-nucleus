@@ -7,6 +7,8 @@ package com.aws.greengrass.integrationtests.telemetry;
 
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -58,6 +60,7 @@ import static org.mockito.internal.verification.VerificationModeFactory.atLeast;
 class TelemetryAgentTest extends BaseITCase {
     private static final int aggregateInterval = 2;
     private static final int publishInterval = 4;
+    public static final String MOCK_THING_NAME = "mockThing";
     private Kernel kernel;
     @Mock
     private MqttClient mqttClient;
@@ -89,10 +92,13 @@ class TelemetryAgentTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_running_with_telemetry_config_WHEN_launch_THEN_metrics_are_published()
-            throws InterruptedException, IOException {
+            throws InterruptedException, IOException, DeviceConfigurationException {
         // GIVEN
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
+        kernel.getContext().put(DeviceConfiguration.class,
+                new DeviceConfiguration(kernel, MOCK_THING_NAME, "mock", "mock", "mock", "mock", "mock", "mock",
+                        "mock"));
         //WHEN
         CountDownLatch telemetryRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -130,7 +136,7 @@ class TelemetryAgentTest extends BaseITCase {
                 try {
                     MetricsPayload mp = new ObjectMapper().readValue(pr.getPayload(), MetricsPayload.class);
                     assertEquals(QualityOfService.AT_LEAST_ONCE, pr.getQos());
-                    assertEquals(DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", ""), pr.getTopic());
+                    assertEquals(DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", MOCK_THING_NAME), pr.getTopic());
                     assertEquals("2020-07-30", mp.getSchema());
                     // enough to verify the first message of type MetricsPayload
                     break;
