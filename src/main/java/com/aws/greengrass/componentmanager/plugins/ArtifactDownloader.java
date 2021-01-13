@@ -229,6 +229,12 @@ public abstract class ArtifactDownloader {
     }
 
     /**
+     * Check whether the downloader has proper configs and is ready to download files.
+     * @return true if the downloader is ready for getDownloadSize, downloadToPath, etc. network calls
+     */
+    public abstract boolean downloadReady();
+
+    /**
      * Get the download size of the artifact file.
      *
      * @return size of the artifact in bytes

@@ -27,6 +27,7 @@ public class S3SdkClientFactory {
     private static final Map<Region, S3Client> clientCache = new ConcurrentHashMap<>();
     private S3Client s3Client;
     private final LazyCredentialProvider credentialsProvider;
+    private final boolean configValid;
 
     /**
      * Constructor.
@@ -38,6 +39,11 @@ public class S3SdkClientFactory {
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public S3SdkClientFactory(DeviceConfiguration deviceConfiguration, LazyCredentialProvider credentialsProvider) {
         this.credentialsProvider = credentialsProvider;
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            configValid = false;
+            return;
+        }
+        configValid = true;
         deviceConfiguration.getAWSRegion().subscribe((what, node) -> {
             Region region;
             try {

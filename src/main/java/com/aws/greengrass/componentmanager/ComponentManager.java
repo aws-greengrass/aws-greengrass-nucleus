@@ -148,11 +148,12 @@ public class ComponentManager implements InjectionActions {
             resolvedComponentId = localCandidateOptional.get();
         } else {
             // Otherwise try to negotiate with cloud
-            logger.atInfo().setEventType("negotiate-version-with-cloud-start").log("Negotiating version with cloud");
-
             if (deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+                logger.atInfo().setEventType("negotiate-version-with-cloud-start")
+                        .log("Negotiating version with cloud");
                 resolvedComponentId = negotiateVersionWithCloud(componentName, versionRequirements,
                         localCandidateOptional.orElse(null));
+                logger.atInfo().setEventType("negotiate-version-with-cloud-end").log("Negotiated version with cloud");
             } else {
                 // Device running offline. Use the local candidate if present, otherwise fails
                 if (localCandidateOptional.isPresent()) {
@@ -165,8 +166,6 @@ public class ComponentManager implements InjectionActions {
                                     + " '%s' satisfying requirement '%s'.", componentName, versionRequirements));
                 }
             }
-
-            logger.atInfo().setEventType("negotiate-version-with-cloud-end").log("Negotiated version with cloud");
         }
 
         logger.atInfo().setEventType("resolve-component-version-end").kv("ResolvedComponent", resolvedComponentId)
@@ -370,9 +369,9 @@ public class ComponentManager implements InjectionActions {
             ArtifactDownloader downloader = artifactDownloaderFactory
                     .getArtifactDownloader(componentIdentifier, artifact, packageArtifactDirectory);
             if (downloader.downloadRequired()) {
-                if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-                    throw new PackageDownloadException("Artifact download required but device is configured to run "
-                            + "offline");
+                if (!downloader.downloadReady()) {
+                    throw new PackageDownloadException(String.format(
+                            "Download required for artifact %s but device configs are invalid for download", artifact));
                 }
                 // Check disk size limits before download
                 // TODO: [P41215447]: Check artifact size for all artifacts to download early to fail early

@@ -53,8 +53,8 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROO
 public class GreengrassComponentServiceClientFactory {
 
     private static final Logger logger = LogManager.getLogger(GreengrassComponentServiceClientFactory.class);
-
     private GreengrassV2Client cmsClient;
+    private final boolean configValid;
 
     /**
      * Constructor with custom endpoint/region configuration.
@@ -63,6 +63,11 @@ public class GreengrassComponentServiceClientFactory {
      */
     @Inject
     public GreengrassComponentServiceClientFactory(DeviceConfiguration deviceConfiguration) {
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            configValid = false;
+            return;
+        }
+        configValid = true;
         configureClient(deviceConfiguration);
         deviceConfiguration.onAnyChange((what, node) -> {
             if (validString(node, DEVICE_PARAM_AWS_REGION) || validPath(node, DEVICE_PARAM_ROOT_CA_PATH) || validPath(

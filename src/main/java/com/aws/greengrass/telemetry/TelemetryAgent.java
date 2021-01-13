@@ -142,15 +142,18 @@ public class TelemetryAgent extends GreengrassService {
         getPeriodicAggregateTimeTopic();
         getPeriodicPublishTimeTopic();
         schedulePeriodicAggregateMetrics(false);
-        schedulePeriodicPublishMetrics(false);
-
         // Subscribe to thing name changes.
         deviceConfiguration.getThingName()
                 .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
 
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
             this.isConnected.set(false);
+            // Right now the connection cannot be brought online without a restart.
+            // Skip setting up scheduled publish because it won't work
+            return;
         }
+
+        schedulePeriodicPublishMetrics(false);
     }
 
     /**

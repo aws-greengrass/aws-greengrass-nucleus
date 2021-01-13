@@ -155,6 +155,15 @@ public class FleetStatusService extends GreengrassService {
         deviceConfiguration.getThingName()
                 .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
         this.deviceConfiguration = deviceConfiguration;
+        this.mqttClient.addToCallbackEvents(callbacks);
+        TestFeatureParameters.registerHandlerCallback(this.getName(), this::handleTestFeatureParametersHandlerChange);
+
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            this.isConnected.set(false);
+            // Right now the connection cannot be brought online without a restart.
+            // Skip setting up scheduled upload and event triggered upload because they won't work
+            return;
+        }
 
         topics.lookup(CONFIGURATION_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC)
@@ -180,14 +189,6 @@ public class FleetStatusService extends GreengrassService {
         this.deploymentStatusKeeper.registerDeploymentStatusConsumer(SHADOW,
                 this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
         schedulePeriodicFleetStatusDataUpdate(false);
-
-        this.mqttClient.addToCallbackEvents(callbacks);
-
-        TestFeatureParameters.registerHandlerCallback(this.getName(), this::handleTestFeatureParametersHandlerChange);
-
-        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            this.isConnected.set(false);
-        }
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
@@ -479,7 +480,7 @@ public class FleetStatusService extends GreengrassService {
 
     @Override
     public void shutdown() {
-        if (!this.periodicUpdateFuture.isCancelled()) {
+        if (this.periodicUpdateFuture != null && !this.periodicUpdateFuture.isCancelled()) {
             this.periodicUpdateFuture.cancel(true);
         }
         TestFeatureParameters.unRegisterHandlerCallback(this.getName());

@@ -166,6 +166,11 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         }
     }
 
+    @Override
+    public boolean downloadReady() {
+        return clientFactory.isConfigValid();
+    }
+
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     private URL getArtifactDownloadURL(ComponentIdentifier componentIdentifier, String artifactName)
             throws InterruptedException, PackageDownloadException {

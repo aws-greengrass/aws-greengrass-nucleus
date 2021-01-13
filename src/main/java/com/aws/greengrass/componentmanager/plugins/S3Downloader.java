@@ -98,6 +98,11 @@ public class S3Downloader extends ArtifactDownloader {
         }
     }
 
+    @Override
+    public boolean downloadReady() {
+        return s3ClientFactory.isConfigValid();
+    }
+
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     @Override
     public Long getDownloadSize() throws InterruptedException, PackageDownloadException {

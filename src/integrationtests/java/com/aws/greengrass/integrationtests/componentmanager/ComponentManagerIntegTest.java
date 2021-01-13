@@ -70,6 +70,7 @@ class ComponentManagerIntegTest extends BaseITCase {
         ArtifactDownloader mockDownloader = mock(ArtifactDownloader.class);
         File artifactFile = store.resolveArtifactDirectoryPath(ident).resolve("zip.zip").toFile();
         when(mockDownloader.downloadRequired()).thenReturn(true);
+        when(mockDownloader.downloadReady()).thenReturn(true);
         when(mockDownloader.getArtifactFile()).thenReturn(artifactFile);
         when(mockDownloader.downloadToPath()).thenAnswer(downloadToPath("zip.zip", artifactFile));
 
@@ -118,6 +119,7 @@ class ComponentManagerIntegTest extends BaseITCase {
         File emptyFile = store.resolveArtifactDirectoryPath(ident).resolve("empty.txt").toFile();
         ArtifactDownloader mockDownloader = mock(ArtifactDownloader.class);
         when(mockDownloader.downloadRequired()).thenReturn(true);
+        when(mockDownloader.downloadReady()).thenReturn(true);
         when(mockDownloader.getArtifactFile()).thenReturn(scriptFile).thenReturn(emptyFile);
         when(mockDownloader.downloadToPath()).thenAnswer(downloadToPath("script.sh", scriptFile))
                 .thenAnswer(downloadToPath("empty.txt", emptyFile));

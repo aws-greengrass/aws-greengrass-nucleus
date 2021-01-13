@@ -285,6 +285,11 @@ class ArtifactDownloaderTest {
         }
 
         @Override
+        public boolean downloadReady() {
+            return true;
+        }
+
+        @Override
         public Long getDownloadSize() {
             return (long) input.length();
         }
