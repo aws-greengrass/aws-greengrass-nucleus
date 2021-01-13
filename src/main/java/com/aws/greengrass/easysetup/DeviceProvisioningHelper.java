@@ -13,6 +13,7 @@ import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory.EnvironmentStage;
 import com.aws.greengrass.util.RegionUtils;
+import com.aws.greengrass.util.StsSdkClientFactory;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import lombok.AllArgsConstructor;
@@ -31,7 +32,6 @@ import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.AttachRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.CreatePolicyResponse;
 import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
-import software.amazon.awssdk.services.iam.model.EntityAlreadyExistsException;
 import software.amazon.awssdk.services.iam.model.GetRoleRequest;
 import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
@@ -59,6 +59,8 @@ import software.amazon.awssdk.services.iot.model.ListAttachedPoliciesRequest;
 import software.amazon.awssdk.services.iot.model.Policy;
 import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.UpdateCertificateRequest;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.model.GetCallerIdentityRequest;
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.File;
@@ -108,6 +110,8 @@ public class DeviceProvisioningHelper {
     private static final String IOT_ROLE_POLICY_NAME_PREFIX = "GreengrassTESCertificatePolicy";
     private static final String GREENGRASS_CLI_COMPONENT_NAME = "aws.greengrass.Cli";
     private static final String INITIAL_DEPLOYMENT_NAME_FORMAT = "Deployment for %s";
+    private static final String IAM_POLICY_ARN_FORMAT = "arn:%s:iam::%s:policy/%s";
+    private static final String MANAGED_IAM_POLICY_ARN_FORMAT = "arn:%s:iam::aws:policy/%s";
 
     private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
     private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
@@ -121,6 +125,7 @@ public class DeviceProvisioningHelper {
     private final PrintStream outStream;
     private final IotClient iotClient;
     private final IamClient iamClient;
+    private final StsClient stsClient;
     private final GreengrassV2Client greengrassClient;
     private EnvironmentStage envStage = EnvironmentStage.PROD;
     private boolean thingGroupExists = false;
@@ -142,6 +147,7 @@ public class DeviceProvisioningHelper {
                 : EnvironmentStage.fromString(environmentStage);
         this.iotClient = IotSdkClientFactory.getIotClient(awsRegion, envStage);
         this.iamClient = IamSdkClientFactory.getIamClient(awsRegion);
+        this.stsClient = StsSdkClientFactory.getStsClient(awsRegion);
         this.greengrassClient = GreengrassV2Client.builder().endpointOverride(
                         URI.create(RegionUtils.getGreengrassControlPlaneEndpoint(awsRegion, this.envStage)))
                 .region(Region.of(awsRegion))
@@ -154,13 +160,15 @@ public class DeviceProvisioningHelper {
      * @param outStream        stream to provide customer feedback
      * @param iotClient        iot client
      * @param iamClient        iam client
+     * @param stsClient        sts client
      * @param greengrassClient Greengrass client
      */
     DeviceProvisioningHelper(PrintStream outStream, IotClient iotClient, IamClient iamClient,
-                             GreengrassV2Client greengrassClient) {
+                             StsClient stsClient, GreengrassV2Client greengrassClient) {
         this.outStream = outStream;
         this.iotClient = iotClient;
         this.iamClient = iamClient;
+        this.stsClient = stsClient;
         this.greengrassClient = greengrassClient;
     }
 
@@ -376,12 +384,13 @@ public class DeviceProvisioningHelper {
     /**
      * Creates IAM policy using specified name and document. Attach the policy to given IAM role name.
      *
-     * @param roleName name of target role
+     * @param roleName  name of target role
+     * @param awsRegion aws region
      * @return ARN of created policy
      */
-    public Optional<String> createAndAttachRolePolicy(String roleName) {
+    public Optional<String> createAndAttachRolePolicy(String roleName, Region awsRegion) {
         return createAndAttachRolePolicy(roleName, roleName + GG_TOKEN_EXCHANGE_ROLE_ACCESS_POLICY_SUFFIX,
-                GG_TOKEN_EXCHANGE_ROLE_ACCESS_POLICY_DOCUMENT);
+                GG_TOKEN_EXCHANGE_ROLE_ACCESS_POLICY_DOCUMENT, awsRegion);
     }
 
     /**
@@ -390,29 +399,55 @@ public class DeviceProvisioningHelper {
      * @param roleName           name of target role
      * @param rolePolicyName     name of policy to create and attach
      * @param rolePolicyDocument document of policy to create and attach
+     * @param awsRegion          aws region
      * @return ARN of created policy
      */
-    public Optional<String> createAndAttachRolePolicy(String roleName, String rolePolicyName,
-                                                      String rolePolicyDocument) {
-        try {
+    public Optional<String> createAndAttachRolePolicy(String roleName, String rolePolicyName, String rolePolicyDocument,
+                                                      Region awsRegion) {
+        Optional<String> tesRolePolicyArnOptional = getPolicyArn(rolePolicyName, awsRegion);
+        if (tesRolePolicyArnOptional.isPresent()) {
+            outStream.printf("IAM policy named \"%s\" already exists. Please attach it to the IAM role if not "
+                    + "already%n", rolePolicyName);
+            return tesRolePolicyArnOptional;
+        } else {
             String tesRolePolicyArn;
             CreatePolicyResponse createPolicyResponse = iamClient.createPolicy(
                     software.amazon.awssdk.services.iam.model.CreatePolicyRequest.builder().policyName(rolePolicyName)
                             .policyDocument(rolePolicyDocument).build());
             tesRolePolicyArn = createPolicyResponse.policy().arn();
             outStream.printf("IAM role policy for TES \"%s\" created. This policy DOES NOT have S3 access, please "
-                            + "modify it with your private components' artifact buckets/objects as needed when you "
+                    + "modify it with your private components' artifact buckets/objects as needed when you "
                     + "create and deploy private components %n", rolePolicyName);
             outStream.println("Attaching IAM role policy for TES to IAM role for TES...");
             iamClient.attachRolePolicy(
                     AttachRolePolicyRequest.builder().roleName(roleName).policyArn(tesRolePolicyArn).build());
             return Optional.of(tesRolePolicyArn);
-        } catch (EntityAlreadyExistsException e) {
-            // TODO: [P41215965] get and reuse the policy. non trivial because we can only get IAM policy by ARN
-            outStream.printf("IAM policy named \"%s\" already exists. Please attach it to the IAM role if not "
-                    + "already%n", rolePolicyName);
-            return Optional.empty();
         }
+    }
+
+    private Optional<String> getPolicyArn(String policyName, Region awsRegion) {
+        String partition = awsRegion.metadata().partition().id();
+        try {
+            // Check if a managed policy exists with the name
+            return Optional.of(iamClient.getPolicy(software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                    .policyArn(String.format(MANAGED_IAM_POLICY_ARN_FORMAT, partition, policyName)).build()).policy()
+                    .arn());
+        } catch (ResourceNotFoundException | NoSuchEntityException mnf) {
+            // Check if a customer policy exists with the name
+            try {
+                return Optional.of(iamClient.getPolicy(
+                        software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                                .policyArn(String.format(IAM_POLICY_ARN_FORMAT, partition, getAccountId(), policyName))
+                                .build())
+                        .policy().arn());
+            } catch (ResourceNotFoundException | NoSuchEntityException cnf) {
+                return Optional.empty();
+            }
+        }
+    }
+
+    private String getAccountId() {
+        return stsClient.getCallerIdentity(GetCallerIdentityRequest.builder().build()).account();
     }
 
     /**

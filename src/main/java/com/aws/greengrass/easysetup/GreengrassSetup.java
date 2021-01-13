@@ -420,7 +420,7 @@ public class GreengrassSetup {
         }
         outStream.printf("Setting up resources for %s ... %n", TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS);
         deviceProvisioningHelper.setupIoTRoleForTes(tesRoleName, tesRoleAliasName, thingInfo.getCertificateArn());
-        deviceProvisioningHelper.createAndAttachRolePolicy(tesRoleName);
+        deviceProvisioningHelper.createAndAttachRolePolicy(tesRoleName, Region.of(awsRegion));
         outStream.println("Configuring Nucleus with provisioned resource details...");
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion, tesRoleAliasName);
         outStream.println("Successfully configured Nucleus with provisioned resource details!");

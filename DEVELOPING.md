@@ -55,6 +55,7 @@ with the following access, you can then use our E2E tests.
 - `greengrass:*`
 - `s3:*`
 - `iam:*`
+- `sts:*`
 
 To run only the E2E tests, run the following commands:
 
