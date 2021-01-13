@@ -73,7 +73,9 @@ public class DefaultActivator extends DeploymentActivator {
             try {
                 deviceConfiguration.validateEndpoints(awsRegion, iotCredEndpoint, iotDataEndpoint);
             } catch (DeviceConfigurationException e) {
-                handleFailure(servicesChangeManager, deploymentDocument, totallyCompleteFuture, e);
+                logger.atError().cause(e).log("Error validating IoT endpoints");
+                totallyCompleteFuture
+                        .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
                 return;
             }
         }

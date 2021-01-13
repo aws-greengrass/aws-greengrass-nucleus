@@ -79,6 +79,8 @@ public class KernelUpdateActivator extends DeploymentActivator {
                     deviceConfiguration.validateEndpoints(awsRegion, iotCredEndpoint, iotDataEndpoint);
                 } catch (DeviceConfigurationException e) {
                     logger.atError().cause(e).log("Error validating IoT endpoints");
+                    totallyCompleteFuture.complete(new DeploymentResult(
+                            DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
                     return;
                 }
             }
