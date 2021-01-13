@@ -21,15 +21,18 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testing.TestFeatureParameterInterface;
 import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
 import java.io.IOException;
@@ -45,6 +48,7 @@ import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_AGENT_SERVIC
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -91,14 +95,18 @@ class TelemetryAgentTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_kernel_running_with_telemetry_config_WHEN_launch_THEN_metrics_are_published()
+    void GIVEN_kernel_running_with_telemetry_config_WHEN_launch_THEN_metrics_are_published(ExtensionContext context)
             throws InterruptedException, IOException, DeviceConfigurationException {
         // GIVEN
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
         kernel.getContext().put(DeviceConfiguration.class,
-                new DeviceConfiguration(kernel, MOCK_THING_NAME, "mock", "mock", "mock", "mock", "mock", "mock",
+                new DeviceConfiguration(kernel, MOCK_THING_NAME, "mock", "mock", "mock", "mock", "mock", "",
                         "mock"));
+        // Ignore exceptions caused by mock device configs
+        ignoreExceptionOfType(context, SdkClientException.class);
+        ignoreExceptionOfType(context, TLSAuthException.class);
+
         //WHEN
         CountDownLatch telemetryRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
