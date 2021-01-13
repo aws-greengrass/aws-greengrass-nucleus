@@ -19,6 +19,7 @@ import com.aws.greengrass.deployment.DefaultDeploymentTask;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
@@ -250,7 +251,8 @@ class PluginComponentTest extends BaseITCase {
         kernelSpy.getContext().get(DeploymentDirectoryManager.class)
                 .createNewDeploymentDirectory(deploymentId);
         kernelSpy.getContext().put(KernelUpdateActivator.class,
-                new KernelUpdateActivator(kernelSpy, kernelSpy.getContext().get(BootstrapManager.class)));
+                new KernelUpdateActivator(kernelSpy, kernelSpy.getContext().get(BootstrapManager.class),
+                        kernelSpy.getContext().get(DeviceConfiguration.class)));
 
         // launch Nucleus
         kernelSpy.launch();

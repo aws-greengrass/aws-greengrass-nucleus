@@ -137,7 +137,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         });
         // set required instances from context
         deviceConfiguration =
-                new DeviceConfiguration(kernel, "ThingName", "dataEndpoint", "credEndpoint", "privKeyFilePath",
+                new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com", "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath",
                         "certFilePath", "caFilePath", "us-east-1", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
         // pre-load contents to package store

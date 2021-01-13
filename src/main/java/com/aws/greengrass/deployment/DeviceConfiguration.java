@@ -26,6 +26,7 @@ import com.aws.greengrass.util.platforms.Platform;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.slf4j.event.Level;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import java.io.IOException;
@@ -178,7 +179,8 @@ public class DeviceConfiguration {
 
     /**
      * Get the logging configuration.
-     * @return  Configuration for logger.
+     *
+     * @return Configuration for logger.
      */
     public Topics getLoggingConfigurationTopics() {
         return getTopics(NUCLEUS_CONFIG_LOGGING_TOPICS);
@@ -186,7 +188,8 @@ public class DeviceConfiguration {
 
     /**
      * Get the telemetry configuration.
-     * @return  Configuration for telemetry agent.
+     *
+     * @return Configuration for telemetry agent.
      */
     public Topics getTelemetryConfigurationTopics() {
         return getTopics(TELEMETRY_CONFIG_LOGGING_TOPICS);
@@ -232,8 +235,9 @@ public class DeviceConfiguration {
 
     /**
      * Handle logging configuration changes.
-     * @param what          What changed.
-     * @param loggingParam  which logging param changed topic.
+     *
+     * @param what         What changed.
+     * @param loggingParam which logging param changed topic.
      */
     @SuppressWarnings("PMD.UselessParentheses")
     public synchronized void handleLoggingConfigurationChanges(WhatHappened what, Node loggingParam) {
@@ -516,7 +520,7 @@ public class DeviceConfiguration {
             logger.atError().log("Unable to determine Greengrass version", e);
         }
         logger.atError().log("Unable to determine Greengrass version from build metadata file. "
-                        + "Build file not found, or version not found in file. Falling back to {}", FALLBACK_VERSION);
+                + "Build file not found, or version not found in file. Falling back to {}", FALLBACK_VERSION);
         return FALLBACK_VERSION;
     }
 
@@ -548,6 +552,7 @@ public class DeviceConfiguration {
         }
 
         try {
+            validateEndpoints(awsRegion, iotCredEndpoint, iotDataEndpoint);
             Platform.getInstance().getRunWithGenerator().validateDefaultConfiguration(this);
         } catch (DeviceConfigurationException e) {
             errors.add(e.getMessage());
@@ -558,9 +563,37 @@ public class DeviceConfiguration {
     }
 
     /**
+     * Validate the IoT credential and data endpoint with the provided AWS region. Currently it checks that the if the
+     * endpoints are provided, then the AWS region should be a part of the URL.
+     *
+     * @param awsRegion       the provided AWS region.
+     * @param iotCredEndpoint the provided IoT credentials endpoint
+     * @param iotDataEndpoint the providedIoT data endpoint
+     * @throws DeviceConfigurationException if the region is not valid or if the IoT endpoints do not have the AWS
+     *                                      region as a part of its URL.
+     */
+    public void validateEndpoints(String awsRegion, String iotCredEndpoint, String iotDataEndpoint)
+            throws DeviceConfigurationException {
+        // If the region value is empty/null, then try to get the region from the SDK lookup path
+        if (Utils.isNotEmpty(awsRegion) && !Region.regions().contains(Region.of(awsRegion))) {
+            logger.atWarn().log("Error looking up AWS region");
+            throw new DeviceConfigurationException(String.format("Error looking up AWS region %s", awsRegion));
+        }
+        if (Utils.isNotEmpty(iotCredEndpoint) && !iotCredEndpoint.contains(awsRegion)) {
+            throw new DeviceConfigurationException(String.format("Error setting up IoT credentials endpoint %s",
+                    iotCredEndpoint));
+        }
+        if (Utils.isNotEmpty(iotDataEndpoint) && !iotDataEndpoint.contains(awsRegion)) {
+            throw new DeviceConfigurationException(String.format("Error setting up IoT data endpoint %s",
+                    iotDataEndpoint));
+        }
+    }
+
+    /**
      * Get the logger configuration from POJO.
-     * @param pojoMap   The map containing logger configuration.
-     * @return  the logger configuration.
+     *
+     * @param pojoMap The map containing logger configuration.
+     * @return the logger configuration.
      * @throws IllegalArgumentException if the POJO map has an invalid argument.
      */
     private LoggerConfiguration fromPojo(Map<String, Object> pojoMap) {

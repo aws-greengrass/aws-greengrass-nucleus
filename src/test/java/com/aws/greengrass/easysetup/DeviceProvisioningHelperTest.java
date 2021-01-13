@@ -189,8 +189,8 @@ class DeviceProvisioningHelperTest {
 
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel,
                 new DeviceProvisioningHelper.ThingInfo(getThingArn(), "thingname", "certarn", "certid", "certpem",
-                        KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build(), "dataEndpoint",
-                        "credEndpoint"), TEST_REGION, "roleAliasName");
+                        KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build(), "xxxxxx-ats.iot.us-east-1.amazonaws.com",
+                        "xxxxxx.credentials.iot.us-east-1.amazonaws.com"), TEST_REGION, "roleAliasName");
         assertEquals("thingname", kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME).getOnce());
         assertEquals("roleAliasName", kernel.getConfig()
                 .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,

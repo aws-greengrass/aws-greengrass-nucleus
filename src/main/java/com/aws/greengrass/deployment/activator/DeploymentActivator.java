@@ -8,6 +8,7 @@ package com.aws.greengrass.deployment.activator;
 import com.aws.greengrass.config.ConfigurationReader;
 import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -16,6 +17,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 
 import java.io.IOException;
 import java.util.Map;
@@ -23,16 +25,21 @@ import java.util.concurrent.CompletableFuture;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_ERROR_LOG_EVENT_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_CRED_ENDPOINT;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
 import static com.aws.greengrass.ipc.AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 
 public abstract class DeploymentActivator {
     protected final Kernel kernel;
+    protected final DeviceConfiguration deviceConfiguration;
     protected final DeploymentDirectoryManager deploymentDirectoryManager;
     protected static final Logger logger = LogManager.getLogger(DeploymentActivator.class);
 
-    protected DeploymentActivator(Kernel kernel) {
+    protected DeploymentActivator(Kernel kernel, DeviceConfiguration deviceConfiguration) {
         this.kernel = kernel;
+        this.deviceConfiguration = deviceConfiguration;
         this.deploymentDirectoryManager = kernel.getContext().get(DeploymentDirectoryManager.class);
     }
 
@@ -128,5 +135,29 @@ public abstract class DeploymentActivator {
                 CONFIGURATION_CONFIG_KEY, serviceConfigurationMergeBehavior);
 
         return rootMergeBehavior;
+    }
+
+    protected String tryGetAwsRegionFromNewConfig(Map<String, Object> kernelConfig) {
+        String awsRegion = Coerce.toString(deviceConfiguration.getAWSRegion());
+        if (kernelConfig.containsKey(DEVICE_PARAM_AWS_REGION)) {
+            awsRegion = Coerce.toString(kernelConfig.get(DEVICE_PARAM_AWS_REGION));
+        }
+        return awsRegion;
+    }
+
+    protected String tryGetIoTCredEndpointFromNewConfig(Map<String, Object> kernelConfig) {
+        String iotCredEndpoint = Coerce.toString(deviceConfiguration.getIotCredentialEndpoint());
+        if (kernelConfig.containsKey(DEVICE_PARAM_IOT_CRED_ENDPOINT)) {
+            iotCredEndpoint = Coerce.toString(kernelConfig.get(DEVICE_PARAM_IOT_CRED_ENDPOINT));
+        }
+        return iotCredEndpoint;
+    }
+
+    protected String tryGetIoTDataEndpointFromNewConfig(Map<String, Object> kernelConfig) {
+        String iotDataEndpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
+        if (kernelConfig.containsKey(DEVICE_PARAM_IOT_DATA_ENDPOINT)) {
+            iotDataEndpoint = Coerce.toString(kernelConfig.get(DEVICE_PARAM_IOT_DATA_ENDPOINT));
+        }
+        return iotDataEndpoint;
     }
 }
