@@ -124,7 +124,8 @@ public class GreengrassComponentServiceClientFactory {
             logger.atError().setCause(e).log("Caught exception while parsing Nucleus args");
             throw new RuntimeException(e);
         }
-        return RegionUtils.getGreengrassDataPlaneEndpoint(Coerce.toString(deviceConfiguration.getAWSRegion()), stage);
+        return RegionUtils.getGreengrassDataPlaneEndpoint(Coerce.toString(deviceConfiguration.getAWSRegion()), stage,
+                Coerce.toInt(deviceConfiguration.getGreengrassDataPlanePort()));
     }
 
     private void configureClientMutualTLS(ApacheHttpClient.Builder httpBuilder,

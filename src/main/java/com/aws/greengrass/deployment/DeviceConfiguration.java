@@ -90,6 +90,8 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_PROXY_PASSWORD = "password";
     public static final long COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES = 10_000_000_000L;
     public static final long DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS = 15L;
+    private static final String DEVICE_PARAM_GG_DATA_PLANE_PORT = "greengrassDataPlanePort";
+    private static final int GG_DATA_PLANE_PORT_DEFAULT = 8443;
 
     private static final String DEVICE_PARAM_ENV_STAGE = "envStage";
     private static final String DEFAULT_ENV_STAGE = "prod";
@@ -102,7 +104,6 @@ public class DeviceConfiguration {
     protected static final String NUCLEUS_BUILD_METADATA_FILENAME = "nucleus-build.properties";
     protected static final String NUCLEUS_BUILD_METADATA_DIRECTORY = "conf";
     protected static final String FALLBACK_VERSION = "0.0.0";
-
     private final Kernel kernel;
 
     private final Validator deTildeValidator;
@@ -359,6 +360,10 @@ public class DeviceConfiguration {
 
     public Topic getAWSRegion() {
         return getTopic(DEVICE_PARAM_AWS_REGION).dflt("").addValidator(regionValidator);
+    }
+
+    public Topic getGreengrassDataPlanePort() {
+        return getTopic(DEVICE_PARAM_GG_DATA_PLANE_PORT).dflt(GG_DATA_PLANE_PORT_DEFAULT);
     }
 
     // Why have this method as well as the one above? The reason is that the validator

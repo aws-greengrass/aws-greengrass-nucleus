@@ -23,6 +23,7 @@
             <Package name="software.amazon.awssdk.aws.greengrass.model"/>
             <Package name="software.amazon.awssdk.eventstreamrpc"/>
             <Package name="software.amazon.awssdk.eventstreamrpc.model"/>
+            <Package name="software.amazon.awssdk.http.apache.internal.conn"/>
         </Or>
     </Match>
 </FindBugsFilter>
