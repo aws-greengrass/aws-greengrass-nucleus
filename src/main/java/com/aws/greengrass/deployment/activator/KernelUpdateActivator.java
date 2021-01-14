@@ -36,8 +36,8 @@ public class KernelUpdateActivator extends DeploymentActivator {
     /**
      * Constructor of KernelUpdateActivator.
      *
-     * @param kernel                Kernel instance
-     * @param bootstrapManager      BootstrapManager instance
+     * @param kernel           Kernel instance
+     * @param bootstrapManager BootstrapManager instance
      */
     @Inject
     public KernelUpdateActivator(Kernel kernel, BootstrapManager bootstrapManager) {

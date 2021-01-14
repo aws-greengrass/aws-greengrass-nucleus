@@ -40,7 +40,6 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_CRED_ENDPOINT;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
@@ -121,7 +120,7 @@ public class DeploymentConfigMerger {
         if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
             serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
             if (serviceConfig.containsKey(deviceConfiguration.getNucleusComponentName())) {
-                kernelConfig = (Map<String, Object>) serviceConfig.get(DEFAULT_NUCLEUS_COMPONENT_NAME);
+                kernelConfig = (Map<String, Object>) serviceConfig.get(deviceConfiguration.getNucleusComponentName());
             }
         } else {
             serviceConfig = new HashMap<>();

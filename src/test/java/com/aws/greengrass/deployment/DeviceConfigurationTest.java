@@ -68,7 +68,7 @@ class DeviceConfigurationTest {
         ComponentConfigurationValidationException ex = assertThrows(ComponentConfigurationValidationException.class,
                 () -> deviceConfiguration.validateEndpoints("us-east-1", "xxxxxx.credentials.iot.us-east-2.amazonaws.com",
                         "xxxxxx-ats.iot.us-east-1.amazonaws.com"));
-        assertEquals("IoT credential endpoint region(xxxxxx.credentials.iot.us-east-2.amazonaws.com) does not match the AWS region(us-east-1) of the device", ex.getMessage());
+        assertEquals("IoT credential endpoint region xxxxxx.credentials.iot.us-east-2.amazonaws.com does not match the AWS region us-east-1 of the device", ex.getMessage());
     }
 
     @Test
@@ -76,6 +76,6 @@ class DeviceConfigurationTest {
         ComponentConfigurationValidationException ex = assertThrows(ComponentConfigurationValidationException.class,
                 () -> deviceConfiguration.validateEndpoints("us-east-1", "xxxxxx.credentials.iot.us-east-1.amazonaws.com",
                         "xxxxxx-ats.iot.us-east-2.amazonaws.com"));
-        assertEquals("IoT data endpoint region(xxxxxx-ats.iot.us-east-2.amazonaws.com) does not match the AWS region(us-east-1) of the device", ex.getMessage());
+        assertEquals("IoT data endpoint region xxxxxx-ats.iot.us-east-2.amazonaws.com does not match the AWS region us-east-1 of the device", ex.getMessage());
     }
 }

@@ -95,8 +95,6 @@ class KernelUpdateActivatorTest {
                 DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, mockIOE)));
     }
 
-
-
     @Test
     void GIVEN_deployment_activate_WHEN_prepareBootstrap_fails_THEN_deployment_rollback(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, IOException.class);
