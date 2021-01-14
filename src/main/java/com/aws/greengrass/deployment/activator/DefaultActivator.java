@@ -6,8 +6,6 @@
 package com.aws.greengrass.deployment.activator;
 
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
-import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -27,7 +25,6 @@ import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_CONFIG_EVENT_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_ERROR_LOG_EVENT_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.waitForServicesToStart;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 
 /**
@@ -36,8 +33,8 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 public class DefaultActivator extends DeploymentActivator {
 
     @Inject
-    public DefaultActivator(Kernel kernel, DeviceConfiguration deviceConfiguration) {
-        super(kernel, deviceConfiguration);
+    public DefaultActivator(Kernel kernel) {
+        super(kernel);
     }
 
     @Override
@@ -45,12 +42,8 @@ public class DefaultActivator extends DeploymentActivator {
     public void activate(Map<String, Object> newConfig, Deployment deployment,
                          CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         Map<String, Object> serviceConfig;
-        Map<String, Object> kernelConfig = null;
         if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
             serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
-            if (serviceConfig.containsKey(deviceConfiguration.getNucleusComponentName())) {
-                kernelConfig = (Map<String, Object>) serviceConfig.get(DEFAULT_NUCLEUS_COMPONENT_NAME);
-            }
         } else {
             serviceConfig = new HashMap<>();
         }
@@ -65,20 +58,6 @@ public class DefaultActivator extends DeploymentActivator {
 
         // Get the timestamp before updateMap(). It will be used to check whether services have started.
         long mergeTime = System.currentTimeMillis();
-
-        if (kernelConfig != null) {
-            String awsRegion = tryGetAwsRegionFromNewConfig(kernelConfig);
-            String iotCredEndpoint = tryGetIoTCredEndpointFromNewConfig(kernelConfig);
-            String iotDataEndpoint = tryGetIoTDataEndpointFromNewConfig(kernelConfig);
-            try {
-                deviceConfiguration.validateEndpoints(awsRegion, iotCredEndpoint, iotDataEndpoint);
-            } catch (DeviceConfigurationException e) {
-                logger.atError().cause(e).log("Error validating IoT endpoints");
-                totallyCompleteFuture
-                        .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
-                return;
-            }
-        }
 
         updateConfiguration(deploymentDocument.getTimestamp(), newConfig);
 

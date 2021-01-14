@@ -7,10 +7,8 @@ package com.aws.greengrass.deployment.activator;
 
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.ConfigurationWriter;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
-import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -24,37 +22,26 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_CRED_ENDPOINT;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class KernelUpdateActivatorTest {
@@ -68,8 +55,6 @@ class KernelUpdateActivatorTest {
     DeploymentDirectoryManager deploymentDirectoryManager;
     @Mock
     BootstrapManager bootstrapManager;
-    @Mock
-    DeviceConfiguration deviceConfiguration;
     @Mock
     KernelAlternatives kernelAlternatives;
     @Mock
@@ -92,7 +77,7 @@ class KernelUpdateActivatorTest {
         doReturn(kernelAlternatives).when(context).get(eq(KernelAlternatives.class));
         doReturn(context).when(kernel).getContext();
         lenient().doReturn(config).when(kernel).getConfig();
-        kernelUpdateActivator = new KernelUpdateActivator(kernel, bootstrapManager, deviceConfiguration);
+        kernelUpdateActivator = new KernelUpdateActivator(kernel, bootstrapManager);
         lenient().doReturn(DeploymentDocument.builder().timestamp(0L).deploymentId("testId").build())
                 .when(deployment).getDeploymentDocumentObj();
         lenient().doReturn(tlog).when(lifecycle).getTlog();
@@ -110,68 +95,7 @@ class KernelUpdateActivatorTest {
                 DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, mockIOE)));
     }
 
-    @Test
-    void GIVEN_deployment_activate_WHEN_deployment_has_new_config_THEN_new_config_is_validated(ExtensionContext extensionContext) throws Exception{
-        Topic regionTopic = Topic.of(context, DEVICE_PARAM_AWS_REGION, "us-west-2");
-        when(deviceConfiguration.getAWSRegion()).thenReturn(regionTopic);
-        Topic credEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT, "xxxxxx.credentials.iot.us-west-2.amazonaws.com");
-        when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
-        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-west-2.amazonaws.com");
-        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
-        when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
-        ArgumentCaptor<String> regionCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> credEndpointCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> dataEndpointCaptor = ArgumentCaptor.forClass(String.class);
-        ignoreExceptionOfType(extensionContext, IOException.class);
-        Map<String, Object> newConfig = new HashMap<>();
-        Map<String, Object> newConfig2 = new HashMap<>();
-        Map<String, Object> newConfig3 = new HashMap<>();
-        newConfig3.put(DEVICE_PARAM_AWS_REGION, "us-east-1");
-        newConfig3.put(DEVICE_PARAM_IOT_CRED_ENDPOINT, "xxxxxx.credentials.iot.us-east-1.amazonaws.com");
-        newConfig3.put(DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-east-1.amazonaws.com");
 
-        newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
-        newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
-        kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
-        verify(deviceConfiguration, times(1)).validateEndpoints(regionCaptor.capture(), credEndpointCaptor.capture(), dataEndpointCaptor.capture());
-        assertNotNull(regionCaptor.getValue());
-        assertEquals("us-east-1", regionCaptor.getValue());
-        assertNotNull(credEndpointCaptor.getValue());
-        assertEquals("xxxxxx.credentials.iot.us-east-1.amazonaws.com", credEndpointCaptor.getValue());
-        assertNotNull(dataEndpointCaptor.getValue());
-        assertEquals("xxxxxx-ats.iot.us-east-1.amazonaws.com", dataEndpointCaptor.getValue());
-    }
-
-    @Test
-    void GIVEN_deployment_activate_WHEN_deployment_has_some_new_config_THEN_old_config_is_validated(ExtensionContext extensionContext) throws Exception{
-        Topic regionTopic = Topic.of(context, DEVICE_PARAM_AWS_REGION, "us-west-2");
-        when(deviceConfiguration.getAWSRegion()).thenReturn(regionTopic);
-        Topic credEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT, "xxxxxx.credentials.iot.us-west-2.amazonaws.com");
-        when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
-        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-west-2.amazonaws.com");
-        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
-        when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
-        ArgumentCaptor<String> regionCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> credEndpointCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> dataEndpointCaptor = ArgumentCaptor.forClass(String.class);
-        ignoreExceptionOfType(extensionContext, IOException.class);
-        Map<String, Object> newConfig = new HashMap<>();
-        Map<String, Object> newConfig2 = new HashMap<>();
-        Map<String, Object> newConfig3 = new HashMap<>();
-        newConfig3.put(DEVICE_PARAM_AWS_REGION, "us-east-1");
-        newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
-        newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
-
-        kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
-        verify(deviceConfiguration, times(1)).validateEndpoints(regionCaptor.capture(), credEndpointCaptor.capture(), dataEndpointCaptor.capture());
-        assertNotNull(regionCaptor.getValue());
-        assertEquals("us-east-1", regionCaptor.getValue());
-        assertNotNull(credEndpointCaptor.getValue());
-        assertEquals("xxxxxx.credentials.iot.us-west-2.amazonaws.com", credEndpointCaptor.getValue());
-        assertNotNull(dataEndpointCaptor.getValue());
-        assertEquals("xxxxxx-ats.iot.us-west-2.amazonaws.com", dataEndpointCaptor.getValue());
-
-    }
 
     @Test
     void GIVEN_deployment_activate_WHEN_prepareBootstrap_fails_THEN_deployment_rollback(ExtensionContext context) throws Exception {

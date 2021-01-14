@@ -5,9 +5,7 @@
 
 package com.aws.greengrass.deployment.activator;
 
-import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -24,11 +22,9 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_CONFIG_EVENT_KEY;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 
 /**
  * Activation and rollback of Kernel update deployments.
@@ -42,12 +38,10 @@ public class KernelUpdateActivator extends DeploymentActivator {
      *
      * @param kernel                Kernel instance
      * @param bootstrapManager      BootstrapManager instance
-     * @param deviceConfiguration   Device configuration instance
      */
     @Inject
-    public KernelUpdateActivator(Kernel kernel, BootstrapManager bootstrapManager,
-                                 DeviceConfiguration deviceConfiguration) {
-        super(kernel, deviceConfiguration);
+    public KernelUpdateActivator(Kernel kernel, BootstrapManager bootstrapManager) {
+        super(kernel);
         this.bootstrapManager = bootstrapManager;
         this.kernelAlternatives = kernel.getContext().get(KernelAlternatives.class);
     }
@@ -65,25 +59,6 @@ public class KernelUpdateActivator extends DeploymentActivator {
                             "Unable to process deployment. Greengrass launch directory is not set up or Greengrass "
                                     + "is not set up as a system service")));
             return;
-        }
-
-        if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
-            if (serviceConfig.containsKey(deviceConfiguration.getNucleusComponentName())) {
-                Map<String, Object> kernelConfig =
-                        (Map<String, Object>) serviceConfig.get(DEFAULT_NUCLEUS_COMPONENT_NAME);
-                String awsRegion = tryGetAwsRegionFromNewConfig(kernelConfig);
-                String iotCredEndpoint = tryGetIoTCredEndpointFromNewConfig(kernelConfig);
-                String iotDataEndpoint = tryGetIoTDataEndpointFromNewConfig(kernelConfig);
-                try {
-                    deviceConfiguration.validateEndpoints(awsRegion, iotCredEndpoint, iotDataEndpoint);
-                } catch (DeviceConfigurationException e) {
-                    logger.atError().cause(e).log("Error validating IoT endpoints");
-                    totallyCompleteFuture.complete(new DeploymentResult(
-                            DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
-                    return;
-                }
-            }
         }
 
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
