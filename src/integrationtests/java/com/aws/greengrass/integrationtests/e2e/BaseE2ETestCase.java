@@ -39,9 +39,11 @@ import software.amazon.awssdk.services.greengrassv2.model.ComponentDeploymentSpe
 import software.amazon.awssdk.services.greengrassv2.model.CreateComponentVersionResponse;
 import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentRequest;
 import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentResponse;
+import software.amazon.awssdk.services.greengrassv2.model.DeleteCoreDeviceRequest;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentPolicies;
+import software.amazon.awssdk.services.greengrassv2.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
@@ -400,6 +402,13 @@ public class BaseE2ETestCase implements AutoCloseable {
         createdDeployments.forEach(greengrassClient::cancelDeployment);
         createdDeployments.clear();
 
+        try {
+            greengrassClient.deleteCoreDevice(
+                    DeleteCoreDeviceRequest.builder().coreDeviceThingName(thingInfo.getThingName()).build());
+        } catch (ResourceNotFoundException e) {
+            logger.atDebug().kv("coreDevice", thingInfo.getThingName()).log("No core device to delete");
+        }
+
         deviceProvisioningHelper.cleanThing(iotClient, thingInfo, false);
         createdThingGroups.forEach(thingGroup -> IotJobsUtils.cleanThingGroup(iotClient, thingGroupName));
         createdThingGroups.clear();
@@ -419,7 +428,8 @@ public class BaseE2ETestCase implements AutoCloseable {
         deviceProvisioningHelper.setupIoTRoleForTes(TES_ROLE_NAME, TES_ROLE_ALIAS_NAME, thingInfo.getCertificateArn());
         if (tesRolePolicyArn == null || !tesRolePolicyArn.isPresent()) {
             tesRolePolicyArn = deviceProvisioningHelper
-                    .createAndAttachRolePolicy(TES_ROLE_NAME, TES_ROLE_POLICY_NAME, TES_ROLE_POLICY_DOCUMENT);
+                    .createAndAttachRolePolicy(TES_ROLE_NAME, TES_ROLE_POLICY_NAME, TES_ROLE_POLICY_DOCUMENT,
+                            GAMMA_REGION);
         }
     }
 
