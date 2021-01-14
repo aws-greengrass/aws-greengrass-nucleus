@@ -132,23 +132,32 @@ public class DeploymentConfigMerger {
             return;
         }
 
-        if (kernelConfig != null) {
-            String awsRegion = tryGetAwsRegionFromNewConfig(kernelConfig);
-            String iotCredEndpoint = tryGetIoTCredEndpointFromNewConfig(kernelConfig);
-            String iotDataEndpoint = tryGetIoTDataEndpointFromNewConfig(kernelConfig);
+        // Validate the AWS region, IoT credentials endpoint as well as the IoT data endpoint.
+        if (validateNucleusConfig(totallyCompleteFuture, kernelConfig)) {
+            return;
+        }
+
+        logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
+                .log("Applying deployment changes, deployment cannot be cancelled now");
+        activator.activate(newConfig, deployment, totallyCompleteFuture);
+    }
+
+    private boolean validateNucleusConfig(CompletableFuture<DeploymentResult> totallyCompleteFuture,
+                                          Map<String, Object> nucleusConfig) {
+        if (nucleusConfig != null) {
+            String awsRegion = tryGetAwsRegionFromNewConfig(nucleusConfig);
+            String iotCredEndpoint = tryGetIoTCredEndpointFromNewConfig(nucleusConfig);
+            String iotDataEndpoint = tryGetIoTDataEndpointFromNewConfig(nucleusConfig);
             try {
                 deviceConfiguration.validateEndpoints(awsRegion, iotCredEndpoint, iotDataEndpoint);
             } catch (ComponentConfigurationValidationException e) {
                 logger.atError().cause(e).log("Error validating IoT endpoints");
                 totallyCompleteFuture
                         .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
-                return;
+                return true;
             }
         }
-
-        logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
-                .log("Applying deployment changes, deployment cannot be cancelled now");
-        activator.activate(newConfig, deployment, totallyCompleteFuture);
+        return false;
     }
 
     /**
