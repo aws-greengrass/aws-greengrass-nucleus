@@ -9,7 +9,7 @@ import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
@@ -65,7 +65,7 @@ class DeviceConfigurationTest {
 
     @Test
     void GIVEN_bad_cred_endpoint_config_WHEN_validate_THEN_fails() {
-        DeviceConfigurationException ex = assertThrows(DeviceConfigurationException.class,
+        ComponentConfigurationValidationException ex = assertThrows(ComponentConfigurationValidationException.class,
                 () -> deviceConfiguration.validateEndpoints("us-east-1", "xxxxxx.credentials.iot.us-east-2.amazonaws.com",
                         "xxxxxx-ats.iot.us-east-1.amazonaws.com"));
         assertEquals("IoT credential endpoint region(xxxxxx.credentials.iot.us-east-2.amazonaws.com) does not match the AWS region(us-east-1) of the device", ex.getMessage());
@@ -73,7 +73,7 @@ class DeviceConfigurationTest {
 
     @Test
     void GIVEN_bad_data_endpoint_config_WHEN_validate_THEN_fails() {
-        DeviceConfigurationException ex = assertThrows(DeviceConfigurationException.class,
+        ComponentConfigurationValidationException ex = assertThrows(ComponentConfigurationValidationException.class,
                 () -> deviceConfiguration.validateEndpoints("us-east-1", "xxxxxx.credentials.iot.us-east-1.amazonaws.com",
                         "xxxxxx-ats.iot.us-east-2.amazonaws.com"));
         assertEquals("IoT data endpoint region(xxxxxx-ats.iot.us-east-2.amazonaws.com) does not match the AWS region(us-east-1) of the device", ex.getMessage());

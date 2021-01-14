@@ -12,7 +12,6 @@ import com.aws.greengrass.deployment.activator.DeploymentActivator;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
 import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -140,7 +139,7 @@ public class DeploymentConfigMerger {
             String iotDataEndpoint = tryGetIoTDataEndpointFromNewConfig(kernelConfig);
             try {
                 deviceConfiguration.validateEndpoints(awsRegion, iotCredEndpoint, iotDataEndpoint);
-            } catch (DeviceConfigurationException e) {
+            } catch (ComponentConfigurationValidationException e) {
                 logger.atError().cause(e).log("Error validating IoT endpoints");
                 totallyCompleteFuture
                         .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
