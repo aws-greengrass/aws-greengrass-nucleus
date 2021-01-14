@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -99,8 +100,8 @@ public class S3Downloader extends ArtifactDownloader {
     }
 
     @Override
-    public boolean downloadReady() {
-        return s3ClientFactory.isConfigValid();
+    public Optional<String> checkDownloadable() {
+        return Optional.ofNullable(s3ClientFactory.getConfigValidationError());
     }
 
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})

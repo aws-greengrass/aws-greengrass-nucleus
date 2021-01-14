@@ -32,6 +32,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -285,8 +286,8 @@ class ArtifactDownloaderTest {
         }
 
         @Override
-        public boolean downloadReady() {
-            return true;
+        public Optional<String> checkDownloadable() {
+            return Optional.empty();
         }
 
         @Override

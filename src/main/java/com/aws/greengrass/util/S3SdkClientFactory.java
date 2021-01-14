@@ -6,6 +6,7 @@
 package com.aws.greengrass.util;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.tes.LazyCredentialProvider;
 import lombok.Getter;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
@@ -27,7 +28,7 @@ public class S3SdkClientFactory {
     private static final Map<Region, S3Client> clientCache = new ConcurrentHashMap<>();
     private S3Client s3Client;
     private final LazyCredentialProvider credentialsProvider;
-    private final boolean configValid;
+    private String configValidationError;
 
     /**
      * Constructor.
@@ -39,11 +40,11 @@ public class S3SdkClientFactory {
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public S3SdkClientFactory(DeviceConfiguration deviceConfiguration, LazyCredentialProvider credentialsProvider) {
         this.credentialsProvider = credentialsProvider;
-        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            configValid = false;
-            return;
+        try {
+            deviceConfiguration.validate();
+        } catch (DeviceConfigurationException e) {
+            configValidationError = e.getMessage();
         }
-        configValid = true;
         deviceConfiguration.getAWSRegion().subscribe((what, node) -> {
             Region region;
             try {

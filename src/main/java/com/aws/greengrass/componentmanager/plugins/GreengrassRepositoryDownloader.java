@@ -28,6 +28,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Optional;
 
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private final ComponentStore componentStore;
@@ -167,8 +168,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     }
 
     @Override
-    public boolean downloadReady() {
-        return clientFactory.isConfigValid();
+    public Optional<String> checkDownloadable() {
+        return Optional.ofNullable(clientFactory.getConfigValidationError());
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})

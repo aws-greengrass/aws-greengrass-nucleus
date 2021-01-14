@@ -28,6 +28,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class ArtifactDownloader {
@@ -230,9 +231,9 @@ public abstract class ArtifactDownloader {
 
     /**
      * Check whether the downloader has proper configs and is ready to download files.
-     * @return true if the downloader is ready for getDownloadSize, downloadToPath, etc. network calls
+     * @return Optional.empty if no errors and ready to download. Otherwise returns the error message string
      */
-    public abstract boolean downloadReady();
+    public abstract Optional<String> checkDownloadable();
 
     /**
      * Get the download size of the artifact file.

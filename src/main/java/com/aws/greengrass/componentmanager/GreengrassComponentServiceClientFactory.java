@@ -7,6 +7,7 @@ package com.aws.greengrass.componentmanager;
 
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
@@ -54,7 +55,7 @@ public class GreengrassComponentServiceClientFactory {
 
     private static final Logger logger = LogManager.getLogger(GreengrassComponentServiceClientFactory.class);
     private GreengrassV2Client cmsClient;
-    private final boolean configValid;
+    private String configValidationError;
 
     /**
      * Constructor with custom endpoint/region configuration.
@@ -63,11 +64,12 @@ public class GreengrassComponentServiceClientFactory {
      */
     @Inject
     public GreengrassComponentServiceClientFactory(DeviceConfiguration deviceConfiguration) {
-        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            configValid = false;
+        try {
+            deviceConfiguration.validate();
+        } catch (DeviceConfigurationException e) {
+            configValidationError = e.getMessage();
             return;
         }
-        configValid = true;
         configureClient(deviceConfiguration);
         deviceConfiguration.onAnyChange((what, node) -> {
             if (validString(node, DEVICE_PARAM_AWS_REGION) || validPath(node, DEVICE_PARAM_ROOT_CA_PATH) || validPath(

@@ -369,9 +369,11 @@ public class ComponentManager implements InjectionActions {
             ArtifactDownloader downloader = artifactDownloaderFactory
                     .getArtifactDownloader(componentIdentifier, artifact, packageArtifactDirectory);
             if (downloader.downloadRequired()) {
-                if (!downloader.downloadReady()) {
+                Optional<String> errorMsg = downloader.checkDownloadable();
+                if (errorMsg.isPresent()) {
                     throw new PackageDownloadException(String.format(
-                            "Download required for artifact %s but device configs are invalid for download", artifact));
+                            "Download required for artifact %s but device configs are invalid:%n%s",
+                            artifact.getArtifactUri(), errorMsg.get()));
                 }
                 // Check disk size limits before download
                 // TODO: [P41215447]: Check artifact size for all artifacts to download early to fail early
