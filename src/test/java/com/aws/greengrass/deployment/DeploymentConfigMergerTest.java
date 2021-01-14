@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.deployment;
 
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
@@ -25,15 +26,18 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.exceptions.misusing.InvalidUseOfMatchersException;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -50,8 +54,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.WAIT_SVC_START_POLL_INTERVAL_MILLISEC;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_CRED_ENDPOINT;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -67,13 +78,15 @@ import static software.amazon.awssdk.services.greengrassv2.model.DeploymentCompo
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, GGExtension.class})
 class DeploymentConfigMergerTest {
 
     private final Logger logger = LogManager.getLogger(this.getClass());
 
     @Mock
     private Kernel kernel;
+    @Mock
+    private DeviceConfiguration deviceConfiguration;
     @Mock
     private DynamicComponentConfigurationValidator validator;
     @Mock
@@ -290,7 +303,7 @@ class DeploymentConfigMergerTest {
         when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
         when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
 
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
 
         DeploymentDocument doc = new DeploymentDocument();
         doc.setDeploymentId("NoSafetyCheckDeploy");
@@ -328,7 +341,7 @@ class DeploymentConfigMergerTest {
         });
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
@@ -364,7 +377,7 @@ class DeploymentConfigMergerTest {
         when(context.get(DefaultActivator.class)).thenReturn(defaultActivator);
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
@@ -382,6 +395,129 @@ class DeploymentConfigMergerTest {
 
         // THEN
         verify(defaultActivator, times(1)).activate(any(), any(), any());
+    }
+
+    @Test
+    void GIVEN_deployment_activate_WHEN_deployment_has_new_config_THEN_new_config_is_validated(ExtensionContext extensionContext) throws Throwable {
+        ArgumentCaptor<UpdateAction> taskCaptor = ArgumentCaptor.forClass(UpdateAction.class);
+        UpdateSystemPolicyService updateSystemPolicyService = mock(UpdateSystemPolicyService.class);
+        when(context.get(UpdateSystemPolicyService.class)).thenReturn(updateSystemPolicyService);
+        DeploymentActivatorFactory deploymentActivatorFactory = new DeploymentActivatorFactory(kernel);
+        when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
+        BootstrapManager bootstrapManager = mock(BootstrapManager.class);
+        when(bootstrapManager.isBootstrapRequired(any())).thenReturn(false);
+        when(context.get(BootstrapManager.class)).thenReturn(bootstrapManager);
+        DefaultActivator defaultActivator = mock(DefaultActivator.class);
+        when(context.get(DefaultActivator.class)).thenReturn(defaultActivator);
+
+        Topic regionTopic = Topic.of(context, DEVICE_PARAM_AWS_REGION, "us-west-2");
+        when(deviceConfiguration.getAWSRegion()).thenReturn(regionTopic);
+        Topic credEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT, "xxxxxx.credentials.iot.us-west-2.amazonaws.com");
+        when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
+        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-west-2.amazonaws.com");
+        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
+        when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
+        ArgumentCaptor<String> regionCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> credEndpointCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> dataEndpointCaptor = ArgumentCaptor.forClass(String.class);
+        ignoreExceptionOfType(extensionContext, IOException.class);
+        Map<String, Object> newConfig = new HashMap<>();
+        Map<String, Object> newConfig2 = new HashMap<>();
+        Map<String, Object> newConfig3 = new HashMap<>();
+        newConfig3.put(DEVICE_PARAM_AWS_REGION, "us-east-1");
+        newConfig3.put(DEVICE_PARAM_IOT_CRED_ENDPOINT, "xxxxxx.credentials.iot.us-east-1.amazonaws.com");
+        newConfig3.put(DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-east-1.amazonaws.com");
+
+        newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
+        newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
+        // GIVEN
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentDocument doc = mock(DeploymentDocument.class);
+        when(doc.getDeploymentId()).thenReturn("DeploymentId");
+        when(doc.getComponentUpdatePolicy()).thenReturn(
+                new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
+
+        merger.mergeInNewConfig(createMockDeployment(doc), newConfig);
+
+        verify(updateSystemPolicyService).addUpdateAction(any(), taskCaptor.capture());
+
+        assertEquals(0, taskCaptor.getValue().getTimeout());
+        assertEquals("DeploymentId", taskCaptor.getValue().getDeploymentId());
+        assertFalse(taskCaptor.getValue().isGgcRestart());
+        // WHEN
+        taskCaptor.getValue().getAction().run();
+
+        // THEN
+        verify(defaultActivator, times(1)).activate(any(), any(), any());
+
+        verify(deviceConfiguration, times(1)).validateEndpoints(regionCaptor.capture(), credEndpointCaptor.capture(), dataEndpointCaptor.capture());
+        assertNotNull(regionCaptor.getValue());
+        assertEquals("us-east-1", regionCaptor.getValue());
+        assertNotNull(credEndpointCaptor.getValue());
+        assertEquals("xxxxxx.credentials.iot.us-east-1.amazonaws.com", credEndpointCaptor.getValue());
+        assertNotNull(dataEndpointCaptor.getValue());
+        assertEquals("xxxxxx-ats.iot.us-east-1.amazonaws.com", dataEndpointCaptor.getValue());
+    }
+
+    @Test
+    void GIVEN_deployment_activate_WHEN_deployment_has_some_new_config_THEN_old_config_is_validated(ExtensionContext extensionContext) throws Throwable {
+        ArgumentCaptor<UpdateAction> taskCaptor = ArgumentCaptor.forClass(UpdateAction.class);
+        UpdateSystemPolicyService updateSystemPolicyService = mock(UpdateSystemPolicyService.class);
+        when(context.get(UpdateSystemPolicyService.class)).thenReturn(updateSystemPolicyService);
+        DeploymentActivatorFactory deploymentActivatorFactory = new DeploymentActivatorFactory(kernel);
+        when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
+        BootstrapManager bootstrapManager = mock(BootstrapManager.class);
+        when(bootstrapManager.isBootstrapRequired(any())).thenReturn(false);
+        when(context.get(BootstrapManager.class)).thenReturn(bootstrapManager);
+        DefaultActivator defaultActivator = mock(DefaultActivator.class);
+        when(context.get(DefaultActivator.class)).thenReturn(defaultActivator);
+
+        Topic regionTopic = Topic.of(context, DEVICE_PARAM_AWS_REGION, "us-west-2");
+        when(deviceConfiguration.getAWSRegion()).thenReturn(regionTopic);
+        Topic credEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_CRED_ENDPOINT, "xxxxxx.credentials.iot.us-west-2.amazonaws.com");
+        when(deviceConfiguration.getIotCredentialEndpoint()).thenReturn(credEndpointTopic);
+        Topic dataEndpointTopic = Topic.of(context, DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-west-2.amazonaws.com");
+        when(deviceConfiguration.getIotDataEndpoint()).thenReturn(dataEndpointTopic);
+        when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
+        ArgumentCaptor<String> regionCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> credEndpointCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> dataEndpointCaptor = ArgumentCaptor.forClass(String.class);
+        ignoreExceptionOfType(extensionContext, IOException.class);
+        Map<String, Object> newConfig = new HashMap<>();
+        Map<String, Object> newConfig2 = new HashMap<>();
+        Map<String, Object> newConfig3 = new HashMap<>();
+        newConfig3.put(DEVICE_PARAM_AWS_REGION, "us-east-1");
+        newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
+        newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
+        // GIVEN
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentDocument doc = mock(DeploymentDocument.class);
+        when(doc.getDeploymentId()).thenReturn("DeploymentId");
+        when(doc.getComponentUpdatePolicy()).thenReturn(
+                new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
+
+        merger.mergeInNewConfig(createMockDeployment(doc), newConfig);
+
+        verify(updateSystemPolicyService).addUpdateAction(any(), taskCaptor.capture());
+
+        assertEquals(0, taskCaptor.getValue().getTimeout());
+        assertEquals("DeploymentId", taskCaptor.getValue().getDeploymentId());
+        assertFalse(taskCaptor.getValue().isGgcRestart());
+        // WHEN
+        taskCaptor.getValue().getAction().run();
+
+        // THEN
+        verify(defaultActivator, times(1)).activate(any(), any(), any());
+
+        verify(deviceConfiguration, times(1)).validateEndpoints(regionCaptor.capture(), credEndpointCaptor.capture(), dataEndpointCaptor.capture());
+
+        assertNotNull(regionCaptor.getValue());
+        assertEquals("us-east-1", regionCaptor.getValue());
+        assertNotNull(credEndpointCaptor.getValue());
+        assertEquals("xxxxxx.credentials.iot.us-west-2.amazonaws.com", credEndpointCaptor.getValue());
+        assertNotNull(dataEndpointCaptor.getValue());
+        assertEquals("xxxxxx-ats.iot.us-west-2.amazonaws.com", dataEndpointCaptor.getValue());
+
     }
 
     private Deployment createMockDeployment(DeploymentDocument doc) {

@@ -23,6 +23,7 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -39,6 +40,9 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_CRED_ENDPOINT;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_NAME_KEY;
 
@@ -52,6 +56,7 @@ public class DeploymentConfigMerger {
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
 
     private Kernel kernel;
+    private DeviceConfiguration deviceConfiguration;
     private DynamicComponentConfigurationValidator validator;
 
     /**
@@ -111,8 +116,12 @@ public class DeploymentConfigMerger {
             return;
         }
         Map<String, Object> serviceConfig;
+        Map<String, Object> kernelConfig = null;
         if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
             serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
+            if (serviceConfig.containsKey(deviceConfiguration.getNucleusComponentName())) {
+                kernelConfig = (Map<String, Object>) serviceConfig.get(deviceConfiguration.getNucleusComponentName());
+            }
         } else {
             serviceConfig = new HashMap<>();
         }
@@ -123,9 +132,32 @@ public class DeploymentConfigMerger {
             return;
         }
 
+        // Validate the AWS region, IoT credentials endpoint as well as the IoT data endpoint.
+        if (validateNucleusConfig(totallyCompleteFuture, kernelConfig)) {
+            return;
+        }
+
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
                 .log("Applying deployment changes, deployment cannot be cancelled now");
         activator.activate(newConfig, deployment, totallyCompleteFuture);
+    }
+
+    private boolean validateNucleusConfig(CompletableFuture<DeploymentResult> totallyCompleteFuture,
+                                          Map<String, Object> nucleusConfig) {
+        if (nucleusConfig != null) {
+            String awsRegion = tryGetAwsRegionFromNewConfig(nucleusConfig);
+            String iotCredEndpoint = tryGetIoTCredEndpointFromNewConfig(nucleusConfig);
+            String iotDataEndpoint = tryGetIoTDataEndpointFromNewConfig(nucleusConfig);
+            try {
+                deviceConfiguration.validateEndpoints(awsRegion, iotCredEndpoint, iotDataEndpoint);
+            } catch (ComponentConfigurationValidationException e) {
+                logger.atError().cause(e).log("Error validating IoT endpoints");
+                totallyCompleteFuture
+                        .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -169,6 +201,31 @@ public class DeploymentConfigMerger {
             Thread.sleep(WAIT_SVC_START_POLL_INTERVAL_MILLISEC); // hardcoded
         }
     }
+
+    private String tryGetAwsRegionFromNewConfig(Map<String, Object> kernelConfig) {
+        String awsRegion = Coerce.toString(deviceConfiguration.getAWSRegion());
+        if (kernelConfig.containsKey(DEVICE_PARAM_AWS_REGION)) {
+            awsRegion = Coerce.toString(kernelConfig.get(DEVICE_PARAM_AWS_REGION));
+        }
+        return awsRegion;
+    }
+
+    private String tryGetIoTCredEndpointFromNewConfig(Map<String, Object> kernelConfig) {
+        String iotCredEndpoint = Coerce.toString(deviceConfiguration.getIotCredentialEndpoint());
+        if (kernelConfig.containsKey(DEVICE_PARAM_IOT_CRED_ENDPOINT)) {
+            iotCredEndpoint = Coerce.toString(kernelConfig.get(DEVICE_PARAM_IOT_CRED_ENDPOINT));
+        }
+        return iotCredEndpoint;
+    }
+
+    private String tryGetIoTDataEndpointFromNewConfig(Map<String, Object> kernelConfig) {
+        String iotDataEndpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
+        if (kernelConfig.containsKey(DEVICE_PARAM_IOT_DATA_ENDPOINT)) {
+            iotDataEndpoint = Coerce.toString(kernelConfig.get(DEVICE_PARAM_IOT_DATA_ENDPOINT));
+        }
+        return iotDataEndpoint;
+    }
+
 
     @Getter
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -314,6 +371,5 @@ public class DeploymentConfigMerger {
             servicesToTrack.remove(kernel.getMain());
             return servicesToTrack;
         }
-
     }
 }
