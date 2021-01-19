@@ -39,11 +39,13 @@ public class S3SdkClientFactory {
     public S3SdkClientFactory(DeviceConfiguration deviceConfiguration, LazyCredentialProvider credentialsProvider) {
         this.credentialsProvider = credentialsProvider;
         deviceConfiguration.getAWSRegion().subscribe((what, node) -> {
-            Region region;
+            Region region = null;
             try {
                 region = new DefaultAwsRegionProviderChain().getRegion();
             } catch (RuntimeException ignored) {
-                region = Region.of(Coerce.toString(node));
+            }
+            if (region == null) {
+                region = Region.of(Coerce.toString(deviceConfiguration.getAWSRegion()));
             }
             this.s3Client =
                     S3Client.builder().httpClient(ProxyUtils.getSdkHttpClient())
