@@ -434,7 +434,8 @@ public class Kernel {
                         ret = (GreengrassService) context.newInstance(clazz);
                     }
 
-                    if (clazz.getAnnotation(Singleton.class) != null) {
+                    // Force plugins to be singletons
+                    if (clazz.getAnnotation(Singleton.class) != null || PluginService.class.isAssignableFrom(clazz)) {
                         context.put(ret.getClass(), v);
                     }
                     if (clazz.getAnnotation(ImplementsService.class) != null) {
