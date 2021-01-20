@@ -97,16 +97,15 @@ class TelemetryAgentTest extends BaseITCase {
     @Test
     void GIVEN_kernel_running_with_telemetry_config_WHEN_launch_THEN_metrics_are_published(ExtensionContext context)
             throws InterruptedException, IOException, DeviceConfigurationException {
+        // Ignore exceptions caused by mock device configs
+        ignoreExceptionOfType(context, SdkClientException.class);
+        ignoreExceptionOfType(context, TLSAuthException.class);
         // GIVEN
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
         kernel.getContext().put(DeviceConfiguration.class,
-                new DeviceConfiguration(kernel, MOCK_THING_NAME, "mock", "mock", "mock", "mock", "mock", "",
+                new DeviceConfiguration(kernel, MOCK_THING_NAME, "us-east-1", "us-east-1", "mock", "mock", "mock", "us-east-1",
                         "mock"));
-        // Ignore exceptions caused by mock device configs
-        ignoreExceptionOfType(context, SdkClientException.class);
-        ignoreExceptionOfType(context, TLSAuthException.class);
-
         //WHEN
         CountDownLatch telemetryRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -135,23 +134,30 @@ class TelemetryAgentTest extends BaseITCase {
         assertEquals(kernel.getNucleusPaths().rootPath().resolve("telemetry"),
                 TelemetryConfig.getTelemetryDirectory());
         // THEN
+        boolean telemetryMessageVerified = false;
         if(delay < aggregateInterval) {
             verify(mqttClient, atLeast(0)).publish(captor.capture());
         } else {
             verify(mqttClient, atLeastOnce()).publish(captor.capture());
             List<PublishRequest> prs = captor.getAllValues();
+            String telemetryPublishTopic = DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", MOCK_THING_NAME);
             for (PublishRequest pr : prs) {
+                // filter for telemetry topic because messages published to irrelevant topics can be captured here
+                if (!telemetryPublishTopic.equals(pr.getTopic())) {
+                    continue;
+                }
                 try {
                     MetricsPayload mp = new ObjectMapper().readValue(pr.getPayload(), MetricsPayload.class);
                     assertEquals(QualityOfService.AT_LEAST_ONCE, pr.getQos());
-                    assertEquals(DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", MOCK_THING_NAME), pr.getTopic());
                     assertEquals("2020-07-30", mp.getSchema());
                     // enough to verify the first message of type MetricsPayload
+                    telemetryMessageVerified = true;
                     break;
                 } catch (IOException e) {
                     fail("The message received at this topic is not of MetricsPayload type.", e);
                 }
             }
+            assertTrue(telemetryMessageVerified, "Did not see message published to telemetry metrics topic");
         }
 
     }
