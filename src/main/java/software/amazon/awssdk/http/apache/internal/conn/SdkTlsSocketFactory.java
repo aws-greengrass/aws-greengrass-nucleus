@@ -50,9 +50,16 @@ public class SdkTlsSocketFactory extends SSLConnectionSocketFactory {
     @Override
     protected final void prepareSocket(final SSLSocket socket) {
         // BEGIN GG MODIFICATIONS
-        SSLParameters params = new SSLParameters();
-        params.setApplicationProtocols(new String[]{"x-amzn-http-ca", "http/1.1"});
-        socket.setSSLParameters(params);
+        try {
+            SSLParameters params = new SSLParameters();
+            params.setApplicationProtocols(new String[]{"x-amzn-http-ca", "http/1.1"});
+            socket.setSSLParameters(params);
+        } catch (NoSuchMethodError e) {
+            log.debug(() -> "Unable to configure socket for ALPN. Ports other than 443 may still work.");
+            // Java 8 did not launch with ALPN support, but it was backported in April 2020 with JDK8u252.
+            // Catching the error here so that we can continue to work with older JDKs since the user may not
+            // even require ALPN to work.
+        }
         // END GG MODIFICATIONS
 
         String[] supported = socket.getSupportedProtocols();
