@@ -394,7 +394,7 @@ public class GenericExternalService extends GreengrassService {
                     logger.atInfo().log("Shutdown completed for process {}", e);
                     processes.remove(e);
                 } catch (IOException ex) {
-                    logger.atWarn().log("Shutdown timed out for process {}", e);
+                    logger.atWarn().cause(ex).log("Shutdown timed out for process {}", e);
                 }
             } else {
                 processes.remove(e);

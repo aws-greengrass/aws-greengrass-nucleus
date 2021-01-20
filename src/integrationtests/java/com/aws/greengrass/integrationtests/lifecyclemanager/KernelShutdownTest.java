@@ -8,6 +8,7 @@ package com.aws.greengrass.integrationtests.lifecyclemanager;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -31,6 +32,8 @@ class KernelShutdownTest extends BaseITCase {
         kernel = new Kernel();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("long_running_services.yaml"));
+        kernel.getContext().get(DeviceConfiguration.class).getLoggingConfigurationTopics().lookup("level")
+                .withValue("DEBUG");
         kernel.launch();
     }
 

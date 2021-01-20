@@ -32,6 +32,7 @@ import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -98,6 +99,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     @BeforeEach
     void setupKernel(ExtensionContext context) throws IOException, URISyntaxException, DeviceConfigurationException,
             InterruptedException {
+        FileUtils.cleanDirectory(tempRootDir.toFile());
         ignoreExceptionOfType(context, TLSAuthException.class);
         ignoreExceptionOfType(context, PackageDownloadException.class);
         ignoreExceptionOfType(context, SdkClientException.class);

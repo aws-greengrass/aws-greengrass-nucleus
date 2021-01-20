@@ -287,6 +287,7 @@ public class UnixPlatform extends Platform {
         }
 
         if (force) {
+            logger.debug("destroyForcibly on pid {}", pp.getPid());
             process.destroyForcibly();
         }
         // calling process.destroy() here when force==false will cause the child process (component process) to be

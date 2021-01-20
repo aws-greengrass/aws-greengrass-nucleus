@@ -10,6 +10,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -111,6 +112,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
+        kernel.getContext().get(DeviceConfiguration.class).getLoggingConfigurationTopics().lookup("level")
+                .withValue("DEBUG");
     }
 
     @AfterEach
