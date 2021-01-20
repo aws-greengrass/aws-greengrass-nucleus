@@ -14,12 +14,10 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Map;
 import javax.inject.Inject;
-import javax.inject.Singleton;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 
-@Singleton
 public class PluginService extends GreengrassService {
     @Inject
     private EZPlugins ezPlugins;
