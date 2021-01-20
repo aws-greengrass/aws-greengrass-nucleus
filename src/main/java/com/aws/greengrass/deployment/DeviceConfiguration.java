@@ -290,7 +290,8 @@ public class DeviceConfiguration {
                     logger.atWarn().log("Error looking up AWS region", ex);
                 }
             }
-            if (Utils.isEmpty(region)) {
+            // Snow* devices have a null region
+            if (Utils.isEmpty(region) || "null".equals(region)) {
                 logger.atWarn().log("No AWS region found, falling back to default: {}", FALLBACK_DEFAULT_REGION);
                 region = FALLBACK_DEFAULT_REGION;
             }
