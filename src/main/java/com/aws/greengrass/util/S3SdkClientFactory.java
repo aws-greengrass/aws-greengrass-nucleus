@@ -44,7 +44,8 @@ public class S3SdkClientFactory {
                 region = new DefaultAwsRegionProviderChain().getRegion();
             } catch (RuntimeException ignored) {
             }
-            if (region == null) {
+            // Snow* devices have a null region
+            if (region == null || "null".equals(region.id())) {
                 region = Region.of(Coerce.toString(deviceConfiguration.getAWSRegion()));
             }
             this.s3Client =
