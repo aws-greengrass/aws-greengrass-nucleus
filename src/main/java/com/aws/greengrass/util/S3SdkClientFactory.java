@@ -9,10 +9,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.tes.LazyCredentialProvider;
 import lombok.Getter;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 
@@ -45,23 +42,8 @@ public class S3SdkClientFactory {
         } catch (DeviceConfigurationException e) {
             configValidationError = e.getMessage();
         }
-        deviceConfiguration.getAWSRegion().subscribe((what, node) -> {
-            Region region = null;
-            try {
-                region = new DefaultAwsRegionProviderChain().getRegion();
-            } catch (RuntimeException ignored) {
-            }
-            // Snow* devices have a null region
-            if (region == null || "null".equals(region.id())) {
-                region = Region.of(Coerce.toString(deviceConfiguration.getAWSRegion()));
-            }
-            this.s3Client =
-                    S3Client.builder().httpClient(ProxyUtils.getSdkHttpClient())
-                            .serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
-                            .overrideConfiguration(ClientOverrideConfiguration.builder()
-                                    .retryPolicy(RetryMode.STANDARD).build())
-                            .credentialsProvider(credentialsProvider).region(region).build();
-        });
+        deviceConfiguration.getAWSRegion().subscribe((what, node) ->
+                this.s3Client = getClientForRegion(Region.of(Coerce.toString(deviceConfiguration.getAWSRegion()))));
     }
 
     /**
