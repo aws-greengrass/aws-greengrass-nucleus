@@ -30,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.testcommons.testutilities.Matchers.hasPermission;
@@ -70,6 +71,7 @@ class ComponentManagerIntegTest extends BaseITCase {
         ArtifactDownloader mockDownloader = mock(ArtifactDownloader.class);
         File artifactFile = store.resolveArtifactDirectoryPath(ident).resolve("zip.zip").toFile();
         when(mockDownloader.downloadRequired()).thenReturn(true);
+        when(mockDownloader.checkDownloadable()).thenReturn(Optional.empty());
         when(mockDownloader.getArtifactFile()).thenReturn(artifactFile);
         when(mockDownloader.downloadToPath()).thenAnswer(downloadToPath("zip.zip", artifactFile));
 
@@ -118,6 +120,7 @@ class ComponentManagerIntegTest extends BaseITCase {
         File emptyFile = store.resolveArtifactDirectoryPath(ident).resolve("empty.txt").toFile();
         ArtifactDownloader mockDownloader = mock(ArtifactDownloader.class);
         when(mockDownloader.downloadRequired()).thenReturn(true);
+        when(mockDownloader.checkDownloadable()).thenReturn(Optional.empty());
         when(mockDownloader.getArtifactFile()).thenReturn(scriptFile).thenReturn(emptyFile);
         when(mockDownloader.downloadToPath()).thenAnswer(downloadToPath("script.sh", scriptFile))
                 .thenAnswer(downloadToPath("empty.txt", emptyFile));

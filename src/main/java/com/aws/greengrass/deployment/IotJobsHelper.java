@@ -8,7 +8,6 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.exceptions.AWSIotException;
 import com.aws.greengrass.deployment.exceptions.ConnectionUnavailableException;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
@@ -276,12 +275,11 @@ public class IotJobsHelper implements InjectionActions {
     @Override
     @SuppressFBWarnings
     public void postInject() {
-        try {
-            deviceConfiguration.validate();
-        } catch (DeviceConfigurationException e) {
-            logger.atWarn().log("Device not configured to talk to AWS Iot cloud. Device will run in offline mode", e);
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            logger.atWarn().log("Device not configured to talk to AWS Iot cloud. IOT job deployment is offline");
             return;
         }
+
         mqttClient.addToCallbackEvents(callbacks);
         this.connection = wrapperMqttConnectionFactory.getAwsIotMqttConnection(mqttClient);
 

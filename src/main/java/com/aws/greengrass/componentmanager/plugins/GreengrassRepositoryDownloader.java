@@ -28,6 +28,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Optional;
 
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private final ComponentStore componentStore;
@@ -164,6 +165,11 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         } catch (Exception e) {
             throw new PackageDownloadException(getErrorString("Failed to download the artifact"), e);
         }
+    }
+
+    @Override
+    public Optional<String> checkDownloadable() {
+        return Optional.ofNullable(clientFactory.getConfigValidationError());
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})

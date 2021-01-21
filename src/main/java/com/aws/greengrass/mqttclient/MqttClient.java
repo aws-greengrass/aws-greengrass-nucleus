@@ -215,7 +215,12 @@ public class MqttClient implements Closeable {
         deviceConfiguration.getSpoolerNamespace();
         deviceConfiguration.getAWSRegion();
 
-        // If anything in the device configuration changes, then we wil need to reconnect to the cloud
+        // Skip the reconnect logic below if device is running offline
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            return;
+        }
+
+        // If anything in the device configuration changes, then we will need to reconnect to the cloud
         // using the new settings. We do this by calling reconnect() on all of our connections
         this.deviceConfiguration.onAnyChange((what, node) -> {
             if (connections.isEmpty()) {
@@ -294,6 +299,12 @@ public class MqttClient implements Closeable {
     @SuppressWarnings("PMD.CloseResource")
     public synchronized void subscribe(SubscribeRequest request)
             throws ExecutionException, InterruptedException, TimeoutException {
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            logger.atError().kv(TOPIC_KEY, request.getTopic())
+                    .log("Cannot subscribe because device is configured to run offline");
+            return;
+        }
+
         AwsIotMqttClient connection = null;
         // Use the write scope when identifying the subscriptionTopics that exist
         try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
@@ -391,11 +402,19 @@ public class MqttClient implements Closeable {
      * @param request publish request
      */
     public CompletableFuture<Integer> publish(PublishRequest request) {
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            SpoolerStoreException e =
+                    new SpoolerStoreException("Cannot publish because device is configured to run offline");
+            logger.atDebug().kv("topic", request.getTopic()).log(e.getMessage());
+            future.completeExceptionally(e);
+            return future;
+        }
 
         boolean willDropTheRequest = !mqttOnline.get() && request.getQos().getValue() == 0
                 && !spool.getSpoolConfig().isKeepQos0WhenOffline();
 
-        CompletableFuture<Integer> future = new CompletableFuture<>();
         if (willDropTheRequest) {
             SpoolerStoreException e = new SpoolerStoreException("Device is offline. Dropping QoS 0 message.");
             logger.atDebug().kv("topic", request.getTopic()).log(e.getMessage());

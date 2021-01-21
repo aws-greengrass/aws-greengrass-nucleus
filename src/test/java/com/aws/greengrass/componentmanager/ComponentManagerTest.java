@@ -150,6 +150,7 @@ class ComponentManagerTest {
         recipeLoader = new RecipeLoader(platformResolver);
 
         lenient().when(artifactDownloader.downloadRequired()).thenReturn(true);
+        lenient().when(artifactDownloader.checkDownloadable()).thenReturn(Optional.empty());
         lenient().when(artifactDownloaderFactory.getArtifactDownloader(any(), any(), any()))
                 .thenReturn(artifactDownloader);
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);

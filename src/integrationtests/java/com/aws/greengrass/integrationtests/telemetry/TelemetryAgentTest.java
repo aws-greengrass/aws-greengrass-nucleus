@@ -7,6 +7,8 @@ package com.aws.greengrass.integrationtests.telemetry;
 
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -19,15 +21,18 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testing.TestFeatureParameterInterface;
 import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
 import java.io.IOException;
@@ -43,6 +48,7 @@ import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_AGENT_SERVIC
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -58,6 +64,7 @@ import static org.mockito.internal.verification.VerificationModeFactory.atLeast;
 class TelemetryAgentTest extends BaseITCase {
     private static final int aggregateInterval = 2;
     private static final int publishInterval = 4;
+    public static final String MOCK_THING_NAME = "mockThing";
     private Kernel kernel;
     @Mock
     private MqttClient mqttClient;
@@ -88,11 +95,17 @@ class TelemetryAgentTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_kernel_running_with_telemetry_config_WHEN_launch_THEN_metrics_are_published()
-            throws InterruptedException, IOException {
+    void GIVEN_kernel_running_with_telemetry_config_WHEN_launch_THEN_metrics_are_published(ExtensionContext context)
+            throws InterruptedException, IOException, DeviceConfigurationException {
+        // Ignore exceptions caused by mock device configs
+        ignoreExceptionOfType(context, SdkClientException.class);
+        ignoreExceptionOfType(context, TLSAuthException.class);
         // GIVEN
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
+        kernel.getContext().put(DeviceConfiguration.class,
+                new DeviceConfiguration(kernel, MOCK_THING_NAME, "us-east-1", "us-east-1", "mock", "mock", "mock", "us-east-1",
+                        "mock"));
         //WHEN
         CountDownLatch telemetryRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -121,23 +134,30 @@ class TelemetryAgentTest extends BaseITCase {
         assertEquals(kernel.getNucleusPaths().rootPath().resolve("telemetry"),
                 TelemetryConfig.getTelemetryDirectory());
         // THEN
+        boolean telemetryMessageVerified = false;
         if(delay < aggregateInterval) {
             verify(mqttClient, atLeast(0)).publish(captor.capture());
         } else {
             verify(mqttClient, atLeastOnce()).publish(captor.capture());
             List<PublishRequest> prs = captor.getAllValues();
+            String telemetryPublishTopic = DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", MOCK_THING_NAME);
             for (PublishRequest pr : prs) {
+                // filter for telemetry topic because messages published to irrelevant topics can be captured here
+                if (!telemetryPublishTopic.equals(pr.getTopic())) {
+                    continue;
+                }
                 try {
                     MetricsPayload mp = new ObjectMapper().readValue(pr.getPayload(), MetricsPayload.class);
                     assertEquals(QualityOfService.AT_LEAST_ONCE, pr.getQos());
-                    assertEquals(DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", ""), pr.getTopic());
                     assertEquals("2020-07-30", mp.getSchema());
                     // enough to verify the first message of type MetricsPayload
+                    telemetryMessageVerified = true;
                     break;
                 } catch (IOException e) {
                     fail("The message received at this topic is not of MetricsPayload type.", e);
                 }
             }
+            assertTrue(telemetryMessageVerified, "Did not see message published to telemetry metrics topic");
         }
 
     }

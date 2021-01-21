@@ -111,6 +111,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
                 .thenReturn(lastPeriodicPublishTime);
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
         when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
+        when(mockDeviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
 
         lenient().when(config.lookup(DEVICE_PARAM_THING_NAME)).thenReturn(thingNameTopic);
         Topics configurationTopics = Topics.of(context, TELEMETRY_CONFIG_LOGGING_TOPICS, null);

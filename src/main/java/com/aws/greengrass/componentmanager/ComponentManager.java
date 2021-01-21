@@ -136,7 +136,6 @@ public class ComponentManager implements InjectionActions {
                     .log("Found the best local candidate that satisfies the requirement.");
         } else {
             logger.atInfo().log("Can't find a local candidate that satisfies the requirement.");
-
         }
         ComponentIdentifier resolvedComponentId;
 
@@ -148,13 +147,25 @@ public class ComponentManager implements InjectionActions {
                     + " candidate as the resolved version without negotiating with cloud.");
             resolvedComponentId = localCandidateOptional.get();
         } else {
-            // otherwise try to negotiate with cloud
-            logger.atInfo().setEventType("negotiate-version-with-cloud-start").log("Negotiating version with cloud");
-
-            resolvedComponentId =
-                    negotiateVersionWithCloud(componentName, versionRequirements, localCandidateOptional.orElse(null));
-
-            logger.atInfo().setEventType("negotiate-version-with-cloud-end").log("Negotiated version with cloud");
+            // Otherwise try to negotiate with cloud
+            if (deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+                logger.atInfo().setEventType("negotiate-version-with-cloud-start")
+                        .log("Negotiating version with cloud");
+                resolvedComponentId = negotiateVersionWithCloud(componentName, versionRequirements,
+                        localCandidateOptional.orElse(null));
+                logger.atInfo().setEventType("negotiate-version-with-cloud-end").log("Negotiated version with cloud");
+            } else {
+                // Device running offline. Use the local candidate if present, otherwise fails
+                if (localCandidateOptional.isPresent()) {
+                    logger.atInfo().log("Device is running offline and found satisfying local candidate. Using the "
+                            + "local candidate as the resolved version without negotiating with cloud.");
+                    resolvedComponentId = localCandidateOptional.get();
+                } else {
+                    throw new NoAvailableComponentVersionException(String.format(
+                            "Device is configured to run offline and no local applicable version found for component"
+                                    + " '%s' satisfying requirement '%s'.", componentName, versionRequirements));
+                }
+            }
         }
 
         logger.atInfo().setEventType("resolve-component-version-end").kv("ResolvedComponent", resolvedComponentId)
@@ -355,18 +366,23 @@ public class ComponentManager implements InjectionActions {
                 .addKeyValue(PACKAGE_IDENTIFIER, componentIdentifier).log();
 
         for (ComponentArtifact artifact : artifacts) {
-            // check disk space before download
-            // TODO: [P41215447]: Check artifact size for all artifacts to download early to fail early
-            long usableSpaceBytes = componentStore.getUsableSpace();
-            if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
-                throw new SizeLimitException(
-                        String.format("Disk space critical: %d bytes usable, %d bytes minimum allowed",
-                                usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
-            }
             ArtifactDownloader downloader = artifactDownloaderFactory
                     .getArtifactDownloader(componentIdentifier, artifact, packageArtifactDirectory);
-
             if (downloader.downloadRequired()) {
+                Optional<String> errorMsg = downloader.checkDownloadable();
+                if (errorMsg.isPresent()) {
+                    throw new PackageDownloadException(String.format(
+                            "Download required for artifact %s but device configs are invalid: %s",
+                            artifact.getArtifactUri(), errorMsg.get()));
+                }
+                // Check disk size limits before download
+                // TODO: [P41215447]: Check artifact size for all artifacts to download early to fail early
+                long usableSpaceBytes = componentStore.getUsableSpace();
+                if (usableSpaceBytes < DEFAULT_MIN_DISK_AVAIL_BYTES) {
+                    throw new SizeLimitException(
+                            String.format("Disk space critical: %d bytes usable, %d bytes minimum allowed",
+                                    usableSpaceBytes, DEFAULT_MIN_DISK_AVAIL_BYTES));
+                }
                 long downloadSize = downloader.getDownloadSize();
                 long storeContentSize = componentStore.getContentSize();
                 if (storeContentSize + downloadSize > getConfiguredMaxSize()) {

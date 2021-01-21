@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -96,6 +97,11 @@ public class S3Downloader extends ArtifactDownloader {
         } catch (Exception e) {
             throw new PackageDownloadException(getErrorString("Failed to download object from S3"), e);
         }
+    }
+
+    @Override
+    public Optional<String> checkDownloadable() {
+        return Optional.ofNullable(s3ClientFactory.getConfigValidationError());
     }
 
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
