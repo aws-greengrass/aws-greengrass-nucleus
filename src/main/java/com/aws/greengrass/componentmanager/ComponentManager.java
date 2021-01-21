@@ -372,7 +372,7 @@ public class ComponentManager implements InjectionActions {
                 Optional<String> errorMsg = downloader.checkDownloadable();
                 if (errorMsg.isPresent()) {
                     throw new PackageDownloadException(String.format(
-                            "Download required for artifact %s but device configs are invalid:%n%s",
+                            "Download required for artifact %s but device configs are invalid: %s",
                             artifact.getArtifactUri(), errorMsg.get()));
                 }
                 // Check disk size limits before download
