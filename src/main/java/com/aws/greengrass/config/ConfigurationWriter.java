@@ -264,4 +264,14 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     private synchronized void setTruncateRetryCount() {
         retryCount = count.get() + maxCount / 2;
     }
+
+    /**
+     * Immediately truncate the tlog.
+     */
+    public synchronized void truncateNow() {
+        if (truncateQueued.compareAndSet(false, true)) {
+            logger.atInfo(TRUNCATE_TLOG_EVENT).log("queued immediate truncation");
+            context.runOnPublishQueue(this::truncateTlog);
+        }
+    }
 }

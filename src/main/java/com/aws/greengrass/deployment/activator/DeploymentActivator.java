@@ -14,6 +14,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 
@@ -59,6 +60,10 @@ public abstract class DeploymentActivator {
             mergeTime = System.currentTimeMillis();
             ConfigurationReader.mergeTLogInto(kernel.getConfig(),
                     deploymentDirectoryManager.getSnapshotFilePath(), true, null);
+            // Immediately truncate the tlog such that the config.tlog file only contains the correct rolled back
+            // information. Without this step, a nucleus reboot could cause the configuration to contain "newer" values
+            // even though we wanted those values to be rolled back.
+            kernel.getContext().get(KernelLifecycle.class).getTlog().truncateNow();
             return mergeTime;
         } catch (IOException e) {
             // Could not merge old snapshot transaction log, rollback failed
