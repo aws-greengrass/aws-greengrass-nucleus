@@ -122,7 +122,6 @@ class IotJobsHelperTest {
         Topic mockThingNameTopic = mock(Topic.class);
         when(mockThingNameTopic.getOnce()).thenReturn(TEST_THING_NAME);
         when(deviceConfiguration.getThingName()).thenReturn(mockThingNameTopic);
-        when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         when(mockIotJobsClientFactory.getIotJobsClientWrapper(any())).thenReturn(mockIotJobsClientWrapper);
         when(mockWrapperMqttConnectionFactory.getAwsIotMqttConnection(any()))
                 .thenReturn(mockWrapperMqttClientConnection);

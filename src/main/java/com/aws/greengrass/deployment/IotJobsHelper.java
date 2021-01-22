@@ -8,6 +8,7 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.exceptions.AWSIotException;
 import com.aws.greengrass.deployment.exceptions.ConnectionUnavailableException;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
@@ -275,8 +276,12 @@ public class IotJobsHelper implements InjectionActions {
     @Override
     @SuppressFBWarnings
     public void postInject() {
-        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            logger.atWarn().log("Device not configured to talk to AWS Iot cloud. IOT job deployment is offline");
+        try {
+            // Not using isDeviceConfiguredToTalkToCloud() in order to provide the detailed error message to user
+            deviceConfiguration.validate();
+        } catch (DeviceConfigurationException e) {
+            logger.atWarn().log("Device not configured to talk to AWS Iot cloud. IOT job deployment is offline: {}",
+                    e.getMessage());
             return;
         }
 
