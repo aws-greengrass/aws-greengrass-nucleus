@@ -92,7 +92,7 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_PROXY_PASSWORD = "password";
     public static final long COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES = 10_000_000_000L;
     public static final long DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS = 15L;
-    private static final String DEVICE_PARAM_GG_DATA_PLANE_PORT = "greengrassDataPlanePort";
+    public static final String DEVICE_PARAM_GG_DATA_PLANE_PORT = "greengrassDataPlanePort";
     private static final int GG_DATA_PLANE_PORT_DEFAULT = 8443;
 
     private static final String DEVICE_PARAM_ENV_STAGE = "envStage";
