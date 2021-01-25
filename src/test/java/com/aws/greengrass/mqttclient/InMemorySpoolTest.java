@@ -56,6 +56,19 @@ class InMemorySpoolTest {
     }
 
     @Test
+    void GIVEN_publish_request_should_not_be_null_WHEN_pop_id_THEN_continue_if_request_is_null() throws InterruptedException, SpoolerStoreException {
+        PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
+                .qos(QualityOfService.AT_MOST_ONCE).build();
+
+        long id1 = spool.addMessage(request);
+        long id2 = spool.addMessage(request);
+        spool.removeMessageById(id1);
+
+        long id = spool.popId();
+        assertEquals(id2, id);
+    }
+
+    @Test
     void GIVEN_spooler_is_not_full_WHEN_add_message_THEN_add_message_without_message_dropped() throws InterruptedException, SpoolerStoreException {
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_MOST_ONCE).build();
