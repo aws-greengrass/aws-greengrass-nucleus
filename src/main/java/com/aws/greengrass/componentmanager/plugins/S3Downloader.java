@@ -118,7 +118,7 @@ public class S3Downloader extends ArtifactDownloader {
                 HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
                 return headObjectResponse.contentLength();
             }, "get-download-size-from-s3", logger);
-        } catch (InterruptedException e) {
+        } catch (PackageDownloadException | InterruptedException e) {
             throw e;
         } catch (Exception e) {
             throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
@@ -139,12 +139,13 @@ public class S3Downloader extends ArtifactDownloader {
             String message = e.getMessage();
             if (message.contains(REGION_EXPECTING_STRING)) {
                 message =
-                        message.substring(
-                                message.indexOf(REGION_EXPECTING_STRING) + REGION_EXPECTING_STRING.length());
+                        message.substring(message.indexOf(REGION_EXPECTING_STRING) + REGION_EXPECTING_STRING.length());
                 region = message.substring(0, message.indexOf('\''));
+            } else {
+                throw new PackageDownloadException(getErrorString("Failed to determine S3 bucket location"), e);
             }
         } catch (Exception e) {
-            throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
+            throw new PackageDownloadException(getErrorString("Failed to determine S3 bucket location"), e);
         }
         // If the region is empty, it is us-east-1
         return s3ClientFactory.getClientForRegion(Utils.isEmpty(region) ? Region.US_EAST_1 : Region.of(region));
