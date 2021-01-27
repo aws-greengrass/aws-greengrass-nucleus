@@ -11,16 +11,18 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.mqttclient.spool.Spool;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.List;
-
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -46,6 +48,11 @@ class InMemorySpoolTest {
         config.lookup("spooler", GG_SPOOL_MAX_SIZE_IN_BYTES_KEY).withValue(25L);
         lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(config.lookupTopics("spooler"));
         spool = spy(new Spool(deviceConfiguration));
+    }
+
+    @AfterEach
+    void after() throws IOException {
+        config.context.close();
     }
 
     @Test
