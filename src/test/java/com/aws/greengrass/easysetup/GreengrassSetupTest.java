@@ -278,6 +278,7 @@ class GreengrassSetupTest {
             greengrassSetup.parseArgs();
             greengrassSetup.performSetup();
         });
+        realKernel.shutdown();
         assertThat(e.getMessage(), containsString(
                 String.format("Error while looking up primary group for %s. No " + "group specified for the user",
                         user)));
@@ -304,11 +305,10 @@ class GreengrassSetupTest {
                 platform, kernel, "-i",
                 "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
                 "-ss", "false");
-        Topic regionTopic = Topic.of(new Context(), DeviceConfiguration.DEVICE_PARAM_AWS_REGION, null);
+        Topic regionTopic = Topic.of(this.context, DeviceConfiguration.DEVICE_PARAM_AWS_REGION, null);
         lenient().doReturn(regionTopic).when(deviceConfiguration).getAWSRegion();
         greengrassSetup.parseArgs();
-        assertThrows(RuntimeException.class,
-                () -> greengrassSetup.performSetup());
+        assertThrows(RuntimeException.class, greengrassSetup::performSetup);
     }
 
     @Test
@@ -317,7 +317,7 @@ class GreengrassSetupTest {
                 platform, kernel, "-i",
                 "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
                 "-ss", "false");
-        Topic regionTopic = Topic.of(new Context(), DeviceConfiguration.DEVICE_PARAM_AWS_REGION, "us-east-1");
+        Topic regionTopic = Topic.of(this.context, DeviceConfiguration.DEVICE_PARAM_AWS_REGION, "us-east-1");
         lenient().doReturn(regionTopic).when(deviceConfiguration).getAWSRegion();
         greengrassSetup.parseArgs();
         greengrassSetup.performSetup();

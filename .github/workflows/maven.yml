@@ -31,7 +31,7 @@ jobs:
       - name: Build with Maven
         env:
           AWS_REGION: us-west-2
-        run: mvn -ntp -U clean verify
+        run: mvn -ntp -U verify
         if: matrix.os != 'Windows'
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
