@@ -22,6 +22,7 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
@@ -29,7 +30,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @SuppressWarnings("PMD.CloseResource")
 @ExtendWith({GGExtension.class, MockitoExtension.class})
@@ -98,7 +103,8 @@ class AwsIotMqttClientTest {
     }
 
     @Test
-    void GIVEN_individual_client_THEN_client_connects_and_disconnects_only_for_initial_connect() {
+    void GIVEN_individual_client_THEN_client_connects_and_disconnects_only_for_initial_connect()
+            throws InterruptedException, ExecutionException, TimeoutException {
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
@@ -117,7 +123,7 @@ class AwsIotMqttClientTest {
         verify(connection, times(2)).connect();
         verify(connection, times(1)).disconnect();
         //client calls disconnect
-        client.disconnect();
+        client.disconnect().get(client.getTimeout(), TimeUnit.MILLISECONDS);
         verify(connection, times(2)).disconnect();
 
         //client calls connect
