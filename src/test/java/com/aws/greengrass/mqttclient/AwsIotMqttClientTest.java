@@ -29,11 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @SuppressWarnings("PMD.CloseResource")
 @ExtendWith({GGExtension.class, MockitoExtension.class})
@@ -84,8 +80,8 @@ class AwsIotMqttClientTest {
 
         assertTrue(client.connected());
         client.reconnect();
-        verify(connection).close();
-        verify(connection).disconnect();
+        verify(connection, times(2)).close();
+        verify(connection, times(2)).disconnect();
         assertTrue(client.connected());
 
         // Ensure that we track connection state through the callbacks
@@ -97,8 +93,37 @@ class AwsIotMqttClientTest {
 
         client.close();
         assertFalse(client.connected());
+        verify(connection, times(3)).disconnect();
+        verify(connection, times(3)).close();
+    }
+
+    @Test
+    void GIVEN_individual_client_THEN_client_connects_and_disconnects_only_for_initial_connect() {
+        when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
+        when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
+        when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
+        when(builder.build()).thenReturn(connection);
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
+                callbackEventManager);
+
+        //initial connect, client connects, disconnects and then connects
+        client.subscribe("A", QualityOfService.AT_LEAST_ONCE);
+        verify(connection, times(2)).connect();
+        verify(connection, times(1)).disconnect();
+
+        //client connected, no change in connect/disconnect calls
+        client.subscribe("B", QualityOfService.AT_LEAST_ONCE);
+        verify(connection, times(2)).connect();
+        verify(connection, times(1)).disconnect();
+        //client calls disconnect
+        client.disconnect();
         verify(connection, times(2)).disconnect();
-        verify(connection, times(2)).close();
+
+        //client calls connect
+        client.subscribe("C", QualityOfService.AT_LEAST_ONCE);
+        verify(connection, times(3)).connect();
+
     }
 
     @Test
@@ -108,6 +133,7 @@ class AwsIotMqttClientTest {
         CompletableFuture<Boolean> fut = new CompletableFuture<>();
         fut.completeExceptionally(new Exception("ex"));
         when(connection.connect()).thenReturn(fut);
+        when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
         when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
 

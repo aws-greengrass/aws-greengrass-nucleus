@@ -49,6 +49,7 @@ class AwsIotMqttClient implements Closeable {
     private MqttClientConnection connection;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
     private final CallbackEventManager callbackEventManager;
+    private final AtomicBoolean initalConnect = new  AtomicBoolean(true);
 
     @Getter(AccessLevel.PACKAGE)
     private final MqttClientConnectionEvents connectionEventCallback = new MqttClientConnectionEvents() {
@@ -148,33 +149,53 @@ class AwsIotMqttClient implements Closeable {
         }
     }
 
-    @SuppressWarnings("PMD.NullAssignment")
+
     protected synchronized CompletableFuture<Boolean> connect() {
         if (connection != null) {
             return CompletableFuture.completedFuture(true);
         }
+        // For the initial connect, client connects with cleanSession=true and disconnects.
+        // This deletes any previous session information maintained by IoT Core.
+        // For subsequent connects, the client connects with cleanSession=false
+        if (initalConnect.get()) {
+            try {
+                establishConnection(true).get(getTimeout(), TimeUnit.MILLISECONDS);
+                disconnect();
+                initalConnect.set(false);
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                CompletableFuture cf = new CompletableFuture();
+                cf.completeExceptionally(e);
+                return cf;
+            }
+        }
+        return establishConnection(false).thenApply((sessionPresent) -> {
+            currentlyConnected.set(true);
+            logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
+            if (!sessionPresent) {
+                resubscribe();
+            }
+            callbackEventManager.runOnInitialConnect(sessionPresent);
+            return sessionPresent;
+        });
+    }
 
+    @SuppressWarnings("PMD.NullAssignment")
+    CompletableFuture<Boolean> establishConnection(boolean overrideCleanSession) {
         // Always use the builder provider here so that the builder is updated with whatever
         // the latest device config is
         try (AwsIotMqttConnectionBuilder builder = builderProvider.get()) {
             builder.withConnectionEventCallbacks(connectionEventCallback);
             builder.withClientId(clientId);
-
+            if (overrideCleanSession) {
+                builder.withCleanSession(true);
+            }
             connection = builder.build();
             // Set message handler for this connection to be our global message handler in MqttClient.
             // The handler will then send out the message to all subscribers after appropriate filtering.
             connection.onMessage(messageHandler);
 
             logger.atInfo().log("Connecting to AWS IoT Core");
-            return connection.connect().thenApply((sessionPresent) -> {
-                currentlyConnected.set(true);
-                logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
-                if (!sessionPresent) {
-                    resubscribe();
-                }
-                callbackEventManager.runOnInitialConnect(sessionPresent);
-                return sessionPresent;
-            }).whenComplete((session, error) -> {
+            return connection.connect().whenComplete((session, error) -> {
                 if (error != null) {
                     // Must synchronize since we're messing with the shared connection object and this block
                     // is executed in some other thread
@@ -222,7 +243,7 @@ class AwsIotMqttClient implements Closeable {
     }
 
     @SuppressWarnings("PMD.NullAssignment")
-    private synchronized void disconnect() {
+    synchronized void disconnect() {
         try {
             currentlyConnected.set(false);
             if (connection != null) {

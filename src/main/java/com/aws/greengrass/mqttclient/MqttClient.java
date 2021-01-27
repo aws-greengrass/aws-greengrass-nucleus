@@ -287,6 +287,7 @@ public class MqttClient implements Closeable {
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
+        this.builderProvider = builderProvider;
         this.spool = spool;
         this.mqttOnline.set(mqttOnline);
         this.builderProvider = builderProvider;
