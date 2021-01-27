@@ -258,41 +258,54 @@ public class UnixPlatform extends Platform {
             throws IOException, InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
 
-        logger.atInfo().log("Killing child processes of pid {}", pp.getPid());
-        Set<Integer> pids = getChildPids(process);
-        logger.atDebug().log("Found children of {}. {}", pp.getPid(), pids);
-        if (additionalPids != null) {
-            pids.addAll(additionalPids);
-        }
-
-        for (Integer pid : pids) {
-            if (!Processes.newPidProcess(pid).isAlive()) {
-                continue;
+        logger.atInfo().log("Killing child processes of pid {}, force is {}", pp.getPid(), force);
+        Set<Integer> pids;
+        try {
+            pids = getChildPids(process);
+            logger.atDebug().log("Found children of {}. {}", pp.getPid(), pids);
+            if (additionalPids != null) {
+                pids.addAll(additionalPids);
             }
 
-            String[] cmd = {"kill", "-" + (force ? SIGKILL : SIGTERM), Integer.toString(pid)};
-            if (decorator != null) {
-                cmd = decorator.decorate(cmd);
-            }
-            logger.atDebug().log("Killing pid {} with signal {} using {}", pid, force ? SIGKILL : SIGTERM,
-                    String.join(" ", cmd));
-            Process proc = Runtime.getRuntime().exec(cmd);
-            proc.waitFor();
-            if (proc.exitValue() != 0) {
-                logger.atWarn().kv("pid", pid).kv("exit-code", proc.exitValue())
-                    .kv(STDOUT, inputStreamToString(proc.getInputStream()))
-                    .kv(STDERR, inputStreamToString(proc.getErrorStream()))
-                        .log("kill exited non-zero (process not found or other error)");
-            }
-        }
+            for (Integer pid : pids) {
+                if (!Processes.newPidProcess(pid).isAlive()) {
+                    continue;
+                }
 
-        if (force) {
-            process.destroyForcibly();
+                killProcess(force, decorator, pid);
+            }
+        } finally {
+            // calling process.destroy() here when force==false will cause the child process (component process) to be
+            // terminated immediately. This prevents the component process from shutting down gracefully.
+            if (force && process.isAlive()) {
+                process.destroyForcibly();
+                if (process.isAlive()) {
+                    // Kill parent process using privileged user since the parent process might be sudo which a
+                    // non-privileged user can't kill
+                    killProcess(true, getUserDecorator().withUser(getPrivilegedUser()), pp.getPid());
+                }
+            }
         }
-        // calling process.destroy() here when force==false will cause the child process (component process) to be
-        // terminated immediately. This prevents the component process from shutting down gracefully.
 
         return pids;
+    }
+
+    private void killProcess(boolean force, UserDecorator decorator, Integer pid)
+            throws IOException, InterruptedException {
+        String[] cmd = {"kill", "-" + (force ? SIGKILL : SIGTERM), Integer.toString(pid)};
+        if (decorator != null) {
+            cmd = decorator.decorate(cmd);
+        }
+        logger.atDebug().log("Killing pid {} with signal {} using {}", pid,
+                force ? SIGKILL : SIGTERM, String.join(" ", cmd));
+        Process proc = Runtime.getRuntime().exec(cmd);
+        proc.waitFor();
+        if (proc.exitValue() != 0) {
+            logger.atWarn().kv("pid", pid).kv("exit-code", proc.exitValue())
+                    .kv(STDOUT, inputStreamToString(proc.getInputStream()))
+                    .kv(STDERR, inputStreamToString(proc.getErrorStream()))
+                    .log("kill exited non-zero (process not found or other error)");
+        }
     }
 
     @Override

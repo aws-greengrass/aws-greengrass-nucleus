@@ -6,6 +6,7 @@
 package com.aws.greengrass.util;
 
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +16,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -25,10 +27,17 @@ import static org.junit.jupiter.api.Assertions.fail;
 class OrderedExecutorServiceTest {
     private static OrderedExecutorService orderedExecutorService;
     private volatile static Throwable lastThrownException = null;
+    private static ExecutorService executor;
 
     @BeforeAll
     static void startUp() {
-        orderedExecutorService = new OrderedExecutorService(Executors.newCachedThreadPool());
+        executor = Executors.newCachedThreadPool();
+        orderedExecutorService = new OrderedExecutorService(executor);
+    }
+
+    @AfterAll
+    static void shutdown() {
+        executor.shutdownNow();
     }
 
     @Test
