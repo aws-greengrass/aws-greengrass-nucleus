@@ -523,7 +523,7 @@ public final class Exec implements Closeable {
                         .log("Command {} did not respond to interruption within timeout. Going to kill it now", this);
             }
             platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
-            if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
+            if (!p.waitFor(30, TimeUnit.SECONDS) && !isClosed.get()) {
                 throw new IOException("Could not stop " + this);
             }
         } catch (InterruptedException e) {
