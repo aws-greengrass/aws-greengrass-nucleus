@@ -47,6 +47,7 @@ class AwsIotMqttClient implements Closeable {
     @Getter
     private final String clientId;
     private MqttClientConnection connection;
+    private CompletableFuture<Boolean> connectionFuture = null;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
     private final CallbackEventManager callbackEventManager;
     private final AtomicBoolean initalConnect = new AtomicBoolean(true);
@@ -150,7 +151,13 @@ class AwsIotMqttClient implements Closeable {
     }
 
     protected synchronized CompletableFuture<Boolean> connect() {
-        if (connection != null) {
+        // future not done indicates an ongoing connect attempt, caller should wait on that future
+        // instead of starting another connect attempt.
+        if (connectionFuture != null && !connectionFuture.isDone()) {
+            return connectionFuture;
+        }
+        // We're already connected, there's nothing to do
+        if (currentlyConnected.get()) {
             return CompletableFuture.completedFuture(true);
         }
         // For the initial connect, client connects with cleanSession=true and disconnects.
@@ -164,19 +171,23 @@ class AwsIotMqttClient implements Closeable {
             });
         }
 
-        return voidCompletableFuture.thenCompose((b) -> establishConnection(false)).thenApply((sessionPresent) -> {
-            currentlyConnected.set(true);
-            logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
-            if (!sessionPresent) {
-                resubscribe();
-            }
-            callbackEventManager.runOnInitialConnect(sessionPresent);
-            return sessionPresent;
-        });
+        connectionFuture = voidCompletableFuture.thenCompose((b) -> establishConnection(false))
+                .thenApply((sessionPresent) -> {
+                    currentlyConnected.set(true);
+                    logger.atInfo().kv("sessionPresent", sessionPresent)
+                            .log("Successfully connected to AWS IoT Core");
+                    if (!sessionPresent) {
+                        resubscribe();
+                    }
+                    callbackEventManager.runOnInitialConnect(sessionPresent);
+                    return sessionPresent;
+                });
+
+        return connectionFuture;
     }
 
     @SuppressWarnings("PMD.NullAssignment")
-    CompletableFuture<Boolean> establishConnection(boolean overrideCleanSession) {
+    private CompletableFuture<Boolean> establishConnection(boolean overrideCleanSession) {
         // Always use the builder provider here so that the builder is updated with whatever
         // the latest device config is
         try (AwsIotMqttConnectionBuilder builder = builderProvider.get()) {
