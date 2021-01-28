@@ -40,6 +40,7 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_CRED_ENDPOINT;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
@@ -116,11 +117,13 @@ public class DeploymentConfigMerger {
             return;
         }
         Map<String, Object> serviceConfig;
-        Map<String, Object> kernelConfig = null;
+        Map<String, Object> nucleusConfig = null;
         if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
             serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
             if (serviceConfig.containsKey(deviceConfiguration.getNucleusComponentName())) {
-                kernelConfig = (Map<String, Object>) serviceConfig.get(deviceConfiguration.getNucleusComponentName());
+                Map<String, Object> nucleusNamespace = (Map<String, Object>) serviceConfig
+                        .get(deviceConfiguration.getNucleusComponentName());
+                nucleusConfig = (Map<String, Object>) nucleusNamespace.get(CONFIGURATION_CONFIG_KEY);
             }
         } else {
             serviceConfig = new HashMap<>();
@@ -133,7 +136,7 @@ public class DeploymentConfigMerger {
         }
 
         // Validate the AWS region, IoT credentials endpoint as well as the IoT data endpoint.
-        if (validateNucleusConfig(totallyCompleteFuture, kernelConfig)) {
+        if (!validateNucleusConfig(totallyCompleteFuture, nucleusConfig)) {
             return;
         }
 
@@ -154,10 +157,10 @@ public class DeploymentConfigMerger {
                 logger.atError().cause(e).log("Error validating IoT endpoints");
                 totallyCompleteFuture
                         .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
-                return true;
+                return false;
             }
         }
-        return false;
+        return true;
     }
 
     /**

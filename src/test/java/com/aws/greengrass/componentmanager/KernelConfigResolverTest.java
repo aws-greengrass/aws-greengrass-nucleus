@@ -358,6 +358,164 @@ class KernelConfigResolverTest {
     }
 
     @Test
+    void GIVEN_deployment_WHEN_config_resolution_requested_THEN_work_path_interpolated() throws Exception {
+        // GIVEN
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
+        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
+
+        ComponentRecipe rootComponentRecipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
+                rootComponentIdentifier.getVersion(), "", "", null, new HashMap<String, Object>() {{
+            put(LIFECYCLE_RUN_KEY, "java -jar {work:path}/test.jar -x arg");
+        }}, Collections.emptyList(), Collections.emptyMap(), null);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =
+                new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2");
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
+
+        Path expectedWorkPath = Paths.get("/work/" + TEST_INPUT_PACKAGE_A).toAbsolutePath();
+
+        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
+        when(nucleusPaths.workPath(TEST_INPUT_PACKAGE_A)).thenReturn(expectedWorkPath);
+        when(kernel.getMain()).thenReturn(mainService);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
+                deviceConfiguration);
+        Map<String, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+
+        assertThat("{work:path} should be replaced by the component's work path",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo("java -jar " + expectedWorkPath + "/test.jar -x arg"));
+    }
+
+    @Test
+    void GIVEN_deployment_WHEN_recipe_interpolate_non_dependency_THEN_config_not_interpolated() throws Exception {
+        // GIVEN
+        ComponentIdentifier componentIdentifierA =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2.0"));
+        ComponentIdentifier componentIdentifierB =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_B, new Semver("2.3.0"));
+
+        String expectedRunCommand = String.format("java -jar -Dtestval={%s:work:path}", TEST_INPUT_PACKAGE_B);
+        ComponentRecipe componentRecipeA = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
+                componentIdentifierA.getVersion(), "", "", null, new HashMap<String, Object>() {{
+            put(LIFECYCLE_RUN_KEY, expectedRunCommand);
+        }}, Collections.emptyList(), Collections.emptyMap(), null);
+        ComponentRecipe componentRecipeB = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_B,
+                componentIdentifierB.getVersion(), "", "", null, null, Collections.emptyList(), Collections.emptyMap(),
+                null);
+
+        DeploymentPackageConfiguration componentDeploymentConfigA = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion("=1.2")
+                .build();
+
+        DeploymentPackageConfiguration componentDeploymentConfigB = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_B)
+                .rootComponent(true)
+                .resolvedVersion("=2.3")
+                .build();
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(Arrays.asList(componentDeploymentConfigA,
+                        componentDeploymentConfigB))
+                .timestamp(10_000L)
+                .build();
+
+        Map<ComponentIdentifier, ComponentRecipe> componentsToResolve = new HashMap<>();
+        componentsToResolve.put(componentIdentifierA, componentRecipeA);
+        componentsToResolve.put(componentIdentifierB, componentRecipeB);
+        Map<String, Object> servicesConfig = serviceConfigurationProperlyResolved(document, componentsToResolve);
+
+        assertThat("variables should not be interpolated because of non-dependency",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo(expectedRunCommand));
+    }
+
+    @Test
+    void GIVEN_deployment_with_dependencies_WHEN_config_resolution_requested_THEN_cross_component_work_path_interpolated()
+            throws Exception {
+        // A depends on both B and C
+        // GIVEN
+        ComponentIdentifier componentIdentifierA =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2.0"));
+        ComponentIdentifier componentIdentifierB =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_B, new Semver("2.3.0"));
+        ComponentIdentifier componentIdentifierC =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_C, new Semver("3.4.0"));
+
+        Map<String, DependencyProperties> componentADependencies = new HashMap<>();
+        componentADependencies.put(TEST_INPUT_PACKAGE_B,
+                DependencyProperties.builder().versionRequirement("2.3").build());
+        componentADependencies.put(TEST_INPUT_PACKAGE_C,
+                DependencyProperties.builder().versionRequirement("3.4").build());
+
+        ComponentRecipe componentRecipeA = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
+                componentIdentifierA.getVersion(), "", "", null, new HashMap<String, Object>() {{
+            put(LIFECYCLE_RUN_KEY,
+                    String.format("java -jar {%s:work:path}/test.jar -Dtestval={%s:work:path}", TEST_INPUT_PACKAGE_B,
+                            TEST_INPUT_PACKAGE_C));
+        }}, Collections.emptyList(), componentADependencies, null);
+        ComponentRecipe componentRecipeB = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_B,
+                componentIdentifierB.getVersion(), "", "", null, null, Collections.emptyList(), Collections.emptyMap(),
+                null);
+        ComponentRecipe componentRecipeC = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_C,
+                componentIdentifierC.getVersion(), "", "", null, null, Collections.emptyList(), Collections.emptyMap(),
+                null);
+
+        DeploymentPackageConfiguration componentDeploymentConfigA = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion("=1.2")
+                .build();
+
+        DeploymentPackageConfiguration componentDeploymentConfigB = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_B)
+                .rootComponent(false)
+                .resolvedVersion("=2.3")
+                .build();
+        DeploymentPackageConfiguration componentDeploymentConfigC = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_C)
+                .rootComponent(false)
+                .resolvedVersion("=3.4")
+                .build();
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(Arrays.asList(componentDeploymentConfigA,
+                        componentDeploymentConfigB, componentDeploymentConfigC))
+                .timestamp(10_000L)
+                .build();
+
+        // WHEN
+        Map<ComponentIdentifier, ComponentRecipe> componentsToResolve = new HashMap<>();
+        componentsToResolve.put(componentIdentifierA, componentRecipeA);
+        componentsToResolve.put(componentIdentifierB, componentRecipeB);
+        componentsToResolve.put(componentIdentifierC, componentRecipeC);
+        Path expectedCompBWorkPath = Paths.get("/work/" + TEST_INPUT_PACKAGE_B).toAbsolutePath();
+        Path expectedCompCWorkPath = Paths.get("/work/" + TEST_INPUT_PACKAGE_C).toAbsolutePath();
+        when(nucleusPaths.workPath(TEST_INPUT_PACKAGE_B)).thenReturn(expectedCompBWorkPath);
+        when(nucleusPaths.workPath(TEST_INPUT_PACKAGE_C)).thenReturn(expectedCompCWorkPath);
+        Map<String, Object> servicesConfig = serviceConfigurationProperlyResolved(document, componentsToResolve);
+
+        // THEN
+        String expectedRunCommand = String.format("java -jar %s/test.jar -Dtestval=%s",
+                expectedCompBWorkPath, expectedCompCWorkPath);
+        assertThat("{artifacts:path} should be replace by the package's artifact path",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo(expectedRunCommand));
+    }
+
+    @Test
     void GIVEN_component_has_default_configuration_and_no_running_configuration_WHEN_config_resolution_requested_THEN_correct_value_applied() throws Exception {
         // GIVEN
         ComponentIdentifier rootComponentIdentifier =
@@ -783,9 +941,9 @@ class KernelConfigResolverTest {
         for (ComponentIdentifier componentIdentifier : componentsToResolve.keySet()) {
             when(componentStore.getPackageRecipe(componentIdentifier)).thenReturn(componentsToResolve.get(componentIdentifier));
         }
-        when(nucleusPaths.unarchiveArtifactPath(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
+        lenient().when(nucleusPaths.unarchiveArtifactPath(any())).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
         when(kernel.getMain()).thenReturn(mainService);
-        when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
+        lenient().when(nucleusPaths.rootPath()).thenReturn(DUMMY_ROOT_PATH);
         when(mainService.getName()).thenReturn("main");
         when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
 

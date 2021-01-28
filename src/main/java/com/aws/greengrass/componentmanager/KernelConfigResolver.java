@@ -61,6 +61,7 @@ public class KernelConfigResolver {
     public static final String PREV_VERSION_CONFIG_KEY = "previousVersion";
     public static final String CONFIGURATION_CONFIG_KEY = "configuration";
     static final String ARTIFACTS_NAMESPACE = "artifacts";
+    static final String WORK_NAMESPACE = "work";
     static final String KERNEL_NAMESPACE = "kernel";
     static final String KERNEL_ROOT_PATH = "rootPath";
     static final String PARAM_NAMESPACE = "params";
@@ -117,6 +118,10 @@ public class KernelConfigResolver {
         artifactNamespace
                 .put(DECOMPRESSED_PATH_KEY, (id) -> nucleusPaths.unarchiveArtifactPath(id).toAbsolutePath().toString());
         systemParameters.put(ARTIFACTS_NAMESPACE, artifactNamespace);
+
+        HashMap<String, CrashableFunction<ComponentIdentifier, String, IOException>> workNamespace = new HashMap<>();
+        workNamespace.put(PATH_KEY, (id) -> nucleusPaths.workPath(id.getName()).toAbsolutePath().toString());
+        systemParameters.put(WORK_NAMESPACE, workNamespace);
 
         HashMap<String, CrashableFunction<ComponentIdentifier, String, IOException>> kernelNamespace = new HashMap<>();
         kernelNamespace.put(KERNEL_ROOT_PATH, (id) -> nucleusPaths.rootPath().toAbsolutePath().toString());

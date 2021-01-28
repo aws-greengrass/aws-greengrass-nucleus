@@ -53,6 +53,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.WAIT_SVC_START_POLL_INTERVAL_MILLISEC;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
@@ -424,10 +425,12 @@ class DeploymentConfigMergerTest {
         Map<String, Object> newConfig = new HashMap<>();
         Map<String, Object> newConfig2 = new HashMap<>();
         Map<String, Object> newConfig3 = new HashMap<>();
-        newConfig3.put(DEVICE_PARAM_AWS_REGION, "us-east-1");
-        newConfig3.put(DEVICE_PARAM_IOT_CRED_ENDPOINT, "xxxxxx.credentials.iot.us-east-1.amazonaws.com");
-        newConfig3.put(DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-east-1.amazonaws.com");
+        Map<String, Object> newConfig4 = new HashMap<>();
+        newConfig4.put(DEVICE_PARAM_AWS_REGION, "us-east-1");
+        newConfig4.put(DEVICE_PARAM_IOT_CRED_ENDPOINT, "xxxxxx.credentials.iot.us-east-1.amazonaws.com");
+        newConfig4.put(DEVICE_PARAM_IOT_DATA_ENDPOINT, "xxxxxx-ats.iot.us-east-1.amazonaws.com");
 
+        newConfig3.put(CONFIGURATION_CONFIG_KEY, newConfig4);
         newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
         newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
         // GIVEN
@@ -486,7 +489,9 @@ class DeploymentConfigMergerTest {
         Map<String, Object> newConfig = new HashMap<>();
         Map<String, Object> newConfig2 = new HashMap<>();
         Map<String, Object> newConfig3 = new HashMap<>();
-        newConfig3.put(DEVICE_PARAM_AWS_REGION, "us-east-1");
+        Map<String, Object> newConfig4 = new HashMap<>();
+        newConfig4.put(DEVICE_PARAM_AWS_REGION, "us-east-1");
+        newConfig3.put(CONFIGURATION_CONFIG_KEY, newConfig4);
         newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
         newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
         // GIVEN
