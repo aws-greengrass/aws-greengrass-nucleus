@@ -77,13 +77,13 @@ class TelemetryAgentTest extends BaseITCase {
     @BeforeEach
     void before() {
         kernel = new Kernel();
-        TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC), any()))
                 .thenReturn(aggregateInterval);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC), any()))
                 .thenReturn(publishInterval);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC), any()))
                 .thenReturn(DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC);
+        TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
     }
 
     @AfterEach
