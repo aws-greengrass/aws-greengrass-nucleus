@@ -335,6 +335,7 @@ class MqttClientTest {
     @Test
     void GIVEN_keep_qos_0_when_offline_is_false_and_mqtt_is_offline_WHEN_publish_THEN_future_complete_exceptionally()
             throws InterruptedException, SpoolerStoreException {
+
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_MOST_ONCE).build();
@@ -382,8 +383,8 @@ class MqttClientTest {
     @Test
     void GIVEN_add_message_to_spooler_throw_spooler_load_exception_WHEN_publish_THEN_return_future_complete_exceptionally(ExtensionContext context)
             throws SpoolerStoreException, InterruptedException {
-        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
 
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[10])
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
         when(spool.addMessage(any())).thenThrow(new SpoolerStoreException("spooler is full"));
@@ -415,8 +416,8 @@ class MqttClientTest {
     @Test
     void GIVEN_publish_request_successfully_WHEN_spool_single_message_THEN_remove_message_from_spooler_queue()
             throws InterruptedException {
-        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder, executorService));
 
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder, executorService));
         long id = 1L;
         when(spool.popId()).thenReturn(id);
         PublishRequest request = PublishRequest.builder().topic("spool")
@@ -500,9 +501,9 @@ class MqttClientTest {
         ignoreExceptionOfType(context, ExecutionException.class);
         ignoreExceptionOfType(context, InterruptedException.class);
 
-
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder, executorService));
         client.setMqttOnline(true);
+
         long id = 1L;
         when(spool.popId()).thenReturn(id).thenReturn(id).thenThrow(InterruptedException.class);
         PublishRequest request = PublishRequest.builder().topic("spool")

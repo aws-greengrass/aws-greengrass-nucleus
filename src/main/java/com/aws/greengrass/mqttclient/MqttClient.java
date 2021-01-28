@@ -282,6 +282,7 @@ public class MqttClient implements Closeable {
     protected MqttClient(DeviceConfiguration deviceConfiguration, Spool spool, boolean mqttOnline,
                          Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
                          ExecutorService executorService) {
+
         this.deviceConfiguration = deviceConfiguration;
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
