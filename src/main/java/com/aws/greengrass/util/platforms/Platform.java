@@ -8,7 +8,6 @@ package com.aws.greengrass.util.platforms;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.FileSystemPermission.Option;
 import com.aws.greengrass.util.platforms.unix.DarwinPlatform;
@@ -21,24 +20,12 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
 
+import static com.aws.greengrass.config.PlatformResolver.OS_DARWIN;
+
 public abstract class Platform implements UserPlatform {
     public static final Logger logger = LogManager.getLogger(Platform.class);
 
     private static Platform INSTANCE;
-
-    private static final String UNIX_SYS_VER = getUnixSysVer();
-
-    private static String getUnixSysVer() {
-        if (PlatformResolver.isWindows) {
-            return "";
-        }
-        try {
-            return Exec.sh("uname -a").toLowerCase();
-        } catch (InterruptedException | IOException e) {
-            logger.atError().setCause(e).log("Error in running uname -a");
-        }
-        return "";
-    }
 
     /**
      * Get the appropriate instance of Platform for the current platform.
@@ -52,10 +39,10 @@ public abstract class Platform implements UserPlatform {
 
         if (PlatformResolver.isWindows) {
             INSTANCE = new WindowsPlatform();
-        } else if (UNIX_SYS_VER.contains("qnx")) {
-            INSTANCE = new QNXPlatform();
-        } else if (UNIX_SYS_VER.contains("darwin") || UNIX_SYS_VER.contains("macos")) {
+        } else if (OS_DARWIN.equals(PlatformResolver.getOSInfo())) {
             INSTANCE = new DarwinPlatform();
+        } else if (System.getProperty("os.name").toLowerCase().contains("qnx")) {
+            INSTANCE = new QNXPlatform();
         } else {
             INSTANCE = new UnixPlatform();
         }
