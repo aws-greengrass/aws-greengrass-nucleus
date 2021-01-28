@@ -94,22 +94,22 @@ public class PlatformResolver {
         return platform;
     }
 
+    /**
+     * Get the OS type for this system.
+     *
+     * @return one of our supported identified OSes
+     */
     @SuppressFBWarnings("DMI_HARDCODED_ABSOLUTE_FILENAME")
-    private static String getOSInfo() {
+    public static String getOSInfo() {
         if (isWindows) {
             return OS_WINDOWS;
         }
-        try {
-            String sysver = Exec.sh("uname -a").toLowerCase();
-
-            if (sysver.contains("darwin")) {
-                return OS_DARWIN;
-            }
-            if (Files.exists(Paths.get("/proc"))) {
-                return OS_LINUX;
-            }
-        } catch (IOException | InterruptedException e) {
-            logger.error("Error trying to determine OS", e);
+        String osName = System.getProperty("os.name").toLowerCase();
+        if (osName.contains("mac os")) {
+            return OS_DARWIN;
+        }
+        if (Files.exists(Paths.get("/proc"))) {
+            return OS_LINUX;
         }
         return UNKNOWN_KEYWORD;
     }

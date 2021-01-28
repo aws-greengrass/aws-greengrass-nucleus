@@ -15,6 +15,10 @@ import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.ProxyUtils;
+import com.aws.greengrass.util.Utils;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.AccessLevel;
+import lombok.Getter;
 import software.amazon.awssdk.crt.auth.credentials.X509CredentialsProvider;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
@@ -39,7 +43,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -101,10 +107,11 @@ public class MqttClient implements Closeable {
     private final ClientBootstrap clientBootstrap;
     private final CallbackEventManager callbackEventManager = new CallbackEventManager();
     private final Spool spool;
-    private final ScheduledExecutorService ses;
+    private final ExecutorService executorService;
     private final AtomicReference<Future<?>> spoolingFuture = new AtomicReference<>();
     private final int maxInFlightPublishes = DEFAULT_MAX_IN_FLIGHT_PUBLISHES;
 
+    @Getter(AccessLevel.PROTECTED)
     private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
         public void onConnectionInterrupted(int errorCode) {
@@ -117,6 +124,7 @@ public class MqttClient implements Closeable {
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
             setMqttOnline(true);
+            triggerSpooler();
         }
     };
 
@@ -128,13 +136,15 @@ public class MqttClient implements Closeable {
 
     /**
      * Constructor for injection.
+     *
      * @param deviceConfiguration device configuration
      * @param ses                 scheduled executor service
+     * @param executorService     executor service
      */
     @Inject
-    public MqttClient(DeviceConfiguration deviceConfiguration,
-                      ScheduledExecutorService ses) {
-        this(deviceConfiguration, null, ses);
+    public MqttClient(DeviceConfiguration deviceConfiguration, ScheduledExecutorService ses,
+                      ExecutorService executorService) {
+        this(deviceConfiguration, null, ses, executorService);
 
         HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
 
@@ -149,42 +159,36 @@ public class MqttClient implements Closeable {
                             mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
                     .withPingTimeoutMs(
                             Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
-                    .withSocketOptions(new SocketOptions()).withTimeoutMs(
-                            Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT,
-                                    MQTT_SOCKET_TIMEOUT_KEY)));
+                    .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(
+                            mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)));
         } else {
             String tesRoleAlias = Coerce.toString(deviceConfiguration.getIotRoleAlias());
 
-            try (TlsContextOptions x509TlsOptions = TlsContextOptions.createWithMtlsFromPath(
-                    Coerce.toString(deviceConfiguration.getCertificateFilePath()),
-                    Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))) {
+            try (TlsContextOptions x509TlsOptions = TlsContextOptions
+                    .createWithMtlsFromPath(Coerce.toString(deviceConfiguration.getCertificateFilePath()),
+                            Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))) {
 
                 x509TlsOptions.withCertificateAuthorityFromPath(null,
                         Coerce.toString(deviceConfiguration.getRootCAFilePath()));
 
                 try (ClientTlsContext x509TlsContext = new ClientTlsContext(x509TlsOptions)) {
-                    this.credentialsProvider =
-                            new X509CredentialsProvider.X509CredentialsProviderBuilder()
-                                    .withClientBootstrap(clientBootstrap).withTlsContext(x509TlsContext)
-                                    .withEndpoint(Coerce.toString(deviceConfiguration.getIotCredentialEndpoint()))
-                                    .withRoleAlias(tesRoleAlias)
-                                    .withThingName(Coerce.toString(deviceConfiguration.getThingName()))
-                                    .withProxyOptions(httpProxyOptions).build();
+                    this.credentialsProvider = new X509CredentialsProvider.X509CredentialsProviderBuilder()
+                            .withClientBootstrap(clientBootstrap).withTlsContext(x509TlsContext)
+                            .withEndpoint(Coerce.toString(deviceConfiguration.getIotCredentialEndpoint()))
+                            .withRoleAlias(tesRoleAlias)
+                            .withThingName(Coerce.toString(deviceConfiguration.getThingName()))
+                            .withProxyOptions(httpProxyOptions).build();
 
                     this.builderProvider =
                             (clientBootstrap) -> AwsIotMqttConnectionBuilder.newMtlsBuilderFromPath(null, null)
                                     .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
-                                    .withCleanSession(false)
-                                    .withBootstrap(clientBootstrap)
-                                    .withKeepAliveMs(Coerce.toInt(mqttTopics
-                                            .findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
-                                                    MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
-                                    .withPingTimeoutMs(Coerce.toInt(
+                                    .withCleanSession(false).withBootstrap(clientBootstrap).withKeepAliveMs(
+                                            Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
+                                                    MQTT_KEEP_ALIVE_TIMEOUT_KEY))).withPingTimeoutMs(Coerce.toInt(
                                             mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
                                     .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(mqttTopics
-                                    .findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)))
-                                    .withWebsockets(true)
-                                    .withWebsocketCredentialsProvider(credentialsProvider)
+                                            .findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)))
+                                    .withWebsockets(true).withWebsocketCredentialsProvider(credentialsProvider)
                                     .withWebsocketSigningRegion(Coerce.toString(deviceConfiguration.getAWSRegion()))
                                     .withWebsocketProxyOptions(httpProxyOptions);
                 }
@@ -194,9 +198,9 @@ public class MqttClient implements Closeable {
 
     protected MqttClient(DeviceConfiguration deviceConfiguration,
                          Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
-                         ScheduledExecutorService ses) {
+                         ScheduledExecutorService ses, ExecutorService executorService) {
         this.deviceConfiguration = deviceConfiguration;
-        this.ses = ses;
+        this.executorService = executorService;
 
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         this.builderProvider = builderProvider;
@@ -241,8 +245,7 @@ public class MqttClient implements Closeable {
                     return;
                 }
 
-                logger.atInfo().kv("modifiedNode", node.getFullName())
-                        .kv("changeType", what)
+                logger.atInfo().kv("modifiedNode", node.getFullName()).kv("changeType", what)
                         .log("Reconfiguring MQTT clients");
 
                 // Reconnect in separate thread to not block publish thread
@@ -276,16 +279,18 @@ public class MqttClient implements Closeable {
     }
 
     // constructor specific for unit test with spooler
-    protected MqttClient(DeviceConfiguration deviceConfiguration, Spool spool, ScheduledExecutorService ses,
-                         boolean mqttOnline) {
+    protected MqttClient(DeviceConfiguration deviceConfiguration, Spool spool, boolean mqttOnline,
+                         Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
+                         ExecutorService executorService) {
         this.deviceConfiguration = deviceConfiguration;
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
         this.spool = spool;
-        this.ses = ses;
         this.mqttOnline.set(mqttOnline);
+        this.builderProvider = builderProvider;
+        this.executorService = executorService;
     }
 
     /**
@@ -341,6 +346,21 @@ public class MqttClient implements Closeable {
     private Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> findExistingSubscriberForTopic(String topic) {
         return subscriptionTopics.entrySet().stream().filter(s -> s.getKey().isSupersetOf(new MqttTopic(topic)))
                 .findAny();
+    }
+
+    @SuppressFBWarnings("JLM_JSR166_UTILCONCURRENT_MONITORENTER")
+    private void triggerSpooler() {
+        // Do not synchronize on MqttClient because that causes a dead lock
+        synchronized (spoolingFuture) {
+            if (spoolingFuture.get() == null || spoolingFuture.get().isDone()
+                    && !spoolingFuture.get().isCancelled()) {
+                try {
+                    spoolingFuture.set(executorService.submit(this::runSpooler));
+                } catch (RejectedExecutionException e) {
+                    logger.atWarn().log("Failed to run MQTT spooler", e);
+                }
+            }
+        }
     }
 
     /**
@@ -412,8 +432,8 @@ public class MqttClient implements Closeable {
             return future;
         }
 
-        boolean willDropTheRequest = !mqttOnline.get() && request.getQos().getValue() == 0
-                && !spool.getSpoolConfig().isKeepQos0WhenOffline();
+        boolean willDropTheRequest = !mqttOnline.get() && request.getQos().getValue() == 0 && !spool.getSpoolConfig()
+                .isKeepQos0WhenOffline();
 
         if (willDropTheRequest) {
             SpoolerStoreException e = new SpoolerStoreException("Device is offline. Dropping QoS 0 message.");
@@ -424,7 +444,7 @@ public class MqttClient implements Closeable {
 
         try {
             spool.addMessage(request);
-            spoolMessage();
+            triggerSpooler();
         } catch (InterruptedException | SpoolerStoreException e) {
             logger.atDebug().log("Fail to add publish request to spooler queue", e);
             future.completeExceptionally(e);
@@ -433,50 +453,76 @@ public class MqttClient implements Closeable {
         return CompletableFuture.completedFuture(0);
     }
 
-    private synchronized void spoolMessage()  {
-        if (spoolingFuture.get() == null || spoolingFuture.get().isCancelled()) {
-            spoolingFuture.set(ses.scheduleWithFixedDelay(this::spoolTask, 0, 5, TimeUnit.SECONDS));
+    @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.PreserveStackTrace"})
+    protected CompletableFuture<Integer> publishSingleSpoolerMessage() throws InterruptedException {
+        long id = -1L;
+        try {
+            id = spool.popId();
+            PublishRequest request = spool.getMessageById(id);
+            MqttMessage m = new MqttMessage(request.getTopic(), request.getPayload());
+
+            long finalId = id;
+            return getConnection(false).publish(m, request.getQos(), request.isRetain())
+                    .whenComplete((packetId, throwable) -> {
+                        // packetId is the SDK assigned ID. Ignore this and instead use the spooler ID
+                        if (throwable == null) {
+                            spool.removeMessageById(finalId);
+                            logger.atDebug().kv("id", finalId).kv("topic", request.getTopic())
+                                    .log("Successfully published message");
+                        } else {
+                            spool.addId(finalId);
+                            logger.atError().log("Failed to publish the message via Spooler and will retry",
+                                    throwable);
+                        }
+                    });
+        } catch (Throwable t) {
+            // valid id is starting from 0
+            if (id >= 0) {
+                spool.addId(id);
+            }
+
+            if (Utils.getUltimateCause(t) instanceof InterruptedException) {
+                throw new InterruptedException("Interrupted while publishing from spooler");
+            }
+
+            CompletableFuture<Integer> fut = new CompletableFuture<>();
+            fut.completeExceptionally(t);
+            return fut;
         }
     }
 
     /**
      * Iterate the spooler queue to publish all the spooled message.
      */
-    protected void spoolTask() {
-        try {
-            getConnection(false).connect().get();
-            List<CompletableFuture<?>> publishRequests = new ArrayList<>();
-            while (!Thread.currentThread().isInterrupted() && mqttOnline.get() && spool.getCurrentMessageCount() > 0) {
-                final long id = spool.popId();
-                PublishRequest request = spool.getMessageById(id);
-                if (request == null) {
-                    continue;
-                }
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    protected void runSpooler() {
+        List<CompletableFuture<?>> publishRequests = new ArrayList<>();
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                getConnection(false).connect().get();
+                while (mqttOnline.get()) {
+                    CompletableFuture<Integer> future = publishSingleSpoolerMessage();
+                    publishRequests.add(future);
 
-                MqttMessage m = new MqttMessage(request.getTopic(), request.getPayload());
-                publishRequests.add(getConnection(false).publish(m, request.getQos(), request.isRetain())
-                                .whenComplete((packetId, throwable) -> {
-                    // packetId is the SDK assigned ID. Ignore this and instead use the spooler ID
-                    if (throwable == null) {
-                        spool.removeMessageById(id);
-                        logger.atDebug().kv("id", id).kv("topic", request.getTopic())
-                            .log("Successfully published message");
-                    } else {
-                        spool.addId(id);
-                        logger.atError().log("Failed to publish the message via Spooler", throwable);
+                    if (publishRequests.size() >= maxInFlightPublishes) {
+                        CompletableFuture.anyOf(publishRequests.toArray(new CompletableFuture[0])).get();
+                        publishRequests =
+                                publishRequests.stream().filter(f -> !f.isDone()).collect(Collectors.toList());
                     }
-                }));
-
-                if (publishRequests.size() >= maxInFlightPublishes) {
-                    CompletableFuture.anyOf(
-                            publishRequests.toArray(new CompletableFuture[0])).get();
-                    publishRequests = publishRequests.stream().filter(f -> !f.isDone()).collect(Collectors.toList());
                 }
+                break;
+            } catch (ExecutionException e) {
+                logger.atError().log("Error when publishing from spooler", e);
+                if (Utils.getUltimateCause(e) instanceof InterruptedException) {
+                    logger.atWarn().log("Shutting down spooler task");
+                    break;
+                }
+            } catch (InterruptedException e) {
+                logger.atWarn().log("Shutting down spooler task");
+                break;
+            } catch (Throwable ex) {
+                logger.atError().log("Unchecked error when publishing from spooler", ex);
             }
-        } catch (InterruptedException e) {
-            logger.atDebug().log("Shutting down spooler task");
-        } catch (ExecutionException e) {
-            logger.atError().log("Error when publishing from spooler", e);
         }
     }
 
