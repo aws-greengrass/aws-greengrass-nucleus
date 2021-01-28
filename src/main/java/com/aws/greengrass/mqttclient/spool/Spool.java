@@ -140,7 +140,13 @@ public class Spool {
      * @throws InterruptedException the thread is interrupted while popping the first id from the queue
      */
     public long popId() throws InterruptedException {
-        return queueOfMessageId.takeFirst();
+        PublishRequest request;
+        long id;
+        do {
+            id = queueOfMessageId.takeFirst();
+            request = getMessageById(id);
+        } while (request == null);
+        return id;
     }
 
     public PublishRequest getMessageById(long messageId) {
@@ -172,9 +178,14 @@ public class Spool {
     private void removeMessagesWithQosZero(boolean needToCheckCurSpoolerSize) {
         Iterator<Long> messageIdIterator = queueOfMessageId.iterator();
         while (messageIdIterator.hasNext() && addJudgementWithCurrentSpoolerSize(needToCheckCurSpoolerSize)) {
-            long idToBeRemoved = messageIdIterator.next();
-            if (getMessageById(idToBeRemoved).getQos().getValue() == 0) {
-                removeMessageById(idToBeRemoved);
+            long id = messageIdIterator.next();
+            PublishRequest request = getMessageById(id);
+            int qos = request.getQos().getValue();
+            if (qos == 0) {
+                removeMessageById(id);
+                logger.atDebug().kv("id", id).kv("topic", request.getTopic()).kv("Qos", qos)
+                        .log("The spooler is configured to drop QoS 0 when offline. "
+                                + "Dropping message now.");
             }
         }
     }
