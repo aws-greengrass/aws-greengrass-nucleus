@@ -227,22 +227,21 @@ public class DeviceConfiguration {
                 kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet().stream()
                         .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(s.toString())))
                         .findAny();
-        if (nucleusComponent.isPresent()) {
-            return nucleusComponent.get().toString();
-        } else {
-            initializeNucleusComponentConfig();
-            return DEFAULT_NUCLEUS_COMPONENT_NAME;
-        }
+        String nucleusComponentName = nucleusComponent.isPresent() ? nucleusComponent.get().toString() :
+                DEFAULT_NUCLEUS_COMPONENT_NAME;
+        // Initialize default/inferred required config if it doesn't exist
+        initializeNucleusComponentConfig(nucleusComponentName);
+        return nucleusComponentName;
     }
 
-    private void initializeNucleusComponentConfig() {
-        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY)
-                .withValue(ComponentType.NUCLEUS.name());
+    private void initializeNucleusComponentConfig(String nucleusComponentName) {
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, SERVICE_TYPE_TOPIC_KEY)
+                .dflt(ComponentType.NUCLEUS.name());
 
         ArrayList<String> mainDependencies = (ArrayList) kernel.getConfig().getRoot()
                 .findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
                         SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
-        mainDependencies.add(DEFAULT_NUCLEUS_COMPONENT_NAME);
+        mainDependencies.add(nucleusComponentName);
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
                 .dflt(mainDependencies);
     }
