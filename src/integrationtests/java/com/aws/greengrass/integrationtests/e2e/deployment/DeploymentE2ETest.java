@@ -64,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -389,6 +390,30 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         assertThat(deploymentError, containsString(getTestComponentNameInCloud("Mosquitto")));
         assertThat(deploymentError, containsString(getTestComponentNameInCloud("SomeService") + "==1.0.0"));
         assertThat(deploymentError, containsString(getTestComponentNameInCloud("SomeOldService") + "==0.9.0"));
+    }
+
+    @Test
+    void GIVEN_blank_kernel_WHEN_deployment_has_components_that_dont_exist_THEN_job_should_fail_and_return_error(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, ResourceNotFoundException.class);
+
+        // New deployment contains dependency conflicts
+        CreateDeploymentRequest createDeploymentRequest = CreateDeploymentRequest.builder().components(
+                Utils.immutableMap("XYZPackage-" + UUID.randomUUID(),
+                        ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
+        CreateDeploymentResponse createDeploymentResult = draftAndCreateDeployment(createDeploymentRequest);
+        String jobId = createDeploymentResult.iotJobId();
+
+        IotJobsUtils
+                .waitForJobExecutionStatusToSatisfy(iotClient, jobId, thingInfo.getThingName(), Duration.ofMinutes(5),
+                        s -> s.equals(JobExecutionStatus.FAILED));
+
+        // Make sure IoT Job was marked as failed and provided correct reason
+        String deploymentError = iotClient.describeJobExecution(
+                DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingInfo.getThingName()).build())
+                .execution().statusDetails().detailsMap().get(DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY);
+        assertThat(deploymentError, containsString("Failed to negotiate component"));
+        assertThat(deploymentError, containsString("XYZPackage"));
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
