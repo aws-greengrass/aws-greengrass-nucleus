@@ -1,6 +1,9 @@
 # Changelog
 
 ## v2.0.4
+### Note to users:
+* Automatic provisioning using `--provision true` now requires `iam:GetPolicy` and `sts:GetCallerIdentity`. See
+  [our documentation](https://docs.aws.amazon.com/greengrass/v2/developerguide/install-greengrass-core-v2.html#provision-minimal-iam-policy) for the full updated set of minimum permissions.
 ### New features:
 * Enable HTTPS traffic over port 443. You use the new greengrassDataPlanePort configuration parameter for the nucleus component to configure HTTPS communication to travel over port 443 instead of the default port 8443. (#811)(328ad0a9)
 * Add the work path recipe variable. You can use this recipe variable to get the path to components' work folders, which you can use to share files between components and their dependencies. (0fa011b)
