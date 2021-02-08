@@ -12,6 +12,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.ProxyUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
@@ -21,10 +22,15 @@ import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
+import java.time.Duration;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,9 +46,11 @@ import javax.inject.Provider;
 class AwsIotMqttClient implements Closeable {
     static final String TOPIC_KEY = "topic";
     private static final String QOS_KEY = "qos";
+    private static final Random RANDOM = new Random();
     private final Logger logger = LogManager.getLogger(AwsIotMqttClient.class).createChild()
             .dfltKv(MqttClient.CLIENT_ID_KEY, (Supplier<String>) this::getClientId);
 
+    private final ExecutorService executorService;
     private final Provider<AwsIotMqttConnectionBuilder> builderProvider;
     @Getter
     private final String clientId;
@@ -51,6 +59,16 @@ class AwsIotMqttClient implements Closeable {
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
     private final CallbackEventManager callbackEventManager;
     private final AtomicBoolean initalConnect = new AtomicBoolean(true);
+    private final Consumer<MqttMessage> messageHandler;
+    private final Topics mqttTopics;
+    @Getter(AccessLevel.PACKAGE)
+    private final Map<String, QualityOfService> subscriptionTopics = new ConcurrentHashMap<>();
+    private final Map<String, QualityOfService> droppedSubscriptionTopics = new ConcurrentHashMap<>();
+    private Future<?> resubscribeFuture;
+    @Setter
+    private static long waitTimeToSubscribeAgainMillis = Duration.ofMinutes(2).toMillis();
+    @Setter
+    private static int waitTimeJitterRangeMillis = 10_000;
 
     @Getter(AccessLevel.PACKAGE)
     private final MqttClientConnectionEvents connectionEventCallback = new MqttClientConnectionEvents() {
@@ -61,6 +79,9 @@ class AwsIotMqttClient implements Closeable {
             if (errorCode != 0) {
                 logger.atWarn().kv("error", CRT.awsErrorString(errorCode)).log("Connection interrupted");
             }
+            if (resubscribeFuture != null) {
+                resubscribeFuture.cancel(true);
+            }
             // To run the callbacks shared by the different AwsIotMqttClient.
             callbackEventManager.runOnConnectionInterrupted(errorCode);
         }
@@ -69,29 +90,21 @@ class AwsIotMqttClient implements Closeable {
         public void onConnectionResumed(boolean sessionPresent) {
             currentlyConnected.set(true);
             logger.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
-            // If we didn't reconnect using the same session, then resubscribe to all the topics
-            if (!sessionPresent) {
-                resubscribe();
-            }
+            resubscribe(sessionPresent);
             // To run the callbacks shared by the different AwsIotMqttClient.
             callbackEventManager.runOnConnectionResumed(sessionPresent);
         }
     };
 
-    private final Consumer<MqttMessage> messageHandler;
-    private final Topics mqttTopics;
-    @Getter(AccessLevel.PACKAGE)
-    private final Map<String, QualityOfService> subscriptionTopics = new ConcurrentHashMap<>();
-
     AwsIotMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
-                     Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler,
-                     String clientId, Topics mqttTopics,
-                     CallbackEventManager callbackEventManager) {
+                     Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler, String clientId,
+                     Topics mqttTopics, CallbackEventManager callbackEventManager, ExecutorService executorService) {
         this.builderProvider = builderProvider;
         this.clientId = clientId;
         this.mqttTopics = mqttTopics;
         this.messageHandler = messageHandler.apply(this);
         this.callbackEventManager = callbackEventManager;
+        this.executorService = executorService;
     }
 
     // Notes about the CRT MQTT client:
@@ -176,9 +189,7 @@ class AwsIotMqttClient implements Closeable {
                     currentlyConnected.set(true);
                     logger.atInfo().kv("sessionPresent", sessionPresent)
                             .log("Successfully connected to AWS IoT Core");
-                    if (!sessionPresent) {
-                        resubscribe();
-                    }
+                    resubscribe(sessionPresent);
                     callbackEventManager.runOnInitialConnect(sessionPresent);
                     return sessionPresent;
                 });
@@ -227,14 +238,54 @@ class AwsIotMqttClient implements Closeable {
                 MqttClient.DEFAULT_MQTT_OPERATION_TIMEOUT, MqttClient.MQTT_OPERATION_TIMEOUT_KEY));
     }
 
-    private void resubscribe() {
-        subscriptionTopics.forEach((key, value) -> {
-            subscribe(key, value).whenComplete((i, t) -> {
-                if (t != null) {
-                    logger.atError().kv(TOPIC_KEY, key).kv(QOS_KEY, value.name()).log("Unable to resubscribe to topic");
+    private void resubscribe(boolean sessionPresent) {
+        // Don't bother spin up a thread if subscription is empty
+        if (!subscriptionTopics.isEmpty()) {
+            // All subscriptions will be dropped if connected without a session
+            if (!sessionPresent) {
+                droppedSubscriptionTopics.putAll(subscriptionTopics);
+            }
+            if (resubscribeFuture == null || resubscribeFuture.isDone()) {
+                resubscribeFuture = executorService.submit(this::resubscribeDroppedTopicsTask);
+            }
+        }
+    }
+
+    private void resubscribeDroppedTopicsTask() {
+        logger.atInfo().log("Re-subscribing to topics");
+        while (true) {
+            logger.atInfo().kv("failed topics", droppedSubscriptionTopics.keySet())
+                    .kv("sub topics", subscriptionTopics.keySet()).log();
+            Iterator<Map.Entry<String, QualityOfService>> iterator = droppedSubscriptionTopics.entrySet().iterator();
+            while (iterator.hasNext()) {
+                if (!currentlyConnected.get()) {
+                    logger.atInfo().log("Canceling re-subscribe because connection was interrupted");
+                    return;
                 }
-            });
-        });
+
+                Map.Entry<String, QualityOfService> subscriptionEntry = iterator.next();
+                subscribe(subscriptionEntry.getKey(), subscriptionEntry.getValue()).whenComplete((i, t) -> {
+                    if (t == null) {
+                        iterator.remove();
+                    } else {
+                        logger.atError().kv(TOPIC_KEY, subscriptionEntry.getKey())
+                                .kv(QOS_KEY, subscriptionEntry.getValue().name())
+                                .log("Failed to re-subscribe to topic, will retry later");
+                    }
+                });
+            }
+            // If there's still failed subscriptions, wait for some time before trying again
+            if (droppedSubscriptionTopics.isEmpty()) {
+                break;
+            } else {
+                try {
+                    Thread.sleep(waitTimeToSubscribeAgainMillis + RANDOM.nextInt(waitTimeJitterRangeMillis));
+                } catch (InterruptedException e) {
+                    logger.atWarn().log("Interrupted while trying to re-subscribe to topics");
+                    return;
+                }
+            }
+        }
     }
 
     boolean canAddNewSubscription() {

@@ -22,16 +22,21 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,6 +45,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class AwsIotMqttClientTest {
 
+    public static final int VERIFY_TIMEOUT_MILLIS = 1000;
     @Mock
     AwsIotMqttConnectionBuilder builder;
 
@@ -57,6 +63,7 @@ class AwsIotMqttClientTest {
 
     CallbackEventManager callbackEventManager;
     Topics mockTopic;
+    ExecutorService executorService = Executors.newCachedThreadPool();
 
     @BeforeEach
     void beforeEach() {
@@ -76,7 +83,7 @@ class AwsIotMqttClientTest {
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
 
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager);
+                callbackEventManager, executorService);
         assertFalse(client.connected());
 
         when(builder.build()).thenReturn(connection);
@@ -111,7 +118,7 @@ class AwsIotMqttClientTest {
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
         when(builder.build()).thenReturn(connection);
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager);
+                callbackEventManager, executorService);
 
         //initial connect, client connects, disconnects and then connects
         client.subscribe("A", QualityOfService.AT_LEAST_ONCE);
@@ -144,7 +151,7 @@ class AwsIotMqttClientTest {
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
 
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager);
+                callbackEventManager, executorService);
         assertFalse(client.connected());
 
         when(builder.build()).thenReturn(connection);
@@ -163,9 +170,9 @@ class AwsIotMqttClientTest {
     void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_resumed_THEN_oneTimeCallbacks_would_be_executed_once() {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager);
+                callbackEventManager, executorService);
         AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
-                callbackEventManager);
+                callbackEventManager, executorService);
         boolean sessionPresent = false;
         // callbackEventManager.hasCallBacked is originally set as False
         assertFalse(callbackEventManager.hasCallbacked());
@@ -191,9 +198,9 @@ class AwsIotMqttClientTest {
     void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_interrupted_THEN_oneTimeCallbacks_would_be_executed_once() {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager);
+                callbackEventManager, executorService);
         AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
-                callbackEventManager);
+                callbackEventManager, executorService);
         callbackEventManager.runOnConnectionResumed(false);
         assertTrue(callbackEventManager.hasCallbacked());
         int errorCode = 0;
@@ -214,5 +221,94 @@ class AwsIotMqttClientTest {
         // When the connections are interrupted, callbackEventManager.hasCallBacked was set back to False,
         // meaning the oneTimeCallbackEvent is needed to executed when the connection back online.
         assertFalse(callbackEventManager.hasCallbacked());
+    }
+
+    @Test
+    void GIVEN_multiple_topics_subscribed_WHEN_reconnect_THEN_resubscribe_to_topics()
+            throws InterruptedException, ExecutionException, TimeoutException {
+        // setup mocks
+        AwsIotMqttClient.setWaitTimeToSubscribeAgainMillis(500);
+        AwsIotMqttClient.setWaitTimeJitterRangeMillis(1);
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "testClient", mockTopic,
+                callbackEventManager, executorService);
+
+        when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
+        when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
+        when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
+        when(builder.build()).thenReturn(connection);
+
+        // subscribe to topics A, B, C
+        client.subscribe("A", QualityOfService.AT_LEAST_ONCE);
+        client.subscribe("B", QualityOfService.AT_LEAST_ONCE);
+        client.subscribe("C", QualityOfService.AT_LEAST_ONCE);
+        assertTrue(client.connected());
+        assertEquals(3, client.subscriptionCount());
+
+        client.reconnect();
+
+        // verify with some timeout to allow thread to spin up etc.
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(2)).subscribe(eq("A"), any());
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(2)).subscribe(eq("B"), any());
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(2)).subscribe(eq("C"), any());
+    }
+
+    @Test
+    void GIVEN_multiple_topics_subscribed_WHEN_connection_interrupted_and_resumed_THEN_resubscribe_to_topics() {
+        // setup mocks
+        AwsIotMqttClient.setWaitTimeToSubscribeAgainMillis(500);
+        AwsIotMqttClient.setWaitTimeJitterRangeMillis(1);
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "testClient", mockTopic,
+                callbackEventManager, executorService);
+
+        when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
+        when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
+        when(builder.build()).thenReturn(connection);
+
+        // subscribe to topics A, B, C
+        client.subscribe("A", QualityOfService.AT_LEAST_ONCE);
+        client.subscribe("B", QualityOfService.AT_LEAST_ONCE);
+        client.subscribe("C", QualityOfService.AT_LEAST_ONCE);
+        assertTrue(client.connected());
+        assertEquals(3, client.subscriptionCount());
+
+        // interrupt network and recover without session
+        // should resubscribe to all 3 topics
+        CompletableFuture<Integer> subFailFuture = new CompletableFuture<>();
+        subFailFuture.completeExceptionally(new Exception());
+        when(connection.subscribe(eq("B"), any())).thenReturn(subFailFuture);
+        when(connection.subscribe(eq("C"), any())).thenReturn(subFailFuture);
+
+        events.getValue().onConnectionInterrupted(0);
+        events.getValue().onConnectionResumed(false);
+
+        // verify with some timeout to allow thread to spin up etc.
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(2)).subscribe(eq("A"), any());
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(2)).subscribe(eq("B"), any());
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(2)).subscribe(eq("C"), any());
+
+        // resub A succeeded, should keep retrying failed ones
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(3)).subscribe(eq("B"), any());
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(3)).subscribe(eq("C"), any());
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(2)).subscribe(eq("A"), any());
+
+        // interrupt network and recover with session
+        events.getValue().onConnectionInterrupted(0);
+        events.getValue().onConnectionResumed(true);
+
+        // should not resub A because session persisted, but retry the others
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(4)).subscribe(eq("B"), any());
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(4)).subscribe(eq("C"), any());
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(2)).subscribe(eq("A"), any());
+
+        // interrupt network and recover without session
+        events.getValue().onConnectionInterrupted(0);
+        events.getValue().onConnectionResumed(false);
+
+        // should resubscribe to all 3 topics
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(5)).subscribe(eq("B"), any());
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(5)).subscribe(eq("C"), any());
+        verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(3)).subscribe(eq("A"), any());
     }
 }

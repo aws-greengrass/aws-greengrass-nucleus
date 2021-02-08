@@ -597,7 +597,7 @@ public class MqttClient implements Closeable {
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
                 : "#" + (connections.size() + 1));
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
-                clientId, mqttTopics, callbackEventManager);
+                clientId, mqttTopics, callbackEventManager, executorService);
     }
 
     public boolean connected() {
