@@ -25,6 +25,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.utils.ImmutableMap;
@@ -42,6 +43,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -123,7 +125,9 @@ class DeploymentTaskTest {
     }
 
     @Test
-    void GIVEN_deploymentDocument_WHEN_resolveDependencies_errored_THEN_deploymentTask_aborted() throws Exception {
+    void GIVEN_deploymentDocument_WHEN_resolveDependencies_errored_THEN_deploymentTask_aborted(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, PackagingException.class);
         when(mockExecutorService.submit(any(Callable.class))).thenReturn(mockResolveDependencyFuture);
         when(mockResolveDependencyFuture.get())
                 .thenThrow(new ExecutionException(new PackagingException("unknown package")));
@@ -154,8 +158,9 @@ class DeploymentTaskTest {
     }
 
     @Test
-    void GIVEN_deployment_task_interrupted_WHEN_preparePackages_not_started_THEN_do_nothing() throws Exception {
-
+    void GIVEN_deployment_task_interrupted_WHEN_preparePackages_not_started_THEN_do_nothing(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
         when(mockExecutorService.submit(any(Callable.class))).thenReturn(mockResolveDependencyFuture);
         when(mockResolveDependencyFuture.get()).thenThrow(new ExecutionException(new InterruptedException()));
 
