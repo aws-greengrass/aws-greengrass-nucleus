@@ -56,7 +56,6 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
-import static com.aws.greengrass.deployment.DeploymentService.LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
@@ -137,9 +136,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         deploymentQueue = new DeploymentQueue();
         deploymentService.setDeploymentsQueue(deploymentQueue);
-        Topic lastSuccessfulDeploymentId = Topic.of(context, LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC, null);
-        lenient().when(config.lookup(LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC))
-                .thenReturn(lastSuccessfulDeploymentId);
     }
 
     @AfterEach
