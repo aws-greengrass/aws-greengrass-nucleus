@@ -81,7 +81,6 @@ public class DeploymentService extends GreengrassService {
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
     public static final String GROUP_TO_ROOT_COMPONENTS_TOPICS = "GroupToRootComponents";
     public static final String COMPONENTS_TO_GROUPS_TOPICS = "ComponentToGroups";
-    public static final String LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC = "LastSuccessfulShadowDeploymentId";
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN = "groupConfigArn";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_NAME = "groupConfigName";
@@ -209,17 +208,9 @@ public class DeploymentService extends GreengrassService {
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                                 .log("The current deployment cannot be cancelled");
                     }
-                } else if (deployment.getDeploymentType().equals(DeploymentType.SHADOW)) {
+                } else if (DeploymentType.SHADOW.equals(deployment.getDeploymentType())) {
                     // The deployment type is shadow
-                    if (deployment.getId()
-                            .equals(Coerce.toString(config.lookup(LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC)))) {
-                        // On device start up, Shadow listener will fetch the shadow and schedule a shadow deployment
-                        // Discard the deployment if Kernel starts up from a tlog file
-                        // and has already processed deployment
-                        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
-                                .log("Skip the already processed shadow deployment");
-                        deploymentQueue.remove();
-                    } else if (currentDeploymentTaskMetadata != null && DeploymentType.SHADOW
+                    if (currentDeploymentTaskMetadata != null && DeploymentType.SHADOW
                             .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
                         // A new device deployment invalidates the previous deployment, cancel the ongoing device
                         //deployment and wait till the new device deployment can be picked up.
@@ -231,11 +222,11 @@ public class DeploymentService extends GreengrassService {
                         deploymentQueue.remove();
                         createNewDeployment(deployment);
                     }
-                } else if (deployment.getDeploymentType().equals(DeploymentType.IOT_JOBS)) {
+                } else if (DeploymentType.IOT_JOBS.equals(deployment.getDeploymentType())) {
                     // The deployment type is IoT Jobs
-                    if (currentDeploymentTaskMetadata != null && deployment.getId()
-                            .equals(currentDeploymentTaskMetadata.getDeploymentId()) && deployment.getDeploymentType()
-                            .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
+                    if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentId()
+                            .equals(deployment.getId()) && currentDeploymentTaskMetadata.getDeploymentType()
+                            .equals(deployment.getDeploymentType())) {
                         // The new deployment is duplicate of current in progress deployment. Ignore the new one.
                         deploymentQueue.remove();
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
@@ -245,7 +236,7 @@ public class DeploymentService extends GreengrassService {
                         deploymentQueue.remove();
                         createNewDeployment(deployment);
                     }
-                } else if (deployment.getDeploymentType().equals(DeploymentType.LOCAL)) {
+                } else if (DeploymentType.LOCAL.equals(deployment.getDeploymentType())) {
                     // The deployment type is local
                     if (currentDeploymentTaskMetadata == null) {
                         // Since no in progress deployment, just create a new deployment.
@@ -293,16 +284,11 @@ public class DeploymentService extends GreengrassService {
 
                 Map<String, String> statusDetails = new HashMap<>();
                 statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, deploymentStatus.name());
-                if (deploymentStatus.equals(DeploymentResult.DeploymentStatus.SUCCESSFUL)) {
+                if (DeploymentResult.DeploymentStatus.SUCCESSFUL.equals(deploymentStatus)) {
                     //Add the root packages of successful deployment to the configuration
                     DeploymentDocument deploymentDocument = currentDeploymentTaskMetadata.getDeploymentDocument();
                     Topics deploymentGroupTopics =
                             config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, deploymentDocument.getGroupName());
-
-                    if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {
-                        config.lookup(LAST_SUCCESSFUL_SHADOW_DEPLOYMENT_ID_TOPIC)
-                                .withValue(currentDeploymentTaskMetadata.getDeploymentId());
-                    }
                     Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
                     // TODO: [P41179087] Removal of group from the mappings. Currently there is no action taken
                     // when a device is removed from a thing group. Empty configuration is treated as a valid config
@@ -434,7 +420,7 @@ public class DeploymentService extends GreengrassService {
         } else {
             deploymentTask = createKernelUpdateDeployment(deployment);
             cancellable = false;
-            if (deployment.getDeploymentType().equals(DeploymentType.IOT_JOBS)) {
+            if (DeploymentType.IOT_JOBS.equals(deployment.getDeploymentType())) {
                 // Keep track of IoT jobs for de-duplication
                 IotJobsHelper.getLatestQueuedJobs().addProcessedJob(deployment.getId());
             }

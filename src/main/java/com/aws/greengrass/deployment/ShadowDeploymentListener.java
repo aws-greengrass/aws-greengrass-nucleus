@@ -22,6 +22,7 @@ import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
+import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 import software.amazon.awssdk.iot.iotshadow.IotShadowClient;
 import software.amazon.awssdk.iot.iotshadow.model.GetNamedShadowRequest;
 import software.amazon.awssdk.iot.iotshadow.model.GetNamedShadowSubscriptionRequest;
@@ -128,8 +129,9 @@ public class ShadowDeploymentListener implements InjectionActions {
                 updateNamedShadowSubscriptionRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
                 updateNamedShadowSubscriptionRequest.thingName = thingName;
                 iotShadowClient.SubscribeToUpdateNamedShadowAccepted(updateNamedShadowSubscriptionRequest,
-                        QualityOfService.AT_LEAST_ONCE, updateShadowResponse ->
-                                shadowUpdated(updateShadowResponse.state.desired, updateShadowResponse.version),
+                        QualityOfService.AT_LEAST_ONCE,
+                        updateShadowResponse -> shadowUpdated(updateShadowResponse.state.desired,
+                                updateShadowResponse.state.reported, updateShadowResponse.version),
                         (e) -> logger.atError().log("Error processing updateShadowResponse", e))
                         .get(TIMEOUT_FOR_SUBSCRIBING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
                 logger.info("Subscribed to update named shadow accepted topic");
@@ -139,7 +141,8 @@ public class ShadowDeploymentListener implements InjectionActions {
                 getNamedShadowSubscriptionRequest.thingName = thingName;
                 iotShadowClient.SubscribeToGetNamedShadowAccepted(getNamedShadowSubscriptionRequest,
                         QualityOfService.AT_MOST_ONCE,
-                        getShadowResponse -> shadowUpdated(getShadowResponse.state.desired, getShadowResponse.version),
+                        getShadowResponse -> shadowUpdated(getShadowResponse.state.desired,
+                                getShadowResponse.state.reported, getShadowResponse.version),
                         (e) -> logger.atError().log("Error processing getShadowResponse", e))
                         .get(TIMEOUT_FOR_SUBSCRIBING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
                 logger.info("Subscribed to get named shadow topic");
@@ -226,7 +229,7 @@ public class ShadowDeploymentListener implements InjectionActions {
         return reported;
     }
 
-    protected void shadowUpdated(Map<String, Object> desired, Integer version) {
+    protected void shadowUpdated(Map<String, Object> desired, Map<String, Object> reported, Integer version) {
         if (desired == null || desired.isEmpty()) {
             logger.debug("Empty desired state, no device deployments created yet");
             return;
@@ -242,22 +245,51 @@ public class ShadowDeploymentListener implements InjectionActions {
             return;
         }
         String configurationArn = configuration.getConfigurationArn();
-        boolean cancelDeployment = DESIRED_STATUS_CANCELED.equals(desired.get(DESIRED_STATUS_KEY));
+        if (configurationArn == null) {
+            logger.atError().log("Desired state has null configuration ARN. Ignoring shadow update");
+            return;
+        }
+        String desiredStatus = (String) desired.get(DESIRED_STATUS_KEY);
+        if (desiredStatus == null) {
+            logger.atError().log("Desired status is null. Ignoring shadow update");
+            return;
+        }
+        boolean cancelDeployment = DESIRED_STATUS_CANCELED.equals(desiredStatus);
 
         synchronized (ShadowDeploymentListener.class) {
-            if (lastVersion != null && lastVersion > version) {
-                logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
-                        .kv("SHADOW_VERSION", version)
-                        .log("Old deployment notification, Ignoring...");
-                return;
+            // If lastConfigurationArn is null, this is the first shadow update since startup
+            if (lastConfigurationArn == null) {
+                lastConfigurationArn = configurationArn;
+                lastVersion = version;
+                // Ignore if the latest deployment was canceled
+                if (cancelDeployment) {
+                    logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
+                            .log("Deployment was canceled. Ignoring shadow update at startup");
+                    return;
+                }
+                // If the reported state exists, skip the deployment if the reported ARN matches desired and
+                // the reported status is terminal (i.e. not in_progress) because it's already fully processed
+                if (reported != null && configurationArn.equals(reported.get(ARN_FOR_STATUS_KEY))
+                        && !JobStatus.IN_PROGRESS.toString().equals(reported.get(STATUS_KEY))) {
+                    logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
+                            .log("Deployment result already reported. Ignoring shadow update at startup");
+                    return;
+                }
+            } else {
+                if (lastVersion > version) {
+                    logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
+                            .kv("SHADOW_VERSION", version)
+                            .log("Old deployment notification. Ignoring shadow update");
+                    return;
+                }
+                if (lastConfigurationArn.equals(configurationArn) && !cancelDeployment) {
+                    logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
+                            .log("Duplicate deployment notification. Ignoring shadow update");
+                    return;
+                }
+                lastConfigurationArn = configurationArn;
+                lastVersion = version;
             }
-            if (lastConfigurationArn != null && lastConfigurationArn.equals(configurationArn) && !cancelDeployment) {
-                logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
-                        .log("Duplicate deployment notification, Ignoring...");
-                return;
-            }
-            lastConfigurationArn = configurationArn;
-            lastVersion = version;
         }
 
         Deployment deployment;
