@@ -7,6 +7,7 @@ package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentConfiguration;
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
+import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
@@ -64,9 +65,7 @@ public class KernelConfigResolver {
     static final String WORK_NAMESPACE = "work";
     static final String KERNEL_NAMESPACE = "kernel";
     static final String KERNEL_ROOT_PATH = "rootPath";
-    static final String PARAM_NAMESPACE = "params";
     static final String CONFIGURATION_NAMESPACE = "configuration";
-    static final String PARAM_VALUE_SUFFIX = ".value";
     static final String PATH_KEY = "path";
     static final String DECOMPRESSED_PATH_KEY = "decompressedPath";
     private static final Logger LOGGER = LogManager.getLogger(KernelConfigResolver.class);
@@ -194,10 +193,8 @@ public class KernelConfigResolver {
                 : componentRecipe.getComponentType().name());
 
         // Generate dependencies
-        List<String> dependencyConfig = new ArrayList<>();
-        componentRecipe.getDependencies().forEach((name, prop) -> dependencyConfig
-                .add(prop.getDependencyType() == null ? name : name + ":" + prop.getDependencyType()));
-        resolvedServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, dependencyConfig);
+        resolvedServiceConfig.put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC,
+                generateServiceDependencies(componentRecipe.getDependencies()));
 
         // State information for deployments
         handleComponentVersionConfigs(componentIdentifier, componentRecipe.getVersion().getValue(),
@@ -230,6 +227,19 @@ public class KernelConfigResolver {
                 .put(CONFIGURATION_CONFIG_KEY, resolvedConfiguration);
 
         return resolvedServiceConfig;
+    }
+
+    /**
+     * Generate service dependency list from the given dependency definition from recipe.
+     * @param dependencyPropertiesMap map of service dependency name to dependency properties
+     * @return service dependency list
+     */
+    public List<String> generateServiceDependencies(Map<String, DependencyProperties> dependencyPropertiesMap) {
+        // Generate dependencies
+        List<String> dependencyConfig = new ArrayList<>();
+        dependencyPropertiesMap.forEach((name, prop) -> dependencyConfig
+                .add(prop.getDependencyType() == null ? name : name + ":" + prop.getDependencyType()));
+        return dependencyConfig;
     }
 
     private void updateRunWith(RunWith runWith, Map<String, Object> resolvedServiceConfig, String componentName) {
@@ -375,11 +385,11 @@ public class KernelConfigResolver {
      * @param configValue                 original value; could be Map or String
      * @param componentIdentifier         target component id
      * @param dependencies                name set of component's dependencies
-     * @param resolvedKernelServiceConfig resolved kernel configuration under "Service" key
+     * @param resolvedKernelServiceConfig resolved kernel configuration under "Services" key
      * @return the interpolated lifecycle object
      * @throws IOException for directory issues
      */
-    private Object interpolate(Object configValue, ComponentIdentifier componentIdentifier, Set<String> dependencies,
+    public Object interpolate(Object configValue, ComponentIdentifier componentIdentifier, Set<String> dependencies,
             Map<String, Object> resolvedKernelServiceConfig) throws IOException {
         Object result = configValue;
 

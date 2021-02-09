@@ -10,6 +10,7 @@ import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -45,10 +46,11 @@ public class KernelAlternatives {
     private static final String KERNEL_DISTRIBUTION_DIR = "distro";
     private static final String SYSTEMD_SERVICE_FILE = "greengrass.service";
     private static final String SYSTEMD_SERVICE_TEMPLATE = "greengrass.service.template";
-    private static final String KERNEL_BIN_DIR = "bin";
+    public static final String KERNEL_BIN_DIR = "bin";
     private static final String KERNEL_LIB_DIR = "lib";
     private static final String LOADER_PID_FILE = "loader.pid";
-    private static final String LOADER_FILE = "loader";
+    public static final String LOADER_FILE = "loader";
+    static final String LAUNCH_PARAMS_FILE = "launch.params";
 
     private final Path altsDir;
     // Symlink to the current launch directory
@@ -112,6 +114,23 @@ public class KernelAlternatives {
 
     public Path getServiceConfigPath() {
         return currentDir.resolve(KERNEL_DISTRIBUTION_DIR).resolve(KERNEL_BIN_DIR).resolve(SYSTEMD_SERVICE_FILE);
+    }
+
+    public Path getLaunchParamsPath() {
+        return currentDir.resolve(LAUNCH_PARAMS_FILE);
+    }
+
+    /**
+     * Write the given string to launch paratemters file.
+     *
+     * @param content file content string
+     * @throws IOException on I/O error
+     */
+    public void writeLaunchParamsToFile(String content) throws IOException {
+        try (CommitableWriter out = CommitableWriter.abandonOnClose(getLaunchParamsPath())) {
+            out.write(content);
+            out.commit();
+        }
     }
 
     public boolean isLaunchDirSetup() {

@@ -604,8 +604,13 @@ public class Kernel {
         }
 
         // Update device configuration from commandline arguments after loading config files
-        kernelCommandLine.updateDeviceConfiguration(getContext().get(DeviceConfiguration.class));
+        DeviceConfiguration deviceConfiguration = getContext().get(DeviceConfiguration.class);
+        kernelCommandLine.updateDeviceConfiguration(deviceConfiguration);
+        // After configuration is fully loaded, initialize Nucleus service config
+        deviceConfiguration.initializeNucleusFromRecipe(kernelAlts);
+
         setupProxy();
+
         return this;
     }
 
