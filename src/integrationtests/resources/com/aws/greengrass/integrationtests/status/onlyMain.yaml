@@ -7,3 +7,4 @@ services:
 
   main:
     dependencies:
+      - aws.greengrass.Nucleus

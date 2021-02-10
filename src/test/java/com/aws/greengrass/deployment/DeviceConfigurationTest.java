@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.deployment;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
@@ -18,6 +19,7 @@ import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidation
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Semver;
@@ -49,6 +51,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -85,26 +88,28 @@ class DeviceConfigurationTest {
         NucleusPaths nucleusPaths = mock(NucleusPaths.class);
         Topics rootConfigTopics = mock(Topics.class);
         when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString())).thenReturn(new ArrayList<>());
-        when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
+        lenient().when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(mockTopic);
-        when(configuration.getRoot()).thenReturn(rootConfigTopics);
+        lenient().when(configuration.getRoot()).thenReturn(rootConfigTopics);
         when(mockKernel.getConfig()).thenReturn(configuration);
         lenient().when(mockKernel.getNucleusPaths()).thenReturn(nucleusPaths);
 
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
         when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(mockTopics);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
-        deviceConfiguration = new DeviceConfiguration(mockKernel);
+        lenient().when(configuration.lookupTopics(anyString())).thenReturn(topics);
     }
 
     @Test
     void GIVEN_good_config_WHEN_validate_THEN_succeeds() {
+        deviceConfiguration = new DeviceConfiguration(mockKernel);
         assertDoesNotThrow(() -> deviceConfiguration.validateEndpoints("us-east-1", "xxxxxx.credentials.iot.us-east-1.amazonaws.com",
                 "xxxxxx-ats.iot.us-east-1.amazonaws.com"));
     }
 
     @Test
     void GIVEN_bad_cred_endpoint_config_WHEN_validate_THEN_fails() {
+        deviceConfiguration = new DeviceConfiguration(mockKernel);
         ComponentConfigurationValidationException ex = assertThrows(ComponentConfigurationValidationException.class,
                 () -> deviceConfiguration.validateEndpoints("us-east-1", "xxxxxx.credentials.iot.us-east-2.amazonaws.com",
                         "xxxxxx-ats.iot.us-east-1.amazonaws.com"));
@@ -113,6 +118,7 @@ class DeviceConfigurationTest {
 
     @Test
     void GIVEN_bad_data_endpoint_config_WHEN_validate_THEN_fails() {
+        deviceConfiguration = new DeviceConfiguration(mockKernel);
         ComponentConfigurationValidationException ex = assertThrows(ComponentConfigurationValidationException.class,
                 () -> deviceConfiguration.validateEndpoints("us-east-1", "xxxxxx.credentials.iot.us-east-1.amazonaws.com",
                         "xxxxxx-ats.iot.us-east-2.amazonaws.com"));
@@ -122,6 +128,7 @@ class DeviceConfigurationTest {
     @Test
     void GIVEN_no_launch_param_file_WHEN_persistInitialLaunchParams_THEN_write_jvm_args_to_file(@TempDir Path tempDir)
             throws Exception {
+        deviceConfiguration = new DeviceConfiguration(mockKernel);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         Path tempFile = tempDir.resolve("testFile");
         doReturn(tempFile).when(kernelAlternatives).getLaunchParamsPath();
@@ -132,6 +139,7 @@ class DeviceConfigurationTest {
     @Test
     void GIVEN_existing_launch_param_file_WHEN_persistInitialLaunchParams_THEN_skip(@TempDir Path tempDir)
             throws Exception {
+        deviceConfiguration = new DeviceConfiguration(mockKernel);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         Path tempFile = tempDir.resolve("testFile");
         Files.createFile(tempFile);
@@ -144,7 +152,7 @@ class DeviceConfigurationTest {
     @Test
     void GIVEN_recipe_WHEN_initializeNucleusLifecycleConfig_THEN_init_lifecycle_and_dependencies(
             @Mock KernelConfigResolver kernelConfigResolver, @Mock Context context) throws Exception {
-
+        deviceConfiguration = new DeviceConfiguration(mockKernel);
         List mockDependencies = Arrays.asList("A", "B", "C");
         doReturn(mockDependencies).when(kernelConfigResolver).generateServiceDependencies(anyMap());
         Object interpolatedLifecycle = new HashMap<String, String>() {{
@@ -173,6 +181,7 @@ class DeviceConfigurationTest {
 
     @Test
     void GIVEN_version_WHEN_initializeNucleusVersion_THEN_init_component_version_and_env_var(@Mock Context context) {
+        deviceConfiguration = new DeviceConfiguration(mockKernel);
         String nucleusComponentName = "test.component.name";
         String nucleusComponentVersion = "test-version";
 
@@ -192,6 +201,7 @@ class DeviceConfigurationTest {
     void GIVEN_component_store_already_setup_WHEN_initializeComponentStore_THEN_do_nothing(
             @TempDir Path tempDir, @Mock Context context, @Mock ComponentStore componentStore,
             @Mock NucleusPaths nucleusPaths) throws Exception {
+        deviceConfiguration = new DeviceConfiguration(mockKernel);
         String nucleusComponentName = "test.component.name";
         Semver nucleusComponentVersion = new Semver("1.0.0");
 
@@ -215,6 +225,7 @@ class DeviceConfigurationTest {
     void GIVEN_component_store_not_setup_WHEN_initializeComponentStore_THEN_copy_to_component_store(
             @TempDir Path dstRecipeDir, @TempDir Path dstArtifactsDir, @TempDir Path unpackDir, @Mock Context context,
             @Mock ComponentStore componentStore, @Mock NucleusPaths nucleusPaths) throws Exception {
+        deviceConfiguration = new DeviceConfiguration(mockKernel);
         String nucleusComponentName = "test.component.name";
         Semver nucleusComponentVersion = new Semver("1.0.0");
 
@@ -244,7 +255,7 @@ class DeviceConfigurationTest {
     @Test
     void GIVEN_unpack_dir_is_nucleus_root_WHEN_initializeComponentStore_THEN_copy_to_component_store(
             @TempDir Path unpackDir, @Mock Context context, @Mock ComponentStore componentStore) throws Exception {
-
+        deviceConfiguration = new DeviceConfiguration(mockKernel);
         String nucleusComponentName = "test.component.name";
         Semver nucleusComponentVersion = new Semver("1.0.0");
 
@@ -280,6 +291,72 @@ class DeviceConfigurationTest {
         verify(componentStore).savePackageRecipe(eq(componentIdentifier), eq(mockRecipeContent));
         mockNucleusUnpackDir.assertDirectoryEquals(nucleusPaths.unarchiveArtifactPath(
                 componentIdentifier, DEFAULT_NUCLEUS_COMPONENT_NAME.toLowerCase()));
+    }
+
+    @Test
+    void GIVEN_existing_config_including_nucleus_version_WHEN_init_device_config_THEN_use_nucleus_version_from_config()
+            throws Exception {
+        try (Context context = new Context()) {
+            Topics servicesConfig = Topics.of(context, SERVICES_NAMESPACE_TOPIC, null);
+            Topics nucleusConfig = servicesConfig.lookupTopics(DEFAULT_NUCLEUS_COMPONENT_NAME);
+            Topic componentTypeConfig =
+                    nucleusConfig.lookup(SERVICE_TYPE_TOPIC_KEY).withValue(ComponentType.NUCLEUS.name());
+            Topic nucleusVersionConfig = nucleusConfig.lookup(VERSION_CONFIG_KEY).withValue("99.99.99");
+
+            lenient().when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC)).thenReturn(servicesConfig);
+            lenient().when(configuration
+                    .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY))
+                    .thenReturn(nucleusVersionConfig);
+            lenient().when(configuration
+                    .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY))
+                    .thenReturn(componentTypeConfig);
+            when(mockKernel.findServiceTopic(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(nucleusConfig);
+            deviceConfiguration = new DeviceConfiguration(mockKernel);
+
+            // Confirm version config didn't get overwritten with default
+            assertEquals("99.99.99", Coerce.toString(nucleusVersionConfig));
+            assertEquals("99.99.99", deviceConfiguration.getNucleusVersion());
+        }
+
+    }
+
+    @Test
+    void GIVEN_existing_config_with_no_nucleus_version_WHEN_init_device_config_THEN_use_default_nucleus_version()
+            throws Exception {
+        try (Context context = new Context()) {
+            Topics servicesConfig = Topics.of(context, SERVICES_NAMESPACE_TOPIC, null);
+            Topics nucleusConfig = servicesConfig.lookupTopics(DEFAULT_NUCLEUS_COMPONENT_NAME);
+            Topic componentTypeConfig =
+                    nucleusConfig.lookup(SERVICE_TYPE_TOPIC_KEY).withValue(ComponentType.NUCLEUS.name());
+
+            lenient().when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC)).thenReturn(servicesConfig);
+            lenient().when(configuration
+                    .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY))
+                    .thenReturn(componentTypeConfig);
+            when(mockKernel.findServiceTopic(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(nucleusConfig);
+
+            deviceConfiguration = new DeviceConfiguration(mockKernel);
+
+            // Expect fallback version in the absence of version information from build files
+            assertEquals("0.0.0", deviceConfiguration.getNucleusVersion());
+        }
+    }
+
+    @Test
+    void GIVEN_no_existing_config_WHEN_init_device_config_THEN_use_default_nucleus_config() throws Exception {
+        try (Context context = new Context()) {
+            Topics servicesConfig = Topics.of(context, SERVICES_NAMESPACE_TOPIC, null);
+
+            lenient().when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC)).thenReturn(servicesConfig);
+
+            deviceConfiguration = new DeviceConfiguration(mockKernel);
+
+            when(mockKernel.findServiceTopic(DEFAULT_NUCLEUS_COMPONENT_NAME))
+                    .thenReturn(servicesConfig.findTopics(DEFAULT_NUCLEUS_COMPONENT_NAME));
+
+            // Expect fallback version in the absence of version information from build files
+            assertEquals("0.0.0", deviceConfiguration.getNucleusVersion());
+        }
     }
 
     class MockNucleusUnpackDir {
