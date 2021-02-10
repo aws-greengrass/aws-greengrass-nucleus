@@ -111,4 +111,10 @@ public abstract class Platform implements UserPlatform {
      */
     protected abstract void setPermissions(FileSystemPermission permission, Path path, EnumSet<Option> options)
             throws IOException;
+
+    public abstract String provideIpcBackingFile();
+
+    public abstract void setIpcBackingFilePermissions();
+
+    public abstract void cleanupIpcBackingFile();
 }

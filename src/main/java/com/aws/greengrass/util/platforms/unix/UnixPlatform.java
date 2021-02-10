@@ -488,6 +488,79 @@ public class UnixPlatform extends Platform {
         return ret;
     }
 
+    @Override
+    public String provideIpcBackingFile() {
+//        ipcServerSocketAbsolutePath =
+//                    kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+
+
+//            if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
+//                try {
+//                    logger.atDebug().log("Deleting the ipc server socket descriptor file");
+//                    Files.delete(Paths.get(ipcServerSocketAbsolutePath));
+//                } catch (IOException e) {
+//                    logger.atError().setCause(e).kv("path", ipcServerSocketAbsolutePath)
+//                            .log("Failed to delete the ipc server socket descriptor file");
+//                }
+//            }
+
+
+//            try {
+//                // Usually we do not want to write outside of kernel root. Because of socket path length limitations we
+//                // will create a symlink only if needed
+//                if (ipcServerSocketAbsolutePath.length() >= UDS_SOCKET_PATH_MAX_LEN) {
+//                    Files.createSymbolicLink(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), kernel.getNucleusPaths().rootPath());
+//                    kernelRelativeUri = config.getRoot()
+//                            .lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
+//                    kernelRelativeUri.withValue(IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME);
+//                    symLinkCreated = true;
+//                }
+//
+//            } catch (IOException e) {
+//                logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path. Cannot start "
+//                        + "IPC server as the long nucleus root path is making socket filepath greater than 108 chars. "
+//                        + "Shorten root path and start nucleus again");
+//                close();
+//                throw new RuntimeException(e);
+//            }
+
+
+        return "";
+    }
+
+    @Override
+    public void setIpcBackingFilePermissions() {
+
+        // IPC socket does not get created immediately after runServer returns
+        // Wait up to 30s for it to exist
+//        Path ipcPath = Paths.get(ipcServerSocketAbsolutePath);
+//        long maxTime = System.currentTimeMillis() + MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS * 1000;
+//        while (System.currentTimeMillis() < maxTime && Files.notExists(ipcPath)) {
+//            logger.atDebug().log("Waiting for server socket file");
+//            try {
+//                Thread.sleep(SOCKET_CREATE_POLL_INTERVAL_MS);
+//            } catch (InterruptedException e) {
+//                logger.atWarn().setCause(e).log("Service interrupted before server socket exists");
+//                close();
+//                throw new RuntimeException(e);
+//            }
+//        }
+//        // set permissions on IPC socket so that everyone can read/write
+//        try {
+//            Permissions.setIpcSocketPermission(ipcPath);
+//        } catch (IOException e) {
+//            logger.atError().setCause(e).log("Error while setting permissions for IPC server socket");
+//            close();
+//            throw new RuntimeException(e);
+//        }
+
+    }
+
+    @Override
+    public void cleanupIpcBackingFile() {
+
+    }
+
     private enum IdOption {
         User, Group
     }

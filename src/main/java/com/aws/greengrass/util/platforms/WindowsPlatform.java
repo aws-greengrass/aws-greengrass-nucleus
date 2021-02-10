@@ -153,4 +153,22 @@ public class WindowsPlatform extends Platform {
             throw new UnsupportedOperationException("changing shell is not supported");
         }
     }
+
+    @Override
+    public String provideIpcBackingFile() {
+//        ipcServerSocketAbsolutePath = "\\\\.\\pipe\\NucleusNamedPipe";
+
+
+        return "";
+    }
+
+    @Override
+    public void setIpcBackingFilePermissions() {
+
+    }
+
+    @Override
+    public void cleanupIpcBackingFile() {
+
+    }
 }
