@@ -7,7 +7,6 @@
     <includeBaseDirectory>false</includeBaseDirectory>
     <fileSets>
         <fileSet>
-            <!--<directory>${basedir}/target</directory>-->
             <directory>${basedir}/target</directory>
             <outputDirectory>/lib</outputDirectory>
             <includes>
@@ -26,7 +25,7 @@
             <directory>${basedir}/conf</directory>
             <outputDirectory>/conf</outputDirectory>
             <includes>
-                <include>nucleus-build.properties</include>
+                <include>recipe.yaml</include>
             </includes>
         </fileSet>
         <fileSet>
@@ -39,5 +38,6 @@
                 <include>THIRD-PARTY-LICENSES</include>
             </includes>
         </fileSet>
+        <!--  Any additions to the zip file need to be updated in code as well src/main/java/com/aws/greengrass/deployment/DeviceConfiguration.java#copyUnpackedNucleusArtifacts  -->
     </fileSets>
 </assembly>

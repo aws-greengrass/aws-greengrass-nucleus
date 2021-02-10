@@ -1,3 +1,8 @@
+#
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+
 ---
 RecipeFormatVersion: '2020-01-25'
 ComponentName: aws.greengrass.Nucleus
@@ -7,7 +12,6 @@ ComponentPublisher: AWS
 ComponentVersion: '2.0.0'
 ComponentConfiguration:
   DefaultConfiguration:
-    jvmOptions: ""
     iotDataEndpoint: ""
     iotCredEndpoint: ""
     greengrassDataPlanePort: 8443
@@ -22,42 +26,30 @@ ComponentConfiguration:
 Manifests:
   - Platform:
       os: darwin
-    # TODO: add new field Name: darwin
-    Artifacts:
-      - URI: s3://gg-dev-artifacts-$stage/$componentName/$version/aws.greengrass.nucleus.zip
-        Unarchive: zip
-    Lifecycle:
-      bootstrap:
-          RequiresPrivilege: true
-          script: |-
-            set -eu
-            KERNEL_ROOT="{kernel:rootPath}"
-            UNPACK_DIR="{artifacts:decompressedPath}/aws.greengrass.nucleus"
-            chmod +x "$UNPACK_DIR/bin/loader"
-
-            rm -r "$KERNEL_ROOT"/alts/current/*
-
-            echo "{configuration:/jvmOptions}" > "$KERNEL_ROOT/alts/current/launch.params"
-            ln -sf "$UNPACK_DIR" "$KERNEL_ROOT/alts/current/distro"
-            exit 100
-
-  - Platform:
-      os: linux
-    # TODO: add new field Name: linux
-    Artifacts:
-      - URI: s3://gg-dev-artifacts-$stage/$componentName/$version/aws.greengrass.nucleus.zip
-        Unarchive: zip
     Lifecycle:
       bootstrap:
         RequiresPrivilege: true
         script: |-
+
           set -eu
           KERNEL_ROOT="{kernel:rootPath}"
           UNPACK_DIR="{artifacts:decompressedPath}/aws.greengrass.nucleus"
-          chmod +x "$UNPACK_DIR/bin/loader"
-
           rm -r "$KERNEL_ROOT"/alts/current/*
+          echo "{configuration:/jvmOptions}" > "$KERNEL_ROOT/alts/current/launch.params"
+          ln -sf "$UNPACK_DIR" "$KERNEL_ROOT/alts/current/distro"
+          exit 100
 
+  - Platform:
+      os: linux
+    Lifecycle:
+      bootstrap:
+        RequiresPrivilege: true
+        script: |-
+
+          set -eu
+          KERNEL_ROOT="{kernel:rootPath}"
+          UNPACK_DIR="{artifacts:decompressedPath}/aws.greengrass.nucleus"
+          rm -r "$KERNEL_ROOT"/alts/current/*
           echo "{configuration:/jvmOptions}" > "$KERNEL_ROOT/alts/current/launch.params"
           ln -sf "$UNPACK_DIR" "$KERNEL_ROOT/alts/current/distro"
           exit 100

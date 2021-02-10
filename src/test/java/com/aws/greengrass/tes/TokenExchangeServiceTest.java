@@ -39,7 +39,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.AWS_IOT_THING_NAME_ENV;
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
@@ -48,7 +47,6 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CER
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
-import static com.aws.greengrass.deployment.DeviceConfiguration.GGC_VERSION_ENV;
 import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.greengrass.deployment.DeviceConfiguration.NUCLEUS_CONFIG_LOGGING_TOPICS;
 import static com.aws.greengrass.deployment.DeviceConfiguration.SYSTEM_NAMESPACE_KEY;
@@ -106,7 +104,6 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(kernel.getConfig()).thenReturn(configuration);
         Topics servicesTopics = Topics.of(context, SERVICES_NAMESPACE_TOPIC, null);
         Topic componentTypeTopic = Topic.of(context, SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.name());
-        Topic componentVersionTopic = Topic.of(context, VERSION_CONFIG_KEY, "2.0.0");
         Topic componentStoreSizeLimitTopic = Topic.of(context, COMPONENT_STORE_MAX_SIZE_BYTES, 10_000_000_000L);
         Topic thingName = Topic.of(context, SYSTEM_NAMESPACE_KEY, "abc");
         Topic privateKeyPath = Topic.of(context, DEVICE_PARAM_PRIVATE_KEY_PATH, "key.key");
@@ -116,7 +113,6 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         Topic mainDependenciesTopic = Topic.of(context, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC,
                 DEFAULT_NUCLEUS_COMPONENT_NAME);
         Topic thingNameEnv = Topic.of(context, AWS_IOT_THING_NAME_ENV, "abc");
-        Topic ggcVersionVnv = Topic.of(context, GGC_VERSION_ENV, "0.0.0");
         Topics root = mock(Topics.class);
         when(root.findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
                 SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)).thenReturn(new ArrayList<String>());
@@ -124,8 +120,6 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC)).thenReturn(servicesTopics);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY))
                 .thenReturn(componentTypeTopic);
-        when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY))
-                .thenReturn(componentVersionTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 COMPONENT_STORE_MAX_SIZE_BYTES)).thenReturn(componentStoreSizeLimitTopic);
         when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
@@ -138,7 +132,6 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(configuration.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_ROOT_CA_PATH)).thenReturn(caPath);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))
                 .thenReturn(mainDependenciesTopic);
-        when(configuration.lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV)).thenReturn(ggcVersionVnv);
         when(configuration.lookup(SETENV_CONFIG_NAMESPACE, AWS_IOT_THING_NAME_ENV)).thenReturn(thingNameEnv);
     }
 

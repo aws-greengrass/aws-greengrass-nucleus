@@ -34,6 +34,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
@@ -496,57 +497,74 @@ public class DeploymentService extends GreengrassService {
         }
     }
 
-    @SuppressWarnings("PMD.ExceptionAsFlowControl")
     private void copyRecipesToComponentStore(Path from) throws IOException {
         try (Stream<Path> files = Files.walk(from)) {
             for (Path r : files.collect(Collectors.toList())) {
-                String ext = Utils.extension(r.toString());
-                ComponentRecipe recipe = null;
-
-                //reading it in as a recipe, so that will fail if it is malformed with a good error.
-                //The second reason to do this is to parse the name and version so that we can properly name
-                //the file when writing it into the local recipe store.
-                try {
-                    if (r.toFile().length() > 0) {
-                        switch (ext.toLowerCase()) {
-                            case "yaml":
-                            case "yml":
-                                recipe = getRecipeSerializer().readValue(r.toFile(), ComponentRecipe.class);
-                                break;
-                            case "json":
-                                recipe = getRecipeSerializerJson().readValue(r.toFile(), ComponentRecipe.class);
-                                break;
-                            default:
-                                break;
-                        }
-                    }
-                } catch (IOException e) {
-                    // Throw on error so that the user will receive this message and we will stop the deployment.
-                    // This is to fail fast while providing actionable feedback.
-                    throw new IOException(
-                            String.format("Unable to parse %s as a recipe due to: %s", r.toString(), e.getMessage()),
-                            e);
-                }
-                if (recipe == null) {
-                    logger.atError().log("Skipping file {} because it was not recognized as a recipe", r);
-                    continue;
-                }
-
-                // Write the recipe as YAML with the proper filename into the store
-                ComponentIdentifier componentIdentifier =
-                        new ComponentIdentifier(recipe.getComponentName(), recipe.getComponentVersion());
-
-                try {
-                    componentStore
-                            .savePackageRecipe(componentIdentifier, getRecipeSerializer().writeValueAsString(recipe));
-                } catch (PackageLoadingException e) {
-                    // Throw on error so that the user will receive this message and we will stop the deployment.
-                    // This is to fail fast while providing actionable feedback.
-                    throw new IOException(String.format("Unable to copy recipe for '%s' to component store due to: %s",
-                            componentIdentifier.toString(), e.getMessage()), e);
+                if (!r.toFile().isDirectory()) {
+                    copyRecipeFileToComponentStore(componentStore, r, logger);
                 }
             }
         }
+    }
+
+    /**
+     * Copy the given recipe file to local component store.
+     *
+     * @param componentStore ComponentStore instance
+     * @param recipePath path to the recipe file
+     * @param logger Logger instance
+     * @return ComponentRecipe file content
+     * @throws IOException on I/O error
+     */
+    @SuppressWarnings("PMD.ExceptionAsFlowControl")
+    public static ComponentRecipe copyRecipeFileToComponentStore(ComponentStore componentStore,
+                                                                 Path recipePath, Logger logger) throws IOException {
+        String ext = Utils.extension(recipePath.toString());
+        ComponentRecipe recipe = null;
+
+        //reading it in as a recipe, so that will fail if it is malformed with a good error.
+        //The second reason to do this is to parse the name and version so that we can properly name
+        //the file when writing it into the local recipe store.
+        try {
+            if (recipePath.toFile().length() > 0) {
+                switch (ext.toLowerCase()) {
+                    case "yaml":
+                    case "yml":
+                        recipe = getRecipeSerializer().readValue(recipePath.toFile(), ComponentRecipe.class);
+                        break;
+                    case "json":
+                        recipe = getRecipeSerializerJson().readValue(recipePath.toFile(), ComponentRecipe.class);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        } catch (IOException e) {
+            // Throw on error so that the user will receive this message and we will stop the deployment.
+            // This is to fail fast while providing actionable feedback.
+            throw new IOException(
+                    String.format("Unable to parse %s as a recipe due to: %s", recipePath.toString(), e.getMessage()),
+                    e);
+        }
+        if (recipe == null) {
+            logger.atError().log("Skipping file {} because it was not recognized as a recipe", recipePath);
+            return null;
+        }
+
+        // Write the recipe as YAML with the proper filename into the store
+        ComponentIdentifier componentIdentifier =
+                new ComponentIdentifier(recipe.getComponentName(), recipe.getComponentVersion());
+
+        try {
+            componentStore
+                    .savePackageRecipe(componentIdentifier, getRecipeSerializer().writeValueAsString(recipe));
+        } catch (PackageLoadingException e) {
+            // Throw on error so that the user will receive this message and we will stop the deployment.
+            // This is to fail fast while providing actionable feedback.
+            throw new IOException(String.format("Unable to copy recipe for '%s' to component store due to: %s",
+                    componentIdentifier.toString(), e.getMessage()), e);
+        }
+        return recipe;
     }
 
     private KernelUpdateDeploymentTask createKernelUpdateDeployment(Deployment deployment) {

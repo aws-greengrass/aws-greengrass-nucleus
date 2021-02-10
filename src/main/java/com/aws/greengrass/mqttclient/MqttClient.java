@@ -634,4 +634,8 @@ public class MqttClient implements Closeable {
     protected void setMqttOnline(boolean networkStatus) {
         mqttOnline.set(networkStatus);
     }
+
+    public int getMqttOperationTimeoutMillis() {
+        return Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_OPERATION_TIMEOUT, MQTT_OPERATION_TIMEOUT_KEY));
+    }
 }

@@ -11,6 +11,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentQueue;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -62,6 +63,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -85,11 +87,16 @@ class KernelTest {
     protected Path tempRootDir;
     private Kernel kernel;
     private Path mockFile;
+    DeviceConfiguration deviceConfiguration;
 
     @BeforeEach
     void beforeEach() throws Exception{
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = new Kernel();
+
+        deviceConfiguration = spy(new DeviceConfiguration(kernel));
+        lenient().doNothing().when(deviceConfiguration).initializeNucleusFromRecipe(any());
+        kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
 
         mockFile = tempRootDir.resolve("mockFile");
         Files.createFile(mockFile);
