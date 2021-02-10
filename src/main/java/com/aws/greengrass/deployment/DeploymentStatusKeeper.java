@@ -80,6 +80,8 @@ public class DeploymentStatusKeeper {
             Topics processedDeployments = getProcessedDeployments();
             Topics thisJob = processedDeployments.createInteriorChild(String.valueOf(System.currentTimeMillis()));
             thisJob.replaceAndWait(deploymentDetails);
+            logger.atInfo().kv(DEPLOYMENT_ID_KEY_NAME, deploymentId).kv(DEPLOYMENT_STATUS_KEY_NAME, status)
+                    .log("Stored deployment status");
         }
         publishPersistedStatusUpdates(deploymentType);
     }
