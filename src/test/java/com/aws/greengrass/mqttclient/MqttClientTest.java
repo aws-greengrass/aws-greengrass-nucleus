@@ -99,6 +99,7 @@ class MqttClientTest {
         lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(spoolerNamespace);
         lenient().when(builder.build()).thenReturn(mockConnection);
         lenient().when(mockConnection.connect()).thenReturn(CompletableFuture.completedFuture(false));
+        lenient().when(mockConnection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
         lenient().when(mockConnection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         lenient().when(mockConnection.unsubscribe(any())).thenReturn(CompletableFuture.completedFuture(0));
         lenient().when(mockConnection.publish(any(), any(), anyBoolean()))
@@ -120,7 +121,7 @@ class MqttClientTest {
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
 
-        verify(mockConnection, times(1)).connect();
+        verify(mockConnection, times(2)).connect();
         verify(mockConnection).subscribe(eq("A/B/+"), eq(QualityOfService.AT_LEAST_ONCE));
 
         // This subscription shouldn't actually subscribe through the cloud because it is a subset of the previous sub
@@ -152,7 +153,7 @@ class MqttClientTest {
         // This subscribe call won't result in a cloud call because the previous subscribe succeeded _after_
         // the timeout
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
-        verify(mockConnection).connect();
+        verify(mockConnection, times(2)).connect();
         verify(mockConnection).subscribe(eq("A/B/+"), eq(QualityOfService.AT_LEAST_ONCE));
     }
 
@@ -334,6 +335,7 @@ class MqttClientTest {
     @Test
     void GIVEN_keep_qos_0_when_offline_is_false_and_mqtt_is_offline_WHEN_publish_THEN_future_complete_exceptionally()
             throws InterruptedException, SpoolerStoreException {
+
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_MOST_ONCE).build();
@@ -381,6 +383,7 @@ class MqttClientTest {
     @Test
     void GIVEN_add_message_to_spooler_throw_spooler_load_exception_WHEN_publish_THEN_return_future_complete_exceptionally(ExtensionContext context)
             throws SpoolerStoreException, InterruptedException {
+
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[10])
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
@@ -397,6 +400,7 @@ class MqttClientTest {
     @Test
     void GIVEN_add_message_to_spooler_throw_interrupted_exception_WHEN_publish_THEN_return_future_complete_exceptionally(ExtensionContext context)
             throws InterruptedException, SpoolerStoreException {
+
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
@@ -412,8 +416,8 @@ class MqttClientTest {
     @Test
     void GIVEN_publish_request_successfully_WHEN_spool_single_message_THEN_remove_message_from_spooler_queue()
             throws InterruptedException {
-        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder, executorService));
 
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder, executorService));
         long id = 1L;
         when(spool.popId()).thenReturn(id);
         PublishRequest request = PublishRequest.builder().topic("spool")
@@ -497,9 +501,9 @@ class MqttClientTest {
         ignoreExceptionOfType(context, ExecutionException.class);
         ignoreExceptionOfType(context, InterruptedException.class);
 
-
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder, executorService));
         client.setMqttOnline(true);
+
         long id = 1L;
         when(spool.popId()).thenReturn(id).thenReturn(id).thenThrow(InterruptedException.class);
         PublishRequest request = PublishRequest.builder().topic("spool")
