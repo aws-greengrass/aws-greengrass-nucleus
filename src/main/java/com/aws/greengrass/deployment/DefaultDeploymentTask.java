@@ -123,6 +123,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         } catch (PackageLoadingException | IOException e) {
             return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
         } catch (ExecutionException e) {
+            logger.atError().setCause(e).log("Error occurred while processing deployment");
             Throwable t = e.getCause();
             if (t instanceof InterruptedException) {
                 throw (InterruptedException) t;
