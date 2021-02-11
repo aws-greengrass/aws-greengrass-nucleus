@@ -112,7 +112,7 @@ class KernelLifecycleTest {
             throws Exception {
         GreengrassService mockMain = mock(GreengrassService.class);
         GreengrassService mockOthers = mock(GreengrassService.class);
-        doReturn(mockMain).when(mockKernel).locate(eq("main"));
+        doReturn(mockMain).when(mockKernel).locateIgnoreError(eq("main"));
         doReturn(mockOthers).when(mockKernel).locate(not(eq("main")));
 
         // Mock out EZPlugins so I can return a deterministic set of services to be added as auto-start
@@ -212,7 +212,7 @@ class KernelLifecycleTest {
     @Test
     void GIVEN_kernel_WHEN_launch_with_config_THEN_effective_config_written() throws Exception {
         GreengrassService mockMain = mock(GreengrassService.class);
-        doReturn(mockMain).when(mockKernel).locate(eq("main"));
+        doReturn(mockMain).when(mockKernel).locateIgnoreError(eq("main"));
 
         kernelLifecycle.initConfigAndTlog();
         verify(mockKernel).writeEffectiveConfig();

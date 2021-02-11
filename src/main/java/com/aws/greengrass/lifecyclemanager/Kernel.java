@@ -31,6 +31,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableWriter;
+import com.aws.greengrass.util.CrashableFunction;
 import com.aws.greengrass.util.DependencyOrder;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
@@ -68,6 +69,7 @@ import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.config.Topic.DEFAULT_VALUE_TIMESTAMP;
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
@@ -354,117 +356,140 @@ public class Kernel {
      * @return found service or null
      * @throws ServiceLoadException if service cannot load
      */
+    public GreengrassService locate(String name) throws ServiceLoadException {
+        return context.getValue(GreengrassService.class, name).computeObjectIfEmpty(v ->
+                locateGreengrassService(v, name, this::locate));
+    }
+
+    /**
+     * Locate a GreengrassService by name in the kernel context, or return BrokenService if service cannot load.
+     *
+     * @param name name of the service to find
+     * @return found service
+     */
+    public GreengrassService locateIgnoreError(String name) {
+        return context.getValue(GreengrassService.class, name).computeObjectIfEmpty(v -> {
+            try {
+                return locateGreengrassService(v, name, this::locateIgnoreError);
+            } catch (ServiceLoadException e) {
+                logger.atError().log("Cannot load service", e);
+                return new UnloadableService(
+                        config.lookupTopics(DEFAULT_VALUE_TIMESTAMP, SERVICES_NAMESPACE_TOPIC, name), e);
+            }
+        });
+
+    }
+
     @SuppressWarnings(
             {"UseSpecificCatch", "PMD.AvoidCatchingThrowable", "PMD.AvoidDeeplyNestedIfStmts", "PMD.ConfusingTernary"})
-    public GreengrassService locate(String name) throws ServiceLoadException {
-        return context.getValue(GreengrassService.class, name).computeObjectIfEmpty(v -> {
-            Topics serviceRootTopics = findServiceTopic(name);
+    private GreengrassService locateGreengrassService(Context.Value v, String name, CrashableFunction<String,
+            GreengrassService, ServiceLoadException> locateFunction) throws ServiceLoadException {
+        Topics serviceRootTopics = findServiceTopic(name);
 
-            Class<?> clazz = null;
-            if (serviceRootTopics != null) {
+        Class<?> clazz = null;
+        if (serviceRootTopics != null) {
 
-                // Try locating all the dependencies first so that they'll all exist prior to their dependant.
-                // This is to fix an ordering problem with plugins such as lambda manager. The plugin needs to be
-                // located *before* the dependant is located so that the plugin has its jar loaded into the classloader.
-                Topic dependenciesTopic = serviceRootTopics.findLeafChild(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
-                if (dependenciesTopic != null && dependenciesTopic.getOnce() instanceof Collection) {
-                    try {
-                        for (Pair<String, DependencyType> p : GreengrassService
-                                .parseDependencies((Collection<String>) dependenciesTopic.getOnce())) {
-                            locate(p.getLeft());
-                        }
-                    } catch (ServiceLoadException | InputValidationException e) {
-                        throw new ServiceLoadException("Unable to load service " + name, e);
-                    }
-                }
-
-                Topic classTopic = serviceRootTopics.findLeafChild(SERVICE_CLASS_TOPIC_KEY);
-                String className = null;
-
-                // If a "class" is specified in the recipe, then use that
-                if (classTopic != null) {
-                    className = Coerce.toString(classTopic);
-                } else {
-                    Topic componentTypeTopic = serviceRootTopics.findLeafChild(SERVICE_TYPE_TOPIC_KEY);
-                    // If a "componentType" is specified, then map that to a class
-                    if (componentTypeTopic != null) {
-                        className = ((Map<String, String>) context.getvIfExists(SERVICE_TYPE_TO_CLASS_MAP_KEY).get())
-                                .get(Coerce.toString(componentTypeTopic).toLowerCase());
-                        // If the mapping didn't exist and the component type is "plugin", then load the service from a
-                        // plugin
-                        if (className == null && Coerce.toString(componentTypeTopic)
-                                .equalsIgnoreCase(PLUGIN_SERVICE_TYPE_NAME)) {
-                            clazz = locateExternalPlugin(name, serviceRootTopics);
-                        }
-                    }
-                }
-
-                if (className != null) {
-                    try {
-                        clazz = context.get(EZPlugins.class).forName(className);
-                    } catch (Throwable ex) {
-                        throw new ServiceLoadException("Can't load service class from " + className, ex);
-                    }
-                }
-            }
-
-            // try to find service implementation class from plugins.
-            if (clazz == null) {
-                Map<String, Class<?>> si = context.getIfExists(Map.class, CONTEXT_SERVICE_IMPLEMENTERS);
-                if (si != null) {
-                    logger.atInfo().kv(GreengrassService.SERVICE_NAME_KEY, name)
-                            .log("Attempt to load service from plugins");
-                    clazz = si.get(name);
-                }
-            }
-
-            GreengrassService ret;
-            // If found class, try to load service class from plugins.
-            if (clazz != null) {
+            // Try locating all the dependencies first so that they'll all exist prior to their dependant.
+            // This is to fix an ordering problem with plugins such as lambda manager. The plugin needs to be
+            // located *before* the dependant is located so that the plugin has its jar loaded into the classloader.
+            Topic dependenciesTopic = serviceRootTopics.findLeafChild(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
+            if (dependenciesTopic != null && dependenciesTopic.getOnce() instanceof Collection) {
                 try {
-                    // Lookup the service topics here because the Topics passed into the GreengrassService
-                    // constructor must not be null
-                    Topics topics = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
-
-                    try {
-                        Constructor<?> ctor = clazz.getConstructor(Topics.class);
-                        ret = (GreengrassService) ctor.newInstance(topics);
-                    } catch (NoSuchMethodException e) {
-                        // If the basic constructor doesn't exist, then try injecting from the context
-                        ret = (GreengrassService) context.newInstance(clazz);
+                    for (Pair<String, DependencyType> p : GreengrassService
+                            .parseDependencies((Collection<String>) dependenciesTopic.getOnce())) {
+                        locateFunction.apply(p.getLeft());
                     }
-
-                    // Force plugins to be singletons
-                    if (clazz.getAnnotation(Singleton.class) != null || PluginService.class.isAssignableFrom(clazz)) {
-                        context.put(ret.getClass(), v);
-                    }
-                    if (clazz.getAnnotation(ImplementsService.class) != null) {
-                        topics.createLeafChild(VERSION_CONFIG_KEY)
-                                .withNewerValue(0L, clazz.getAnnotation(ImplementsService.class).version());
-                    }
-
-                    logger.atInfo("service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName())
-                            .log();
-                    return ret;
-                } catch (Throwable ex) {
-                    throw new ServiceLoadException("Can't create Greengrass Service instance " + clazz.getSimpleName(),
-                            ex);
+                } catch (ServiceLoadException | InputValidationException e) {
+                    throw new ServiceLoadException("Unable to load service " + name, e);
                 }
             }
 
-            if (serviceRootTopics == null || serviceRootTopics.isEmpty()) {
-                throw new ServiceLoadException("No matching definition in system model for: " + name);
+            Topic classTopic = serviceRootTopics.findLeafChild(SERVICE_CLASS_TOPIC_KEY);
+            String className = null;
+
+            // If a "class" is specified in the recipe, then use that
+            if (classTopic != null) {
+                className = Coerce.toString(classTopic);
+            } else {
+                Topic componentTypeTopic = serviceRootTopics.findLeafChild(SERVICE_TYPE_TOPIC_KEY);
+                // If a "componentType" is specified, then map that to a class
+                if (componentTypeTopic != null) {
+                    className = ((Map<String, String>) context.getvIfExists(SERVICE_TYPE_TO_CLASS_MAP_KEY).get())
+                            .get(Coerce.toString(componentTypeTopic).toLowerCase());
+                    // If the mapping didn't exist and the component type is "plugin", then load the service from a
+                    // plugin
+                    if (className == null && Coerce.toString(componentTypeTopic)
+                            .equalsIgnoreCase(PLUGIN_SERVICE_TYPE_NAME)) {
+                        clazz = locateExternalPlugin(name, serviceRootTopics);
+                    }
+                }
             }
 
-            // if not found, initialize GenericExternalService
-            try {
-                ret = new GenericExternalService(serviceRootTopics);
-                logger.atInfo("generic-service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName()).log();
-            } catch (Throwable ex) {
-                throw new ServiceLoadException("Can't create generic service instance " + name, ex);
+            if (className != null) {
+                try {
+                    clazz = context.get(EZPlugins.class).forName(className);
+                } catch (Throwable ex) {
+                    throw new ServiceLoadException("Can't load service class from " + className, ex);
+                }
             }
-            return ret;
-        });
+        }
+
+        // try to find service implementation class from plugins.
+        if (clazz == null) {
+            Map<String, Class<?>> si = context.getIfExists(Map.class, CONTEXT_SERVICE_IMPLEMENTERS);
+            if (si != null) {
+                logger.atInfo().kv(GreengrassService.SERVICE_NAME_KEY, name)
+                        .log("Attempt to load service from plugins");
+                clazz = si.get(name);
+            }
+        }
+
+        GreengrassService ret;
+        // If found class, try to load service class from plugins.
+        if (clazz != null) {
+            try {
+                // Lookup the service topics here because the Topics passed into the GreengrassService
+                // constructor must not be null
+                Topics topics = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, name);
+
+                try {
+                    Constructor<?> ctor = clazz.getConstructor(Topics.class);
+                    ret = (GreengrassService) ctor.newInstance(topics);
+                } catch (NoSuchMethodException e) {
+                    // If the basic constructor doesn't exist, then try injecting from the context
+                    ret = (GreengrassService) context.newInstance(clazz);
+                }
+
+                // Force plugins to be singletons
+                if (clazz.getAnnotation(Singleton.class) != null || PluginService.class.isAssignableFrom(clazz)) {
+                    context.put(ret.getClass(), v);
+                }
+                if (clazz.getAnnotation(ImplementsService.class) != null) {
+                    topics.createLeafChild(VERSION_CONFIG_KEY)
+                            .withNewerValue(0L, clazz.getAnnotation(ImplementsService.class).version());
+                }
+
+                logger.atInfo("service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName())
+                        .log();
+                return ret;
+            } catch (Throwable ex) {
+                throw new ServiceLoadException("Can't create Greengrass Service instance " + clazz.getSimpleName(),
+                        ex);
+            }
+        }
+
+        if (serviceRootTopics == null || serviceRootTopics.isEmpty()) {
+            throw new ServiceLoadException("No matching definition in system model for: " + name);
+        }
+
+        // if not found, initialize GenericExternalService
+        try {
+            ret = new GenericExternalService(serviceRootTopics);
+            logger.atInfo("generic-service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName()).log();
+        } catch (Throwable ex) {
+            throw new ServiceLoadException("Can't create generic service instance " + name, ex);
+        }
+        return ret;
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.CloseResource"})

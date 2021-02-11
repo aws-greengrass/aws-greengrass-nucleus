@@ -21,6 +21,7 @@ import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -70,8 +71,10 @@ import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -89,10 +92,11 @@ import static software.amazon.awssdk.services.greengrassv2.model.DeploymentCompo
 
 @SuppressWarnings("PMD.CouplingBetweenObjects")
 class PluginComponentTest extends BaseITCase {
-    private static final String componentName = "plugin";
-    private static final String brokenComponentName = "brokenPlugin";
-    private final ComponentIdentifier componentId = new ComponentIdentifier(componentName, new Semver("1.0.0"));
-    private final ComponentIdentifier brokenComponentId = new ComponentIdentifier(brokenComponentName, new Semver("1.0.0"));
+    static final String componentName = "plugin";
+    static final String brokenComponentName = "brokenPlugin";
+    static final ComponentIdentifier componentId = new ComponentIdentifier(componentName, new Semver("1.0.0"));
+    static final ComponentIdentifier brokenComponentId = new ComponentIdentifier(brokenComponentName,
+            new Semver("1.0.0"));
     private Kernel kernel;
 
     private static Future<DeploymentResult> submitSampleJobDocument(DeploymentDocument sampleJobDocument,
@@ -135,10 +139,12 @@ class PluginComponentTest extends BaseITCase {
     @Test
     void GIVEN_kernel_WHEN_locate_plugin_without_digest_THEN_plugin_is_not_loaded_into_JVM(ExtensionContext context)
             throws Exception {
-        ignoreExceptionOfType(context, RuntimeException.class);
+        ignoreExceptionOfType(context, ServiceLoadException.class);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("plugin.yaml"));
-        setupPackageStore();
-        assertThrows(RuntimeException.class, () -> kernel.launch());
+        setupPackageStore(kernel, componentId);
+        kernel.launch();
+        GreengrassService eg = kernel.locate("plugin");
+        assertThat(eg::getState, eventuallyEval(is(State.BROKEN)));
     }
 
     @Test
@@ -213,9 +219,8 @@ class PluginComponentTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_WHEN_deploy_new_plugin_broken_THEN_rollback_succeeds(ExtensionContext context) throws Exception {
-        ignoreExceptionOfType(context, PackageDownloadException.class);
-        ignoreExceptionOfType(context, SdkClientException.class);
         ignoreExceptionOfType(context, ServiceLoadException.class);
+        ignoreExceptionOfType(context, ServiceUpdateException.class);
 
         // launch Nucleus
         kernel.parseArgs();
@@ -289,12 +294,13 @@ class PluginComponentTest extends BaseITCase {
     }
 
     private void setupPackageStoreAndConfigWithDigest() throws IOException, PackagingException, URISyntaxException {
-        setupPackageStore();
-        setDigestInConfig();
+        setupPackageStore(kernel, componentId, brokenComponentId);
+        setDigestInConfig(kernel);
     }
 
-    private void setupPackageStore() throws IOException, PackagingException, URISyntaxException {
-        Path localStoreContentPath = Paths.get(getClass().getResource("local_store_content").toURI());
+    static void setupPackageStore(Kernel kernel, ComponentIdentifier componentId, ComponentIdentifier... pluginIds)
+            throws IOException, PackagingException, URISyntaxException {
+        Path localStoreContentPath = Paths.get(PluginComponentTest.class.getResource("local_store_content").toURI());
         NucleusPaths nucleusPaths = kernel.getNucleusPaths();
         PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"), nucleusPaths.recipePath());
         FileUtils.copyDirectory(localStoreContentPath.resolve("artifacts").toFile(), nucleusPaths.artifactPath().toFile());
@@ -307,8 +313,6 @@ class PluginComponentTest extends BaseITCase {
                 .resolve(componentName + JAR_FILE_EXTENSION);
         Path artifactPath1_0_0 = e2ETestComponentStore.resolveArtifactDirectoryPath(componentId)
                 .resolve(componentName + JAR_FILE_EXTENSION);
-        Path brokenArtifactPath1_0_0 = e2ETestComponentStore.resolveArtifactDirectoryPath(brokenComponentId)
-                .resolve(brokenComponentName + JAR_FILE_EXTENSION);
 
         // set the artifact dir as writable so we can copy
         Platform.getInstance().setPermissions(FileSystemPermission.builder()
@@ -319,13 +323,18 @@ class PluginComponentTest extends BaseITCase {
                 FileSystemPermission.Option.Recurse);
 
         FileUtils.copyFile(jarFilePath.toFile(), artifact1_1_0.toFile());
-        // Rename artifact for plugin-1.0.0
         FileUtils.copyFile(jarFilePath.toFile(), artifactPath1_0_0.toFile());
-        FileUtils.copyFile(jarFilePath.toFile(), brokenArtifactPath1_0_0.toFile());
+
+        for (ComponentIdentifier pluginId : pluginIds) {
+            Path artifactPath = e2ETestComponentStore.resolveArtifactDirectoryPath(pluginId)
+                    .resolve(pluginId.getName() + JAR_FILE_EXTENSION);
+            FileUtils.copyFile(jarFilePath.toFile(), artifactPath.toFile());
+        }
     }
 
-    private void setDigestInConfig() throws IOException, URISyntaxException {
-        Path localStoreContentPath = Paths.get(getClass().getResource("local_store_content").toURI());
+    static void setDigestInConfig(Kernel kernel) throws IOException, URISyntaxException {
+        Path localStoreContentPath = Paths.get(PluginComponentTest.class
+                .getResource("local_store_content").toURI());
         Path recipePath = localStoreContentPath.resolve("recipes");
         try (Stream<Path> paths = Files.walk(recipePath)) {
                 paths.filter(Files::isRegularFile).forEach(path -> {
