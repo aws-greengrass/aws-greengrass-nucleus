@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttclient;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,8 +69,8 @@ class AwsIotMqttClientTest {
     Topics mockTopic;
 
     // same as what we use in Kernel
-    private static final ExecutorService executorService = Executors.newCachedThreadPool();
-    private static final ScheduledExecutorService ses = Executors.newScheduledThreadPool(4);
+    private ExecutorService executorService;
+    private ScheduledExecutorService ses;
 
     @BeforeEach
     void beforeEach() {
@@ -77,12 +78,16 @@ class AwsIotMqttClientTest {
         callbackEventManager.addToCallbackEvents(mockCallback1);
         callbackEventManager.addToCallbackEvents(mockCallback2);
         mockTopic = mock(Topics.class);
+        executorService = Executors.newCachedThreadPool();
+        ses = Executors.newScheduledThreadPool(4);
     }
 
-    @AfterAll
-    static void cleanup() {
+    @AfterEach
+    void cleanup() throws InterruptedException {
         executorService.shutdownNow();
         ses.shutdownNow();
+        ses.awaitTermination(2, TimeUnit.SECONDS);
+        executorService.awaitTermination(2, TimeUnit.SECONDS);
     }
 
     @Test
