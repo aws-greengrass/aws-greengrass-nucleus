@@ -7,6 +7,7 @@ package com.aws.greengrass.mqttclient;
 
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,8 +26,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -63,7 +66,10 @@ class AwsIotMqttClientTest {
 
     CallbackEventManager callbackEventManager;
     Topics mockTopic;
-    ExecutorService executorService = Executors.newCachedThreadPool();
+
+    // same as what we use in Kernel
+    private static final ExecutorService executorService = Executors.newCachedThreadPool();
+    private static final ScheduledExecutorService ses = Executors.newScheduledThreadPool(4);
 
     @BeforeEach
     void beforeEach() {
@@ -71,6 +77,12 @@ class AwsIotMqttClientTest {
         callbackEventManager.addToCallbackEvents(mockCallback1);
         callbackEventManager.addToCallbackEvents(mockCallback2);
         mockTopic = mock(Topics.class);
+    }
+
+    @AfterAll
+    static void cleanup() {
+        executorService.shutdown();
+        ses.shutdown();
     }
 
     @Test
@@ -83,7 +95,7 @@ class AwsIotMqttClientTest {
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
 
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager, executorService);
+                callbackEventManager, executorService, ses);
         assertFalse(client.connected());
 
         when(builder.build()).thenReturn(connection);
@@ -118,7 +130,7 @@ class AwsIotMqttClientTest {
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
         when(builder.build()).thenReturn(connection);
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager, executorService);
+                callbackEventManager, executorService, ses);
 
         //initial connect, client connects, disconnects and then connects
         client.subscribe("A", QualityOfService.AT_LEAST_ONCE);
@@ -151,7 +163,7 @@ class AwsIotMqttClientTest {
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
 
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager, executorService);
+                callbackEventManager, executorService, ses);
         assertFalse(client.connected());
 
         when(builder.build()).thenReturn(connection);
@@ -170,9 +182,9 @@ class AwsIotMqttClientTest {
     void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_resumed_THEN_oneTimeCallbacks_would_be_executed_once() {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager, executorService);
+                callbackEventManager, executorService, ses);
         AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
-                callbackEventManager, executorService);
+                callbackEventManager, executorService, ses);
         boolean sessionPresent = false;
         // callbackEventManager.hasCallBacked is originally set as False
         assertFalse(callbackEventManager.hasCallbacked());
@@ -198,9 +210,9 @@ class AwsIotMqttClientTest {
     void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_interrupted_THEN_oneTimeCallbacks_would_be_executed_once() {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
-                callbackEventManager, executorService);
+                callbackEventManager, executorService, ses);
         AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
-                callbackEventManager, executorService);
+                callbackEventManager, executorService, ses);
         callbackEventManager.runOnConnectionResumed(false);
         assertTrue(callbackEventManager.hasCallbacked());
         int errorCode = 0;
@@ -227,10 +239,10 @@ class AwsIotMqttClientTest {
     void GIVEN_multiple_topics_subscribed_WHEN_reconnect_THEN_resubscribe_to_topics()
             throws InterruptedException, ExecutionException, TimeoutException {
         // setup mocks
-        AwsIotMqttClient.setWaitTimeToSubscribeAgainMillis(500);
-        AwsIotMqttClient.setWaitTimeJitterRangeMillis(1);
+        AwsIotMqttClient.setSubscriptionRetryMillis(500);
+        AwsIotMqttClient.setWaitTimeJitterMaxMillis(10);
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "testClient", mockTopic,
-                callbackEventManager, executorService);
+                callbackEventManager, executorService, ses);
 
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
@@ -254,14 +266,17 @@ class AwsIotMqttClientTest {
     }
 
     @Test
-    void GIVEN_multiple_topics_subscribed_WHEN_connection_interrupted_and_resumed_THEN_resubscribe_to_topics() {
+    void GIVEN_multiple_topics_subscribed_WHEN_connection_interrupted_and_resumed_THEN_resubscribe_to_topics(
+            ExtensionContext context) {
         // setup mocks
-        AwsIotMqttClient.setWaitTimeToSubscribeAgainMillis(500);
-        AwsIotMqttClient.setWaitTimeJitterRangeMillis(1);
+        ignoreExceptionUltimateCauseOfType(context, Exception.class);
+        AwsIotMqttClient.setSubscriptionRetryMillis(500);
+        AwsIotMqttClient.setWaitTimeJitterMaxMillis(1);
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "testClient", mockTopic,
-                callbackEventManager, executorService);
+                callbackEventManager, executorService, ses);
 
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
+        when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
         when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
         when(builder.build()).thenReturn(connection);

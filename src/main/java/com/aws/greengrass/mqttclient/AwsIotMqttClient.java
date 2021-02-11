@@ -23,7 +23,7 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
 import java.time.Duration;
-import java.util.Iterator;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -31,6 +31,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,6 +53,7 @@ class AwsIotMqttClient implements Closeable {
             .dfltKv(MqttClient.CLIENT_ID_KEY, (Supplier<String>) this::getClientId);
 
     private final ExecutorService executorService;
+    private final ScheduledExecutorService ses;
     private final Provider<AwsIotMqttConnectionBuilder> builderProvider;
     @Getter
     private final String clientId;
@@ -66,9 +69,9 @@ class AwsIotMqttClient implements Closeable {
     private final Map<String, QualityOfService> droppedSubscriptionTopics = new ConcurrentHashMap<>();
     private Future<?> resubscribeFuture;
     @Setter
-    private static long waitTimeToSubscribeAgainMillis = Duration.ofMinutes(2).toMillis();
+    private static long subscriptionRetryMillis = Duration.ofMinutes(2).toMillis();
     @Setter
-    private static int waitTimeJitterRangeMillis = 10_000;
+    private static int waitTimeJitterMaxMillis = 10_000;
 
     @Getter(AccessLevel.PACKAGE)
     private final MqttClientConnectionEvents connectionEventCallback = new MqttClientConnectionEvents() {
@@ -98,13 +101,15 @@ class AwsIotMqttClient implements Closeable {
 
     AwsIotMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
                      Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler, String clientId,
-                     Topics mqttTopics, CallbackEventManager callbackEventManager, ExecutorService executorService) {
+                     Topics mqttTopics, CallbackEventManager callbackEventManager, ExecutorService executorService,
+                     ScheduledExecutorService ses) {
         this.builderProvider = builderProvider;
         this.clientId = clientId;
         this.mqttTopics = mqttTopics;
         this.messageHandler = messageHandler.apply(this);
         this.callbackEventManager = callbackEventManager;
         this.executorService = executorService;
+        this.ses = ses;
     }
 
     // Notes about the CRT MQTT client:
@@ -238,53 +243,67 @@ class AwsIotMqttClient implements Closeable {
                 MqttClient.DEFAULT_MQTT_OPERATION_TIMEOUT, MqttClient.MQTT_OPERATION_TIMEOUT_KEY));
     }
 
-    private void resubscribe(boolean sessionPresent) {
+    /**
+     * Run re-subscription task in another thread so that the current thread is not blocked by it. The task will keep
+     * retrying until all subscription succeeded or it's canceled by network interruption.
+     *
+     * @param sessionPresent whether the session persisted
+     */
+    private synchronized void resubscribe(boolean sessionPresent) {
         // Don't bother spin up a thread if subscription is empty
         if (!subscriptionTopics.isEmpty()) {
-            // All subscriptions will be dropped if connected without a session
+            // If connected without a session, all subscriptions are dropped and need to be resubscribed
             if (!sessionPresent) {
                 droppedSubscriptionTopics.putAll(subscriptionTopics);
             }
-            if (resubscribeFuture == null || resubscribeFuture.isDone()) {
+            if (!droppedSubscriptionTopics.isEmpty() && (resubscribeFuture == null || resubscribeFuture.isDone())) {
                 resubscribeFuture = executorService.submit(this::resubscribeDroppedTopicsTask);
             }
         }
     }
 
     private void resubscribeDroppedTopicsTask() {
-        logger.atInfo().log("Re-subscribing to topics");
-        while (true) {
-            logger.atInfo().kv("failed topics", droppedSubscriptionTopics.keySet())
-                    .kv("sub topics", subscriptionTopics.keySet()).log();
-            Iterator<Map.Entry<String, QualityOfService>> iterator = droppedSubscriptionTopics.entrySet().iterator();
-            while (iterator.hasNext()) {
-                if (!currentlyConnected.get()) {
-                    logger.atInfo().log("Canceling re-subscribe because connection was interrupted");
-                    return;
+        long delayMillis = 0;  // don't delay the first run
+        while (!droppedSubscriptionTopics.isEmpty()) {
+            logger.atDebug().kv("droppedTopics", droppedSubscriptionTopics.keySet()).kv("delayMillis", delayMillis)
+                    .log("Subscribing to dropped topics");
+            ScheduledFuture<?> scheduledFuture = ses.schedule(() -> {
+                Map<CompletableFuture<?>, String> subscriptionFutures = new HashMap<>();
+                for (Map.Entry<String, QualityOfService> entry : droppedSubscriptionTopics.entrySet()) {
+                    subscriptionFutures.put(subscribe(entry.getKey(), entry.getValue()).thenApply((result) -> {
+                        droppedSubscriptionTopics.remove(entry.getKey());
+                        return result;
+                    }), entry.getKey());
                 }
-
-                Map.Entry<String, QualityOfService> subscriptionEntry = iterator.next();
-                subscribe(subscriptionEntry.getKey(), subscriptionEntry.getValue()).whenComplete((i, t) -> {
-                    if (t == null) {
-                        iterator.remove();
-                    } else {
-                        logger.atError().kv(TOPIC_KEY, subscriptionEntry.getKey())
-                                .kv(QOS_KEY, subscriptionEntry.getValue().name())
-                                .log("Failed to re-subscribe to topic, will retry later");
+                // Block to wait for individual subscriptions to finish
+                for (Map.Entry<CompletableFuture<?>, String> futureEntry : subscriptionFutures.entrySet()) {
+                    try {
+                        futureEntry.getKey().get();
+                    } catch (ExecutionException e) {
+                        logger.atError().cause(e).kv("topic", futureEntry.getValue())
+                                .log("Failed to subscribe. Will retry later");
+                    } catch (InterruptedException e) {
+                        // Cancel all subscriptions still in progress
+                        logger.atWarn().log("Cancelling subscriptions because of interruption");
+                        subscriptionFutures.keySet().stream().filter(f -> !f.isDone()).map(f -> {
+                            f.cancel(true);
+                            logger.atDebug().kv("topic", futureEntry.getValue()).log("Subscription cancelled");
+                            return null;
+                        });
+                        return;
                     }
-                });
-            }
-            // If there's still failed subscriptions, wait for some time before trying again
-            if (droppedSubscriptionTopics.isEmpty()) {
-                break;
-            } else {
-                try {
-                    Thread.sleep(waitTimeToSubscribeAgainMillis + RANDOM.nextInt(waitTimeJitterRangeMillis));
-                } catch (InterruptedException e) {
-                    logger.atWarn().log("Interrupted while trying to re-subscribe to topics");
-                    return;
                 }
+            }, delayMillis, TimeUnit.MILLISECONDS);
+            try {
+                scheduledFuture.get();
+            } catch (ExecutionException e) {
+                logger.atError().cause(e).log("Failed to subscribe to dropped topics. Will retry later");
+            } catch (InterruptedException e) {
+                logger.atWarn().log("Cancelling scheduled subscription task because of interruption");
+                scheduledFuture.cancel(true);
+                return;
             }
+            delayMillis = subscriptionRetryMillis + RANDOM.nextInt(waitTimeJitterMaxMillis);
         }
     }
 
