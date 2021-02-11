@@ -81,8 +81,8 @@ class AwsIotMqttClientTest {
 
     @AfterAll
     static void cleanup() {
-        executorService.shutdown();
-        ses.shutdown();
+        executorService.shutdownNow();
+        ses.shutdownNow();
     }
 
     @Test
