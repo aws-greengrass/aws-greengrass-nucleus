@@ -16,6 +16,7 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -62,13 +63,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class DeviceConfigurationTest {
@@ -95,9 +90,21 @@ class DeviceConfigurationTest {
         lenient().when(mockKernel.getNucleusPaths()).thenReturn(nucleusPaths);
 
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
+        when(mockTopics.subscribe(any())).thenReturn(mockTopics);
+        when(configuration.lookupTopics(anyString(), anyString(), anyString())).thenReturn(mockTopics);
         when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(mockTopics);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
         lenient().when(configuration.lookupTopics(anyString())).thenReturn(topics);
+    }
+
+    @Test
+    void WHEN_isDeviceConfiguredToTalkToCloud_THEN_validate_called_when_cache_is_null() throws DeviceConfigurationException {
+        deviceConfiguration = spy(new DeviceConfiguration(mockKernel));
+        doNothing().when(deviceConfiguration).validate();
+        deviceConfiguration.isDeviceConfiguredToTalkToCloud();
+        verify(deviceConfiguration, times(1)).validate();
+        deviceConfiguration.isDeviceConfiguredToTalkToCloud();
+        verify(deviceConfiguration, times(1)).validate();
     }
 
     @Test
