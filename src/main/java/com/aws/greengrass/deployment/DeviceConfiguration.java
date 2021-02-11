@@ -6,6 +6,13 @@
 package com.aws.greengrass.deployment;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
+import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
+import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.componentmanager.converter.RecipeLoader;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
+import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
@@ -16,14 +23,19 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogFormat;
 import com.aws.greengrass.logging.impl.config.LogStore;
 import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
+import com.vdurmont.semver4j.Semver;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.slf4j.event.Level;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -31,26 +43,39 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.lang.management.ManagementFactory;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Properties;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.config.Topic.DEFAULT_VALUE_TIMESTAMP;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static com.aws.greengrass.lifecyclemanager.KernelAlternatives.locateCurrentKernelUnpackDir;
 import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE_NAME;
+import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
+import static java.nio.file.StandardCopyOption.COPY_ATTRIBUTES;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 /**
  * Class for providing device configuration information.
@@ -62,6 +87,8 @@ public class DeviceConfiguration {
     public static final String DEFAULT_NUCLEUS_COMPONENT_NAME = "aws.greengrass.Nucleus";
 
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
+    public static final String DEVICE_PARAM_JVM_OPTIONS = "jvmOptions";
+    public static final String JVM_OPTION_ROOT_PATH = "-Droot=";
     public static final String DEVICE_PARAM_IOT_DATA_ENDPOINT = "iotDataEndpoint";
     public static final String DEVICE_PARAM_IOT_CRED_ENDPOINT = "iotCredEndpoint";
     public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
@@ -102,9 +129,8 @@ public class DeviceConfiguration {
     private static final String FALLBACK_DEFAULT_REGION = "us-east-1";
     public static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
     public static final String GGC_VERSION_ENV = "GGC_VERSION";
-    protected static final String NUCLEUS_VERSION_BUILD_METADATA_KEY = "nucleus.version";
-    protected static final String NUCLEUS_BUILD_METADATA_FILENAME = "nucleus-build.properties";
-    protected static final String NUCLEUS_BUILD_METADATA_DIRECTORY = "conf";
+    public static final String NUCLEUS_BUILD_METADATA_DIRECTORY = "conf";
+    public static final String NUCLEUS_RECIPE_FILENAME = "recipe.yaml";
     protected static final String FALLBACK_VERSION = "0.0.0";
     private final Kernel kernel;
 
@@ -114,7 +140,6 @@ public class DeviceConfiguration {
     private Topics loggingTopics;
     private LoggerConfiguration currentConfiguration;
     private String nucleusComponentNameCache;
-    private static final Properties NUCLEUS_BUILD_PROPERTIES = new Properties();
 
     /**
      * Constructor used to read device configuration from the config store.
@@ -127,11 +152,8 @@ public class DeviceConfiguration {
         deTildeValidator = getDeTildeValidator();
         regionValidator = getRegionValidator();
         handleLoggingConfig();
-
         getComponentStoreMaxSizeBytes().dflt(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         getDeploymentPollingFrequencySeconds().dflt(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
-
-        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).withValue(getNucleusVersion());
     }
 
     /**
@@ -205,25 +227,179 @@ public class DeviceConfiguration {
                 kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet().stream()
                         .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(s.toString())))
                         .findAny();
-        if (nucleusComponent.isPresent()) {
-            return nucleusComponent.get().toString();
-        } else {
-            initializeNucleusComponentConfig();
-            return DEFAULT_NUCLEUS_COMPONENT_NAME;
-        }
+        String nucleusComponentName = nucleusComponent.isPresent() ? nucleusComponent.get().toString() :
+                DEFAULT_NUCLEUS_COMPONENT_NAME;
+        // Initialize default/inferred required config if it doesn't exist
+        initializeNucleusComponentConfig(nucleusComponentName);
+        return nucleusComponentName;
     }
 
-    private void initializeNucleusComponentConfig() {
-        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY)
-                .withValue(ComponentType.NUCLEUS.name());
-        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY)
-                .dflt(getVersionFromBuildMetadataFile());
+    private void initializeNucleusComponentConfig(String nucleusComponentName) {
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, SERVICE_TYPE_TOPIC_KEY)
+                .dflt(ComponentType.NUCLEUS.name());
+
         ArrayList<String> mainDependencies = (ArrayList) kernel.getConfig().getRoot()
                 .findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
                         SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
-        mainDependencies.add(DEFAULT_NUCLEUS_COMPONENT_NAME);
+        mainDependencies.add(nucleusComponentName);
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
                 .dflt(mainDependencies);
+    }
+
+    /**
+     * Persist initial launch parameters of JVM options.
+     *
+     * @param kernelAlts KernelAlternatives instance
+     */
+    void persistInitialLaunchParams(KernelAlternatives kernelAlts) {
+        if (Files.exists(kernelAlts.getLaunchParamsPath())) {
+            logger.atDebug().log("Nucleus launch parameters has already been set up");
+            return;
+        }
+        // Persist initial Nucleus launch parameters
+        try {
+            String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
+                    .filter(s -> !s.startsWith(JVM_OPTION_ROOT_PATH)).collect(Collectors.joining(" "));
+            kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY,
+                    DEVICE_PARAM_JVM_OPTIONS).dflt(jvmOptions);
+
+            kernelAlts.writeLaunchParamsToFile(jvmOptions);
+            logger.atInfo().log("Successfully setup Nucleus launch parameters");
+        } catch (IOException e) {
+            logger.atError().log("Unable to setup Nucleus launch parameters", e);
+        }
+    }
+
+    void initializeNucleusLifecycleConfig(String nucleusComponentName, ComponentRecipe componentRecipe) {
+        KernelConfigResolver kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);
+        // Add Nucleus dependencies
+        Map<String, DependencyProperties> nucleusDependencies = componentRecipe.getDependencies();
+        if (nucleusDependencies == null) {
+            nucleusDependencies = Collections.emptyMap();
+        }
+        kernel.getConfig().lookup(DEFAULT_VALUE_TIMESTAMP, SERVICES_NAMESPACE_TOPIC,
+                nucleusComponentName, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
+                .dflt(kernelConfigResolver.generateServiceDependencies(nucleusDependencies));
+
+        Topics nucleusLifecycle = kernel.getConfig().lookupTopics(DEFAULT_VALUE_TIMESTAMP, SERVICES_NAMESPACE_TOPIC,
+                nucleusComponentName, SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
+        if (!nucleusLifecycle.children.isEmpty()) {
+            logger.atDebug().log("Nucleus lifecycle has already been initialized");
+            return;
+        }
+        // Add Nucleus lifecycle (after config interpolation)
+        if (componentRecipe.getLifecycle() == null) {
+            return;
+        }
+        try {
+            Object interpolatedLifecycle = kernelConfigResolver.interpolate(componentRecipe.getLifecycle(),
+                    new ComponentIdentifier(nucleusComponentName, componentRecipe.getVersion()),
+                    nucleusDependencies.keySet(),
+                    kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).toPOJO());
+            nucleusLifecycle.replaceAndWait((Map<String, Object>) interpolatedLifecycle);
+            logger.atInfo().log("Nucleus lifecycle has been initialized successfully");
+        } catch (IOException e) {
+            logger.atError().log("Unable to initialize Nucleus lifecycle", e);
+        }
+    }
+
+    void initializeNucleusVersion(String nucleusComponentName, String nucleusComponentVersion) {
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName,
+                VERSION_CONFIG_KEY).dflt(nucleusComponentVersion);
+        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).dflt(nucleusComponentVersion);
+    }
+
+    void initializeComponentStore(String nucleusComponentName, Semver componentVersion, Path recipePath,
+                                          Path unpackDir) throws IOException, PackageLoadingException {
+        // Copy recipe to component store
+        ComponentStore componentStore = kernel.getContext().get(ComponentStore.class);
+        ComponentIdentifier componentIdentifier = new ComponentIdentifier(nucleusComponentName, componentVersion);
+        Path destinationRecipePath = componentStore.resolveRecipePath(componentIdentifier);
+        if (!Files.exists(destinationRecipePath)) {
+            DeploymentService.copyRecipeFileToComponentStore(componentStore, recipePath, logger);
+        }
+
+        // Copy unpacked artifacts to component store
+        Path destinationArtifactPath = kernel.getContext().get(NucleusPaths.class).unarchiveArtifactPath(
+                componentIdentifier, DEFAULT_NUCLEUS_COMPONENT_NAME.toLowerCase());
+        if (Files.isSameFile(unpackDir, destinationArtifactPath)) {
+            logger.atDebug().log("Nucleus artifacts have already been loaded to component store");
+            return;
+        }
+        copyUnpackedNucleusArtifacts(unpackDir, destinationArtifactPath);
+        Permissions.setArtifactPermission(destinationArtifactPath, FileSystemPermission.builder()
+                .ownerRead(true).ownerExecute(true).groupRead(true).groupExecute(true)
+                .otherRead(true).otherExecute(true).build());
+    }
+
+    /**
+     * Load Nucleus component information from build recipe.
+     *
+     * @param kernelAlts KernelAlternatives instance
+     */
+    public void initializeNucleusFromRecipe(KernelAlternatives kernelAlts) {
+        String nucleusComponentName = getNucleusComponentName();
+
+        persistInitialLaunchParams(kernelAlts);
+        Semver componentVersion = null;
+        try {
+            Path unpackDir = locateCurrentKernelUnpackDir();
+            Path recipePath = unpackDir.resolve(NUCLEUS_BUILD_METADATA_DIRECTORY)
+                    .resolve(NUCLEUS_RECIPE_FILENAME);
+            if (!Files.exists(recipePath)) {
+                throw new PackageLoadingException("Failed to find Nucleus recipe at " + recipePath);
+            }
+
+            // Update Nucleus in config store
+            Optional<ComponentRecipe> resolvedRecipe = kernel.getContext().get(RecipeLoader.class)
+                    .loadFromFile(new String(Files.readAllBytes(recipePath.toAbsolutePath()), StandardCharsets.UTF_8));
+            if (!resolvedRecipe.isPresent()) {
+                throw new PackageLoadingException("Failed to load Nucleus recipe");
+            }
+            ComponentRecipe componentRecipe = resolvedRecipe.get();
+            componentVersion = componentRecipe.getVersion();
+            initializeNucleusLifecycleConfig(nucleusComponentName, componentRecipe);
+
+            initializeComponentStore(nucleusComponentName, componentVersion, recipePath, unpackDir);
+
+        } catch (IOException | URISyntaxException | PackageLoadingException e) {
+            logger.atError().log("Unable to set up Nucleus from build recipe file", e);
+        }
+
+        initializeNucleusVersion(nucleusComponentName, componentVersion == null ? FALLBACK_VERSION :
+                componentVersion.toString());
+    }
+
+    void copyUnpackedNucleusArtifacts(Path src, Path dst) throws IOException {
+        logger.atInfo().kv("source", src).kv("destination", dst).log("Copy Nucleus artifacts to component store");
+        List<String> directories = Arrays.asList("bin", "lib", "conf");
+        List<String> files = Arrays.asList("LICENSE", "NOTICE", "README.md", "THIRD-PARTY-LICENSES",
+                "greengrass.service.template", "loader", "Greengrass.jar", "recipe.yaml");
+
+        Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Path relativeDir = src.relativize(dir);
+                if (directories.contains(relativeDir.toString())) {
+                    Utils.createPaths(dst.resolve(relativeDir));
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE",
+                    justification = "Spotbugs false positive")
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Path relativeFile = src.relativize(file);
+                Path dstFile = dst.resolve(relativeFile);
+                if (file.getFileName() != null && files.contains(file.getFileName().toString())
+                        && dstFile.getParent() != null && Files.isDirectory(dstFile.getParent())
+                        && (!Files.exists(dstFile) || Files.size(dstFile) != Files.size(file))) {
+                    Files.copy(file, dstFile, NOFOLLOW_LINKS, REPLACE_EXISTING, COPY_ATTRIBUTES);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 
     /**
@@ -495,7 +671,7 @@ public class DeviceConfiguration {
             version = Coerce.toString(componentTopic.find(VERSION_CONFIG_KEY));
         }
         if (version == null) {
-            return getVersionFromBuildMetadataFile();
+            return FALLBACK_VERSION;
         } else {
             return version;
         }
@@ -506,22 +682,19 @@ public class DeviceConfiguration {
      *
      * @return version from the zip file, or a default if the version can't be determined
      */
-    public static String getVersionFromBuildMetadataFile() {
+    public static String getVersionFromBuildRecipeFile() {
         try {
-            try (InputStream is = Files
-                    .newInputStream(locateCurrentKernelUnpackDir().resolve(NUCLEUS_BUILD_METADATA_DIRECTORY)
-                            .resolve(NUCLEUS_BUILD_METADATA_FILENAME))) {
-                NUCLEUS_BUILD_PROPERTIES.load(is);
-            }
-
-            String version = NUCLEUS_BUILD_PROPERTIES.getProperty(NUCLEUS_VERSION_BUILD_METADATA_KEY);
-            if (version != null) {
-                return version;
+            com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe = getRecipeSerializer()
+                    .readValue(locateCurrentKernelUnpackDir().resolve(NUCLEUS_BUILD_METADATA_DIRECTORY)
+                                    .resolve(NUCLEUS_RECIPE_FILENAME).toFile(),
+                            com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
+            if (recipe != null) {
+               return recipe.getComponentVersion().toString();
             }
         } catch (IOException | URISyntaxException e) {
             logger.atError().log("Unable to determine Greengrass version", e);
         }
-        logger.atError().log("Unable to determine Greengrass version from build metadata file. "
+        logger.atError().log("Unable to determine Greengrass version from build recipe file. "
                 + "Build file not found, or version not found in file. Falling back to {}", FALLBACK_VERSION);
         return FALLBACK_VERSION;
     }

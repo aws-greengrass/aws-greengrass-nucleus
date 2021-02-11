@@ -47,8 +47,10 @@ class AwsIotMqttClient implements Closeable {
     @Getter
     private final String clientId;
     private MqttClientConnection connection;
+    private CompletableFuture<Boolean> connectionFuture = null;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
     private final CallbackEventManager callbackEventManager;
+    private final AtomicBoolean initalConnect = new AtomicBoolean(true);
 
     @Getter(AccessLevel.PACKAGE)
     private final MqttClientConnectionEvents connectionEventCallback = new MqttClientConnectionEvents() {
@@ -143,38 +145,64 @@ class AwsIotMqttClient implements Closeable {
         // Synchronize here instead of method signature to make mockito work without deadlocking
         synchronized (this) {
             logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
-            disconnect();
+            disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
             connect().get(getTimeout(), TimeUnit.MILLISECONDS);
         }
     }
 
-    @SuppressWarnings("PMD.NullAssignment")
     protected synchronized CompletableFuture<Boolean> connect() {
-        if (connection != null) {
+        // future not done indicates an ongoing connect attempt, caller should wait on that future
+        // instead of starting another connect attempt.
+        if (connectionFuture != null && !connectionFuture.isDone()) {
+            return connectionFuture;
+        }
+        // We're already connected, there's nothing to do
+        if (currentlyConnected.get()) {
             return CompletableFuture.completedFuture(true);
         }
+        // For the initial connect, client connects with cleanSession=true and disconnects.
+        // This deletes any previous session information maintained by IoT Core.
+        // For subsequent connects, the client connects with cleanSession=false
+        CompletableFuture<Void> voidCompletableFuture =  CompletableFuture.completedFuture(null);
+        if (initalConnect.get()) {
+            voidCompletableFuture = establishConnection(true).thenCompose((session) -> {
+                initalConnect.set(false);
+                return disconnect();
+            });
+        }
 
+        connectionFuture = voidCompletableFuture.thenCompose((b) -> establishConnection(false))
+                .thenApply((sessionPresent) -> {
+                    currentlyConnected.set(true);
+                    logger.atInfo().kv("sessionPresent", sessionPresent)
+                            .log("Successfully connected to AWS IoT Core");
+                    if (!sessionPresent) {
+                        resubscribe();
+                    }
+                    callbackEventManager.runOnInitialConnect(sessionPresent);
+                    return sessionPresent;
+                });
+
+        return connectionFuture;
+    }
+
+    @SuppressWarnings("PMD.NullAssignment")
+    private CompletableFuture<Boolean> establishConnection(boolean overrideCleanSession) {
         // Always use the builder provider here so that the builder is updated with whatever
         // the latest device config is
         try (AwsIotMqttConnectionBuilder builder = builderProvider.get()) {
             builder.withConnectionEventCallbacks(connectionEventCallback);
             builder.withClientId(clientId);
-
+            if (overrideCleanSession) {
+                builder.withCleanSession(true);
+            }
             connection = builder.build();
             // Set message handler for this connection to be our global message handler in MqttClient.
             // The handler will then send out the message to all subscribers after appropriate filtering.
             connection.onMessage(messageHandler);
 
             logger.atInfo().log("Connecting to AWS IoT Core");
-            return connection.connect().thenApply((sessionPresent) -> {
-                currentlyConnected.set(true);
-                logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
-                if (!sessionPresent) {
-                    resubscribe();
-                }
-                callbackEventManager.runOnInitialConnect(sessionPresent);
-                return sessionPresent;
-            }).whenComplete((session, error) -> {
+            return connection.connect().whenComplete((session, error) -> {
                 if (error != null) {
                     // Must synchronize since we're messing with the shared connection object and this block
                     // is executed in some other thread
@@ -222,26 +250,27 @@ class AwsIotMqttClient implements Closeable {
     }
 
     @SuppressWarnings("PMD.NullAssignment")
-    private synchronized void disconnect() {
-        try {
-            currentlyConnected.set(false);
-            if (connection != null) {
-                logger.atDebug().log("Disconnecting from AWS IoT Core");
-                try {
-                    connection.disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
-                } finally {
+    protected synchronized CompletableFuture<Void> disconnect() {
+        currentlyConnected.set(false);
+        if (connection != null) {
+            logger.atDebug().log("Disconnecting from AWS IoT Core");
+            return connection.disconnect().whenComplete((future, error) -> {
+                logger.atDebug().log("Successfully disconnected from AWS IoT Core");
+                synchronized (this) {
                     connection.close();
                     connection = null;
                 }
-                logger.atDebug().log("Successfully disconnected from AWS IoT Core");
-            }
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            logger.atError().log("Error while disconnecting the MQTT client", e);
+            });
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public void close() {
-        disconnect();
+        try {
+            disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            logger.atError().log("Error while disconnecting the MQTT client", e);
+        }
     }
 }

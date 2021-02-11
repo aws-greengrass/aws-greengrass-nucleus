@@ -15,6 +15,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 public class Topic extends Node {
+    public static final long DEFAULT_VALUE_TIMESTAMP = 1;
 
     private Object value;
 
@@ -283,7 +284,7 @@ public class Topic extends Node {
      */
     public synchronized Topic dflt(Object dflt) {
         if (value == null) {
-            withNewerValue(1, dflt, true); // defaults come from the dawn of time
+            withNewerValue(DEFAULT_VALUE_TIMESTAMP, dflt, true); // defaults come from the dawn of time
         }
         return this;
     }

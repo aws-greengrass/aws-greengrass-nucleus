@@ -282,11 +282,13 @@ public class MqttClient implements Closeable {
     protected MqttClient(DeviceConfiguration deviceConfiguration, Spool spool, boolean mqttOnline,
                          Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
                          ExecutorService executorService) {
+
         this.deviceConfiguration = deviceConfiguration;
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
+        this.builderProvider = builderProvider;
         this.spool = spool;
         this.mqttOnline.set(mqttOnline);
         this.builderProvider = builderProvider;
@@ -633,5 +635,9 @@ public class MqttClient implements Closeable {
 
     protected void setMqttOnline(boolean networkStatus) {
         mqttOnline.set(networkStatus);
+    }
+
+    public int getMqttOperationTimeoutMillis() {
+        return Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_OPERATION_TIMEOUT, MQTT_OPERATION_TIMEOUT_KEY));
     }
 }

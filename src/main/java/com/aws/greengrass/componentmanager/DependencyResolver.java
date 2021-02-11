@@ -18,6 +18,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import lombok.NoArgsConstructor;
@@ -43,6 +44,7 @@ public class DependencyResolver {
             + "nucleus from %s-%s to %s-%s but no component of type nucleus was included as target component, please "
             + "add the desired nucleus version as top level component if you wish to update the nucleus to a different "
             + "minor/major version";
+    static final String NO_ACTIVE_NUCLEUS_VERSION_ERROR_MSG = "Nucleus version config is required but not found";
     private static final Logger logger = LogManager.getLogger(DependencyResolver.class);
     private static final String VERSION_KEY = "version";
     private static final String COMPONENT_NAME_KEY = "componentName";
@@ -139,7 +141,11 @@ public class DependencyResolver {
             return;
         }
         GreengrassService activeNucleus = activeNucleusOption.get();
-        Semver activeNucleusVersion = new Semver(Coerce.toString(activeNucleus.getServiceConfig().find(VERSION_KEY)));
+        String activeNucleusVersionConfig = Coerce.toString(activeNucleus.getServiceConfig().find(VERSION_KEY));
+        if (Utils.isEmpty(activeNucleusVersionConfig)) {
+            throw new PackagingException(NO_ACTIVE_NUCLEUS_VERSION_ERROR_MSG);
+        }
+        Semver activeNucleusVersion = new Semver(activeNucleusVersionConfig);
         ComponentIdentifier activeNucleusId = new ComponentIdentifier(activeNucleus.getServiceName(),
                 activeNucleusVersion);
         ComponentIdentifier resolvedNucleusId = resolvedNucleusComponents.get(0);

@@ -133,6 +133,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
             assertNotNull(componentStatusDetail.getState());
             allComponents.remove(componentStatusDetail.getComponentName());
         }
-        assertTrue(allComponents.isEmpty());
+        assertTrue(allComponents.isEmpty(), "Missing component details in FSS update for: "
+                + String.join(",", allComponents));
     }
 }
