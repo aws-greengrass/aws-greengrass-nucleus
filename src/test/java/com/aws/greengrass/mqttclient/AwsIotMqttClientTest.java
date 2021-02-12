@@ -28,6 +28,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -80,15 +81,15 @@ class AwsIotMqttClientTest {
         callbackEventManager.addToCallbackEvents(mockCallback2);
         mockTopic = mock(Topics.class);
         executorService = Executors.newCachedThreadPool();
-        ses = Executors.newScheduledThreadPool(4);
+        ses = new ScheduledThreadPoolExecutor(4);
     }
 
     @AfterEach
     void cleanup() throws InterruptedException {
         executorService.shutdownNow();
         ses.shutdownNow();
-        ses.awaitTermination(2, TimeUnit.SECONDS);
-        executorService.awaitTermination(2, TimeUnit.SECONDS);
+        ses.awaitTermination(5, TimeUnit.SECONDS);
+        executorService.awaitTermination(5, TimeUnit.SECONDS);
     }
 
     @Test
