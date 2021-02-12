@@ -91,6 +91,9 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
     @Mock
     Context context;
 
+    @Mock
+    Topics topics;
+
     ArgumentCaptor<String> stringArgumentCaptor = ArgumentCaptor.forClass(String.class);
 
     ArgumentCaptor<Set<String>> operationsCaptor = ArgumentCaptor.forClass(Set.class);
@@ -133,6 +136,10 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))
                 .thenReturn(mainDependenciesTopic);
         when(configuration.lookup(SETENV_CONFIG_NAMESPACE, AWS_IOT_THING_NAME_ENV)).thenReturn(thingNameEnv);
+
+        when(topics.subscribe(any())).thenReturn(topics);
+        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
+        when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
     }
 
     @AfterEach
