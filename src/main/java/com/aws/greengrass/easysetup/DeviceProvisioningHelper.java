@@ -12,6 +12,7 @@ import com.aws.greengrass.util.CommitableFile;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory.EnvironmentStage;
+import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RegionUtils;
 import com.aws.greengrass.util.StsSdkClientFactory;
 import com.aws.greengrass.util.Utils;
@@ -19,6 +20,12 @@ import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
+import software.amazon.awssdk.http.HttpExecuteRequest;
+import software.amazon.awssdk.http.HttpExecuteResponse;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.SdkHttpFullRequest;
+import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
 import software.amazon.awssdk.services.greengrassv2.model.ComponentDeploymentSpecification;
@@ -69,7 +76,6 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
@@ -271,9 +277,13 @@ public class DeviceProvisioningHelper {
     }
 
     /*
-     * Download root CA to a local file.
+     * Download root CA to a local file if the file does not exist
      */
     private void downloadRootCAToFile(File f) throws IOException {
+        if (f.exists()) {
+            outStream.println(String.format("Root CA found at \"%s\". Skipping download.", f.toString()));
+            return;
+        }
         outStream.println(String.format("Downloading Root CA from \"%s\"", ROOT_CA_URL));
         downloadFileFromURL(ROOT_CA_URL, f);
     }
@@ -283,10 +293,28 @@ public class DeviceProvisioningHelper {
      */
     @SuppressWarnings("PMD.AvoidFileStream")
     private void downloadFileFromURL(String url, File f) throws IOException {
-        try (ReadableByteChannel readableByteChannel = Channels.newChannel(new URL(url).openStream());
-             FileOutputStream fileOutputStream = new FileOutputStream(f)) {
-            fileOutputStream.getChannel().transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+        SdkHttpFullRequest request = SdkHttpFullRequest.builder()
+                .uri(URI.create(url))
+                .method(SdkHttpMethod.GET)
+                .build();
+
+        HttpExecuteRequest executeRequest = HttpExecuteRequest.builder()
+                .request(request)
+                .build();
+
+        try (SdkHttpClient client = getSdkHttpClient()) {
+            HttpExecuteResponse executeResponse = client.prepareRequest(executeRequest).call();
+
+            try (ReadableByteChannel readableByteChannel = Channels.newChannel(executeResponse.responseBody().get());
+                 FileOutputStream fileOutputStream = new FileOutputStream(f)) {
+                fileOutputStream.getChannel().transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+            }
         }
+    }
+
+    private SdkHttpClient getSdkHttpClient() {
+        SdkHttpClient proxyClient = ProxyUtils.getSdkHttpClient();
+        return proxyClient == null ? ApacheHttpClient.builder().build() : proxyClient;
     }
 
     /**

@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -136,6 +137,7 @@ public class DeviceConfiguration {
 
     private final Validator deTildeValidator;
     private final Validator regionValidator;
+    private final AtomicReference<Boolean> deviceConfigValidateCachedResult = new AtomicReference();
 
     private Topics loggingTopics;
     private LoggerConfiguration currentConfiguration;
@@ -154,6 +156,8 @@ public class DeviceConfiguration {
         handleLoggingConfig();
         getComponentStoreMaxSizeBytes().dflt(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         getDeploymentPollingFrequencySeconds().dflt(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
+        // reset the cache when device configuration changes
+        onAnyChange((what, node) -> deviceConfigValidateCachedResult.set(null));
     }
 
     /**
@@ -638,13 +642,17 @@ public class DeviceConfiguration {
      * @return true is device configuration is valid
      */
     public boolean isDeviceConfiguredToTalkToCloud() {
+        Boolean cachedValue = deviceConfigValidateCachedResult.get();
+        if (cachedValue != null) {
+            return cachedValue;
+        }
         try {
             validate();
-            return true;
+            deviceConfigValidateCachedResult.set(true);
         } catch (DeviceConfigurationException e) {
-            return false;
+            deviceConfigValidateCachedResult.set(false);
         }
-
+        return deviceConfigValidateCachedResult.get();
     }
 
     private Topic getTopic(String parameterName) {
