@@ -5,7 +5,10 @@
 
 package com.aws.greengrass.integrationtests.ipc;
 
+import com.aws.greengrass.config.Subscriber;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -47,8 +50,8 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.*;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
@@ -136,9 +139,18 @@ public final class IPCTestUtils {
 
         try (EventLoopGroup elGroup = new EventLoopGroup(1); ClientBootstrap clientBootstrap = new ClientBootstrap(elGroup, null)) {
 
-            String ipcServerSocketPath = kernel.getContext().get(IPCEventStreamService.class).getIpcServerSocketAbsolutePath();
+            //String ipcServerSocketPath = kernel.getContext().get(IPCEventStreamService.class).getIpcServerSocketPath();
+            final String[] ipcServerSocketPath = new String[1];
+            kernel.getConfig().getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT)
+                    .subscribe(new Subscriber() {
+                                   @Override
+                                   public void published(WhatHappened what, Topic t) {
+                                       ipcServerSocketPath[0] = (String)t.getOnce();
+                                   }
+                               });
+
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elGroup,
-                    socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER,
+                    socketOptions, null, ipcServerSocketPath[0], DEFAULT_PORT_NUMBER,
                     GreengrassConnectMessageSupplier.connectMessageSupplier(authToken));
             final CompletableFuture<Void> connected = new CompletableFuture<>();
             final EventStreamRPCConnection connection = new EventStreamRPCConnection(config);

@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.util.platforms;
 
+import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
@@ -16,6 +18,7 @@ import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
 import org.zeroturnaround.process.WindowsProcess;
 
+import javax.inject.Inject;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -23,6 +26,8 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 
 public class WindowsPlatform extends Platform {
     @Override
@@ -154,12 +159,30 @@ public class WindowsPlatform extends Platform {
         }
     }
 
+    @Inject
+    private Configuration config;
+
+//    public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH = "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH";
+//    public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT =
+//            "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT";
+
+
     @Override
-    public String provideIpcBackingFile() {
-//        ipcServerSocketAbsolutePath = "\\\\.\\pipe\\NucleusNamedPipe";
+    public String prepareDomainSocketFilepath() {
+        String ipcServerSocketAbsolutePath = "\\\\.\\pipe\\NucleusNamedPipe";
 
+//        Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
+//        kernelUri.withValue(ipcServerSocketAbsolutePath);
+//        Topic kernelRelativeUri =
+//                config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
+//        kernelRelativeUri.withValue(ipcServerSocketAbsolutePath);
 
-        return "";
+        return ipcServerSocketAbsolutePath;
+    }
+
+    @Override
+    public String prepareDomainSocketFilepathForComponent() {
+        return "\\\\.\\pipe\\NucleusNamedPipe";
     }
 
     @Override
