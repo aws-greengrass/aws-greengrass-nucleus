@@ -45,6 +45,7 @@ import java.util.List;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.NUCLEUS_CONFIG_LOGGING_TOPICS;
+import static com.aws.greengrass.deployment.DeviceConfiguration.SYSTEM_NAMESPACE_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.telemetry.impl.MetricFactory.METRIC_LOGGER_PREFIX;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -143,6 +144,8 @@ class LogManagerHelperTest {
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
         when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(loggingConfig);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
+        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
+        when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
         DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel);
         deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.childChanged, loggingConfig);
 
@@ -177,6 +180,8 @@ class LogManagerHelperTest {
         when(topic.subscribe(childChangedArgumentCaptor.capture())).thenReturn(topic);
         when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(topic);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
+        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
+        when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
         DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel);
         deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.childChanged, null);
 
