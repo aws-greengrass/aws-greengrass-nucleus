@@ -23,7 +23,6 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -268,28 +267,18 @@ class AwsIotMqttClient implements Closeable {
             logger.atDebug().kv("droppedTopics", droppedSubscriptionTopics.keySet()).kv("delayMillis", delayMillis)
                     .log("Subscribing to dropped topics");
             ScheduledFuture<?> scheduledFuture = ses.schedule(() -> {
-                Map<CompletableFuture<?>, String> subscriptionFutures = new HashMap<>();
                 for (Map.Entry<String, QualityOfService> entry : droppedSubscriptionTopics.entrySet()) {
-                    subscriptionFutures.put(subscribe(entry.getKey(), entry.getValue()).thenApply((result) -> {
-                        droppedSubscriptionTopics.remove(entry.getKey());
-                        return result;
-                    }), entry.getKey());
-                }
-                // Block to wait for individual subscriptions to finish
-                for (Map.Entry<CompletableFuture<?>, String> futureEntry : subscriptionFutures.entrySet()) {
+                    CompletableFuture<Integer> subFuture = subscribe(entry.getKey(), entry.getValue());
                     try {
-                        futureEntry.getKey().get();
+                        subFuture.get();
+                        droppedSubscriptionTopics.remove(entry.getKey());
                     } catch (ExecutionException e) {
-                        logger.atError().cause(e).kv("topic", futureEntry.getValue())
+                        logger.atError().cause(e).kv(TOPIC_KEY, entry.getValue())
                                 .log("Failed to subscribe. Will retry later");
                     } catch (InterruptedException e) {
-                        // Cancel all subscriptions still in progress
-                        logger.atWarn().log("Cancelling subscriptions because of interruption");
-                        subscriptionFutures.keySet().stream().filter(f -> !f.isDone()).map(f -> {
-                            f.cancel(true);
-                            logger.atDebug().kv("topic", futureEntry.getValue()).log("Subscription cancelled");
-                            return null;
-                        });
+                        logger.atWarn().kv(TOPIC_KEY, entry.getValue())
+                                .log("Cancelling subscription because of interruption");
+                        subFuture.cancel(true);
                         return;
                     }
                 }
