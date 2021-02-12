@@ -21,6 +21,8 @@ import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -123,6 +125,42 @@ class AwsIotMqttClientTest {
         assertFalse(client.connected());
         verify(connection, times(3)).disconnect();
         verify(connection, times(3)).close();
+    }
+
+    @Test
+    void GIVEN_individual_client_THEN_it_tracks_subscriptions_correctly()
+            throws ExecutionException, InterruptedException, TimeoutException {
+        when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
+        when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
+        when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(connection.unsubscribe(any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
+        when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
+
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
+                callbackEventManager, executorService, ses);
+        when(builder.build()).thenReturn(connection);
+
+        Map<String, QualityOfService> expectedSubs = new HashMap<>();
+        expectedSubs.put("A", QualityOfService.AT_LEAST_ONCE);
+        client.subscribe("A", QualityOfService.AT_LEAST_ONCE).get();
+        assertEquals(expectedSubs, client.getSubscriptionTopics());
+
+        client.reconnect();
+        assertEquals(expectedSubs, client.getSubscriptionTopics());
+
+        expectedSubs.put("B", QualityOfService.AT_MOST_ONCE);
+        client.subscribe("B", QualityOfService.AT_MOST_ONCE).get();
+
+        events.getValue().onConnectionInterrupted(0);
+        assertEquals(expectedSubs, client.getSubscriptionTopics());
+
+        events.getValue().onConnectionResumed(true);
+        assertEquals(expectedSubs, client.getSubscriptionTopics());
+
+        expectedSubs.remove("B");
+        client.unsubscribe("B").get();
+        assertEquals(expectedSubs, client.getSubscriptionTopics());
     }
 
     @Test
@@ -255,9 +293,9 @@ class AwsIotMqttClientTest {
         when(builder.build()).thenReturn(connection);
 
         // subscribe to topics A, B, C
-        client.subscribe("A", QualityOfService.AT_LEAST_ONCE);
-        client.subscribe("B", QualityOfService.AT_LEAST_ONCE);
-        client.subscribe("C", QualityOfService.AT_LEAST_ONCE);
+        client.subscribe("A", QualityOfService.AT_LEAST_ONCE).get();
+        client.subscribe("B", QualityOfService.AT_LEAST_ONCE).get();
+        client.subscribe("C", QualityOfService.AT_LEAST_ONCE).get();
         assertTrue(client.connected());
         assertEquals(3, client.subscriptionCount());
 
@@ -271,7 +309,7 @@ class AwsIotMqttClientTest {
 
     @Test
     void GIVEN_multiple_topics_subscribed_WHEN_connection_interrupted_and_resumed_THEN_resubscribe_to_topics(
-            ExtensionContext context) {
+            ExtensionContext context) throws ExecutionException, InterruptedException {
         // setup mocks
         ignoreExceptionUltimateCauseOfType(context, Exception.class);
         AwsIotMqttClient.setSubscriptionRetryMillis(500);
@@ -286,9 +324,9 @@ class AwsIotMqttClientTest {
         when(builder.build()).thenReturn(connection);
 
         // subscribe to topics A, B, C
-        client.subscribe("A", QualityOfService.AT_LEAST_ONCE);
-        client.subscribe("B", QualityOfService.AT_LEAST_ONCE);
-        client.subscribe("C", QualityOfService.AT_LEAST_ONCE);
+        client.subscribe("A", QualityOfService.AT_LEAST_ONCE).get();
+        client.subscribe("B", QualityOfService.AT_LEAST_ONCE).get();
+        client.subscribe("C", QualityOfService.AT_LEAST_ONCE).get();
         assertTrue(client.connected());
         assertEquals(3, client.subscriptionCount());
 
