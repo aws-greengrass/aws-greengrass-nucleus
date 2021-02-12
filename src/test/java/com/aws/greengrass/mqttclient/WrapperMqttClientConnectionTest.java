@@ -36,7 +36,7 @@ class WrapperMqttClientConnectionTest {
     @Captor
     ArgumentCaptor<UnsubscribeRequest> unsubRequestCaptor;
 
-    public static final String TEST_TOPIC = "testTopic";
+    private static final String TEST_TOPIC = "testTopic";
 
     @BeforeEach
     void beforeEach() throws InterruptedException, ExecutionException, TimeoutException {

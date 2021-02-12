@@ -53,7 +53,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class AwsIotMqttClientTest {
 
-    public static final int VERIFY_TIMEOUT_MILLIS = 1000;
+    private static final int VERIFY_TIMEOUT_MILLIS = 1000;
+
     @Mock
     AwsIotMqttConnectionBuilder builder;
 

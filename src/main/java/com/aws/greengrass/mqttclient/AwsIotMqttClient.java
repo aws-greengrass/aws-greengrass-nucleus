@@ -23,6 +23,8 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -46,6 +48,7 @@ import javax.inject.Provider;
  */
 class AwsIotMqttClient implements Closeable {
     static final String TOPIC_KEY = "topic";
+    private static final String RESUB_LOG_EVENT = "resubscribe";
     private static final String QOS_KEY = "qos";
     private static final Random RANDOM = new Random();
     private final Logger logger = LogManager.getLogger(AwsIotMqttClient.class).createChild()
@@ -264,31 +267,40 @@ class AwsIotMqttClient implements Closeable {
     private void resubscribeDroppedTopicsTask() {
         long delayMillis = 0;  // don't delay the first run
         while (!droppedSubscriptionTopics.isEmpty()) {
-            logger.atDebug().kv("droppedTopics", droppedSubscriptionTopics.keySet()).kv("delayMillis", delayMillis)
-                    .log("Subscribing to dropped topics");
+            logger.atDebug().event(RESUB_LOG_EVENT).kv("droppedTopics", droppedSubscriptionTopics.keySet())
+                    .kv("delayMillis", delayMillis).log("Subscribing to dropped topics");
             ScheduledFuture<?> scheduledFuture = ses.schedule(() -> {
+                List<CompletableFuture<Integer>> subFutures = new ArrayList<>();
                 for (Map.Entry<String, QualityOfService> entry : droppedSubscriptionTopics.entrySet()) {
-                    CompletableFuture<Integer> subFuture = subscribe(entry.getKey(), entry.getValue());
-                    try {
-                        subFuture.get();
-                        droppedSubscriptionTopics.remove(entry.getKey());
-                    } catch (ExecutionException e) {
-                        logger.atError().cause(e).kv(TOPIC_KEY, entry.getValue())
-                                .log("Failed to subscribe. Will retry later");
-                    } catch (InterruptedException e) {
-                        logger.atWarn().kv(TOPIC_KEY, entry.getValue())
-                                .log("Cancelling subscription because of interruption");
-                        subFuture.cancel(true);
-                        return;
-                    }
+                    subFutures.add(subscribe(entry.getKey(), entry.getValue()).whenComplete((result, error) -> {
+                        if (error == null) {
+                            droppedSubscriptionTopics.remove(entry.getKey());
+                        } else {
+                            logger.atError().event(RESUB_LOG_EVENT).cause(error).kv(TOPIC_KEY, entry.getKey())
+                                    .log("Failed to subscribe to topic. Will retry later");
+                        }
+                    }));
+                }
+                // Block and wait for all subscriptions to finish
+                CompletableFuture<?> allSubFutures =
+                        CompletableFuture.allOf(subFutures.toArray(new CompletableFuture[0]));
+                try {
+                    allSubFutures.get();
+                } catch (InterruptedException e) {
+                    logger.atWarn().event(RESUB_LOG_EVENT).cause(e)
+                            .log("Subscription interrupted. Cancelling subscriptions");
+                    allSubFutures.cancel(true);
+                } catch (ExecutionException e) {
+                    // Do nothing. Errors already handled in the above whenComplete stage
                 }
             }, delayMillis, TimeUnit.MILLISECONDS);
+
             try {
                 scheduledFuture.get();
             } catch (ExecutionException e) {
-                logger.atError().cause(e).log("Failed to subscribe to dropped topics. Will retry later");
+                logger.atError().event(RESUB_LOG_EVENT).cause(e).log("Scheduled task failed. Will retry later");
             } catch (InterruptedException e) {
-                logger.atWarn().log("Cancelling scheduled subscription task because of interruption");
+                logger.atWarn().event(RESUB_LOG_EVENT).log("Cancelling scheduled task because of interruption");
                 scheduledFuture.cancel(true);
                 return;
             }
