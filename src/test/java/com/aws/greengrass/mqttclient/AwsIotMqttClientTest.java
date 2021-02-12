@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
+import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
@@ -39,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -162,6 +164,20 @@ class AwsIotMqttClientTest {
         expectedSubs.remove("B");
         client.unsubscribe("B").get();
         assertEquals(expectedSubs, client.getSubscriptionTopics());
+    }
+
+    @Test
+    void GIVEN_individual_client_THEN_it_can_publish_to_topics() throws ExecutionException, InterruptedException {
+        when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
+        when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
+        when(connection.publish(any(), any(), anyBoolean())).thenReturn(CompletableFuture.completedFuture(0));
+        when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
+
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
+                callbackEventManager, executorService, ses);
+        when(builder.build()).thenReturn(connection);
+        client.publish(new MqttMessage("A", new byte[0]), QualityOfService.AT_MOST_ONCE, false).get();
+        verify(connection, times(1)).publish(any(), any(), anyBoolean());
     }
 
     @Test
