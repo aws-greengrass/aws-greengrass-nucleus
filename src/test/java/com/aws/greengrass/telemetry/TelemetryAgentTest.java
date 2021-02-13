@@ -192,11 +192,11 @@ class TelemetryAgentTest extends GGServiceTestUtil {
 
     @Test
     void GIVEN_Telemetry_Agent_WHEN_starts_up_THEN_periodically_schedule_operations() {
-        TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC), any()))
                 .thenReturn(1);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC), any()))
                 .thenReturn(3);
+        TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
         telemetryAgent.postInject();
         long milliSeconds = 4000;
         telemetryAgent.getCurrentConfiguration().set(TelemetryConfiguration.builder()
@@ -219,11 +219,11 @@ class TelemetryAgentTest extends GGServiceTestUtil {
 
     @Test
     void GIVEN_Telemetry_Agent_WHEN_mqtt_is_interrupted_THEN_aggregation_continues_but_publishing_stops() {
-        TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC), any()))
                 .thenReturn(1);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC), any()))
                 .thenReturn(2);
+        TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
         Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap = new HashMap<>();
         List<AggregatedNamespaceData> data = new ArrayList<>();
         data.add(AggregatedNamespaceData.builder().namespace("SomeNameSpace").build());
