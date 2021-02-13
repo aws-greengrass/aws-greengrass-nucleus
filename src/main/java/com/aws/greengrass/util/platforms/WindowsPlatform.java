@@ -172,8 +172,10 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    public void setIpcBackingFilePermissions() {}
+    public void setIpcBackingFilePermissions() {
+    }
 
     @Override
-    public void cleanupIpcBackingFile() {}
+    public void cleanupIpcBackingFile() {
+    }
 }
