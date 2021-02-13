@@ -112,13 +112,13 @@ public abstract class Platform implements UserPlatform {
     protected abstract void setPermissions(FileSystemPermission permission, Path path, EnumSet<Option> options)
             throws IOException;
 
-    public abstract String prepareDomainSocketFilepath();
+    public abstract String prepareDomainSocketFilepath(Path rootPath);
 
-    public abstract String prepareDomainSocketFilepathForComponent();
+    public abstract String prepareDomainSocketFilepathForComponent(Path rootPath);
 
-    public abstract String prepareDomainSocketFilepathForRpcServer();
+    public abstract String prepareDomainSocketFilepathForRpcServer(Path rootPath);
 
-    public abstract void setIpcBackingFilePermissions();
+    public abstract void setIpcBackingFilePermissions(Path rootPath);
 
-    public abstract void cleanupIpcBackingFile();
+    public abstract void cleanupIpcBackingFile(Path rootPath);
 }

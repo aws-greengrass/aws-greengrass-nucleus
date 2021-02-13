@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.util.platforms.unix;
 
-import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.CrashableFunction;
 import com.aws.greengrass.util.Exec;
@@ -51,7 +50,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.inject.Inject;
 
 import static com.aws.greengrass.util.Utils.inputStreamToString;
 
@@ -87,9 +85,6 @@ public class UnixPlatform extends Platform {
     private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
 
     private final UnixRunWithGenerator runWithGenerator;
-
-    @Inject
-    private Kernel kernel;
 
     /**
      * Construct a new instance.
@@ -511,8 +506,8 @@ public class UnixPlatform extends Platform {
         return ret;
     }
 
-    private String getIpcServerSocketAbsolutePath() {
-        return kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+    private String getIpcServerSocketAbsolutePath(Path rootPath) {
+        return rootPath.resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
     }
 
     private boolean isSocketPathTooLong(String socketPath) {
@@ -520,8 +515,8 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareDomainSocketFilepath() {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath();
+    public String prepareDomainSocketFilepath(Path rootPath) {
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
 
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
             try {
@@ -537,8 +532,8 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareDomainSocketFilepathForComponent() {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath();
+    public String prepareDomainSocketFilepathForComponent(Path rootPath) {
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
 
         boolean symLinkCreated = false;
 
@@ -546,7 +541,7 @@ public class UnixPlatform extends Platform {
             // Usually we do not want to write outside of kernel root. Because of socket path length limitations we
             // will create a symlink only if needed
             if (isSocketPathTooLong(ipcServerSocketAbsolutePath)) {
-                Files.createSymbolicLink(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), kernel.getNucleusPaths().rootPath());
+                Files.createSymbolicLink(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), rootPath);
 
                 symLinkCreated = true;
             }
@@ -554,7 +549,7 @@ public class UnixPlatform extends Platform {
             logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path. Cannot start "
                     + "IPC server as the long nucleus root path is making socket filepath greater than 108 chars. "
                     + "Shorten root path and start nucleus again");
-            cleanupIpcBackingFile();
+            cleanupIpcBackingFile(rootPath);
             throw new RuntimeException(e);
         }
 
@@ -562,15 +557,15 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareDomainSocketFilepathForRpcServer() {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath();
+    public String prepareDomainSocketFilepathForRpcServer(Path rootPath) {
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
         return isSocketPathTooLong(ipcServerSocketAbsolutePath) ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK :
                 ipcServerSocketAbsolutePath;
     }
 
     @Override
-    public void setIpcBackingFilePermissions() {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath();
+    public void setIpcBackingFilePermissions(Path rootPath) {
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
 
         // IPC socket does not get created immediately after runServer returns
         // Wait up to 30s for it to exist
@@ -582,7 +577,7 @@ public class UnixPlatform extends Platform {
                 Thread.sleep(SOCKET_CREATE_POLL_INTERVAL_MS);
             } catch (InterruptedException e) {
                 logger.atWarn().setCause(e).log("Service interrupted before server socket exists");
-                cleanupIpcBackingFile();
+                cleanupIpcBackingFile(rootPath);
                 throw new RuntimeException(e);
             }
         }
@@ -592,13 +587,13 @@ public class UnixPlatform extends Platform {
             Permissions.setIpcSocketPermission(ipcPath);
         } catch (IOException e) {
             logger.atError().setCause(e).log("Error while setting permissions for IPC server socket");
-            cleanupIpcBackingFile();
+            cleanupIpcBackingFile(rootPath);
             throw new RuntimeException(e);
         }
     }
 
     @Override
-    public void cleanupIpcBackingFile() {
+    public void cleanupIpcBackingFile(Path rootPath) {
         // fufranci: refactor
         if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
             try {
@@ -619,7 +614,7 @@ public class UnixPlatform extends Platform {
             }
         }
 
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath();
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
             try {
                 logger.atDebug().log("Deleting the ipc server socket descriptor file");

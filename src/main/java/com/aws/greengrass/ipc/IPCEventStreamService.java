@@ -29,6 +29,7 @@ import software.amazon.awssdk.eventstreamrpc.RpcServer;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import javax.inject.Inject;
 
@@ -76,6 +77,8 @@ public class IPCEventStreamService implements Startable, Closeable {
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.ExceptionAsFlowControl"})
     @Override
     public void startup() {
+        Path rootPath = kernel.getNucleusPaths().rootPath();
+
         try {
             greengrassCoreIPCService.getAllOperations().forEach(operation ->
                     greengrassCoreIPCService.setOperationHandler(operation,
@@ -93,16 +96,16 @@ public class IPCEventStreamService implements Startable, Closeable {
             eventLoopGroup = new EventLoopGroup(1);
 
             Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
-            kernelUri.withValue(Platform.getInstance().prepareDomainSocketFilepath());
+            kernelUri.withValue(Platform.getInstance().prepareDomainSocketFilepath(rootPath));
             Topic kernelRelativeUri =
                     config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
-            kernelRelativeUri.withValue(Platform.getInstance().prepareDomainSocketFilepathForComponent());
+            kernelRelativeUri.withValue(Platform.getInstance().prepareDomainSocketFilepathForComponent(rootPath));
 
             // For domain sockets:
             // 1. Port number is ignored. RpcServer does not accept a null value so we are using a default value.
             // 2. The hostname parameter expects the socket filepath
             rpcServer = new RpcServer(eventLoopGroup, socketOptions, null,
-                    Platform.getInstance().prepareDomainSocketFilepathForRpcServer(),
+                    Platform.getInstance().prepareDomainSocketFilepathForRpcServer(rootPath),
                     DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
             rpcServer.runServer();
         } catch (RuntimeException e) {
@@ -111,7 +114,7 @@ public class IPCEventStreamService implements Startable, Closeable {
             throw e;
         }
 
-        Platform.getInstance().setIpcBackingFilePermissions();
+        Platform.getInstance().setIpcBackingFilePermissions(rootPath);
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
@@ -165,6 +168,6 @@ public class IPCEventStreamService implements Startable, Closeable {
             socketOptions.close();
         }
 
-        Platform.getInstance().cleanupIpcBackingFile();
+        Platform.getInstance().cleanupIpcBackingFile(kernel.getNucleusPaths().rootPath());
     }
 }
