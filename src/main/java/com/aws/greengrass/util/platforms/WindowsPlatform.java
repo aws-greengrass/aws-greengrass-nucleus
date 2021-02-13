@@ -5,8 +5,6 @@
 
 package com.aws.greengrass.util.platforms;
 
-import com.aws.greengrass.config.Configuration;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
@@ -25,11 +23,10 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import javax.inject.Inject;
-
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 
 public class WindowsPlatform extends Platform {
+    private static final String NAMED_PIPE = "\\\\.\\pipe\\NucleusNamedPipe";
+
     @Override
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                UserDecorator decorator)
@@ -159,31 +156,24 @@ public class WindowsPlatform extends Platform {
         }
     }
 
-    @Inject
-    private Configuration config;
-
     @Override
     public String prepareDomainSocketFilepath() {
-        return "\\\\.\\pipe\\NucleusNamedPipe";
+        return NAMED_PIPE;
     }
 
     @Override
     public String prepareDomainSocketFilepathForComponent() {
-        return "\\\\.\\pipe\\NucleusNamedPipe";
+        return NAMED_PIPE;
     }
 
     @Override
     public String prepareDomainSocketFilepathForRpcServer() {
-        return "\\\\.\\pipe\\NucleusNamedPipe";
+        return NAMED_PIPE;
     }
 
     @Override
-    public void setIpcBackingFilePermissions() {
-
-    }
+    public void setIpcBackingFilePermissions() {}
 
     @Override
-    public void cleanupIpcBackingFile() {
-
-    }
+    public void cleanupIpcBackingFile() {}
 }

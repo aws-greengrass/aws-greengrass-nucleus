@@ -5,10 +5,7 @@
 
 package com.aws.greengrass.integrationtests.ipc;
 
-import com.aws.greengrass.config.Subscriber;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.model.Deployment;

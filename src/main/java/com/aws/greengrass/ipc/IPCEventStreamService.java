@@ -16,7 +16,6 @@ import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel;
@@ -30,9 +29,6 @@ import software.amazon.awssdk.eventstreamrpc.RpcServer;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
-import java.nio.file.Paths;
 import java.util.List;
 import javax.inject.Inject;
 

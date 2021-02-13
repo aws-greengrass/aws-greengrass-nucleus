@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.util.platforms.unix;
 
-import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.CrashableFunction;
@@ -71,10 +70,26 @@ public class UnixPlatform extends Platform {
     public static final String SET_PERMISSIONS_EVENT = "set-permissions";
     public static final String PATH = "path";
 
+    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipc.socket";
+    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./nucleusRoot/ipc.socket";
+    public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
+    // This is relative to component's CWD
+    // components CWD is <kernel-root-path>/work/component
+    public static final String IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME = "../../ipc.socket";
+
+    // https://www.gnu.org/software/libc/manual/html_node/Local-Namespace-Details.html
+    private static final int UDS_SOCKET_PATH_MAX_LEN = 108;
+
+    private static final int MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS = 30;
+    public static final int SOCKET_CREATE_POLL_INTERVAL_MS = 200;
+
     private static UnixUserAttributes CURRENT_USER;
     private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
 
     private final UnixRunWithGenerator runWithGenerator;
+
+    @Inject
+    private Kernel kernel;
 
     /**
      * Construct a new instance.
@@ -495,27 +510,6 @@ public class UnixPlatform extends Platform {
         }
         return ret;
     }
-
-    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipc.socket";
-    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./nucleusRoot/ipc.socket";
-    public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
-    // This is relative to component's CWD
-    // components CWD is <kernel-root-path>/work/component
-    public static final String IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME = "../../ipc.socket";
-
-    // https://www.gnu.org/software/libc/manual/html_node/Local-Namespace-Details.html
-    private static final int UDS_SOCKET_PATH_MAX_LEN = 108;
-
-    private static final int MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS = 30;
-    public static final int SOCKET_CREATE_POLL_INTERVAL_MS = 200;
-
-
-    @Inject
-    private Kernel kernel;
-
-    @Inject
-    private Configuration config;
-
 
     private String getIpcServerSocketAbsolutePath() {
         return kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
