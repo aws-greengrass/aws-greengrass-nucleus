@@ -13,7 +13,6 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
-import com.aws.greengrass.ipc.IPCEventStreamService;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -139,18 +138,9 @@ public final class IPCTestUtils {
 
         try (EventLoopGroup elGroup = new EventLoopGroup(1); ClientBootstrap clientBootstrap = new ClientBootstrap(elGroup, null)) {
 
-            //String ipcServerSocketPath = kernel.getContext().get(IPCEventStreamService.class).getIpcServerSocketPath();
-            final String[] ipcServerSocketPath = new String[1];
-            kernel.getConfig().getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT)
-                    .subscribe(new Subscriber() {
-                                   @Override
-                                   public void published(WhatHappened what, Topic t) {
-                                       ipcServerSocketPath[0] = (String)t.getOnce();
-                                   }
-                               });
-
+            final String ipcServerSocketPath = (String)kernel.getConfig().getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT).getOnce();
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elGroup,
-                    socketOptions, null, ipcServerSocketPath[0], DEFAULT_PORT_NUMBER,
+                    socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER,
                     GreengrassConnectMessageSupplier.connectMessageSupplier(authToken));
             final CompletableFuture<Void> connected = new CompletableFuture<>();
             final EventStreamRPCConnection connection = new EventStreamRPCConnection(config);

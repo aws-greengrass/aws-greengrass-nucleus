@@ -45,22 +45,10 @@ public class IPCEventStreamService implements Startable, Closeable {
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-//    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipc.socket";
-//    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./nucleusRoot/ipc.socket";
-//    public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
-    // This is relative to component's CWD
-    // components CWD is <kernel-root-path>/work/component
-//    public static final String IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME = "../../ipc.socket";
 
     public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH = "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH";
     public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT =
             "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT";
-
-//    // https://www.gnu.org/software/libc/manual/html_node/Local-Namespace-Details.html
-//    private static final int UDS_SOCKET_PATH_MAX_LEN = 108;
-
-//    private static final int MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS = 30;
-//    public static final int SOCKET_CREATE_POLL_INTERVAL_MS = 200;
 
     private static final Logger logger = LogManager.getLogger(IPCEventStreamService.class);
 
@@ -80,8 +68,6 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     private SocketOptions socketOptions;
     private EventLoopGroup eventLoopGroup;
-//    @Getter
-//    private String ipcServerSocketPath;
 
     IPCEventStreamService(Kernel kernel,
                                  GreengrassCoreIPCService greengrassCoreIPCService,
@@ -110,20 +96,17 @@ public class IPCEventStreamService implements Startable, Closeable {
             socketOptions.type = SocketOptions.SocketType.STREAM;
             eventLoopGroup = new EventLoopGroup(1);
 
-            String domainSocketFilepath = Platform.getInstance().prepareDomainSocketFilepath();
-            String domainSocketFilepathForComponent = Platform.getInstance().prepareDomainSocketFilepathForComponent();
-
             Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
-            kernelUri.withValue(domainSocketFilepath);
+            kernelUri.withValue(Platform.getInstance().prepareDomainSocketFilepath());
             Topic kernelRelativeUri =
                     config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
-            kernelRelativeUri.withValue(domainSocketFilepathForComponent);
+            kernelRelativeUri.withValue(Platform.getInstance().prepareDomainSocketFilepathForComponent());
 
             // For domain sockets:
             // 1. Port number is ignored. RpcServer does not accept a null value so we are using a default value.
             // 2. The hostname parameter expects the socket filepath
             rpcServer = new RpcServer(eventLoopGroup, socketOptions, null,
-                    domainSocketFilepathForComponent,
+                    Platform.getInstance().prepareDomainSocketFilepathForRpcServer(),
                     DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
             rpcServer.runServer();
         } catch (RuntimeException e) {
@@ -185,7 +168,6 @@ public class IPCEventStreamService implements Startable, Closeable {
         if (socketOptions != null) {
             socketOptions.close();
         }
-
 
         Platform.getInstance().cleanupIpcBackingFile();
     }

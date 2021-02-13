@@ -18,7 +18,6 @@ import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
 import org.zeroturnaround.process.WindowsProcess;
 
-import javax.inject.Inject;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -26,6 +25,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import javax.inject.Inject;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 
@@ -162,26 +162,18 @@ public class WindowsPlatform extends Platform {
     @Inject
     private Configuration config;
 
-//    public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH = "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH";
-//    public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT =
-//            "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT";
-
-
     @Override
     public String prepareDomainSocketFilepath() {
-        String ipcServerSocketAbsolutePath = "\\\\.\\pipe\\NucleusNamedPipe";
-
-//        Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
-//        kernelUri.withValue(ipcServerSocketAbsolutePath);
-//        Topic kernelRelativeUri =
-//                config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
-//        kernelRelativeUri.withValue(ipcServerSocketAbsolutePath);
-
-        return ipcServerSocketAbsolutePath;
+        return "\\\\.\\pipe\\NucleusNamedPipe";
     }
 
     @Override
     public String prepareDomainSocketFilepathForComponent() {
+        return "\\\\.\\pipe\\NucleusNamedPipe";
+    }
+
+    @Override
+    public String prepareDomainSocketFilepathForRpcServer() {
         return "\\\\.\\pipe\\NucleusNamedPipe";
     }
 

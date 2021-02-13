@@ -6,11 +6,15 @@
 package com.aws.greengrass.util.platforms.unix;
 
 import com.aws.greengrass.config.Configuration;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.LogEventBuilder;
-import com.aws.greengrass.util.*;
+import com.aws.greengrass.util.CrashableFunction;
+import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.FileSystemPermission.Option;
+import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.Permissions;
+import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.UserDecorator;
@@ -18,7 +22,6 @@ import lombok.NoArgsConstructor;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
 
-import javax.inject.Inject;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -49,8 +52,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.inject.Inject;
 
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.util.Utils.inputStreamToString;
 
 /**
@@ -84,8 +87,8 @@ public class UnixPlatform extends Platform {
     /**
      * Run the `id` program which returns user and group information about a particular user.
      *
-     * @param id the identifier (numeric or name). If empty, then the current user is looked up.
-     * @param option whether to load group or user information.
+     * @param id       the identifier (numeric or name). If empty, then the current user is looked up.
+     * @param option   whether to load group or user information.
      * @param loadName whether a name should or id should be returned.
      * @return the output of id (either an integer string or name of the user/group) or empty if an error occurs.
      */
@@ -146,6 +149,7 @@ public class UnixPlatform extends Platform {
 
     /**
      * Load the current user once.
+     *
      * @return the current user
      * @throws IOException if an error occurs retrieving user or primary group information.
      */
@@ -341,17 +345,20 @@ public class UnixPlatform extends Platform {
 
     @Override
     public void createUser(String user) throws IOException {
-        runCmd("useradd -r -m " + user, o -> {}, "Failed to create user");
+        runCmd("useradd -r -m " + user, o -> {
+        }, "Failed to create user");
     }
 
     @Override
     public void createGroup(String group) throws IOException {
-        runCmd("groupadd -r " + group, o -> {}, "Failed to create group");
+        runCmd("groupadd -r " + group, o -> {
+        }, "Failed to create group");
     }
 
     @Override
     public void addUserToGroup(String user, String group) throws IOException {
-        runCmd("usermod -a -G " + group + " " + user, o -> {}, "Failed to add user to group");
+        runCmd("usermod -a -G " + group + " " + user, o -> {
+        }, "Failed to add user to group");
     }
 
     @Override
@@ -394,8 +401,8 @@ public class UnixPlatform extends Platform {
                 logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm",
                         PosixFilePermissions.toString(perms)).log();
                 view.setPermissions(perms);
-               return null;
-           };
+                return null;
+            };
         }
         final CrashableFunction<PosixFileAttributeView, Void, IOException> setModeFunc = setMode;
         final CrashableFunction<PosixFileAttributeView, Void, IOException> setOwnerFunc = setOwner;
@@ -491,12 +498,17 @@ public class UnixPlatform extends Platform {
 
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipc.socket";
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./nucleusRoot/ipc.socket";
-    public static final String IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME = "../../ipc.socket";
     public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
+    // This is relative to component's CWD
+    // components CWD is <kernel-root-path>/work/component
+    public static final String IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME = "../../ipc.socket";
 
-//    public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH = "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH";
-//    public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT =
-//            "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT";
+    // https://www.gnu.org/software/libc/manual/html_node/Local-Namespace-Details.html
+    private static final int UDS_SOCKET_PATH_MAX_LEN = 108;
+
+    private static final int MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS = 30;
+    public static final int SOCKET_CREATE_POLL_INTERVAL_MS = 200;
+
 
     @Inject
     private Kernel kernel;
@@ -504,19 +516,18 @@ public class UnixPlatform extends Platform {
     @Inject
     private Configuration config;
 
-//    private String ipcServerSocketAbsolutePath;
 
-    //    // https://www.gnu.org/software/libc/manual/html_node/Local-Namespace-Details.html
-    private static final int UDS_SOCKET_PATH_MAX_LEN = 108;
+    private String getIpcServerSocketAbsolutePath() {
+        return kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+    }
 
-    private static final int MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS = 30;
-    public static final int SOCKET_CREATE_POLL_INTERVAL_MS = 200;
-
+    private boolean isSocketPathTooLong(String socketPath) {
+        return socketPath.length() >= UDS_SOCKET_PATH_MAX_LEN;
+    }
 
     @Override
     public String prepareDomainSocketFilepath() {
-        String ipcServerSocketAbsolutePath =
-                kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath();
 
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
             try {
@@ -533,20 +544,15 @@ public class UnixPlatform extends Platform {
 
     @Override
     public String prepareDomainSocketFilepathForComponent() {
-        String ipcServerSocketAbsolutePath =
-                kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath();
 
         boolean symLinkCreated = false;
 
         try {
             // Usually we do not want to write outside of kernel root. Because of socket path length limitations we
             // will create a symlink only if needed
-            if (ipcServerSocketAbsolutePath.length() >= UDS_SOCKET_PATH_MAX_LEN) {
+            if (isSocketPathTooLong(ipcServerSocketAbsolutePath)) {
                 Files.createSymbolicLink(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), kernel.getNucleusPaths().rootPath());
-
-//                kernelRelativeUri = config.getRoot()
-//                        .lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
-//                kernelRelativeUri.withValue(IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME);
 
                 symLinkCreated = true;
             }
@@ -554,7 +560,6 @@ public class UnixPlatform extends Platform {
             logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path. Cannot start "
                     + "IPC server as the long nucleus root path is making socket filepath greater than 108 chars. "
                     + "Shorten root path and start nucleus again");
-//                close();
             cleanupIpcBackingFile();
             throw new RuntimeException(e);
         }
@@ -563,9 +568,15 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
+    public String prepareDomainSocketFilepathForRpcServer() {
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath();
+        return isSocketPathTooLong(ipcServerSocketAbsolutePath) ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK :
+                ipcServerSocketAbsolutePath;
+    }
+
+    @Override
     public void setIpcBackingFilePermissions() {
-        String ipcServerSocketAbsolutePath =
-                kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath();
 
         // IPC socket does not get created immediately after runServer returns
         // Wait up to 30s for it to exist
@@ -577,7 +588,6 @@ public class UnixPlatform extends Platform {
                 Thread.sleep(SOCKET_CREATE_POLL_INTERVAL_MS);
             } catch (InterruptedException e) {
                 logger.atWarn().setCause(e).log("Service interrupted before server socket exists");
-//                close();
                 cleanupIpcBackingFile();
                 throw new RuntimeException(e);
             }
@@ -588,7 +598,6 @@ public class UnixPlatform extends Platform {
             Permissions.setIpcSocketPermission(ipcPath);
         } catch (IOException e) {
             logger.atError().setCause(e).log("Error while setting permissions for IPC server socket");
-//            close();
             cleanupIpcBackingFile();
             throw new RuntimeException(e);
         }
@@ -616,8 +625,7 @@ public class UnixPlatform extends Platform {
             }
         }
 
-        String ipcServerSocketAbsolutePath =
-                kernel.getNucleusPaths().rootPath().resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath();
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
             try {
                 logger.atDebug().log("Deleting the ipc server socket descriptor file");
@@ -704,10 +712,10 @@ public class UnixPlatform extends Platform {
             // no sudo necessary if running as current user
             if (CURRENT_USER != null && CURRENT_USER_PRIMARY_GROUP != null
                     && (CURRENT_USER.getPrincipalName().equals(user)
-                        || CURRENT_USER.getPrincipalIdentifier().equals(user))
+                    || CURRENT_USER.getPrincipalIdentifier().equals(user))
                     && (group == null
-                        || CURRENT_USER_PRIMARY_GROUP.getPrincipalIdentifier().equals(group)
-                        || CURRENT_USER_PRIMARY_GROUP.getPrincipalName().equals(group))) {
+                    || CURRENT_USER_PRIMARY_GROUP.getPrincipalIdentifier().equals(group)
+                    || CURRENT_USER_PRIMARY_GROUP.getPrincipalName().equals(group))) {
                 return command;
             }
 

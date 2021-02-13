@@ -113,7 +113,12 @@ public abstract class Platform implements UserPlatform {
             throws IOException;
 
     public abstract String prepareDomainSocketFilepath();
+
     public abstract String prepareDomainSocketFilepathForComponent();
+
+    public abstract String prepareDomainSocketFilepathForRpcServer();
+
     public abstract void setIpcBackingFilePermissions();
+
     public abstract void cleanupIpcBackingFile();
 }
