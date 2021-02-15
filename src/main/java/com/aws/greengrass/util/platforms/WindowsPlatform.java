@@ -23,9 +23,10 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 public class WindowsPlatform extends Platform {
-    private static final String NAMED_PIPE = "\\\\.\\pipe\\NucleusNamedPipe";
+    private static final String NAMED_PIPE = "\\\\.\\pipe\\NucleusNamedPipe" + UUID.randomUUID().toString();
 
     @Override
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
