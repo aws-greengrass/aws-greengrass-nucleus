@@ -291,7 +291,7 @@ class AwsIotMqttClient implements Closeable {
                             .log("Subscription interrupted. Cancelling subscriptions");
                     allSubFutures.cancel(true);
                 } catch (ExecutionException e) {
-                    // Do nothing. Errors already handled in the above whenComplete stage
+                    // Do nothing. Errors already handled in individual subscription future's whenComplete stage
                 }
             }, delayMillis, TimeUnit.MILLISECONDS);
 
