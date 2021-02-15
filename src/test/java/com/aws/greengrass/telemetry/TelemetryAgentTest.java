@@ -58,6 +58,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
@@ -133,7 +134,6 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         context.close();
         ses.awaitTermination(5, TimeUnit.SECONDS);
         executorService.awaitTermination(5, TimeUnit.SECONDS);
-        TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 
     @Test
@@ -192,10 +192,10 @@ class TelemetryAgentTest extends GGServiceTestUtil {
 
     @Test
     void GIVEN_Telemetry_Agent_WHEN_starts_up_THEN_periodically_schedule_operations() {
-        when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC), any()))
-                .thenReturn(1);
-        when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC), any()))
-                .thenReturn(3);
+        doReturn(1).when(DEFAULT_HANDLER)
+                .retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC), any());
+        doReturn(3).when(DEFAULT_HANDLER)
+                .retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC), any());
         TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
         telemetryAgent.postInject();
         long milliSeconds = 4000;
@@ -219,10 +219,10 @@ class TelemetryAgentTest extends GGServiceTestUtil {
 
     @Test
     void GIVEN_Telemetry_Agent_WHEN_mqtt_is_interrupted_THEN_aggregation_continues_but_publishing_stops() {
-        when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC), any()))
-                .thenReturn(1);
-        when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC), any()))
-                .thenReturn(2);
+        doReturn(1).when(DEFAULT_HANDLER)
+                .retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC), any());
+        doReturn(2).when(DEFAULT_HANDLER)
+                .retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC), any());
         TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
         Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap = new HashMap<>();
         List<AggregatedNamespaceData> data = new ArrayList<>();
