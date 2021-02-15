@@ -542,7 +542,6 @@ public class UnixPlatform extends Platform {
             // will create a symlink only if needed
             if (isSocketPathTooLong(ipcServerSocketAbsolutePath)) {
                 Files.createSymbolicLink(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), rootPath);
-
                 symLinkCreated = true;
             }
         } catch (IOException e) {
@@ -553,7 +552,7 @@ public class UnixPlatform extends Platform {
             throw new RuntimeException(e);
         }
 
-        return symLinkCreated ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK : ipcServerSocketAbsolutePath;
+        return symLinkCreated ? IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME : ipcServerSocketAbsolutePath;
     }
 
     @Override
@@ -594,7 +593,6 @@ public class UnixPlatform extends Platform {
 
     @Override
     public void cleanupIpcBackingFile(Path rootPath) {
-        // fufranci: refactor
         if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
             try {
                 logger.atDebug().log("Deleting the ipc server socket descriptor file symlink");
