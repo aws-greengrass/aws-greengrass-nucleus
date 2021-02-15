@@ -158,25 +158,25 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    public String prepareDomainSocketFilepath(Path rootPath) {
+    public String prepareIpcFilepath(Path rootPath) {
         return NAMED_PIPE;
     }
 
     @Override
-    public String prepareDomainSocketFilepathForComponent(Path rootPath) {
+    public String prepareIpcFilepathForComponent(Path rootPath) {
         return NAMED_PIPE;
     }
 
     @Override
-    public String prepareDomainSocketFilepathForRpcServer(Path rootPath) {
+    public String prepareIpcFilepathForRpcServer(Path rootPath) {
         return NAMED_PIPE;
     }
 
     @Override
-    public void setIpcBackingFilePermissions(Path rootPath) {
+    public void setIpcFilePermissions(Path rootPath) {
     }
 
     @Override
-    public void cleanupIpcBackingFile(Path rootPath) {
+    public void cleanupIpcFiles(Path rootPath) {
     }
 }

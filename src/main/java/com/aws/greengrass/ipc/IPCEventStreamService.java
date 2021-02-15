@@ -96,16 +96,16 @@ public class IPCEventStreamService implements Startable, Closeable {
             eventLoopGroup = new EventLoopGroup(1);
 
             Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
-            kernelUri.withValue(Platform.getInstance().prepareDomainSocketFilepath(rootPath));
+            kernelUri.withValue(Platform.getInstance().prepareIpcFilepath(rootPath));
             Topic kernelRelativeUri =
                     config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
-            kernelRelativeUri.withValue(Platform.getInstance().prepareDomainSocketFilepathForComponent(rootPath));
+            kernelRelativeUri.withValue(Platform.getInstance().prepareIpcFilepathForComponent(rootPath));
 
             // For domain sockets:
             // 1. Port number is ignored. RpcServer does not accept a null value so we are using a default value.
             // 2. The hostname parameter expects the socket filepath
             rpcServer = new RpcServer(eventLoopGroup, socketOptions, null,
-                    Platform.getInstance().prepareDomainSocketFilepathForRpcServer(rootPath),
+                    Platform.getInstance().prepareIpcFilepathForRpcServer(rootPath),
                     DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
             rpcServer.runServer();
         } catch (RuntimeException e) {
@@ -114,7 +114,7 @@ public class IPCEventStreamService implements Startable, Closeable {
             throw e;
         }
 
-        Platform.getInstance().setIpcBackingFilePermissions(rootPath);
+        Platform.getInstance().setIpcFilePermissions(rootPath);
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
@@ -168,6 +168,6 @@ public class IPCEventStreamService implements Startable, Closeable {
             socketOptions.close();
         }
 
-        Platform.getInstance().cleanupIpcBackingFile(kernel.getNucleusPaths().rootPath());
+        Platform.getInstance().cleanupIpcFiles(kernel.getNucleusPaths().rootPath());
     }
 }

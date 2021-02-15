@@ -515,7 +515,7 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareDomainSocketFilepath(Path rootPath) {
+    public String prepareIpcFilepath(Path rootPath) {
         String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
 
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
@@ -532,7 +532,7 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareDomainSocketFilepathForComponent(Path rootPath) {
+    public String prepareIpcFilepathForComponent(Path rootPath) {
         String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
 
         boolean symLinkCreated = false;
@@ -548,7 +548,7 @@ public class UnixPlatform extends Platform {
             logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path. Cannot start "
                     + "IPC server as the long nucleus root path is making socket filepath greater than 108 chars. "
                     + "Shorten root path and start nucleus again");
-            cleanupIpcBackingFile(rootPath);
+            cleanupIpcFiles(rootPath);
             throw new RuntimeException(e);
         }
 
@@ -556,14 +556,14 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareDomainSocketFilepathForRpcServer(Path rootPath) {
+    public String prepareIpcFilepathForRpcServer(Path rootPath) {
         String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
         return isSocketPathTooLong(ipcServerSocketAbsolutePath) ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK :
                 ipcServerSocketAbsolutePath;
     }
 
     @Override
-    public void setIpcBackingFilePermissions(Path rootPath) {
+    public void setIpcFilePermissions(Path rootPath) {
         String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
 
         // IPC socket does not get created immediately after runServer returns
@@ -576,7 +576,7 @@ public class UnixPlatform extends Platform {
                 Thread.sleep(SOCKET_CREATE_POLL_INTERVAL_MS);
             } catch (InterruptedException e) {
                 logger.atWarn().setCause(e).log("Service interrupted before server socket exists");
-                cleanupIpcBackingFile(rootPath);
+                cleanupIpcFiles(rootPath);
                 throw new RuntimeException(e);
             }
         }
@@ -586,13 +586,13 @@ public class UnixPlatform extends Platform {
             Permissions.setIpcSocketPermission(ipcPath);
         } catch (IOException e) {
             logger.atError().setCause(e).log("Error while setting permissions for IPC server socket");
-            cleanupIpcBackingFile(rootPath);
+            cleanupIpcFiles(rootPath);
             throw new RuntimeException(e);
         }
     }
 
     @Override
-    public void cleanupIpcBackingFile(Path rootPath) {
+    public void cleanupIpcFiles(Path rootPath) {
         if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
             try {
                 logger.atDebug().log("Deleting the ipc server socket descriptor file symlink");
