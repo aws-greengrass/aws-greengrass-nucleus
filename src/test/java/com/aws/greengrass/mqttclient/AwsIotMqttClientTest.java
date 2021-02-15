@@ -37,12 +37,15 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
@@ -93,6 +96,31 @@ class AwsIotMqttClientTest {
         ses.shutdownNow();
         ses.awaitTermination(5, TimeUnit.SECONDS);
         executorService.awaitTermination(5, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void GIVEN_client_WHEN_disconnect_without_ever_connecting_THEN_succeeds()
+            throws ExecutionException, InterruptedException {
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
+                callbackEventManager, executorService, ses);
+        assertNull(client.disconnect().get());
+    }
+
+    @Test
+    void GIVEN_client_connection_fails_WHEN_subscribe_THEN_throws_exception(ExtensionContext context) {
+        String testExceptionMsg = "testing";
+        CompletableFuture<Boolean> failedFuture = new CompletableFuture<>();
+        failedFuture.completeExceptionally(new Exception(testExceptionMsg));
+        ignoreExceptionUltimateCauseWithMessage(context, testExceptionMsg);
+        when(connection.connect()).thenReturn(failedFuture);
+        doNothing().when(connection).onMessage(any());
+        when(builder.build()).thenReturn(connection);
+
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
+                callbackEventManager, executorService, ses);
+        assertThrows(ExecutionException.class, () -> {
+            client.subscribe("test", QualityOfService.AT_MOST_ONCE).get();
+        });
     }
 
     @Test
@@ -293,6 +321,23 @@ class AwsIotMqttClientTest {
         // When the connections are interrupted, callbackEventManager.hasCallBacked was set back to False,
         // meaning the oneTimeCallbackEvent is needed to executed when the connection back online.
         assertFalse(callbackEventManager.hasCallbacked());
+    }
+
+    @Test
+    void GIVEN_no_topic_subscribed_WHEN_connection_interrupt_and_resume_THEN_no_resub_task_submitted()
+            throws ExecutionException, InterruptedException {
+        ExecutorService mockExecutor = mock(ExecutorService.class);
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "testClient", mockTopic,
+                callbackEventManager, mockExecutor, ses);
+        when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
+        when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
+        when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
+        when(builder.build()).thenReturn(connection);
+
+        client.connect().get();
+        events.getValue().onConnectionInterrupted(0);
+        events.getValue().onConnectionResumed(false);
+        verify(mockExecutor, never()).submit(any(Runnable.class));
     }
 
     @Test

@@ -259,6 +259,7 @@ class AwsIotMqttClient implements Closeable {
                 droppedSubscriptionTopics.putAll(subscriptionTopics);
             }
             if (!droppedSubscriptionTopics.isEmpty() && (resubscribeFuture == null || resubscribeFuture.isDone())) {
+                logger.info("ignoring");
                 resubscribeFuture = executorService.submit(this::resubscribeDroppedTopicsTask);
             }
         }

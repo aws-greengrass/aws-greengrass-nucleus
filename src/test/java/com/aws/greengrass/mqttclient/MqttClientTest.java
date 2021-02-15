@@ -43,6 +43,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
@@ -172,6 +173,35 @@ class MqttClientTest {
 
         cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(DEVICE_MQTT_NAMESPACE));
         verify(iClient1, timeout(5000)).reconnect();
+
+        client.close();
+        verify(iClient1).close();
+    }
+
+    @Test
+    void GIVEN_connection_WHEN_settings_change_THEN_reconnects_only_if_valid_change()
+            throws InterruptedException, ExecutionException, TimeoutException {
+        ArgumentCaptor<ChildChanged> cc = ArgumentCaptor.forClass(ChildChanged.class);
+        doNothing().when(deviceConfiguration).onAnyChange(cc.capture());
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
+
+        AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
+        when(iClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(client.getNewMqttClient()).thenReturn(iClient1);
+
+        // no reconnect if no connections
+        cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics("test1"));
+        verify(iClient1, never()).reconnect();
+
+        client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
+
+        // no reconnect if unrelated node changes
+        cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics("test2"));
+        verify(iClient1, never()).reconnect();
+
+        // no reconnect if aws region changed but no proxy configured
+        cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(DEVICE_PARAM_AWS_REGION));
+        verify(iClient1, never()).reconnect();
 
         client.close();
         verify(iClient1).close();
