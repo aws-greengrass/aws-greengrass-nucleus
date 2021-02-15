@@ -136,8 +136,8 @@ public final class IPCTestUtils {
             InterruptedException {
 
         try (EventLoopGroup elGroup = new EventLoopGroup(1); ClientBootstrap clientBootstrap = new ClientBootstrap(elGroup, null)) {
-
-            final String ipcServerSocketPath = (String)kernel.getConfig().getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT).getOnce();
+            final String ipcServerSocketPath = Coerce.toString(kernel.getConfig().getRoot()
+                    .lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT));
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elGroup,
                     socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER,
                     GreengrassConnectMessageSupplier.connectMessageSupplier(authToken));
