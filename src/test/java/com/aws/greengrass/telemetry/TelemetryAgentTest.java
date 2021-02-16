@@ -57,7 +57,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.reset;
@@ -119,8 +118,8 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         configurationTopics.createLeafChild("enabled").withValue(true);
         configurationTopics.createLeafChild("periodicAggregateMetricsIntervalSeconds").withValue(100);
         configurationTopics.createLeafChild("periodicPublishMetricsIntervalSeconds").withValue(300);
-        when(mockDeviceConfiguration.getTelemetryConfigurationTopics()).thenReturn(configurationTopics);
-        doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
+        lenient().when(mockDeviceConfiguration.getTelemetryConfigurationTopics()).thenReturn(configurationTopics);
+        lenient().doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
         telemetryAgent = new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses, executorService,
                 3, 1);
     }
@@ -192,12 +191,6 @@ class TelemetryAgentTest extends GGServiceTestUtil {
 
     @Test
     void GIVEN_Telemetry_Agent_WHEN_starts_up_THEN_periodically_schedule_operations() {
-        doReturn(1).when(DEFAULT_HANDLER)
-                .retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC), any());
-        doReturn(3).when(DEFAULT_HANDLER)
-                .retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC), any());
-        TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
-        telemetryAgent.postInject();
         long milliSeconds = 4000;
         telemetryAgent.getCurrentConfiguration().set(TelemetryConfiguration.builder()
                 .periodicPublishMetricsIntervalSeconds(3)
@@ -215,8 +208,6 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         telemetryAgent.schedulePeriodicAggregateMetrics(false);
         // aggregation starts at least at the 2nd sec
         verify(ma, timeout(milliSeconds).atLeastOnce()).aggregateMetrics(anyLong(), anyLong());
-
-        TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 
     @Test
@@ -234,12 +225,6 @@ class TelemetryAgentTest extends GGServiceTestUtil {
             return metricsToPublishMap;
         });
 
-        telemetryAgent.getCurrentConfiguration().set(TelemetryConfiguration.builder()
-                .periodicPublishMetricsIntervalSeconds(2)
-                .periodicAggregateMetricsIntervalSeconds(1)
-                .build());
-
-        telemetryAgent.schedulePeriodicPublishMetrics(false);
         telemetryAgent.postInject();
         long timeoutMs = 5000;
         verify(mockMqttClient, timeout(timeoutMs).atLeastOnce()).publish(publishRequestArgumentCaptor.capture());
