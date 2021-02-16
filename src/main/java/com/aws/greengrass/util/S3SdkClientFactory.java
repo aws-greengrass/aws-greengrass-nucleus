@@ -38,7 +38,7 @@ public class S3SdkClientFactory {
     public S3SdkClientFactory(DeviceConfiguration deviceConfiguration, LazyCredentialProvider credentialsProvider) {
         this.credentialsProvider = credentialsProvider;
         try {
-            deviceConfiguration.validate();
+            deviceConfiguration.validate(true);
         } catch (DeviceConfigurationException e) {
             configValidationError = e.getMessage();
         }

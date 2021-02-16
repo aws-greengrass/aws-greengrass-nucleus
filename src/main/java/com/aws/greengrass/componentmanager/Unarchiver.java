@@ -11,11 +11,13 @@ import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Enumeration;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.zip.ZipFile;
 
 public class Unarchiver {
     /**
@@ -33,9 +35,10 @@ public class Unarchiver {
     }
 
     static void unzip(File zipFile, File destDir) throws IOException {
-        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipFile.toPath()))) {
-            ZipEntry zipEntry = zis.getNextEntry();
-            while (zipEntry != null) {
+        try (ZipFile zf = new ZipFile(zipFile)) {
+            Enumeration<? extends ZipEntry> entries = zf.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry zipEntry = entries.nextElement();
                 File newFile = safeNewZipFile(destDir, zipEntry);
                 if (zipEntry.isDirectory()) {
                     Utils.createPaths(newFile.toPath());
@@ -43,14 +46,13 @@ public class Unarchiver {
                     Utils.createPaths(newFile.getParentFile().toPath());
                     // Only unarchive when the destination file doesn't exist or the file sizes don't match
                     if (!newFile.exists() || zipEntry.getSize() != newFile.length()) {
-                        try (OutputStream fos = Files.newOutputStream(newFile.toPath())) {
-                            IOUtils.copy(zis, fos);
+                        try (OutputStream fos = Files.newOutputStream(newFile.toPath());
+                             InputStream is = zf.getInputStream(zipEntry)) {
+                            IOUtils.copy(is, fos);
                         }
                     }
                 }
-                zipEntry = zis.getNextEntry();
             }
-            zis.closeEntry();
         } catch (IOException e) {
             // If anything fails, then clean up the files which we did extract (if any)
             Utils.deleteFileRecursively(destDir);
