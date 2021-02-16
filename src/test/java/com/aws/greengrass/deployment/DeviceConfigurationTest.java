@@ -107,11 +107,11 @@ class DeviceConfigurationTest {
     @Test
     void WHEN_isDeviceConfiguredToTalkToCloud_THEN_validate_called_when_cache_is_null() throws DeviceConfigurationException {
         deviceConfiguration = spy(new DeviceConfiguration(mockKernel));
-        doNothing().when(deviceConfiguration).validate();
+        doNothing().when(deviceConfiguration).validate(true);
         deviceConfiguration.isDeviceConfiguredToTalkToCloud();
-        verify(deviceConfiguration, times(1)).validate();
+        verify(deviceConfiguration, times(1)).validate(true);
         deviceConfiguration.isDeviceConfiguredToTalkToCloud();
-        verify(deviceConfiguration, times(1)).validate();
+        verify(deviceConfiguration, times(1)).validate(true);
     }
 
     @Test

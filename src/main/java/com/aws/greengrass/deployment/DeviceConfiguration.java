@@ -624,6 +624,16 @@ public class DeviceConfiguration {
      * @throws DeviceConfigurationException when configuration parameters are not valid
      */
     public void validate() throws DeviceConfigurationException {
+        validate(false);
+    }
+
+    /**
+     * Validates the device configuration parameters.
+     *
+     * @param cloudOnly true to only check cloud related settings
+     * @throws DeviceConfigurationException when configuration parameters are not valid
+     */
+    public void validate(boolean cloudOnly) throws DeviceConfigurationException {
         String thingName = Coerce.toString(getThingName());
         String certificateFilePath = Coerce.toString(getCertificateFilePath());
         String privateKeyPath = Coerce.toString(getPrivateKeyFilePath());
@@ -633,7 +643,7 @@ public class DeviceConfiguration {
         String awsRegion = Coerce.toString(getAWSRegion());
 
         validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, iotDataEndpoint,
-                iotCredEndpoint, awsRegion);
+                iotCredEndpoint, awsRegion, cloudOnly);
     }
 
     /**
@@ -647,7 +657,7 @@ public class DeviceConfiguration {
             return cachedValue;
         }
         try {
-            validate();
+            validate(true);
             deviceConfigValidateCachedResult.set(true);
         } catch (DeviceConfigurationException e) {
             deviceConfigValidateCachedResult.set(false);
@@ -709,7 +719,7 @@ public class DeviceConfiguration {
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,
                                              String rootCAPath, String iotDataEndpoint, String iotCredEndpoint,
-                                             String awsRegion)
+                                             String awsRegion, boolean cloudOnly)
             throws DeviceConfigurationException {
         List<String> errors = new ArrayList<>();
         if (Utils.isEmpty(thingName)) {
@@ -736,7 +746,9 @@ public class DeviceConfiguration {
 
         try {
             validateEndpoints(awsRegion, iotCredEndpoint, iotDataEndpoint);
-            Platform.getInstance().getRunWithGenerator().validateDefaultConfiguration(this);
+            if (!cloudOnly) {
+                Platform.getInstance().getRunWithGenerator().validateDefaultConfiguration(this);
+            }
         } catch (DeviceConfigurationException | ComponentConfigurationValidationException e) {
             errors.add(e.getMessage());
         }

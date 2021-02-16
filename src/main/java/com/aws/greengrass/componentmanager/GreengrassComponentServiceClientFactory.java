@@ -66,7 +66,7 @@ public class GreengrassComponentServiceClientFactory {
     @Inject
     public GreengrassComponentServiceClientFactory(DeviceConfiguration deviceConfiguration) {
         try {
-            deviceConfiguration.validate();
+            deviceConfiguration.validate(true);
         } catch (DeviceConfigurationException e) {
             configValidationError = e.getMessage();
             return;
