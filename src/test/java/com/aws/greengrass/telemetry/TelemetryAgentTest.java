@@ -215,6 +215,8 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         telemetryAgent.schedulePeriodicAggregateMetrics(false);
         // aggregation starts at least at the 2nd sec
         verify(ma, timeout(milliSeconds).atLeastOnce()).aggregateMetrics(anyLong(), anyLong());
+
+        TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 
     @Test
@@ -250,5 +252,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
         // aggregation is continued irrespective of the mqtt connection
         verify(ma, timeout(timeoutMs).atLeastOnce()).aggregateMetrics(anyLong(), anyLong());
+
+        TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 }
