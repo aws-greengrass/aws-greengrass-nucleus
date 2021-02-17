@@ -45,7 +45,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
-import static com.aws.greengrass.mqttclient.MqttClient.IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES;
 import static com.aws.greengrass.mqttclient.MqttClient.MAX_LENGTH_OF_TOPIC;
 import static com.aws.greengrass.mqttclient.MqttClient.MAX_NUMBER_OF_FORWARD_SLASHES;
 import static com.aws.greengrass.mqttclient.MqttClient.DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT;
@@ -104,8 +103,6 @@ class MqttClientTest {
         mqttNamespace.lookup(MqttClient.MQTT_OPERATION_TIMEOUT_KEY).withValue(0);
         mqttNamespace.lookup(MqttClient.MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY)
                 .withValue(MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES + 1);
-        mqttNamespace.lookup(MqttClient.MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY).
-                withValue(IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES + 1);
         when(deviceConfiguration.getMQTTNamespace()).thenReturn(mqttNamespace);
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(spoolerNamespace);
