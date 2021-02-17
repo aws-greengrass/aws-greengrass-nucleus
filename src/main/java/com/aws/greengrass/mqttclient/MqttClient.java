@@ -83,10 +83,11 @@ public class MqttClient implements Closeable {
     static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
     static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     static final String MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY = "maxInFlightPublishes";
-    static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 1;
+    static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 5;
     public static final int MAX_SUBSCRIPTIONS_PER_CONNECTION = 50;
     public static final String CLIENT_ID_KEY = "clientId";
     public static final int EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS = 2;
+    static final int IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES = 100;
 
     // Use read lock for MQTT operations and write lock when changing the MQTT connection
     private final ReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
@@ -109,7 +110,7 @@ public class MqttClient implements Closeable {
     private final Spool spool;
     private final ExecutorService executorService;
     private final AtomicReference<Future<?>> spoolingFuture = new AtomicReference<>();
-    private final int maxInFlightPublishes = DEFAULT_MAX_IN_FLIGHT_PUBLISHES;
+    private int maxInFlightPublishes;
 
     @Getter(AccessLevel.PROTECTED)
     private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
@@ -204,6 +205,7 @@ public class MqttClient implements Closeable {
 
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         this.builderProvider = builderProvider;
+        validateAndSetMqttPublishConfiguration();
 
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
@@ -237,6 +239,10 @@ public class MqttClient implements Closeable {
                         .childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH) || node
                         .childOf(DEVICE_PARAM_AWS_REGION))) {
                     return;
+                }
+
+                if (node.childOf(DEVICE_MQTT_NAMESPACE)) {
+                    validateAndSetMqttPublishConfiguration();
                 }
 
                 // Only reconnect when the region changed if the proxy exists
@@ -293,6 +299,24 @@ public class MqttClient implements Closeable {
         this.mqttOnline.set(mqttOnline);
         this.builderProvider = builderProvider;
         this.executorService = executorService;
+        validateAndSetMqttPublishConfiguration();
+    }
+
+    private void validateAndSetMqttPublishConfiguration() {
+        maxInFlightPublishes = Coerce.toInt(mqttTopics
+                .findOrDefault(DEFAULT_MAX_IN_FLIGHT_PUBLISHES,
+                        MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY));
+        if (maxInFlightPublishes > IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES) {
+            logger.atWarn()
+                    .kv(MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY, maxInFlightPublishes)
+                    .kv("Max acceptable configuration", IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES)
+                    .log(String.format("The configuration of %s may hit the AWS IoT Core restricting number of "
+                                    + "unacknowledged QoS=1 publish requests per client. "
+                                    + "Will change to the maximum allowed setting: %d",
+                            MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY, IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES));
+
+            maxInFlightPublishes = IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES;
+        }
     }
 
     /**
