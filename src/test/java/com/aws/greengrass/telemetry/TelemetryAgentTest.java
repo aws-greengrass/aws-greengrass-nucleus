@@ -133,6 +133,8 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         context.close();
         ses.awaitTermination(5, TimeUnit.SECONDS);
         executorService.awaitTermination(5, TimeUnit.SECONDS);
+        TestFeatureParameters.unRegisterHandlerCallback(serviceFullName);
+        TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 
     @Test
@@ -237,7 +239,5 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
         // aggregation is continued irrespective of the mqtt connection
         verify(ma, timeout(timeoutMs).atLeastOnce()).aggregateMetrics(anyLong(), anyLong());
-
-        TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 }
