@@ -310,10 +310,10 @@ public class MqttClient implements Closeable {
             logger.atWarn()
                     .kv(MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY, maxInFlightPublishes)
                     .kv("Max acceptable configuration", IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES)
-                    .log(String.format("The configuration of %s may hit the AWS IoT Core restricting number of "
+                    .log("The configuration of {} may hit the AWS IoT Core restricting number of "
                                     + "unacknowledged QoS=1 publish requests per client. "
-                                    + "Will change to the maximum allowed setting: %d",
-                            MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY, IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES));
+                                    + "Will change to the maximum allowed setting: {}",
+                            MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY, IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES);
 
             maxInFlightPublishes = IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES;
         }
