@@ -332,6 +332,7 @@ public class ShadowDeploymentListener implements InjectionActions {
     private void syncShadowDeploymentStatus(Map<String, Object> reported) {
         // device does not have anything to report
         if (lastDeploymentStatus.get() == null) {
+            logger.info("Last known deployment status is empty, nothing to report");
             return;
         }
         if (!reported.get(ARN_FOR_STATUS_KEY).equals(lastDeploymentStatus.get().get(DEPLOYMENT_ID_KEY_NAME))
