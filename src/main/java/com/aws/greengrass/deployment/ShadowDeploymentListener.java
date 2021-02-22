@@ -39,6 +39,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
@@ -95,7 +96,7 @@ public class ShadowDeploymentListener implements InjectionActions {
         }
     };
     private String lastConfigurationArn;
-    private Integer lastVersion;
+    private AtomicInteger lastVersion = new AtomicInteger();
     private final AtomicReference<Map<String, Object>> lastDeploymentStatus = new AtomicReference();
     protected static final Random JITTER = new Random();
 
@@ -216,7 +217,7 @@ public class ShadowDeploymentListener implements InjectionActions {
             updateNamedShadowRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
             updateNamedShadowRequest.thingName = thingName;
             updateNamedShadowRequest.state = shadowState;
-            updateNamedShadowRequest.version = lastVersion;
+            updateNamedShadowRequest.version = lastVersion.get();
             iotShadowClient.PublishUpdateNamedShadow(updateNamedShadowRequest, QualityOfService.AT_LEAST_ONCE)
                     .get(TIMEOUT_FOR_PUBLISHING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
 
@@ -254,12 +255,12 @@ public class ShadowDeploymentListener implements InjectionActions {
     }
 
     protected void shadowUpdated(Map<String, Object> desired, Map<String, Object> reported, Integer version) {
-        if (lastVersion != null && lastVersion > version) {
+        if (lastVersion.get() > version) {
             logger.atInfo().kv("SHADOW_VERSION", version)
                     .log("Received an older version of shadow. Ignoring...");
             return;
         }
-        lastVersion = version;
+        lastVersion.set(version);
         //the reported section of the shadow was updated
         if (reported != null && !reported.isEmpty()) {
             syncShadowDeploymentStatus(reported);
