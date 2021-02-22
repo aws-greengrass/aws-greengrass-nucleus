@@ -96,7 +96,7 @@ public class ShadowDeploymentListener implements InjectionActions {
         }
     };
     private String lastConfigurationArn;
-    private AtomicInteger lastVersion = new AtomicInteger();
+    private final AtomicInteger lastVersion = new AtomicInteger();
     private final AtomicReference<Map<String, Object>> lastDeploymentStatus = new AtomicReference();
     protected static final Random JITTER = new Random();
 
