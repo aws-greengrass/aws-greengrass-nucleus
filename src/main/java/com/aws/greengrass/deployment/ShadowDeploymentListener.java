@@ -334,9 +334,8 @@ public class ShadowDeploymentListener implements InjectionActions {
         if (lastDeploymentStatus.get() == null) {
             return;
         }
-        HashMap<String, Object> latestDeploymentStatus = populateReportedSectionOfShadow(lastDeploymentStatus.get());
-        if (!reported.get(ARN_FOR_STATUS_KEY).equals(latestDeploymentStatus.get(ARN_FOR_STATUS_KEY))
-                || !reported.get(STATUS_KEY).equals(latestDeploymentStatus.get(STATUS_KEY))) {
+        if (!reported.get(ARN_FOR_STATUS_KEY).equals(lastDeploymentStatus.get().get(DEPLOYMENT_ID_KEY_NAME))
+                || !reported.get(STATUS_KEY).equals(lastDeploymentStatus.get().get(DEPLOYMENT_STATUS_KEY_NAME))) {
             logger.info("Updating reported section of shadow with the latest deployment status");
             updateReportedSectionOfShadowWithDeploymentStatus();
         }
