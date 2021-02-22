@@ -18,12 +18,9 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
-import com.aws.greengrass.mqttclient.MqttClient;
-import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Utils;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.hamcrest.collection.IsCollectionWithSize;
@@ -40,12 +37,8 @@ import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
-import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
-import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
-import software.amazon.awssdk.iot.iotshadow.IotShadowClient;
-import software.amazon.awssdk.iot.iotshadow.model.UpdateNamedShadowSubscriptionRequest;
 import software.amazon.awssdk.services.greengrassv2.model.ComponentConfigurationUpdate;
 import software.amazon.awssdk.services.greengrassv2.model.ComponentDeploymentSpecification;
 import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentRequest;
@@ -71,7 +64,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
-import static com.aws.greengrass.deployment.ShadowDeploymentListener.DEPLOYMENT_SHADOW_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
@@ -94,7 +86,6 @@ import static software.amazon.awssdk.services.greengrassv2.model.DeploymentFailu
 @ExtendWith(GGExtension.class)
 @Tag("E2E")
 class DeploymentE2ETest extends BaseE2ETestCase {
-    public static final String STATUS_KEY = "status";
     private CountDownLatch stdoutCountdown;
 
 
@@ -122,63 +113,6 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         Thread.sleep(10_000);
         setDeviceConfig(kernel, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 1L);
     }
-
-    @Test
-    void GIVEN_kernel_running_WHEN_device_deployment_adds_packages_THEN_new_services_should_be_running()
-            throws Exception {
-        CountDownLatch cdlDeploymentFinished = new CountDownLatch(1);
-        Consumer<GreengrassLogMessage> listener = m -> {
-            if (m.getMessage() != null && m.getMessage().contains("Current deployment finished")) {
-                cdlDeploymentFinished.countDown();
-            }
-        };
-        Slf4jLogAdapter.addGlobalListener(listener);
-        CreateDeploymentRequest createDeploymentRequest =
-                CreateDeploymentRequest.builder().targetArn(thingInfo.getThingArn()).components(
-                        Utils.immutableMap("CustomerApp",
-                                ComponentDeploymentSpecification.builder().componentVersion("1.0.0")
-                                        .configurationUpdate(ComponentConfigurationUpdate.builder()
-                                                .merge("{\"sampleText\":\"FCS integ test\"}").build()).build(),
-                                "SomeService",
-                                ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
-        draftAndCreateDeployment(createDeploymentRequest);
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-
-        IotShadowClient shadowClient =
-                new IotShadowClient(new WrapperMqttClientConnection(kernel.getContext().get(MqttClient.class)));
-
-        UpdateNamedShadowSubscriptionRequest req = new UpdateNamedShadowSubscriptionRequest();
-        req.shadowName = DEPLOYMENT_SHADOW_NAME;
-        req.thingName = thingInfo.getThingName();
-        CountDownLatch reportInProgressCdl = new CountDownLatch(1);
-        CountDownLatch reportSucceededCdl = new CountDownLatch(1);
-        shadowClient.SubscribeToUpdateNamedShadowAccepted(req, QualityOfService.AT_LEAST_ONCE, (response) -> {
-            try {
-                logger.info("Got shadow update: {}", new ObjectMapper().writeValueAsString(response));
-            } catch (JsonProcessingException e) {
-                // ignore
-            }
-            if (response.state.reported == null) {
-                return;
-            }
-            String reportedStatus = (String) response.state.reported.get(STATUS_KEY);
-            if (JobStatus.IN_PROGRESS.toString().equals(reportedStatus)) {
-                reportInProgressCdl.countDown();
-            } else if (JobStatus.SUCCEEDED.toString().equals(reportedStatus)) {
-                reportSucceededCdl.countDown();
-            }
-        });
-        // wait for the shadow's reported section to be updated
-        assertTrue(reportInProgressCdl.await(30, TimeUnit.SECONDS));
-        assertTrue(reportSucceededCdl.await(30, TimeUnit.SECONDS));
-
-        // deployment should succeed
-        assertTrue(cdlDeploymentFinished.await(30, TimeUnit.SECONDS));
-        Slf4jLogAdapter.removeGlobalListener(listener);
-        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(getCloudDeployedComponent("SomeService")::getState, eventuallyEval(is(State.FINISHED)));
-    }
-
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
     @Test
