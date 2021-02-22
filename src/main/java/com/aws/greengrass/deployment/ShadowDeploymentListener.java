@@ -120,6 +120,7 @@ public class ShadowDeploymentListener implements InjectionActions {
 
     /*
         Subscribe to "$aws/things/{thingName}/shadow/update/accepted" topic to get notified when shadow is updated
+        Subscribe to "$aws/things/{thingName}/shadow/update/rejected" topic to get notified when an update is rejected
         Subscribe to "$aws/things/{thingName}/shadow/get/accepted" topic to retrieve shadow by publishing to get topic
      */
     private void subscribeToShadowTopics() {
@@ -149,7 +150,7 @@ public class ShadowDeploymentListener implements InjectionActions {
                 getNamedShadowSubscriptionRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
                 getNamedShadowSubscriptionRequest.thingName = thingName;
                 iotShadowClient.SubscribeToGetNamedShadowAccepted(getNamedShadowSubscriptionRequest,
-                        QualityOfService.AT_MOST_ONCE,
+                        QualityOfService.AT_LEAST_ONCE,
                         getShadowResponse -> shadowUpdated(getShadowResponse.state.desired,
                                 getShadowResponse.state.reported, getShadowResponse.version),
                         (e) -> logger.atError().log("Error processing getShadowResponse", e))
