@@ -121,6 +121,7 @@ public class MqttClient implements Closeable {
     private final CallbackEventManager callbackEventManager = new CallbackEventManager();
     private final Spool spool;
     private final ExecutorService executorService;
+    private ScheduledExecutorService ses;
     private final AtomicReference<Future<?>> spoolingFuture = new AtomicReference<>();
     private static final String reservedTopicTemplate = "^\\$aws/rules/\\S+/\\S+";
     private static final String prefixOfReservedTopic = "^\\$aws/rules/\\S+?/";
@@ -219,6 +220,7 @@ public class MqttClient implements Closeable {
                          ScheduledExecutorService ses, ExecutorService executorService) {
         this.deviceConfiguration = deviceConfiguration;
         this.executorService = executorService;
+        this.ses = ses;
 
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         this.builderProvider = builderProvider;
@@ -704,7 +706,7 @@ public class MqttClient implements Closeable {
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
                 : "#" + (connections.size() + 1));
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
-                clientId, mqttTopics, callbackEventManager);
+                clientId, mqttTopics, callbackEventManager, executorService, ses);
     }
 
     public boolean connected() {

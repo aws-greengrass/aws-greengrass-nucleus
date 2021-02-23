@@ -35,6 +35,8 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 import java.util.Collections;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -45,6 +47,12 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.mqttclient.MqttClient.MAX_LENGTH_OF_TOPIC;
 import static com.aws.greengrass.mqttclient.MqttClient.MAX_NUMBER_OF_FORWARD_SLASHES;
 import static com.aws.greengrass.mqttclient.MqttClient.DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT;
@@ -57,6 +65,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -123,6 +132,23 @@ class MqttClientTest {
     }
 
     @Test
+    void GIVEN_device_not_configured_to_talk_to_cloud_WHEN_publish_THEN_throws_exception()
+            throws InterruptedException {
+        lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(false);
+        MqttClient client = new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService);
+        PublishRequest testRequest =
+                PublishRequest.builder().topic("test").qos(QualityOfService.AT_LEAST_ONCE).payload(new byte[0]).build();
+        try {
+            client.publish(testRequest).whenComplete((r, t) -> {
+                assertNotNull(t);
+                assertTrue(t.getCause() instanceof SpoolerStoreException);
+            }).get();
+        } catch (ExecutionException e) {
+            // Ignore. Expected to throw and already handled
+        }
+    }
+
+    @Test
     void GIVEN_multiple_subset_subscriptions_WHEN_subscribe_or_unsubscribe_THEN_only_subscribes_and_unsubscribes_once()
             throws ExecutionException, InterruptedException, TimeoutException {
         MqttClient client = new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService);
@@ -167,8 +193,8 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_connection_WHEN_settings_change_THEN_reconnects()
-            throws ExecutionException, InterruptedException, TimeoutException {
+    void GIVEN_connection_WHEN_settings_change_THEN_reconnects_on_valid_changes()
+            throws InterruptedException, ExecutionException, TimeoutException {
         ArgumentCaptor<ChildChanged> cc = ArgumentCaptor.forClass(ChildChanged.class);
         doNothing().when(deviceConfiguration).onAnyChange(cc.capture());
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
@@ -177,10 +203,30 @@ class MqttClientTest {
         when(iClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(client.getNewMqttClient()).thenReturn(iClient1);
 
+        // no reconnect if no connections
+        cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics("test1"));
+        verify(iClient1, never()).reconnect();
+
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
 
-        cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(DEVICE_MQTT_NAMESPACE));
-        verify(iClient1, timeout(5000)).reconnect();
+        // no reconnect if unrelated node changes
+        cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics("test2"));
+        verify(iClient1, never()).reconnect();
+
+        // no reconnect if aws region changed but no proxy configured
+        cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(DEVICE_PARAM_AWS_REGION));
+        verify(iClient1, never()).reconnect();
+
+        // do reconnect if changed node is relevant to client config and reconnect is required
+        // this increases branch coverage
+        List<String> topicsToTest = Arrays.asList(DEVICE_MQTT_NAMESPACE, DEVICE_PARAM_THING_NAME,
+                DEVICE_PARAM_IOT_DATA_ENDPOINT, DEVICE_PARAM_PRIVATE_KEY_PATH, DEVICE_PARAM_CERTIFICATE_FILE_PATH,
+                DEVICE_PARAM_ROOT_CA_PATH);
+        int reconnectCount = 0;
+        for (String topic : topicsToTest) {
+            cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(topic, "test"));
+            verify(iClient1, timeout(5000).times(++reconnectCount)).reconnect();
+        }
 
         client.close();
         verify(iClient1).close();
