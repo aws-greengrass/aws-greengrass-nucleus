@@ -802,4 +802,17 @@ class MqttClientTest {
         verify(spool, never()).addMessage(request);
         verify(client).isValidPublishRequest(request);
     }
+
+    @Test
+    void unreserved_topic_have_8_forward_slashes_WHEN_subscribe_THEN_throw_exception() throws MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
+        String topic = String.join("/", Collections.nCopies(MAX_NUMBER_OF_FORWARD_SLASHES + 2, "a"));
+        assertEquals(8, topic.chars().filter(num -> num == '/').count());
+        SubscribeRequest request = SubscribeRequest.builder().topic(topic).callback(cb).build();
+
+        assertThrows(ExecutionException.class, () -> client.subscribe(request));
+
+        verify(client).isValidRequestTopic(topic);
+        verify(mockConnection, never()).subscribe(any(), any());
+    }
 }
