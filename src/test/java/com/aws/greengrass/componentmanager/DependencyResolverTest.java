@@ -111,6 +111,106 @@ class DependencyResolverTest {
     }
 
     @Test
+    void GIVEN_circular_dependency_for_root_component_WHEN_resolve_dependency_called_THEN_resolution_fails() throws Exception {
+        /*
+         *      group1
+         *         \(1.0.0)
+         *     |--> A
+         *  1.0.0  / \
+         *     |__/   \(>1.0)
+         *             B2
+         */
+
+        // prepare A
+        Map<String, String> dependenciesA_1_x = new HashMap<>();
+        dependenciesA_1_x.put(componentA, "1.0.0");
+        dependenciesA_1_x.put(componentB2, ">1.0");
+        ComponentMetadata componentA_1_0_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentA, v1_0_0), dependenciesA_1_x);
+        when(componentManager.resolveComponentVersion(eq(componentA), any(), anyString())).thenReturn(componentA_1_0_0);
+
+        DeploymentDocument doc = new DeploymentDocument("mockJob1", Collections
+                .singletonList(
+                        new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())),
+                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+
+        groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
+                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
+
+        Exception e = assertThrows(PackagingException.class,
+                () -> dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics));
+        assertEquals("Circular dependency detected for Component A", e.getMessage());
+    }
+
+
+
+    @Test
+    void GIVEN_circular_dependency_for_non_root_component_WHEN_resolve_dependency_called_THEN_resolution_fails()
+            throws Exception {
+        /*
+         *      group1
+         *         \(1.0.0)
+         *          A
+         *           \
+         *            \(=1.0.0)
+         *         |-> B1
+         *         |    \
+         *         |     \(=1.0.0)
+         *      (=1.0.0)  B2
+         *         |       \(<=1.1.0)
+         *         |        \
+         *         |--------C1
+         */
+
+        // prepare A
+        Map<String, String> dependenciesA_1_x = new HashMap<>();
+        dependenciesA_1_x.put(componentB1, "1.0.0");
+        ComponentMetadata componentA_1_0_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentA, v1_0_0), dependenciesA_1_x);
+        when(componentManager.resolveComponentVersion(eq(componentA), any(), anyString())).thenReturn(componentA_1_0_0);
+
+        // prepare B1
+        Map<String, String> dependenciesB1_1_x = new HashMap<>();
+        dependenciesB1_1_x.put(componentB2, "1.0.0");
+        ComponentMetadata componentB1_1_0_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentB1, v1_0_0), dependenciesB1_1_x);
+        when(componentManager.resolveComponentVersion(eq(componentB1), any(), anyString()))
+                .thenReturn(componentB1_1_0_0);
+
+
+        // prepare B2
+        Map<String, String> dependenciesB2_1_x = new HashMap<>();
+        dependenciesB2_1_x.put(componentC1, "<=1.1.0");
+
+        ComponentMetadata componentB2_1_1_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentB2, v1_1_0), dependenciesB2_1_x);
+        when(componentManager.resolveComponentVersion(eq(componentB2), any(), anyString()))
+                .thenReturn(componentB2_1_1_0);
+
+        // prepare C1
+        Map<String, String> dependenciesC1_0_0 = new HashMap<>();
+        dependenciesC1_0_0.put(componentB1, "1.0.0");
+        ComponentMetadata componentC1_1_0_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentC1, v1_0_0), dependenciesC1_0_0);
+        when(componentManager.resolveComponentVersion(eq(componentC1), any(), anyString()))
+                .thenReturn(componentC1_1_0_0);
+
+        DeploymentDocument doc = new DeploymentDocument("mockJob1", Collections
+                .singletonList(
+                        new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())),
+                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+
+        groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
+                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
+
+        Exception e = assertThrows(PackagingException.class,
+                () -> dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics));
+        assertEquals("Circular dependency detected for Component B1", e.getMessage());
+    }
+
+    @Test
     void GIVEN_component_A_WHEN_resolve_dependencies_THEN_resolve_A_and_dependency_versions() throws Exception {
         /*
          *      group1

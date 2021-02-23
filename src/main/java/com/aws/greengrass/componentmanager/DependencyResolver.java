@@ -6,6 +6,7 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
+import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -221,11 +222,18 @@ public class DependencyResolver {
             ComponentMetadata resolvedVersion = componentResolver.resolve(componentToResolve, versionConstraints);
             logger.atDebug().kv("resolvedVersion", resolvedVersion).log("Resolved component");
             resolvedComponents.put(componentToResolve, resolvedVersion.getComponentIdentifier());
-            resolvedVersion.getDependencies().forEach((k, v) -> {
-                componentNameToVersionConstraints.putIfAbsent(k, new HashMap<>());
-                componentNameToVersionConstraints.get(k).put(componentToResolve, Requirement.buildNPM(v));
-                componentsToResolve.add(k);
-            });
+
+            for (Map.Entry<String, String> dependency : resolvedVersion.getDependencies().entrySet()) {
+                // A circular dependency is present if the dependency is already resolved.
+                if (resolvedComponents.containsKey(dependency.getKey())) {
+                    throw new ComponentVersionNegotiationException("Circular dependency detected for Component "
+                            + dependency.getKey());
+                }
+                componentNameToVersionConstraints.putIfAbsent(dependency.getKey(), new HashMap<>());
+                componentNameToVersionConstraints.get(dependency.getKey()).put(componentToResolve,
+                        Requirement.buildNPM(dependency.getValue()));
+                componentsToResolve.add(dependency.getKey());
+            }
         }
 
         logger.atDebug().setEventType("traverse-dependencies-finish").kv("resolvedComponents", resolvedComponents)

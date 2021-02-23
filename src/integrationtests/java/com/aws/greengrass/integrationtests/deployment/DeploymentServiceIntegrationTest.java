@@ -55,6 +55,7 @@ import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.DEFAULT_IPC_API_TIMEOUT_SECONDS;
@@ -196,7 +197,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         CountDownLatch firstDeploymentCDL = new CountDownLatch(1);
         CountDownLatch secondDeploymentCDL = new CountDownLatch(1);
         CountDownLatch thirdDeploymentCDL = new CountDownLatch(1);
-        DeploymentStatusKeeper deploymentStatusKeeper =kernel.getContext().get(DeploymentStatusKeeper.class);
+        DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
         deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.LOCAL, (status) -> {
 
             if(status.get(DEPLOYMENT_ID_KEY_NAME).equals("firstDeployment") &&
@@ -249,6 +250,40 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         firstDeploymentCDL.await(10, TimeUnit.SECONDS);
         secondDeploymentCDL.await(10, TimeUnit.SECONDS);
         thirdDeploymentCDL.await(10, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void GIVEN_local_deployment_WHEN_component_has_circular_dependency_THEN_deployments_fails_with_appropriate_error(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, ExecutionException.class);
+        CountDownLatch firstErroredCDL = new CountDownLatch(1);
+        String recipeDir = localStoreContentPath.resolve("recipes").toAbsolutePath().toString();
+        String artifactsDir = localStoreContentPath.resolve("artifacts").toAbsolutePath().toString();
+
+        Map<String, String> componentsToMerge = new HashMap<>();
+        componentsToMerge.put("ComponentWithCircularDependency", "1.0.0");
+        LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("firstDeployment")
+                .componentsToMerge(componentsToMerge)
+                .requestTimestamp(System.currentTimeMillis())
+                .recipeDirectoryPath(recipeDir).artifactsDirectoryPath(artifactsDir).build();
+
+        submitLocalDocument(request);
+
+        DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.LOCAL, (status) -> {
+
+            if (status.get(DEPLOYMENT_ID_KEY_NAME).equals("firstDeployment")
+                    && status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("FAILED")) {
+                Map<String, String> detailedStatus = (Map<String, String>) status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
+                if (detailedStatus.get("deployment-failure-cause").equals("Circular dependency detected for Component ComponentWithCircularDependency")
+                        && detailedStatus.get("detailed-deployment-status").equals("FAILED_NO_STATE_CHANGE")) {
+                    firstErroredCDL.countDown();
+                }
+            }
+            return true;
+        }, "DeploymentServiceIntegrationTest2");
+
+        firstErroredCDL.await(10, TimeUnit.SECONDS);
     }
 
 
