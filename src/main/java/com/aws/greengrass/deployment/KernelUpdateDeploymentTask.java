@@ -14,6 +14,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.util.Utils;
 
 import java.io.IOException;
 import java.util.List;
@@ -64,7 +65,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                 result = new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null);
             } else if (KERNEL_ROLLBACK.equals(stage)) {
                 result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE,
-                        new ServiceUpdateException(deployment.getStageDetails()));
+                        getDeploymentStatusDetails());
             }
 
             componentManager.cleanupStaleVersions();
@@ -94,7 +95,9 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                 }
                 return null;
             } else if (KERNEL_ROLLBACK.equals(stage)) {
-                return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, e);
+                logger.atError().log("Nucleus update workflow failed on rollback", e);
+                return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
+                        getDeploymentStatusDetails());
             }
             return null;
         }
@@ -103,5 +106,11 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     private void saveDeploymentStatusDetails(String message) throws IOException {
         deployment.setStageDetails(message);
         kernel.getContext().get(DeploymentDirectoryManager.class).writeDeploymentMetadata(deployment);
+    }
+
+    private ServiceUpdateException getDeploymentStatusDetails() {
+        return new ServiceUpdateException(Utils.isEmpty(deployment.getStageDetails())
+                ? "Nucleus update workflow failed to restart Nucleus. See loader logs for more details"
+                : deployment.getStageDetails());
     }
 }

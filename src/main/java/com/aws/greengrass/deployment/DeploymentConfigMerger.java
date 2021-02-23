@@ -18,6 +18,7 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.UnloadableService;
 import com.aws.greengrass.lifecyclemanager.UpdateAction;
 import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
@@ -37,6 +38,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -238,6 +241,7 @@ public class DeploymentConfigMerger {
         private Set<String> servicesToUpdate;
         private Set<String> servicesToRemove;
         private Set<String> alreadyBrokenServices;
+        private Set<String> alreadyUnloadableServices;
 
         /**
          * Constructs an object based on the current Kernel state and the config to be merged.
@@ -271,6 +275,13 @@ public class DeploymentConfigMerger {
                     return false;
                 }
             }).collect(Collectors.toSet());
+            this.alreadyUnloadableServices = runningDeployableServices.stream().filter(name -> {
+                try {
+                    return kernel.locate(name) instanceof UnloadableService;
+                } catch (ServiceLoadException e) {
+                    return false;
+                }
+            }).collect(Collectors.toSet());
         }
 
         /**
@@ -282,7 +293,7 @@ public class DeploymentConfigMerger {
             // For rollback, services the deployment originally intended to add should be removed
             // and services it intended to remove should be added back
             return new AggregateServicesChangeManager(kernel, servicesToRemove, servicesToUpdate, servicesToAdd,
-                    alreadyBrokenServices);
+                    alreadyBrokenServices, alreadyUnloadableServices);
         }
 
         /**
@@ -290,9 +301,9 @@ public class DeploymentConfigMerger {
          *
          * @throws ServiceLoadException when any service to be started could not be located
          */
-        public void startNewServices() throws ServiceLoadException {
+        public void startNewServices() {
             for (String serviceName : servicesToAdd) {
-                GreengrassService service = kernel.locate(serviceName);
+                GreengrassService service = kernel.locateIgnoreError(serviceName);
                 if (service.shouldAutoStart()) {
                     service.requestStart();
                 }
@@ -309,6 +320,24 @@ public class DeploymentConfigMerger {
                 GreengrassService service = kernel.locate(serviceName);
                 if (service.currentOrReportedStateIs(State.BROKEN)) {
                     service.requestReinstall();
+                }
+            }
+        }
+
+        /**
+         * Close all unloadable service instances, initialize each service with updated config and add to context.
+         *
+         * @throws ServiceLoadException when any service to be replaced could not be located
+         */
+        public void replaceUnloadableService() throws ServiceLoadException {
+            for (String serviceName : alreadyUnloadableServices) {
+                try {
+                    kernel.locate(serviceName).close().get(30, TimeUnit.SECONDS);
+                    kernel.getContext().remove(serviceName);
+                    kernel.locateIgnoreError(serviceName).requestReinstall();
+                } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                    logger.atError().kv("serviceName", serviceName)
+                            .log("Failed to close unloadable service", e);
                 }
             }
         }

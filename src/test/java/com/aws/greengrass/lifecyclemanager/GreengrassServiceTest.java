@@ -64,10 +64,10 @@ class GreengrassServiceTest {
         cService = new GreengrassService(root.findTopics(SERVICES_NAMESPACE_TOPIC, "C"));
         dService = new GreengrassService(root.findTopics(SERVICES_NAMESPACE_TOPIC, "D"));
         eService = new GreengrassService(root.findTopics(SERVICES_NAMESPACE_TOPIC, "E"));
-        when(kernel.locate("B")).thenReturn(bService);
-        when(kernel.locate("C")).thenReturn(cService);
-        when(kernel.locate("D")).thenReturn(dService);
-        lenient().when(kernel.locate("E")).thenReturn(eService);
+        when(kernel.locateIgnoreError("B")).thenReturn(bService);
+        when(kernel.locateIgnoreError("C")).thenReturn(cService);
+        when(kernel.locateIgnoreError("D")).thenReturn(dService);
+        lenient().when(kernel.locateIgnoreError("E")).thenReturn(eService);
         aService = spy(new GreengrassService(root.findTopics(SERVICES_NAMESPACE_TOPIC, "A")));
 
     }

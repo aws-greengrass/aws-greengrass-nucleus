@@ -1,0 +1,24 @@
+---
+services:
+  ServiceA:
+    lifecycle:
+      posix:
+        run:
+          script: while true; do sleep 1000; done
+      windows:
+        run:
+          script: powershell -command while(1) { sleep 1000 }
+  CustomerApp:
+    dependencies:
+      - ServiceA:HARD
+      - MissingConfigService:HARD
+    lifecycle:
+      posix:
+        run:
+          script: while true; do sleep 1000; done
+      windows:
+        run:
+          script: powershell -command while(1) { sleep 1000 }
+  main:
+    dependencies:
+      - CustomerApp:HARD
