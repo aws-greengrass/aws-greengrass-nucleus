@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.mqttclient;
 
-
 import lombok.Builder;
 import lombok.NonNull;
 import lombok.Value;
