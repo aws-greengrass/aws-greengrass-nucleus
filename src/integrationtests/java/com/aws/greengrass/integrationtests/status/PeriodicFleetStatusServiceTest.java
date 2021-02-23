@@ -12,6 +12,7 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.ComponentStatusDetails;
@@ -35,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -61,6 +63,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         ignoreExceptionOfType(context, TLSAuthException.class);
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
+        AtomicBoolean mainServiceFinished = new AtomicBoolean();
         allComponentsInFssUpdate = new CountDownLatch(1);
         fleetStatusDetails = new AtomicReference<>();
         CompletableFuture cf = new CompletableFuture();
@@ -76,7 +79,8 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
             try {
                 fleetStatusDetails.set(OBJECT_MAPPER.readValue(publishRequest.getPayload(),
                         FleetStatusDetails.class));
-                if (kernel.orderedDependencies().size() == fleetStatusDetails.get().getComponentStatusDetails().size()) {
+                if (mainServiceFinished.get() && kernel.orderedDependencies().size() == fleetStatusDetails.get()
+                        .getComponentStatusDetails().size()) {
                     allComponentsInFssUpdate.countDown();
                 }
             } catch (JsonMappingException ignored) { }
@@ -89,12 +93,15 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                     fssRunning.countDown();
                 }
                 FleetStatusService fleetStatusService = (FleetStatusService) service;
-                fleetStatusService.setPeriodicUpdateIntervalSec(10);
+                fleetStatusService.setPeriodicUpdateIntervalSec(5);
                 fleetStatusService.schedulePeriodicFleetStatusDataUpdate(false);
             }
             if (service.getName().equals(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)
                     && newState.equals(State.RUNNING)) {
                 deploymentServiceRunning.countDown();
+            }
+            if (service.getName().equals(KernelCommandLine.MAIN_SERVICE_NAME) && newState.equals(State.FINISHED)) {
+                mainServiceFinished.set(true);
             }
         });
         // set required instances from context
