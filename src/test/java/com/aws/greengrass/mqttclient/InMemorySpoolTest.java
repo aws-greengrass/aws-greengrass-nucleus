@@ -9,6 +9,7 @@ import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.mqttclient.spool.Spool;
+import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.AfterEach;
@@ -60,8 +61,8 @@ class InMemorySpoolTest {
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_MOST_ONCE).build();
 
-        long id1 = spool.addMessage(request);
-        long id2 = spool.addMessage(request);
+        long id1 = spool.addMessage(request).getId();
+        long id2 = spool.addMessage(request).getId();
         spool.removeMessageById(id1);
 
         long id = spool.popId();
@@ -73,7 +74,7 @@ class InMemorySpoolTest {
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_MOST_ONCE).build();
 
-        long id = spool.addMessage(request);
+        long id = spool.addMessage(request).getId();
 
         verify(spool, never()).removeMessageById(anyLong());
         assertEquals(1, spool.getCurrentMessageCount());
@@ -88,7 +89,7 @@ class InMemorySpoolTest {
                 .qos(QualityOfService.AT_MOST_ONCE).build();
 
         spool.addMessage(request1);
-        long id2 = spool.addMessage(request2);
+        long id2 = spool.addMessage(request2).getId();
         spool.addMessage(request2);
 
         verify(spool, times(1)).removeMessageById(id2);
@@ -104,8 +105,9 @@ class InMemorySpoolTest {
         PublishRequest request3 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(20).array())
                 .qos(QualityOfService.AT_MOST_ONCE).build();
 
+
         spool.addMessage(request1);
-        long id2 = spool.addMessage(request2);
+        long id2 = spool.addMessage(request2).getId();
 
         assertThrows(SpoolerStoreException.class, () -> { spool.addMessage(request3); });
 
@@ -128,7 +130,8 @@ class InMemorySpoolTest {
     void GIVEN_id_WHEN_remove_message_by_id_THEN_spooler_size_decreased() throws SpoolerStoreException, InterruptedException {
         PublishRequest request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        long id = spool.addMessage(request);
+        SpoolMessage message = spool.addMessage(request);
+        long id = message.getId();
 
         spool.removeMessageById(id);
 
@@ -137,7 +140,6 @@ class InMemorySpoolTest {
 
     @Test
     void GIVEN_message_with_qos_zero_WHEN_pop_out_messages_with_qos_zero_THEN_only_remove_message_with_qos_zero() throws SpoolerStoreException, InterruptedException {
-
         PublishRequest request1 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(1).array())
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
         PublishRequest request2 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(2).array())
