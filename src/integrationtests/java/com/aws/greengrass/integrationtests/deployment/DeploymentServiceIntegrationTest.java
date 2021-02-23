@@ -275,7 +275,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
             if (status.get(DEPLOYMENT_ID_KEY_NAME).equals("firstDeployment")
                     && status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("FAILED")) {
                 Map<String, String> detailedStatus = (Map<String, String>) status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
-                if (detailedStatus.get("deployment-failure-cause").equals("Circular dependency detected for Component ComponentWithCircularDependency")
+                if (detailedStatus.get("deployment-failure-cause").equals("Circular dependency detected for component ComponentWithCircularDependency")
                         && detailedStatus.get("detailed-deployment-status").equals("FAILED_NO_STATE_CHANGE")) {
                     firstErroredCDL.countDown();
                 }

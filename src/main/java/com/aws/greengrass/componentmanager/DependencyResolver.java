@@ -226,7 +226,7 @@ public class DependencyResolver {
             for (Map.Entry<String, String> dependency : resolvedVersion.getDependencies().entrySet()) {
                 // A circular dependency is present if the dependency is already resolved.
                 if (resolvedComponents.containsKey(dependency.getKey())) {
-                    throw new ComponentVersionNegotiationException("Circular dependency detected for Component "
+                    throw new ComponentVersionNegotiationException("Circular dependency detected for component "
                             + dependency.getKey());
                 }
                 componentNameToVersionConstraints.putIfAbsent(dependency.getKey(), new HashMap<>());
