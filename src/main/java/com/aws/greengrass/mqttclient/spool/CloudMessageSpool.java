@@ -5,13 +5,11 @@
 
 package com.aws.greengrass.mqttclient.spool;
 
-import com.aws.greengrass.mqttclient.PublishRequest;
-
 public interface CloudMessageSpool {
 
-    PublishRequest getMessageById(long id);
+    SpoolMessage getMessageById(long id);
 
     void removeMessageById(long id);
 
-    void add(long id, PublishRequest request);
+    void add(long id, SpoolMessage message);
 }
