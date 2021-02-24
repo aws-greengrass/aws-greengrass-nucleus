@@ -115,6 +115,7 @@ class DeploymentConfigMergerTest {
         GreengrassService newService = mock(GreengrassService.class);
         when(kernel.locate("oldService")).thenReturn(newService);
         when(kernel.locate("newService")).thenReturn(newService);
+        when(kernel.locateIgnoreError("newService")).thenReturn(newService);
 
         Map<String, Object> newConfig = new HashMap<>();
         newConfig.put("newService", new Object());
@@ -213,11 +214,11 @@ class DeploymentConfigMergerTest {
             throws Exception {
         // setup
         GreengrassService builtinService = mock(GreengrassService.class);
-        when(kernel.locate("builtinService")).thenReturn(builtinService);
+        when(kernel.locateIgnoreError("builtinService")).thenReturn(builtinService);
         when(builtinService.shouldAutoStart()).thenReturn(true);
 
         GreengrassService userLambdaService = mock(GreengrassService.class);
-        when(kernel.locate("userLambdaService")).thenReturn(userLambdaService);
+        when(kernel.locateIgnoreError("userLambdaService")).thenReturn(userLambdaService);
         when(userLambdaService.shouldAutoStart()).thenReturn(false);
 
         Collection<GreengrassService> orderedDependencies = Arrays.asList();

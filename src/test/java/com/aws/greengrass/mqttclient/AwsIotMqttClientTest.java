@@ -25,6 +25,7 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -33,6 +34,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -160,8 +162,9 @@ class AwsIotMqttClientTest {
     }
 
     @Test
-    void GIVEN_individual_client_THEN_it_tracks_subscriptions_correctly()
+    void GIVEN_individual_client_THEN_it_tracks_subscriptions_correctly(ExtensionContext context)
             throws ExecutionException, InterruptedException, TimeoutException {
+        ignoreExceptionOfType(context, CompletionException.class);
         when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
