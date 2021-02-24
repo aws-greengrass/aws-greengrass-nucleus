@@ -764,6 +764,11 @@ public class MqttClient implements Closeable {
         callbackEventManager.addToCallbackEvents(callbacks);
     }
 
+    public void addToCallbackEvents(CallbackEventManager.OnConnectCallback onConnect,
+                                    MqttClientConnectionEvents callbacks) {
+        callbackEventManager.addToCallbackEvents(onConnect, callbacks);
+    }
+
     protected void setMqttOnline(boolean networkStatus) {
         mqttOnline.set(networkStatus);
     }
