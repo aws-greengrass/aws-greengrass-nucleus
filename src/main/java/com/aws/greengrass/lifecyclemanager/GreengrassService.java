@@ -328,8 +328,12 @@ public class GreengrassService implements InjectionActions {
      *
      * @return future completes when the lifecycle thread shuts down.
      */
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public CompletableFuture<Void> close() {
+        return close(true);
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    protected CompletableFuture<Void> close(boolean waitForDependers) {
         CompletableFuture<Void> closeFuture = new CompletableFuture<>();
 
         context.get(Executor.class).execute(() -> {
@@ -342,10 +346,12 @@ public class GreengrassService implements InjectionActions {
                 if (t != null) {
                     t.shutdown();
                 }
-                try {
-                    waitForDependersToExit();
-                } catch (InterruptedException e) {
-                    logger.error("Interrupted waiting for dependers to exit");
+                if (waitForDependers) {
+                    try {
+                        waitForDependersToExit();
+                    } catch (InterruptedException e) {
+                        logger.error("Interrupted waiting for dependers to exit");
+                    }
                 }
                 lifecycle.setClosed(true);
                 requestStop();
@@ -543,7 +549,7 @@ public class GreengrassService implements InjectionActions {
             throws InputValidationException, ServiceLoadException {
         HashMap<GreengrassService, DependencyType> ret = new HashMap<>();
         for (Pair<String, DependencyType> dep : parseDependencies(dependencyList)) {
-            ret.put(context.get(Kernel.class).locate(dep.getLeft()), dep.getRight());
+            ret.put(context.get(Kernel.class).locateIgnoreError(dep.getLeft()), dep.getRight());
         }
         return ret;
     }

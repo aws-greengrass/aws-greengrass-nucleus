@@ -1,0 +1,21 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+      mqtt:
+        operationTimeoutMs: 0
+  main:
+    dependencies:
+      - ServiceName
+  ServiceName:
+    configuration:
+      accessControl:
+        aws.greengrass.ipc.mqttproxy:
+          policyId1:
+            policyDescription: access to IoT topics for mqtt
+            operations:
+              - 'aws.greengrass#PublishToIoTCore'
+            resources:
+              - "A/#"

@@ -259,7 +259,7 @@ public class GreengrassSetup {
             // Use getVersionFromBuildMetadataFile so that we don't need to startup the Nucleus which is slow and will
             // start creating files and directories which may not be desired
             outStream.println(String.format(SHOW_VERSION_RESPONSE,
-                    DeviceConfiguration.getVersionFromBuildMetadataFile()));
+                    DeviceConfiguration.getVersionFromBuildRecipeFile()));
             return;
         }
 

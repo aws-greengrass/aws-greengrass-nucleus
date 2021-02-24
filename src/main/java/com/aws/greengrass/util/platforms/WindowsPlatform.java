@@ -23,8 +23,11 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 public class WindowsPlatform extends Platform {
+    private static final String NAMED_PIPE = "\\\\.\\pipe\\NucleusNamedPipe-" + UUID.randomUUID().toString();
+
     @Override
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                UserDecorator decorator)
@@ -152,5 +155,28 @@ public class WindowsPlatform extends Platform {
         public ShellDecorator withShell(String shell) {
             throw new UnsupportedOperationException("changing shell is not supported");
         }
+    }
+
+    @Override
+    public String prepareIpcFilepath(Path rootPath) {
+        return NAMED_PIPE;
+    }
+
+    @Override
+    public String prepareIpcFilepathForComponent(Path rootPath) {
+        return NAMED_PIPE;
+    }
+
+    @Override
+    public String prepareIpcFilepathForRpcServer(Path rootPath) {
+        return NAMED_PIPE;
+    }
+
+    @Override
+    public void setIpcFilePermissions(Path rootPath) {
+    }
+
+    @Override
+    public void cleanupIpcFiles(Path rootPath) {
     }
 }

@@ -25,6 +25,7 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOO
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.lifecyclemanager.KernelAlternatives.LAUNCH_PARAMS_FILE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.io.FileMatchers.anExistingFileOrDirectory;
@@ -117,6 +118,17 @@ class KernelAlternativesTest {
         kernelAlternatives.rollbackCompletes();
         assertThat(kernelAlternatives.getBrokenDir().toFile(), not(anExistingFileOrDirectory()));
         assertThat(expectedNewLaunchPath.toFile(), not(anExistingFileOrDirectory()));
+    }
+
+    @Test
+    void GIVEN_launch_params_THEN_write_to_file() throws Exception {
+        Path initPath = createRandomDirectory();
+        kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getCurrentDir(), initPath);
+
+        Path expectedLaunchParamsPath = initPath.resolve(LAUNCH_PARAMS_FILE);
+        kernelAlternatives.writeLaunchParamsToFile("mock string");
+
+        assertEquals("mock string", new String(Files.readAllBytes(expectedLaunchParamsPath)));
     }
 
     private Path createRandomDirectory() throws IOException {

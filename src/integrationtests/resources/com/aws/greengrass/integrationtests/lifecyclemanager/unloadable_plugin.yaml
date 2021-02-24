@@ -1,0 +1,48 @@
+---
+services:
+  plugin:
+    dependencies:
+      - ServiceB
+      - ServiceC
+    version: 1.0.0
+    componentType: PLUGIN
+  ServiceA:
+    dependencies:
+      - ServiceB
+    lifecycle:
+      posix:
+        run:
+          script: while true; do sleep 1000; done
+      windows:
+        run:
+          script: powershell -command while(1) { sleep 1000 }
+  ServiceB:
+    lifecycle:
+      posix:
+        run:
+          script: while true; do sleep 1000; done
+      windows:
+        run:
+          script: powershell -command while(1) { sleep 1000 }
+  ServiceC:
+    lifecycle:
+      posix:
+        run:
+          script: while true; do sleep 1000; done
+      windows:
+        run:
+          script: powershell -command while(1) { sleep 1000 }
+  CustomerApp:
+    dependencies:
+      - ServiceA
+      - plugin
+    lifecycle:
+      posix:
+        run:
+          script: while true; do sleep 1000; done
+      windows:
+        run:
+          script: powershell -command while(1) { sleep 1000 }
+  main:
+    dependencies:
+      - CustomerApp:HARD

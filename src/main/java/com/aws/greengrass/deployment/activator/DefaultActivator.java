@@ -65,6 +65,8 @@ public class DefaultActivator extends DeploymentActivator {
         Throwable setDesiredStateFailureCause = kernel.getContext().runOnPublishQueueAndWait(() -> {
             // polling to wait for all services to be started.
             servicesChangeManager.startNewServices();
+            // Close unloadable service instances and initiate with new config
+            servicesChangeManager.replaceUnloadableService();
             // Restart any services that may have been broken before this deployment
             // This is added to allow deployments to fix broken services
             servicesChangeManager.reinstallBrokenServices();
@@ -120,6 +122,7 @@ public class DefaultActivator extends DeploymentActivator {
         // wait until topic listeners finished processing read changes.
         Throwable setDesiredStateFailureCause = kernel.getContext().runOnPublishQueueAndWait(() -> {
                 rollbackManager.startNewServices();
+                rollbackManager.replaceUnloadableService();
                 rollbackManager.reinstallBrokenServices();
         });
         if (setDesiredStateFailureCause != null) {

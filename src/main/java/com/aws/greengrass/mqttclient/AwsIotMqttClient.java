@@ -12,6 +12,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.ProxyUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
@@ -21,10 +22,18 @@ import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -39,16 +48,32 @@ import javax.inject.Provider;
  */
 class AwsIotMqttClient implements Closeable {
     static final String TOPIC_KEY = "topic";
+    private static final String RESUB_LOG_EVENT = "resubscribe";
     private static final String QOS_KEY = "qos";
+    private static final Random RANDOM = new Random();
     private final Logger logger = LogManager.getLogger(AwsIotMqttClient.class).createChild()
             .dfltKv(MqttClient.CLIENT_ID_KEY, (Supplier<String>) this::getClientId);
 
+    private final ExecutorService executorService;
+    private final ScheduledExecutorService ses;
     private final Provider<AwsIotMqttConnectionBuilder> builderProvider;
     @Getter
     private final String clientId;
     private MqttClientConnection connection;
+    private CompletableFuture<Boolean> connectionFuture = null;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
     private final CallbackEventManager callbackEventManager;
+    private final AtomicBoolean initalConnect = new AtomicBoolean(true);
+    private final Consumer<MqttMessage> messageHandler;
+    private final Topics mqttTopics;
+    @Getter(AccessLevel.PACKAGE)
+    private final Map<String, QualityOfService> subscriptionTopics = new ConcurrentHashMap<>();
+    private final Map<String, QualityOfService> droppedSubscriptionTopics = new ConcurrentHashMap<>();
+    private Future<?> resubscribeFuture;
+    @Setter
+    private static long subscriptionRetryMillis = Duration.ofMinutes(2).toMillis();
+    @Setter
+    private static int waitTimeJitterMaxMillis = 10_000;
 
     @Getter(AccessLevel.PACKAGE)
     private final MqttClientConnectionEvents connectionEventCallback = new MqttClientConnectionEvents() {
@@ -59,6 +84,9 @@ class AwsIotMqttClient implements Closeable {
             if (errorCode != 0) {
                 logger.atWarn().kv("error", CRT.awsErrorString(errorCode)).log("Connection interrupted");
             }
+            if (resubscribeFuture != null) {
+                resubscribeFuture.cancel(true);
+            }
             // To run the callbacks shared by the different AwsIotMqttClient.
             callbackEventManager.runOnConnectionInterrupted(errorCode);
         }
@@ -67,29 +95,23 @@ class AwsIotMqttClient implements Closeable {
         public void onConnectionResumed(boolean sessionPresent) {
             currentlyConnected.set(true);
             logger.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
-            // If we didn't reconnect using the same session, then resubscribe to all the topics
-            if (!sessionPresent) {
-                resubscribe();
-            }
+            resubscribe(sessionPresent);
             // To run the callbacks shared by the different AwsIotMqttClient.
             callbackEventManager.runOnConnectionResumed(sessionPresent);
         }
     };
 
-    private final Consumer<MqttMessage> messageHandler;
-    private final Topics mqttTopics;
-    @Getter(AccessLevel.PACKAGE)
-    private final Map<String, QualityOfService> subscriptionTopics = new ConcurrentHashMap<>();
-
     AwsIotMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
-                     Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler,
-                     String clientId, Topics mqttTopics,
-                     CallbackEventManager callbackEventManager) {
+                     Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler, String clientId,
+                     Topics mqttTopics, CallbackEventManager callbackEventManager, ExecutorService executorService,
+                     ScheduledExecutorService ses) {
         this.builderProvider = builderProvider;
         this.clientId = clientId;
         this.mqttTopics = mqttTopics;
         this.messageHandler = messageHandler.apply(this);
         this.callbackEventManager = callbackEventManager;
+        this.executorService = executorService;
+        this.ses = ses;
     }
 
     // Notes about the CRT MQTT client:
@@ -143,38 +165,62 @@ class AwsIotMqttClient implements Closeable {
         // Synchronize here instead of method signature to make mockito work without deadlocking
         synchronized (this) {
             logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
-            disconnect();
+            disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
             connect().get(getTimeout(), TimeUnit.MILLISECONDS);
         }
     }
 
-    @SuppressWarnings("PMD.NullAssignment")
     protected synchronized CompletableFuture<Boolean> connect() {
-        if (connection != null) {
+        // future not done indicates an ongoing connect attempt, caller should wait on that future
+        // instead of starting another connect attempt.
+        if (connectionFuture != null && !connectionFuture.isDone()) {
+            return connectionFuture;
+        }
+        // We're already connected, there's nothing to do
+        if (currentlyConnected.get()) {
             return CompletableFuture.completedFuture(true);
         }
+        // For the initial connect, client connects with cleanSession=true and disconnects.
+        // This deletes any previous session information maintained by IoT Core.
+        // For subsequent connects, the client connects with cleanSession=false
+        CompletableFuture<Void> voidCompletableFuture =  CompletableFuture.completedFuture(null);
+        if (initalConnect.get()) {
+            voidCompletableFuture = establishConnection(true).thenCompose((session) -> {
+                initalConnect.set(false);
+                return disconnect();
+            });
+        }
 
+        connectionFuture = voidCompletableFuture.thenCompose((b) -> establishConnection(false))
+                .thenApply((sessionPresent) -> {
+                    currentlyConnected.set(true);
+                    logger.atInfo().kv("sessionPresent", sessionPresent)
+                            .log("Successfully connected to AWS IoT Core");
+                    resubscribe(sessionPresent);
+                    callbackEventManager.runOnInitialConnect(sessionPresent);
+                    return sessionPresent;
+                });
+
+        return connectionFuture;
+    }
+
+    @SuppressWarnings("PMD.NullAssignment")
+    private CompletableFuture<Boolean> establishConnection(boolean overrideCleanSession) {
         // Always use the builder provider here so that the builder is updated with whatever
         // the latest device config is
         try (AwsIotMqttConnectionBuilder builder = builderProvider.get()) {
             builder.withConnectionEventCallbacks(connectionEventCallback);
             builder.withClientId(clientId);
-
+            if (overrideCleanSession) {
+                builder.withCleanSession(true);
+            }
             connection = builder.build();
             // Set message handler for this connection to be our global message handler in MqttClient.
             // The handler will then send out the message to all subscribers after appropriate filtering.
             connection.onMessage(messageHandler);
 
             logger.atInfo().log("Connecting to AWS IoT Core");
-            return connection.connect().thenApply((sessionPresent) -> {
-                currentlyConnected.set(true);
-                logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
-                if (!sessionPresent) {
-                    resubscribe();
-                }
-                callbackEventManager.runOnInitialConnect(sessionPresent);
-                return sessionPresent;
-            }).whenComplete((session, error) -> {
+            return connection.connect().whenComplete((session, error) -> {
                 if (error != null) {
                     // Must synchronize since we're messing with the shared connection object and this block
                     // is executed in some other thread
@@ -199,14 +245,67 @@ class AwsIotMqttClient implements Closeable {
                 MqttClient.DEFAULT_MQTT_OPERATION_TIMEOUT, MqttClient.MQTT_OPERATION_TIMEOUT_KEY));
     }
 
-    private void resubscribe() {
-        subscriptionTopics.forEach((key, value) -> {
-            subscribe(key, value).whenComplete((i, t) -> {
-                if (t != null) {
-                    logger.atError().kv(TOPIC_KEY, key).kv(QOS_KEY, value.name()).log("Unable to resubscribe to topic");
+    /**
+     * Run re-subscription task in another thread so that the current thread is not blocked by it. The task will keep
+     * retrying until all subscription succeeded or it's canceled by network interruption.
+     *
+     * @param sessionPresent whether the session persisted
+     */
+    private synchronized void resubscribe(boolean sessionPresent) {
+        // Don't bother spin up a thread if subscription is empty
+        if (!subscriptionTopics.isEmpty()) {
+            // If connected without a session, all subscriptions are dropped and need to be resubscribed
+            if (!sessionPresent) {
+                droppedSubscriptionTopics.putAll(subscriptionTopics);
+            }
+            if (!droppedSubscriptionTopics.isEmpty() && (resubscribeFuture == null || resubscribeFuture.isDone())) {
+                resubscribeFuture = executorService.submit(this::resubscribeDroppedTopicsTask);
+            }
+        }
+    }
+
+    private void resubscribeDroppedTopicsTask() {
+        long delayMillis = 0;  // don't delay the first run
+        while (!droppedSubscriptionTopics.isEmpty()) {
+            logger.atDebug().event(RESUB_LOG_EVENT).kv("droppedTopics", droppedSubscriptionTopics.keySet())
+                    .kv("delayMillis", delayMillis).log("Subscribing to dropped topics");
+            ScheduledFuture<?> scheduledFuture = ses.schedule(() -> {
+                List<CompletableFuture<Integer>> subFutures = new ArrayList<>();
+                for (Map.Entry<String, QualityOfService> entry : droppedSubscriptionTopics.entrySet()) {
+                    subFutures.add(subscribe(entry.getKey(), entry.getValue()).whenComplete((result, error) -> {
+                        if (error == null) {
+                            droppedSubscriptionTopics.remove(entry.getKey());
+                        } else {
+                            logger.atError().event(RESUB_LOG_EVENT).cause(error).kv(TOPIC_KEY, entry.getKey())
+                                    .log("Failed to subscribe to topic. Will retry later");
+                        }
+                    }));
                 }
-            });
-        });
+                // Block and wait for all subscriptions to finish
+                CompletableFuture<?> allSubFutures =
+                        CompletableFuture.allOf(subFutures.toArray(new CompletableFuture[0]));
+                try {
+                    allSubFutures.get();
+                } catch (InterruptedException e) {
+                    logger.atWarn().event(RESUB_LOG_EVENT).cause(e)
+                            .log("Subscription interrupted. Cancelling subscriptions");
+                    allSubFutures.cancel(true);
+                } catch (ExecutionException e) {
+                    // Do nothing. Errors already handled in individual subscription future's whenComplete stage
+                }
+            }, delayMillis, TimeUnit.MILLISECONDS);
+
+            try {
+                scheduledFuture.get();
+            } catch (ExecutionException e) {
+                logger.atError().event(RESUB_LOG_EVENT).cause(e).log("Scheduled task failed. Will retry later");
+            } catch (InterruptedException e) {
+                logger.atWarn().event(RESUB_LOG_EVENT).log("Cancelling scheduled task because of interruption");
+                scheduledFuture.cancel(true);
+                return;
+            }
+            delayMillis = subscriptionRetryMillis + RANDOM.nextInt(waitTimeJitterMaxMillis);
+        }
     }
 
     boolean canAddNewSubscription() {
@@ -222,26 +321,27 @@ class AwsIotMqttClient implements Closeable {
     }
 
     @SuppressWarnings("PMD.NullAssignment")
-    private synchronized void disconnect() {
-        try {
-            currentlyConnected.set(false);
-            if (connection != null) {
-                logger.atDebug().log("Disconnecting from AWS IoT Core");
-                try {
-                    connection.disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
-                } finally {
+    protected synchronized CompletableFuture<Void> disconnect() {
+        currentlyConnected.set(false);
+        if (connection != null) {
+            logger.atDebug().log("Disconnecting from AWS IoT Core");
+            return connection.disconnect().whenComplete((future, error) -> {
+                logger.atDebug().log("Successfully disconnected from AWS IoT Core");
+                synchronized (this) {
                     connection.close();
                     connection = null;
                 }
-                logger.atDebug().log("Successfully disconnected from AWS IoT Core");
-            }
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            logger.atError().log("Error while disconnecting the MQTT client", e);
+            });
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public void close() {
-        disconnect();
+        try {
+            disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            logger.atError().log("Error while disconnecting the MQTT client", e);
+        }
     }
 }

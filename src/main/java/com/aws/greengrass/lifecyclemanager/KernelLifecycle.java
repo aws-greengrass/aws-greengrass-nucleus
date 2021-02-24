@@ -105,13 +105,7 @@ public class KernelLifecycle {
         // referenced by main/dependencies of main
         final Queue<String> autostart = findBuiltInServicesAndPlugins(); //NOPMD
 
-        try {
-            mainService = kernel.locate(KernelCommandLine.MAIN_SERVICE_NAME);
-        } catch (ServiceLoadException sle) {
-            RuntimeException rte = new RuntimeException("Cannot load main service", sle);
-            logger.atError("system-boot-error", rte).log();
-            throw rte;
-        }
+        mainService = kernel.locateIgnoreError(KernelCommandLine.MAIN_SERVICE_NAME);
 
         autostart.forEach(s -> {
             try {

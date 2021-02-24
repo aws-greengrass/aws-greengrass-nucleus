@@ -87,12 +87,6 @@ public class IotJobsHelper implements InjectionActions {
             "No connection available during subscribing to Iot jobs event notifications topic. Will retry in sometime";
     protected static final String SUBSCRIPTION_EVENT_NOTIFICATIONS_INTERRUPTED =
             "Interrupted while subscribing to Iot jobs event notifications topic";
-    //The time within which device expects an acknowledgement from Iot cloud after publishing an MQTT message
-    //This value needs to be revisited and set to more realistic numbers
-    private static final long TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS = Duration.ofMinutes(5).getSeconds();
-    //The time it takes for device to publish a message
-    //This value needs to be revisited and set to more realistic numbers
-    private static final long TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS = Duration.ofMinutes(1).getSeconds();
     private static final String JOB_ID_LOG_KEY_NAME = "JobId";
     private static final String NEXT_JOB_LITERAL = "$next";
     // Sometimes when we are notified that a new job is queued and request the next pending job document immediately,
@@ -368,7 +362,6 @@ public class IotJobsHelper implements InjectionActions {
                             .log("Job status updated rejected");
                     gotResponse.completeExceptionally(new Exception(response.message));
                 });
-
         UpdateJobExecutionRequest updateJobRequest = new UpdateJobExecutionRequest();
         updateJobRequest.jobId = jobId;
         updateJobRequest.status = status;
@@ -387,7 +380,7 @@ public class IotJobsHelper implements InjectionActions {
         }
 
         try {
-            gotResponse.get(TIMEOUT_FOR_RESPONSE_FROM_IOT_CLOUD_SECONDS, TimeUnit.SECONDS);
+            gotResponse.get(mqttClient.getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
         } finally {
             // Either got response, or timed out, so unsubscribe from the job topics now
             connection.unsubscribe(String.format(JOB_UPDATE_ACCEPTED_TOPIC, thingName, jobId));
@@ -462,11 +455,11 @@ public class IotJobsHelper implements InjectionActions {
                     .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
                             QualityOfService.AT_LEAST_ONCE, consumerAccept);
             try {
-                subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+                subscribed.get(mqttClient.getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
                 subscribed = iotJobsClientWrapper
                         .SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
                                 QualityOfService.AT_LEAST_ONCE, consumerReject);
-                subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+                subscribed.get(mqttClient.getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
 
                 logger.atInfo().log("Subscribed to deployment job execution update.");
                 break;
@@ -526,7 +519,7 @@ public class IotJobsHelper implements InjectionActions {
             CompletableFuture<Integer> subscribed = iotJobsClientWrapper.SubscribeToJobExecutionsChangedEvents(request,
                     QualityOfService.AT_LEAST_ONCE, eventHandler);
             try {
-                subscribed.get(TIMEOUT_FOR_IOT_JOBS_OPERATIONS_SECONDS, TimeUnit.SECONDS);
+                subscribed.get(mqttClient.getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
 
                 logger.atInfo().log("Subscribed to deployment job event notifications.");
                 break;

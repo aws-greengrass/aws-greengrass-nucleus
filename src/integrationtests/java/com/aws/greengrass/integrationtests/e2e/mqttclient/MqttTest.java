@@ -66,7 +66,41 @@ class MqttTest extends BaseE2ETestCase {
                     .build()).get(5, TimeUnit.SECONDS);
             logger.atInfo().kv("total", i + 1).log("Added 1 message to spooler.");
         }
+        assertTrue(cdl.await(1, TimeUnit.MINUTES), "All messages published and received");
+    }
 
+    @Test
+    void GIVEN_mqttclient_WHEN_closes_new_connection_is_created_THEN_previous_session_is_invalidated()
+            throws Throwable {
+        kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
+        setDefaultRunWithUser(kernel);
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString(),
+                TES_ROLE_ALIAS_NAME);
+
+        MqttClient client = kernel.getContext().get(MqttClient.class);
+
+        //subscribe to 50 topics using first connection.
+        int numberOfTopics = 50;
+        for (int i = 0; i < numberOfTopics; i++) {
+            client.subscribe(SubscribeRequest.builder().topic("A/"+ i).callback((m) -> {}).build());
+        }
+        //close the first connections and create a second connection.
+        client.close();
+        client = kernel.getContext().newInstance(MqttClient.class);
+        CountDownLatch cdl = new CountDownLatch(numberOfTopics);
+        // Using the second connection to subscribes to another 50 topics, IoT core limits subscriptions to 50 topics per connection.
+        // if the session from first connection is not terminated, subscribe operations made by second connection will not succeed.
+        for (int i = 0; i < numberOfTopics; i++) {
+            client.subscribe(SubscribeRequest.builder().topic("B/"+ i ).callback((m) -> {
+                cdl.countDown();
+                logger.atInfo().kv("remaining", cdl.getCount()).log("Received 1 message from cloud.");
+            }).build());
+        }
+        for (int i = 0; i < numberOfTopics; i++) {
+            client.publish(PublishRequest.builder().topic("B/"+ i ).payload("What's up".getBytes(StandardCharsets.UTF_8))
+                    .build()).get(5, TimeUnit.SECONDS);
+            logger.atInfo().kv("total", i + 1).log("Added 1 message to spooler.");
+        }
         assertTrue(cdl.await(1, TimeUnit.MINUTES), "All messages published and received");
     }
 }

@@ -39,6 +39,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
@@ -94,7 +96,8 @@ public class ShadowDeploymentListener implements InjectionActions {
         }
     };
     private String lastConfigurationArn;
-    private Integer lastVersion;
+    private final AtomicInteger lastVersion = new AtomicInteger();
+    private final AtomicReference<Map<String, Object>> lastDeploymentStatus = new AtomicReference();
     protected static final Random JITTER = new Random();
 
     @Override
@@ -116,9 +119,9 @@ public class ShadowDeploymentListener implements InjectionActions {
         });
     }
 
-
     /*
         Subscribe to "$aws/things/{thingName}/shadow/update/accepted" topic to get notified when shadow is updated
+        Subscribe to "$aws/things/{thingName}/shadow/update/rejected" topic to get notified when an update is rejected
         Subscribe to "$aws/things/{thingName}/shadow/get/accepted" topic to retrieve shadow by publishing to get topic
      */
     private void subscribeToShadowTopics() {
@@ -135,12 +138,20 @@ public class ShadowDeploymentListener implements InjectionActions {
                         (e) -> logger.atError().log("Error processing updateShadowResponse", e))
                         .get(TIMEOUT_FOR_SUBSCRIBING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
                 logger.info("Subscribed to update named shadow accepted topic");
+
+                iotShadowClient.SubscribeToUpdateNamedShadowRejected(updateNamedShadowSubscriptionRequest,
+                        QualityOfService.AT_LEAST_ONCE,
+                        updateShadowRejected -> handleNamedShadowRejectedEvent(),
+                        (e) -> logger.atError().log("Error processing named shadow update rejected response", e))
+                        .get(TIMEOUT_FOR_SUBSCRIBING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
+                logger.info("Subscribed to update named shadow rejected topic");
+
                 GetNamedShadowSubscriptionRequest getNamedShadowSubscriptionRequest
                         = new GetNamedShadowSubscriptionRequest();
                 getNamedShadowSubscriptionRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
                 getNamedShadowSubscriptionRequest.thingName = thingName;
                 iotShadowClient.SubscribeToGetNamedShadowAccepted(getNamedShadowSubscriptionRequest,
-                        QualityOfService.AT_MOST_ONCE,
+                        QualityOfService.AT_LEAST_ONCE,
                         getShadowResponse -> shadowUpdated(getShadowResponse.state.desired,
                                 getShadowResponse.state.reported, getShadowResponse.version),
                         (e) -> logger.atError().log("Error processing getShadowResponse", e))
@@ -176,6 +187,13 @@ public class ShadowDeploymentListener implements InjectionActions {
         }
     }
 
+    private void handleNamedShadowRejectedEvent() {
+        // A shadow update was rejected, publishing to get device shadow topic to retrieve the latest shadow document.
+        // Once the latest shadow document is received, device will update the reported section with the
+        // the latest deployment status.
+        publishToGetDeviceShadowTopic();
+    }
+
     private void publishToGetDeviceShadowTopic() {
         GetNamedShadowRequest getNamedShadowRequest = new GetNamedShadowRequest();
         getNamedShadowRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
@@ -186,17 +204,24 @@ public class ShadowDeploymentListener implements InjectionActions {
 
     @SuppressFBWarnings
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
-        String configurationArn = (String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME);
+        lastDeploymentStatus.set(deploymentDetails);
+        return updateReportedSectionOfShadowWithDeploymentStatus();
+    }
+
+    private boolean updateReportedSectionOfShadowWithDeploymentStatus() {
+        Map<String, Object> deploymentDetails = lastDeploymentStatus.get();
         try {
             ShadowState shadowState = new ShadowState();
-            shadowState.reported = getReportedShadowState(deploymentDetails);
+            shadowState.reported = populateReportedSectionOfShadow(deploymentDetails);
             UpdateNamedShadowRequest updateNamedShadowRequest = new UpdateNamedShadowRequest();
             updateNamedShadowRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
             updateNamedShadowRequest.thingName = thingName;
             updateNamedShadowRequest.state = shadowState;
+            updateNamedShadowRequest.version = lastVersion.get();
             iotShadowClient.PublishUpdateNamedShadow(updateNamedShadowRequest, QualityOfService.AT_LEAST_ONCE)
                     .get(TIMEOUT_FOR_PUBLISHING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
-            logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
+
+            logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME))
                     .kv(STATUS_KEY, shadowState.reported.get(STATUS_KEY))
                     .log("Updated reported state for deployment");
             return true;
@@ -212,7 +237,8 @@ public class ShadowDeploymentListener implements InjectionActions {
     }
 
     @SuppressWarnings("PMD.LooseCoupling")
-    private HashMap<String, Object> getReportedShadowState(Map<String, Object> deploymentDetails) {
+    private HashMap<String, Object> populateReportedSectionOfShadow(Map<String, Object> deploymentDetails) {
+
         Map<String, Object> deploymentStatusDetails =
                 (Map<String, Object>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
 
@@ -225,13 +251,22 @@ public class ShadowDeploymentListener implements InjectionActions {
         reported.put(STATUS_KEY, deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME));
         reported.put(STATUS_DETAILS_KEY, statusDetails);
         reported.put(GGC_VERSION_KEY, deviceConfiguration.getNucleusVersion());
-
         return reported;
     }
 
     protected void shadowUpdated(Map<String, Object> desired, Map<String, Object> reported, Integer version) {
+        if (lastVersion.get() > version) {
+            logger.atInfo().kv("SHADOW_VERSION", version)
+                    .log("Received an older version of shadow. Ignoring...");
+            return;
+        }
+        lastVersion.set(version);
+        //the reported section of the shadow was updated
+        if (reported != null && !reported.isEmpty()) {
+            syncShadowDeploymentStatus(reported);
+        }
         if (desired == null || desired.isEmpty()) {
-            logger.debug("Empty desired state, no device deployments created yet");
+            logger.debug("Empty desired state, no update to desired section or no device deployments created yet");
             return;
         }
         String fleetConfigStr = (String) desired.get(FLEET_CONFIG_KEY);
@@ -255,12 +290,10 @@ public class ShadowDeploymentListener implements InjectionActions {
             return;
         }
         boolean cancelDeployment = DESIRED_STATUS_CANCELED.equals(desiredStatus);
-
         synchronized (ShadowDeploymentListener.class) {
             // If lastConfigurationArn is null, this is the first shadow update since startup
             if (lastConfigurationArn == null) {
                 lastConfigurationArn = configurationArn;
-                lastVersion = version;
                 // Ignore if the latest deployment was canceled
                 if (cancelDeployment) {
                     logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
@@ -276,19 +309,12 @@ public class ShadowDeploymentListener implements InjectionActions {
                     return;
                 }
             } else {
-                if (lastVersion > version) {
-                    logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
-                            .kv("SHADOW_VERSION", version)
-                            .log("Old deployment notification. Ignoring shadow update");
-                    return;
-                }
                 if (lastConfigurationArn.equals(configurationArn) && !cancelDeployment) {
                     logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
                             .log("Duplicate deployment notification. Ignoring shadow update");
                     return;
                 }
                 lastConfigurationArn = configurationArn;
-                lastVersion = version;
             }
         }
 
@@ -300,6 +326,19 @@ public class ShadowDeploymentListener implements InjectionActions {
         }
         if (deploymentQueue.offer(deployment)) {
             logger.atInfo().kv("ID", deployment.getId()).log("Added shadow deployment job");
+        }
+    }
+
+    private void syncShadowDeploymentStatus(Map<String, Object> reported) {
+        // device does not have anything to report
+        if (lastDeploymentStatus.get() == null) {
+            logger.info("Last known deployment status is empty, nothing to report");
+            return;
+        }
+        if (!reported.get(ARN_FOR_STATUS_KEY).equals(lastDeploymentStatus.get().get(DEPLOYMENT_ID_KEY_NAME))
+                || !reported.get(STATUS_KEY).equals(lastDeploymentStatus.get().get(DEPLOYMENT_STATUS_KEY_NAME))) {
+            logger.info("Updating reported section of shadow with the latest deployment status");
+            updateReportedSectionOfShadowWithDeploymentStatus();
         }
     }
 

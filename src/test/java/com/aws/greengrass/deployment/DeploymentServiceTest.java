@@ -61,6 +61,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
+import static org.hamcrest.collection.IsMapContaining.hasEntry;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -360,6 +361,13 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
+        Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics deploymentGroupTopics = spy(Topics.of(context, EXPECTED_GROUP_NAME, allGroupTopics));
+
+        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME))
+                .thenReturn(deploymentGroupTopics);
+        when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
+
         mockFuture.complete(
                 new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, null));
         when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
@@ -370,6 +378,21 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
+
+        ArgumentCaptor<Map<String, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(deploymentGroupTopics).replaceAndWait(mapCaptor.capture());
+        Map<String, Object> groupToRootPackages = mapCaptor.getValue();
+
+        assertThat(groupToRootPackages, is(IsNull.notNullValue()));
+        assertThat(groupToRootPackages.entrySet(), IsNot.not(IsEmptyCollection.empty()));
+        assertThat(groupToRootPackages, hasKey(EXPECTED_ROOT_PACKAGE_NAME));
+
+        Map<String, Object> rootComponentDetails =
+                (Map<String, Object>) groupToRootPackages.get(EXPECTED_ROOT_PACKAGE_NAME);
+        assertThat(rootComponentDetails, hasEntry("groupConfigArn",
+                "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1"));
+        assertThat(rootComponentDetails, hasEntry("groupConfigName", "thinggroup/group1"));
+        assertThat(rootComponentDetails, hasEntry("version", "1.0.0"));
     }
 
     @Test
