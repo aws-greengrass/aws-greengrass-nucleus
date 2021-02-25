@@ -12,6 +12,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -28,6 +29,7 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOO
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.util.Permissions.OWNER_RWX_EVERYONE_RX;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
 import static java.nio.file.StandardCopyOption.COPY_ATTRIBUTES;
@@ -118,8 +120,21 @@ public class KernelAlternatives {
         return Files.isSymbolicLink(currentDir) && validateLaunchDirSetup(currentDir);
     }
 
+    @SuppressWarnings("PMD.ConfusingTernary")
     private boolean validateLaunchDirSetup(Path path) {
-        return Files.exists(getLoaderPathFromLaunchDir(path));
+        Path loaderPath = getLoaderPathFromLaunchDir(path);
+        if (!Files.exists(loaderPath)) {
+            return false;
+        } else if (!loaderPath.toFile().canExecute()) {
+            // Ensure that the loader is executable so that we can exec it when restarting Nucleus
+            try {
+                Platform.getInstance().setPermissions(OWNER_RWX_EVERYONE_RX, loaderPath);
+            } catch (IOException e) {
+                logger.error("Unable to set loader script at {} as executable", loaderPath, e);
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
