@@ -307,7 +307,8 @@ public class DependencyResolver {
                 componentDependencyMap.keySet(), componentDependencyMap::get);
 
         if (result.size() != componentCount) {
-            throw new ComponentVersionNegotiationException("Circular dependency detected for component " + targetComponent);
+            throw new ComponentVersionNegotiationException("Circular dependency detected for component "
+                    + targetComponent);
         }
     }
 
