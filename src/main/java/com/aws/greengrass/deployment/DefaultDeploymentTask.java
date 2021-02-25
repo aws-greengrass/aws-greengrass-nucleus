@@ -8,6 +8,7 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.componentmanager.exceptions.MissingRequiredComponentsException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
@@ -99,6 +100,9 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
             List<ComponentIdentifier> desiredPackages = resolveDependenciesFuture.get();
 
+            // Check that all prerequisites for preparing components are met
+            componentManager.checkPreparePackagesPrerequisites(desiredPackages);
+
             // Block this without timeout because a device can be offline and it can take quite a long time
             // to download a package.
             preparePackagesFuture = componentManager.preparePackages(desiredPackages);
@@ -120,7 +124,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
             componentManager.cleanupStaleVersions();
             return result;
-        } catch (PackageLoadingException | IOException e) {
+        } catch (PackageLoadingException | MissingRequiredComponentsException | IOException e) {
             return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
         } catch (ExecutionException e) {
             logger.atError().setCause(e).log("Error occurred while processing deployment");
