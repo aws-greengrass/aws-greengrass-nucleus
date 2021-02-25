@@ -20,7 +20,7 @@ public final class Permissions {
 
     static final FileSystemPermission OWNER_RWX_ONLY =  FileSystemPermission.builder()
             .ownerRead(true).ownerWrite(true).ownerExecute(true).build();
-    static final FileSystemPermission OWNER_RWX_EVERYONE_RX = FileSystemPermission.builder()
+    public static final FileSystemPermission OWNER_RWX_EVERYONE_RX = FileSystemPermission.builder()
             .ownerRead(true).ownerWrite(true).ownerExecute(true)
             .groupRead(true).groupExecute(true)
             .otherRead(true).otherExecute(true)
