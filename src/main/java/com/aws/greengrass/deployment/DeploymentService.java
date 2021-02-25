@@ -75,6 +75,7 @@ import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
+import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED;
 
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
 public class DeploymentService extends GreengrassService {
@@ -287,25 +288,8 @@ public class DeploymentService extends GreengrassService {
                 statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, deploymentStatus.name());
                 if (DeploymentResult.DeploymentStatus.SUCCESSFUL.equals(deploymentStatus)) {
                     //Add the root packages of successful deployment to the configuration
-                    DeploymentDocument deploymentDocument = currentDeploymentTaskMetadata.getDeploymentDocument();
-                    Topics deploymentGroupTopics =
-                            config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, deploymentDocument.getGroupName());
-                    Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
-                    // TODO: [P41179087] Removal of group from the mappings. Currently there is no action taken
-                    // when a device is removed from a thing group. Empty configuration is treated as a valid config
-                    // for a group but not treated as removal.
-                    deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
-                        if (pkgConfig.isRootComponent()) {
-                            Map<String, Object> pkgDetails = new HashMap<>();
-                            pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
-                            pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
-                                           deploymentDocument.getDeploymentId());
-                            pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_NAME, deploymentDocument.getGroupName());
-                            deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
-                        }
-                    });
-                    deploymentGroupTopics.replaceAndWait(deploymentGroupToRootPackages);
-                    setComponentsToGroupsMapping(deploymentGroupTopics);
+                    persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
+
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                                                currentDeploymentTaskMetadata.getDeploymentType(),
@@ -323,9 +307,11 @@ public class DeploymentService extends GreengrassService {
                     if (result.getFailureCause() != null) {
                         statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, result.getFailureCause().getMessage());
                     }
-                    // TODO: [P41179126] Update the groupToRootPackages mapping in config for the case where there
-                    // is no rollback and now the packages deployed for the current group are not the same as before
-                    // starting deployment
+                    if (FAILED_ROLLBACK_NOT_REQUESTED.equals(result.getDeploymentStatus())) {
+                        // Update the groupToRootComponents mapping in config for the case where there is no rollback
+                        // and now the components deployed for the current group are not the same as before deployment
+                        persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
+                    }
                     deploymentStatusKeeper
                             .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                                                currentDeploymentTaskMetadata.getDeploymentType(),
@@ -365,6 +351,27 @@ public class DeploymentService extends GreengrassService {
         // Setting this to null to indicate there is not current deployment being processed
         // Did not use optionals over null due to performance
         currentDeploymentTaskMetadata = null;
+    }
+
+    private void persistGroupToRootComponents(DeploymentDocument deploymentDocument) {
+        Topics deploymentGroupTopics =
+                config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, deploymentDocument.getGroupName());
+        Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
+        // TODO: [P41179087] Removal of group from the mappings. Currently there is no action taken
+        // when a device is removed from a thing group. Empty configuration is treated as a valid config
+        // for a group but not treated as removal.
+        deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
+            if (pkgConfig.isRootComponent()) {
+                Map<String, Object> pkgDetails = new HashMap<>();
+                pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
+                pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
+                        deploymentDocument.getDeploymentId());
+                pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_NAME, deploymentDocument.getGroupName());
+                deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
+            }
+        });
+        deploymentGroupTopics.replaceAndWait(deploymentGroupToRootPackages);
+        setComponentsToGroupsMapping(deploymentGroupTopics);
     }
 
     /*

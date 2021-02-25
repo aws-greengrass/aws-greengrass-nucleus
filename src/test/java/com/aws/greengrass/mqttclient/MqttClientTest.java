@@ -12,6 +12,7 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.mqttclient.spool.Spool;
+import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.mqttclient.spool.SpoolerConfig;
 import com.aws.greengrass.mqttclient.spool.SpoolerStorageType;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
@@ -31,8 +32,11 @@ import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
+import java.util.Collections;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -43,6 +47,16 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
+import static com.aws.greengrass.mqttclient.MqttClient.MAX_LENGTH_OF_TOPIC;
+import static com.aws.greengrass.mqttclient.MqttClient.MAX_NUMBER_OF_FORWARD_SLASHES;
+import static com.aws.greengrass.mqttclient.MqttClient.DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT;
+import static com.aws.greengrass.mqttclient.MqttClient.MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
@@ -51,6 +65,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -88,12 +103,17 @@ class MqttClientTest {
     Configuration config = new Configuration(new Context());
     private final Consumer<MqttMessage> cb = (m) -> {
     };
+    private final static String reservedTopicPrefix = "$AWS/rules/rule_name/";
 
     @BeforeEach
     void beforeEach() {
         Topics mqttNamespace = config.lookupTopics("mqtt");
         Topics spoolerNamespace = config.lookupTopics("spooler");
         mqttNamespace.lookup(MqttClient.MQTT_OPERATION_TIMEOUT_KEY).withValue(0);
+        mqttNamespace.lookup(MqttClient.MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY)
+                .withValue(MqttClient.IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES + 1);
+        mqttNamespace.lookup(MqttClient.MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY)
+                .withValue(MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES + 1);
         when(deviceConfiguration.getMQTTNamespace()).thenReturn(mqttNamespace);
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(spoolerNamespace);
@@ -111,6 +131,23 @@ class MqttClientTest {
         config.context.close();
         ses.shutdownNow();
         executorService.shutdownNow();
+    }
+
+    @Test
+    void GIVEN_device_not_configured_to_talk_to_cloud_WHEN_publish_THEN_throws_exception()
+            throws InterruptedException {
+        lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(false);
+        MqttClient client = new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService);
+        PublishRequest testRequest =
+                PublishRequest.builder().topic("test").qos(QualityOfService.AT_LEAST_ONCE).payload(new byte[0]).build();
+        try {
+            client.publish(testRequest).whenComplete((r, t) -> {
+                assertNotNull(t);
+                assertTrue(t.getCause() instanceof SpoolerStoreException);
+            }).get();
+        } catch (ExecutionException e) {
+            // Ignore. Expected to throw and already handled
+        }
     }
 
     @Test
@@ -158,8 +195,8 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_connection_WHEN_settings_change_THEN_reconnects()
-            throws ExecutionException, InterruptedException, TimeoutException {
+    void GIVEN_connection_WHEN_settings_change_THEN_reconnects_on_valid_changes()
+            throws InterruptedException, ExecutionException, TimeoutException {
         ArgumentCaptor<ChildChanged> cc = ArgumentCaptor.forClass(ChildChanged.class);
         doNothing().when(deviceConfiguration).onAnyChange(cc.capture());
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
@@ -168,10 +205,30 @@ class MqttClientTest {
         when(iClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(client.getNewMqttClient()).thenReturn(iClient1);
 
+        // no reconnect if no connections
+        cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics("test1"));
+        verify(iClient1, never()).reconnect();
+
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
 
-        cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(DEVICE_MQTT_NAMESPACE));
-        verify(iClient1, timeout(5000)).reconnect();
+        // no reconnect if unrelated node changes
+        cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics("test2"));
+        verify(iClient1, never()).reconnect();
+
+        // no reconnect if aws region changed but no proxy configured
+        cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(DEVICE_PARAM_AWS_REGION));
+        verify(iClient1, never()).reconnect();
+
+        // do reconnect if changed node is relevant to client config and reconnect is required
+        // this increases branch coverage
+        List<String> topicsToTest = Arrays.asList(DEVICE_MQTT_NAMESPACE, DEVICE_PARAM_THING_NAME,
+                DEVICE_PARAM_IOT_DATA_ENDPOINT, DEVICE_PARAM_PRIVATE_KEY_PATH, DEVICE_PARAM_CERTIFICATE_FILE_PATH,
+                DEVICE_PARAM_ROOT_CA_PATH);
+        int reconnectCount = 0;
+        for (String topic : topicsToTest) {
+            cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(topic, "test"));
+            verify(iClient1, timeout(5000).times(++reconnectCount)).reconnect();
+        }
 
         client.close();
         verify(iClient1).close();
@@ -356,7 +413,9 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder, executorService));
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_MOST_ONCE).build();
-        when(spool.addMessage(request)).thenReturn(0L);
+        SpoolMessage message = SpoolMessage.builder().id(0L).request(request).build();
+
+        when(spool.addMessage(request)).thenReturn(message);
         when(spool.popId()).thenThrow(InterruptedException.class);
 
         CompletableFuture<Integer> future = client.publish(request);
@@ -372,6 +431,8 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
+        SpoolMessage message = SpoolMessage.builder().id(0L).request(request).build();
+        when(spool.addMessage(request)).thenReturn(message);
 
         CompletableFuture<Integer> future = client.publish(request);
 
@@ -423,7 +484,8 @@ class MqttClientTest {
         PublishRequest request = PublishRequest.builder().topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        when(spool.getMessageById(id)).thenReturn(request);
+        SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
+        when(spool.getMessageById(id)).thenReturn(message);
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
         when(awsIotMqttClient.publish(any(), any(), anyBoolean())).thenReturn(CompletableFuture.completedFuture(0));
@@ -436,7 +498,7 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_publish_request_unsuccessfully_WHEN_spool_single_message_THEN_add_id_back_to_spooler(ExtensionContext context)
+    void GIVEN_publish_request_unsuccessfully_WHEN_spool_single_message_THEN_add_id_back_to_spooler_if_will_retry(ExtensionContext context)
             throws InterruptedException {
 
         ignoreExceptionOfType(context, ExecutionException.class);
@@ -449,7 +511,8 @@ class MqttClientTest {
         PublishRequest request = PublishRequest.builder().topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        when(spool.getMessageById(id)).thenReturn(request);
+        SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
+        when(spool.getMessageById(id)).thenReturn(message);
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
         CompletableFuture<Integer> future = new CompletableFuture<>();
@@ -460,7 +523,37 @@ class MqttClientTest {
 
         verify(awsIotMqttClient).publish(any(), any(), anyBoolean());
         verify(spool, never()).removeMessageById(anyLong());
-        verify(spool, times(1)).addId(anyLong());
+        verify(spool).addId(anyLong());
+    }
+
+    @Test
+    void GIVEN_publish_request_unsuccessfully_WHEN_spool_single_message_THEN_not_retry_if_have_retried_max_times(ExtensionContext context)
+            throws InterruptedException {
+
+        ignoreExceptionOfType(context, ExecutionException.class);
+
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder,
+                executorService));
+
+        long id = 1L;
+        when(spool.popId()).thenReturn(id);
+        PublishRequest request = PublishRequest.builder().topic("spool")
+                .payload("What's up".getBytes(StandardCharsets.UTF_8))
+                .qos(QualityOfService.AT_LEAST_ONCE).build();
+        SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
+        message.getRetried().set(DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT);
+        when(spool.getMessageById(id)).thenReturn(message);
+        AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
+        when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        future.completeExceptionally(new ExecutionException("exception", new Throwable()));
+        when(awsIotMqttClient.publish(any(), any(), anyBoolean())).thenReturn(future);
+
+        client.publishSingleSpoolerMessage();
+
+        verify(awsIotMqttClient).publish(any(), any(), anyBoolean());
+        verify(spool, never()).removeMessageById(anyLong());
+        verify(spool, never()).addId(anyLong());
     }
 
     @Test
@@ -476,7 +569,8 @@ class MqttClientTest {
         PublishRequest request = PublishRequest.builder().topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        when(spool.getMessageById(id)).thenReturn(request);
+        SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
+        when(spool.getMessageById(id)).thenReturn(message);
 
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
@@ -509,7 +603,8 @@ class MqttClientTest {
         PublishRequest request = PublishRequest.builder().topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        when(spool.getMessageById(id)).thenReturn(request);
+        SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
+        when(spool.getMessageById(id)).thenReturn(message);
 
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
@@ -544,7 +639,8 @@ class MqttClientTest {
         PublishRequest request = PublishRequest.builder().topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        when(spool.getMessageById(id)).thenReturn(request);
+        SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
+        when(spool.getMessageById(id)).thenReturn(message);
         // Throw an InterruptedException to break the while loop in the client.spoolMessages()
         when(spool.popId()).thenReturn(id).thenThrow(new InterruptedException("interrupted"));
 
@@ -578,5 +674,145 @@ class MqttClientTest {
 
         verify(spool).getSpoolConfig();
         verify(spool).popOutMessagesWithQosZero();
+    }
+
+    @Test
+    void GIVEN_message_size_exceeds_max_limit_WHEN_publish_THEN_future_complete_exceptionally() throws SpoolerStoreException, InterruptedException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
+        PublishRequest request = PublishRequest.builder().topic("spool")
+                .payload(new byte[MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES + 1])
+                .qos(QualityOfService.AT_LEAST_ONCE).build();
+
+        CompletableFuture<Integer> future = client.publish(request);
+
+        assertTrue(future.isCompletedExceptionally());
+        verify(spool, never()).addMessage(request);
+        verify(client).isValidPublishRequest(request);
+    }
+
+    @Test
+    void GIVEN_message_topic_have_wildcard_WHEN_publish_THEN_future_complete_exceptionally() throws SpoolerStoreException, InterruptedException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
+        PublishRequest request = PublishRequest.builder().topic("abc/+")
+                .payload(new byte[1])
+                .qos(QualityOfService.AT_LEAST_ONCE).build();
+
+        CompletableFuture<Integer> future = client.publish(request);
+
+        assertTrue(future.isCompletedExceptionally());
+        verify(spool, never()).addMessage(request);
+        verify(client).isValidPublishRequest(request);
+    }
+
+    @Test
+    void GIVEN_unreserved_topic_have_8_forward_slashes_WHEN_publish_THEN_future_complete_exceptionally() throws SpoolerStoreException, InterruptedException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
+        String topic = String.join("/", Collections.nCopies(MAX_NUMBER_OF_FORWARD_SLASHES + 2, "a"));
+        assertEquals(8, topic.chars().filter(num -> num == '/').count());
+        PublishRequest request = PublishRequest.builder().topic(topic)
+                .payload(new byte[1])
+                .qos(QualityOfService.AT_LEAST_ONCE).build();
+
+        CompletableFuture<Integer> future = client.publish(request);
+
+        assertTrue(future.isCompletedExceptionally());
+        verify(spool, never()).addMessage(request);
+        verify(client).isValidPublishRequest(request);
+    }
+
+    @Test
+    void GIVEN_reserved_topic_have_9_forward_slashes_WHEN_publish_THEN_future_complete() throws SpoolerStoreException, InterruptedException, ExecutionException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
+        String topic = reservedTopicPrefix + String.join("/", Collections.nCopies(MAX_NUMBER_OF_FORWARD_SLASHES, "a"));
+        assertEquals(9, topic.chars().filter(num -> num == '/').count());
+        PublishRequest request = PublishRequest.builder().topic(topic)
+                .payload(new byte[1])
+                .qos(QualityOfService.AT_LEAST_ONCE).build();
+
+        SpoolMessage message = SpoolMessage.builder().id(0L).request(request).build();
+        when(spool.addMessage(request)).thenReturn(message);
+
+        CompletableFuture<Integer> future = client.publish(request);
+
+        assertEquals(0, future.get());
+        verify(spool, times(1)).addMessage(request);
+        verify(spool, never()).getSpoolConfig();
+    }
+
+    @Test
+    void GIVEN_reserved_topic_have_11_forward_slashes_WHEN_publish_THEN_future_complete_exceptionally() throws SpoolerStoreException, InterruptedException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
+        String topic = reservedTopicPrefix + String.join("/", Collections.nCopies(MAX_NUMBER_OF_FORWARD_SLASHES + 2, "a"));
+        assertEquals(11, topic.chars().filter(num -> num == '/').count());
+        PublishRequest request = PublishRequest.builder().topic(topic)
+                .payload(new byte[1])
+                .qos(QualityOfService.AT_LEAST_ONCE).build();
+
+        CompletableFuture<Integer> future = client.publish(request);
+
+        assertTrue(future.isCompletedExceptionally());
+        verify(spool, never()).addMessage(request);
+        verify(client).isValidPublishRequest(request);
+    }
+
+    @Test
+    void GIVEN_unreserved_topic_exceeds_topic_size_limit_WHEN_publish_THEN_future_complete_exceptionally() throws SpoolerStoreException, InterruptedException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
+        String topic = String.join("", Collections.nCopies(MAX_LENGTH_OF_TOPIC + 1, "a"));
+        PublishRequest request = PublishRequest.builder().topic(topic)
+                .payload(new byte[1])
+                .qos(QualityOfService.AT_LEAST_ONCE).build();
+
+        CompletableFuture<Integer> future = client.publish(request);
+
+        assertTrue(future.isCompletedExceptionally());
+        verify(spool, never()).addMessage(request);
+        verify(client).isValidPublishRequest(request);
+    }
+
+    @Test
+    void GIVEN_reserved_topic_including_prefix_equal_to_topic_size_limit_WHEN_publish_THEN_future_complete() throws SpoolerStoreException, InterruptedException, ExecutionException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
+        String topic = String.join("", Collections.nCopies(MAX_LENGTH_OF_TOPIC, "a"));
+        PublishRequest request = PublishRequest.builder().topic(reservedTopicPrefix + topic)
+                .payload(new byte[1])
+                .qos(QualityOfService.AT_LEAST_ONCE).build();
+
+        SpoolMessage message = SpoolMessage.builder().id(0L).request(request).build();
+        when(spool.addMessage(request)).thenReturn(message);
+
+        CompletableFuture<Integer> future = client.publish(request);
+
+        assertEquals(0, future.get());
+        verify(spool, times(1)).addMessage(request);
+        verify(spool, never()).getSpoolConfig();
+    }
+
+    @Test
+    void GIVEN_reserved_topic_excluding_prefix_exceeds_topic_size_limit_WHEN_publish_THEN_future_complete_exceptionally() throws SpoolerStoreException, InterruptedException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
+        String topic = String.join("", Collections.nCopies(MAX_LENGTH_OF_TOPIC + 1, "a"));
+        PublishRequest request = PublishRequest.builder().topic(reservedTopicPrefix + topic)
+                .payload(new byte[1])
+                .qos(QualityOfService.AT_LEAST_ONCE).build();
+
+        CompletableFuture<Integer> future = client.publish(request);
+
+        assertTrue(future.isCompletedExceptionally());
+        verify(spool, never()).addMessage(request);
+        verify(client).isValidPublishRequest(request);
+    }
+
+    @Test
+    void unreserved_topic_have_8_forward_slashes_WHEN_subscribe_THEN_throw_exception() throws MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
+        String topic = String.join("/", Collections.nCopies(MAX_NUMBER_OF_FORWARD_SLASHES + 2, "a"));
+        assertEquals(8, topic.chars().filter(num -> num == '/').count());
+        SubscribeRequest request = SubscribeRequest.builder().topic(topic).callback(cb).build();
+
+        assertThrows(ExecutionException.class, () -> client.subscribe(request));
+
+        verify(client).isValidRequestTopic(topic);
+        verify(mockConnection, never()).subscribe(any(), any());
     }
 }

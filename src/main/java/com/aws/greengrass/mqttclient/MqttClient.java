@@ -11,6 +11,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.spool.Spool;
+import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockScope;
@@ -32,6 +33,7 @@ import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,6 +58,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -68,6 +71,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROO
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.mqttclient.AwsIotMqttClient.TOPIC_KEY;
 
+@SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
 public class MqttClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(MqttClient.class);
     private static final String MQTT_KEEP_ALIVE_TIMEOUT_KEY = "keepAliveTimeoutMs";
@@ -83,10 +87,20 @@ public class MqttClient implements Closeable {
     static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
     static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     static final String MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY = "maxInFlightPublishes";
-    static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 1;
+    static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 5;
     public static final int MAX_SUBSCRIPTIONS_PER_CONNECTION = 50;
     public static final String CLIENT_ID_KEY = "clientId";
     public static final int EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS = 2;
+    static final int IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES = 100;
+    static final String MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY = "maxMessageSizeInBytes";
+    static final String MQTT_MAX_OF_PUBLISH_RETRY_COUNT_KEY = "maxPublishRetry";
+    static final int DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT = 100;
+    // http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718023
+    public static final int MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES = 256 * 1024 * 1024; // 256 MB
+    // https://docs.aws.amazon.com/general/latest/gr/iot-core.html#limits_iot
+    public static final int DEFAULT_MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES = 128 * 1024; // 128 kB
+    public static final int MAX_NUMBER_OF_FORWARD_SLASHES = 7;
+    public static final int MAX_LENGTH_OF_TOPIC = 256;
 
     // Use read lock for MQTT operations and write lock when changing the MQTT connection
     private final ReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
@@ -109,8 +123,13 @@ public class MqttClient implements Closeable {
     private final CallbackEventManager callbackEventManager = new CallbackEventManager();
     private final Spool spool;
     private final ExecutorService executorService;
+    private ScheduledExecutorService ses;
     private final AtomicReference<Future<?>> spoolingFuture = new AtomicReference<>();
-    private final int maxInFlightPublishes = DEFAULT_MAX_IN_FLIGHT_PUBLISHES;
+    private int maxInFlightPublishes;
+    private static final String reservedTopicTemplate = "^\\$aws/rules/\\S+/\\S+";
+    private static final String prefixOfReservedTopic = "^\\$aws/rules/\\S+?/";
+    private int maxPublishRetryCount;
+    private int maxPublishMessageSize;
 
     @Getter(AccessLevel.PROTECTED)
     private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
@@ -202,9 +221,11 @@ public class MqttClient implements Closeable {
                          ScheduledExecutorService ses, ExecutorService executorService) {
         this.deviceConfiguration = deviceConfiguration;
         this.executorService = executorService;
+        this.ses = ses;
 
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         this.builderProvider = builderProvider;
+        validateAndSetMqttPublishConfiguration();
 
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
@@ -238,6 +259,10 @@ public class MqttClient implements Closeable {
                         .childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH) || node
                         .childOf(DEVICE_PARAM_AWS_REGION))) {
                     return;
+                }
+
+                if (node.childOf(DEVICE_MQTT_NAMESPACE)) {
+                    validateAndSetMqttPublishConfiguration();
                 }
 
                 // Only reconnect when the region changed if the proxy exists
@@ -279,10 +304,18 @@ public class MqttClient implements Closeable {
         });
     }
 
-    // constructor specific for unit test with spooler
-    protected MqttClient(DeviceConfiguration deviceConfiguration, Spool spool, boolean mqttOnline,
-                         Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
-                         ExecutorService executorService) {
+    /**
+     * constructor specific for unit and integration test with spooler.
+     *
+     * @param deviceConfiguration device configuration
+     * @param spool               spooler
+     * @param mqttOnline          indicator for whether mqtt is online or not
+     * @param builderProvider     builder provider
+     * @param executorService     executor service
+     */
+    public MqttClient(DeviceConfiguration deviceConfiguration, Spool spool, boolean mqttOnline,
+                      Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
+                      ExecutorService executorService) {
 
         this.deviceConfiguration = deviceConfiguration;
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
@@ -294,6 +327,38 @@ public class MqttClient implements Closeable {
         this.mqttOnline.set(mqttOnline);
         this.builderProvider = builderProvider;
         this.executorService = executorService;
+        validateAndSetMqttPublishConfiguration();
+    }
+
+    private void validateAndSetMqttPublishConfiguration() {
+        maxInFlightPublishes = Coerce.toInt(mqttTopics
+                .findOrDefault(DEFAULT_MAX_IN_FLIGHT_PUBLISHES,
+                        MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY));
+        if (maxInFlightPublishes > IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES) {
+            logger.atWarn()
+                    .kv(MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY, maxInFlightPublishes)
+                    .kv("Max acceptable configuration", IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES)
+                    .log("The configuration of {} may hit the AWS IoT Core restricting number of "
+                                    + "unacknowledged QoS=1 publish requests per client. "
+                                    + "Will change to the maximum allowed setting: {}",
+                            MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY, IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES);
+
+            maxInFlightPublishes = IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES;
+        }
+
+        maxPublishMessageSize = Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES,
+                MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY));
+        if (maxPublishMessageSize > MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES) {
+            logger.atWarn().kv(MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY, maxPublishMessageSize).kv("Max acceptable "
+                    + "configuration", MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES).log("The configuration of {} "
+                            + "exceeds the max limit and will change to the maximum allowed setting: {} bytes",
+                    MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY, MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES);
+            maxPublishMessageSize = MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES;
+        }
+
+        // if maxPublishRetryCount = -1, publish request would be retried with unlimited times.
+        maxPublishRetryCount =  Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT,
+                MQTT_MAX_OF_PUBLISH_RETRY_COUNT_KEY));
     }
 
     /**
@@ -307,6 +372,13 @@ public class MqttClient implements Closeable {
     @SuppressWarnings("PMD.CloseResource")
     public synchronized void subscribe(SubscribeRequest request)
             throws ExecutionException, InterruptedException, TimeoutException {
+
+        try {
+            isValidRequestTopic(request.getTopic());
+        } catch (MqttRequestException e) {
+            throw new ExecutionException(e);
+        }
+
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
             logger.atError().kv(TOPIC_KEY, request.getTopic())
                     .log("Cannot subscribe because device is configured to run offline");
@@ -435,6 +507,14 @@ public class MqttClient implements Closeable {
             return future;
         }
 
+        try {
+            isValidPublishRequest(request);
+        } catch (MqttRequestException e) {
+            logger.atError().kv("topic", request.getTopic()).log("Invalid publish request: {}", e.getMessage());
+            future.completeExceptionally(e);
+            return future;
+        }
+
         boolean willDropTheRequest = !mqttOnline.get() && request.getQos().getValue() == 0 && !spool.getSpoolConfig()
                 .isKeepQos0WhenOffline();
 
@@ -456,12 +536,55 @@ public class MqttClient implements Closeable {
         return CompletableFuture.completedFuture(0);
     }
 
+    protected void isValidPublishRequest(PublishRequest request) throws MqttRequestException {
+        // Payload size should be smaller than MQTT maximum message size
+        int messageSize = request.getPayload().length;
+        if (messageSize >= maxPublishMessageSize) {
+            throw new MqttRequestException(String.format("The publishing message size %d bytes exceeds the "
+                    + "configured limit of %d bytes", messageSize, maxPublishMessageSize));
+        }
+
+        String topic = request.getTopic();
+        // Topic should not contain wildcard characters
+        if (topic.contains("#") || topic.contains("+")) {
+            throw new MqttRequestException("The topic of publish request should not contain wildcard "
+                    + "characters of '#' or '+'");
+        }
+
+        isValidRequestTopic(topic);
+    }
+
+    protected void isValidRequestTopic(String topic) throws MqttRequestException {
+        if (Pattern.matches(reservedTopicTemplate, topic.toLowerCase())) {
+            // remove the prefix of "$aws/rules/rule-name/"
+            topic = topic.toLowerCase().split(prefixOfReservedTopic, 2)[1];
+        }
+
+        // Topic should not have no more than maximum number of forward slashes (/)
+        if (topic.chars().filter(num -> num == '/').count() > MAX_NUMBER_OF_FORWARD_SLASHES) {
+            String errMsg = String.format("The topic of request must have no "
+                    + "more than %d forward slashes (/). This excludes the first 3 slashes in the mandatory segments "
+                    + "for Basic Ingest topics ($AWS/rules/rule-name/).", MAX_NUMBER_OF_FORWARD_SLASHES);
+            throw new MqttRequestException(errMsg);
+        }
+
+        // Check the topic size
+        if (topic.getBytes(StandardCharsets.UTF_8).length > MAX_LENGTH_OF_TOPIC) {
+            String errMsg = String.format("The topic size of request must be no "
+                            + "larger than %d bytes of UTF-8 encoded characters. This excludes the first "
+                            + "3 mandatory segments for Basic Ingest topics ($AWS/rules/rule-name/).",
+                    MAX_LENGTH_OF_TOPIC);
+            throw new MqttRequestException(errMsg);
+        }
+    }
+
     @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.PreserveStackTrace"})
     protected CompletableFuture<Integer> publishSingleSpoolerMessage() throws InterruptedException {
         long id = -1L;
         try {
             id = spool.popId();
-            PublishRequest request = spool.getMessageById(id);
+            SpoolMessage spooledMessage = spool.getMessageById(id);
+            PublishRequest request = spooledMessage.getRequest();
             MqttMessage m = new MqttMessage(request.getTopic(), request.getPayload());
 
             long finalId = id;
@@ -473,9 +596,17 @@ public class MqttClient implements Closeable {
                             logger.atDebug().kv("id", finalId).kv("topic", request.getTopic())
                                     .log("Successfully published message");
                         } else {
-                            spool.addId(finalId);
-                            logger.atError().log("Failed to publish the message via Spooler and will retry",
-                                    throwable);
+                            if (maxPublishRetryCount == -1 || spooledMessage.getRetried().getAndIncrement()
+                                    < maxPublishRetryCount) {
+                                spool.addId(finalId);
+                                logger.atError().log("Failed to publish the message via Spooler and will retry",
+                                        throwable);
+                            } else {
+                                logger.atError().log("Failed to publish the message via Spooler"
+                                                + " after retried {} times and will drop the message",
+                                        maxPublishRetryCount, throwable);
+                            }
+
                         }
                     });
         } catch (Throwable t) {
@@ -598,7 +729,7 @@ public class MqttClient implements Closeable {
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
                 : "#" + (connections.size() + 1));
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
-                clientId, mqttTopics, callbackEventManager);
+                clientId, mqttTopics, callbackEventManager, executorService, ses);
     }
 
     public boolean connected() {
@@ -632,6 +763,11 @@ public class MqttClient implements Closeable {
 
     public void addToCallbackEvents(MqttClientConnectionEvents callbacks) {
         callbackEventManager.addToCallbackEvents(callbacks);
+    }
+
+    public void addToCallbackEvents(CallbackEventManager.OnConnectCallback onConnect,
+                                    MqttClientConnectionEvents callbacks) {
+        callbackEventManager.addToCallbackEvents(onConnect, callbacks);
     }
 
     protected void setMqttOnline(boolean networkStatus) {
