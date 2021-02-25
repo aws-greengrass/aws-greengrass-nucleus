@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.componentmanager.plugins;
+package com.aws.greengrass.componentmanager.builtins;
 
 import com.aws.greengrass.componentmanager.ComponentTestResourceHelper;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
@@ -121,7 +121,7 @@ class S3DownloaderTest {
                     ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI))
                             .checksum(checksum).algorithm(VALID_ALGORITHM).build(),
                     saveToPath);
-            s3Downloader.downloadToPath();
+            s3Downloader.download();
             byte[] downloadedFile = Files.readAllBytes(saveToPath.resolve("artifact.txt"));
             assertThat("Content of downloaded file should be same as the artifact content",
                     Arrays.equals(Files.readAllBytes(artifactFilePath), downloadedFile));
@@ -166,7 +166,7 @@ class S3DownloaderTest {
                     ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI))
                             .checksum(VALID_ARTIFACT_CHECKSUM).algorithm(VALID_ALGORITHM).build(),
                     saveToPath);
-            Exception e = assertThrows(PackageDownloadException.class, () -> s3Downloader.downloadToPath());
+            Exception e = assertThrows(PackageDownloadException.class, () -> s3Downloader.download());
             assertThat(e.getMessage(), containsString("Failed to download artifact"));
         } finally {
             ComponentTestResourceHelper.cleanDirectory(testCache);

@@ -7,10 +7,10 @@ package com.aws.greengrass.integrationtests.componentmanager;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.componentmanager.builtins.ArtifactDownloader;
+import com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.componentmanager.plugins.ArtifactDownloader;
-import com.aws.greengrass.componentmanager.plugins.ArtifactDownloaderFactory;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
@@ -73,7 +73,10 @@ class ComponentManagerIntegTest extends BaseITCase {
         when(mockDownloader.downloadRequired()).thenReturn(true);
         when(mockDownloader.checkDownloadable()).thenReturn(Optional.empty());
         when(mockDownloader.getArtifactFile()).thenReturn(artifactFile);
-        when(mockDownloader.downloadToPath()).thenAnswer(downloadToPath("zip.zip", artifactFile));
+        when(mockDownloader.canUnarchiveArtifact()).thenReturn(true);
+        when(mockDownloader.canSetFilePermissions()).thenReturn(true);
+        when(mockDownloader.checkComponentStoreSize()).thenReturn(true);
+        when(mockDownloader.download()).thenAnswer(downloadToPath("zip.zip", artifactFile));
 
         ArtifactDownloaderFactory mockDownloaderFactory = mock(ArtifactDownloaderFactory.class);
         when(mockDownloaderFactory.getArtifactDownloader(any(), any(), any())).thenReturn(mockDownloader);
@@ -122,7 +125,10 @@ class ComponentManagerIntegTest extends BaseITCase {
         when(mockDownloader.downloadRequired()).thenReturn(true);
         when(mockDownloader.checkDownloadable()).thenReturn(Optional.empty());
         when(mockDownloader.getArtifactFile()).thenReturn(scriptFile).thenReturn(emptyFile);
-        when(mockDownloader.downloadToPath()).thenAnswer(downloadToPath("script.sh", scriptFile))
+        when(mockDownloader.canUnarchiveArtifact()).thenReturn(true);
+        when(mockDownloader.canSetFilePermissions()).thenReturn(true);
+        when(mockDownloader.checkComponentStoreSize()).thenReturn(true);
+        when(mockDownloader.download()).thenAnswer(downloadToPath("script.sh", scriptFile))
                 .thenAnswer(downloadToPath("empty.txt", emptyFile));
 
         ArtifactDownloaderFactory mockDownloaderFactory = mock(ArtifactDownloaderFactory.class);
@@ -132,7 +138,6 @@ class ComponentManagerIntegTest extends BaseITCase {
         Files.copy(Paths.get(this.getClass().getResource("aws.iot.gg.test.integ.perm-1.0.0.yaml").toURI()),
                 nucleusPaths.recipePath().resolve(PreloadComponentStoreHelper
                         .getRecipeStorageFilenameFromTestSource("aws.iot.gg.test.integ.perm-1.0.0.yaml")));
-
         // THEN
         kernel.getContext().get(ComponentManager.class).preparePackages(Collections.singletonList(ident))
                 .get(10, TimeUnit.SECONDS);

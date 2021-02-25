@@ -151,6 +151,11 @@
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>sts</artifactId>
         </dependency>
+        <!-- Temporary, need to remove when docker image downloading moves out of the Nucleus -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>ecr</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.zeroturnaround</groupId>
             <artifactId>zt-process-killer</artifactId>

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.componentmanager.plugins;
+package com.aws.greengrass.componentmanager.builtins;
 
 import com.aws.greengrass.componentmanager.exceptions.ArtifactChecksumMismatchException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
@@ -80,7 +80,7 @@ class ArtifactDownloaderTest {
         MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content);
         assertThat(downloader.downloadRequired(), is(true));
 
-        File file = downloader.downloadToPath();
+        File file = downloader.download();
         assertThat(Files.readAllBytes(file.toPath()), equalTo(content.getBytes()));
         assertThat(file.toPath(), equalTo(artifactDir.resolve(LOCAL_FILE_NAME)));
         assertThat(downloader.getArtifactFile().toPath(), equalTo(artifactDir.resolve(LOCAL_FILE_NAME)));
@@ -97,7 +97,7 @@ class ArtifactDownloaderTest {
         MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content);
         downloader.setChecksumMismatchRetryConfig(RetryUtils.RetryConfig.builder().maxAttempt(2)
                 .retryableExceptions(Arrays.asList(ArtifactChecksumMismatchException.class)).build());
-        assertThrows(PackageDownloadException.class, downloader::downloadToPath);
+        assertThrows(PackageDownloadException.class, downloader::download);
     }
 
     @Test
@@ -106,7 +106,7 @@ class ArtifactDownloaderTest {
         ComponentArtifact artifact = createTestArtifact("invalidAlgorithm", "invalidChecksum");
 
         MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content);
-        Exception e = assertThrows(ArtifactChecksumMismatchException.class, downloader::downloadToPath);
+        Exception e = assertThrows(ArtifactChecksumMismatchException.class, downloader::download);
         assertThat(e.getMessage(), containsString("checksum is not supported"));
     }
 
@@ -124,7 +124,7 @@ class ArtifactDownloaderTest {
         Files.write(localPartialFile.toPath(), "Sample".getBytes());
         Object inode = Files.getAttribute(localPartialFile.toPath(), "unix:ino");
 
-        File file = downloader.downloadToPath();
+        File file = downloader.download();
 
         assertThat(Files.readAllBytes(file.toPath()), equalTo(content.getBytes()));
         Object newInode = Files.getAttribute(localPartialFile.toPath(), "unix:ino");
@@ -147,7 +147,7 @@ class ArtifactDownloaderTest {
         Files.write(localPartialFile.toPath(), "Foo".getBytes());
         downloader.setChecksumMismatchRetryConfig(RetryUtils.RetryConfig.builder().maxAttempt(2)
                 .retryableExceptions(Arrays.asList(ArtifactChecksumMismatchException.class)).build());
-        File file = downloader.downloadToPath();
+        File file = downloader.download();
 
         assertThat(Files.readAllBytes(file.toPath()), equalTo(content.getBytes()));
         verify(downloader).download(eq((long) 3), eq((long) content.length() - 1), any());
@@ -176,7 +176,7 @@ class ArtifactDownloaderTest {
         MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content));
         downloader.overridingInputStream = mockBrokenInputStream;
 
-        File file = downloader.downloadToPath();
+        File file = downloader.download();
         // one fail read, one successful read, and one read that returns -1
         assertThat(invocationTimes.get(), equalTo(3));
         verify(downloader, times(2))
@@ -201,7 +201,7 @@ class ArtifactDownloaderTest {
             return invocationOnMock.callRealMethod();
         }).when(downloader).download(anyLong(), anyLong(), any());
 
-        File file = downloader.downloadToPath();
+        File file = downloader.download();
         verify(downloader, times(1))
                 .download(eq((long) 0), eq((long)content.length() - 1), any());
         verify(downloader, times(1))
@@ -221,7 +221,7 @@ class ArtifactDownloaderTest {
             throw new PackageDownloadException("Fail to download");
         }).when(downloader).download(anyLong(), anyLong(), any());
 
-        assertThrows(PackageDownloadException.class, downloader::downloadToPath);
+        assertThrows(PackageDownloadException.class, () -> downloader.download());
     }
 
     @Test

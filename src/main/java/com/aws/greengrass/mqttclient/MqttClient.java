@@ -114,6 +114,7 @@ public class MqttClient implements Closeable {
     private final Map<SubscribeRequest, AwsIotMqttClient> subscriptions = new ConcurrentHashMap<>();
     private final Map<MqttTopic, AwsIotMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
+    @Getter
     private final AtomicBoolean mqttOnline = new AtomicBoolean(false);
 
     private final EventLoopGroup eventLoopGroup;

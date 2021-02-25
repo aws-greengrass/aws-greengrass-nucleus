@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.componentmanager.plugins;
+package com.aws.greengrass.componentmanager.builtins;
 
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.S3SdkClientFactory;
 import com.vdurmont.semver4j.Semver;
@@ -42,12 +43,15 @@ class ArtifactDownloaderFactoryTest {
     @Mock
     ComponentStore componentStore;
 
+    @Mock
+    Context context;
+
     ArtifactDownloaderFactory artifactDownloaderFactory;
 
     @BeforeEach
     public void setup() {
         artifactDownloaderFactory = new ArtifactDownloaderFactory(
-                s3SdkClientFactory, greengrassComponentServiceClientFactory, componentStore);
+                s3SdkClientFactory, greengrassComponentServiceClientFactory, componentStore, context);
     }
 
     @Test
@@ -92,9 +96,9 @@ class ArtifactDownloaderFactoryTest {
     void GIVEN_artifact_provider_not_supported_WHEN_attempt_download_THEN_throw_package_exception()
             throws Exception {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
-        ComponentArtifact artifact = ComponentArtifact.builder().artifactUri(new URI("docker:image1")).build();
+        ComponentArtifact artifact = ComponentArtifact.builder().artifactUri(new URI("foo:bar")).build();
         Exception exception = assertThrows(PackageLoadingException.class,
                 () -> artifactDownloaderFactory.getArtifactDownloader(pkgId, artifact, testDir));
-        assertThat(exception.getMessage(), is("artifact URI scheme DOCKER is not supported yet"));
+        assertThat(exception.getMessage(), is("artifact URI scheme FOO is not supported yet"));
     }
 }

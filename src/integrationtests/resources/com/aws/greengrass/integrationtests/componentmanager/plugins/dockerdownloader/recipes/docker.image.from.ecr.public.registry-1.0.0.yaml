@@ -1,0 +1,11 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: docker.image.from.ecr.public.registry
+ComponentVersion: '1.0.0'
+Manifests:
+  - Platform:
+      os: all
+    Artifacts:
+      - URI: "docker:public.ecr.aws/a1b2c3d4/testimage@sha256:5442792a-752c-11eb-9439-0242ac130002"
+      - URI: "docker:public.ecr.aws/a1b2c3d4/testimage:sometag"
+      - URI: "docker:public.ecr.aws/a1b2c3d4/testimage"
