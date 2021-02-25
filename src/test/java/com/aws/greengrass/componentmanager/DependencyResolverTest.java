@@ -76,6 +76,7 @@ class DependencyResolverTest {
     private static final String componentB1 = "B1";
     private static final String componentB2 = "B2";
     private static final String componentC1 = "C1";
+    private static final String componentC = "C";
     private static final String componentD = "D";
     private static final String componentX = "X";
     private static final String componentY = "Y";
@@ -323,12 +324,12 @@ class DependencyResolverTest {
     @Test
     void GIVEN_component_A_WHEN_resolve_dependencies_THEN_resolve_A_and_dependency_versions() throws Exception {
         /*
-         *      group1
-         *         \(1.0.0)
+         *       group1
+         *          |(1.0.0)
          *          A
-         * (1.0.0)/   \(>1.0)
-         *      B1     B2
-         * (=1.0.0)\  / (=1.0.0)
+         * (1.0.0)/ |  \(>1.0)
+         *     B1   |   B2
+         *(=1.0.0)\ |  / (=1.0.0)
          *          C1
          */
 
@@ -336,6 +337,7 @@ class DependencyResolverTest {
         Map<String, String> dependenciesA_1_x = new HashMap<>();
         dependenciesA_1_x.put(componentB1, "1.0.0");
         dependenciesA_1_x.put(componentB2, ">1.0");
+        dependenciesA_1_x.put(componentC1, "1.0.0");
         ComponentMetadata componentA_1_0_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentA, v1_0_0), dependenciesA_1_x);
         when(componentManager.resolveComponentVersion(eq(componentA), any(), anyString())).thenReturn(componentA_1_0_0);
@@ -377,6 +379,85 @@ class DependencyResolverTest {
         assertThat(result, containsInAnyOrder(new ComponentIdentifier(componentA, v1_0_0),
                 new ComponentIdentifier(componentB1, v1_0_0), new ComponentIdentifier(componentB2, v1_2_0),
                 new ComponentIdentifier(componentC1, v1_0_0)));
+    }
+
+
+    @Test
+    void GIVEN_component_C_WHEN_both_version_constrains_are_evaluated_THEN_C_2_is_selected() throws Exception {
+        /*
+         *       group1
+         *          |(1.0.0)
+         *          A
+         * (1.0.0)/   \(>1.0)
+         *     B1      B2
+         *(>=1.0.0)\   / (>=2.0.0)
+         *          C
+         *
+         *  Version constraints from B1 and B2 are evaluated together as the dependencies are evaluated using BFS,
+         *  dependency tree of C 1.0.0 is not explored.
+         *
+         */
+
+        // prepare A
+        Map<String, String> dependenciesA_1_x = new HashMap<>();
+        dependenciesA_1_x.put(componentB1, "1.0.0");
+        dependenciesA_1_x.put(componentB2, ">1.0");
+        ComponentMetadata componentA_1_0_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentA, v1_0_0), dependenciesA_1_x);
+        when(componentManager.resolveComponentVersion(eq(componentA), any(), anyString())).thenReturn(componentA_1_0_0);
+
+        // prepare B1
+        Map<String, String> dependenciesB1_1_x = new HashMap<>();
+        dependenciesB1_1_x.put(componentC, ">=1.0.0");
+        ComponentMetadata componentB1_1_0_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentB1, v1_0_0), dependenciesB1_1_x);
+        when(componentManager.resolveComponentVersion(eq(componentB1), any(), anyString()))
+                .thenReturn(componentB1_1_0_0);
+
+        // prepare B2
+        Map<String, String> dependenciesB2_1_x = new HashMap<>();
+        dependenciesB2_1_x.put(componentC, ">=2.0.0");
+        ComponentMetadata componentB2_1_2_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentB2, v1_2_0), dependenciesB2_1_x);
+        when(componentManager.resolveComponentVersion(eq(componentB2), any(), anyString()))
+                .thenReturn(componentB2_1_2_0);
+
+
+        // prepare C version 2
+        Map<String, String> dependenciesC_2_0_0 = new HashMap<>();
+        dependenciesC_2_0_0.put("Y", "2.0.0");
+        ComponentMetadata componentB_2_0_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentC, v2_0_0), dependenciesC_2_0_0);
+        Map<String, Requirement> versionRequirementsForC_2_0_0 = new HashMap<>();
+        versionRequirementsForC_2_0_0.put(componentB1, Requirement.buildNPM(">=1.0.0"));
+        versionRequirementsForC_2_0_0.put(componentB2, Requirement.buildNPM(">=2.0.0"));
+        when(componentManager.resolveComponentVersion(eq(componentC), eq(versionRequirementsForC_2_0_0), anyString()))
+                .thenReturn(componentB_2_0_0);
+
+        // prepare Y
+        ComponentMetadata componentY_2_0_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentY, v2_0_0), Collections.emptyMap());
+        Map<String, Requirement> versionRequirementsForY_2_0_0 = new HashMap<>();
+        versionRequirementsForY_2_0_0.put(componentC, Requirement.buildNPM("=2.0.0"));
+        lenient().when(componentManager.resolveComponentVersion(eq(componentY), eq(versionRequirementsForY_2_0_0), anyString()))
+                .thenReturn(componentY_2_0_0);
+
+
+        DeploymentDocument doc = new DeploymentDocument("mockJob1", Collections
+                .singletonList(
+                        new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())),
+                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+
+        groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
+                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
+
+        List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics);
+
+        assertThat(result.size(), is(5));
+        assertThat(result, containsInAnyOrder(new ComponentIdentifier(componentA, v1_0_0),
+                new ComponentIdentifier(componentB1, v1_0_0), new ComponentIdentifier(componentB2, v1_2_0),
+                new ComponentIdentifier(componentC, v2_0_0), new ComponentIdentifier(componentY, v2_0_0)));
     }
 
     @Test
