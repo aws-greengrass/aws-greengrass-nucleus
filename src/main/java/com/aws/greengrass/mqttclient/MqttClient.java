@@ -87,10 +87,11 @@ public class MqttClient implements Closeable {
     static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
     static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     static final String MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY = "maxInFlightPublishes";
-    static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 1;
+    static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 5;
     public static final int MAX_SUBSCRIPTIONS_PER_CONNECTION = 50;
     public static final String CLIENT_ID_KEY = "clientId";
     public static final int EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS = 2;
+    static final int IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES = 100;
     static final String MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY = "maxMessageSizeInBytes";
     static final String MQTT_MAX_OF_PUBLISH_RETRY_COUNT_KEY = "maxPublishRetry";
     static final int DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT = 100;
@@ -123,12 +124,11 @@ public class MqttClient implements Closeable {
     private final ExecutorService executorService;
     private ScheduledExecutorService ses;
     private final AtomicReference<Future<?>> spoolingFuture = new AtomicReference<>();
+    private int maxInFlightPublishes;
     private static final String reservedTopicTemplate = "^\\$aws/rules/\\S+/\\S+";
     private static final String prefixOfReservedTopic = "^\\$aws/rules/\\S+?/";
-    private final int maxInFlightPublishes = DEFAULT_MAX_IN_FLIGHT_PUBLISHES;
     private int maxPublishRetryCount;
     private int maxPublishMessageSize;
-
 
     @Getter(AccessLevel.PROTECTED)
     private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
@@ -330,6 +330,21 @@ public class MqttClient implements Closeable {
     }
 
     private void validateAndSetMqttPublishConfiguration() {
+        maxInFlightPublishes = Coerce.toInt(mqttTopics
+                .findOrDefault(DEFAULT_MAX_IN_FLIGHT_PUBLISHES,
+                        MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY));
+        if (maxInFlightPublishes > IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES) {
+            logger.atWarn()
+                    .kv(MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY, maxInFlightPublishes)
+                    .kv("Max acceptable configuration", IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES)
+                    .log("The configuration of {} may hit the AWS IoT Core restricting number of "
+                                    + "unacknowledged QoS=1 publish requests per client. "
+                                    + "Will change to the maximum allowed setting: {}",
+                            MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY, IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES);
+
+            maxInFlightPublishes = IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES;
+        }
+
         maxPublishMessageSize = Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES,
                 MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY));
         if (maxPublishMessageSize > MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES) {

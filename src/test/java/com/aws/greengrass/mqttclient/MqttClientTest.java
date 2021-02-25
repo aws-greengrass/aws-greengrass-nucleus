@@ -110,6 +110,8 @@ class MqttClientTest {
         Topics mqttNamespace = config.lookupTopics("mqtt");
         Topics spoolerNamespace = config.lookupTopics("spooler");
         mqttNamespace.lookup(MqttClient.MQTT_OPERATION_TIMEOUT_KEY).withValue(0);
+        mqttNamespace.lookup(MqttClient.MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY)
+                .withValue(MqttClient.IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES + 1);
         mqttNamespace.lookup(MqttClient.MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY)
                 .withValue(MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES + 1);
         when(deviceConfiguration.getMQTTNamespace()).thenReturn(mqttNamespace);
