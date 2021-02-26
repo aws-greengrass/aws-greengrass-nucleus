@@ -308,7 +308,7 @@ public class DependencyResolver {
 
         if (result.size() != componentCount) {
             throw new ComponentVersionNegotiationException("Circular dependency detected for component "
-                    + targetComponent);
+                    + resolvedComponents.get(targetComponent).getComponentIdentifier().toString());
         }
     }
 

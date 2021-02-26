@@ -150,7 +150,7 @@ class DependencyResolverTest {
 
         Exception e = assertThrows(PackagingException.class,
                 () -> dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics));
-        assertTrue( e.getMessage().contains("Circular dependency detected for component A"));
+        assertTrue( e.getMessage().contains("Circular dependency detected for component A-v1.0.0"));
     }
 
 
@@ -217,7 +217,7 @@ class DependencyResolverTest {
 
         Exception e = assertThrows(PackagingException.class,
                 () -> dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics));
-        assertTrue( e.getMessage().contains("Circular dependency detected for component A"));
+        assertTrue( e.getMessage().contains("Circular dependency detected for component A-v1.0.0"));
     }
 
     @Test
