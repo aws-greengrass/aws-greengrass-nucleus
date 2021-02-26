@@ -1,0 +1,17 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: ComponentWithCircularDependency
+ComponentDescription: A simple test app
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+ComponentDependencies:
+  ComponentWithCircularDependency:
+    VersionRequirement: 1.0.0
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      run:
+        echo "Hello From App"
+    Artifacts:
+      - URI: s3://mock-bucket/simpleApp.txt

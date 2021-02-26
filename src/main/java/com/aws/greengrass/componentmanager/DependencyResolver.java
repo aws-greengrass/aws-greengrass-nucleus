@@ -6,6 +6,7 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
+import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -18,6 +19,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.DependencyOrder;
 import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
@@ -27,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -81,12 +84,25 @@ public class DependencyResolver {
         // dependency tree.
         Map<String, Map<String, Requirement>> componentNameToVersionConstraints = new HashMap<>();
 
-        // populate the other groups dependencies version requirement.
-        Map<String, ComponentIdentifier> otherGroupsComponents =
-                populateOtherGroupsComponentsDependencies(groupToTargetComponentDetails, document.getGroupName(),
-                        componentNameToVersionConstraints);
+        // A map of component name to count of components that depend on it
+        Map<String, Integer> componentIncomingReferenceCount = new HashMap<>();
 
-        Map<String, ComponentIdentifier> resolvedComponents = new HashMap<>(otherGroupsComponents);
+        // A map of component name to its resolved version.
+        Map<String, ComponentMetadata> resolvedComponents = new HashMap<>();
+
+        Set<String> otherGroupTargetComponents =
+                getOtherGroupsTargetComponents(groupToTargetComponentDetails, document.getGroupName(),
+                        componentNameToVersionConstraints);
+        logger.atDebug().kv("otherGroupTargets", otherGroupTargetComponents)
+                .log("Found the other group target components");
+        // populate other groups target components dependencies
+        // retrieve only dependency active version, update version requirement map
+        for (String targetComponent : otherGroupTargetComponents) {
+            resolveComponentDependencies(targetComponent, componentNameToVersionConstraints,
+                    resolvedComponents, componentIncomingReferenceCount,
+                    (name, requirements) ->
+                            componentManager.getActiveAndSatisfiedComponentMetadata(name, requirements));
+        }
 
         // Get the target components with version requirements in the deployment document
         List<String> targetComponentsToResolve = new ArrayList<>();
@@ -106,18 +122,27 @@ public class DependencyResolver {
                 .log("Start to resolve group dependencies");
         // resolve target components dependencies
         for (String component : targetComponentsToResolve) {
-            resolvedComponents.putAll(resolveComponentDependencies(component, componentNameToVersionConstraints,
+            resolveComponentDependencies(component, componentNameToVersionConstraints,
+                    resolvedComponents, componentIncomingReferenceCount,
                     (name, requirements) -> componentManager.resolveComponentVersion(name, requirements,
-                            document.getDeploymentId())));
+                            document.getDeploymentId()));
         }
 
-        checkNonExplicitNucleusUpdate(targetComponentsToResolve,
-                resolvedComponents.entrySet().stream().map(Map.Entry::getValue).collect(Collectors.toList()));
+        // detect circular dependencies for target components from the current deployment
+        for (String component : targetComponentsToResolve) {
+            detectCircularDependency(component, resolvedComponents);
+        }
+
+        List<ComponentIdentifier> resolvedComponentIdentifiers =  resolvedComponents.entrySet()
+                .stream().map(Map.Entry::getValue).map(md -> md.getComponentIdentifier())
+                .collect(Collectors.toList());
+
+        checkNonExplicitNucleusUpdate(targetComponentsToResolve, resolvedComponentIdentifiers);
 
         logger.atInfo().setEventType("resolve-group-dependencies-finish").kv("resolvedComponents", resolvedComponents)
                 .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
                 .log("Finish resolving group dependencies");
-        return new ArrayList<>(resolvedComponents.values());
+        return new ArrayList<>(resolvedComponentIdentifiers);
     }
 
     void checkNonExplicitNucleusUpdate(List<String> targetComponents,
@@ -182,30 +207,11 @@ public class DependencyResolver {
         return targetComponents;
     }
 
-    private Map<String, ComponentIdentifier> populateOtherGroupsComponentsDependencies(
-            Topics groupToTargetComponentDetails, String deploymentGroupName,
-            Map<String, Map<String, Requirement>> componentNameToVersionConstraints)
-            throws PackagingException, InterruptedException {
-        Set<String> otherGroupTargetComponents =
-                getOtherGroupsTargetComponents(groupToTargetComponentDetails, deploymentGroupName,
-                        componentNameToVersionConstraints);
-        logger.atDebug().kv("otherGroupTargets", otherGroupTargetComponents)
-                .log("Found the other group target components");
-        // populate other groups target components dependencies
-        // retrieve only dependency active version, update version requirement map
-        Map<String, ComponentIdentifier> resolvedComponent = new HashMap<>();
-        for (String targetComponent : otherGroupTargetComponents) {
-            resolvedComponent.putAll(resolveComponentDependencies(targetComponent, componentNameToVersionConstraints,
-                    (name, requirements) -> componentManager
-                            .getActiveAndSatisfiedComponentMetadata(name, requirements)));
-        }
-
-        return resolvedComponent;
-    }
-
     // Breadth first traverse of dependency tree, use component resolve to resolve every component
-    private Map<String, ComponentIdentifier> resolveComponentDependencies(
+    private void resolveComponentDependencies(
             String targetComponentName, Map<String, Map<String, Requirement>> componentNameToVersionConstraints,
+            Map<String, ComponentMetadata> resolvedComponents,
+            Map<String, Integer> componentIncomingReferenceCount,
             ComponentResolver componentResolver) throws PackagingException, InterruptedException {
         logger.atDebug().setEventType("traverse-dependencies-start").kv("targetComponent", targetComponentName)
                 .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
@@ -213,25 +219,99 @@ public class DependencyResolver {
         Queue<String> componentsToResolve = new LinkedList<>();
         componentsToResolve.add(targetComponentName);
 
-        Map<String, ComponentIdentifier> resolvedComponents = new HashMap<>();
         while (!componentsToResolve.isEmpty()) {
             String componentToResolve = componentsToResolve.poll();
             Map<String, Requirement> versionConstraints =
                     new HashMap<>(componentNameToVersionConstraints.get(componentToResolve));
             ComponentMetadata resolvedVersion = componentResolver.resolve(componentToResolve, versionConstraints);
+            // Incrementing the incoming reference count
+            componentIncomingReferenceCount.compute(resolvedVersion.getComponentIdentifier().getName(),
+                    (key, value) -> value == null ? 1 : value + 1);
             logger.atDebug().kv("resolvedVersion", resolvedVersion).log("Resolved component");
-            resolvedComponents.put(componentToResolve, resolvedVersion.getComponentIdentifier());
-            resolvedVersion.getDependencies().forEach((k, v) -> {
-                componentNameToVersionConstraints.putIfAbsent(k, new HashMap<>());
-                componentNameToVersionConstraints.get(k).put(componentToResolve, Requirement.buildNPM(v));
-                componentsToResolve.add(k);
-            });
+
+            ComponentMetadata previousVersion = resolvedComponents.put(componentToResolve, resolvedVersion);
+
+            if (previousVersion != null && !previousVersion.equals(resolvedVersion)) {
+                logger.atDebug().kv("previousVersion", previousVersion).kv("newVersion", resolvedVersion)
+                        .log("The resolved version of the component changed, updating the dependency tree");
+                removeDependencies(previousVersion, resolvedComponents, componentIncomingReferenceCount,
+                        componentNameToVersionConstraints);
+            }
+            // Skipping dependency resolution for the component as there is no change in the version.
+            if (resolvedVersion.equals(previousVersion)) {
+                continue;
+            }
+            for (Map.Entry<String, String> dependency : resolvedVersion.getDependencies().entrySet()) {
+                componentNameToVersionConstraints.putIfAbsent(dependency.getKey(), new HashMap<>());
+                componentNameToVersionConstraints.get(dependency.getKey()).put(componentToResolve,
+                        Requirement.buildNPM(dependency.getValue()));
+                componentsToResolve.add(dependency.getKey());
+            }
         }
 
         logger.atDebug().setEventType("traverse-dependencies-finish").kv("resolvedComponents", resolvedComponents)
                 .log("Finish traversing dependencies");
-        return resolvedComponents;
     }
+
+    /*
+     A component version is removed from the dependency tree, remove all dependencies of this version
+     which has an incoming reference count of 1 (i.e no other component has depends on them)
+     */
+    private void removeDependencies(ComponentMetadata removedComponentVersion,
+                                    Map<String, ComponentMetadata> resolvedComponents,
+                                    Map<String, Integer> componentIncomingReferenceCount,
+                                    Map<String, Map<String, Requirement>> componentNameToVersionConstraints) {
+
+        Queue<ComponentMetadata> componentsToRemove = new LinkedList<>();
+        componentsToRemove.add(removedComponentVersion);
+        while (!componentsToRemove.isEmpty()) {
+            ComponentMetadata removedComponent = componentsToRemove.poll();
+            for (Map.Entry<String, String> dependency : removedComponent.getDependencies().entrySet()) {
+                // removing version constraints from removed component
+                componentNameToVersionConstraints.get(dependency.getKey())
+                        .remove(removedComponent.getComponentIdentifier().getName());
+                componentIncomingReferenceCount.compute(dependency.getKey(),
+                        (key, value) -> {
+                            if (value == null) {
+                                return null;
+                            } else if (value == 1) {
+                                // only removedComponent depend on this component. This component can be removed.
+                                ComponentMetadata component = resolvedComponents.remove(key);
+                                logger.atDebug().kv("version", component).log("Removing component");
+                                // adding the component to componentsToRemove, to clean up its dependencies
+                                componentsToRemove.add(component);
+                                return null;
+                            } else {
+                                // count down the incoming reference count for the dependency
+                                return value - 1;
+                            }
+                        });
+            }
+        }
+    }
+
+    private void detectCircularDependency(String targetComponent, Map<String, ComponentMetadata> resolvedComponents)
+            throws ComponentVersionNegotiationException {
+        Map<String, Set<String>> componentDependencyMap = new HashMap();
+        Queue<String> componentsToVisit = new LinkedList<>();
+        componentsToVisit.add(targetComponent);
+        while (!componentsToVisit.isEmpty()) {
+            String componentName = componentsToVisit.poll();
+            Set<String> dependencies = resolvedComponents.get(componentName).getDependencies().keySet();
+            componentDependencyMap.put(componentName, dependencies);
+            dependencies.stream().filter(dependency -> !componentDependencyMap.containsKey(dependency))
+                    .forEach(componentsToVisit::add);
+        }
+        int componentCount = componentDependencyMap.keySet().size();
+        LinkedHashSet<String> result = new DependencyOrder<String>().computeOrderedDependencies(
+                componentDependencyMap.keySet(), componentDependencyMap::get);
+
+        if (result.size() != componentCount) {
+            throw new ComponentVersionNegotiationException("Circular dependency detected for component "
+                    + resolvedComponents.get(targetComponent).getComponentIdentifier().toString());
+        }
+    }
+
 
     @FunctionalInterface
     public interface ComponentResolver {
