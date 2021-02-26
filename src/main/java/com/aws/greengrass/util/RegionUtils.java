@@ -19,6 +19,12 @@ public final class RegionUtils {
             IotSdkClientFactory.EnvironmentStage.BETA, "https://greengrass-ats.beta.%s.iot.%s:%s"
     );
     private static final Map<IotSdkClientFactory.EnvironmentStage, String>
+            GREENGRASS_DATA_PLANE_STAGE_TO_ENDPOINT_FORMAT_CN_NORTH_1 = ImmutableMap.of(
+            IotSdkClientFactory.EnvironmentStage.PROD, "https://greengrass.ats.iot.%s.%s:%s",
+            IotSdkClientFactory.EnvironmentStage.GAMMA, "https://greengrass.ats.gamma.%s.iot.%s:%s",
+            IotSdkClientFactory.EnvironmentStage.BETA, "https://greengrass.ats.beta.%s.iot.%s:%s"
+    );
+    private static final Map<IotSdkClientFactory.EnvironmentStage, String>
             GREENGRASS_CONTROL_PLANE_STAGE_TO_ENDPOINT_FORMAT = ImmutableMap.of(
             IotSdkClientFactory.EnvironmentStage.PROD, "https://greengrass.%s.%s",
             IotSdkClientFactory.EnvironmentStage.GAMMA, "https://greengrass-gamma.%s.%s",
@@ -47,10 +53,15 @@ public final class RegionUtils {
      * @param port endpoint port
      * @return Greengrass ServiceEndpoint
      */
-    public static String getGreengrassDataPlaneEndpoint(String awsRegion,
-                                                        IotSdkClientFactory.EnvironmentStage stage,
+    public static String getGreengrassDataPlaneEndpoint(String awsRegion, IotSdkClientFactory.EnvironmentStage stage,
                                                         int port) {
         String dnsSuffix = Region.of(awsRegion).metadata().partition().dnsSuffix();
+        if (Region.CN_NORTH_1.equals(Region.of(awsRegion))) {
+            // CN_NORTH_1 has a special endpoint format
+            return String
+                    .format(GREENGRASS_DATA_PLANE_STAGE_TO_ENDPOINT_FORMAT_CN_NORTH_1.get(stage), awsRegion, dnsSuffix,
+                            port);
+        }
         return String.format(GREENGRASS_DATA_PLANE_STAGE_TO_ENDPOINT_FORMAT.get(stage), awsRegion, dnsSuffix, port);
     }
 
