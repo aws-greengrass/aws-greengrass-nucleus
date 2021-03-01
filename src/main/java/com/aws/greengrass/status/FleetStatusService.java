@@ -44,7 +44,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
@@ -62,8 +61,8 @@ public class FleetStatusService extends GreengrassService {
     public static final String DEFAULT_FLEET_STATUS_SERVICE_PUBLISH_TOPIC =
             "$aws/things/{thingName}/greengrassv2/health/json";
     public static final String FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC = "fssPeriodicUpdateIntervalSec";
-    public static final int DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC = 86_400;
-    static final String FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC = "periodicUpdateIntervalSec";
+    public static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 86_400;
+    static final String FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicStatusPublishIntervalSeconds";
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
@@ -88,7 +87,7 @@ public class FleetStatusService extends GreengrassService {
     private final Object periodicUpdateInProgressLock = new Object();
     @Setter // Needed for integration tests.
     @Getter(AccessLevel.PACKAGE) // Needed for unit tests.
-    private int periodicUpdateIntervalSec;
+    private int periodicPublishIntervalSec;
     private ScheduledFuture<?> periodicUpdateFuture;
 
     @Getter
@@ -120,7 +119,7 @@ public class FleetStatusService extends GreengrassService {
                               Kernel kernel, DeviceConfiguration deviceConfiguration,
                               PlatformResolver platformResolver) {
         this(topics, mqttClient, deploymentStatusKeeper, kernel, deviceConfiguration, platformResolver,
-                DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC);
+                DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC);
     }
 
     /**
@@ -132,11 +131,11 @@ public class FleetStatusService extends GreengrassService {
      * @param kernel                        {@link Kernel}
      * @param deviceConfiguration           {@link DeviceConfiguration}
      * @param platformResolver              {@link PlatformResolver}
-     * @param periodicUpdateIntervalSec     interval for cadence based status update.
+     * @param periodicPublishIntervalSec     interval for cadence based status update.
      */
     public FleetStatusService(Topics topics, MqttClient mqttClient, DeploymentStatusKeeper deploymentStatusKeeper,
                               Kernel kernel, DeviceConfiguration deviceConfiguration,
-                              PlatformResolver platformResolver, int periodicUpdateIntervalSec) {
+                              PlatformResolver platformResolver, int periodicPublishIntervalSec) {
         super(topics);
 
         this.mqttClient = mqttClient;
@@ -145,8 +144,8 @@ public class FleetStatusService extends GreengrassService {
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
         this.architecture = platformResolver.getCurrentPlatform()
                 .getOrDefault(PlatformResolver.ARCHITECTURE_KEY, PlatformResolver.UNKNOWN_KEYWORD);
-        this.periodicUpdateIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
-                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, periodicUpdateIntervalSec).intValue();
+        this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, periodicPublishIntervalSec).intValue();
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
         this.platform = platformResolver.getCurrentPlatform()
                 .getOrDefault(PlatformResolver.OS_KEY, PlatformResolver.UNKNOWN_KEYWORD);
@@ -165,15 +164,16 @@ public class FleetStatusService extends GreengrassService {
             return;
         }
 
-        topics.lookup(CONFIGURATION_CONFIG_KEY, FLEET_STATUS_PERIODIC_UPDATE_INTERVAL_SEC)
-                .dflt(DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC)
+        Topics configurationTopics = deviceConfiguration.getStatusConfigurationTopics();
+        configurationTopics.lookup(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC)
+                .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .subscribe((why, newv) -> {
                     int newPeriodicUpdateIntervalSec = Coerce.toInt(newv);
                     // Do not update the scheduled interval if it is less than the default.
-                    if (newPeriodicUpdateIntervalSec < DEFAULT_PERIODIC_UPDATE_INTERVAL_SEC) {
+                    if (newPeriodicUpdateIntervalSec < DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC) {
                         return;
                     }
-                    this.periodicUpdateIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                    this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
                             FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, newPeriodicUpdateIntervalSec).intValue();
                     if (periodicUpdateFuture != null) {
                         schedulePeriodicFleetStatusDataUpdate(false);
@@ -193,8 +193,8 @@ public class FleetStatusService extends GreengrassService {
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleTestFeatureParametersHandlerChange(Boolean isDefault) {
-        this.periodicUpdateIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
-                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, this.periodicUpdateIntervalSec).intValue();
+        this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, this.periodicPublishIntervalSec).intValue();
         if (periodicUpdateFuture != null) {
             schedulePeriodicFleetStatusDataUpdate(false);
         }
@@ -224,7 +224,7 @@ public class FleetStatusService extends GreengrassService {
 
         synchronized (periodicUpdateInProgressLock) {
             Instant lastPeriodicUpdateTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicUpdateTimeTopic()));
-            if (lastPeriodicUpdateTime.plusSeconds(periodicUpdateIntervalSec).isBefore(Instant.now())) {
+            if (lastPeriodicUpdateTime.plusSeconds(periodicPublishIntervalSec).isBefore(Instant.now())) {
                 updatePeriodicFleetStatusData();
             }
         }
@@ -237,10 +237,10 @@ public class FleetStatusService extends GreengrassService {
 
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it,
         // we don't want all the devices to send the periodic update for fleet statuses at the same time.
-        long initialDelay = RandomUtils.nextLong(0, periodicUpdateIntervalSec);
+        long initialDelay = RandomUtils.nextLong(0, periodicPublishIntervalSec);
         ScheduledExecutorService ses = getContext().get(ScheduledExecutorService.class);
         this.periodicUpdateFuture = ses.scheduleWithFixedDelay(this::updatePeriodicFleetStatusData,
-                initialDelay, periodicUpdateIntervalSec, TimeUnit.SECONDS);
+                initialDelay, periodicPublishIntervalSec, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
