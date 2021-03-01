@@ -22,8 +22,10 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeoutException;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -66,8 +68,9 @@ class AwsIotMqttClientTest {
     }
 
     @Test
-    void GIVEN_individual_client_THEN_it_tracks_connection_state_correctly()
+    void GIVEN_individual_client_THEN_it_tracks_connection_state_correctly(ExtensionContext ec)
             throws ExecutionException, InterruptedException, TimeoutException {
+        ignoreExceptionUltimateCauseOfType(ec, RejectedExecutionException.class);
         when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));

@@ -24,12 +24,16 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.http.AbortableInputStream;
+import software.amazon.awssdk.http.ExecutableHttpRequest;
+import software.amazon.awssdk.http.HttpExecuteResponse;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
 import software.amazon.awssdk.services.greengrassv2.model.GetComponentVersionArtifactRequest;
 import software.amazon.awssdk.services.greengrassv2.model.GetComponentVersionArtifactResponse;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,7 +41,11 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Base64;
 
+import static com.aws.greengrass.componentmanager.plugins.GreengrassRepositoryDownloader.CONTENT_LENGTH_HEADER;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static java.net.HttpURLConnection.HTTP_BAD_REQUEST;
+import static java.net.HttpURLConnection.HTTP_OK;
+import static java.net.HttpURLConnection.HTTP_PARTIAL;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.core.Is.is;
@@ -58,7 +66,9 @@ class GreengrassRepositoryDownloaderTest {
     @Captor
     ArgumentCaptor<GetComponentVersionArtifactRequest> getComponentVersionArtifactRequestArgumentCaptor;
     @Mock
-    private HttpURLConnection connection;
+    private ExecutableHttpRequest request;
+    @Mock
+    private SdkHttpClient httpClient;
     @Mock
     private GreengrassV2Client client;
     @Mock
@@ -102,11 +112,19 @@ class GreengrassRepositoryDownloaderTest {
                 .thenReturn(result);
 
         // mock requests to return partial stream
-        doReturn(connection).when(downloader).connect(any());
-        when(connection.getContentLengthLong()).thenReturn(Files.size(mockArtifactPath));
-        when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK)
-                .thenReturn(HttpURLConnection.HTTP_PARTIAL);
-        when(connection.getInputStream()).thenReturn(Files.newInputStream(mockArtifactPath));
+        doReturn(httpClient).when(downloader).getSdkHttpClient();
+        doReturn(request).when(httpClient).prepareRequest(any());
+        when(request.call())
+                .thenReturn(HttpExecuteResponse.builder()
+                        .response(SdkHttpResponse.builder().statusCode(HTTP_OK)
+                                .putHeader(CONTENT_LENGTH_HEADER, String.valueOf(Files.size(mockArtifactPath))).build())
+                        .responseBody(AbortableInputStream.create(Files.newInputStream(mockArtifactPath)))
+                        .build())
+                .thenReturn(HttpExecuteResponse.builder()
+                        .response(SdkHttpResponse.builder().statusCode(HTTP_PARTIAL)
+                                .putHeader(CONTENT_LENGTH_HEADER, String.valueOf(Files.size(mockArtifactPath))).build())
+                        .responseBody(AbortableInputStream.create(Files.newInputStream(mockArtifactPath)))
+                        .build());
 
         downloader.downloadToPath();
 
@@ -134,8 +152,10 @@ class GreengrassRepositoryDownloaderTest {
         lenient().when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(TEST_ARN));
         GreengrassRepositoryDownloader downloader = spy(new GreengrassRepositoryDownloader(clientFactory, pkgId,
                 ComponentArtifact.builder().artifactUri(new URI("greengrass:binary")).build(), null, componentStore));
-        doReturn(connection).when(downloader).connect(any());
-        when(connection.getResponseCode()).thenThrow(IOException.class);
+
+        doReturn(httpClient).when(downloader).getSdkHttpClient();
+        doReturn(request).when(httpClient).prepareRequest(any());
+        when(request.call()).thenThrow(IOException.class);
 
         downloader.setClientExceptionRetryConfig(RetryUtils.RetryConfig.builder().maxAttempt(2)
                 .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class)).build());
@@ -144,8 +164,7 @@ class GreengrassRepositoryDownloaderTest {
                 () -> downloader.download(0, 100, MessageDigest.getInstance("SHA-256")));
 
         // assert retry called
-        verify(connection, times(2)).getResponseCode();
-        verify(connection, times(2)).disconnect();
+        verify(request, times(2)).call();
         assertThat(e.getLocalizedMessage(), containsStringIgnoringCase("Failed to download artifact"));
     }
 
@@ -159,15 +178,18 @@ class GreengrassRepositoryDownloaderTest {
         lenient().when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(TEST_ARN));
         GreengrassRepositoryDownloader downloader = spy(new GreengrassRepositoryDownloader(clientFactory, pkgId,
                 ComponentArtifact.builder().artifactUri(new URI("greengrass:binary")).build(), null, componentStore));
-        doReturn(connection).when(downloader).connect(any());
-        when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_BAD_REQUEST);
+
+        doReturn(httpClient).when(downloader).getSdkHttpClient();
+        doReturn(request).when(httpClient).prepareRequest(any());
+        doReturn(HttpExecuteResponse.builder()
+                .response(SdkHttpResponse.builder().statusCode(HTTP_BAD_REQUEST).build())
+                .build()).when(request).call();
 
         PackageDownloadException e = assertThrows(PackageDownloadException.class,
                 () -> downloader.download(0, 100, MessageDigest.getInstance("SHA-256")));
 
         // assert retry called
-        verify(connection, times(1)).getResponseCode();
-        verify(connection, times(1)).disconnect();
+        verify(request, times(1)).call();
         assertThat(e.getLocalizedMessage(), containsStringIgnoringCase("Failed to download the artifact"));
     }
 
