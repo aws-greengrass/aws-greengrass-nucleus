@@ -252,7 +252,8 @@ class AwsIotMqttClient implements Closeable {
      * @param sessionPresent whether the session persisted
      */
     private synchronized void resubscribe(boolean sessionPresent) {
-        if (currentlyConnected.get() && !subscriptionTopics.isEmpty()) {
+        // No need to resub if we haven't subscribed to anything
+        if (!subscriptionTopics.isEmpty()) {
             // If connected without a session, all subscriptions are dropped and need to be resubscribed
             if (!sessionPresent) {
                 droppedSubscriptionTopics.putAll(subscriptionTopics);
@@ -337,11 +338,11 @@ class AwsIotMqttClient implements Closeable {
 
     @Override
     public void close() {
+        if (resubscribeFuture != null && !resubscribeFuture.isDone()) {
+            resubscribeFuture.cancel(true);
+        }
         try {
             disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
-            if (resubscribeFuture != null && !resubscribeFuture.isDone()) {
-                resubscribeFuture.cancel(true);
-            }
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             logger.atError().log("Error while disconnecting the MQTT client", e);
         }
