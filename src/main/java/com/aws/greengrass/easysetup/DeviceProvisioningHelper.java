@@ -40,6 +40,7 @@ import software.amazon.awssdk.services.iam.model.AttachRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.CreatePolicyResponse;
 import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
 import software.amazon.awssdk.services.iam.model.GetRoleRequest;
+import software.amazon.awssdk.services.iam.model.IamException;
 import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.AddThingToThingGroupRequest;
@@ -460,18 +461,37 @@ public class DeviceProvisioningHelper {
             return Optional.of(iamClient.getPolicy(software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
                     .policyArn(String.format(MANAGED_IAM_POLICY_ARN_FORMAT, partition, policyName)).build()).policy()
                     .arn());
-        } catch (ResourceNotFoundException | NoSuchEntityException mnf) {
-            // Check if a customer policy exists with the name
-            try {
-                return Optional.of(iamClient.getPolicy(
-                        software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
-                                .policyArn(String.format(IAM_POLICY_ARN_FORMAT, partition, getAccountId(), policyName))
-                                .build())
-                        .policy().arn());
-            } catch (ResourceNotFoundException | NoSuchEntityException cnf) {
-                return Optional.empty();
+        } catch (NoSuchEntityException mnf) {
+            outStream.println("No managed IAM policy found, looking for user defined policy...");
+        } catch (IamException e) {
+            if (e.getMessage().contains("not authorized to perform")) {
+                outStream.println(String.format("Encountered error - %s; No permissions to lookup managed policy, "
+                        + "looking for a user defined policy...", e.getMessage()));
             }
+            outStream.println(String.format("Exiting due to unexpected error while looking up managed policy - %s ",
+                    e.getMessage()));
+            throw e;
         }
+        // Check if a customer policy exists with the name
+        try {
+            return Optional.of(iamClient.getPolicy(software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                    .policyArn(String.format(IAM_POLICY_ARN_FORMAT, partition, getAccountId(), policyName)).build())
+                    .policy().arn());
+        } catch (NoSuchEntityException cnf) {
+            outStream.println("No IAM policy found, will attempt creating one...");
+        } catch (IamException e) {
+            if (e.getMessage().contains("not authorized to perform")) {
+                outStream.println(String.format(
+                        "Encountered error - %s; No permissions to lookup IAM policy, will attempt creating one. If you"
+                                + " wish to use an existing policy instead, please make sure the credentials used for "
+                                + "setup have iam::getPolicy permissions for the policy resource and retry...",
+                        e.getMessage()));
+            }
+            outStream.println(String.format("Exiting due to unexpected error while looking up user defined policy - %s",
+                    e.getMessage()));
+            throw e;
+        }
+        return Optional.empty();
     }
 
     private String getAccountId() {
