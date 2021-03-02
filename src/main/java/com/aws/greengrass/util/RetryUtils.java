@@ -57,6 +57,7 @@ public class RetryUtils {
                     logBuild.kv("task-attempt", attempt).setCause(e)
                             .log("task failed and will be retried");
                     lastException = e;
+                    // TODO: [P45052340]: Add jitter to avoid clients retrying concurrently
                     Thread.sleep(retryInterval);
                     if (retryInterval < retryConfig.getMaxRetryInterval().toMillis()) {
                         retryInterval = retryInterval * 2;

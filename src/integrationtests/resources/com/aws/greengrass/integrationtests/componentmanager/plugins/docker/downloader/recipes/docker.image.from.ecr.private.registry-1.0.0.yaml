@@ -6,6 +6,6 @@ Manifests:
   - Platform:
       os: all
     Artifacts:
-      - URI: "docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage@sha256:5442792a-752c-11eb-9439-0242ac130002"
+      - URI: "docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage@sha256:c4ffb87b09eba99383ee89b309d6d521"
       - URI: "docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage:sometag"
       - URI: "docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage"

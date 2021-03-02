@@ -4,18 +4,18 @@
  */
 
 
-package com.aws.greengrass.componentmanager.plugins.exceptions;
+package com.aws.greengrass.componentmanager.plugins.docker.exceptions;
 
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 
-public class RegistryAuthException extends PackageDownloadException {
+public class InvalidImageOrAccessDeniedException extends PackageDownloadException {
     static final long serialVersionUID = -3387516993124229948L;
 
-    public RegistryAuthException(String message) {
+    public InvalidImageOrAccessDeniedException(String message) {
         super(message);
     }
 
-    public RegistryAuthException(String message, Throwable cause) {
+    public InvalidImageOrAccessDeniedException(String message, Throwable cause) {
         super(message, cause);
     }
 }

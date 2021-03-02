@@ -4,18 +4,18 @@
  */
 
 
-package com.aws.greengrass.componentmanager.plugins.exceptions;
+package com.aws.greengrass.componentmanager.plugins.docker.exceptions;
 
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 
-public class InvalidImageOrAccessDeniedException extends PackageDownloadException {
+public class DockerLoginException extends PackageDownloadException {
     static final long serialVersionUID = -3387516993124229948L;
 
-    public InvalidImageOrAccessDeniedException(String message) {
+    public DockerLoginException(String message) {
         super(message);
     }
 
-    public InvalidImageOrAccessDeniedException(String message, Throwable cause) {
+    public DockerLoginException(String message, Throwable cause) {
         super(message, cause);
     }
 }

@@ -3,17 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.componentmanager.plugins;
+package com.aws.greengrass.componentmanager.plugins.docker;
 
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.componentmanager.plugins.exceptions.ConnectionException;
-import com.aws.greengrass.componentmanager.plugins.exceptions.DockerLoginException;
-import com.aws.greengrass.componentmanager.plugins.exceptions.DockerServiceUnavailableException;
-import com.aws.greengrass.componentmanager.plugins.exceptions.InvalidImageOrAccessDeniedException;
-import com.aws.greengrass.componentmanager.plugins.exceptions.RegistryAuthException;
-import com.aws.greengrass.componentmanager.plugins.exceptions.UserNotAuthorizedForDockerException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.InvalidImageOrAccessDeniedException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.RegistryAuthException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.UserNotAuthorizedForDockerException;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.RetryUtils;
@@ -34,6 +34,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.aws.greengrass.componentmanager.plugins.docker.DockerImageDownloader.DOCKER_NOT_INSTALLED_ERROR_MESSAGE;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -44,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -54,12 +56,12 @@ import static org.mockito.Mockito.when;
 public class DockerImageDownloaderTest {
     private static ComponentIdentifier TEST_COMPONENT_ID =
             new ComponentIdentifier("test.container.component", new Semver("1.0.0"));
-    // Using distinct retry attempts to use as means of verification
-    private final RetryUtils.RetryConfig networkIssuesRetryConfig =
+    // Using retry config with much smaller interval and count
+    private final RetryUtils.RetryConfig infiniteAttemptsRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMillis(50L))
                     .maxRetryInterval(Duration.ofMillis(50L)).maxAttempt(5).retryableExceptions(
                     Arrays.asList(ConnectionException.class, SdkClientException.class, ServerException.class)).build();
-    private final RetryUtils.RetryConfig nonNetworkIssuesRetryConfig =
+    private final RetryUtils.RetryConfig finiteAttemptsRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMillis(50L))
                     .maxRetryInterval(Duration.ofMillis(50L)).maxAttempt(2).retryableExceptions(
                     Arrays.asList(DockerServiceUnavailableException.class, DockerLoginException.class,
@@ -84,21 +86,20 @@ public class DockerImageDownloaderTest {
     void GIVEN_a_container_component_with_an_ecr_image_with_digest_WHEN_deployed_THEN_download_image_artifact()
             throws Exception {
         URI artifactUri =
-                new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage@sha256:5442792a-752c-11eb-9439-0242ac130002");
-        Image image = Image.fromArtifactUri(artifactUri);
+                new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws"
+                        + ".com/testimagepath/testimage@sha256:223057d6358a0530e4959c883e05199317cdc892f08667e6186133a0b5432948");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
 
         when(ecrAccessor.getCredentials("012345678910"))
                 .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(60)));
         when(dockerClient.dockerInstalled()).thenReturn(true);
-        when(dockerClient.login(image.getRegistry())).thenReturn(true);
-        when(dockerClient.pullImage(image)).thenReturn(true);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
         downloader.download();
 
-        assertEquals("testimage", image.getName());
-        assertEquals("sha256:5442792a-752c-11eb-9439-0242ac130002", image.getDigest());
+        assertEquals("testimagepath/testimage", image.getName());
+        assertEquals("sha256:223057d6358a0530e4959c883e05199317cdc892f08667e6186133a0b5432948", image.getDigest());
         assertNull(image.getTag());
         assertTrue(image.getRegistry().isEcrRegistry());
         assertTrue(image.getRegistry().isPrivateRegistry());
@@ -113,12 +114,10 @@ public class DockerImageDownloaderTest {
     void GIVEN_a_container_component_with_an_ecr_image_with_tag_WHEN_deployed_THEN_download_image_artifact()
             throws Exception {
         URI artifactUri = new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage:sometag");
-        Image image = Image.fromArtifactUri(artifactUri);
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(ecrAccessor.getCredentials("012345678910"))
                 .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(60)));
         when(dockerClient.dockerInstalled()).thenReturn(true);
-        when(dockerClient.login(image.getRegistry())).thenReturn(true);
-        when(dockerClient.pullImage(image)).thenReturn(true);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
@@ -140,20 +139,19 @@ public class DockerImageDownloaderTest {
     void GIVEN_a_container_component_with_a_public_ecr_image_WHEN_deployed_THEN_download_image_artifact()
             throws Exception {
         URI artifactUri = new URI("docker:public.ecr.aws/a1b2c3d4/testimage:sometag");
-        Image image = Image.fromArtifactUri(artifactUri);
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(dockerClient.dockerInstalled()).thenReturn(true);
-        when(dockerClient.pullImage(image)).thenReturn(true);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
         downloader.download();
 
-        assertEquals("testimage", image.getName());
+        assertEquals("a1b2c3d4/testimage", image.getName());
         assertEquals("sometag", image.getTag());
         assertNull(image.getDigest());
         assertTrue(image.getRegistry().isEcrRegistry());
         assertFalse(image.getRegistry().isPrivateRegistry());
-        assertEquals("public.ecr.aws/a1b2c3d4", image.getRegistry().getEndpoint());
+        assertEquals("public.ecr.aws", image.getRegistry().getEndpoint());
 
         verify(ecrAccessor, never()).getCredentials(anyString());
         verify(dockerClient).pullImage(image);
@@ -164,20 +162,19 @@ public class DockerImageDownloaderTest {
     void GIVEN_a_container_component_with_a_public_dockerhub_image_WHEN_deployed_THEN_download_image_artifact()
             throws Exception {
         URI artifactUri = new URI("docker:registry.hub.docker.com/library/alpine:sometag");
-        Image image = Image.fromArtifactUri(artifactUri);
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(dockerClient.dockerInstalled()).thenReturn(true);
-        when(dockerClient.pullImage(image)).thenReturn(true);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
         downloader.download();
 
-        assertEquals("alpine", image.getName());
+        assertEquals("library/alpine", image.getName());
         assertEquals("sometag", image.getTag());
         assertNull(image.getDigest());
         assertFalse(image.getRegistry().isEcrRegistry());
         assertFalse(image.getRegistry().isPrivateRegistry());
-        assertEquals("registry.hub.docker.com/library", image.getRegistry().getEndpoint());
+        assertEquals("registry.hub.docker.com", image.getRegistry().getEndpoint());
 
         verify(ecrAccessor, never()).getCredentials(anyString());
         verify(dockerClient).pullImage(image);
@@ -186,20 +183,20 @@ public class DockerImageDownloaderTest {
     @Test
     void GIVEN_a_container_component_in_deployment_WHEN_docker_not_installed_THEN_fail_deployment() throws Exception {
         URI artifactUri = new URI("docker:registry.hub.docker.com/library/alpine:sometag");
-        Image image = Image.fromArtifactUri(artifactUri);
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(dockerClient.dockerInstalled()).thenReturn(false);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
         Throwable err = assertThrows(PackageDownloadException.class, () -> downloader.download());
-        assertThat(err.getMessage(), containsString("Docker engine is not installed on the device"));
+        assertThat(err.getMessage(), containsString(DOCKER_NOT_INSTALLED_ERROR_MESSAGE));
 
-        assertEquals("alpine", image.getName());
+        assertEquals("library/alpine", image.getName());
         assertEquals("sometag", image.getTag());
         assertNull(image.getDigest());
         assertFalse(image.getRegistry().isEcrRegistry());
         assertFalse(image.getRegistry().isPrivateRegistry());
-        assertEquals("registry.hub.docker.com/library", image.getRegistry().getEndpoint());
+        assertEquals("registry.hub.docker.com", image.getRegistry().getEndpoint());
 
         verify(ecrAccessor, never()).getCredentials(anyString());
         verify(dockerClient, never()).login(any());
@@ -210,10 +207,11 @@ public class DockerImageDownloaderTest {
     void GIVEN_a_container_component_with_image_in_dockerhub_WHEN_image_not_public_THEN_fail_deployment()
             throws Exception {
         URI artifactUri = new URI("docker:registry.hub.docker.com/library/alpine:sometag");
-        Image image = Image.fromArtifactUri(artifactUri);
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(dockerClient.dockerInstalled()).thenReturn(true);
-        when(dockerClient.pullImage(image)).thenThrow(new InvalidImageOrAccessDeniedException(
-                "Invalid image or login - repository does not exist or may require 'docker login'"));
+        doThrow(new InvalidImageOrAccessDeniedException(
+                "Invalid image or login - repository does not exist or may require 'docker login'")).when(dockerClient)
+                .pullImage(image);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
@@ -221,12 +219,12 @@ public class DockerImageDownloaderTest {
         assertThat(err.getMessage(), containsString("Failed to download docker image"));
         assertTrue(err.getCause() instanceof InvalidImageOrAccessDeniedException);
 
-        assertEquals("alpine", image.getName());
+        assertEquals("library/alpine", image.getName());
         assertEquals("sometag", image.getTag());
         assertNull(image.getDigest());
         assertFalse(image.getRegistry().isEcrRegistry());
         assertFalse(image.getRegistry().isPrivateRegistry());
-        assertEquals("registry.hub.docker.com/library", image.getRegistry().getEndpoint());
+        assertEquals("registry.hub.docker.com", image.getRegistry().getEndpoint());
 
         verify(ecrAccessor, never()).getCredentials(anyString());
         verify(dockerClient, never()).login(any());
@@ -237,7 +235,7 @@ public class DockerImageDownloaderTest {
     void GIVEN_a_container_component_with_image_in_ecr_WHEN_when_failed_to_get_credentials_THEN_fail_deployment()
             throws Exception {
         URI artifactUri = new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage:sometag");
-        Image image = Image.fromArtifactUri(artifactUri);
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(ecrAccessor.getCredentials("012345678910"))
                 .thenThrow(new RegistryAuthException("Failed to get " + "credentials for ECR registry"));
         when(dockerClient.dockerInstalled()).thenReturn(true);
@@ -267,10 +265,10 @@ public class DockerImageDownloaderTest {
         ignoreExceptionOfType(extensionContext, DockerServiceUnavailableException.class);
 
         URI artifactUri = new URI("docker:registry.hub.docker.com/library/alpine:sometag");
-        Image image = Image.fromArtifactUri(artifactUri);
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(dockerClient.dockerInstalled()).thenReturn(true);
         // fail all retries
-        when(dockerClient.pullImage(image)).thenThrow(new DockerServiceUnavailableException("Service Unavailable"));
+        doThrow(new DockerServiceUnavailableException("Service Unavailable")).when(dockerClient).pullImage(image);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
@@ -278,12 +276,12 @@ public class DockerImageDownloaderTest {
         assertThat(err.getMessage(), containsString("Failed to download docker image"));
         assertTrue(err.getCause() instanceof DockerServiceUnavailableException);
 
-        assertEquals("alpine", image.getName());
+        assertEquals("library/alpine", image.getName());
         assertEquals("sometag", image.getTag());
         assertNull(image.getDigest());
         assertFalse(image.getRegistry().isEcrRegistry());
         assertFalse(image.getRegistry().isPrivateRegistry());
-        assertEquals("registry.hub.docker.com/library", image.getRegistry().getEndpoint());
+        assertEquals("registry.hub.docker.com", image.getRegistry().getEndpoint());
 
         verify(ecrAccessor, never()).getCredentials(anyString());
         verify(dockerClient, never()).login(any());
@@ -298,26 +296,26 @@ public class DockerImageDownloaderTest {
         ignoreExceptionOfType(extensionContext, ConnectionException.class);
 
         URI artifactUri = new URI("docker:registry.hub.docker.com/library/alpine:sometag");
-        Image image = Image.fromArtifactUri(artifactUri);
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(mqttClient.getMqttOnline()).thenReturn(new AtomicBoolean(false));
         // Fail on first 3 attempts, succeed on fourth attempt to simulate that pull would succeed when connectivity
         // comes back
         when(dockerClient.dockerInstalled()).thenReturn(true);
-        when(dockerClient.pullImage(image)).thenThrow(new DockerServiceUnavailableException("Service Unavailable"))
-                .thenThrow(new DockerServiceUnavailableException("Service Unavailable"))
-                .thenThrow(new DockerServiceUnavailableException("Service Unavailable"))
-                .thenReturn(true);
+        doThrow(new DockerServiceUnavailableException("Service Unavailable"))
+                .doThrow(new DockerServiceUnavailableException("Service Unavailable"))
+                .doThrow(new DockerServiceUnavailableException("Service Unavailable")).doNothing().when(dockerClient)
+                .pullImage(image);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
         downloader.download();
 
-        assertEquals("alpine", image.getName());
+        assertEquals("library/alpine", image.getName());
         assertEquals("sometag", image.getTag());
         assertNull(image.getDigest());
         assertFalse(image.getRegistry().isEcrRegistry());
         assertFalse(image.getRegistry().isPrivateRegistry());
-        assertEquals("registry.hub.docker.com/library", image.getRegistry().getEndpoint());
+        assertEquals("registry.hub.docker.com", image.getRegistry().getEndpoint());
 
         verify(ecrAccessor, never()).getCredentials(anyString());
         verify(dockerClient, never()).login(any());
@@ -331,13 +329,13 @@ public class DockerImageDownloaderTest {
             ExtensionContext extensionContext) throws Exception {
         ignoreExceptionOfType(extensionContext, DockerServiceUnavailableException.class);
 
-        URI artifactUri = new URI("docker:registry.hub.docker.com/library/alpine:sometag");
-        Image image = Image.fromArtifactUri(artifactUri);
+        URI artifactUri = new URI("docker:registry.hub.docker.com/alpine:sometag");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(dockerClient.dockerInstalled()).thenReturn(true);
         // fail first attempt, succeed on next retry attempt, device is connected the whole time but there could be
         // temporary issues with docker cloud which can get resolved in a short span
-        when(dockerClient.pullImage(image)).thenThrow(new DockerServiceUnavailableException("Service Unavailable"))
-                .thenReturn(true);
+        doThrow(new DockerServiceUnavailableException("Service Unavailable")).doNothing().when(dockerClient)
+                .pullImage(image);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
@@ -348,7 +346,7 @@ public class DockerImageDownloaderTest {
         assertNull(image.getDigest());
         assertFalse(image.getRegistry().isEcrRegistry());
         assertFalse(image.getRegistry().isPrivateRegistry());
-        assertEquals("registry.hub.docker.com/library", image.getRegistry().getEndpoint());
+        assertEquals("registry.hub.docker.com", image.getRegistry().getEndpoint());
 
         verify(ecrAccessor, never()).getCredentials(anyString());
         verify(dockerClient, never()).login(any());
@@ -364,10 +362,10 @@ public class DockerImageDownloaderTest {
         ignoreExceptionOfType(extensionContext, DockerServiceUnavailableException.class);
 
         URI artifactUri = new URI("docker:registry.hub.docker.com/library/alpine:sometag");
-        Image image = Image.fromArtifactUri(artifactUri);
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(dockerClient.dockerInstalled()).thenReturn(true);
         // fail first attempt, succeed on next retry attempt, device is connected the whole time
-        when(dockerClient.pullImage(image)).thenThrow(new DockerServiceUnavailableException("Service Unavailable"));
+        doThrow(new DockerServiceUnavailableException("Service Unavailable")).when(dockerClient).pullImage(image);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
@@ -375,12 +373,12 @@ public class DockerImageDownloaderTest {
         assertThat(err.getMessage(), containsString("Failed to download docker image"));
         assertTrue(err.getCause() instanceof DockerServiceUnavailableException);
 
-        assertEquals("alpine", image.getName());
+        assertEquals("library/alpine", image.getName());
         assertEquals("sometag", image.getTag());
         assertNull(image.getDigest());
         assertFalse(image.getRegistry().isEcrRegistry());
         assertFalse(image.getRegistry().isPrivateRegistry());
-        assertEquals("registry.hub.docker.com/library", image.getRegistry().getEndpoint());
+        assertEquals("registry.hub.docker.com", image.getRegistry().getEndpoint());
 
         verify(ecrAccessor, never()).getCredentials(anyString());
         verify(dockerClient, never()).login(any());
@@ -393,10 +391,13 @@ public class DockerImageDownloaderTest {
     void GIVEN_a_container_component_WHEN_greengrass_does_not_have_permissions_to_use_docker_daemon_THEN_fail_deployment()
             throws Exception {
         URI artifactUri = new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage:sometag");
-        Image image = Image.fromArtifactUri(artifactUri);
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(dockerClient.dockerInstalled()).thenReturn(true);
-        when(dockerClient.login(any())).thenThrow(new UserNotAuthorizedForDockerException(
-                "Got permission denied while trying to connect to the Docker daemon socket"));
+        when(ecrAccessor.getCredentials("012345678910"))
+                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(60)));
+        doThrow(new UserNotAuthorizedForDockerException(
+                "Got permission denied while trying to connect to the Docker daemon socket")).when(dockerClient)
+                .login(any());
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
@@ -421,9 +422,8 @@ public class DockerImageDownloaderTest {
     void GIVEN_a_container_component_with_no_registry_in_uri_WHEN_deployed_THEN_download_image_artifact_from_dockerhub()
             throws Exception {
         URI artifactUri = new URI("docker:alpine:sometag");
-        Image image = Image.fromArtifactUri(artifactUri);
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(dockerClient.dockerInstalled()).thenReturn(true);
-        when(dockerClient.pullImage(image)).thenReturn(true);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
@@ -445,9 +445,8 @@ public class DockerImageDownloaderTest {
     void GIVEN_a_container_component_with_no_digest_or_tag_in_uri_WHEN_deployed_THEN_assume_latest_image_version()
             throws Exception {
         URI artifactUri = new URI("docker:alpine");
-        Image image = Image.fromArtifactUri(artifactUri);
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
         when(dockerClient.dockerInstalled()).thenReturn(true);
-        when(dockerClient.pullImage(image)).thenReturn(true);
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
@@ -465,12 +464,44 @@ public class DockerImageDownloaderTest {
         verify(dockerClient).pullImage(image);
     }
 
+    @Test
+    void GIVEN_a_container_component_with_private_ecr_image_WHEN_credentials_expire_THEN_refresh_credentials_and_retry()
+            throws Exception {
+        URI artifactUri = new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage:sometag");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
+        // Use stale credentials in first login attempt to simulate credentials expiry due to device being offline
+        // for longer than credential validity. For the second attempt, use the opposite to simulate login was
+        // performed in time before credentials expired.
+        when(ecrAccessor.getCredentials("012345678910"))
+                .thenReturn(new Registry.Credentials("username", "password", Instant.now().minusSeconds(300)))
+                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(300)));
+        when(dockerClient.dockerInstalled()).thenReturn(true);
+
+        DockerImageDownloader downloader = getDownloader(artifactUri);
+
+        // Download should eventually succeed after refreshing credentials
+        downloader.download();
+
+        assertEquals("testimage", image.getName());
+        assertEquals("sometag", image.getTag());
+        assertNull(image.getDigest());
+        assertTrue(image.getRegistry().isEcrRegistry());
+        assertTrue(image.getRegistry().isPrivateRegistry());
+        assertEquals("012345678910.dkr.ecr.us-east-1.amazonaws.com", image.getRegistry().getEndpoint());
+        assertEquals("012345678910", image.getRegistry().getRegistryId());
+
+        // Getting credentials should be performed twice because the first time, credentials expired
+        verify(ecrAccessor, times(2)).getCredentials("012345678910");
+        verify(dockerClient).pullImage(image);
+        verify(dockerClient).login(image.getRegistry());
+    }
+
     private DockerImageDownloader getDownloader(URI artifactUri) {
         DockerImageDownloader downloader = new DockerImageDownloader(TEST_COMPONENT_ID,
                 ComponentArtifact.builder().artifactUri(artifactUri).build(), artifactDir, dockerClient, ecrAccessor,
                 mqttClient);
-        downloader.setNetworkIssuesRetryConfig(networkIssuesRetryConfig);
-        downloader.setNonNetworkIssuesRetryConfig(nonNetworkIssuesRetryConfig);
+        downloader.setInfiniteAttemptsRetryConfig(infiniteAttemptsRetryConfig);
+        downloader.setFiniteAttemptsRetryConfig(finiteAttemptsRetryConfig);
         return downloader;
     }
 }
