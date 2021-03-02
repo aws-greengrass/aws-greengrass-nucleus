@@ -29,6 +29,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -126,11 +127,9 @@ class AwsIotMqttClientTest {
     }
 
     @Test
-    void GIVEN_individual_client_THEN_it_tracks_connection_state_correctly(ExtensionContext context)
+    void GIVEN_individual_client_THEN_it_tracks_connection_state_correctly(ExtensionContext ec)
             throws ExecutionException, InterruptedException, TimeoutException {
-        // Ignore if it tries to subscribe after client is closed. This exception will be handled
-        ignoreExceptionUltimateCauseWithMessage(context, "Client is not connected");
-
+        ignoreExceptionUltimateCauseOfType(ec, RejectedExecutionException.class);
         when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
