@@ -149,6 +149,7 @@ class AwsIotMqttClientTest {
         verify(connection, times(2)).close();
         verify(connection, times(2)).disconnect();
         assertTrue(client.connected());
+        verify(connection, timeout(1_000).times(2)).subscribe(any(), any());
 
         // Ensure that we track connection state through the callbacks
         events.getValue().onConnectionInterrupted(0);
