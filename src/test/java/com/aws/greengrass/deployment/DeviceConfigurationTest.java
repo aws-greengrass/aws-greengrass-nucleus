@@ -47,6 +47,7 @@ import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.g
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.config.Topic.DEFAULT_VALUE_TIMESTAMP;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.FALLBACK_DEFAULT_REGION;
 import static com.aws.greengrass.deployment.DeviceConfiguration.GGC_VERSION_ENV;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
@@ -137,6 +138,18 @@ class DeviceConfigurationTest {
                 () -> deviceConfiguration.validateEndpoints("us-east-1", "xxxxxx.credentials.iot.us-east-1.amazonaws.com",
                         "xxxxxx-ats.iot.us-east-2.amazonaws.com"));
         assertEquals("IoT data endpoint region xxxxxx-ats.iot.us-east-2.amazonaws.com does not match the AWS region us-east-1 of the device", ex.getMessage());
+    }
+
+    @Test
+    void GIVEN_config_WHEN_set_bad_aws_region_THEN_fallback_to_default(@Mock Context mockContext) {
+        Topic testingTopic = Topic.of(mockContext, "testing", null);
+        when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(testingTopic);
+        when(mockTopic.withValue(anyString())).thenReturn(mockTopic);
+        when(configuration.lookup(eq(SETENV_CONFIG_NAMESPACE), anyString())).thenReturn(mockTopic);
+
+        deviceConfiguration = new DeviceConfiguration(mockKernel);
+        deviceConfiguration.setAWSRegion("nowhere-south-42");
+        assertEquals(FALLBACK_DEFAULT_REGION, testingTopic.getOnce());
     }
 
     @Test

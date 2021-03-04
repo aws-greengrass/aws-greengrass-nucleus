@@ -33,6 +33,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -300,15 +301,25 @@ class GreengrassSetupTest {
     }
 
     @Test
-    void GIVEN_setup_script_WHEN_no_region_provided_THEN_fail(ExtensionContext context) throws Exception {
+    void GIVEN_setup_script_WHEN_no_region_provided_THEN_fail() {
         GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper,
                 platform, kernel, "-i",
                 "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
                 "-ss", "false");
-        Topic regionTopic = Topic.of(this.context, DeviceConfiguration.DEVICE_PARAM_AWS_REGION, null);
-        lenient().doReturn(regionTopic).when(deviceConfiguration).getAWSRegion();
         greengrassSetup.parseArgs();
-        assertThrows(RuntimeException.class, greengrassSetup::performSetup);
+        Exception e = assertThrows(RuntimeException.class, greengrassSetup::performSetup);
+        assertTrue(e.getMessage().contains("aws region not provided"));
+    }
+
+    @Test
+    void GIVEN_setup_script_WHEN_bad_region_provided_THEN_fail() {
+        GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper,
+                platform, kernel, "-i",
+                "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
+                "-ss", "false", "--aws-region", "nowhere");
+        greengrassSetup.parseArgs();
+        Exception e = assertThrows(RuntimeException.class, greengrassSetup::performSetup);
+        assertTrue(e.getMessage().contains("is invalid AWS region"));
     }
 
     @Test
