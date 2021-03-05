@@ -105,6 +105,7 @@ public class DeviceConfiguration {
     public static final String RUN_WITH_DEFAULT_WINDOWS_USER = "windowsUser";
     public static final String RUN_WITH_DEFAULT_POSIX_SHELL = "posixShell";
     public static final String RUN_WITH_DEFAULT_POSIX_SHELL_VALUE = "sh";
+    public static final String FLEET_STATUS_CONFIG_TOPICS = "fleetStatus";
 
     public static final String IOT_ROLE_ALIAS_TOPIC = "iotRoleAlias";
     public static final String COMPONENT_STORE_MAX_SIZE_BYTES = "componentStoreMaxSizeBytes";
@@ -220,6 +221,15 @@ public class DeviceConfiguration {
      */
     public Topics getTelemetryConfigurationTopics() {
         return getTopics(TELEMETRY_CONFIG_LOGGING_TOPICS);
+    }
+
+    /**
+     * Get the fleet status configuration.
+     *
+     * @return Configuration for fleet status service.
+     */
+    public Topics getStatusConfigurationTopics() {
+        return getTopics(FLEET_STATUS_CONFIG_TOPICS);
     }
 
     /**

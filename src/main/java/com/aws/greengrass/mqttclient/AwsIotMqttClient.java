@@ -162,12 +162,9 @@ class AwsIotMqttClient implements Closeable {
     }
 
     void reconnect() throws TimeoutException, ExecutionException, InterruptedException {
-        // Synchronize here instead of method signature to make mockito work without deadlocking
-        synchronized (this) {
-            logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
-            disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
-            connect().get(getTimeout(), TimeUnit.MILLISECONDS);
-        }
+        logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
+        disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
+        connect().get(getTimeout(), TimeUnit.MILLISECONDS);
     }
 
     protected synchronized CompletableFuture<Boolean> connect() {
