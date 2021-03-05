@@ -355,8 +355,14 @@ class AwsIotMqttClientTest {
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "testClient", mockTopic,
                 callbackEventManager, executorService, ses);
 
+        when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
-        when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
+        when(connection.disconnect()).thenAnswer((a) -> {
+            CompletableFuture<Void> cf = new CompletableFuture<>();
+            // Complete the future in a different thread, just like the SDK would do
+            ses.schedule(() -> cf.complete(null), 50, TimeUnit.MILLISECONDS);
+            return cf;
+        });
         when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
         when(builder.build()).thenReturn(connection);

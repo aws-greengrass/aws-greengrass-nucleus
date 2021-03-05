@@ -293,7 +293,7 @@ public class MqttClient implements Closeable {
                             }
                         }
                     } while (!brokenConnections.isEmpty());
-                }, 2, TimeUnit.SECONDS));
+                }, 1, TimeUnit.SECONDS));
 
                 // If a reconfiguration task already existed, then kill it and create a new one
                 if (oldFuture != null) {
