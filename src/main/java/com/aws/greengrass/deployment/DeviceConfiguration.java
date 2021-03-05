@@ -127,11 +127,11 @@ public class DeviceConfiguration {
     private static final String DEFAULT_ENV_STAGE = "prod";
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
-    public static final String FALLBACK_DEFAULT_REGION = "us-east-1";
     public static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
     public static final String GGC_VERSION_ENV = "GGC_VERSION";
     public static final String NUCLEUS_BUILD_METADATA_DIRECTORY = "conf";
     public static final String NUCLEUS_RECIPE_FILENAME = "recipe.yaml";
+    protected static final String FALLBACK_DEFAULT_REGION = "us-east-1";
     protected static final String FALLBACK_VERSION = "0.0.0";
     private final Kernel kernel;
 
@@ -470,6 +470,7 @@ public class DeviceConfiguration {
                     logger.atWarn().log("Error looking up AWS region", ex);
                 }
             }
+            // Snow* devices have a null region
             if (Utils.isEmpty(region) || !Region.regions().contains(Region.of(region))) {
                 logger.atWarn().log("No valid AWS region found, falling back to default: {}", FALLBACK_DEFAULT_REGION);
                 region = FALLBACK_DEFAULT_REGION;

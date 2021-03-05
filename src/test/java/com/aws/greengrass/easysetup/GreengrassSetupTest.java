@@ -33,7 +33,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -308,7 +307,7 @@ class GreengrassSetupTest {
                 "-ss", "false");
         greengrassSetup.parseArgs();
         Exception e = assertThrows(RuntimeException.class, greengrassSetup::performSetup);
-        assertTrue(e.getMessage().contains("aws region not provided"));
+        assertThat(e.getMessage(), containsString("aws region not provided"));
     }
 
     @Test
@@ -319,7 +318,7 @@ class GreengrassSetupTest {
                 "-ss", "false", "--aws-region", "nowhere");
         greengrassSetup.parseArgs();
         Exception e = assertThrows(RuntimeException.class, greengrassSetup::performSetup);
-        assertTrue(e.getMessage().contains("is invalid AWS region"));
+        assertThat(e.getMessage(), containsString("is invalid AWS region"));
     }
 
     @Test
