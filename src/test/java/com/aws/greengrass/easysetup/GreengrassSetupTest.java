@@ -300,15 +300,25 @@ class GreengrassSetupTest {
     }
 
     @Test
-    void GIVEN_setup_script_WHEN_no_region_provided_THEN_fail(ExtensionContext context) throws Exception {
+    void GIVEN_setup_script_WHEN_no_region_provided_THEN_fail() {
         GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper,
                 platform, kernel, "-i",
                 "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
                 "-ss", "false");
-        Topic regionTopic = Topic.of(this.context, DeviceConfiguration.DEVICE_PARAM_AWS_REGION, null);
-        lenient().doReturn(regionTopic).when(deviceConfiguration).getAWSRegion();
         greengrassSetup.parseArgs();
-        assertThrows(RuntimeException.class, greengrassSetup::performSetup);
+        Exception e = assertThrows(RuntimeException.class, greengrassSetup::performSetup);
+        assertThat(e.getMessage(), containsString("aws region not provided"));
+    }
+
+    @Test
+    void GIVEN_setup_script_WHEN_bad_region_provided_THEN_fail() {
+        GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper,
+                platform, kernel, "-i",
+                "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
+                "-ss", "false", "--aws-region", "nowhere");
+        greengrassSetup.parseArgs();
+        Exception e = assertThrows(RuntimeException.class, greengrassSetup::performSetup);
+        assertThat(e.getMessage(), containsString("is invalid AWS region"));
     }
 
     @Test
