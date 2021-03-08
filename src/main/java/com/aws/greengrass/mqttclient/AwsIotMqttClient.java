@@ -20,6 +20,7 @@ import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
+import vendored.com.google.common.util.concurrent.RateLimiter;
 
 import java.io.Closeable;
 import java.time.Duration;
@@ -75,6 +76,11 @@ class AwsIotMqttClient implements Closeable {
     @Setter
     private static int waitTimeJitterMaxMillis = 10_000;
 
+    // Limit TPS to 100 which is IoT Core's limit per connection
+    private final RateLimiter transactionLimiter = RateLimiter.create(100.0);
+    // Limit bandwidth to 512 KBPS
+    private final RateLimiter bandwidthLimiter = RateLimiter.create(512.0 * 1024);
+
     @Getter(AccessLevel.PACKAGE)
     private final MqttClientConnectionEvents connectionEventCallback = new MqttClientConnectionEvents() {
         @Override
@@ -114,6 +120,13 @@ class AwsIotMqttClient implements Closeable {
         this.ses = ses;
     }
 
+    long getThrottlingWaitTimeMicros() {
+        // Return the worst possible wait time.
+        // Time to wait is independent of how many permits we need because future transactions
+        // will pay this current transaction's cost.  See the JavaDocs for RateLimiter for more info.
+        return Math.max(bandwidthLimiter.microTimeToNextPermit(), transactionLimiter.microTimeToNextPermit());
+    }
+
     // Notes about the CRT MQTT client:
     // client has no timeouts if the connection is dropped, then we do get an exception
     // so we need to retry ourselves. If offline, client waits to be online then tries to subscribe
@@ -146,10 +159,15 @@ class AwsIotMqttClient implements Closeable {
 
     CompletableFuture<Integer> publish(MqttMessage message, QualityOfService qos, boolean retain) {
         return connect().thenCompose((b) -> {
-            logger.atTrace().kv(TOPIC_KEY, message.getTopic()).kv(QOS_KEY, qos.name()).kv("retain", retain)
-                    .log("Publishing message");
+            // Take the tokens from the limiters' token buckets.
+            // This is guaranteed to not block because we've already slept the required time
+            // in the spooler thread before calling this method.
+            transactionLimiter.acquire();
+            bandwidthLimiter.acquire(message.getPayload().length);
             synchronized (this) {
                 throwIfNotConnected();
+                logger.atTrace().kv(TOPIC_KEY, message.getTopic()).kv(QOS_KEY, qos.name()).kv("retain", retain)
+                        .log("Publishing message");
                 return connection.publish(message, qos, retain);
             }
         });

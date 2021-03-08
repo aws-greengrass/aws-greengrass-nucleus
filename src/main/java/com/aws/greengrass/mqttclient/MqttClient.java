@@ -578,7 +578,8 @@ public class MqttClient implements Closeable {
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.PreserveStackTrace"})
-    protected CompletableFuture<Integer> publishSingleSpoolerMessage() throws InterruptedException {
+    protected CompletableFuture<Integer> publishSingleSpoolerMessage(AwsIotMqttClient connection)
+            throws InterruptedException {
         long id = -1L;
         try {
             id = spool.popId();
@@ -587,7 +588,7 @@ public class MqttClient implements Closeable {
             MqttMessage m = new MqttMessage(request.getTopic(), request.getPayload());
 
             long finalId = id;
-            return getConnection(false).publish(m, request.getQos(), request.isRetain())
+            return connection.publish(m, request.getQos(), request.isRetain())
                     .whenComplete((packetId, throwable) -> {
                         // packetId is the SDK assigned ID. Ignore this and instead use the spooler ID
                         if (throwable == null) {
@@ -627,7 +628,7 @@ public class MqttClient implements Closeable {
     /**
      * Iterate the spooler queue to publish all the spooled message.
      */
-    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.CloseResource"})
     @SuppressFBWarnings("JLM_JSR166_UTILCONCURRENT_MONITORENTER")
     protected void runSpooler() {
         // Do not use CompletableFuture.anyOf to wait for this set to have space
@@ -645,7 +646,25 @@ public class MqttClient implements Closeable {
                         }
                     }
 
-                    CompletableFuture<Integer> future = publishSingleSpoolerMessage();
+                    // Select connection with minimum time to wait before publishing the next message
+                    AwsIotMqttClient connection = getConnection(false);
+                    long minimumWaitTimeMicros = connection.getThrottlingWaitTimeMicros();
+                    for (AwsIotMqttClient client : connections) {
+                        long waitTime = client.getThrottlingWaitTimeMicros();
+                        if (waitTime < minimumWaitTimeMicros) {
+                            connection = client;
+                            minimumWaitTimeMicros = waitTime;
+                        }
+                    }
+                    // Wait here in this thread so that we do not block the AWS CRT's event loop
+                    // which could delay the processing of other requests.
+                    // After this sleep time we will call acquire to take the tokens from the bucket
+                    // since we haven't taken them out yet; we've only queried when we'd be able to take
+                    // them without blocking. Since we have done the sleeping here, the acquire
+                    // is guaranteed to not block.
+                    TimeUnit.MICROSECONDS.sleep(minimumWaitTimeMicros);
+
+                    CompletableFuture<Integer> future = publishSingleSpoolerMessage(connection);
                     publishRequests.add(future);
                     future.whenComplete((i, t) -> {
                         // Notify the possible waiter that the size has changed
