@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.componentmanager.plugins;
+package com.aws.greengrass.componentmanager.plugins.docker;
 
-import com.aws.greengrass.componentmanager.plugins.exceptions.DockerLoginException;
-import com.aws.greengrass.componentmanager.plugins.exceptions.DockerServiceUnavailableException;
-import com.aws.greengrass.componentmanager.plugins.exceptions.InvalidImageOrAccessDeniedException;
-import com.aws.greengrass.componentmanager.plugins.exceptions.UserNotAuthorizedForDockerException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.InvalidImageOrAccessDeniedException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.UserNotAuthorizedForDockerException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
@@ -18,6 +18,9 @@ import lombok.NoArgsConstructor;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -41,18 +44,20 @@ public class DefaultDockerClient {
      * Login to given docker registry.
      *
      * @param registry Registry to log into, with credentials encapsulated
-     * @return if docker login was successful
      * @throws DockerLoginException                error in authenticating with the registry
      * @throws UserNotAuthorizedForDockerException when current user is not authorized to use docker
      * @throws DockerServiceUnavailableException   an error that can be potentially fixed through retries
      * @throws IOException                         unexpected error
      */
-    public boolean login(Registry registry)
+    public void login(Registry registry)
             throws DockerLoginException, UserNotAuthorizedForDockerException, DockerServiceUnavailableException,
             IOException {
-        // TODO : [Blocker] Ensure credentials in command to be run do not get logged
-        CliResponse response = runDockerCmd(String.format("docker login %s -u %s -p %s", registry.getEndpoint(),
-                registry.getCredentials().getUsername(), registry.getCredentials().getPassword()));
+        Map<String, CharSequence> credEnvMap = new HashMap<>();
+        credEnvMap.put("username", registry.getCredentials().getUsername());
+        credEnvMap.put("password", registry.getCredentials().getPassword());
+        CliResponse response =
+                runDockerCmd(String.format("docker login %s -u $username -p $password", registry.getEndpoint()),
+                        credEnvMap);
 
         Optional userAuthorizationError = checkUserAuthorizationError(response);
         if (userAuthorizationError.isPresent()) {
@@ -61,16 +66,16 @@ public class DefaultDockerClient {
 
         if (response.exit.isPresent()) {
             if (response.exit.get() == 0) {
-                return true;
+                return;
             } else {
                 if (response.getOut().contains("Service Unavailable")) {
                     // This error can be thrown when disconnected/issue with docker cloud service, or when the docker
                     // engine has issues or proxy config is bad etc. Not entirely reliable to determine retry behavior
                     throw new DockerServiceUnavailableException(
-                            String.format("Error logging into the registry using credentials - %s", response.out));
+                            String.format("Error logging into the registry using credentials - %s", response.err));
                 }
                 throw new DockerLoginException(
-                        String.format("Error logging into the registry using credentials - %s", response.out));
+                        String.format("Error logging into the registry using credentials - %s", response.err));
             }
         } else {
             throw new IOException("Unexpected error while trying to perform docker login", response.failureCause);
@@ -81,14 +86,13 @@ public class DefaultDockerClient {
      * Pull given docker image.
      *
      * @param image Image to download
-     * @return if docker pull was successful
      * @throws DockerServiceUnavailableException   an error that can be potentially fixed through retries
      * @throws InvalidImageOrAccessDeniedException an error indicating incorrect image specification or auth issues with
      *                                             the registry
      * @throws UserNotAuthorizedForDockerException when current user is not authorized to use docker
      * @throws IOException                         unexpected error
      */
-    public boolean pullImage(Image image) throws DockerServiceUnavailableException, InvalidImageOrAccessDeniedException,
+    public void pullImage(Image image) throws DockerServiceUnavailableException, InvalidImageOrAccessDeniedException,
             UserNotAuthorizedForDockerException, IOException {
         CliResponse response = runDockerCmd(String.format("docker pull %s", image.getImageFullName()));
 
@@ -99,32 +103,41 @@ public class DefaultDockerClient {
 
         if (response.exit.isPresent()) {
             if (response.exit.get() == 0) {
-                return true;
+                return;
             } else {
                 if (response.getOut().contains("Service Unavailable")) {
                     // This error can be thrown when disconnected/issue with docker cloud service, or when the docker
                     // engine has issues or proxy config is bad etc. Not entirely reliable to determine retry behavior
                     throw new DockerServiceUnavailableException(
-                            String.format("Error logging into the registry using credentials - %s", response.out));
+                            String.format("Error pulling docker image - %s", response.err));
                 }
                 if (response.getOut().contains("repository does not exist or may require 'docker login'")) {
                     throw new InvalidImageOrAccessDeniedException(
-                            String.format("Invalid image or login - %s", response.out));
+                            String.format("Invalid image or login - %s", response.err));
                 }
-                throw new IOException("Unexpected error while trying to perform docker login", response.failureCause);
+                throw new IOException(String.format("Unexpected error while trying to perform docker pull - %s",
+                        response.err), response.failureCause);
             }
         } else {
-            throw new IOException("Unexpected error while trying to perform docker login", response.failureCause);
+            throw new IOException("Unexpected error while trying to perform docker pull", response.failureCause);
         }
     }
 
     private CliResponse runDockerCmd(String cmd) {
+        return runDockerCmd(cmd, Collections.emptyMap());
+    }
+
+    private CliResponse runDockerCmd(String cmd, Map<String, CharSequence> envs) {
         Throwable cause = null;
         StringBuilder output = new StringBuilder();
         StringBuilder error = new StringBuilder();
         Optional<Integer> exit = Optional.empty();
         try (Exec exec = new Exec()) {
-            exit = exec.withExec(cmd.split(" ")).withShell().withOut(output::append).withErr(error::append).exec();
+            exec.withExec(cmd.split(" ")).withShell().withOut(output::append).withErr(error::append);
+            for (Map.Entry<String, CharSequence> env : envs.entrySet()) {
+                exec.setenv(env.getKey(), env.getValue());
+            }
+            exit = exec.exec();
         } catch (InterruptedException e) {
             Arrays.stream(e.getSuppressed()).forEach((t) -> {
                 logger.atError().setCause(e).log("interrupted");

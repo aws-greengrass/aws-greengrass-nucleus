@@ -3,16 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.integrationtests.componentmanager.plugins;
+package com.aws.greengrass.integrationtests.componentmanager.plugins.docker;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.componentmanager.plugins.DefaultDockerClient;
-import com.aws.greengrass.componentmanager.plugins.EcrAccessor;
-import com.aws.greengrass.componentmanager.plugins.Image;
-import com.aws.greengrass.componentmanager.plugins.Registry;
+import com.aws.greengrass.componentmanager.plugins.docker.DefaultDockerClient;
+import com.aws.greengrass.componentmanager.plugins.docker.EcrAccessor;
+import com.aws.greengrass.componentmanager.plugins.docker.Image;
+import com.aws.greengrass.componentmanager.plugins.docker.Registry;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
@@ -73,8 +73,6 @@ public class DockerImageArtifactDownloadTest extends BaseITCase {
         lenient().when(ecrClient.getAuthorizationToken(any(GetAuthorizationTokenRequest.class))).thenReturn(response);
 
         lenient().when(dockerClient.dockerInstalled()).thenReturn(true);
-        lenient().when(dockerClient.login(any(Registry.class))).thenReturn(true);
-        lenient().when(dockerClient.pullImage(any(Image.class))).thenReturn(true);
 
         AtomicBoolean mqttOnline = new AtomicBoolean(true);
         lenient().when(mqttClient.getMqttOnline()).thenReturn(mqttOnline);
@@ -141,8 +139,7 @@ public class DockerImageArtifactDownloadTest extends BaseITCase {
 
     private void preloadLocalStoreContent() throws URISyntaxException, IOException {
         Path localStoreContentPath =
-                Paths.get(DockerImageArtifactDownloadTest.class.getResource("dockerdownloader").toURI());
-        System.out.println(localStoreContentPath.toString());
+                Paths.get(DockerImageArtifactDownloadTest.class.getResource("downloader").toURI());
         PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"),
                 kernel.getNucleusPaths().recipePath());
     }

@@ -4,18 +4,18 @@
  */
 
 
-package com.aws.greengrass.componentmanager.plugins.exceptions;
+package com.aws.greengrass.componentmanager.plugins.docker.exceptions;
 
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 
-public class DockerLoginException extends PackageDownloadException {
+public class RegistryAuthException extends PackageDownloadException {
     static final long serialVersionUID = -3387516993124229948L;
 
-    public DockerLoginException(String message) {
+    public RegistryAuthException(String message) {
         super(message);
     }
 
-    public DockerLoginException(String message, Throwable cause) {
+    public RegistryAuthException(String message, Throwable cause) {
         super(message, cause);
     }
 }

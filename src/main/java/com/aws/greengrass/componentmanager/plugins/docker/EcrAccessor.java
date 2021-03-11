@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.componentmanager.plugins;
+package com.aws.greengrass.componentmanager.plugins.docker;
 
-import com.aws.greengrass.componentmanager.plugins.exceptions.RegistryAuthException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.RegistryAuthException;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.tes.LazyCredentialProvider;
 import com.aws.greengrass.util.Coerce;

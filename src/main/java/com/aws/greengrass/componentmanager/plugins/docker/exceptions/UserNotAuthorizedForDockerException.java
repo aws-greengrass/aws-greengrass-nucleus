@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.componentmanager.plugins.exceptions;
+package com.aws.greengrass.componentmanager.plugins.docker.exceptions;
 
 public class UserNotAuthorizedForDockerException extends Exception {
     static final long serialVersionUID = -3387516993124229948L;

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.componentmanager.plugins;
+package com.aws.greengrass.componentmanager.plugins.docker;
 
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -13,9 +13,6 @@ import lombok.NonNull;
 import lombok.Setter;
 
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
 
 /**
  * Represents a docker registry derived from a component artifact specification.
@@ -25,43 +22,25 @@ import java.util.Objects;
 @NoArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Registry {
-    private static List<String> PRIVATE_ECR_REGISTRY_IDENTIFIERS = Arrays.asList("dkr.ecr", "amazonaws");
-    private static String PUBLIC_ECR_REGISTRY_IDENTIFIER = "public.ecr.aws";
 
     @EqualsAndHashCode.Include
     private String endpoint;
-    private ImageType type;
-    private ImageSource source;
+    private RegistryType type;
+    private RegistrySource source;
     @Setter
     private Credentials credentials;
 
     /**
      * Constructor.
      *
-     * @param endpoint Registry endpoint
+     * @param endpoint       Registry endpoint
+     * @param registrySource Source of the registry, i.e. hosted in ECR or other registry servers
+     * @param registryType   Type of the registry, i.e. private or public
      */
-    public Registry(String endpoint) {
+    public Registry(String endpoint, RegistrySource registrySource, RegistryType registryType) {
         this.endpoint = endpoint;
-
-        if (endpoint.contains(PUBLIC_ECR_REGISTRY_IDENTIFIER)) {
-            this.source = ImageSource.ECR;
-            this.type = ImageType.PUBLIC;
-        } else if (containsAll(endpoint, PRIVATE_ECR_REGISTRY_IDENTIFIERS)) {
-            this.source = ImageSource.ECR;
-            this.type = ImageType.PRIVATE;
-        } else {
-            this.source = ImageSource.OTHER;
-            this.type = ImageType.PUBLIC;
-        }
-    }
-
-    private boolean containsAll(String str, List<String> subStrs) {
-        for (String subStr : subStrs) {
-            if (!str.contains(subStr)) {
-                return false;
-            }
-        }
-        return true;
+        this.type = registryType;
+        this.source = registrySource;
     }
 
     /**
@@ -79,7 +58,7 @@ public class Registry {
      * @return evaluation result
      */
     public boolean isEcrRegistry() {
-        return Registry.ImageSource.ECR.equals(source);
+        return RegistrySource.ECR.equals(source);
     }
 
     /**
@@ -88,14 +67,14 @@ public class Registry {
      * @return evaluation result
      */
     public boolean isPrivateRegistry() {
-        return Registry.ImageType.PRIVATE.equals(type);
+        return RegistryType.PRIVATE.equals(type);
     }
 
-    public enum ImageType {
+    public enum RegistryType {
         PRIVATE, PUBLIC
     }
 
-    public enum ImageSource {
+    public enum RegistrySource {
         ECR, OTHER
     }
 
@@ -103,7 +82,6 @@ public class Registry {
      * Registry credentials.
      */
     @Getter
-    @AllArgsConstructor
     public static class Credentials {
         @NonNull
         private String username;
@@ -113,25 +91,35 @@ public class Registry {
         private Instant expiresAt;
 
         /**
+         * Constructor.
+         *
+         * @param username username
+         * @param password password
+         */
+        public Credentials(String username, String password) {
+            this(username, password, Instant.MAX);
+        }
+
+        /**
+         * Constructor.
+         *
+         * @param username  username
+         * @param password  password
+         * @param expiresAt time when credential expires
+         */
+        public Credentials(String username, String password, Instant expiresAt) {
+            this.username = username;
+            this.password = password;
+            this.expiresAt = expiresAt;
+        }
+
+        /**
          * Check if credentials are valid at any point in time, if not they need to be refreshed.
          *
          * @return validity
          */
-        public boolean stillValid() {
-            return Objects.isNull(expiresAt) || Instant.now().compareTo(expiresAt) < 0;
-        }
-
-        /**
-         * Refresh credential values with latest valid ones.
-         *
-         * @param username  username
-         * @param password  password
-         * @param expiresAt expiresAt
-         */
-        public void refresh(String username, String password, Instant expiresAt) {
-            this.username = username;
-            this.password = password;
-            this.expiresAt = expiresAt;
+        public boolean isValid() {
+            return Instant.now().isBefore(expiresAt);
         }
     }
 }

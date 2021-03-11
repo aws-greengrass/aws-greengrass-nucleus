@@ -75,15 +75,12 @@ import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
-import static com.aws.greengrass.componentmanager.plugins.DockerManagerService.DOCKER_MANAGER_PLUGIN_SERVICE_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES;
-import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -91,6 +88,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -560,142 +558,42 @@ class ComponentManagerTest {
     }
 
     @Test
-    void GIVEN_deployment_has_component_requiring_download_plugins_WHEN_deployment_has_download_prereq_component_THEN_succeed_1()
+    void GIVEN_deployment_WHEN_dependency_closure_has_download_prereq_component_THEN_succeed()
             throws Exception {
         ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
         ComponentRecipe mockRecipe = mock(ComponentRecipe.class);
         Optional<ComponentRecipe> recipeResult = Optional.of(mockRecipe);
         // Private ECR image
         List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
-                .artifactUri(new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/test_image")).build());
+                .artifactUri(new URI("s3://some/artifact")).build());
         when(mockRecipe.getArtifacts()).thenReturn(artifacts);
         when(componentStore.findPackageRecipe(any())).thenReturn(recipeResult);
 
         List<ComponentIdentifier> dependencyClosure =
-                Arrays.asList(new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")),
-                        new ComponentIdentifier("aws.greengrass.TokenExchangeService", new Semver("2.0.0")),
+                Arrays.asList(
                         testComponent);
         componentManager.checkPreparePackagesPrerequisites(dependencyClosure);
     }
 
     @Test
-    void GIVEN_deployment_has_component_requiring_download_plugins_WHEN_deployment_has_download_prereq_component_THEN_succeed_2()
-            throws Exception {
-        ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
-        ComponentRecipe mockRecipe = mock(ComponentRecipe.class);
-        Optional<ComponentRecipe> recipeResult = Optional.of(mockRecipe);
-        // Public ECR image
-        List<ComponentArtifact> artifacts = Collections.singletonList(
-                ComponentArtifact.builder().artifactUri(new URI("docker:public.ecr.aws/a1b2c3d4/testimage:sometag"))
-                        .build());
-        when(mockRecipe.getArtifacts()).thenReturn(artifacts);
-        when(componentStore.findPackageRecipe(any())).thenReturn(recipeResult);
-
-        List<ComponentIdentifier> dependencyClosure =
-                Arrays.asList(new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")),
-                        testComponent);
-        componentManager.checkPreparePackagesPrerequisites(dependencyClosure);
-    }
-
-    @Test
-    void GIVEN_deployment_has_component_requiring_download_plugins_WHEN_deployment_has_download_prereq_component_THEN_succeed_3()
-            throws Exception {
-        ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
-        ComponentRecipe mockRecipe = mock(ComponentRecipe.class);
-        Optional<ComponentRecipe> recipeResult = Optional.of(mockRecipe);
-        // Any dockerhub image
-        List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
-                .artifactUri(new URI("docker:registry.hub.docker.com/library/alpine:sometag")).build());
-        when(mockRecipe.getArtifacts()).thenReturn(artifacts);
-        when(componentStore.findPackageRecipe(any())).thenReturn(recipeResult);
-
-        List<ComponentIdentifier> dependencyClosure =
-                Arrays.asList(new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")),
-                        testComponent);
-        componentManager.checkPreparePackagesPrerequisites(dependencyClosure);
-    }
-
-    @Test
-    void GIVEN_deployment_has_component_requiring_download_plugins_WHEN_deployment_has_no_download_prereq_component_THEN_fail_1()
+    void GIVEN_deployment_WHEN_dependency_closure_is_missing_download_prereq_component_THEN_fail()
             throws Exception {
         ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
         ComponentRecipe mockRecipe = mock(ComponentRecipe.class);
         Optional<ComponentRecipe> recipeResult = Optional.of(mockRecipe);
         // Private ECR image
         List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
-                .artifactUri(new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/test_image")).build());
+                .artifactUri(new URI("s3://some/artifact")).build());
         when(mockRecipe.getArtifacts()).thenReturn(artifacts);
         when(componentStore.findPackageRecipe(any())).thenReturn(recipeResult);
-
-        List<ComponentIdentifier> dependencyClosure = Arrays.asList(testComponent);
-        Throwable err = assertThrows(MissingRequiredComponentsException.class,
-                () -> componentManager.checkPreparePackagesPrerequisites(dependencyClosure));
-        assertThat(err.getMessage(), containsString(String.format(
-                "Special components with docker artifacts must include " + "the %s download plugin in the deployment",
-                DOCKER_MANAGER_PLUGIN_SERVICE_NAME)));
-    }
-
-    @Test
-    void GIVEN_deployment_has_component_requiring_download_plugins_WHEN_deployment_has_no_download_prereq_component_THEN_fail_2()
-            throws Exception {
-        ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
-        ComponentRecipe mockRecipe = mock(ComponentRecipe.class);
-        Optional<ComponentRecipe> recipeResult = Optional.of(mockRecipe);
-        // Private ECR image
-        List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
-                .artifactUri(new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/test_image")).build());
-        when(mockRecipe.getArtifacts()).thenReturn(artifacts);
-        when(componentStore.findPackageRecipe(any())).thenReturn(recipeResult);
+        doThrow(new MissingRequiredComponentsException("Missing required component for download")).when
+         (artifactDownloaderFactory).checkDownloadPrerequisites(any(), any());
 
         List<ComponentIdentifier> dependencyClosure =
-                Arrays.asList(new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")),
+                Arrays.asList(
                         testComponent);
-        Throwable err = assertThrows(MissingRequiredComponentsException.class,
-                () -> componentManager.checkPreparePackagesPrerequisites(dependencyClosure));
-        assertThat(err.getMessage(), containsString(String.format(
-                "Components with private ECR docker artifacts must " + "include the %s plugin in the deployment",
-                TOKEN_EXCHANGE_SERVICE_TOPICS)));
-    }
-
-    @Test
-    void GIVEN_deployment_has_component_requiring_download_plugins_WHEN_deployment_has_no_download_prereq_component_THEN_fail_3()
-            throws Exception {
-        ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
-        ComponentRecipe mockRecipe = mock(ComponentRecipe.class);
-        Optional<ComponentRecipe> recipeResult = Optional.of(mockRecipe);
-        // Public ECR image
-        List<ComponentArtifact> artifacts = Collections.singletonList(
-                ComponentArtifact.builder().artifactUri(new URI("docker:public.ecr.aws/a1b2c3d4/testimage:sometag"))
-                        .build());
-        when(mockRecipe.getArtifacts()).thenReturn(artifacts);
-        when(componentStore.findPackageRecipe(any())).thenReturn(recipeResult);
-
-        List<ComponentIdentifier> dependencyClosure = Arrays.asList(testComponent);
-        Throwable err = assertThrows(MissingRequiredComponentsException.class,
-                () -> componentManager.checkPreparePackagesPrerequisites(dependencyClosure));
-        assertThat(err.getMessage(), containsString(String.format(
-                "Special components with docker artifacts must include the " + "%s download plugin in the deployment",
-                DOCKER_MANAGER_PLUGIN_SERVICE_NAME)));
-    }
-
-    @Test
-    void GIVEN_deployment_has_component_requiring_download_plugins_WHEN_deployment_has_no_download_prereq_component_THEN_fail_4()
-            throws Exception {
-        ComponentIdentifier testComponent = new ComponentIdentifier("test.component", new Semver("1.0.0"));
-        ComponentRecipe mockRecipe = mock(ComponentRecipe.class);
-        Optional<ComponentRecipe> recipeResult = Optional.of(mockRecipe);
-        // Any dockerhub image
-        List<ComponentArtifact> artifacts = Collections.singletonList(ComponentArtifact.builder()
-                .artifactUri(new URI("docker:registry.hub.docker.com/library/alpine:sometag")).build());
-        when(mockRecipe.getArtifacts()).thenReturn(artifacts);
-        when(componentStore.findPackageRecipe(any())).thenReturn(recipeResult);
-
-        List<ComponentIdentifier> dependencyClosure = Arrays.asList(testComponent);
-        Throwable err = assertThrows(MissingRequiredComponentsException.class,
-                () -> componentManager.checkPreparePackagesPrerequisites(dependencyClosure));
-        assertThat(err.getMessage(), containsString(String.format(
-                "Special components with docker artifacts must include the " + "%s download plugin in the deployment",
-                DOCKER_MANAGER_PLUGIN_SERVICE_NAME)));
+        assertThrows(MissingRequiredComponentsException.class, () ->
+                componentManager.checkPreparePackagesPrerequisites(dependencyClosure));
     }
 
     private GreengrassService getMockGreengrassService(String serviceName) {

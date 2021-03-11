@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.componentmanager.plugins;
+package com.aws.greengrass.componentmanager.plugins.docker;
 
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
@@ -19,7 +19,7 @@ import javax.inject.Singleton;
 @ImplementsService(name = DockerManagerService.DOCKER_MANAGER_PLUGIN_SERVICE_NAME)
 @Singleton
 public class DockerManagerService extends GreengrassService {
-    public static final String DOCKER_MANAGER_PLUGIN_SERVICE_NAME = "aws.greengrass.DockerManager";
+    public static final String DOCKER_MANAGER_PLUGIN_SERVICE_NAME = "aws.greengrass.DockerComponentManager";
 
     /**
      * Constructor for injection.
