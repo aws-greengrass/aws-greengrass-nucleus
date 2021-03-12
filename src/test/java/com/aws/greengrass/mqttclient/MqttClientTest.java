@@ -32,10 +32,10 @@ import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
-import java.util.Collections;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -53,9 +53,9 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
+import static com.aws.greengrass.mqttclient.MqttClient.DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT;
 import static com.aws.greengrass.mqttclient.MqttClient.MAX_LENGTH_OF_TOPIC;
 import static com.aws.greengrass.mqttclient.MqttClient.MAX_NUMBER_OF_FORWARD_SLASHES;
-import static com.aws.greengrass.mqttclient.MqttClient.DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT;
 import static com.aws.greengrass.mqttclient.MqttClient.MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
@@ -487,10 +487,9 @@ class MqttClientTest {
         SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
         when(spool.getMessageById(id)).thenReturn(message);
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
-        when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
         when(awsIotMqttClient.publish(any(), any(), anyBoolean())).thenReturn(CompletableFuture.completedFuture(0));
 
-        client.publishSingleSpoolerMessage();
+        client.publishSingleSpoolerMessage(awsIotMqttClient);
 
         verify(spool).removeMessageById(anyLong());
         verify(awsIotMqttClient).publish(any(), any(), anyBoolean());
@@ -514,12 +513,11 @@ class MqttClientTest {
         SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
         when(spool.getMessageById(id)).thenReturn(message);
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
-        when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
         CompletableFuture<Integer> future = new CompletableFuture<>();
         future.completeExceptionally(new ExecutionException("exception", new Throwable()));
         when(awsIotMqttClient.publish(any(), any(), anyBoolean())).thenReturn(future);
 
-        client.publishSingleSpoolerMessage();
+        client.publishSingleSpoolerMessage(awsIotMqttClient);
 
         verify(awsIotMqttClient).publish(any(), any(), anyBoolean());
         verify(spool, never()).removeMessageById(anyLong());
@@ -544,12 +542,11 @@ class MqttClientTest {
         message.getRetried().set(DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT);
         when(spool.getMessageById(id)).thenReturn(message);
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
-        when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
         CompletableFuture<Integer> future = new CompletableFuture<>();
         future.completeExceptionally(new ExecutionException("exception", new Throwable()));
         when(awsIotMqttClient.publish(any(), any(), anyBoolean())).thenReturn(future);
 
-        client.publishSingleSpoolerMessage();
+        client.publishSingleSpoolerMessage(awsIotMqttClient);
 
         verify(awsIotMqttClient).publish(any(), any(), anyBoolean());
         verify(spool, never()).removeMessageById(anyLong());
@@ -586,7 +583,7 @@ class MqttClientTest {
         verify(spool).removeMessageById(anyLong());
         // The 3rd call is to trigger Interrupted Exception and exit the loop
         verify(spool, times(2)).popId();
-        verify(client, times(2)).publishSingleSpoolerMessage();
+        verify(client, times(2)).publishSingleSpoolerMessage(awsIotMqttClient);
     }
 
     @Test
@@ -621,7 +618,7 @@ class MqttClientTest {
         verify(spool, never()).removeMessageById(anyLong());
         // The 3rd call is to trigger Interrupted Exception and exit the loop
         verify(spool, times(3)).popId();
-        verify(client, times(3)).publishSingleSpoolerMessage();
+        verify(client, times(3)).publishSingleSpoolerMessage(awsIotMqttClient);
     }
 
 

@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.componentmanager.plugins;
+package com.aws.greengrass.componentmanager.plugins.docker;
 
-import com.aws.greengrass.componentmanager.plugins.exceptions.RegistryAuthException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.RegistryAuthException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.sun.org.apache.xerces.internal.impl.dv.util.Base64;
 import org.junit.jupiter.api.BeforeEach;

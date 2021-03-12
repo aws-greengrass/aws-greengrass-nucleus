@@ -310,7 +310,7 @@
                         <ruleset>codestyle/pmd-eg-tests-ruleset.xml</ruleset>
                     </rulesets>
                     <includeTests>true</includeTests>
-                    <excludes>**/awssdk/**, **/eventstream/**</excludes>
+                    <excludes>**/awssdk/**, **/eventstream/**, **/vendored/**</excludes>
                     <skip>${skipTests}</skip>
                 </configuration>
                 <executions>
@@ -339,6 +339,7 @@
                                 <exclude>codestyle/**</exclude>
                                 <exclude>src/test/greengrass-nucleus-benchmark/**</exclude>
                                 <exclude>src/*/resources/**</exclude>
+                                <exclude>src/**/vendored/**</exclude>
                             </excludes>
                         </licenseSet>
                     </licenseSets>
@@ -392,7 +393,7 @@
                     <configLocation>codestyle/checkstyle.xml</configLocation>
                     <violationSeverity>warning</violationSeverity>
                     <maxAllowedViolations>0</maxAllowedViolations>
-                    <excludes>**/awssdk/**, **/eventstream/**</excludes>
+                    <excludes>**/awssdk/**, **/eventstream/**, **/vendored/**</excludes>
                     <skip>${skipTests}</skip>
                 </configuration>
                 <executions>

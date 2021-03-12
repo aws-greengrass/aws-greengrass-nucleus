@@ -4,7 +4,7 @@
  */
 
 
-package com.aws.greengrass.componentmanager.plugins.exceptions;
+package com.aws.greengrass.componentmanager.plugins.docker.exceptions;
 
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 

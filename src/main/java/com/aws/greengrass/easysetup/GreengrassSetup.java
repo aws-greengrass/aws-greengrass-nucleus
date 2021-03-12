@@ -275,7 +275,7 @@ public class GreengrassSetup {
         if (Utils.isEmpty(awsRegion)) {
             throw new RuntimeException("Required input for aws region not provided");
         }
-        if (Region.of(awsRegion) == null) {
+        if (!Region.regions().contains(Region.of(awsRegion))) {
             throw new RuntimeException(String.format("%s is invalid AWS region", awsRegion));
         }
 

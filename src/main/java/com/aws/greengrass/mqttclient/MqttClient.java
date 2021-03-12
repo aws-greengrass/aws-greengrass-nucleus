@@ -35,7 +35,6 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 import java.io.Closeable;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -294,7 +293,7 @@ public class MqttClient implements Closeable {
                             }
                         }
                     } while (!brokenConnections.isEmpty());
-                }, 2, TimeUnit.SECONDS));
+                }, 1, TimeUnit.SECONDS));
 
                 // If a reconfiguration task already existed, then kill it and create a new one
                 if (oldFuture != null) {
@@ -579,7 +578,8 @@ public class MqttClient implements Closeable {
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.PreserveStackTrace"})
-    protected CompletableFuture<Integer> publishSingleSpoolerMessage() throws InterruptedException {
+    protected CompletableFuture<Integer> publishSingleSpoolerMessage(AwsIotMqttClient connection)
+            throws InterruptedException {
         long id = -1L;
         try {
             id = spool.popId();
@@ -588,12 +588,12 @@ public class MqttClient implements Closeable {
             MqttMessage m = new MqttMessage(request.getTopic(), request.getPayload());
 
             long finalId = id;
-            return getConnection(false).publish(m, request.getQos(), request.isRetain())
+            return connection.publish(m, request.getQos(), request.isRetain())
                     .whenComplete((packetId, throwable) -> {
                         // packetId is the SDK assigned ID. Ignore this and instead use the spooler ID
                         if (throwable == null) {
                             spool.removeMessageById(finalId);
-                            logger.atDebug().kv("id", finalId).kv("topic", request.getTopic())
+                            logger.atTrace().kv("id", finalId).kv("topic", request.getTopic())
                                     .log("Successfully published message");
                         } else {
                             if (maxPublishRetryCount == -1 || spooledMessage.getRetried().getAndIncrement()
@@ -628,21 +628,51 @@ public class MqttClient implements Closeable {
     /**
      * Iterate the spooler queue to publish all the spooled message.
      */
-    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.CloseResource"})
+    @SuppressFBWarnings("JLM_JSR166_UTILCONCURRENT_MONITORENTER")
     protected void runSpooler() {
-        List<CompletableFuture<?>> publishRequests = new ArrayList<>();
+        // Do not use CompletableFuture.anyOf to wait for this set to have space
+        // due to https://bugs.openjdk.java.net/browse/JDK-8160402 this will cause
+        // a memory leak. See PR #881 for additional context.
+        Set<CompletableFuture<?>> publishRequests = ConcurrentHashMap.newKeySet();
         while (!Thread.currentThread().isInterrupted()) {
             try {
                 getConnection(false).connect().get();
                 while (mqttOnline.get()) {
-                    CompletableFuture<Integer> future = publishSingleSpoolerMessage();
-                    publishRequests.add(future);
-
-                    if (publishRequests.size() >= maxInFlightPublishes) {
-                        CompletableFuture.anyOf(publishRequests.toArray(new CompletableFuture[0])).get();
-                        publishRequests =
-                                publishRequests.stream().filter(f -> !f.isDone()).collect(Collectors.toList());
+                    synchronized (publishRequests) {
+                        // Wait for number of outstanding requests to decrease
+                        while (publishRequests.size() >= maxInFlightPublishes) {
+                            publishRequests.wait();
+                        }
                     }
+
+                    // Select connection with minimum time to wait before publishing the next message
+                    AwsIotMqttClient connection = getConnection(false);
+                    long minimumWaitTimeMicros = connection.getThrottlingWaitTimeMicros();
+                    for (AwsIotMqttClient client : connections) {
+                        long waitTime = client.getThrottlingWaitTimeMicros();
+                        if (waitTime < minimumWaitTimeMicros) {
+                            connection = client;
+                            minimumWaitTimeMicros = waitTime;
+                        }
+                    }
+                    // Wait here in this thread so that we do not block the AWS CRT's event loop
+                    // which could delay the processing of other requests.
+                    // After this sleep time we will call acquire to take the tokens from the bucket
+                    // since we haven't taken them out yet; we've only queried when we'd be able to take
+                    // them without blocking. Since we have done the sleeping here, the acquire
+                    // is guaranteed to not block.
+                    TimeUnit.MICROSECONDS.sleep(minimumWaitTimeMicros);
+
+                    CompletableFuture<Integer> future = publishSingleSpoolerMessage(connection);
+                    publishRequests.add(future);
+                    future.whenComplete((i, t) -> {
+                        // Notify the possible waiter that the size has changed
+                        synchronized (publishRequests) {
+                            publishRequests.remove(future);
+                            publishRequests.notifyAll();
+                        }
+                    });
                 }
                 break;
             } catch (ExecutionException e) {

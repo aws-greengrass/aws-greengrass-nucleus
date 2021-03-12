@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0.5
+
+### Bug fixes and improvements:
+* Correctly route traffic through a configured network proxy when downloading AWS-provided components.
+* Use the correct Greengrass data plane endpoint in AWS China Regions.
+
 ## v2.0.4
 
 ### Note to users:
