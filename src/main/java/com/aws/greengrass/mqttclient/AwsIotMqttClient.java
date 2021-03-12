@@ -90,7 +90,7 @@ class AwsIotMqttClient implements Closeable {
             if (errorCode != 0) {
                 logger.atWarn().kv("error", CRT.awsErrorString(errorCode)).log("Connection interrupted");
             }
-            if (resubscribeFuture != null) {
+            if (resubscribeFuture != null && !resubscribeFuture.isDone()) {
                 resubscribeFuture.cancel(true);
             }
             // To run the callbacks shared by the different AwsIotMqttClient.
@@ -267,7 +267,7 @@ class AwsIotMqttClient implements Closeable {
      * @param sessionPresent whether the session persisted
      */
     private synchronized void resubscribe(boolean sessionPresent) {
-        // Don't bother spin up a thread if subscription is empty
+        // No need to resub if we haven't subscribed to anything
         if (!subscriptionTopics.isEmpty()) {
             // If connected without a session, all subscriptions are dropped and need to be resubscribed
             if (!sessionPresent) {
@@ -281,7 +281,7 @@ class AwsIotMqttClient implements Closeable {
 
     private void resubscribeDroppedTopicsTask() {
         long delayMillis = 0;  // don't delay the first run
-        while (!droppedSubscriptionTopics.isEmpty()) {
+        while (currentlyConnected.get() && !droppedSubscriptionTopics.isEmpty()) {
             logger.atDebug().event(RESUB_LOG_EVENT).kv("droppedTopics", droppedSubscriptionTopics.keySet())
                     .kv("delayMillis", delayMillis).log("Subscribing to dropped topics");
             ScheduledFuture<?> scheduledFuture = ses.schedule(() -> {
@@ -353,6 +353,9 @@ class AwsIotMqttClient implements Closeable {
 
     @Override
     public void close() {
+        if (resubscribeFuture != null && !resubscribeFuture.isDone()) {
+            resubscribeFuture.cancel(true);
+        }
         try {
             disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
