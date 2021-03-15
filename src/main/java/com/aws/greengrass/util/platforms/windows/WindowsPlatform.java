@@ -157,7 +157,7 @@ public class WindowsPlatform extends Platform {
         try {
             account = Advapi32Util.getAccountByName(user);
         } catch (Win32Exception e) {
-            throw new IOException("Unrecognized user: " + user);
+            throw new IOException("Unrecognized user: " + user, e);
         }
 
         return WindowsUserAttributes.builder().principalName(account.name).principalIdentifier(account.sidString)

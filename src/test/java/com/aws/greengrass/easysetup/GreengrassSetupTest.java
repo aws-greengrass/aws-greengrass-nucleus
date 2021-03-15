@@ -171,6 +171,7 @@ class GreengrassSetupTest {
                         "--component-default-user", "uid:gid");
 
         when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
+        when(platform.userExists(any())).thenReturn(true);
         doReturn(kernel).when(kernel).parseArgs(any());
         greengrassSetup.parseArgs();
         greengrassSetup.performSetup();
@@ -214,6 +215,7 @@ class GreengrassSetupTest {
                         "--aws-region", "us-east-1", "-ss", "false");
 
         when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
+        when(platform.userExists(any())).thenReturn(true);
         doReturn(kernel).when(kernel).parseArgs(any());
         doReturn(kernel).when(kernel).launch();
         greengrassSetup.parseArgs();
@@ -235,6 +237,7 @@ class GreengrassSetupTest {
                         "--aws-region", "us-east-1", "-ss", "false");
 
         when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
+        when(platform.userExists(any())).thenReturn(true);
         doReturn(kernel).when(kernel).parseArgs(any());
         doReturn(kernel).when(kernel).launch();
         greengrassSetup.parseArgs();
@@ -255,6 +258,7 @@ class GreengrassSetupTest {
                         "us-east-1", "-ss", "false");
 
         when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
+        when(platform.userExists(any())).thenReturn(true);
         doReturn(kernel).when(kernel).parseArgs(any());
         doReturn(kernel).when(kernel).launch();
         greengrassSetup.parseArgs();
