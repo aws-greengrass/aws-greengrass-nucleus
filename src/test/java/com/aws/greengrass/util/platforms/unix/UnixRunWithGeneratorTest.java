@@ -13,6 +13,8 @@ import com.aws.greengrass.lifecyclemanager.RunWith;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -29,6 +31,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.doReturn;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
+@EnabledOnOs({OS.LINUX, OS.MAC})
 class UnixRunWithGeneratorTest {
 
 

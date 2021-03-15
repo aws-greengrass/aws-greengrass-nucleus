@@ -161,20 +161,28 @@
             <artifactId>zt-process-killer</artifactId>
             <version>1.10</version>
         </dependency>
-        <!-- zeroturnaround brings in an older version jna which tries to load msvcr100.dll. msvcr100.dll is not shipped
-        with recent Windows/VC redist. The behavior is changed in recent jna release. By declaring direct dependency of
-        jna, we avoid the problem of loading msvcr100.dll.
-        -->
         <dependency>
              <groupId>com.github.oshi</groupId>
              <artifactId>oshi-core</artifactId>
              <version>5.2.3</version>
         </dependency>
+
+        <!-- zeroturnaround brings in an older version jna which tries to load msvcr100.dll. msvcr100.dll is not shipped
+        with recent Windows/VC redist. The behavior is changed in recent jna release. By declaring direct dependency of
+        jna, we avoid the problem of loading msvcr100.dll.
+        -->
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna</artifactId>
-            <version>5.5.0</version>
+            <version>5.7.0</version>
         </dependency>
+        <!-- jna-platform adds support for calling Windows system DLLs -->
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna-platform</artifactId>
+            <version>5.7.0</version>
+        </dependency>
+
         <dependency>
             <groupId>com.github.grantwest.eventually</groupId>
             <artifactId>hamcrest-eventually-matchers</artifactId>

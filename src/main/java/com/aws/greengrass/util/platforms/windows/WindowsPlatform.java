@@ -3,13 +3,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.util.platforms;
+package com.aws.greengrass.util.platforms.windows;
 
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.RunWith;
 import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.RunWithGenerator;
+import com.aws.greengrass.util.platforms.ShellDecorator;
+import com.aws.greengrass.util.platforms.UserDecorator;
+import com.sun.jna.platform.win32.Advapi32Util;
 import lombok.NoArgsConstructor;
 import org.zeroturnaround.exec.InvalidExitValueException;
 import org.zeroturnaround.process.PidProcess;
@@ -120,13 +126,33 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    public UserAttributes lookupUserByName(String user) throws IOException {
-        return null;
+    public WindowsUserAttributes lookupUserByName(String user) throws IOException {
+        if (Utils.isEmpty(user)) {
+            throw new IOException("No user to lookup");
+        }
+
+        Advapi32Util.Account account = Advapi32Util.getAccountByName(user);
+        if (account == null) {
+            throw new IOException("Unrecognized user: " + user);
+        }
+
+        return WindowsUserAttributes.builder().principalName(account.name).principalIdentifier(account.sidString)
+                .build();
     }
 
     @Override
-    public UserAttributes lookupUserByIdentifier(String identifier) throws IOException {
-        return null;
+    public WindowsUserAttributes lookupUserByIdentifier(String identifier) throws IOException {
+        if (Utils.isEmpty(identifier)) {
+            throw new IOException("No user to lookup");
+        }
+
+        Advapi32Util.Account account = Advapi32Util.getAccountBySid(identifier);
+        if (account == null) {
+            throw new IOException("Unrecognized user: " + identifier);
+        }
+
+        return WindowsUserAttributes.builder().principalName(account.name).principalIdentifier(account.sidString)
+                .build();
     }
 
     @Override
