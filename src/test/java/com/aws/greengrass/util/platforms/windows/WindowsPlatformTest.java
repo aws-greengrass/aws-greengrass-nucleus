@@ -12,17 +12,17 @@ import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.text.MatchesPattern.matchesPattern;
+import static org.hamcrest.Matchers.not;
 
 @ExtendWith({GGExtension.class})
 @EnabledOnOs(OS.WINDOWS)
 class WindowsPlatformTest {
-
-    private static final String ADMINISTRATOR = "Administrator";
 
     @Test
     void GIVEN_command_WHEN_decorate_THEN_is_decorated() {
@@ -32,14 +32,22 @@ class WindowsPlatformTest {
     }
 
     @Test
-    void GIVEN_administrator_username_WHEN_lookupUser_THEN_get_correct_user() throws IOException {
+    void GIVEN_administrator_username_WHEN_check_user_exists_THEN_return_true() {
         WindowsPlatform windowsPlatform = new WindowsPlatform();
-        WindowsUserAttributes windowsUserAttributes = windowsPlatform.lookupUserByName(ADMINISTRATOR);
-        // See the following for well known SIDs
-        // https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/security-identifiers-in-windows
-        assertThat(windowsUserAttributes.getPrincipalIdentifier(), matchesPattern("S-1-5-21-.*-500"));
+        assertThat(windowsPlatform.userExists("Administrator"), is(true));
+    }
 
-        windowsUserAttributes = windowsPlatform.lookupUserByIdentifier(windowsUserAttributes.getPrincipalIdentifier());
-        assertThat(windowsUserAttributes.getPrincipalName(), is(ADMINISTRATOR));
+    @Test
+    void GIVEN_random_string_as_username_WHEN_check_user_exists_THEN_return_false() {
+        WindowsPlatform windowsPlatform = new WindowsPlatform();
+        assertThat(windowsPlatform.userExists(UUID.randomUUID().toString()), is(false));
+    }
+
+    @Test
+    void WHEN_lookup_current_user_THEN_get_user_attributes() throws IOException {
+        WindowsPlatform windowsPlatform = new WindowsPlatform();
+        WindowsUserAttributes windowsUserAttributes = windowsPlatform.lookupCurrentUser();
+        assertThat(windowsUserAttributes.getPrincipalName(), not(emptyOrNullString()));
+        assertThat(windowsUserAttributes.getPrincipalIdentifier(), not(emptyOrNullString()));
     }
 }

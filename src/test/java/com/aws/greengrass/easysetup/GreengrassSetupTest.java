@@ -107,7 +107,7 @@ class GreengrassSetupTest {
                         "mock_config_path", "--root", "mock_root", "--aws-region", "us-east-1", "-ss", "false");
 
         when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
-        when(platform.lookupUserByName(any())).thenThrow(IOException.class);
+        when(platform.userExists(any())).thenReturn(false);
         when(platform.lookupGroupByName(any())).thenThrow(IOException.class);
         doReturn(kernel).when(kernel).parseArgs(any());
         greengrassSetup.parseArgs();
@@ -128,7 +128,7 @@ class GreengrassSetupTest {
                         "ggc_user");
 
         when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
-        when(platform.lookupUserByName(any())).thenThrow(IOException.class);
+        when(platform.userExists(any())).thenReturn(false);
         when(platform.lookupGroupByName(any())).thenThrow(IOException.class);
         doReturn(kernel).when(kernel).parseArgs(any());
         doReturn("ggc_user").when(runWithDefaultPosixUserTopic).getOnce();
@@ -192,7 +192,7 @@ class GreengrassSetupTest {
                         "--aws-region", "us-east-1", "-ss", "false");
 
         when(platform.lookupCurrentUser().isSuperUser()).thenReturn(true);
-        when(platform.lookupUserByName(any())).thenThrow(IOException.class);
+        when(platform.userExists(any())).thenReturn(false);
         when(platform.lookupGroupByName(any())).thenThrow(IOException.class);
         doReturn(kernel).when(kernel).parseArgs(any());
         doReturn(kernel).when(kernel).launch();
