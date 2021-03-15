@@ -7,7 +7,6 @@ package com.aws.greengrass.componentmanager.plugins.docker;
 
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.RegistryAuthException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.sun.org.apache.xerces.internal.impl.dv.util.Base64;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +20,7 @@ import software.amazon.awssdk.services.ecr.model.GetAuthorizationTokenResponse;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Base64;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -48,7 +48,7 @@ public class EcrAccessorTest {
     void GIVEN_ecr_accessor_WHEN_get_credentials_success_THEN_return_registry_credentials() throws Exception {
         Instant credentialsExpiry = Instant.now().plusSeconds(10);
         AuthorizationData authorizationData = AuthorizationData.builder()
-                .authorizationToken(Base64.encode("username:password".getBytes(StandardCharsets.UTF_8)))
+                .authorizationToken(Base64.getEncoder().encodeToString("username:password".getBytes(StandardCharsets.UTF_8)))
                 .expiresAt(credentialsExpiry).build();
         GetAuthorizationTokenResponse response =
                 GetAuthorizationTokenResponse.builder().authorizationData(authorizationData).build();
