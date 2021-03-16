@@ -8,7 +8,9 @@ package com.aws.greengrass.config;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.fasterxml.jackson.jr.ob.JSON;
+import com.aws.greengrass.util.SerializerFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -35,6 +37,8 @@ public class Configuration {
     public final Context context;
     final Topics root;
     private static final Logger logger = LogManager.getLogger(Configuration.class);
+    private static final ObjectMapper jsonMapper = SerializerFactory.getFailSafeJsonObjectMapper();
+    private static final ObjectMapper yamlMapper = YAMLMapper.builder().build();
 
     private final AtomicBoolean configUnderUpdate = new AtomicBoolean(false);
     private final Object configUpdateNotifier = new Object();
@@ -139,7 +143,7 @@ public class Configuration {
 
     /**
      * Merges a Map into this configuration. The most common use case is for
-     * reading textual config files via jackson-jr. For example, to merge a
+     * reading textual config files via jackson. For example, to merge a
      * .yaml file:
      * <br><code>
      * config.mergeMap(<b>timestamp</b>, (Map)JSON.std.with(new
@@ -257,12 +261,12 @@ public class Configuration {
     private void read(Reader in, String extension, long timestamp) throws IOException {
         switch (extension) {
             case "json":
-                mergeMap(timestamp, (Map) JSON.std.anyFrom(in));
+                mergeMap(timestamp, jsonMapper.readValue(in, Map.class));
                 break;
+            case "yml":
+                // fallthrough
             case "yaml":
-                mergeMap(timestamp,
-                        (Map) JSON.std.with(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
-                                .anyFrom(in));
+                mergeMap(timestamp, yamlMapper.readValue(in, Map.class));
                 break;
             case "tlog":
                 ConfigurationReader.mergeTLogInto(this, in, false, null);

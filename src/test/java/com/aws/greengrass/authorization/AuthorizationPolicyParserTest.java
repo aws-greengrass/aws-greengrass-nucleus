@@ -13,9 +13,7 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.jr.ob.JSON;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -63,7 +61,7 @@ class AuthorizationPolicyParserTest {
         realConfig = new Configuration(new Context());
         try (InputStream inputStream = getClass().getResourceAsStream(filename)) {
             assertNotNull(inputStream);
-            realConfig.mergeMap(0, (Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream));
+            realConfig.mergeMap(0, new YAMLMapper().readValue(inputStream, Map.class));
         }
         when(kernel.getConfig()).thenReturn(realConfig);
     }
