@@ -17,8 +17,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.jr.ob.JSON;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.Setter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -105,7 +104,7 @@ class LifecycleTest {
         config = rootConfig.createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC)
                 .createInteriorChild("MockService");
         try (InputStream inputStream = new ByteArrayInputStream(BLANK_CONFIG_YAML_WITH_TIMEOUT.getBytes())) {
-            config.updateFromMap((Map) JSON.std.with(new YAMLFactory()).anyFrom(inputStream),
+            config.updateFromMap(new YAMLMapper().readValue(inputStream, Map.class),
                     new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, 0));
         }
 

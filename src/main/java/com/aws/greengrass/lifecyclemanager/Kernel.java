@@ -39,8 +39,8 @@ import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.jr.ob.JSON;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -94,6 +94,8 @@ public class Kernel {
     static final String DEFAULT_CONFIG_TLOG_FILE = "config.tlog";
     public static final String SERVICE_DIGEST_TOPIC_KEY = "service-digest";
     private static final String DEPLOYMENT_STAGE_LOG_KEY = "stage";
+    protected static final ObjectMapper CONFIG_YAML_WRITER =
+            YAMLMapper.builder().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET).build();
 
     @Getter
     private final Context context;
@@ -338,7 +340,7 @@ public class Kernel {
         configMap.put(DeviceConfiguration.SYSTEM_NAMESPACE_KEY,
                 config.findTopics(DeviceConfiguration.SYSTEM_NAMESPACE_KEY).toPOJO());
         try {
-            JSON.std.with(new YAMLFactory().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET)).write(configMap, w);
+            CONFIG_YAML_WRITER.writeValue(w, configMap);
         } catch (IOException ex) {
             logger.atError().setEventType("write-config-error").setCause(ex).log();
         }

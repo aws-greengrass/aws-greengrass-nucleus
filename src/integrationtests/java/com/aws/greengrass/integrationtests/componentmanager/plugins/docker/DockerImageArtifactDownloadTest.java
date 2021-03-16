@@ -20,7 +20,6 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
-import com.sun.org.apache.xerces.internal.impl.dv.util.Base64;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +38,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -66,7 +66,7 @@ public class DockerImageArtifactDownloadTest extends BaseITCase {
     void before() throws Exception {
         Instant credentialsExpiry = Instant.now().plusSeconds(10);
         AuthorizationData authorizationData = AuthorizationData.builder()
-                .authorizationToken(Base64.encode("username:password".getBytes(StandardCharsets.UTF_8)))
+                .authorizationToken(Base64.getEncoder().encodeToString("username:password".getBytes(StandardCharsets.UTF_8)))
                 .expiresAt(credentialsExpiry).build();
         GetAuthorizationTokenResponse response =
                 GetAuthorizationTokenResponse.builder().authorizationData(authorizationData).build();
