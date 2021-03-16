@@ -466,9 +466,7 @@ public class GreengrassSetup {
                 }
             }
             if (setGGCUser) {
-                try {
-                    platform.lookupUserByName(GGC_USER);
-                } catch (IOException e) {
+                if (!platform.userExists(GGC_USER)) {
                     outStream.printf("Creating user %s %n", GGC_USER);
                     platform.createUser(GGC_USER);
                     outStream.printf("%s created %n", GGC_USER);

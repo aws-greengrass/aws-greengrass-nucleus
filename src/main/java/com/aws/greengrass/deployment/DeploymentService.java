@@ -51,8 +51,6 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
@@ -354,8 +352,6 @@ public class DeploymentService extends GreengrassService {
     }
 
     private void persistGroupToRootComponents(DeploymentDocument deploymentDocument) {
-        Topics deploymentGroupTopics =
-                config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, deploymentDocument.getGroupName());
         Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
         // TODO: [P41179087] Removal of group from the mappings. Currently there is no action taken
         // when a device is removed from a thing group. Empty configuration is treated as a valid config
@@ -370,7 +366,9 @@ public class DeploymentService extends GreengrassService {
                 deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
             }
         });
-        deploymentGroupTopics.replaceAndWait(deploymentGroupToRootPackages);
+        Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
+        deploymentGroupTopics.lookupTopics(deploymentDocument.getGroupName())
+                .replaceAndWait(deploymentGroupToRootPackages);
         setComponentsToGroupsMapping(deploymentGroupTopics);
     }
 
@@ -656,8 +654,8 @@ public class DeploymentService extends GreengrassService {
         return currentDeploymentTaskMetadata;
     }
 
-    private void setComponentsToGroupsMapping(Topics groupsToRootComponents) {
-        List<String> pendingComponentsList = new LinkedList<>();
+    void setComponentsToGroupsMapping(Topics groupsToRootComponents) {
+        Set<String> pendingComponents = new HashSet<>();
         Map<String, Object> componentsToGroupsMappingCache = new ConcurrentHashMap<>();
         Topics componentsToGroupsTopics = getConfig().lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
         /*
@@ -669,8 +667,8 @@ public class DeploymentService extends GreengrassService {
          * (if available) to be associated to the deployment.
          */
         // Get all the groups associated to the root components.
-        groupsToRootComponents.iterator().forEachRemaining(groupNode -> {
-            Topics componentTopics = (Topics) groupNode;
+        groupsToRootComponents.forEach(groupNode -> ((Topics) groupNode).forEach(componentNode -> {
+            Topics componentTopics = (Topics) componentNode;
 
             Topic groupConfigTopic = componentTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN);
             String groupConfig = Coerce.toString(groupConfigTopic);
@@ -682,19 +680,19 @@ public class DeploymentService extends GreengrassService {
                     .getOrDefault(componentTopics.getName(), new HashMap<>());
             groupDeploymentIdSet.putIfAbsent(groupConfig, groupName);
             componentsToGroupsMappingCache.put(componentTopics.getName(), groupDeploymentIdSet);
-            pendingComponentsList.add(componentTopics.getName());
-        });
+            pendingComponents.add(componentTopics.getName());
+        }));
 
         // Associate the groups to the dependant services based on the services it is depending on.
-        while (!pendingComponentsList.isEmpty()) {
-            String componentName = pendingComponentsList.get(0);
+        while (!pendingComponents.isEmpty()) {
+            String componentName = pendingComponents.iterator().next();
             try {
                 GreengrassService greengrassService = kernel.locate(componentName);
                 Map<String, Object> groupNamesForComponent = (Map<String, Object>) componentsToGroupsMappingCache
                         .getOrDefault(greengrassService.getName(), new HashMap<>());
 
                 greengrassService.getDependencies().forEach((greengrassService1, dependencyType) -> {
-                    pendingComponentsList.add(greengrassService1.getName());
+                    pendingComponents.add(greengrassService1.getName());
                     Map<String, Object> groupNamesForDependentComponent =
                             (Map<String, Object>) componentsToGroupsMappingCache
                                     .getOrDefault(greengrassService1.getName(), new HashMap<>());
@@ -704,7 +702,7 @@ public class DeploymentService extends GreengrassService {
             } catch (ServiceLoadException ex) {
                 logger.atError().cause(ex).log("Unable to get status for {}.", componentName);
             }
-            pendingComponentsList.remove(0);
+            pendingComponents.remove(componentName);
         }
 
         if (componentsToGroupsTopics != null) {

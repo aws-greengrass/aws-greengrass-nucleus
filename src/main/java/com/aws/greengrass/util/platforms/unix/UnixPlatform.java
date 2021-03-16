@@ -243,11 +243,15 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public UnixUserAttributes lookupUserByName(String user) throws IOException {
-        return lookupUser(user);
+    public boolean userExists(String user) {
+        try {
+            lookupUser(user);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
-    @Override
     public UnixUserAttributes lookupUserByIdentifier(String identifier) throws IOException {
         return lookupUser(identifier);
     }
