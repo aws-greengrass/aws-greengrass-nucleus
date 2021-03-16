@@ -88,10 +88,10 @@ public class Context implements Closeable {
      * Removed an entry with the provided tag.
      *
      * @param tag key to be removed
-     * @return true is success, false if tag not found
+     * @return Value that was removed
      */
-    public boolean remove(Object tag) {
-        return parts.remove(tag) != null;
+    public Value remove(Object tag) {
+        return parts.remove(tag);
     }
 
     public <T> T get(Class<T> clazz) {
@@ -168,14 +168,7 @@ public class Context implements Closeable {
      * @return this
      */
     public <T> Context put(Class<T> clazz, Value<T> value) {
-        parts.compute(clazz, (tagObj, originalValue) -> {
-            if (originalValue == null) {
-                originalValue = value;
-            } else {
-                originalValue.putAndInjectFields(value.get());
-            }
-            return originalValue;
-        });
+        parts.put(clazz, value);
         return this;
     }
 

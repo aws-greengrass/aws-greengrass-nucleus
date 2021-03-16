@@ -59,6 +59,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -78,6 +79,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -215,6 +217,42 @@ class PluginComponentTest extends BaseITCase {
                 Coerce.toString(eg.getServiceConfig().findLeafChild(VERSION_CONFIG_KEY)));
         kernel.getContext().get(EZPlugins.class)
                 .forName("com.aws.greengrass.integrationtests.lifecyclemanager.resource.PluginDependency");
+    }
+
+    @Test
+    void GIVEN_plugin_added_and_removed_WHEN_plugin_added_again_THEN_plugin_is_loaded_into_JVM(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, PackageDownloadException.class);
+        ignoreExceptionOfType(context, SdkClientException.class);
+
+        // launch Nucleus
+        kernel.parseArgs();
+        setupPackageStoreAndConfigWithDigest();
+        launchAndWait();
+
+        // deploy plugin
+        submitSampleJobDocument(getPluginDeploymentDocument(System.currentTimeMillis(), "1.0.0",
+                "first-deployment", FailureHandlingPolicy.DO_NOTHING, componentName), kernel).get(30, TimeUnit.SECONDS);
+
+        GreengrassService eg = kernel.locate(componentName);
+        assertNotNull(kernel.getContext().getvIfExists(componentName));
+        assertNotNull(kernel.getContext().getvIfExists(eg.getClass()));
+
+        //remove plugin
+        DeploymentDocument doc = getPluginDeploymentDocument(System.currentTimeMillis(), "1.0.0",
+                "second-deployment", FailureHandlingPolicy.DO_NOTHING, componentName);
+        doc.setDeploymentPackageConfigurationList(Collections.emptyList());
+        submitSampleJobDocument(doc, kernel).get(30, TimeUnit.SECONDS);
+        assertNull(kernel.getContext().getvIfExists(componentName));
+        assertNull(kernel.getContext().getvIfExists(eg.getClass()));
+
+        //re deploy plugin
+        setupPackageStoreAndConfigWithDigest();
+        submitSampleJobDocument(getPluginDeploymentDocument(System.currentTimeMillis(), "1.0.0",
+                "third-deployment", FailureHandlingPolicy.DO_NOTHING, componentName), kernel).get(30, TimeUnit.SECONDS);
+
+        assertNotNull(kernel.getContext().getvIfExists(componentName));
+        assertNotNull(kernel.getContext().getvIfExists(eg.getClass()));
+
     }
 
     @Test
