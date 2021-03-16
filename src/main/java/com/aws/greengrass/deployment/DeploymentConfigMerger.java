@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment;
 
 
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context.Value;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.activator.DeploymentActivator;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
@@ -333,8 +334,10 @@ public class DeploymentConfigMerger {
         public void replaceUnloadableService() throws ServiceLoadException {
             for (String serviceName : alreadyUnloadableServices) {
                 try {
-                    kernel.locate(serviceName).close().get(30, TimeUnit.SECONDS);
+                    GreengrassService greengrassService = kernel.locate(serviceName);
+                    greengrassService.close().get(30, TimeUnit.SECONDS);
                     kernel.getContext().remove(serviceName);
+                    kernel.getContext().remove(greengrassService.getClass());
                     kernel.locateIgnoreError(serviceName).requestReinstall();
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     logger.atError().kv(SERVICE_NAME_LOG_KEY, serviceName)
@@ -375,14 +378,11 @@ public class DeploymentConfigMerger {
                 serviceClosedFuture.get();
             }
             servicesToRemove.forEach(serviceName -> {
-                try {
-                    GreengrassService eg = kernel.locate(serviceName);
-                    kernel.getContext().remove(eg.getClass());
-                } catch (ServiceLoadException e) {
-                    logger.atError(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).addKeyValue(SERVICE_NAME_LOG_KEY, serviceName)
-                            .log("Could not locate Greengrass service to remove service");
+                Value removed = kernel.getContext().remove(serviceName);
+                if (removed != null && !removed.isEmpty()) {
+                    kernel.getContext().remove(removed.get().getClass());
                 }
-                kernel.getContext().remove(serviceName);
+
                 Topics serviceTopic = kernel.findServiceTopic(serviceName);
                 if (serviceTopic == null) {
                     logger.atWarn().kv(SERVICE_NAME_KEY, serviceName).log("Service topics node doesn't exist.");
