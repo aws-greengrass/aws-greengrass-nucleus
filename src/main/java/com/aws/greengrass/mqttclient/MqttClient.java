@@ -176,6 +176,7 @@ public class MqttClient implements Closeable {
                     .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
                     .withCleanSession(false).withBootstrap(clientBootstrap).withKeepAliveMs(Coerce.toInt(
                             mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
+                    .withProtocolOperationTimeoutMs(getMqttOperationTimeoutMillis())
                     .withPingTimeoutMs(
                             Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
                     .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(
@@ -203,7 +204,9 @@ public class MqttClient implements Closeable {
                                     .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
                                     .withCleanSession(false).withBootstrap(clientBootstrap).withKeepAliveMs(
                                             Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
-                                                    MQTT_KEEP_ALIVE_TIMEOUT_KEY))).withPingTimeoutMs(Coerce.toInt(
+                                                    MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
+                                    .withProtocolOperationTimeoutMs(getMqttOperationTimeoutMillis())
+                                    .withPingTimeoutMs(Coerce.toInt(
                                             mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
                                     .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(mqttTopics
                                             .findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)))
