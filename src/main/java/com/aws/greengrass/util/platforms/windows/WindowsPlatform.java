@@ -3,13 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.util.platforms;
+package com.aws.greengrass.util.platforms.windows;
 
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.RunWith;
 import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.RunWithGenerator;
+import com.aws.greengrass.util.platforms.ShellDecorator;
+import com.aws.greengrass.util.platforms.UserDecorator;
+import com.sun.jna.platform.win32.Advapi32Util;
+import com.sun.jna.platform.win32.Win32Exception;
 import lombok.NoArgsConstructor;
 import org.zeroturnaround.exec.InvalidExitValueException;
 import org.zeroturnaround.process.PidProcess;
@@ -120,13 +127,13 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    public UserAttributes lookupUserByName(String user) throws IOException {
-        return null;
-    }
-
-    @Override
-    public UserAttributes lookupUserByIdentifier(String identifier) throws IOException {
-        return null;
+    public boolean userExists(String user) {
+        try {
+            Advapi32Util.getAccountByName(user);
+            return true;
+        } catch (Win32Exception e) {
+            return false;
+        }
     }
 
     @Override
@@ -137,6 +144,24 @@ public class WindowsPlatform extends Platform {
     @Override
     public BasicAttributes lookupGroupByIdentifier(String identifier) throws IOException {
         return null;
+    }
+
+    @Override
+    public WindowsUserAttributes lookupCurrentUser() throws IOException {
+        String user = System.getProperty("user.name");
+        if (Utils.isEmpty(user)) {
+            throw new IOException("No user to lookup");
+        }
+
+        Advapi32Util.Account account;
+        try {
+            account = Advapi32Util.getAccountByName(user);
+        } catch (Win32Exception e) {
+            throw new IOException("Unrecognized user: " + user, e);
+        }
+
+        return WindowsUserAttributes.builder().principalName(account.name).principalIdentifier(account.sidString)
+                .build();
     }
 
     @NoArgsConstructor
