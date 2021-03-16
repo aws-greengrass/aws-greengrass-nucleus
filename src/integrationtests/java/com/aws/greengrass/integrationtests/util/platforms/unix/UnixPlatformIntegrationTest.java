@@ -83,8 +83,8 @@ class UnixPlatformIntegrationTest {
     }
 
     @Test
-    void testLookupUserByNameNotExist() throws IOException {
-        assertThrows(IOException.class, () -> platform.lookupUserByName(randomString()));
+    void testLookupUserByNameNotExist() {
+        assertThat(platform.userExists(randomString()), is(false));
     }
 
     @ParameterizedTest

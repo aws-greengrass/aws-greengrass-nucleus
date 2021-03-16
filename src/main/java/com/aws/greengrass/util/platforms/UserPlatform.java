@@ -44,20 +44,11 @@ public interface UserPlatform {
     }
 
     /**
-     * Lookup a user by a user name.
-     * @param user the name of the user.
-     * @return the User
-     * @throws IOException if the user cannot be found.
+     * Check if a user exists.
+     * @param user the username to check
+     * @return True if the user exists. False otherwise.
      */
-    UserAttributes lookupUserByName(String user)throws IOException;
-
-    /**
-     * Lookup a user by a user identifier. This could be a guid or integer string.
-     * @param identifier an identifier.
-     * @return the user
-     * @throws IOException if the user cannot be found.
-     */
-    UserAttributes lookupUserByIdentifier(String identifier)throws IOException;
+    boolean userExists(String user);
 
     /**
      * Lookup a group by a group identifier. This could be a guid or integer string.
@@ -76,11 +67,9 @@ public interface UserPlatform {
     BasicAttributes lookupGroupByIdentifier(String identifier) throws IOException;
 
     /**
-     * Lokoup the user executing the nucleus.
+     * Lookup the user executing the nucleus.
      * @return the user.
      * @throws IOException if an error occurs loading the user information.
      */
-    default UserAttributes lookupCurrentUser() throws IOException {
-        return lookupUserByName(System.getProperty("user.name"));
-    }
+    UserAttributes lookupCurrentUser() throws IOException;
 }

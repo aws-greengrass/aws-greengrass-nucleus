@@ -13,6 +13,7 @@ import com.aws.greengrass.util.FileSystemPermission.Option;
 import com.aws.greengrass.util.platforms.unix.DarwinPlatform;
 import com.aws.greengrass.util.platforms.unix.QNXPlatform;
 import com.aws.greengrass.util.platforms.unix.UnixPlatform;
+import com.aws.greengrass.util.platforms.windows.WindowsPlatform;
 
 import java.io.IOException;
 import java.nio.file.Path;
