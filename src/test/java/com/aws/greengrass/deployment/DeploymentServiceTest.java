@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.deployment;
 
+import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
@@ -59,6 +60,7 @@ import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMP
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 import static org.hamcrest.collection.IsMapContaining.hasEntry;
@@ -70,7 +72,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
@@ -85,7 +89,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     private static final String EXPECTED_GROUP_NAME = "thinggroup/group1";
     private static final String EXPECTED_ROOT_PACKAGE_NAME = "component1";
     private static final String TEST_CONFIGURATION_ARN =
-            "arn:aws:greengrass:us-east-1:12345678910:configuration" + ":thinggroup/group1:1";
+            "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1";
 
     private static final VerificationWithTimeout WAIT_FOUR_SECONDS = timeout(Duration.ofSeconds(4).toMillis());
     @Mock
@@ -196,6 +200,119 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     }
 
     @Test
+    void GIVEN_groupsToRootComponents_WHEN_setComponentsToGroupsMapping_THEN_get_correct_componentsToGroupsTopics()
+            throws Exception{
+        // GIVEN
+        //   GroupToRootComponents:
+        //      LOCAL_DEPLOYMENT:
+        //        component1:
+        //          groupConfigArn: "asdf"
+        //          groupConfigName: "LOCAL_DEPLOYMENT"
+        //          version: "1.0.0"
+        //        AnotherRootComponent:
+        //          groupConfigArn: "asdf"
+        //          groupConfigName: "LOCAL_DEPLOYMENT"
+        //          version: "2.0.0"
+        //      thinggroup/group1:
+        //        component1:
+        //          groupConfigArn: "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1"
+        //          groupConfigName: "thinggroup/group1"
+        //          version: "1.0.0"
+        Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics deploymentGroupTopics = Topics.of(context, EXPECTED_GROUP_NAME, allGroupTopics);
+        Topics deploymentGroupTopics2 = Topics.of(context, LOCAL_DEPLOYMENT_GROUP_NAME, allGroupTopics);
+
+        // Set up 1st deployment for EXPECTED_GROUP_NAME
+        Topics pkgTopics = Topics.of(context, EXPECTED_ROOT_PACKAGE_NAME, deploymentGroupTopics);
+        pkgTopics.children.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY),
+                Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        pkgTopics.children.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN),
+                Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN, TEST_CONFIGURATION_ARN));
+        pkgTopics.children.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_NAME),
+                Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_NAME, EXPECTED_GROUP_NAME));
+
+        deploymentGroupTopics.children.put(new CaseInsensitiveString(EXPECTED_ROOT_PACKAGE_NAME), pkgTopics);
+        allGroupTopics.children.putIfAbsent(new CaseInsensitiveString(EXPECTED_GROUP_NAME), deploymentGroupTopics);
+
+        // Set up 2nd deployment for LOCAL_DEPLOYMENT_GROUP_NAME
+        Topics pkgTopics2 = Topics.of(context, "AnotherRootComponent", deploymentGroupTopics2);
+        pkgTopics2.children.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY),
+                Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "2.0.0"));
+        pkgTopics2.children.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN),
+                Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN, "asdf"));
+        pkgTopics2.children.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_NAME),
+                Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_NAME, LOCAL_DEPLOYMENT_GROUP_NAME));
+        deploymentGroupTopics2.children.put(new CaseInsensitiveString("AnotherRootComponent"), pkgTopics2);
+
+        Topics pkgTopics3 = Topics.of(context, EXPECTED_ROOT_PACKAGE_NAME, deploymentGroupTopics2);
+        pkgTopics3.children.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY),
+                Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+        pkgTopics3.children.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN),
+                Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN, "asdf"));
+        pkgTopics3.children.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_NAME),
+                Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_NAME, LOCAL_DEPLOYMENT_GROUP_NAME));
+        deploymentGroupTopics2.children.put(new CaseInsensitiveString(EXPECTED_ROOT_PACKAGE_NAME), pkgTopics3);
+
+        allGroupTopics.children.putIfAbsent(new CaseInsensitiveString(LOCAL_DEPLOYMENT_GROUP_NAME),
+                deploymentGroupTopics2);
+
+        // Set up mocks
+        Topics componentsToGroupsTopics = mock(Topics.class);
+        doReturn(componentsToGroupsTopics).when(config).lookupTopics(eq(COMPONENTS_TO_GROUPS_TOPICS));
+        GreengrassService expectedRootService = mock(GreengrassService.class);
+        GreengrassService anotherRootService = mock(GreengrassService.class);
+        GreengrassService dependencyService = mock(GreengrassService.class);
+        doReturn(expectedRootService).when(mockKernel).locate(eq(EXPECTED_ROOT_PACKAGE_NAME));
+        doReturn(anotherRootService).when(mockKernel).locate(eq("AnotherRootComponent"));
+        doReturn(dependencyService).when(mockKernel).locate(eq("Dependency"));
+        doReturn(new HashMap<GreengrassService, DependencyType>() {{ put(dependencyService, DependencyType.HARD);}})
+                .when(expectedRootService).getDependencies();
+        doReturn(new HashMap<GreengrassService, DependencyType>() {{ put(dependencyService, DependencyType.HARD);}})
+                .when(anotherRootService).getDependencies();
+        doReturn(emptyMap()).when(dependencyService).getDependencies();
+        doReturn(EXPECTED_ROOT_PACKAGE_NAME).when(expectedRootService).getName();
+        doReturn("AnotherRootComponent").when(anotherRootService).getName();
+        doReturn("Dependency").when(dependencyService).getName();
+
+        // WHEN
+        deploymentService.setComponentsToGroupsMapping(allGroupTopics);
+
+        // THEN
+        //   ComponentToGroups:
+        //      component1:
+        //        "asdf": "LOCAL_DEPLOYMENT"
+        //        "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1": "thinggroup/group1"
+        //      AnotherRootComponent:
+        //        "asdf": "LOCAL_DEPLOYMENT"
+        //      Dependency:
+        //        "asdf": "LOCAL_DEPLOYMENT"
+        //        "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1": "thinggroup/group1"
+        ArgumentCaptor<Map<String, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(componentsToGroupsTopics).replaceAndWait(mapCaptor.capture());
+        Map<String, Object> groupToRootPackages = mapCaptor.getValue();
+
+        assertThat(groupToRootPackages, hasKey(EXPECTED_ROOT_PACKAGE_NAME));
+        Map<String, String> expectedRootComponentMap =
+                (Map<String, String>) groupToRootPackages.get(EXPECTED_ROOT_PACKAGE_NAME);
+        assertEquals(2, expectedRootComponentMap.size());
+        assertThat(expectedRootComponentMap, hasEntry(TEST_CONFIGURATION_ARN, EXPECTED_GROUP_NAME));
+        assertThat(expectedRootComponentMap, hasEntry("asdf", LOCAL_DEPLOYMENT_GROUP_NAME));
+
+        assertThat(groupToRootPackages, hasKey("AnotherRootComponent"));
+        Map<String, String> anotherRootComponentMap = (Map<String, String>) groupToRootPackages.get(
+                "AnotherRootComponent");
+        assertEquals(1, anotherRootComponentMap.size());
+        assertThat(anotherRootComponentMap, hasEntry("asdf", LOCAL_DEPLOYMENT_GROUP_NAME));
+
+        assertThat(groupToRootPackages, hasKey("Dependency"));
+        Map<String, String> expectedDepComponentMap =
+                (Map<String, String>) groupToRootPackages.get(EXPECTED_ROOT_PACKAGE_NAME);
+        assertEquals(2, expectedDepComponentMap.size());
+        assertThat(expectedDepComponentMap, hasEntry(TEST_CONFIGURATION_ARN, EXPECTED_GROUP_NAME));
+        assertThat(expectedDepComponentMap, hasEntry("asdf", LOCAL_DEPLOYMENT_GROUP_NAME));
+    }
+
+    @Test
     void GIVEN_groups_to_root_components_WHEN_isRootComponent_called_THEN_returns_value_correctly() {
         Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics deploymentGroupTopics = Topics.of(context, EXPECTED_GROUP_NAME, allGroupTopics);
@@ -249,20 +366,26 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         deploymentQueue.offer(new Deployment(deploymentDocument, type, TEST_JOB_ID_1));
         Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-        Topics deploymentGroupTopics = Topics.of(context, EXPECTED_GROUP_NAME, allGroupTopics);
+        Topics deploymentGroupTopics = Topics.of(context, expectedGroupName, allGroupTopics);
         Topic pkgTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0");
         Topic groupTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
                 "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12");
+        Topic groupNameTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_NAME,
+                expectedGroupName);
         Map<CaseInsensitiveString, Node> pkgDetails = new HashMap<>();
         pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY),
                 pkgTopic1);
         pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN),
                 groupTopic1);
+        pkgDetails.put(new CaseInsensitiveString(DeploymentService.GROUP_TO_ROOT_COMPONENTS_GROUP_NAME),
+                groupNameTopic1);
         Topics pkgTopics = Topics.of(context, EXPECTED_ROOT_PACKAGE_NAME, deploymentGroupTopics);
         pkgTopics.children.putAll(pkgDetails);
         deploymentGroupTopics.children.put(new CaseInsensitiveString(EXPECTED_ROOT_PACKAGE_NAME), pkgTopics);
+        allGroupTopics.children.put(new CaseInsensitiveString(expectedGroupName), deploymentGroupTopics);
 
-        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, expectedGroupName))
+        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
+        lenient().when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, expectedGroupName))
                 .thenReturn(deploymentGroupTopics);
         when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
 
@@ -361,11 +484,11 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
-        Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-        Topics deploymentGroupTopics = spy(Topics.of(context, EXPECTED_GROUP_NAME, allGroupTopics));
+        Topics allGroupTopics = mock(Topics.class);
+        Topics deploymentGroupTopics = mock(Topics.class);
 
-        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, EXPECTED_GROUP_NAME))
-                .thenReturn(deploymentGroupTopics);
+        when(allGroupTopics.lookupTopics(EXPECTED_GROUP_NAME)).thenReturn(deploymentGroupTopics);
+        when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
 
         mockFuture.complete(
