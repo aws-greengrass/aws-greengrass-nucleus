@@ -55,6 +55,7 @@ public class DeploymentConfigMerger {
     public static final String MERGE_CONFIG_EVENT_KEY = "merge-config";
     public static final String MERGE_ERROR_LOG_EVENT_KEY = "config-update-error";
     public static final String DEPLOYMENT_ID_LOG_KEY = "deploymentId";
+    public static final String SERVICE_NAME_LOG_KEY = "serviceName";
     protected static final int WAIT_SVC_START_POLL_INTERVAL_MILLISEC = 1000;
 
     private static final Logger logger = LogManager.getLogger(DeploymentConfigMerger.class);
@@ -186,7 +187,7 @@ public class DeploymentConfigMerger {
                 // If a service is previously BROKEN, its state might have not been updated yet when this check
                 // executes. Therefore we first check the service state has been updated since merge map occurs.
                 if (service.getStateModTime() > mergeTime && State.BROKEN.equals(state)) {
-                    logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv("serviceName", service.getName())
+                    logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(SERVICE_NAME_LOG_KEY, service.getName())
                             .log("merge-config-service BROKEN");
                     throw new ServiceUpdateException(
                             String.format("Service %s in broken state after deployment", service.getName()));
@@ -336,7 +337,7 @@ public class DeploymentConfigMerger {
                     kernel.getContext().remove(serviceName);
                     kernel.locateIgnoreError(serviceName).requestReinstall();
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                    logger.atError().kv("serviceName", serviceName)
+                    logger.atError().kv(SERVICE_NAME_LOG_KEY, serviceName)
                             .log("Failed to close unloadable service", e);
                 }
             }
@@ -353,7 +354,6 @@ public class DeploymentConfigMerger {
             servicesToRemove = servicesToRemove.stream().filter(serviceName -> {
                 try {
                     GreengrassService eg = kernel.locate(serviceName);
-
                     // If the service is builtin, then do not close it and do not
                     // remove it from the config
                     if (eg.isBuiltin()) {
@@ -362,7 +362,7 @@ public class DeploymentConfigMerger {
 
                     serviceClosedFutures.add(eg.close());
                 } catch (ServiceLoadException e) {
-                    logger.atError(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).addKeyValue("serviceName", serviceName)
+                    logger.atError(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).addKeyValue(SERVICE_NAME_LOG_KEY, serviceName)
                             .log("Could not locate Greengrass service to close service");
                     // Even though we couldn't find it, we might still need to drop it from the context, so return true
                     return true;
@@ -375,6 +375,13 @@ public class DeploymentConfigMerger {
                 serviceClosedFuture.get();
             }
             servicesToRemove.forEach(serviceName -> {
+                try {
+                    GreengrassService eg = kernel.locate(serviceName);
+                    kernel.getContext().remove(eg.getClass());
+                } catch (ServiceLoadException e) {
+                    logger.atError(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).addKeyValue(SERVICE_NAME_LOG_KEY, serviceName)
+                            .log("Could not locate Greengrass service to remove service");
+                }
                 kernel.getContext().remove(serviceName);
                 Topics serviceTopic = kernel.findServiceTopic(serviceName);
                 if (serviceTopic == null) {

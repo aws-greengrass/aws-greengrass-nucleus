@@ -171,8 +171,6 @@ public class Context implements Closeable {
         parts.compute(clazz, (tagObj, originalValue) -> {
             if (originalValue == null) {
                 originalValue = value;
-            } else {
-                originalValue.putAndInjectFields(value.get());
             }
             return originalValue;
         });
