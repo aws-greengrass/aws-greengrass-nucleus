@@ -86,8 +86,10 @@ class AwsIotMqttClient implements Closeable {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             currentlyConnected.set(false);
-            // Error code 0 means that the disconnection was intentional, so we don't need to log it
-            if (errorCode != 0) {
+            // Error code 0 means that the disconnection was intentional
+            if (errorCode == 0) {
+                logger.atInfo().log("Connection interrupted");
+            } else {
                 logger.atWarn().kv("error", CRT.awsErrorString(errorCode)).log("Connection interrupted");
             }
             if (resubscribeFuture != null && !resubscribeFuture.isDone()) {
@@ -135,7 +137,7 @@ class AwsIotMqttClient implements Closeable {
         return connect().thenCompose((b) -> {
             logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name()).log("Subscribing to topic");
             synchronized (this) {
-                throwIfNotConnected();
+                throwIfNoConnection();
                 return connection.subscribe(topic, qos).thenApply((i) -> {
                     subscriptionTopics.put(topic, qos);
                     return i;
@@ -148,7 +150,7 @@ class AwsIotMqttClient implements Closeable {
         return connect().thenCompose((b) -> {
             logger.atDebug().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
             synchronized (this) {
-                throwIfNotConnected();
+                throwIfNoConnection();
                 return connection.unsubscribe(topic).thenApply((i) -> {
                     subscriptionTopics.remove(topic);
                     return i;
@@ -165,7 +167,7 @@ class AwsIotMqttClient implements Closeable {
             transactionLimiter.acquire();
             bandwidthLimiter.acquire(message.getPayload().length);
             synchronized (this) {
-                throwIfNotConnected();
+                throwIfNoConnection();
                 logger.atTrace().kv(TOPIC_KEY, message.getTopic()).kv(QOS_KEY, qos.name()).kv("retain", retain)
                         .log("Publishing message");
                 return connection.publish(message, qos, retain);
@@ -173,9 +175,9 @@ class AwsIotMqttClient implements Closeable {
         });
     }
 
-    private void throwIfNotConnected() {
-        if (!connected()) {
-            throw new MqttException("Client is not connected");
+    private void throwIfNoConnection() {
+        if (connection == null) {
+            throw new MqttException("No active connection to use");
         }
     }
 
@@ -219,7 +221,6 @@ class AwsIotMqttClient implements Closeable {
         return connectionFuture;
     }
 
-    @SuppressWarnings("PMD.NullAssignment")
     private CompletableFuture<Boolean> establishConnection(boolean overrideCleanSession) {
         // Always use the builder provider here so that the builder is updated with whatever
         // the latest device config is
@@ -237,12 +238,7 @@ class AwsIotMqttClient implements Closeable {
             logger.atInfo().log("Connecting to AWS IoT Core");
             return connection.connect().whenComplete((session, error) -> {
                 if (error != null) {
-                    // Must synchronize since we're messing with the shared connection object and this block
-                    // is executed in some other thread
-                    synchronized (this) {
-                        connection.close();
-                        connection = null;
-                    }
+                    connectionCleanup();
                     logger.atError().log("Unable to connect to AWS IoT Core", error);
                     if (ProxyUtils.getProxyConfiguration() != null) {
                         logger.atInfo().log("You are using a proxy which uses a websocket connection and "
@@ -335,20 +331,30 @@ class AwsIotMqttClient implements Closeable {
         return connection != null && currentlyConnected.get();
     }
 
-    @SuppressWarnings("PMD.NullAssignment")
     protected synchronized CompletableFuture<Void> disconnect() {
         currentlyConnected.set(false);
         if (connection != null) {
             logger.atDebug().log("Disconnecting from AWS IoT Core");
             return connection.disconnect().whenComplete((future, error) -> {
                 logger.atDebug().log("Successfully disconnected from AWS IoT Core");
-                synchronized (this) {
-                    connection.close();
-                    connection = null;
-                }
+                connectionCleanup();
             });
         }
         return CompletableFuture.completedFuture(null);
+    }
+
+    @SuppressWarnings("PMD.NullAssignment")
+    private void connectionCleanup() {
+        // Must synchronize since we're messing with the shared connection object and this block
+        // is executed in some other thread
+        synchronized (this) {
+            if (connection != null) {
+                connection.close();
+                connection = null;
+            }
+        }
+        // Use code 0 which means this is intentional and we won't log any error
+        connectionEventCallback.onConnectionInterrupted(0);
     }
 
     @Override
