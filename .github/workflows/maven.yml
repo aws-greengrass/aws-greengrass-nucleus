@@ -11,10 +11,10 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [Linux]
+        os: [Linux, Windows]
     name: Build on ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -28,6 +28,8 @@ jobs:
       - run: rm -rf /tmp/*
         continue-on-error: true
       - name: Build with Maven
+        env:
+          AWS_REGION: us-west-2
         run: mvn -ntp -U verify
         shell: cmd
         if: matrix.os == 'Windows'
