@@ -29,14 +29,14 @@ jobs:
       - run: rm -rf /tmp/*
         if: matrix.os == 'ubuntu-latest'
         continue-on-error: true
-      - name: Build with Maven ${{ matrix.os }}
+      - name: Build with Maven (Windows)
         env:
           AWS_REGION: us-west-2
         run: mvn -ntp -U verify
         shell: cmd
         continue-on-error: true
         if: matrix.os == 'windows-latest'
-      - name: Build with Maven ${{ matrix.os }}
+      - name: Build with Maven (not Windows)
         env:
           AWS_REGION: us-west-2
         run: mvn -ntp -U verify
@@ -49,7 +49,7 @@ jobs:
           path: target/surefire-reports
       - name: Upload Coverage
         uses: actions/upload-artifact@v1.0.0
-        if: always()
+        if: matrix.os == 'ubuntu-latest'
         with:
           name: Coverage Report ${{ matrix.os }}
           path: target/jacoco-report
@@ -61,6 +61,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
       - name: cobertura-report-unit-test
         uses: shaguptashaikh/cobertura-action@master
+        if: matrix.os == 'ubuntu-latest'
         continue-on-error: true
         with:
           # The GITHUB_TOKEN for this repo
@@ -81,6 +82,7 @@ jobs:
           report_name: Unit Tests Coverage Report
       - name: cobertura-report-integration-test
         uses: shaguptashaikh/cobertura-action@master
+        if: matrix.os == 'ubuntu-latest'
         continue-on-error: true
         with:
           # The GITHUB_TOKEN for this repo
