@@ -11,31 +11,36 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [Linux]
+        os: [ubuntu-latest, windows-latest]
     name: Build on ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
       - uses: wagoid/commitlint-github-action@v2
+        if: matrix.os == 'ubuntu-latest'
       - name: Set up JDK 1.8
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
       - run: rm -rf /tmp/*
+        if: matrix.os == 'ubuntu-latest'
         continue-on-error: true
-      - name: Build with Maven
-        run: mvn -ntp -U verify
-        shell: cmd
-        if: matrix.os == 'Windows'
-      - name: Build with Maven
+      - name: Build with Maven (Windows)
         env:
           AWS_REGION: us-west-2
         run: mvn -ntp -U verify
-        if: matrix.os != 'Windows'
+        shell: cmd
+        continue-on-error: true
+        if: matrix.os == 'windows-latest'
+      - name: Build with Maven (not Windows)
+        env:
+          AWS_REGION: us-west-2
+        run: mvn -ntp -U verify
+        if: matrix.os != 'windows-latest'
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
         if: failure()
@@ -44,18 +49,19 @@ jobs:
           path: target/surefire-reports
       - name: Upload Coverage
         uses: actions/upload-artifact@v1.0.0
-        if: always()
+        if: matrix.os == 'ubuntu-latest'
         with:
           name: Coverage Report ${{ matrix.os }}
           path: target/jacoco-report
       - name: Convert Jacoco unit test report to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
-        if: matrix.os == 'Linux'
+        if: matrix.os == 'ubuntu-latest'
       - name: Convert Jacoco interation test report to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco-it/jacoco.xml src/main/java > target/jacoco-report/cobertura-it.xml
-        if: matrix.os == 'Linux'
+        if: matrix.os == 'ubuntu-latest'
       - name: cobertura-report-unit-test
         uses: shaguptashaikh/cobertura-action@master
+        if: matrix.os == 'ubuntu-latest'
         continue-on-error: true
         with:
           # The GITHUB_TOKEN for this repo
@@ -76,6 +82,7 @@ jobs:
           report_name: Unit Tests Coverage Report
       - name: cobertura-report-integration-test
         uses: shaguptashaikh/cobertura-action@master
+        if: matrix.os == 'ubuntu-latest'
         continue-on-error: true
         with:
           # The GITHUB_TOKEN for this repo
@@ -99,16 +106,16 @@ jobs:
           mvn -ntp japicmp:cmp -DskipTests &&
           pip3 -q install agithub &&
           python3 .github/scripts/binaryCompatibility.py --input target/japicmp/default-cli.xml --token "${{ github.token }}"
-        if: github.event_name == 'pull_request' && matrix.os == 'Linux'
+        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
       - name: Upload Compatibility Report
         uses: actions/upload-artifact@v1.0.0
         with:
           name: Binary Compatibility Report
           path: target/japicmp/default-cli.html
-        if: github.event_name == 'pull_request' && matrix.os == 'Linux'
+        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
       - name: Build benchmark with Maven
         # Changes can break the benchmark, so compile it now to make sure it is buildable
         run: |
           mvn -ntp -U install -DskipTests
           mvn -ntp -U -f src/test/greengrass-nucleus-benchmark install
-        if: matrix.os == 'Linux'
+        if: matrix.os == 'ubuntu-latest'
