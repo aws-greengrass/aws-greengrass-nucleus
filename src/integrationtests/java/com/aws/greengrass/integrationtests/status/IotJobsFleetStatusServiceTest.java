@@ -70,9 +70,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class IotJobsFleetStatusServiceTest extends BaseITCase {
@@ -106,7 +106,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
         CompletableFuture cf = new CompletableFuture();
         cf.complete(null);
-        when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
+        lenient().when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
                 any(QualityOfService.class))).thenAnswer(invocationOnMock -> {
             verify(mockIotJobsClientWrapper, atLeastOnce()).SubscribeToUpdateJobExecutionAccepted(any(),
                     eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
