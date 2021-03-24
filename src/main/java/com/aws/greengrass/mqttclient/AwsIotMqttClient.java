@@ -193,8 +193,8 @@ class AwsIotMqttClient implements Closeable {
         if (connectionFuture != null && !connectionFuture.isDone()) {
             return connectionFuture;
         }
-        // We're already connected, there's nothing to do
-        if (currentlyConnected.get()) {
+        // A client exists, there's nothing to do because the SDK would reconnect for us
+        if (connection != null) {
             return CompletableFuture.completedFuture(true);
         }
         // For the initial connect, client connects with cleanSession=true and disconnects.
