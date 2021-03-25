@@ -9,8 +9,19 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Value;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.UserPrincipal;
+import java.nio.file.attribute.UserPrincipalLookupService;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Value
@@ -19,6 +30,7 @@ import java.util.Set;
 public class FileSystemPermission {
     String ownerUser;
     String ownerGroup;
+
     boolean ownerRead;
     boolean ownerWrite;
     boolean ownerExecute;
@@ -68,6 +80,90 @@ public class FileSystemPermission {
         }
 
         return ret;
+    }
+
+    /**
+     * Convert to a list of Acl entries for use with AclFileAttributeView.setAcl.
+     *
+     * @param path path to apply to
+     * @return List of Acl entries
+     * @throws IOException if any exception occurs while converting to Acl
+     */
+    public List<AclEntry> toAclEntries(Path path) throws IOException {
+        // These sets of permissions are reverse engineered by setting the permission on a file using Windows File
+        // Explorer. Then use AclFileAttributeView.getAcl to examine what were set.
+        final Set<AclEntryPermission> readPerms = new HashSet<>(Arrays.asList(
+                AclEntryPermission.READ_DATA,
+                AclEntryPermission.READ_NAMED_ATTRS,
+                AclEntryPermission.READ_ATTRIBUTES,
+                AclEntryPermission.READ_ACL,
+                AclEntryPermission.SYNCHRONIZE));
+        final Set<AclEntryPermission> writePerms = new HashSet<>(Arrays.asList(
+                AclEntryPermission.WRITE_DATA,
+                AclEntryPermission.APPEND_DATA,
+                AclEntryPermission.WRITE_NAMED_ATTRS,
+                AclEntryPermission.WRITE_ATTRIBUTES,
+                AclEntryPermission.SYNCHRONIZE));
+        final Set<AclEntryPermission> executePerms = new HashSet<>(Arrays.asList(
+                AclEntryPermission.READ_DATA,
+                AclEntryPermission.READ_NAMED_ATTRS,
+                AclEntryPermission.EXECUTE,
+                AclEntryPermission.READ_ATTRIBUTES,
+                AclEntryPermission.READ_ACL,
+                AclEntryPermission.SYNCHRONIZE));
+
+        UserPrincipalLookupService userPrincipalLookupService = path.getFileSystem().getUserPrincipalLookupService();
+        UserPrincipal ownerPrincipal = userPrincipalLookupService.lookupPrincipalByName(ownerUser);
+        GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName("Everyone");
+
+        List<AclEntry> aclEntries = new ArrayList<>();
+        if (ownerRead) {
+            aclEntries.add(AclEntry.newBuilder()
+                    .setType(AclEntryType.ALLOW)
+                    .setPrincipal(ownerPrincipal)
+                    .setPermissions(readPerms)
+                    .build());
+        }
+        if (ownerWrite) {
+            aclEntries.add(AclEntry.newBuilder()
+                    .setType(AclEntryType.ALLOW)
+                    .setPrincipal(ownerPrincipal)
+                    .setPermissions(writePerms)
+                    .build());
+        }
+        if (ownerExecute) {
+            aclEntries.add(AclEntry.newBuilder()
+                    .setType(AclEntryType.ALLOW)
+                    .setPrincipal(ownerPrincipal)
+                    .setPermissions(executePerms)
+                    .build());
+        }
+
+        // There is no default group concept on Windows. (There is, but is used when mounting as a network share.)
+
+        if (otherRead) {
+            aclEntries.add(AclEntry.newBuilder()
+                    .setType(AclEntryType.ALLOW)
+                    .setPrincipal(everyone)
+                    .setPermissions(readPerms)
+                    .build());
+        }
+        if (otherWrite) {
+            aclEntries.add(AclEntry.newBuilder()
+                    .setType(AclEntryType.ALLOW)
+                    .setPrincipal(everyone)
+                    .setPermissions(writePerms)
+                    .build());
+        }
+        if (otherExecute) {
+            aclEntries.add(AclEntry.newBuilder()
+                    .setType(AclEntryType.ALLOW)
+                    .setPrincipal(everyone)
+                    .setPermissions(executePerms)
+                    .build());
+        }
+
+        return aclEntries;
     }
 
     public enum Option {

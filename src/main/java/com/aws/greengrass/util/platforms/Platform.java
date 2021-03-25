@@ -8,15 +8,21 @@ package com.aws.greengrass.util.platforms;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.CrashableFunction;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.FileSystemPermission.Option;
+import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.unix.DarwinPlatform;
 import com.aws.greengrass.util.platforms.unix.QNXPlatform;
 import com.aws.greengrass.util.platforms.unix.UnixPlatform;
 import com.aws.greengrass.util.platforms.windows.WindowsPlatform;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
@@ -25,6 +31,8 @@ import static com.aws.greengrass.config.PlatformResolver.OS_DARWIN;
 
 public abstract class Platform implements UserPlatform {
     public static final Logger logger = LogManager.getLogger(Platform.class);
+    public static final String SET_PERMISSIONS_EVENT = "set-permissions";
+    public static final String PATH = "path";
 
     private static Platform INSTANCE;
 
@@ -110,8 +118,60 @@ public abstract class Platform implements UserPlatform {
      * @param options options for how to apply the permission to the path
      * @throws IOException if any exception occurs while changing permissions
      */
-    protected abstract void setPermissions(FileSystemPermission permission, Path path, EnumSet<Option> options)
-            throws IOException;
+    protected void setPermissions(FileSystemPermission permission, Path path, EnumSet<Option> options)
+            throws IOException {
+
+        // noop function that does not set owner
+        CrashableFunction<Path, Void, IOException> setOwner = (p) -> null;
+
+        if (options.contains(Option.SetOwner)) {
+            if (Utils.isEmpty(permission.getOwnerUser())) {
+                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).log("No owner to set for path");
+            } else {
+                setOwner = (p) -> {
+                    this.setOwner(permission, p);
+                    return null;
+                };
+            }
+        }
+
+        // noop function that does not change the file mode
+        CrashableFunction<Path, Void, IOException> setMode = (p) -> null;
+
+        if (options.contains(Option.SetMode)) {
+            setMode = (p) -> {
+                this.setMode(permission, p);
+                return null;
+            };
+        }
+
+        final CrashableFunction<Path, Void, IOException> setModeFunc = setMode;
+        final CrashableFunction<Path, Void, IOException> setOwnerFunc = setOwner;
+        if (options.contains(Option.Recurse)) {
+            Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    setModeFunc.apply(dir);
+                    setOwnerFunc.apply(dir);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    setModeFunc.apply(file);
+                    setOwnerFunc.apply(file);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } else {
+            setModeFunc.apply(path);
+            setOwnerFunc.apply(path);
+        }
+    }
+
+    protected abstract void setOwner(FileSystemPermission permission, Path path) throws IOException;
+
+    protected abstract void setMode(FileSystemPermission permission, Path path) throws IOException;
 
     public abstract String prepareIpcFilepath(Path rootPath);
 

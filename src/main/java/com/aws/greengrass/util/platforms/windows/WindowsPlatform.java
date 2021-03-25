@@ -24,9 +24,16 @@ import org.zeroturnaround.process.Processes;
 import org.zeroturnaround.process.WindowsProcess;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.FileOwnerAttributeView;
+import java.nio.file.attribute.UserPrincipal;
+import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.Collections;
-import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -121,9 +128,28 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    protected void setPermissions(FileSystemPermission permission, Path path,
-                                  EnumSet<FileSystemPermission.Option> options) throws IOException {
-        // [P41372857]: Implement using ACL for Windows
+    protected void setOwner(FileSystemPermission permission, Path path) throws IOException {
+        UserPrincipalLookupService lookupService = path.getFileSystem().getUserPrincipalLookupService();
+        UserPrincipal userPrincipal = lookupService.lookupPrincipalByName(permission.getOwnerUser());
+        FileOwnerAttributeView view = Files.getFileAttributeView(path, FileOwnerAttributeView.class,
+                LinkOption.NOFOLLOW_LINKS);
+
+        logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("owner", permission.getOwnerUser())
+                .log();
+        view.setOwner(userPrincipal);
+
+        // Note that group ownership is not used.
+    }
+
+    @Override
+    protected void setMode(FileSystemPermission permission, Path path) throws IOException {
+        List<AclEntry> acl = permission.toAclEntries(path);
+        logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm", acl.toString()).log();
+        AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class,
+                LinkOption.NOFOLLOW_LINKS);
+        List<AclEntry> existingAcl = view.getAcl();
+        existingAcl.addAll(0, acl); // insert before any DENY entries
+        view.setAcl(existingAcl);
     }
 
     @Override
