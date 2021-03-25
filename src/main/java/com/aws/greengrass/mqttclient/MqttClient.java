@@ -541,7 +541,7 @@ public class MqttClient implements Closeable {
     protected void isValidPublishRequest(PublishRequest request) throws MqttRequestException {
         // Payload size should be smaller than MQTT maximum message size
         int messageSize = request.getPayload().length;
-        if (messageSize >= maxPublishMessageSize) {
+        if (messageSize > maxPublishMessageSize) {
             throw new MqttRequestException(String.format("The publishing message size %d bytes exceeds the "
                     + "configured limit of %d bytes", messageSize, maxPublishMessageSize));
         }
