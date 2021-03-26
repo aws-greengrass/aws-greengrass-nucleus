@@ -48,8 +48,6 @@ import java.util.UUID;
 public class WindowsPlatform extends Platform {
     private static final String NAMED_PIPE = "\\\\.\\pipe\\NucleusNamedPipe-" + UUID.randomUUID().toString();
 
-    // These sets of permissions are reverse engineered by setting the permission on a file using Windows File
-    // Explorer. Then use AclFileAttributeView.getAcl to examine what were set.
     private static final Set<AclEntryPermission> READ_PERMS = new HashSet<>(Arrays.asList(
             AclEntryPermission.READ_DATA,
             AclEntryPermission.READ_NAMED_ATTRS,
