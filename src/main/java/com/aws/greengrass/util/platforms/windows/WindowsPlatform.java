@@ -60,7 +60,11 @@ public class WindowsPlatform extends Platform {
             AclEntryPermission.WRITE_DATA,
             AclEntryPermission.APPEND_DATA,
             AclEntryPermission.WRITE_NAMED_ATTRS,
+            AclEntryPermission.DELETE_CHILD,
             AclEntryPermission.WRITE_ATTRIBUTES,
+            AclEntryPermission.DELETE,
+            AclEntryPermission.WRITE_ACL,
+            AclEntryPermission.WRITE_OWNER,
             AclEntryPermission.SYNCHRONIZE));
     private static final Set<AclEntryPermission> EXECUTE_PERMS = new HashSet<>(Arrays.asList(
             AclEntryPermission.READ_DATA,
