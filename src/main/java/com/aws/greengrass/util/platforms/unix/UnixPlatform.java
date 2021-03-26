@@ -34,6 +34,7 @@ import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -389,12 +390,51 @@ public class UnixPlatform extends Platform {
 
     @Override
     protected void setMode(FileSystemPermission permission, Path path) throws IOException {
-        Set<PosixFilePermission> perms = permission.toPosixFilePermissions();
+        Set<PosixFilePermission> perms = posixFilePermissions(permission);
         logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm",
                 PosixFilePermissions.toString(perms)).log();
         PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
                 LinkOption.NOFOLLOW_LINKS);
         view.setPermissions(perms);
+    }
+
+    /**
+     * Convert to a set of PosixFilePermissions for use with Files.setPosixFilePermissions.
+     *
+     * @return Set of permissions
+     */
+    private Set<PosixFilePermission> posixFilePermissions(FileSystemPermission permission) {
+        HashSet<PosixFilePermission> ret = new HashSet<>();
+
+        if (permission.isOwnerRead()) {
+            ret.add(PosixFilePermission.OWNER_READ);
+        }
+        if (permission.isOwnerWrite()) {
+            ret.add(PosixFilePermission.OWNER_WRITE);
+        }
+        if (permission.isOwnerExecute()) {
+            ret.add(PosixFilePermission.OWNER_EXECUTE);
+        }
+        if (permission.isGroupRead()) {
+            ret.add(PosixFilePermission.GROUP_READ);
+        }
+        if (permission.isGroupWrite()) {
+            ret.add(PosixFilePermission.GROUP_WRITE);
+        }
+        if (permission.isGroupExecute()) {
+            ret.add(PosixFilePermission.GROUP_EXECUTE);
+        }
+        if (permission.isOtherRead()) {
+            ret.add(PosixFilePermission.OTHERS_READ);
+        }
+        if (permission.isOtherWrite()) {
+            ret.add(PosixFilePermission.OTHERS_WRITE);
+        }
+        if (permission.isOtherExecute()) {
+            ret.add(PosixFilePermission.OTHERS_EXECUTE);
+        }
+
+        return ret;
     }
 
     protected void runCmd(String cmdStr, Consumer<CharSequence> out, String msg)
