@@ -31,7 +31,7 @@ import java.util.List;
 
 import static com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory.DOCKER_PLUGIN_REQUIRED_ERROR_MSG;
 import static com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory.TOKEN_EXCHANGE_SERVICE_REQUIRED_ERROR_MSG;
-import static com.aws.greengrass.componentmanager.plugins.docker.DockerManagerService.DOCKER_MANAGER_PLUGIN_SERVICE_NAME;
+import static com.aws.greengrass.componentmanager.plugins.docker.DockerApplicationManagerService.DOCKER_MANAGER_PLUGIN_SERVICE_NAME;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.Is.is;

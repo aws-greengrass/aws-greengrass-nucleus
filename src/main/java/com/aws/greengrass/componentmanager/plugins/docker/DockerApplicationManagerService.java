@@ -16,10 +16,10 @@ import javax.inject.Singleton;
  * Loads docker image artifact downloader. Currently just a placeholder since the downloader is part of the nucleus but
  * when the downloader needs to be moved out into its own plugin, this service will be instantiated for the plugin.
  */
-@ImplementsService(name = DockerManagerService.DOCKER_MANAGER_PLUGIN_SERVICE_NAME)
+@ImplementsService(name = DockerApplicationManagerService.DOCKER_MANAGER_PLUGIN_SERVICE_NAME)
 @Singleton
-public class DockerManagerService extends GreengrassService {
-    public static final String DOCKER_MANAGER_PLUGIN_SERVICE_NAME = "aws.greengrass.DockerComponentManager";
+public class DockerApplicationManagerService extends GreengrassService {
+    public static final String DOCKER_MANAGER_PLUGIN_SERVICE_NAME = "aws.greengrass.DockerApplicationManager";
 
     /**
      * Constructor for injection.
@@ -27,7 +27,7 @@ public class DockerManagerService extends GreengrassService {
      * @param topics topics root
      */
     @Inject
-    public DockerManagerService(Topics topics) {
+    public DockerApplicationManagerService(Topics topics) {
         super(topics);
     }
 }
