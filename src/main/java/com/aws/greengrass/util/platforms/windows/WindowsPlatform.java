@@ -183,11 +183,12 @@ public class WindowsPlatform extends Platform {
     /**
      * Convert to a list of Acl entries for use with AclFileAttributeView.setAcl.
      *
+     * @param permission permission to convert
      * @param path path to apply to
      * @return List of Acl entries
      * @throws IOException if any exception occurs while converting to Acl
      */
-    private List<AclEntry> aclEntries(FileSystemPermission permission, Path path) throws IOException {
+    public static List<AclEntry> aclEntries(FileSystemPermission permission, Path path) throws IOException {
         UserPrincipalLookupService userPrincipalLookupService = path.getFileSystem().getUserPrincipalLookupService();
         UserPrincipal ownerPrincipal = userPrincipalLookupService.lookupPrincipalByName(permission.getOwnerUser());
         GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName("Everyone");

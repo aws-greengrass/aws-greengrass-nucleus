@@ -401,9 +401,10 @@ public class UnixPlatform extends Platform {
     /**
      * Convert to a set of PosixFilePermissions for use with Files.setPosixFilePermissions.
      *
+     * @param permission Permission to convert
      * @return Set of permissions
      */
-    private Set<PosixFilePermission> posixFilePermissions(FileSystemPermission permission) {
+    public static Set<PosixFilePermission> posixFilePermissions(FileSystemPermission permission) {
         HashSet<PosixFilePermission> ret = new HashSet<>();
 
         if (permission.isOwnerRead()) {
