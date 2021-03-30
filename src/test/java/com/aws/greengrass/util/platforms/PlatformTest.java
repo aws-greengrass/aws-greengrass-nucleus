@@ -21,7 +21,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 public class PlatformTest {
 
     private static final Platform PLATFORM = Platform.getInstance();
-    private static final FileSystemPermission NO_PERMISSION = FileSystemPermission.builder().build();
+
+    // The tests usually set permission twice, verifying the permission after each time. This is the permission to be
+    // applied first. It is also applied to a directory.
+    //
+    // On Linux, for a directory, we needs "owner execute" permission so that the test can change into a subdirectory.
+    //
+    // On Windows, for a directory, we needs "owner read" permission in order to set the permission the 2nd time.
+    private static final FileSystemPermission MIN_PERMISSION = FileSystemPermission.builder()
+            .ownerRead(true)
+            .ownerExecute(true)
+            .build();
 
     @TempDir
     protected Path tempDir;
@@ -39,8 +49,8 @@ public class PlatformTest {
                 .ownerExecute(true)
                 .build();
 
-        PLATFORM.setPermissions(NO_PERMISSION, tempFile);
-        assertThat(tempFile, hasPermission(NO_PERMISSION));
+        PLATFORM.setPermissions(MIN_PERMISSION, tempFile);
+        assertThat(tempFile, hasPermission(MIN_PERMISSION));
 
         PLATFORM.setPermissions(expectedPermission, tempFile);
         assertThat(tempFile, hasPermission(expectedPermission));
@@ -55,8 +65,8 @@ public class PlatformTest {
                 .groupExecute(true)
                 .build();
 
-        PLATFORM.setPermissions(NO_PERMISSION, tempFile);
-        assertThat(tempFile, hasPermission(NO_PERMISSION));
+        PLATFORM.setPermissions(MIN_PERMISSION, tempFile);
+        assertThat(tempFile, hasPermission(MIN_PERMISSION));
 
         PLATFORM.setPermissions(expectedPermission, tempFile);
         assertThat(tempFile, hasPermission(expectedPermission));
@@ -71,8 +81,8 @@ public class PlatformTest {
                 .otherExecute(true)
                 .build();
 
-        PLATFORM.setPermissions(NO_PERMISSION, tempFile);
-        assertThat(tempFile, hasPermission(NO_PERMISSION));
+        PLATFORM.setPermissions(MIN_PERMISSION, tempFile);
+        assertThat(tempFile, hasPermission(MIN_PERMISSION));
 
         PLATFORM.setPermissions(expectedPermission, tempFile);
         assertThat(tempFile, hasPermission(expectedPermission));
@@ -87,13 +97,6 @@ public class PlatformTest {
         Path tempSubDir = Files.createTempDirectory(tempDir, null);
         Path tempFile = Files.createTempFile(tempSubDir, null, null);
 
-        // This test sets the permission twice, verifying the permission after each time. This is the permission to
-        // be applied first. It is also applied to a directory. On Windows, for directory, it needs at least "owner
-        // read" permission in order to set the permission the 2nd time.
-        FileSystemPermission minPermission = FileSystemPermission.builder()
-                .ownerRead(true)
-                .build();
-
         FileSystemPermission expectedPermission = FileSystemPermission.builder()
                 .ownerRead(true)
                 .ownerWrite(true)
@@ -106,10 +109,10 @@ public class PlatformTest {
                 .otherExecute(true)
                 .build();
 
-        PLATFORM.setPermissions(minPermission, tempSubDir, FileSystemPermission.Option.SetMode,
+        PLATFORM.setPermissions(MIN_PERMISSION, tempSubDir, FileSystemPermission.Option.SetMode,
                 FileSystemPermission.Option.Recurse);
-        assertThat(tempSubDir, hasPermission(minPermission));
-        assertThat(tempFile, hasPermission(minPermission));
+        assertThat(tempSubDir, hasPermission(MIN_PERMISSION));
+        assertThat(tempFile, hasPermission(MIN_PERMISSION));
 
         PLATFORM.setPermissions(expectedPermission, tempSubDir, FileSystemPermission.Option.SetMode,
                 FileSystemPermission.Option.Recurse);
@@ -121,7 +124,7 @@ public class PlatformTest {
     void GIVEN_non_exist_file_WHEN_setPermissions_THEN_throw() {
         Path nonExistingFile = tempDir.resolve(UUID.randomUUID().toString());
         assertThrows(IOException.class, () -> {
-            PLATFORM.setPermissions(NO_PERMISSION, nonExistingFile);
+            PLATFORM.setPermissions(MIN_PERMISSION, nonExistingFile);
         });
     }
 
