@@ -190,7 +190,18 @@ public class WindowsPlatform extends Platform {
      */
     public static List<AclEntry> aclEntries(FileSystemPermission permission, Path path) throws IOException {
         UserPrincipalLookupService userPrincipalLookupService = path.getFileSystem().getUserPrincipalLookupService();
-        UserPrincipal ownerPrincipal = userPrincipalLookupService.lookupPrincipalByName(permission.getOwnerUser());
+
+        UserPrincipal ownerPrincipal;
+        if (permission.getOwnerUser() == null) {
+            // On Linux, when we set the file permission for the owner, it applies to the current owner and we don't
+            // need to know who the actual owner is. But on Windows, Acl must be associated with an owner.
+            AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class,
+                    LinkOption.NOFOLLOW_LINKS);
+            ownerPrincipal = view.getOwner();
+        } else {
+            ownerPrincipal = userPrincipalLookupService.lookupPrincipalByName(permission.getOwnerUser());
+        }
+
         GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName("Everyone");
 
         List<AclEntry> aclEntries = new ArrayList<>();
