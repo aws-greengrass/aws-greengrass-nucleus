@@ -17,6 +17,7 @@ import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.UserDecorator;
 import com.sun.jna.platform.win32.Advapi32Util;
 import com.sun.jna.platform.win32.Win32Exception;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.zeroturnaround.exec.InvalidExitValueException;
 import org.zeroturnaround.process.PidProcess;
@@ -158,100 +159,121 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    protected void setOwner(FileSystemPermission permission, Path path) throws IOException {
-        UserPrincipalLookupService lookupService = path.getFileSystem().getUserPrincipalLookupService();
-        UserPrincipal userPrincipal = lookupService.lookupPrincipalByName(permission.getOwnerUser());
-        FileOwnerAttributeView view = Files.getFileAttributeView(path, FileOwnerAttributeView.class,
-                LinkOption.NOFOLLOW_LINKS);
-
-        logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("owner", permission.getOwnerUser())
-                .log();
-        view.setOwner(userPrincipal);
+    protected void setOwner(UserPrincipal userPrincipal, GroupPrincipal groupPrincipal, Path path) throws IOException {
+        if (userPrincipal != null) {
+            FileOwnerAttributeView view = Files.getFileAttributeView(path, FileOwnerAttributeView.class,
+                    LinkOption.NOFOLLOW_LINKS);
+            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("owner", userPrincipal.toString())
+                    .log();
+            view.setOwner(userPrincipal);
+        }
 
         // Note that group ownership is not used.
     }
 
-    @Override
-    protected void setMode(FileSystemPermission permission, Path path) throws IOException {
-        List<AclEntry> acl = aclEntries(permission, path);
-        logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm", acl.toString()).log();
-        AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class,
-                LinkOption.NOFOLLOW_LINKS);
-        view.setAcl(acl); // This also clears existing acl!
+    @Getter
+    public static class WindowsFileSystemPermissionView extends FileSystemPermissionView {
+
+        private List<AclEntry> acl;
+
+        public WindowsFileSystemPermissionView(FileSystemPermission permission, Path path) throws IOException {
+            super();
+            acl = aclEntries(permission, path);
+        }
+
+        /**
+         * Convert to a list of Acl entries for use with AclFileAttributeView.setAcl.
+         *
+         * @param permission permission to convert
+         * @param path path to apply to
+         * @return List of Acl entries
+         * @throws IOException if any exception occurs while converting to Acl
+         */
+        public static List<AclEntry> aclEntries(FileSystemPermission permission, Path path) throws IOException {
+            UserPrincipalLookupService userPrincipalLookupService =
+                    path.getFileSystem().getUserPrincipalLookupService();
+
+            UserPrincipal ownerPrincipal;
+            if (permission.getOwnerUser() == null) {
+                // On Linux, when we set the file permission for the owner, it applies to the current owner and we don't
+                // need to know who the actual owner is. But on Windows, Acl must be associated with an owner.
+                AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class,
+                        LinkOption.NOFOLLOW_LINKS);
+                ownerPrincipal = view.getOwner();
+            } else {
+                ownerPrincipal = userPrincipalLookupService.lookupPrincipalByName(permission.getOwnerUser());
+            }
+
+            GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName("Everyone");
+
+            List<AclEntry> aclEntries = new ArrayList<>();
+            if (permission.isOwnerRead()) {
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(ownerPrincipal)
+                        .setPermissions(READ_PERMS)
+                        .build());
+            }
+            if (permission.isOwnerWrite()) {
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(ownerPrincipal)
+                        .setPermissions(WRITE_PERMS)
+                        .build());
+            }
+            if (permission.isOwnerExecute()) {
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(ownerPrincipal)
+                        .setPermissions(EXECUTE_PERMS)
+                        .build());
+            }
+
+            // There is no default group concept on Windows. (There is, but is used when mounting as a network share.)
+
+            if (permission.isOtherRead()) {
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(everyone)
+                        .setPermissions(READ_PERMS)
+                        .build());
+            }
+            if (permission.isOtherWrite()) {
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(everyone)
+                        .setPermissions(WRITE_PERMS)
+                        .build());
+            }
+            if (permission.isOtherExecute()) {
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(everyone)
+                        .setPermissions(EXECUTE_PERMS)
+                        .build());
+            }
+
+            return aclEntries;
+        }
     }
 
-    /**
-     * Convert to a list of Acl entries for use with AclFileAttributeView.setAcl.
-     *
-     * @param permission permission to convert
-     * @param path path to apply to
-     * @return List of Acl entries
-     * @throws IOException if any exception occurs while converting to Acl
-     */
-    public static List<AclEntry> aclEntries(FileSystemPermission permission, Path path) throws IOException {
-        UserPrincipalLookupService userPrincipalLookupService = path.getFileSystem().getUserPrincipalLookupService();
+    @Override
+    protected FileSystemPermissionView getFileSystemPermissionView(FileSystemPermission permission, Path path)
+            throws IOException {
+        return new WindowsFileSystemPermissionView(permission, path);
+    }
 
-        UserPrincipal ownerPrincipal;
-        if (permission.getOwnerUser() == null) {
-            // On Linux, when we set the file permission for the owner, it applies to the current owner and we don't
-            // need to know who the actual owner is. But on Windows, Acl must be associated with an owner.
+    @Override
+    protected void setMode(FileSystemPermissionView permissionView, Path path) throws IOException {
+        if (permissionView instanceof WindowsFileSystemPermissionView) {
+            WindowsFileSystemPermissionView windowsFileSystemPermissionView =
+                    (WindowsFileSystemPermissionView) permissionView;
+            List<AclEntry> acl = windowsFileSystemPermissionView.getAcl();
+            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm", acl.toString()).log();
             AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class,
                     LinkOption.NOFOLLOW_LINKS);
-            ownerPrincipal = view.getOwner();
-        } else {
-            ownerPrincipal = userPrincipalLookupService.lookupPrincipalByName(permission.getOwnerUser());
+            view.setAcl(acl); // This also clears existing acl!
         }
-
-        GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName("Everyone");
-
-        List<AclEntry> aclEntries = new ArrayList<>();
-        if (permission.isOwnerRead()) {
-            aclEntries.add(AclEntry.newBuilder()
-                    .setType(AclEntryType.ALLOW)
-                    .setPrincipal(ownerPrincipal)
-                    .setPermissions(READ_PERMS)
-                    .build());
-        }
-        if (permission.isOwnerWrite()) {
-            aclEntries.add(AclEntry.newBuilder()
-                    .setType(AclEntryType.ALLOW)
-                    .setPrincipal(ownerPrincipal)
-                    .setPermissions(WRITE_PERMS)
-                    .build());
-        }
-        if (permission.isOwnerExecute()) {
-            aclEntries.add(AclEntry.newBuilder()
-                    .setType(AclEntryType.ALLOW)
-                    .setPrincipal(ownerPrincipal)
-                    .setPermissions(EXECUTE_PERMS)
-                    .build());
-        }
-
-        // There is no default group concept on Windows. (There is, but is used when mounting as a network share.)
-
-        if (permission.isOtherRead()) {
-            aclEntries.add(AclEntry.newBuilder()
-                    .setType(AclEntryType.ALLOW)
-                    .setPrincipal(everyone)
-                    .setPermissions(READ_PERMS)
-                    .build());
-        }
-        if (permission.isOtherWrite()) {
-            aclEntries.add(AclEntry.newBuilder()
-                    .setType(AclEntryType.ALLOW)
-                    .setPrincipal(everyone)
-                    .setPermissions(WRITE_PERMS)
-                    .build());
-        }
-        if (permission.isOtherExecute()) {
-            aclEntries.add(AclEntry.newBuilder()
-                    .setType(AclEntryType.ALLOW)
-                    .setPrincipal(everyone)
-                    .setPermissions(EXECUTE_PERMS)
-                    .build());
-        }
-
-        return aclEntries;
     }
 
     @Override

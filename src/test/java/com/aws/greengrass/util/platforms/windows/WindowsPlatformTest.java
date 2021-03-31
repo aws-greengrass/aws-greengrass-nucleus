@@ -73,7 +73,8 @@ class WindowsPlatformTest {
     @Test
     void GIVEN_file_system_permission_WHEN_convert_to_acl_THEN_succeed() throws IOException {
         // No permission
-        List<AclEntry> aclEntryList = WindowsPlatform.aclEntries(FileSystemPermission.builder().build(), tempDir);
+        List<AclEntry> aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView
+                .aclEntries(FileSystemPermission.builder().build(), tempDir);
         assertThat(aclEntryList, empty());
 
         // Owner
@@ -81,7 +82,7 @@ class WindowsPlatformTest {
                 LinkOption.NOFOLLOW_LINKS);
         UserPrincipal owner = view.getOwner();
 
-        aclEntryList = WindowsPlatform.aclEntries(FileSystemPermission.builder()
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
                 .ownerRead(true)
                 .build(), tempDir);
         assertThat(aclEntryList, hasSize(1));
@@ -89,7 +90,7 @@ class WindowsPlatformTest {
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.READ_PERMS.toArray()));
 
-        aclEntryList = WindowsPlatform.aclEntries(FileSystemPermission.builder()
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
                 .ownerWrite(true)
                 .build(), tempDir);
         assertThat(aclEntryList, hasSize(1));
@@ -97,7 +98,7 @@ class WindowsPlatformTest {
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.WRITE_PERMS.toArray()));
 
-        aclEntryList = WindowsPlatform.aclEntries(FileSystemPermission.builder()
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
                 .ownerExecute(true)
                 .build(), tempDir);
         assertThat(aclEntryList, hasSize(1));
@@ -109,7 +110,7 @@ class WindowsPlatformTest {
         UserPrincipalLookupService userPrincipalLookupService = tempDir.getFileSystem().getUserPrincipalLookupService();
         GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName("Everyone");
 
-        aclEntryList = WindowsPlatform.aclEntries(FileSystemPermission.builder()
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
                 .otherRead(true)
                 .build(), tempDir);
         assertThat(aclEntryList, hasSize(1));
@@ -117,7 +118,7 @@ class WindowsPlatformTest {
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.READ_PERMS.toArray()));
 
-        aclEntryList = WindowsPlatform.aclEntries(FileSystemPermission.builder()
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
                 .otherWrite(true)
                 .build(), tempDir);
         assertThat(aclEntryList, hasSize(1));
@@ -125,7 +126,7 @@ class WindowsPlatformTest {
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.WRITE_PERMS.toArray()));
 
-        aclEntryList = WindowsPlatform.aclEntries(FileSystemPermission.builder()
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
                 .otherExecute(true)
                 .build(), tempDir);
         assertThat(aclEntryList, hasSize(1));

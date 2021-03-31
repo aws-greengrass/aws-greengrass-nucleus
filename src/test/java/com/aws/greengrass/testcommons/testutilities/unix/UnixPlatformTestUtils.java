@@ -35,7 +35,7 @@ public class UnixPlatformTestUtils extends PlatformTestUtils {
         }
 
         try {
-            Set<PosixFilePermission> perms = UnixPlatform.posixFilePermissions(expected);
+            Set<PosixFilePermission> perms = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(expected);
             Set<PosixFilePermission> actual = view.readAttributes().permissions();
             logger.atTrace().log("posix permissions are {} for path {}", PosixFilePermissions.toString(actual), path);
             return actual.containsAll(perms) && perms.containsAll(actual);

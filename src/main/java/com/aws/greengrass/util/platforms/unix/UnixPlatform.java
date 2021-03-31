@@ -14,6 +14,7 @@ import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.UserDecorator;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
@@ -31,9 +32,9 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
-import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -369,73 +370,90 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    protected void setOwner(FileSystemPermission permission, Path path) throws IOException {
-        UserPrincipalLookupService lookupService = path.getFileSystem().getUserPrincipalLookupService();
-        UserPrincipal userPrincipal = lookupService.lookupPrincipalByName(permission.getOwnerUser());
-        GroupPrincipal groupPrincipal = Utils.isEmpty(permission.getOwnerGroup()) ? null :
-                lookupService.lookupPrincipalByGroupName(permission.getOwnerGroup());
+    protected void setOwner(UserPrincipal userPrincipal, GroupPrincipal groupPrincipal, Path path) throws IOException {
         PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
                 LinkOption.NOFOLLOW_LINKS);
 
-        logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("owner", permission.getOwnerUser())
-                .log();
-        view.setOwner(userPrincipal);
+        if (userPrincipal != null) {
+            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("owner", userPrincipal.toString())
+                    .log();
+            view.setOwner(userPrincipal);
+        }
 
         if (groupPrincipal != null) {
-            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("group",
-                    permission.getOwnerGroup()).log();
+            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("group", groupPrincipal.toString())
+                    .log();
             view.setGroup(groupPrincipal);
         }
     }
 
-    @Override
-    protected void setMode(FileSystemPermission permission, Path path) throws IOException {
-        Set<PosixFilePermission> perms = posixFilePermissions(permission);
-        logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm",
-                PosixFilePermissions.toString(perms)).log();
-        PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
-                LinkOption.NOFOLLOW_LINKS);
-        view.setPermissions(perms);
+    @Getter
+    public static class PosixFileSystemPermissionView extends FileSystemPermissionView {
+        private Set<PosixFilePermission> posixFilePermissions;
+
+        public PosixFileSystemPermissionView(FileSystemPermission permission) {
+            super();
+            posixFilePermissions = posixFilePermissions(permission);
+        }
+
+        /**
+         * Convert to a set of PosixFilePermissions for use with Files.setPosixFilePermissions.
+         *
+         * @param permission Permission to convert
+         * @return Set of permissions
+         */
+        public static Set<PosixFilePermission> posixFilePermissions(FileSystemPermission permission) {
+            Set<PosixFilePermission> ret = new HashSet<>();
+
+            if (permission.isOwnerRead()) {
+                ret.add(PosixFilePermission.OWNER_READ);
+            }
+            if (permission.isOwnerWrite()) {
+                ret.add(PosixFilePermission.OWNER_WRITE);
+            }
+            if (permission.isOwnerExecute()) {
+                ret.add(PosixFilePermission.OWNER_EXECUTE);
+            }
+            if (permission.isGroupRead()) {
+                ret.add(PosixFilePermission.GROUP_READ);
+            }
+            if (permission.isGroupWrite()) {
+                ret.add(PosixFilePermission.GROUP_WRITE);
+            }
+            if (permission.isGroupExecute()) {
+                ret.add(PosixFilePermission.GROUP_EXECUTE);
+            }
+            if (permission.isOtherRead()) {
+                ret.add(PosixFilePermission.OTHERS_READ);
+            }
+            if (permission.isOtherWrite()) {
+                ret.add(PosixFilePermission.OTHERS_WRITE);
+            }
+            if (permission.isOtherExecute()) {
+                ret.add(PosixFilePermission.OTHERS_EXECUTE);
+            }
+
+            return EnumSet.copyOf(ret);
+        }
     }
 
-    /**
-     * Convert to a set of PosixFilePermissions for use with Files.setPosixFilePermissions.
-     *
-     * @param permission Permission to convert
-     * @return Set of permissions
-     */
-    public static Set<PosixFilePermission> posixFilePermissions(FileSystemPermission permission) {
-        HashSet<PosixFilePermission> ret = new HashSet<>();
+    @Override
+    protected FileSystemPermissionView getFileSystemPermissionView(FileSystemPermission permission, Path path) {
+        return new PosixFileSystemPermissionView(permission);
+    }
 
-        if (permission.isOwnerRead()) {
-            ret.add(PosixFilePermission.OWNER_READ);
+    @Override
+    protected void setMode(FileSystemPermissionView permissionView, Path path) throws IOException {
+        if (permissionView instanceof PosixFileSystemPermissionView) {
+            PosixFileSystemPermissionView posixFileSystemPermissionView =
+                    (PosixFileSystemPermissionView) permissionView;
+            Set<PosixFilePermission> permissions = posixFileSystemPermissionView.getPosixFilePermissions();
+            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm",
+                    PosixFilePermissions.toString(permissions)).log();
+            PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
+                    LinkOption.NOFOLLOW_LINKS);
+            view.setPermissions(permissions);
         }
-        if (permission.isOwnerWrite()) {
-            ret.add(PosixFilePermission.OWNER_WRITE);
-        }
-        if (permission.isOwnerExecute()) {
-            ret.add(PosixFilePermission.OWNER_EXECUTE);
-        }
-        if (permission.isGroupRead()) {
-            ret.add(PosixFilePermission.GROUP_READ);
-        }
-        if (permission.isGroupWrite()) {
-            ret.add(PosixFilePermission.GROUP_WRITE);
-        }
-        if (permission.isGroupExecute()) {
-            ret.add(PosixFilePermission.GROUP_EXECUTE);
-        }
-        if (permission.isOtherRead()) {
-            ret.add(PosixFilePermission.OTHERS_READ);
-        }
-        if (permission.isOtherWrite()) {
-            ret.add(PosixFilePermission.OTHERS_WRITE);
-        }
-        if (permission.isOtherExecute()) {
-            ret.add(PosixFilePermission.OTHERS_EXECUTE);
-        }
-
-        return ret;
     }
 
     protected void runCmd(String cmdStr, Consumer<CharSequence> out, String msg)

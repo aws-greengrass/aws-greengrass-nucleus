@@ -20,7 +20,6 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ExtendWith({GGExtension.class})
@@ -67,50 +66,60 @@ class UnixPlatformTest   {
     @Test
     void GIVEN_file_system_permission_WHEN_convert_to_posix_THEN_succeed() {
         // Nothing
-        Set<PosixFilePermission> permissions = UnixPlatform.posixFilePermissions(FileSystemPermission.builder().build());
+        Set<PosixFilePermission> permissions =
+                UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder().build());
         assertThat(permissions, empty());
 
         // Owner
-        permissions = UnixPlatform.posixFilePermissions(FileSystemPermission.builder().ownerRead(true).build());
-        assertThat(permissions, hasSize(1));
+        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
+                .ownerRead(true)
+                .build());
         assertThat(permissions, contains(PosixFilePermission.OWNER_READ));
 
-        permissions = UnixPlatform.posixFilePermissions(FileSystemPermission.builder().ownerWrite(true).build());
-        assertThat(permissions, hasSize(1));
+        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
+                .ownerWrite(true)
+                .build());
         assertThat(permissions, contains(PosixFilePermission.OWNER_WRITE));
 
-        permissions = UnixPlatform.posixFilePermissions(FileSystemPermission.builder().ownerExecute(true).build());
-        assertThat(permissions, hasSize(1));
+        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
+                .ownerExecute(true)
+                .build());
         assertThat(permissions, contains(PosixFilePermission.OWNER_EXECUTE));
 
         // Group
-        permissions = UnixPlatform.posixFilePermissions(FileSystemPermission.builder().groupRead(true).build());
-        assertThat(permissions, hasSize(1));
+        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
+                .groupRead(true)
+                .build());
         assertThat(permissions, contains(PosixFilePermission.GROUP_READ));
 
-        permissions = UnixPlatform.posixFilePermissions(FileSystemPermission.builder().groupWrite(true).build());
-        assertThat(permissions, hasSize(1));
+        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
+                .groupWrite(true)
+                .build());
         assertThat(permissions, contains(PosixFilePermission.GROUP_WRITE));
 
-        permissions = UnixPlatform.posixFilePermissions(FileSystemPermission.builder().groupExecute(true).build());
-        assertThat(permissions, hasSize(1));
+        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
+                .groupExecute(true)
+                .build());
         assertThat(permissions, contains(PosixFilePermission.GROUP_EXECUTE));
 
         // Other
-        permissions = UnixPlatform.posixFilePermissions(FileSystemPermission.builder().otherRead(true).build());
-        assertThat(permissions, hasSize(1));
+        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
+                .otherRead(true)
+                .build());
         assertThat(permissions, contains(PosixFilePermission.OTHERS_READ));
 
-        permissions = UnixPlatform.posixFilePermissions(FileSystemPermission.builder().otherWrite(true).build());
-        assertThat(permissions, hasSize(1));
+        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
+                .otherWrite(true)
+                .build());
         assertThat(permissions, contains(PosixFilePermission.OTHERS_WRITE));
 
-        permissions = UnixPlatform.posixFilePermissions(FileSystemPermission.builder().otherExecute(true).build());
-        assertThat(permissions, hasSize(1));
+        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
+                .otherExecute(true)
+                .build());
         assertThat(permissions, contains(PosixFilePermission.OTHERS_EXECUTE));
 
         // Everything
-        permissions = UnixPlatform.posixFilePermissions(FileSystemPermission.builder()
+        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
                 .ownerRead(true)
                 .ownerWrite(true)
                 .ownerExecute(true)
@@ -121,7 +130,6 @@ class UnixPlatformTest   {
                 .otherWrite(true)
                 .otherExecute(true)
                 .build());
-        assertThat(permissions, hasSize(9));
         assertThat(permissions, containsInAnyOrder(
                 PosixFilePermission.OWNER_READ,
                 PosixFilePermission.OWNER_WRITE,

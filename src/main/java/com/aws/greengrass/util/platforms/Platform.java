@@ -23,6 +23,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.GroupPrincipal;
+import java.nio.file.attribute.UserPrincipal;
+import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
@@ -30,11 +33,15 @@ import java.util.Set;
 import static com.aws.greengrass.config.PlatformResolver.OS_DARWIN;
 
 public abstract class Platform implements UserPlatform {
+
     public static final Logger logger = LogManager.getLogger(Platform.class);
     public static final String SET_PERMISSIONS_EVENT = "set-permissions";
     public static final String PATH = "path";
 
     private static Platform INSTANCE;
+
+    protected static class FileSystemPermissionView {
+    }
 
     /**
      * Get the appropriate instance of Platform for the current platform.
@@ -128,8 +135,13 @@ public abstract class Platform implements UserPlatform {
             if (Utils.isEmpty(permission.getOwnerUser())) {
                 logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).log("No owner to set for path");
             } else {
+                UserPrincipalLookupService lookupService = path.getFileSystem().getUserPrincipalLookupService();
+                UserPrincipal userPrincipal = lookupService.lookupPrincipalByName(permission.getOwnerUser());
+                GroupPrincipal groupPrincipal = Utils.isEmpty(permission.getOwnerGroup()) ? null :
+                        lookupService.lookupPrincipalByGroupName(permission.getOwnerGroup());
+
                 setOwner = (p) -> {
-                    this.setOwner(permission, p);
+                    this.setOwner(userPrincipal, groupPrincipal, p);
                     return null;
                 };
             }
@@ -139,8 +151,9 @@ public abstract class Platform implements UserPlatform {
         CrashableFunction<Path, Void, IOException> setMode = (p) -> null;
 
         if (options.contains(Option.SetMode)) {
+            FileSystemPermissionView view = getFileSystemPermissionView(permission, path);
             setMode = (p) -> {
-                this.setMode(permission, p);
+                this.setMode(view, p);
                 return null;
             };
         }
@@ -169,9 +182,13 @@ public abstract class Platform implements UserPlatform {
         }
     }
 
-    protected abstract void setOwner(FileSystemPermission permission, Path path) throws IOException;
+    protected abstract void setOwner(UserPrincipal userPrincipal, GroupPrincipal groupPrincipal, Path path)
+            throws IOException;
 
-    protected abstract void setMode(FileSystemPermission permission, Path path) throws IOException;
+    protected abstract FileSystemPermissionView getFileSystemPermissionView(FileSystemPermission permission, Path path)
+            throws IOException;
+
+    protected abstract void setMode(FileSystemPermissionView permissionView, Path path) throws IOException;
 
     public abstract String prepareIpcFilepath(Path rootPath);
 

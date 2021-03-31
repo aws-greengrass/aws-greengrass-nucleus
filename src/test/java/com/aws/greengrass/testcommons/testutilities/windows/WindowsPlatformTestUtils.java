@@ -34,7 +34,7 @@ public class WindowsPlatformTestUtils extends PlatformTestUtils {
         }
 
         try {
-            List<AclEntry> perms = WindowsPlatform.aclEntries(expected, path);
+            List<AclEntry> perms = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(expected, path);
             List<AclEntry> actual = view.getAcl();
             logger.atTrace().log("Acl entries are {} for path {}", actual.toString(), path);
             return actual.containsAll(perms) && perms.containsAll(actual);
