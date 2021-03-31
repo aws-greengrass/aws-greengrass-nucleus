@@ -48,13 +48,13 @@ import java.util.UUID;
 public class WindowsPlatform extends Platform {
     private static final String NAMED_PIPE = "\\\\.\\pipe\\NucleusNamedPipe-" + UUID.randomUUID().toString();
 
-    private static final Set<AclEntryPermission> READ_PERMS = new HashSet<>(Arrays.asList(
+    static final Set<AclEntryPermission> READ_PERMS = new HashSet<>(Arrays.asList(
             AclEntryPermission.READ_DATA,
             AclEntryPermission.READ_NAMED_ATTRS,
             AclEntryPermission.READ_ATTRIBUTES,
             AclEntryPermission.READ_ACL,
             AclEntryPermission.SYNCHRONIZE));
-    private static final Set<AclEntryPermission> WRITE_PERMS = new HashSet<>(Arrays.asList(
+    static final Set<AclEntryPermission> WRITE_PERMS = new HashSet<>(Arrays.asList(
             AclEntryPermission.WRITE_DATA,
             AclEntryPermission.APPEND_DATA,
             AclEntryPermission.WRITE_NAMED_ATTRS,
@@ -64,7 +64,7 @@ public class WindowsPlatform extends Platform {
             AclEntryPermission.WRITE_ACL,
             AclEntryPermission.WRITE_OWNER,
             AclEntryPermission.SYNCHRONIZE));
-    private static final Set<AclEntryPermission> EXECUTE_PERMS = new HashSet<>(Arrays.asList(
+    static final Set<AclEntryPermission> EXECUTE_PERMS = new HashSet<>(Arrays.asList(
             AclEntryPermission.READ_DATA,
             AclEntryPermission.READ_NAMED_ATTRS,
             AclEntryPermission.EXECUTE,

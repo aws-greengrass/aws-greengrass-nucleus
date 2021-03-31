@@ -37,10 +37,6 @@ public class PlatformTest {
     protected Path tempDir;
 
     @Test
-    void GIVEN_file_WHEN_set_owner_THEN_succeed() {
-    }
-
-    @Test
     void GIVEN_file_WHEN_set_owner_mode_THEN_succeed() throws IOException {
         Path tempFile = Files.createTempFile(tempDir, null, null);
         FileSystemPermission expectedPermission = FileSystemPermission.builder()
@@ -89,10 +85,6 @@ public class PlatformTest {
     }
 
     @Test
-    void GIVEN_non_empty_dir_WHEN_set_owner_recurse_THEN_succeed() {
-    }
-
-    @Test
     void GIVEN_non_empty_dir_WHEN_set_mode_recurse_THEN_succeed() throws IOException {
         Path tempSubDir = Files.createTempDirectory(tempDir, null);
         Path tempFile = Files.createTempFile(tempSubDir, null, null);
@@ -128,7 +120,8 @@ public class PlatformTest {
         });
     }
 
-    @Test
-    void GIVEN_file_without_permission_WHEN_setPermissions_THEN_throw() throws IOException {
-    }
+    // Nice to have tests:
+    // GIVEN_file_WHEN_set_owner_THEN_succeed
+    // GIVEN_non_empty_dir_WHEN_set_owner_recurse_THEN_succeed
+    // GIVEN_file_without_permission_WHEN_setPermissions_THEN_throw
 }
