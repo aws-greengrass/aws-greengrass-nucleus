@@ -433,7 +433,7 @@ public class UnixPlatform extends Platform {
                 ret.add(PosixFilePermission.OTHERS_EXECUTE);
             }
 
-            return EnumSet.copyOf(ret);
+            return ret.isEmpty() ? EnumSet.noneOf(PosixFilePermission.class) : EnumSet.copyOf(ret);
         }
     }
 
