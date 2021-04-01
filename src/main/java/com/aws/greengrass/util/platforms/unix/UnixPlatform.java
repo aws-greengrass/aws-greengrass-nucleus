@@ -35,7 +35,6 @@ import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -403,7 +402,7 @@ public class UnixPlatform extends Platform {
          * @return Set of permissions
          */
         public static Set<PosixFilePermission> posixFilePermissions(FileSystemPermission permission) {
-            Set<PosixFilePermission> ret = new HashSet<>();
+            Set<PosixFilePermission> ret = EnumSet.noneOf(PosixFilePermission.class);
 
             if (permission.isOwnerRead()) {
                 ret.add(PosixFilePermission.OWNER_READ);
@@ -433,7 +432,7 @@ public class UnixPlatform extends Platform {
                 ret.add(PosixFilePermission.OTHERS_EXECUTE);
             }
 
-            return ret.isEmpty() ? EnumSet.noneOf(PosixFilePermission.class) : EnumSet.copyOf(ret);
+            return ret;
         }
     }
 
