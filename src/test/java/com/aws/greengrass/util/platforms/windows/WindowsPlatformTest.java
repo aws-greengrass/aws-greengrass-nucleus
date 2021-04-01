@@ -106,8 +106,42 @@ class WindowsPlatformTest {
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.EXECUTE_PERMS.toArray()));
 
-        // Other
+        // Group
         UserPrincipalLookupService userPrincipalLookupService = tempDir.getFileSystem().getUserPrincipalLookupService();
+
+        // "Users" is a well known group and should be present on all Windows. Other well known groups that could be
+        // used here includes: "Power Users", "Authenticated Users", "Administrators".
+        String ownerGroup = "Users";
+
+        GroupPrincipal groupPrincipal = userPrincipalLookupService.lookupPrincipalByGroupName(ownerGroup);
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
+                .ownerGroup(ownerGroup)
+                .groupRead(true)
+                .build(), tempDir);
+        assertThat(aclEntryList, hasSize(1));
+        assertThat(aclEntryList.get(0).principal(), equalTo(groupPrincipal));
+        assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
+        assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.READ_PERMS.toArray()));
+
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
+                .ownerGroup(ownerGroup)
+                .groupWrite(true)
+                .build(), tempDir);
+        assertThat(aclEntryList, hasSize(1));
+        assertThat(aclEntryList.get(0).principal(), equalTo(groupPrincipal));
+        assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
+        assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.WRITE_PERMS.toArray()));
+
+        aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
+                .ownerGroup(ownerGroup)
+                .groupExecute(true)
+                .build(), tempDir);
+        assertThat(aclEntryList, hasSize(1));
+        assertThat(aclEntryList.get(0).principal(), equalTo(groupPrincipal));
+        assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
+        assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.EXECUTE_PERMS.toArray()));
+
+        // Other
         GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName("Everyone");
 
         aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()

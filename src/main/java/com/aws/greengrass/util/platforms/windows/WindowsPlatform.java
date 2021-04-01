@@ -194,8 +194,9 @@ public class WindowsPlatform extends Platform {
             UserPrincipalLookupService userPrincipalLookupService =
                     path.getFileSystem().getUserPrincipalLookupService();
 
+            // Owner
             UserPrincipal ownerPrincipal;
-            if (permission.getOwnerUser() == null) {
+            if (Utils.isEmpty(permission.getOwnerUser())) {
                 // On Linux, when we set the file permission for the owner, it applies to the current owner and we don't
                 // need to know who the actual owner is. But on Windows, Acl must be associated with an owner.
                 AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class,
@@ -204,8 +205,6 @@ public class WindowsPlatform extends Platform {
             } else {
                 ownerPrincipal = userPrincipalLookupService.lookupPrincipalByName(permission.getOwnerUser());
             }
-
-            GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName("Everyone");
 
             List<AclEntry> aclEntries = new ArrayList<>();
             if (permission.isOwnerRead()) {
@@ -230,8 +229,35 @@ public class WindowsPlatform extends Platform {
                         .build());
             }
 
-            // There is no default group concept on Windows. (There is, but is used when mounting as a network share.)
+            // Group
+            if (!Utils.isEmpty(permission.getOwnerGroup())) {
+                GroupPrincipal groupPrincipal =
+                        userPrincipalLookupService.lookupPrincipalByGroupName(permission.getOwnerGroup());
+                if (permission.isGroupRead()) {
+                    aclEntries.add(AclEntry.newBuilder()
+                            .setType(AclEntryType.ALLOW)
+                            .setPrincipal(groupPrincipal)
+                            .setPermissions(READ_PERMS)
+                            .build());
+                }
+                if (permission.isGroupWrite()) {
+                    aclEntries.add(AclEntry.newBuilder()
+                            .setType(AclEntryType.ALLOW)
+                            .setPrincipal(groupPrincipal)
+                            .setPermissions(WRITE_PERMS)
+                            .build());
+                }
+                if (permission.isGroupExecute()) {
+                    aclEntries.add(AclEntry.newBuilder()
+                            .setType(AclEntryType.ALLOW)
+                            .setPrincipal(groupPrincipal)
+                            .setPermissions(EXECUTE_PERMS)
+                            .build());
+                }
+            }
 
+            // Other
+            GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName("Everyone");
             if (permission.isOtherRead()) {
                 aclEntries.add(AclEntry.newBuilder()
                         .setType(AclEntryType.ALLOW)
