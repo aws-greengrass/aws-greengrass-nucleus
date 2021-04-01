@@ -81,8 +81,10 @@ class AwsIotMqttClient implements Closeable {
     // Limit bandwidth to 512 KBPS
     private final RateLimiter bandwidthLimiter = RateLimiter.create(512.0 * 1024);
 
+    // TODO: re-evaluate connect rate limit.
     // Limit TPS to 1 which is IoT Core's limit for connect requests per client-id
-    // Connect throttled at 1 TPS setting the limit to .25
+    // IoT was throttling connect calls even at 1 TPS, we should have a conversation with the IoT core team.
+    // Setting the limit to .25 for now to avoid throttles.
     private final RateLimiter connectLimiter = RateLimiter.create(.25);
 
 
