@@ -373,7 +373,7 @@ public class UnixPlatform extends Platform {
         PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
                 LinkOption.NOFOLLOW_LINKS);
 
-        if (userPrincipal != null && !view.getOwner().equals(userPrincipal)) {
+        if (userPrincipal != null && !userPrincipal.equals(view.getOwner())) {
             logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("owner", userPrincipal.toString())
                     .log();
             view.setOwner(userPrincipal);

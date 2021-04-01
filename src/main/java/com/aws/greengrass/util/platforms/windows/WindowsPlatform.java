@@ -160,9 +160,10 @@ public class WindowsPlatform extends Platform {
 
     @Override
     protected void setOwner(UserPrincipal userPrincipal, GroupPrincipal groupPrincipal, Path path) throws IOException {
-        if (userPrincipal != null) {
-            FileOwnerAttributeView view = Files.getFileAttributeView(path, FileOwnerAttributeView.class,
-                    LinkOption.NOFOLLOW_LINKS);
+        FileOwnerAttributeView view = Files.getFileAttributeView(path, FileOwnerAttributeView.class,
+                LinkOption.NOFOLLOW_LINKS);
+
+        if (userPrincipal != null && !userPrincipal.equals(view.getOwner())) {
             logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("owner", userPrincipal.toString())
                     .log();
             view.setOwner(userPrincipal);
@@ -269,10 +270,15 @@ public class WindowsPlatform extends Platform {
             WindowsFileSystemPermissionView windowsFileSystemPermissionView =
                     (WindowsFileSystemPermissionView) permissionView;
             List<AclEntry> acl = windowsFileSystemPermissionView.getAcl();
-            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm", acl.toString()).log();
+
             AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class,
                     LinkOption.NOFOLLOW_LINKS);
-            view.setAcl(acl); // This also clears existing acl!
+
+            List<AclEntry> currentAcl = view.getAcl();
+            if (!currentAcl.equals(acl)) {
+                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm", acl.toString()).log();
+                view.setAcl(acl); // This also clears existing acl!
+            }
         }
     }
 
