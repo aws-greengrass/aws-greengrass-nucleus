@@ -359,12 +359,16 @@ public class AuthorizationHandler  {
 
     private void validatePolicyId(List<AuthorizationPolicy> policies) throws AuthorizationException {
         if (policies.stream().anyMatch(p -> Utils.isEmpty(p.getPolicyId()))) {
-            throw new AuthorizationException("Malformed policy with empty/null policy Id's");
+            throw new AuthorizationException("Malformed policy with empty/null policy IDs");
         }
         // check for duplicates
         Set<String> duplicates = new HashSet<>();
-        if (policies.stream().anyMatch(p -> !duplicates.add(p.getPolicyId()))) {
-            throw new AuthorizationException("Malformed policy with duplicate policy Id's ");
+        for (AuthorizationPolicy policy : policies) {
+            if (!duplicates.add(policy.getPolicyId())) {
+                throw new AuthorizationException(
+                        String.format("Duplicate policy ID \"%s\" for principal \"%s\"",
+                                policy.getPolicyId(), policy.getPrincipals()));
+            }
         }
     }
 

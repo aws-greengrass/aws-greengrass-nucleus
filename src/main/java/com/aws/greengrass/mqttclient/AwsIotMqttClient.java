@@ -353,8 +353,6 @@ class AwsIotMqttClient implements Closeable {
                 connection = null;
             }
         }
-        // Use code 0 which means this is intentional and we won't log any error
-        connectionEventCallback.onConnectionInterrupted(0);
     }
 
     @Override
