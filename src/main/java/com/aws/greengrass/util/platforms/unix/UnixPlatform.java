@@ -373,7 +373,7 @@ public class UnixPlatform extends Platform {
         PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
                 LinkOption.NOFOLLOW_LINKS);
 
-        if (userPrincipal != null) {
+        if (userPrincipal != null && !view.getOwner().equals(userPrincipal)) {
             logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("owner", userPrincipal.toString())
                     .log();
             view.setOwner(userPrincipal);
@@ -447,11 +447,16 @@ public class UnixPlatform extends Platform {
             PosixFileSystemPermissionView posixFileSystemPermissionView =
                     (PosixFileSystemPermissionView) permissionView;
             Set<PosixFilePermission> permissions = posixFileSystemPermissionView.getPosixFilePermissions();
-            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm",
-                    PosixFilePermissions.toString(permissions)).log();
+
             PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
                     LinkOption.NOFOLLOW_LINKS);
-            view.setPermissions(permissions);
+
+            Set<PosixFilePermission> currentPermission = view.readAttributes().permissions();
+            if (!currentPermission.equals(permissions)) {
+                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm",
+                        PosixFilePermissions.toString(permissions)).log();
+                view.setPermissions(permissions);
+            }
         }
     }
 
