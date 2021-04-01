@@ -82,8 +82,8 @@ class AwsIotMqttClient implements Closeable {
     private final RateLimiter bandwidthLimiter = RateLimiter.create(512.0 * 1024);
 
     // Limit TPS to 1 which is IoT Core's limit for connect requests per client-id
-    // The limit is set to .5 because throttling was observed when tps was set to 1.
-    private final RateLimiter connectDisconnectLimiter = RateLimiter.create(.5);
+    // Connect throttled at 1 TPS setting the limit to .25
+    private final RateLimiter connectLimiter = RateLimiter.create(.25);
 
 
     @Getter(AccessLevel.PACKAGE)
@@ -240,7 +240,7 @@ class AwsIotMqttClient implements Closeable {
             // The handler will then send out the message to all subscribers after appropriate filtering.
             connection.onMessage(messageHandler);
 
-            connectDisconnectLimiter.acquire();
+            connectLimiter.acquire();
             logger.atInfo().log("Connecting to AWS IoT Core");
             return connection.connect().whenComplete((session, error) -> {
                 if (error != null) {
@@ -340,7 +340,6 @@ class AwsIotMqttClient implements Closeable {
     protected synchronized CompletableFuture<Void> disconnect() {
         currentlyConnected.set(false);
         if (connection != null) {
-            connectDisconnectLimiter.acquire();
             logger.atDebug().log("Disconnecting from AWS IoT Core");
             return connection.disconnect().whenComplete((future, error) -> {
                 logger.atDebug().log("Successfully disconnected from AWS IoT Core");
