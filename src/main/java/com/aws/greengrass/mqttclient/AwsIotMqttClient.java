@@ -81,6 +81,13 @@ class AwsIotMqttClient implements Closeable {
     // Limit bandwidth to 512 KBPS
     private final RateLimiter bandwidthLimiter = RateLimiter.create(512.0 * 1024);
 
+    // TODO: re-evaluate connect rate limit.
+    // Limit TPS to 1 which is IoT Core's limit for connect requests per client-id
+    // IoT was throttling connect calls even at 1 TPS, we should have a conversation with the IoT core team.
+    // Setting the limit to .25 for now to avoid throttles.
+    private final RateLimiter connectLimiter = RateLimiter.create(.25);
+
+
     @Getter(AccessLevel.PACKAGE)
     private final MqttClientConnectionEvents connectionEventCallback = new MqttClientConnectionEvents() {
         @Override
@@ -235,6 +242,7 @@ class AwsIotMqttClient implements Closeable {
             // The handler will then send out the message to all subscribers after appropriate filtering.
             connection.onMessage(messageHandler);
 
+            connectLimiter.acquire();
             logger.atInfo().log("Connecting to AWS IoT Core");
             return connection.connect().whenComplete((session, error) -> {
                 if (error != null) {
@@ -353,8 +361,6 @@ class AwsIotMqttClient implements Closeable {
                 connection = null;
             }
         }
-        // Use code 0 which means this is intentional and we won't log any error
-        connectionEventCallback.onConnectionInterrupted(0);
     }
 
     @Override
