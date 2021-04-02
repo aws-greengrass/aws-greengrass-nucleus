@@ -17,6 +17,7 @@ import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.UserDecorator;
 import com.sun.jna.platform.win32.Advapi32Util;
 import com.sun.jna.platform.win32.Win32Exception;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.zeroturnaround.exec.InvalidExitValueException;
 import org.zeroturnaround.process.PidProcess;
@@ -24,9 +25,22 @@ import org.zeroturnaround.process.Processes;
 import org.zeroturnaround.process.WindowsProcess;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.FileOwnerAttributeView;
+import java.nio.file.attribute.GroupPrincipal;
+import java.nio.file.attribute.UserPrincipal;
+import java.nio.file.attribute.UserPrincipalLookupService;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -34,6 +48,30 @@ import java.util.UUID;
 
 public class WindowsPlatform extends Platform {
     private static final String NAMED_PIPE = "\\\\.\\pipe\\NucleusNamedPipe-" + UUID.randomUUID().toString();
+
+    static final Set<AclEntryPermission> READ_PERMS = new HashSet<>(Arrays.asList(
+            AclEntryPermission.READ_DATA,
+            AclEntryPermission.READ_NAMED_ATTRS,
+            AclEntryPermission.READ_ATTRIBUTES,
+            AclEntryPermission.READ_ACL,
+            AclEntryPermission.SYNCHRONIZE));
+    static final Set<AclEntryPermission> WRITE_PERMS = new HashSet<>(Arrays.asList(
+            AclEntryPermission.WRITE_DATA,
+            AclEntryPermission.APPEND_DATA,
+            AclEntryPermission.WRITE_NAMED_ATTRS,
+            AclEntryPermission.DELETE_CHILD,
+            AclEntryPermission.WRITE_ATTRIBUTES,
+            AclEntryPermission.DELETE,
+            AclEntryPermission.WRITE_ACL,
+            AclEntryPermission.WRITE_OWNER,
+            AclEntryPermission.SYNCHRONIZE));
+    static final Set<AclEntryPermission> EXECUTE_PERMS = new HashSet<>(Arrays.asList(
+            AclEntryPermission.READ_DATA,
+            AclEntryPermission.READ_NAMED_ATTRS,
+            AclEntryPermission.EXECUTE,
+            AclEntryPermission.READ_ATTRIBUTES,
+            AclEntryPermission.READ_ACL,
+            AclEntryPermission.SYNCHRONIZE));
 
     @Override
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
@@ -121,9 +159,153 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    protected void setPermissions(FileSystemPermission permission, Path path,
-                                  EnumSet<FileSystemPermission.Option> options) throws IOException {
-        // [P41372857]: Implement using ACL for Windows
+    protected void setOwner(UserPrincipal userPrincipal, GroupPrincipal groupPrincipal, Path path) throws IOException {
+        FileOwnerAttributeView view = Files.getFileAttributeView(path, FileOwnerAttributeView.class,
+                LinkOption.NOFOLLOW_LINKS);
+
+        if (userPrincipal != null && !userPrincipal.equals(view.getOwner())) {
+            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("owner", userPrincipal.toString())
+                    .log();
+            view.setOwner(userPrincipal);
+        }
+
+        // Note that group ownership is not used.
+    }
+
+    @Getter
+    public static class WindowsFileSystemPermissionView extends FileSystemPermissionView {
+
+        private List<AclEntry> acl;
+
+        public WindowsFileSystemPermissionView(FileSystemPermission permission, Path path) throws IOException {
+            super();
+            acl = aclEntries(permission, path);
+        }
+
+        /**
+         * Convert to a list of Acl entries for use with AclFileAttributeView.setAcl.
+         *
+         * @param permission permission to convert
+         * @param path path to apply to
+         * @return List of Acl entries
+         * @throws IOException if any exception occurs while converting to Acl
+         */
+        public static List<AclEntry> aclEntries(FileSystemPermission permission, Path path) throws IOException {
+            UserPrincipalLookupService userPrincipalLookupService =
+                    path.getFileSystem().getUserPrincipalLookupService();
+
+            // Owner
+            UserPrincipal ownerPrincipal;
+            if (Utils.isEmpty(permission.getOwnerUser())) {
+                // On Linux, when we set the file permission for the owner, it applies to the current owner and we don't
+                // need to know who the actual owner is. But on Windows, Acl must be associated with an owner.
+                AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class,
+                        LinkOption.NOFOLLOW_LINKS);
+                ownerPrincipal = view.getOwner();
+            } else {
+                ownerPrincipal = userPrincipalLookupService.lookupPrincipalByName(permission.getOwnerUser());
+            }
+
+            List<AclEntry> aclEntries = new ArrayList<>();
+            if (permission.isOwnerRead()) {
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(ownerPrincipal)
+                        .setPermissions(READ_PERMS)
+                        .build());
+            }
+            if (permission.isOwnerWrite()) {
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(ownerPrincipal)
+                        .setPermissions(WRITE_PERMS)
+                        .build());
+            }
+            if (permission.isOwnerExecute()) {
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(ownerPrincipal)
+                        .setPermissions(EXECUTE_PERMS)
+                        .build());
+            }
+
+            // Group
+            if (!Utils.isEmpty(permission.getOwnerGroup())) {
+                GroupPrincipal groupPrincipal =
+                        userPrincipalLookupService.lookupPrincipalByGroupName(permission.getOwnerGroup());
+                if (permission.isGroupRead()) {
+                    aclEntries.add(AclEntry.newBuilder()
+                            .setType(AclEntryType.ALLOW)
+                            .setPrincipal(groupPrincipal)
+                            .setPermissions(READ_PERMS)
+                            .build());
+                }
+                if (permission.isGroupWrite()) {
+                    aclEntries.add(AclEntry.newBuilder()
+                            .setType(AclEntryType.ALLOW)
+                            .setPrincipal(groupPrincipal)
+                            .setPermissions(WRITE_PERMS)
+                            .build());
+                }
+                if (permission.isGroupExecute()) {
+                    aclEntries.add(AclEntry.newBuilder()
+                            .setType(AclEntryType.ALLOW)
+                            .setPrincipal(groupPrincipal)
+                            .setPermissions(EXECUTE_PERMS)
+                            .build());
+                }
+            }
+
+            // Other
+            GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName("Everyone");
+            if (permission.isOtherRead()) {
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(everyone)
+                        .setPermissions(READ_PERMS)
+                        .build());
+            }
+            if (permission.isOtherWrite()) {
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(everyone)
+                        .setPermissions(WRITE_PERMS)
+                        .build());
+            }
+            if (permission.isOtherExecute()) {
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(everyone)
+                        .setPermissions(EXECUTE_PERMS)
+                        .build());
+            }
+
+            return aclEntries;
+        }
+    }
+
+    @Override
+    protected FileSystemPermissionView getFileSystemPermissionView(FileSystemPermission permission, Path path)
+            throws IOException {
+        return new WindowsFileSystemPermissionView(permission, path);
+    }
+
+    @Override
+    protected void setMode(FileSystemPermissionView permissionView, Path path) throws IOException {
+        if (permissionView instanceof WindowsFileSystemPermissionView) {
+            WindowsFileSystemPermissionView windowsFileSystemPermissionView =
+                    (WindowsFileSystemPermissionView) permissionView;
+            List<AclEntry> acl = windowsFileSystemPermissionView.getAcl();
+
+            AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class,
+                    LinkOption.NOFOLLOW_LINKS);
+
+            List<AclEntry> currentAcl = view.getAcl();
+            if (!currentAcl.equals(acl)) {
+                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm", acl.toString()).log();
+                view.setAcl(acl); // This also clears existing acl!
+            }
+        }
     }
 
     @Override

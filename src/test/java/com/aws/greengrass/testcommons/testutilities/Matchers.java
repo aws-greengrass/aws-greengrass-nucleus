@@ -10,23 +10,14 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
-import java.util.Set;
 
 /**
  * Utility matchers for testing.
  */
 public final class Matchers {
 
-    private Matchers() {
-
-    }
+    private Matchers() {}
 
     /**
      * Matcher for validating that a Path has a set of expected Posix file permissions.
@@ -36,32 +27,15 @@ public final class Matchers {
      */
     @SuppressWarnings("PMD.LinguisticNaming")
     public static Matcher<Path> hasPermission(FileSystemPermission expected) {
-        Set<PosixFilePermission> perms = expected.toPosixFilePermissions();
         return new TypeSafeDiagnosingMatcher<Path>() {
             @Override
             protected boolean matchesSafely(Path path, Description description) {
-                PosixFileAttributeView view =
-                        Files.getFileAttributeView(path, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
-
-                if (view == null) {
-                    description.appendText("does not have PosixFileAttributeView");
-                    return false;
-                }
-
-                try {
-                    Set<PosixFilePermission> actual = view.readAttributes().permissions();
-                    description.appendText("posix permissions are ").appendText(PosixFilePermissions.toString(actual));
-                    description.appendText(" for path ").appendValue(path);
-                    return actual.containsAll(perms) && perms.containsAll(actual);
-                } catch (IOException e) {
-                    description.appendText("encountered IOException ").appendValue(e);
-                    return false;
-                }
+                return PlatformTestUtils.getInstance().hasPermission(expected, path);
             }
 
             @Override
             public void describeTo(Description description) {
-                description.appendText("posix permissions are ").appendText(PosixFilePermissions.toString(perms));
+                description.appendText("permissions are ").appendText(expected.toString());
             }
         };
     }
