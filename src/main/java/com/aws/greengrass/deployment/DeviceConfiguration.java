@@ -275,7 +275,7 @@ public class DeviceConfiguration {
             String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
                     .filter(s -> !s.startsWith(JVM_OPTION_ROOT_PATH)).collect(Collectors.joining(" "));
             kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY,
-                    DEVICE_PARAM_JVM_OPTIONS).dflt(jvmOptions);
+                    DEVICE_PARAM_JVM_OPTIONS).withNewerValue(DEFAULT_VALUE_TIMESTAMP + 1, jvmOptions);
 
             kernelAlts.writeLaunchParamsToFile(jvmOptions);
             logger.atInfo().log("Successfully setup Nucleus launch parameters");
