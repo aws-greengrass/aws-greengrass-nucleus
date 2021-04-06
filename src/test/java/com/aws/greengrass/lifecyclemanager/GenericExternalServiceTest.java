@@ -127,6 +127,58 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
     }
 
     @Test
+    void GIVEN_bootstrap_definition_WHEN_isBootstrapRequired_THEN_key_case_insensitive_value_type_insensitive() {
+        Topics bootstrap = Topics.of(context, Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, null);
+        bootstrap.createLeafChild("script").withValue("\necho complete\n");
+        bootstrap.createLeafChild("RequiresPrivilege").withValue("true");
+        bootstrap.createLeafChild("Timeout").withValue("120");
+        doReturn(bootstrap).when(config)
+                .findNode(eq(SERVICE_LIFECYCLE_NAMESPACE_TOPIC), eq(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
+
+        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(VERSION_CONFIG_KEY, "1.0.0");
+            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                    put("script", "\necho complete\n");
+                    put("requiresPrivilege", true);
+                    put("Timeout", 120);
+                }});
+            }});
+        }}));
+        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(VERSION_CONFIG_KEY, "1.0.0");
+            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("Bootstrap", new HashMap<String, Object>() {{
+                    put("script", "\necho complete\n");
+                    put("RequiresPrivilege", true);
+                    put("timeout", 120);
+                }});
+            }});
+        }}));
+        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(VERSION_CONFIG_KEY, "1.0.0");
+            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("Bootstrap", new HashMap<String, Object>() {{
+                    put("script", "\necho complete\n");
+                    put("RequiresPrivilege", true);
+                    put("timeout", 100);
+                }});
+            }});
+        }}));
+        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(VERSION_CONFIG_KEY, "1.0.0");
+            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put("Bootstrap", new HashMap<String, Object>() {{
+                    put("script", "\necho complete\n");
+                    put("RequiresPrivilege", true);
+                    put("timeout", 120);
+                    put("Setenv", "");
+                }});
+            }});
+        }}));
+    }
+
+    @Test
     void GIVEN_runwith_info_WHEN_exec_add_group_THEN_use_runwith() throws Exception {
         ges.runWith = RunWith.builder().user("foo").group("bar").build();
 

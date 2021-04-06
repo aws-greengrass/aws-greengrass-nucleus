@@ -238,11 +238,43 @@ public class GenericExternalService extends GreengrassService {
         }
         Node serviceOldBootstrap = getConfig().findNode(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                 Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC);
-        boolean bootstrapStepChanged =  serviceOldBootstrap == null
-                || !serviceOldBootstrap.toPOJO().equals(newServiceLifecycle.get(lifecycleKey));
-        logger.atDebug().log(String.format("Bootstrap is %srequired: bootstrap step %schanged",
-                bootstrapStepChanged ? "" : "not ", bootstrapStepChanged ? "" : "un"));
+        boolean bootstrapStepChanged = serviceOldBootstrap == null || !serviceLifecycleBootstrapEquals(
+                serviceOldBootstrap.toPOJO(), newServiceLifecycle.get(lifecycleKey));
+        if (bootstrapStepChanged) {
+            logger.atDebug().kv("before", serviceOldBootstrap.toPOJO())
+                    .kv("after", newServiceLifecycle.get(lifecycleKey))
+                    .log("Bootstrap is required: bootstrap step changed");
+        } else {
+            logger.atDebug().log("Bootstrap is not required: bootstrap step unchanged");
+        }
         return bootstrapStepChanged;
+    }
+
+    private boolean serviceLifecycleBootstrapEquals(Object before, Object after) {
+        if (!(before instanceof Map) || !(after instanceof Map)) {
+            return Objects.equals(before, after);
+        }
+        Map<String, Object> beforeMap = (Map<String, Object>) before;
+        Map<String, Object> afterMap = (Map<String, Object>) after;
+        if (beforeMap.size() != afterMap.size()) {
+            return false;
+        }
+        for (Map.Entry<String, Object> beforeEntry : beforeMap.entrySet()) {
+            CaseInsensitiveString key = new CaseInsensitiveString(beforeEntry.getKey());
+            boolean keyFound = false;
+            for (Map.Entry<String, Object> entry : afterMap.entrySet()) {
+                if (key.equals(new CaseInsensitiveString(entry.getKey())) && Objects.nonNull(entry.getValue())) {
+                    keyFound = true;
+                    if (!Objects.equals(entry.getValue().toString(), beforeEntry.getValue().toString())) {
+                        return false;
+                    }
+                }
+            }
+            if (!keyFound) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
