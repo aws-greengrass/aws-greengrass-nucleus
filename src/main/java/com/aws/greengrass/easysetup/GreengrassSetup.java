@@ -466,10 +466,12 @@ public class GreengrassSetup {
                 }
             }
             if (setGGCUser) {
+                boolean updateGGCGroup = false;
                 if (!platform.userExists(GGC_USER)) {
                     outStream.printf("Creating user %s %n", GGC_USER);
                     platform.createUser(GGC_USER);
                     outStream.printf("%s created %n", GGC_USER);
+                    updateGGCGroup = true;
                 }
                 if (setGGCGroup) {
                     try {
@@ -478,9 +480,12 @@ public class GreengrassSetup {
                         outStream.printf("Creating group %s %n", GGC_GROUP);
                         platform.createGroup(GGC_GROUP);
                         outStream.printf("%s created %n", GGC_GROUP);
+                        updateGGCGroup = true;
                     }
-                    platform.addUserToGroup(GGC_USER, GGC_GROUP);
-                    outStream.printf("Added %s to %s %n", GGC_USER, GGC_GROUP);
+                    if (updateGGCGroup) {
+                        platform.addUserToGroup(GGC_USER, GGC_GROUP);
+                        outStream.printf("Added %s to %s %n", GGC_USER, GGC_GROUP);
+                    }
                 }
             }
             if (noDefaultSet) {
