@@ -210,6 +210,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         logger.atDebug(TRUNCATE_TLOG_EVENT).log("existing tlog writer closed");
         // move old tlog
         try {
+            out.close();
             Files.move(tlogOutputPath, oldTlogPath, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             logger.atError(TRUNCATE_TLOG_EVENT, e).log("failed to rename existing tlog");
