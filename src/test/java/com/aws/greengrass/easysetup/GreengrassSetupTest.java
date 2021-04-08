@@ -160,6 +160,7 @@ class GreengrassSetupTest {
         verify(runWithDefaultPosixUserTopic, times(0)).withValue(anyString());
         verify(platform, times(0)).createUser(eq("ggc_user"));
         verify(platform, times(0)).createGroup(eq("ggc_group"));
+        verify(platform, times(0)).addUserToGroup(eq("ggc_user"), eq("ggc_group"));
     }
 
     @Test
@@ -183,6 +184,7 @@ class GreengrassSetupTest {
         verify(runWithDefaultPosixUserTopic, timeout(0)).withValue(anyString());
         verify(platform, times(0)).createUser(eq("ggc_user"));
         verify(platform, times(0)).createGroup(eq("ggc_group"));
+        verify(platform, times(0)).addUserToGroup(eq("ggc_user"), eq("ggc_group"));
     }
 
     @Test
@@ -205,6 +207,7 @@ class GreengrassSetupTest {
 
         verify(platform).createUser(eq("ggc_user"));
         verify(platform).createGroup(eq("ggc_group"));
+        verify(platform).addUserToGroup(eq("ggc_user"), eq("ggc_group"));
     }
 
     @Test
@@ -226,6 +229,7 @@ class GreengrassSetupTest {
 
         verify(platform, times(0)).createUser(eq("ggc_user"));
         verify(platform, times(0)).createGroup(eq("ggc_group"));
+        verify(platform, times(0)).addUserToGroup(eq("ggc_user"), eq("ggc_group"));
     }
 
     @Test
@@ -248,6 +252,7 @@ class GreengrassSetupTest {
 
         verify(platform, times(0)).createUser(any());
         verify(platform, times(0)).createGroup(any());
+        verify(platform, times(0)).addUserToGroup(any(), any());
     }
 
     @Test
@@ -269,6 +274,7 @@ class GreengrassSetupTest {
 
         verify(platform, times(0)).createUser(any());
         verify(platform, times(0)).createGroup(any());
+        verify(platform, times(0)).addUserToGroup(any(), any());
     }
 
     @ParameterizedTest
