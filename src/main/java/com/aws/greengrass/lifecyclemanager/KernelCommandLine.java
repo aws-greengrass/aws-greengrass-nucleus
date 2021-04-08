@@ -174,8 +174,6 @@ public class KernelCommandLine {
                     Paths.get(deTilde(cliIpcInfoPathName)).toAbsolutePath(),
                     Paths.get(deTilde(binPathName)).toAbsolutePath());
 
-            Exec.setDefaultEnv("HOME", nucleusPaths.workPath().toString());
-
             // Initialize file and directory managers after kernel root directory is set up
             deploymentDirectoryManager = new DeploymentDirectoryManager(kernel, nucleusPaths);
             kernel.getContext().put(DeploymentDirectoryManager.class, deploymentDirectoryManager);
