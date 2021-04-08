@@ -67,7 +67,7 @@ public final class Exec implements Closeable {
 
     private static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
     private static String[] defaultEnvironment = {"PATH=" + System.getenv("PATH"), "JAVA_HOME=" + System.getProperty(
-            "java.home")};
+            "java.home"), "HOME=" + System.getProperty("user.home")};
 
     static {
         addPathEntries(System.getenv("PATH"));
