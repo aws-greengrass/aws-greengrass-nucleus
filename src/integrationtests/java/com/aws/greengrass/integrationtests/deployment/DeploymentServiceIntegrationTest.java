@@ -8,6 +8,7 @@ package com.aws.greengrass.integrationtests.deployment;
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -44,6 +45,8 @@ import java.io.File;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -53,6 +56,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
@@ -64,6 +68,8 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(GGExtension.class)
 class DeploymentServiceIntegrationTest extends BaseITCase {
@@ -92,6 +98,11 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
             }
         });
         setDeviceConfig(kernel, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 1L);
+
+        DeploymentDirectoryManager ddm = mock(DeploymentDirectoryManager.class);
+        doNothing().when(ddm).persistLastFailedDeployment();
+        kernel.getContext().put(DeploymentDirectoryManager.class, ddm);
+
         kernel.launch();
         assertTrue(deploymentServiceLatch.await(10, TimeUnit.SECONDS));
         deploymentQueue =  kernel.getContext().get(DeploymentQueue.class);
@@ -105,6 +116,8 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 kernel.getNucleusPaths().recipePath());
         copyFolderRecursively(localStoreContentPath.resolve("artifacts"), kernel.getNucleusPaths().artifactPath(),
                 REPLACE_EXISTING);
+
+
     }
 
     @AfterEach
@@ -247,9 +260,9 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
 
         submitLocalDocument(request);
 
-        firstDeploymentCDL.await(10, TimeUnit.SECONDS);
-        secondDeploymentCDL.await(10, TimeUnit.SECONDS);
-        thirdDeploymentCDL.await(10, TimeUnit.SECONDS);
+        assertTrue(firstDeploymentCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(secondDeploymentCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(thirdDeploymentCDL.await(10, TimeUnit.SECONDS));
     }
 
     @Test
@@ -286,6 +299,80 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         firstErroredCDL.await(10, TimeUnit.SECONDS);
     }
 
+    @Test
+    void GIVEN_local_deployment_WHEN_required_capabilities_not_present_THEN_deployments_fails_with_appropriate_error() throws Exception {
+        CountDownLatch deploymentCDL = new CountDownLatch(1);
+        DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.LOCAL, (status) -> {
+
+            if(status.get(DEPLOYMENT_ID_KEY_NAME).equals("requiredCapabilityNotPresent") &&
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("FAILED") &&
+                    ((Map)status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_FAILURE_CAUSE_KEY)
+                            .equals("Missing required capabilities: NOT_SUPPORTED_1, NOT_SUPPORTED_2")){
+                deploymentCDL.countDown();
+            }
+            return true;
+        },"DeploymentServiceIntegrationTest3" );
+
+
+        Map<String, String> componentsToMerge = new HashMap<>();
+        componentsToMerge.put("YellowSignal", "1.0.0");
+        LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("requiredCapabilityNotPresent")
+                .componentsToMerge(componentsToMerge)
+                .requestTimestamp(System.currentTimeMillis())
+                .requiredCapabilities(Arrays.asList("NOT_SUPPORTED_1", "NOT_SUPPORTED_2"))
+                .build();
+
+        submitLocalDocument(request);
+        assertTrue(deploymentCDL.await(10, TimeUnit.SECONDS));
+
+    }
+
+    @Test
+    void GIVEN_local_deployment_WHEN_required_capabilities_present_THEN_deployments_succeeds() throws Exception {
+
+        String recipeDir = localStoreContentPath.resolve("recipes").toAbsolutePath().toString();
+        String artifactsDir = localStoreContentPath.resolve("artifacts").toAbsolutePath().toString();
+
+        CountDownLatch requiredCapabilityPresentCDL = new CountDownLatch(1);
+        CountDownLatch requiredCapabilityEmptyCDL = new CountDownLatch(1);
+        DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.LOCAL, (status) -> {
+
+            if(status.get(DEPLOYMENT_ID_KEY_NAME).equals("requiredCapabilityPresent") &&
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("SUCCEEDED")){
+                requiredCapabilityPresentCDL.countDown();
+            }
+            if(status.get(DEPLOYMENT_ID_KEY_NAME).equals("requiredCapabilityEmpty") &&
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("SUCCEEDED")){
+                requiredCapabilityEmptyCDL.countDown();
+            }
+            return true;
+        },"DeploymentServiceIntegrationTest4" );
+
+
+        Map<String, String> componentsToMerge = new HashMap<>();
+        componentsToMerge.put("YellowSignal", "1.0.0");
+        LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("requiredCapabilityPresent")
+                .componentsToMerge(componentsToMerge)
+                .requestTimestamp(System.currentTimeMillis())
+                .requiredCapabilities(Arrays.asList("LARGE_CONFIGURATION"))
+                .recipeDirectoryPath(recipeDir).artifactsDirectoryPath(artifactsDir).build();
+
+        submitLocalDocument(request);
+        assertTrue(requiredCapabilityPresentCDL.await(10, TimeUnit.SECONDS));
+
+        componentsToMerge = new HashMap<>();
+        componentsToMerge.put("SimpleApp", "1.0.0");
+        request = LocalOverrideRequest.builder().requestId("requiredCapabilityEmpty")
+                .componentsToMerge(componentsToMerge)
+                .requestTimestamp(System.currentTimeMillis())
+                .requiredCapabilities(Collections.emptyList())
+                .recipeDirectoryPath(recipeDir).artifactsDirectoryPath(artifactsDir).build();
+        submitLocalDocument(request);
+        assertTrue(requiredCapabilityEmptyCDL.await(10, TimeUnit.SECONDS));
+
+    }
 
     private void submitSampleJobDocument(URI uri, String arn, DeploymentType type) throws Exception {
         Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(uri), Configuration.class);

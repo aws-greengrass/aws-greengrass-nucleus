@@ -85,6 +85,7 @@ public final class DeploymentDocumentConverter {
         return DeploymentDocument.builder().timestamp(localOverrideRequest.getRequestTimestamp())
                 .deploymentId(localOverrideRequest.getRequestId())
                 .deploymentPackageConfigurationList(packageConfigurations)
+                .requiredCapabilities(localOverrideRequest.getRequiredCapabilities())
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)    // Can't rollback for local deployment
                 // Currently we skip update policy check for local deployment to not slow down testing for customers
                 // If we make this configurable in local development then we can plug that input in here

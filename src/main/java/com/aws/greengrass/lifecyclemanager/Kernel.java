@@ -51,11 +51,13 @@ import java.lang.reflect.Constructor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -96,6 +98,7 @@ public class Kernel {
     private static final String DEPLOYMENT_STAGE_LOG_KEY = "stage";
     protected static final ObjectMapper CONFIG_YAML_WRITER =
             YAMLMapper.builder().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET).build();
+    private static final List<String> supportedCapabilities = Arrays.asList("LARGE_CONFIGURATION");
 
     @Getter
     private final Context context;
@@ -660,5 +663,9 @@ public class Kernel {
      */
     public String deTilde(String filename) {
         return kernelCommandLine.deTilde(filename);
+    }
+
+    public List<String> getSupportedCapabilities() {
+        return supportedCapabilities;
     }
 }
