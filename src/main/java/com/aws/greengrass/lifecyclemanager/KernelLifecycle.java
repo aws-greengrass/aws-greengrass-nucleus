@@ -6,6 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
+import com.aws.greengrass.config.ConfigurationReader;
 import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
@@ -23,6 +24,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
+import com.aws.greengrass.util.CommitableFile;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -137,12 +139,14 @@ public class KernelLifecycle {
     void initConfigAndTlog() {
         try {
             Path transactionLogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_TLOG_FILE);
+            boolean readFromNonTlog = false;
 
             if (Objects.nonNull(kernelCommandLine.getProvidedConfigPathName())) {
                 // If a config file is provided, kernel will use the provided file as a new base
                 // and ignore existing config and tlog files.
                 // This is used by the nucleus bootstrap workflow
                 kernel.getConfig().read(kernelCommandLine.getProvidedConfigPathName());
+                readFromNonTlog = true;
             } else {
                 Path externalConfig = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_YAML_FILE_READ);
                 boolean externalConfigFromCmd = Utils.isNotEmpty(kernelCommandLine.getProvidedInitialConfigPath());
@@ -150,22 +154,81 @@ public class KernelLifecycle {
                     externalConfig = Paths.get(kernelCommandLine.getProvidedInitialConfigPath());
                 }
 
+                Path bootstrapTlogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE);
+
+                boolean bootstrapTlogExists = Files.exists(bootstrapTlogPath);
                 boolean tlogExists = Files.exists(transactionLogPath);
-                boolean externalConfigExists = Files.exists(externalConfig);
+
+                IOException tlogValidationError = null;
+                if (tlogExists) {
+                    try {
+                        ConfigurationReader.validateTlog(transactionLogPath);
+                    } catch (IOException e) {
+                        tlogValidationError = e;
+                    }
+                }
 
                 // if tlog is present, read the tlog first because the yaml config file may not be up to date
-                if (tlogExists) {
+                if (tlogExists && tlogValidationError == null) {
                     kernel.getConfig().read(transactionLogPath);
                 }
 
+                // tlog recovery logic if the main tlog isn't valid
+                if (tlogValidationError != null) {
+                    // Attempt to load from backup tlog file
+                    Path backupTlogPath = CommitableFile.getBackupFile(transactionLogPath);
+                    boolean backupValid = false;
+                    if (Files.exists(backupTlogPath)) {
+                        try {
+                            ConfigurationReader.validateTlog(backupTlogPath);
+                            backupValid = true;
+                        } catch (IOException e) {
+                            logger.atError().log("Backup transaction log at {} is invalid", backupTlogPath, e);
+                        }
+                    }
+
+                    if (backupValid) {
+                        logger.atError()
+                                .log("Transaction log {} is invalid and so is the backup at {}, will attempt to "
+                                                + "load configuration from {}", transactionLogPath, backupTlogPath,
+                                        bootstrapTlogPath, tlogValidationError);
+                        kernel.getConfig().read(backupTlogPath);
+                        readFromNonTlog = true;
+                    } else if (bootstrapTlogExists) {
+                        // If no backup or if the backup was invalid, then try loading from bootstrap
+                        logger.atError()
+                                .log("Transaction log {} is invalid and no usable backup exists, will attempt to load "
+                                                + "configuration from {}", transactionLogPath, bootstrapTlogPath,
+                                        tlogValidationError);
+                        kernel.getConfig().read(bootstrapTlogPath);
+                        readFromNonTlog = true;
+                    } else {
+                        // There are no files to load from
+                        logger.atError()
+                                .log("Transaction log {} is invalid and no usable backup exists", transactionLogPath,
+                                        tlogValidationError);
+                    }
+                }
+
+                boolean externalConfigExists = Files.exists(externalConfig);
                 // If there is no tlog, or the path was provided via commandline, read in that file
                 if ((externalConfigFromCmd || !tlogExists) && externalConfigExists) {
                     kernel.getConfig().read(externalConfig);
+                    readFromNonTlog = true;
+                }
+
+                // If no bootstrap was present, then write one out now that we've loaded our config so that we can
+                // fallback to something
+                if (!bootstrapTlogExists) {
+                    kernel.writeEffectiveConfigAsTransactionLog(bootstrapTlogPath);
                 }
             }
 
             // write new tlog and config files
-            kernel.writeEffectiveConfigAsTransactionLog(transactionLogPath);
+            // only dump out the current config if we read from a source which was not the tlog
+            if (readFromNonTlog) {
+                kernel.writeEffectiveConfigAsTransactionLog(transactionLogPath);
+            }
             kernel.writeEffectiveConfig();
 
             // hook tlog to config so that changes over time are persisted to the tlog

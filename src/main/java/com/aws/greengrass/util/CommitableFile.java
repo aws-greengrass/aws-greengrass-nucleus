@@ -8,36 +8,39 @@ package com.aws.greengrass.util;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 
 /**
- * Equivalent to FileOutputStream except that it has to be committed in order to be
+ * Equivalent to OutputStream except that it has to be committed in order to be
  * made permanent.  If it is closed or the process exits before the commit, the old
  * version of the file remains.
  */
-@SuppressWarnings("PMD.AvoidFileStream")
-public final class CommitableFile extends FileOutputStream implements Commitable {
+public final class CommitableFile extends OutputStream implements Commitable {
     private static final Logger logger = LogManager.getLogger(CommitableFile.class);
     private final Path newVersion;
     private final Path target;
     private final Path backup;
     private final boolean commitOnClose;
+    private final OutputStream out;
     private boolean closed;
 
     /**
-     * Creates a new instance of SafeFileOutputStream.
+     * Creates a new instance of CommitableFile.
      */
     private CommitableFile(Path n, Path b, Path t, boolean commitOnClose) throws IOException {
-        super(n.toFile());
+        super();
         newVersion = n;
         target = t;
         backup = b;
         this.commitOnClose = commitOnClose;
+        out = Files.newOutputStream(n, StandardOpenOption.CREATE, StandardOpenOption.WRITE,
+                StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.SYNC);
     }
 
     /**
@@ -88,7 +91,7 @@ public final class CommitableFile extends FileOutputStream implements Commitable
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         if (!closed) {
             if (commitOnClose) {
                 commit();
@@ -105,10 +108,7 @@ public final class CommitableFile extends FileOutputStream implements Commitable
     public void abandon() {
         if (!closed) {
             try {
-                super.close();
-            } catch (IOException ignored) {
-            }
-            try {
+                out.close();
                 Files.deleteIfExists(newVersion);
             } catch (IOException ignore) {
             }
@@ -117,14 +117,15 @@ public final class CommitableFile extends FileOutputStream implements Commitable
     }
 
     /**
-     * Close the file and commit the new version.  The old version becomes a backup
+     * Close the file and commit the new version. The old version becomes a backup
      */
     @SuppressWarnings("ConvertToTryWithResources")
     @Override
     public void commit() {
         if (!closed) {
             try {
-                super.close();
+                flush();
+                out.close();
             } catch (IOException ignore) {
             }
             if (Files.exists(newVersion)) {
@@ -133,6 +134,27 @@ public final class CommitableFile extends FileOutputStream implements Commitable
             }
             closed = true;
         }
+    }
+
+    // Remaining methods pass through the calls to the underlying OutputStream
+    @Override
+    public void write(byte[] b) throws IOException {
+        out.write(b);
+    }
+
+    @Override
+    public void write(byte[] b, int off, int len) throws IOException {
+        out.write(b, off, len);
+    }
+
+    @Override
+    public void write(int b) throws IOException {
+        out.write(b);
+    }
+
+    @Override
+    public void flush() throws IOException {
+        out.flush();
     }
 
     static void move(Path from, Path to) {

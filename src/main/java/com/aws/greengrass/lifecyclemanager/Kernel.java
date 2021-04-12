@@ -56,6 +56,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -92,10 +93,12 @@ public class Kernel {
     static final String DEFAULT_CONFIG_YAML_FILE_READ = "config.yaml";
     static final String DEFAULT_CONFIG_YAML_FILE_WRITE = "effectiveConfig.yaml";
     static final String DEFAULT_CONFIG_TLOG_FILE = "config.tlog";
+    public static final String DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE = "bootstrap.tlog";
     public static final String SERVICE_DIGEST_TOPIC_KEY = "service-digest";
     private static final String DEPLOYMENT_STAGE_LOG_KEY = "stage";
     protected static final ObjectMapper CONFIG_YAML_WRITER =
             YAMLMapper.builder().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET).build();
+    private static final List<String> SUPPORTED_CAPABILITIES = Collections.emptyList();
 
     @Getter
     private final Context context;
@@ -660,5 +663,9 @@ public class Kernel {
      */
     public String deTilde(String filename) {
         return kernelCommandLine.deTilde(filename);
+    }
+
+    public List<String> getSupportedCapabilities() {
+        return SUPPORTED_CAPABILITIES;
     }
 }

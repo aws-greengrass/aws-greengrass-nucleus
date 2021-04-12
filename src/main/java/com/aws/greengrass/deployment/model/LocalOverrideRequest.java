@@ -30,6 +30,7 @@ public class LocalOverrideRequest {
     Map<String, String> componentsToMerge;  // name to version
     List<String> componentsToRemove; // remove just need name
     String groupName;
+    List<String> requiredCapabilities;
 
     @Deprecated
     Map<String, Map<String, Object>> componentNameToConfig;

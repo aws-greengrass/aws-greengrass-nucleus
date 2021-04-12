@@ -429,6 +429,11 @@ public class GreengrassSetup {
                     kernel.getContext().get(DeviceConfiguration.class).getNucleusVersion());
         }
 
+        // Dump config since we've just provisioned so that the bootstrap config will enable us to
+        // reach the cloud when needed. Must do this now because we normally would never overwrite the bootstrap
+        // file, however we need to do it since we've only just learned about our endpoints, certs, etc.
+        kernel.writeEffectiveConfigAsTransactionLog(kernel.getNucleusPaths().configPath()
+                .resolve(Kernel.DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE));
     }
 
     @SuppressWarnings("PMD.PreserveStackTrace")
@@ -466,10 +471,12 @@ public class GreengrassSetup {
                 }
             }
             if (setGGCUser) {
+                boolean updateGGCGroup = false;
                 if (!platform.userExists(GGC_USER)) {
                     outStream.printf("Creating user %s %n", GGC_USER);
                     platform.createUser(GGC_USER);
                     outStream.printf("%s created %n", GGC_USER);
+                    updateGGCGroup = true;
                 }
                 if (setGGCGroup) {
                     try {
@@ -478,9 +485,12 @@ public class GreengrassSetup {
                         outStream.printf("Creating group %s %n", GGC_GROUP);
                         platform.createGroup(GGC_GROUP);
                         outStream.printf("%s created %n", GGC_GROUP);
+                        updateGGCGroup = true;
                     }
-                    platform.addUserToGroup(GGC_USER, GGC_GROUP);
-                    outStream.printf("Added %s to %s %n", GGC_USER, GGC_GROUP);
+                    if (updateGGCGroup) {
+                        platform.addUserToGroup(GGC_USER, GGC_GROUP);
+                        outStream.printf("Added %s to %s %n", GGC_USER, GGC_GROUP);
+                    }
                 }
             }
             if (noDefaultSet) {

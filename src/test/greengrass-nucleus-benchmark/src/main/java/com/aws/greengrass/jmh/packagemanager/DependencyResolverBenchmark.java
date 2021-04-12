@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static com.aws.greengrass.jmh.PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir;
@@ -47,8 +48,8 @@ public class DependencyResolverBenchmark {
     public abstract static class DRIntegration {
         private final DeploymentDocument jobDoc = new DeploymentDocument("mockJob1",
                 Arrays.asList(new DeploymentPackageConfiguration("boto3", true, "1.9.128"),
-                        new DeploymentPackageConfiguration("awscli", true, "1.16.144")), "mockGroup1",
-                1L, FailureHandlingPolicy.DO_NOTHING, new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS),
+                        new DeploymentPackageConfiguration("awscli", true, "1.16.144")), Collections.emptyList(),
+                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS),
                 DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(20).build());
 
         private DependencyResolver resolver;

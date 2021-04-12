@@ -59,53 +59,9 @@ jobs:
       - name: Convert Jacoco interation test report to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco-it/jacoco.xml src/main/java > target/jacoco-report/cobertura-it.xml
         if: matrix.os == 'ubuntu-latest'
-      - name: cobertura-report-unit-test
-        uses: shaguptashaikh/cobertura-action@master
-        if: matrix.os == 'ubuntu-latest'
-        continue-on-error: true
-        with:
-          # The GITHUB_TOKEN for this repo
-          repo_token: ${{ github.token }}
-          # Path to the cobertura file.
-          path: target/jacoco-report/cobertura.xml
-          # If files with 100% should be skipped from report.
-          skip_covered: false
-          # Minimum allowed coverage percentage as an integer.
-          minimum_coverage: 65
-          # Show line rate as specific column.
-          show_line: true
-          # Show branch rate as specific column.
-          show_branch: true
-          # Use class names instead of the filename
-          show_class_names: true
-          # Use a unique name for the report and comment
-          report_name: Unit Tests Coverage Report
-      - name: cobertura-report-integration-test
-        uses: shaguptashaikh/cobertura-action@master
-        if: matrix.os == 'ubuntu-latest'
-        continue-on-error: true
-        with:
-          # The GITHUB_TOKEN for this repo
-          repo_token: ${{ github.token }}
-          # Path to the cobertura file.
-          path: target/jacoco-report/cobertura-it.xml
-          # If files with 100% should be skipped from report.
-          skip_covered: false
-          # Minimum allowed coverage percentage as an integer.
-          minimum_coverage: 58
-          # Show line rate as specific column.
-          show_line: true
-          # Show branch rate as specific column.
-          show_branch: true
-          # Use class names instead of the filename
-          show_class_names: true
-          # Use a unique name for the report and comment
-          report_name: Integration Tests Coverage Report
       - name: Check compatibility
         run: >-
-          mvn -ntp japicmp:cmp -DskipTests &&
-          pip3 -q install agithub &&
-          python3 .github/scripts/binaryCompatibility.py --input target/japicmp/default-cli.xml --token "${{ github.token }}"
+          mvn -ntp japicmp:cmp -DskipTests
         if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
       - name: Upload Compatibility Report
         uses: actions/upload-artifact@v1.0.0
@@ -119,3 +75,22 @@ jobs:
           mvn -ntp -U install -DskipTests
           mvn -ntp -U -f src/test/greengrass-nucleus-benchmark install
         if: matrix.os == 'ubuntu-latest'
+      - name: Save PR number
+        run: |
+          mkdir -p ./pr/jacoco-report
+          mkdir -p ./pr/japicmp
+          mkdir -p target/japicmp
+          mkdir -p target/jacoco-report
+          echo ${{ github.event.number }} > ./pr/NR
+          echo ${{ github.event.pull_request.head.sha }} > ./pr/SHA
+
+          cp -R target/japicmp/default-cli.xml ./pr/japicmp/default-cli.xml
+          cp target/jacoco-report/cobertura.xml ./pr/jacoco-report/cobertura.xml
+          cp target/jacoco-report/cobertura-it.xml ./pr/jacoco-report/cobertura-it.xml
+        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
+      - name: Upload files
+        uses: actions/upload-artifact@v2
+        with:
+          name: pr
+          path: pr/
+        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
