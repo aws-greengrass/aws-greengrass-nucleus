@@ -259,9 +259,9 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
 
         submitLocalDocument(request);
 
-        assertTrue(firstDeploymentCDL.await(10, TimeUnit.SECONDS));
-        assertTrue(secondDeploymentCDL.await(10, TimeUnit.SECONDS));
-        assertTrue(thirdDeploymentCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(firstDeploymentCDL.await(10, TimeUnit.SECONDS), "First deployment did not succeed");
+        assertTrue(secondDeploymentCDL.await(10, TimeUnit.SECONDS), "Second deployment did not succeed");
+        assertTrue(thirdDeploymentCDL.await(10, TimeUnit.SECONDS), "Third deployment did not succeed");
     }
 
     @Test
