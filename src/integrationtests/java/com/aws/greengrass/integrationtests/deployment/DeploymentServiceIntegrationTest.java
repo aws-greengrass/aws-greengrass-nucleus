@@ -89,6 +89,11 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         NoOpPathOwnershipHandler.register(kernel);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml"));
+
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doNothing().when(deploymentDirectoryManager).persistLastFailedDeployment();
+        kernel.getContext().put(DeploymentDirectoryManager.class, deploymentDirectoryManager);
+
         // ensure deployment service starts
         CountDownLatch deploymentServiceLatch = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -98,10 +103,6 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
             }
         });
         setDeviceConfig(kernel, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 1L);
-
-        DeploymentDirectoryManager ddm = mock(DeploymentDirectoryManager.class);
-        doNothing().when(ddm).persistLastFailedDeployment();
-        kernel.getContext().put(DeploymentDirectoryManager.class, ddm);
 
         kernel.launch();
         assertTrue(deploymentServiceLatch.await(10, TimeUnit.SECONDS));
@@ -116,8 +117,6 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 kernel.getNucleusPaths().recipePath());
         copyFolderRecursively(localStoreContentPath.resolve("artifacts"), kernel.getNucleusPaths().artifactPath(),
                 REPLACE_EXISTING);
-
-
     }
 
     @AfterEach
@@ -314,18 +313,16 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
             return true;
         },"DeploymentServiceIntegrationTest3" );
 
-
         Map<String, String> componentsToMerge = new HashMap<>();
         componentsToMerge.put("YellowSignal", "1.0.0");
         LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("requiredCapabilityNotPresent")
                 .componentsToMerge(componentsToMerge)
                 .requestTimestamp(System.currentTimeMillis())
-                .requiredCapabilities(Arrays.asList("NOT_SUPPORTED_1", "NOT_SUPPORTED_2"))
+                .requiredCapabilities(Arrays.asList("NOT_SUPPORTED_1", "NOT_SUPPORTED_2", "LARGE_CONFIGURATION"))
                 .build();
 
         submitLocalDocument(request);
         assertTrue(deploymentCDL.await(10, TimeUnit.SECONDS));
-
     }
 
     @Test
@@ -350,7 +347,6 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
             return true;
         },"DeploymentServiceIntegrationTest4" );
 
-
         Map<String, String> componentsToMerge = new HashMap<>();
         componentsToMerge.put("YellowSignal", "1.0.0");
         LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("requiredCapabilityPresent")
@@ -371,7 +367,6 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 .recipeDirectoryPath(recipeDir).artifactsDirectoryPath(artifactsDir).build();
         submitLocalDocument(request);
         assertTrue(requiredCapabilityEmptyCDL.await(10, TimeUnit.SECONDS));
-
     }
 
     private void submitSampleJobDocument(URI uri, String arn, DeploymentType type) throws Exception {

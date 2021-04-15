@@ -21,7 +21,6 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
-import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
 import com.aws.greengrass.deployment.exceptions.MissingRequiredCapabilitiesException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -448,13 +447,9 @@ public class DeploymentService extends GreengrassService {
                         .filter(reqCapabilities -> !kernel.getSupportedCapabilities().contains(reqCapabilities))
                         .collect(Collectors.toList());
                 if (!missingCapabilities.isEmpty()) {
-                    DeploymentResult result = new DeploymentResult(DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                    updateDeploymentResultAsFailed(deployment, deploymentTask,
                             new MissingRequiredCapabilitiesException("Missing required capabilities: "
-                                    + String.join(", ", missingCapabilities)));
-                    CompletableFuture<DeploymentResult> process = CompletableFuture.completedFuture(result);
-                    currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deploymentTask, process,
-                            deployment.getId(), deployment.getDeploymentType(), new AtomicInteger(1),
-                            deployment.getDeploymentDocumentObj(), false);
+                            + String.join(", ", missingCapabilities)));
                     return;
                 }
             }
@@ -464,10 +459,7 @@ public class DeploymentService extends GreengrassService {
                     copyRecipesAndArtifacts(deployment);
                 } catch (InvalidRequestException | IOException e) {
                     logger.atError().log("Error copying recipes and artifacts", e);
-                    HashMap<String, String> statusDetails = new HashMap<>();
-                    statusDetails.put("error", e.getMessage());
-                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
-                            deployment.getDeploymentType(), JobStatus.FAILED.toString(), statusDetails);
+                    updateDeploymentResultAsFailed(deployment, deploymentTask, e);
                     return;
                 }
             }
@@ -479,11 +471,7 @@ public class DeploymentService extends GreengrassService {
                 deploymentDirectoryManager.writeDeploymentMetadata(deployment);
             } catch (IOException ioException) {
                 logger.atError().log("Unable to create deployment directory", ioException);
-                CompletableFuture<DeploymentResult> process = new CompletableFuture<>();
-                process.completeExceptionally(new DeploymentTaskFailureException(ioException));
-                currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(),
-                        deployment.getDeploymentType(), new AtomicInteger(1),
-                        deployment.getDeploymentDocumentObj(), false);
+                updateDeploymentResultAsFailed(deployment, deploymentTask, ioException);
                 return;
             }
         }
@@ -495,6 +483,15 @@ public class DeploymentService extends GreengrassService {
         currentDeploymentTaskMetadata =
                 new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(), deployment.getDeploymentType(),
                                            new AtomicInteger(1), deployment.getDeploymentDocumentObj(), cancellable);
+    }
+
+    private void updateDeploymentResultAsFailed(Deployment deployment, DeploymentTask deploymentTask,
+                                                Exception e) {
+        DeploymentResult result = new DeploymentResult(DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
+        CompletableFuture<DeploymentResult> process = CompletableFuture.completedFuture(result);
+        currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(),
+                deployment.getDeploymentType(), new AtomicInteger(1),
+                deployment.getDeploymentDocumentObj(), false);
     }
 
     @SuppressWarnings("PMD.ExceptionAsFlowControl")
