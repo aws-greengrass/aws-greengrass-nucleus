@@ -203,15 +203,15 @@ public class Context implements Closeable {
         parts.values().forEach(value -> {
             Object object = value.object;
             try {
-                if (object instanceof Closeable) {
-                    ((Closeable) object).close();
+                if (object instanceof AutoCloseable) {
+                    ((AutoCloseable) object).close();
                     logger.atDebug("context-shutdown").kv(classKeyword, Coerce.toString(object)).log();
                 }
                 if (object instanceof ExecutorService) {
                     logger.atDebug("context-shutdown").kv(classKeyword, Coerce.toString(object))
                             .kv("executorInterruptedRunnables", ((ExecutorService) object).shutdownNow()).log();
                 }
-            } catch (IOException t) {
+            } catch (Exception t) {
                 logger.atError("context-shutdown-error", t).kv(classKeyword, Coerce.toString(object)).log();
             }
         });

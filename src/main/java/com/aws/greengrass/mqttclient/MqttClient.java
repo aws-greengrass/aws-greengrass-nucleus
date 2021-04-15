@@ -168,10 +168,8 @@ public class MqttClient implements Closeable {
         HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
 
         if (httpProxyOptions == null) {
-            this.builderProvider = (clientBootstrap) -> AwsIotMqttConnectionBuilder
-                    .newMtlsBuilderFromPath(Coerce.toString(deviceConfiguration.getCertificateFilePath()),
-                            Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))
-                    .withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
+            this.builderProvider = (clientBootstrap) -> deviceConfiguration.getCryptoProvider().get()
+                    .getIotMqttConnectionBuilder()
                     .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
                     .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
                     .withCleanSession(false).withBootstrap(clientBootstrap).withKeepAliveMs(Coerce.toInt(

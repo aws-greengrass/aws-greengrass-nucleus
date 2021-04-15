@@ -20,6 +20,7 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.Validator;
 import com.aws.greengrass.config.WhatHappened;
+import com.aws.greengrass.crypto.CryptoProvider;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -138,7 +139,7 @@ public class DeviceConfiguration {
 
     private final Validator deTildeValidator;
     private final Validator regionValidator;
-    private final AtomicReference<Boolean> deviceConfigValidateCachedResult = new AtomicReference();
+    private final AtomicReference<Boolean> deviceConfigValidateCachedResult = new AtomicReference<>();
 
     private Topics loggingTopics;
     private LoggerConfiguration currentConfiguration;
@@ -189,6 +190,17 @@ public class DeviceConfiguration {
         getIotRoleAlias().withValue(tesRoleAliasName);
 
         validate();
+    }
+
+    /**
+     * Get a CryptoProvider.
+     *
+     * @return CryptoProvider
+     */
+    public CryptoProvider getCryptoProvider() {
+        // Do not @Inject the CryptoProvider because it requires this class to exist; causing a loop.
+        // Break the loop by getting it from the context only when requested.
+        return this.kernel.getContext().get(CryptoProvider.class);
     }
 
     /**
