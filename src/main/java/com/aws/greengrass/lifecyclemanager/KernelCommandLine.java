@@ -63,10 +63,6 @@ public class KernelCommandLine {
     private static final String cliIpcInfoPathName = "~root/cli_ipc_info";
     private static final String binPathName = "~root/bin";
 
-    public static void main(String[] args) {
-        new Kernel().parseArgs(args).launch();
-    }
-
     public KernelCommandLine(Kernel kernel) {
         this(kernel, kernel.getNucleusPaths());
     }
