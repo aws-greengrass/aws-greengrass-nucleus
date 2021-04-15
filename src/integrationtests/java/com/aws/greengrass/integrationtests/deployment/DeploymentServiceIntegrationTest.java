@@ -90,6 +90,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml"));
 
+        kernel.getContext().runOnPublishQueueAndWait(() -> {});
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
         doNothing().when(deploymentDirectoryManager).persistLastFailedDeployment();
         kernel.getContext().put(DeploymentDirectoryManager.class, deploymentDirectoryManager);
