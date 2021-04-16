@@ -39,6 +39,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -154,7 +155,8 @@ class LogManagerHelperTest {
         assertEquals(LogFormat.TEXT, LogManager.getRootLogConfiguration().getFormat());
         assertEquals(10, LogManager.getRootLogConfiguration().getFileSizeKB());
         assertEquals(1026, LogManager.getRootLogConfiguration().getTotalLogStoreSizeKB());
-        assertEquals("/tmp/test", LogManager.getRootLogConfiguration().getStoreDirectory().toAbsolutePath().toString());
+        assertEquals(Paths.get("/tmp/test").toAbsolutePath(),
+                LogManager.getRootLogConfiguration().getStoreDirectory().toAbsolutePath());
 
         assertEquals(Level.TRACE, LogManager.getTelemetryConfig().getLevel());
         assertEquals(LogStore.FILE, LogManager.getTelemetryConfig().getStore());
