@@ -21,6 +21,7 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
+import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
 import com.aws.greengrass.deployment.exceptions.MissingRequiredCapabilitiesException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -441,15 +442,27 @@ public class DeploymentService extends GreengrassService {
 
         if (DEFAULT.equals(deployment.getDeploymentStage())) {
 
+            try {
+                context.get(KernelAlternatives.class).cleanupLaunchDirectoryLinks();
+                deploymentDirectoryManager.createNewDeploymentDirectory(deployment.getDeploymentDocumentObj()
+                        .getDeploymentId());
+                deploymentDirectoryManager.writeDeploymentMetadata(deployment);
+            } catch (IOException ioException) {
+                logger.atError().log("Unable to create deployment directory", ioException);
+                updateDeploymentResultAsFailed(deployment, deploymentTask, true,
+                        new DeploymentTaskFailureException(ioException));
+                return;
+            }
+
             List<String> requiredCapabilities = deployment.getDeploymentDocumentObj().getRequiredCapabilities();
             if (requiredCapabilities != null && !requiredCapabilities.isEmpty()) {
                 List<String> missingCapabilities = requiredCapabilities.stream()
                         .filter(reqCapabilities -> !kernel.getSupportedCapabilities().contains(reqCapabilities))
                         .collect(Collectors.toList());
                 if (!missingCapabilities.isEmpty()) {
-                    updateDeploymentResultAsFailed(deployment, deploymentTask,
+                    updateDeploymentResultAsFailed(deployment, deploymentTask, false,
                             new MissingRequiredCapabilitiesException("Missing required capabilities: "
-                            + String.join(", ", missingCapabilities)));
+                                    + String.join(", ", missingCapabilities)));
                     return;
                 }
             }
@@ -459,20 +472,9 @@ public class DeploymentService extends GreengrassService {
                     copyRecipesAndArtifacts(deployment);
                 } catch (InvalidRequestException | IOException e) {
                     logger.atError().log("Error copying recipes and artifacts", e);
-                    updateDeploymentResultAsFailed(deployment, deploymentTask, e);
+                    updateDeploymentResultAsFailed(deployment, deploymentTask, false, e);
                     return;
                 }
-            }
-
-            try {
-                context.get(KernelAlternatives.class).cleanupLaunchDirectoryLinks();
-                deploymentDirectoryManager.createNewDeploymentDirectory(deployment.getDeploymentDocumentObj()
-                        .getDeploymentId());
-                deploymentDirectoryManager.writeDeploymentMetadata(deployment);
-            } catch (IOException ioException) {
-                logger.atError().log("Unable to create deployment directory", ioException);
-                updateDeploymentResultAsFailed(deployment, deploymentTask, ioException);
-                return;
             }
         }
 
@@ -486,9 +488,15 @@ public class DeploymentService extends GreengrassService {
     }
 
     private void updateDeploymentResultAsFailed(Deployment deployment, DeploymentTask deploymentTask,
-                                                Exception e) {
+                                                boolean completeExceptionally, Exception e) {
         DeploymentResult result = new DeploymentResult(DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
-        CompletableFuture<DeploymentResult> process = CompletableFuture.completedFuture(result);
+        CompletableFuture<DeploymentResult> process;
+        if (completeExceptionally) {
+            process = new CompletableFuture<>();
+            process.completeExceptionally(e);
+        } else {
+            process = CompletableFuture.completedFuture(result);
+        }
         currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(),
                 deployment.getDeploymentType(), new AtomicInteger(1),
                 deployment.getDeploymentDocumentObj(), false);

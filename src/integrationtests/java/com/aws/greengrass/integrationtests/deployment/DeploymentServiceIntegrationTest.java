@@ -8,7 +8,6 @@ package com.aws.greengrass.integrationtests.deployment;
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
-import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -68,8 +67,6 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
 
 @ExtendWith(GGExtension.class)
 class DeploymentServiceIntegrationTest extends BaseITCase {
@@ -89,11 +86,6 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         NoOpPathOwnershipHandler.register(kernel);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml"));
-
-        kernel.getContext().runOnPublishQueueAndWait(() -> {});
-        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
-        doNothing().when(deploymentDirectoryManager).persistLastFailedDeployment();
-        kernel.getContext().put(DeploymentDirectoryManager.class, deploymentDirectoryManager);
 
         // ensure deployment service starts
         CountDownLatch deploymentServiceLatch = new CountDownLatch(1);
