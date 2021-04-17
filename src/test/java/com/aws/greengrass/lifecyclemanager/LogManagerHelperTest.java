@@ -68,6 +68,8 @@ import static org.mockito.Mockito.when;
 class LogManagerHelperTest {
     @TempDir
     protected Path tempRootDir;
+    @TempDir
+    protected Path tempRootDir2;
     @Mock
     private GreengrassService mockGreengrassService;
     @Mock
@@ -141,7 +143,7 @@ class LogManagerHelperTest {
         loggingConfig.createLeafChild("totalLogsSizeKB").withValue("1026");
         loggingConfig.createLeafChild("format").withValue("TEXT");
         loggingConfig.createLeafChild("outputType").withValue("FILE");
-        loggingConfig.createLeafChild("outputDirectory").withValue("/tmp/test");
+        loggingConfig.createLeafChild("outputDirectory").withValue(tempRootDir2.toAbsolutePath().toString());
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
         when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(loggingConfig);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
@@ -155,7 +157,7 @@ class LogManagerHelperTest {
         assertEquals(LogFormat.TEXT, LogManager.getRootLogConfiguration().getFormat());
         assertEquals(10, LogManager.getRootLogConfiguration().getFileSizeKB());
         assertEquals(1026, LogManager.getRootLogConfiguration().getTotalLogStoreSizeKB());
-        assertEquals(Paths.get("/tmp/test").toAbsolutePath(),
+        assertEquals(tempRootDir2.toAbsolutePath(),
                 LogManager.getRootLogConfiguration().getStoreDirectory().toAbsolutePath());
 
         assertEquals(Level.TRACE, LogManager.getTelemetryConfig().getLevel());
