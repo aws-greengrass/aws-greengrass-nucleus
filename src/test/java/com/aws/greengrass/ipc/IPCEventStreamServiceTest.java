@@ -12,7 +12,6 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.NucleusPaths;
-import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -40,6 +39,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
+import static com.aws.greengrass.util.platforms.unix.UnixPlatform.IPC_SERVER_DOMAIN_SOCKET_FILENAME;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
@@ -121,7 +121,7 @@ class IPCEventStreamServiceTest {
              ClientBootstrap clientBootstrap = new ClientBootstrap(elg, new HostResolver(elg));
              SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC()) {
 
-            String ipcServerSocketPath = Platform.getInstance().prepareIpcFilepathForComponent(mockRootPath);
+            String ipcServerSocketPath = mockRootPath.resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elg, socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER, GreengrassConnectMessageSupplier
                     .connectMessageSupplier("authToken"));
             connection = new EventStreamRPCConnection(config);
@@ -148,7 +148,7 @@ class IPCEventStreamServiceTest {
                     return true;    //hints at handler to disconnect due to this error
                 }
             });
-            assertTrue(connectionLatch.await(8, TimeUnit.SECONDS));
+            assertTrue(connectionLatch.await(2, TimeUnit.SECONDS));
         } finally {
             if (connection != null) {
                 connection.close();
