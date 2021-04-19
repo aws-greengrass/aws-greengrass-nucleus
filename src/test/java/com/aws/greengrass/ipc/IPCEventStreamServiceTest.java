@@ -40,7 +40,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
-import static com.aws.greengrass.util.platforms.unix.UnixPlatform.IPC_SERVER_DOMAIN_SOCKET_FILENAME;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
