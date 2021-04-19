@@ -24,6 +24,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.SwappingFileWriter;
 import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
@@ -54,6 +55,7 @@ import java.util.stream.IntStream;
 
 import static com.aws.greengrass.util.Utils.close;
 import static com.aws.greengrass.util.Utils.deepToString;
+import static com.aws.greengrass.util.Utils.extension;
 
 public class KernelLifecycle {
     private static final Logger logger = LogManager.getLogger(KernelLifecycle.class);
@@ -156,6 +158,12 @@ public class KernelLifecycle {
                 // if tlog is present, read the tlog first because the yaml config file may not be up to date
                 if (tlogExists) {
                     kernel.getConfig().read(transactionLogPath);
+                } else if (Files.exists(SwappingFileWriter.getSwappingFile(transactionLogPath))) {
+                    // The tlog may have been in the middle of swapping read and write files when restarted,
+                    // so check for the swapping file here and read from it if it exists and the main tlog did not
+                    // exist.
+                    kernel.getConfig().read(SwappingFileWriter.getSwappingFile(transactionLogPath),
+                            extension(transactionLogPath.toString()));
                 }
 
                 // If there is no tlog, or the path was provided via commandline, read in that file
