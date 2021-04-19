@@ -148,7 +148,7 @@ class IPCEventStreamServiceTest {
                     return true;    //hints at handler to disconnect due to this error
                 }
             });
-            assertTrue(connectionLatch.await(2, TimeUnit.SECONDS));
+            assertTrue(connectionLatch.await(4, TimeUnit.SECONDS));
         } finally {
             if (connection != null) {
                 connection.close();
