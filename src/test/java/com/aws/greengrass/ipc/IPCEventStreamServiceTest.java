@@ -8,13 +8,12 @@ package com.aws.greengrass.ipc;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.platforms.Platform;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,14 +22,10 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
-import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
-import software.amazon.awssdk.eventstreamrpc.Authorization;
-import software.amazon.awssdk.eventstreamrpc.AuthorizationHandler;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
 import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
@@ -52,9 +47,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class IPCEventStreamServiceTest {
     private IPCEventStreamService ipcEventStreamService;
-    protected static ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @TempDir
     Path mockRootPath;
@@ -75,27 +67,15 @@ class IPCEventStreamServiceTest {
     private Topic mockRelativePath;
 
     @Mock
-    private GreengrassCoreIPCService greengrassCoreIPCService;
-    @Mock
-    private software.amazon.awssdk.eventstreamrpc.AuthenticationHandler mockAuthenticationHandler;
-    @Mock
-    private AuthorizationHandler mockAuthorizationHandler;
+    private AuthenticationHandler mockAuthenticationHandler;
 
     @BeforeEach
-    public void setup() {
-        AuthenticationData authenticationData = new AuthenticationData() {
-            @Override
-            public String getIdentityLabel() {
-                return "EventStreamConnectionTest";
-            }
-        };
-        when(mockAuthenticationHandler.apply(any(), any())).thenReturn(authenticationData);
-        when(mockAuthorizationHandler.apply(eq(authenticationData))).thenReturn(Authorization.ACCEPT);
-        when(greengrassCoreIPCService.getAuthenticationHandler()).thenReturn(mockAuthenticationHandler);
-        when(greengrassCoreIPCService.getAuthorizationHandler()).thenReturn(mockAuthorizationHandler);
-        when(greengrassCoreIPCService.getServiceModel()).thenReturn(GreengrassCoreIPCServiceModel.getInstance());
+    public void setup() throws UnauthenticatedException {
+        when(mockAuthenticationHandler.doAuthentication(any())).thenReturn("SomeService");
 
-        ipcEventStreamService = new IPCEventStreamService(mockKernel, greengrassCoreIPCService, config);
+        ipcEventStreamService = new IPCEventStreamService(mockKernel, new GreengrassCoreIPCService(), config,
+                mockAuthenticationHandler);
+
         NucleusPaths nucleusPaths = mock(NucleusPaths.class);
         when(mockKernel.getNucleusPaths()).thenReturn(nucleusPaths);
         when(nucleusPaths.rootPath()).thenReturn(mockRootPath);
@@ -104,6 +84,7 @@ class IPCEventStreamServiceTest {
                 eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
                 eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
+
         ipcEventStreamService.startup();
     }
 

@@ -67,11 +67,13 @@ public class IPCEventStreamService implements Startable, Closeable {
     private EventLoopGroup eventLoopGroup;
 
     IPCEventStreamService(Kernel kernel,
-                                 GreengrassCoreIPCService greengrassCoreIPCService,
-                                 Configuration config) {
+                          GreengrassCoreIPCService greengrassCoreIPCService,
+                          Configuration config,
+                          AuthenticationHandler authenticationHandler) {
         this.kernel = kernel;
         this.greengrassCoreIPCService = greengrassCoreIPCService;
         this.config = config;
+        this.authenticationHandler = authenticationHandler;
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.ExceptionAsFlowControl"})
