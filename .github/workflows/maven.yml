@@ -34,6 +34,7 @@ jobs:
           AWS_REGION: us-west-2
         run: mvn -ntp -U verify
         shell: cmd
+        continue-on-error: true
         if: matrix.os == 'windows-latest'
       - name: Build with Maven (not Windows)
         env:
