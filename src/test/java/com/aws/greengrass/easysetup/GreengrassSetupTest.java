@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
 class GreengrassSetupTest {
     @Mock
     private DeviceProvisioningHelper deviceProvisioningHelper;
-    @Mock
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private Kernel kernel;
     @Mock
     private Context context;

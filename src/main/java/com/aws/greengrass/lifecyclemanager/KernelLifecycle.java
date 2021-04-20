@@ -150,8 +150,17 @@ public class KernelLifecycle {
                     externalConfig = Paths.get(kernelCommandLine.getProvidedInitialConfigPath());
                 }
 
+                Path bootstrapTlogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE);
+
+                boolean bootstrapTlogExists = Files.exists(bootstrapTlogPath);
                 boolean tlogExists = Files.exists(transactionLogPath);
                 boolean externalConfigExists = Files.exists(externalConfig);
+
+                // if there's a bootstrap tlog, then read from that first so that we have something to fallback
+                // to if the main tlog is corrupt
+                if (bootstrapTlogExists) {
+                    kernel.getConfig().read(bootstrapTlogPath);
+                }
 
                 // if tlog is present, read the tlog first because the yaml config file may not be up to date
                 if (tlogExists) {
@@ -161,6 +170,12 @@ public class KernelLifecycle {
                 // If there is no tlog, or the path was provided via commandline, read in that file
                 if ((externalConfigFromCmd || !tlogExists) && externalConfigExists) {
                     kernel.getConfig().read(externalConfig);
+                }
+
+                // If no bootstrap was present, then write one out now that we've loaded our config so that we can
+                // fallback to something
+                if (!bootstrapTlogExists) {
+                    kernel.writeEffectiveConfigAsTransactionLog(bootstrapTlogPath);
                 }
             }
 
