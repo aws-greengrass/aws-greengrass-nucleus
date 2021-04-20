@@ -17,7 +17,6 @@ import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel;
@@ -37,7 +36,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 
-@NoArgsConstructor
+//@NoArgsConstructor
 public class IPCEventStreamService implements Startable, Closeable {
     public static final long DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS = 5;
     public static final int DEFAULT_PORT_NUMBER = 8033;
@@ -54,17 +53,17 @@ public class IPCEventStreamService implements Startable, Closeable {
     private RpcServer rpcServer;
 
     @Inject
-    private Kernel kernel;
+    private final Kernel kernel;
 
-    @Inject
-    private GreengrassCoreIPCService greengrassCoreIPCService;
+    //@Inject
+    private final GreengrassCoreIPCService greengrassCoreIPCService;
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
     private AuthenticationHandler authenticationHandler;
 
     @Inject
-    private Configuration config;
+    private final Configuration config;
 
     private SocketOptions socketOptions;
     private EventLoopGroup eventLoopGroup;
