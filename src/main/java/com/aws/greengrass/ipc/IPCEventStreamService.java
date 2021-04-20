@@ -16,7 +16,9 @@ import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel;
 import software.amazon.awssdk.crt.eventstream.Header;
@@ -58,6 +60,7 @@ public class IPCEventStreamService implements Startable, Closeable {
     private GreengrassCoreIPCService greengrassCoreIPCService;
 
     @Inject
+    @Setter(AccessLevel.PACKAGE)
     private AuthenticationHandler authenticationHandler;
 
     @Inject

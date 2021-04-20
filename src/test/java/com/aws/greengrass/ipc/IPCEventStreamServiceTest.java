@@ -83,6 +83,7 @@ class IPCEventStreamServiceTest {
 
         ipcEventStreamService = new IPCEventStreamService(mockKernel, new GreengrassCoreIPCService(), config,
                 mockAuthenticationHandler);
+        ipcEventStreamService.setAuthenticationHandler(mockAuthenticationHandler);
         ipcEventStreamService.startup();
     }
 
