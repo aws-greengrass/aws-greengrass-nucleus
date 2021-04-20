@@ -52,6 +52,9 @@ class IPCEventStreamServiceTest {
     Path mockRootPath;
 
     @Mock
+    NucleusPaths nucleusPaths;
+
+    @Mock
     private Kernel mockKernel;
 
     @Mock
@@ -71,20 +74,15 @@ class IPCEventStreamServiceTest {
 
     @BeforeEach
     public void setup() throws UnauthenticatedException {
+        when(mockKernel.getNucleusPaths()).thenReturn(nucleusPaths);
+        when(nucleusPaths.rootPath()).thenReturn(mockRootPath);
+        when(config.getRoot()).thenReturn(mockRootTopics);
+        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
+        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
         when(mockAuthenticationHandler.doAuthentication(any())).thenReturn("SomeService");
 
         ipcEventStreamService = new IPCEventStreamService(mockKernel, new GreengrassCoreIPCService(), config,
                 mockAuthenticationHandler);
-
-        NucleusPaths nucleusPaths = mock(NucleusPaths.class);
-        when(mockKernel.getNucleusPaths()).thenReturn(nucleusPaths);
-        when(nucleusPaths.rootPath()).thenReturn(mockRootPath);
-        when(config.getRoot()).thenReturn(mockRootTopics);
-        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
-                eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
-        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
-                eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
-
         ipcEventStreamService.startup();
     }
 
