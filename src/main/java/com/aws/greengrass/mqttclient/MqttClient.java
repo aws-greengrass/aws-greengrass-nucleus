@@ -33,7 +33,6 @@ import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -571,7 +570,7 @@ public class MqttClient implements Closeable {
         }
 
         // Check the topic size
-        if (topic.getBytes(StandardCharsets.UTF_8).length > MAX_LENGTH_OF_TOPIC) {
+        if (topic.length() > MAX_LENGTH_OF_TOPIC) {
             String errMsg = String.format("The topic size of request must be no "
                             + "larger than %d bytes of UTF-8 encoded characters. This excludes the first "
                             + "3 mandatory segments for Basic Ingest topics ($AWS/rules/rule-name/).",

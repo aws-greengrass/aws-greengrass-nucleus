@@ -92,7 +92,8 @@ public class MqttProxyIPCAgent {
         @Override
         public PublishToIoTCoreResponse handleRequest(PublishToIoTCoreRequest request) {
             return translateExceptions(() -> {
-                String topic = validateTopic(request.getTopicName(), serviceName);
+                // Intern the string to deduplicate topic strings in memory
+                String topic = validateTopic(request.getTopicName(), serviceName).intern();
 
                 try {
                     doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
