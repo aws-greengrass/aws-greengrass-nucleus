@@ -72,12 +72,12 @@ class ConfigurationWriterTest {
             // Assert that we can get back to the current in-memory state by reading the tlog
             Configuration readConfig = ConfigurationReader.createFromTLog(context, tlog);
             assertThat(readConfig.toPOJO(), is(config.toPOJO()));
-
-            Files.deleteIfExists(tlog);
-            ConfigurationWriter.dump(config, tlog);
-            readConfig = ConfigurationReader.createFromTLog(context, tlog);
-            assertThat(readConfig.toPOJO(), is(config.toPOJO()));
         }
+
+        Files.deleteIfExists(tlog);
+        ConfigurationWriter.dump(config, tlog);
+        Configuration readConfig = ConfigurationReader.createFromTLog(context, tlog);
+        assertThat(readConfig.toPOJO(), is(config.toPOJO()));
     }
 
     @Test
