@@ -368,9 +368,9 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public String prepareIpcFilepath(Path rootPath) {
-        String absolutionPath = rootPath.toAbsolutePath().toString();
-        if (NAMED_PIPE_PREFIX.length() + absolutionPath.length() <= MAX_NAMED_PIPE_LEN) {
-            return NAMED_PIPE_PREFIX + absolutionPath;
+        String absolutePath = rootPath.toAbsolutePath().toString();
+        if (NAMED_PIPE_PREFIX.length() + absolutePath.length() <= MAX_NAMED_PIPE_LEN) {
+            return NAMED_PIPE_PREFIX + absolutePath;
         }
 
         return NAMED_PIPE_PREFIX + NAMED_PIPE_UUID_SUFFIX;
