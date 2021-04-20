@@ -147,7 +147,9 @@ public class IPCEventStreamService implements Startable, Closeable {
         }
         AuthenticationData authenticationData;
         try {
+            logger.atError().log("fufranci authToken={}", authToken);
             final String serviceName = authenticationHandler.doAuthentication(authToken);
+            logger.atError().log("fufranci serviceName={}", serviceName);
             authenticationData = () -> serviceName;
         } catch (UnauthenticatedException e) {
             throw new RuntimeException("Unrecognized client connecting to GGC over IPC");
