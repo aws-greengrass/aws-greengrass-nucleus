@@ -49,20 +49,18 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     private RpcServer rpcServer;
 
-    @Inject
     private final Kernel kernel;
 
     private final GreengrassCoreIPCService greengrassCoreIPCService;
 
-    @Inject
     private final AuthenticationHandler authenticationHandler;
 
-    @Inject
     private final Configuration config;
 
     private SocketOptions socketOptions;
     private EventLoopGroup eventLoopGroup;
 
+    @Inject
     IPCEventStreamService(Kernel kernel,
                           GreengrassCoreIPCService greengrassCoreIPCService,
                           Configuration config,
