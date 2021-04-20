@@ -78,7 +78,8 @@ class IPCEventStreamServiceTest {
         when(config.getRoot()).thenReturn(mockRootTopics);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
-        when(mockAuthenticationHandler.doAuthentication(anyString())).thenReturn("SomeService");
+        when(mockAuthenticationHandler.doAuthentication(anyString())).thenReturn("SomeService",
+                "fufranci", "fufranci", "fufranci", "fufranci", "fufranci", "fufranci");
 
         ipcEventStreamService = new IPCEventStreamService(mockKernel, new GreengrassCoreIPCService(), config,
                 mockAuthenticationHandler);
