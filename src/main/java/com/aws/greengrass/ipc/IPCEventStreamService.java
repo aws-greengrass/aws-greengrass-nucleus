@@ -16,8 +16,6 @@ import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.AccessLevel;
-import lombok.Setter;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel;
 import software.amazon.awssdk.crt.eventstream.Header;
@@ -36,7 +34,6 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 
-//@NoArgsConstructor
 public class IPCEventStreamService implements Startable, Closeable {
     public static final long DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS = 5;
     public static final int DEFAULT_PORT_NUMBER = 8033;
@@ -55,11 +52,9 @@ public class IPCEventStreamService implements Startable, Closeable {
     @Inject
     private final Kernel kernel;
 
-    //@Inject
     private final GreengrassCoreIPCService greengrassCoreIPCService;
 
     @Inject
-    @Setter(AccessLevel.PACKAGE)
     private AuthenticationHandler authenticationHandler;
 
     @Inject
@@ -149,9 +144,7 @@ public class IPCEventStreamService implements Startable, Closeable {
         }
         AuthenticationData authenticationData;
         try {
-            logger.atError().log("fufranci authToken={}", authToken);
             final String serviceName = authenticationHandler.doAuthentication(authToken);
-            logger.atError().log("fufranci serviceName={}", serviceName);
             authenticationData = () -> serviceName;
         } catch (UnauthenticatedException e) {
             throw new RuntimeException("Unrecognized client connecting to GGC over IPC");

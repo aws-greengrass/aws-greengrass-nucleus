@@ -10,8 +10,6 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.NucleusPaths;
@@ -47,8 +45,6 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class IPCEventStreamServiceTest {
-    private static final Logger logger = LogManager.getLogger(IPCEventStreamServiceTest.class);
-
     private IPCEventStreamService ipcEventStreamService;
 
     @TempDir
@@ -82,14 +78,10 @@ class IPCEventStreamServiceTest {
         when(config.getRoot()).thenReturn(mockRootTopics);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
-        when(mockAuthenticationHandler.doAuthentication(anyString())).thenReturn("SomeService",
-                "fufranci", "fufranci", "fufranci", "fufranci", "fufranci", "fufranci");
+        when(mockAuthenticationHandler.doAuthentication(anyString())).thenReturn("SomeService");
 
-        GreengrassCoreIPCService greengrassCoreIPCService = new GreengrassCoreIPCService();
-        logger.atError().log("fufranci greengrassCoreIPCService={}", greengrassCoreIPCService);
-        ipcEventStreamService = new IPCEventStreamService(mockKernel, greengrassCoreIPCService, config,
+        ipcEventStreamService = new IPCEventStreamService(mockKernel, new GreengrassCoreIPCService(), config,
                 mockAuthenticationHandler);
-        ipcEventStreamService.setAuthenticationHandler(mockAuthenticationHandler);
         ipcEventStreamService.startup();
     }
 
@@ -109,7 +101,7 @@ class IPCEventStreamServiceTest {
 
             String ipcServerSocketPath = Platform.getInstance().prepareIpcFilepathForComponent(mockRootPath);
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elg, socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER, GreengrassConnectMessageSupplier
-                    .connectMessageSupplier("fufranci authToken"));
+                    .connectMessageSupplier("authToken"));
             connection = new EventStreamRPCConnection(config);
             final boolean disconnected[] = {false};
             final int disconnectedCode[] = {-1};
