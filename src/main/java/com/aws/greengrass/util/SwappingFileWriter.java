@@ -52,8 +52,15 @@ public final class SwappingFileWriter extends Writer {
 
         readFile = Files.newBufferedWriter(readFilePath, StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND, StandardOpenOption.SYNC);
-        writeFile = Files.newBufferedWriter(writeFilePath, StandardOpenOption.CREATE,
-                StandardOpenOption.APPEND, StandardOpenOption.SYNC);
+
+        // Protect us if opening the write file fails, but we already opened the read file
+        try {
+            writeFile = Files.newBufferedWriter(writeFilePath, StandardOpenOption.CREATE, StandardOpenOption.APPEND,
+                    StandardOpenOption.SYNC);
+        } catch (IOException e) {
+            readFile.close();
+            throw e;
+        }
     }
 
     protected static Path getWriteFile(Path path) {
