@@ -13,12 +13,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import software.amazon.awssdk.crt.eventstream.*;
 
 public class ServiceOperationMappingContinuationHandler extends ServerConnectionHandler {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ServiceOperationMappingContinuationHandler.class);
+    private static final Logger LOGGER = LogManager.getLogger(ServiceOperationMappingContinuationHandler.class);
     private final EventStreamRPCServiceHandler serviceHandler;
     private AuthenticationData authenticationData;  //should only be set once after AuthN
 
@@ -62,6 +62,8 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
         final int[] responseMessageFlag = { 0 };
         final MessageType acceptResponseType = MessageType.ConnectAck;
 
+
+        LOGGER.atError().log("fufranci serviceHandler={}", serviceHandler);
         final AuthenticationHandler authentication = serviceHandler.getAuthenticationHandler();
         final AuthorizationHandler authorization = serviceHandler.getAuthorizationHandler();
 
@@ -81,12 +83,13 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                     throw new IllegalStateException(String.format("%s has null authorization handler!"));
                 }
 
-                LOGGER.trace(String.format("%s running authentication handler", serviceHandler.getServiceName()));
+                LOGGER.error(String.format("%s running authentication handler", serviceHandler.getServiceName()));
                 authenticationData = authentication.apply(headers, payload);
                 if (authenticationData == null) {
                     throw new IllegalStateException(String.format("%s authentication handler returned null", serviceHandler.getServiceName()));
                 }
-                LOGGER.info(String.format("%s authenticated identity: %s", serviceHandler.getServiceName(), authenticationData.getIdentityLabel()));
+                LOGGER.error(String.format("%s authenticated identity: %s", serviceHandler.getServiceName(),
+                        authenticationData.getIdentityLabel()));
 
                 final Authorization authorizationDecision = authorization.apply(authenticationData);
                 switch (authorizationDecision) {

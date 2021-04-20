@@ -10,6 +10,8 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.NucleusPaths;
@@ -45,6 +47,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class IPCEventStreamServiceTest {
+    private static final Logger logger = LogManager.getLogger(IPCEventStreamServiceTest.class);
+
     private IPCEventStreamService ipcEventStreamService;
 
     @TempDir
@@ -81,7 +85,9 @@ class IPCEventStreamServiceTest {
         when(mockAuthenticationHandler.doAuthentication(anyString())).thenReturn("SomeService",
                 "fufranci", "fufranci", "fufranci", "fufranci", "fufranci", "fufranci");
 
-        ipcEventStreamService = new IPCEventStreamService(mockKernel, new GreengrassCoreIPCService(), config,
+        GreengrassCoreIPCService greengrassCoreIPCService = new GreengrassCoreIPCService();
+        logger.atError().log("fufranci greengrassCoreIPCService={}", greengrassCoreIPCService);
+        ipcEventStreamService = new IPCEventStreamService(mockKernel, greengrassCoreIPCService, config,
                 mockAuthenticationHandler);
         ipcEventStreamService.setAuthenticationHandler(mockAuthenticationHandler);
         ipcEventStreamService.startup();
