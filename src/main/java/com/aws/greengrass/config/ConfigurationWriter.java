@@ -12,7 +12,6 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Commitable;
 import com.aws.greengrass.util.CommitableWriter;
-import com.aws.greengrass.util.SwappingFileWriter;
 import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -22,6 +21,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -82,11 +82,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
      * @throws IOException if creating the configuration file fails
      */
     public static ConfigurationWriter logTransactionsTo(Configuration c, Path p) throws IOException {
-        return new ConfigurationWriter(c, newSafeTlogWriter(p), p);
-    }
-
-    private static Writer newSafeTlogWriter(Path p) throws IOException {
-        return new SwappingFileWriter(p);
+        return new ConfigurationWriter(c, newTlogWriter(p), p);
     }
 
     @Override
@@ -188,6 +184,18 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     }
 
     /**
+     * Create a new Writer for writing to a tlog file.
+     *
+     * @param outputPath path to tlog file
+     * @return a new writer
+     * @throws IOException if I/O error creating output file or writer
+     */
+    private static Writer newTlogWriter(Path outputPath) throws IOException {
+        return Files.newBufferedWriter(outputPath, StandardOpenOption.WRITE, StandardOpenOption.APPEND,
+                StandardOpenOption.DSYNC, StandardOpenOption.CREATE);
+    }
+
+    /**
      * Discard current tlog. Start a new tlog with the current kernel configs.
      */
     private synchronized void truncateTlog() {
@@ -209,7 +217,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
             logger.atError(TRUNCATE_TLOG_EVENT, e).log("failed to rename existing tlog");
             // recover: reopen writer to old tlog
             try {
-                out = newSafeTlogWriter(tlogOutputPath);
+                out = newTlogWriter(tlogOutputPath);
             } catch (IOException innerException) {
                 logger.atError(TRUNCATE_TLOG_EVENT, innerException).log("failed to recover");
                 return;
@@ -227,7 +235,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
             // recover: undo renaming and keep using old tlog
             try {
                 Files.move(oldTlogPath, tlogOutputPath, StandardCopyOption.REPLACE_EXISTING);
-                out = newSafeTlogWriter(tlogOutputPath);
+                out = newTlogWriter(tlogOutputPath);
             } catch (IOException innerException) {
                 logger.atError(TRUNCATE_TLOG_EVENT, innerException).log("failed to recover");
                 return;
@@ -239,7 +247,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
         logger.atDebug(TRUNCATE_TLOG_EVENT).log("current effective config written to " + tlogOutputPath);
         // open writer to new tlog
         try {
-            out = newSafeTlogWriter(tlogOutputPath);
+            out = newTlogWriter(tlogOutputPath);
         } catch (IOException e) {
             logger.atError(TRUNCATE_TLOG_EVENT, e).log("failed to open writer");
             return;

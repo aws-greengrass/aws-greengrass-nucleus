@@ -236,22 +236,10 @@ public class Configuration {
      * @throws IOException if the reading fails.
      */
     public Configuration read(Path s) throws IOException {
-        return read(s, extension(s.toString()));
-    }
-
-    /**
-     * Read a new Configuration from a given Path and treating it with the extension.
-     *
-     * @param s path to read the config from.
-     * @param extension extension to use when reading.
-     * @return configuration from the path.
-     * @throws IOException if the reading fails.
-     */
-    public Configuration read(Path s, String extension) throws IOException {
         logger.atInfo().addKeyValue("path", s).setEventType("config-loading")
                 .log("Read configuration from a file path");
         try (BufferedReader br = Files.newBufferedReader(s)) {
-            read(br, extension, Files.getLastModifiedTime(s).toMillis());
+            read(br, extension(s.toString()), Files.getLastModifiedTime(s).toMillis());
         }
         return this;
     }
