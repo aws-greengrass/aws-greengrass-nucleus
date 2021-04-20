@@ -89,11 +89,15 @@ public final class ConfigurationReader {
      */
     public static void mergeTLogInto(Configuration config, Path tlogPath, boolean forceTimestamp,
                                      Predicate<Node> mergeCondition) throws IOException {
-        mergeTLogInto(config, Files.newBufferedReader(tlogPath), forceTimestamp, mergeCondition);
+        try (BufferedReader bufferedReader = Files.newBufferedReader(tlogPath)) {
+            mergeTLogInto(config, bufferedReader, forceTimestamp, mergeCondition);
+        }
     }
 
     private static void mergeTLogInto(Configuration c, Path p) throws IOException {
-        mergeTLogInto(c, Files.newBufferedReader(p), false, null);
+        try (BufferedReader bufferedReader = Files.newBufferedReader(p)) {
+            mergeTLogInto(c, bufferedReader, false, null);
+        }
     }
 
     /**
