@@ -572,47 +572,46 @@ class ConfigurationTest {
             initConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
         long then = 10_000;
-        Path tlogPath = tempDir.resolve("t.tlog");
-        ConfigurationWriter.logTransactionsTo(config, tlogPath).flushImmediately(true);
-        config.mergeMap(then, initConfigMap);
-        config.context.waitForPublishQueueToClear();
-
-        // WHEN
-        Map<String, Object> updateConfigMap;
-        try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
-            updateConfigMap = MAPPER.readValue(inputStream, Map.class);
-        }
-
         long now = System.currentTimeMillis();
-        UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
-            createNewMap("nodeToBeMerged", new UpdateBehaviorTree(
-                    UpdateBehaviorTree.UpdateBehavior.MERGE,
-                    createNewMap("nodeToBeReplaced", new UpdateBehaviorTree(
-                            UpdateBehaviorTree.UpdateBehavior.REPLACE,
-                            createNewMap("subNodeToBeMerged",
-                                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
-                                            now)),
-                            now
-                    )), now
-            )), now
-        );
 
-        config.updateMap(updateConfigMap, updateBehavior);
-        config.context.waitForPublishQueueToClear();
-
-        // THEN
         Map<String, Object> expectedConfig;
         try (InputStream inputStream = new ByteArrayInputStream(expectedResult.getBytes())) {
             expectedConfig = MAPPER.readValue(inputStream, Map.class);
         }
-        assertEquals(expectedConfig, config.toPOJO());
-        assertEquals(now, config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey2").modtime);
-        assertEquals(then,
-                config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey1").modtime);
-        assertEquals(now, config.findNode("nodeToBeAdded").modtime);
-        assertEquals(then, config.findNode("nodeToBeMerged", "key1").modtime);
-        assertEquals(now, config.findNode("nodeToBeMerged", "key2").modtime);
-        assertEquals(now, config.findNode("nodeToBeMerged", "key3").modtime);
+
+        Path tlogPath = tempDir.resolve("t.tlog");
+        try (ConfigurationWriter configurationWriter = ConfigurationWriter.logTransactionsTo(config, tlogPath).flushImmediately(true)) {
+            config.mergeMap(then, initConfigMap);
+            config.context.waitForPublishQueueToClear();
+
+            // WHEN
+            Map<String, Object> updateConfigMap;
+            try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
+                updateConfigMap = MAPPER.readValue(inputStream, Map.class);
+            }
+
+            UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
+                    createNewMap("nodeToBeMerged", new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                            createNewMap("nodeToBeReplaced",
+                                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, createNewMap(
+                                            "subNodeToBeMerged",
+                                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now)),
+                                            now)), now)), now);
+
+            config.updateMap(updateConfigMap, updateBehavior);
+            config.context.waitForPublishQueueToClear();
+
+            // THEN
+            assertEquals(expectedConfig, config.toPOJO());
+            assertEquals(now,
+                    config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey2").modtime);
+            assertEquals(then,
+                    config.findNode("nodeToBeMerged", "nodeToBeReplaced", "subNodeToBeMerged", "subKey1").modtime);
+            assertEquals(now, config.findNode("nodeToBeAdded").modtime);
+            assertEquals(then, config.findNode("nodeToBeMerged", "key1").modtime);
+            assertEquals(now, config.findNode("nodeToBeMerged", "key2").modtime);
+            assertEquals(now, config.findNode("nodeToBeMerged", "key3").modtime);
+        }
 
         config = new Configuration(config.context);
         ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
@@ -677,59 +676,57 @@ class ConfigurationTest {
             initConfigMap = MAPPER.readValue(inputStream, Map.class);
         }
         long then = 10_000;
-        Path tlogPath = tempDir.resolve("t.tlog");
-        ConfigurationWriter.logTransactionsTo(config, tlogPath).flushImmediately(true);
-        config.mergeMap(then, initConfigMap);
-        config.context.waitForPublishQueueToClear();
 
-        // WHEN
-        Map<String, Object> updateConfigMap;
-        try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
-            updateConfigMap = MAPPER.readValue(inputStream, Map.class);
-        }
-
-        long now = System.currentTimeMillis();
-        UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
-                createNewMap("nodeToBeMerged", new UpdateBehaviorTree(
-                        UpdateBehaviorTree.UpdateBehavior.MERGE,
-                        createNewMap("nodeToBeReplaced", new UpdateBehaviorTree(
-                                UpdateBehaviorTree.UpdateBehavior.REPLACE,
-                                createNewMap("subNodeToBeMerged",
-                                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
-                                                now)),
-                                now
-                        )), now
-                )), now
-        );
-
-        AtomicBoolean nodeChangedToLeaf = new AtomicBoolean(false) ;
-        config.findTopics("nodeTypeToBeChangedToLeaf").subscribe((what, c) -> {
-            if (WhatHappened.changed == what) {
-                assertEquals("val", ((Topic) c).getOnce());
-                nodeChangedToLeaf.set(true);
-            }
-        });
-
-        AtomicBoolean nodeChangedToContainer = new AtomicBoolean(false) ;
-        config.find("nodeTypeToBeChangedToContainer").subscribeGeneric((what, c) -> {
-            if (WhatHappened.childChanged == what) {
-                assertEquals("nodeTypeToBeChangedToContainer.key1", c.getFullName());
-                assertEquals("val1", ((Topic) c).getOnce());
-                nodeChangedToContainer.set(true);
-            }
-        });
-
-        config.updateMap(updateConfigMap, updateBehavior);
-        config.context.waitForPublishQueueToClear();
-
-        assertTrue(nodeChangedToLeaf.get());
-
-        // THEN
         Map<String, Object> expectedConfig;
         try (InputStream inputStream = new ByteArrayInputStream(expectedResult.getBytes())) {
             expectedConfig = MAPPER.readValue(inputStream, Map.class);
         }
-        assertEquals(expectedConfig, config.toPOJO());
+
+        Path tlogPath = tempDir.resolve("t.tlog");
+        try (ConfigurationWriter configurationWriter = ConfigurationWriter.logTransactionsTo(config, tlogPath).flushImmediately(true)) {
+            config.mergeMap(then, initConfigMap);
+            config.context.waitForPublishQueueToClear();
+
+            // WHEN
+            Map<String, Object> updateConfigMap;
+            try (InputStream inputStream = new ByteArrayInputStream(updateConfig.getBytes())) {
+                updateConfigMap = MAPPER.readValue(inputStream, Map.class);
+            }
+
+            long now = System.currentTimeMillis();
+            UpdateBehaviorTree updateBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                    createNewMap("nodeToBeMerged", new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE,
+                            createNewMap("nodeToBeReplaced",
+                                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, createNewMap(
+                                            "subNodeToBeMerged",
+                                            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now)),
+                                            now)), now)), now);
+
+            AtomicBoolean nodeChangedToLeaf = new AtomicBoolean(false);
+            config.findTopics("nodeTypeToBeChangedToLeaf").subscribe((what, c) -> {
+                if (WhatHappened.changed == what) {
+                    assertEquals("val", ((Topic) c).getOnce());
+                    nodeChangedToLeaf.set(true);
+                }
+            });
+
+            AtomicBoolean nodeChangedToContainer = new AtomicBoolean(false);
+            config.find("nodeTypeToBeChangedToContainer").subscribeGeneric((what, c) -> {
+                if (WhatHappened.childChanged == what) {
+                    assertEquals("nodeTypeToBeChangedToContainer.key1", c.getFullName());
+                    assertEquals("val1", ((Topic) c).getOnce());
+                    nodeChangedToContainer.set(true);
+                }
+            });
+
+            config.updateMap(updateConfigMap, updateBehavior);
+            config.context.waitForPublishQueueToClear();
+
+            assertTrue(nodeChangedToLeaf.get());
+
+            // THEN
+            assertEquals(expectedConfig, config.toPOJO());
+        }
 
         config = new Configuration(config.context);
         ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);

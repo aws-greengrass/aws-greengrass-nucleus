@@ -51,9 +51,10 @@ class WindowsPlatformTest {
     }
 
     @Test
-    void GIVEN_administrator_username_WHEN_check_user_exists_THEN_return_true() {
+    void GIVEN_the_current_user_WHEN_check_user_exists_THEN_return_true() throws IOException {
         WindowsPlatform windowsPlatform = new WindowsPlatform();
-        assertThat(windowsPlatform.userExists("Administrator"), is(true));
+        WindowsUserAttributes windowsUserAttributes = windowsPlatform.lookupCurrentUser();
+        assertThat(windowsPlatform.userExists(windowsUserAttributes.getPrincipalName()), is(true));
     }
 
     @Test
