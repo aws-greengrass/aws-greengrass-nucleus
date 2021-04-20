@@ -55,7 +55,7 @@ public class IPCEventStreamService implements Startable, Closeable {
     private final GreengrassCoreIPCService greengrassCoreIPCService;
 
     @Inject
-    private AuthenticationHandler authenticationHandler;
+    private final AuthenticationHandler authenticationHandler;
 
     @Inject
     private final Configuration config;
