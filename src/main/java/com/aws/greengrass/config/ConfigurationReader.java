@@ -101,6 +101,20 @@ public final class ConfigurationReader {
     }
 
     /**
+     * Validate the tlog contents at the given path. Throws an IOException if any entry is invalid.
+     *
+     * @param tlogPath path to the file to validate.
+     * @throws IOException if any entry is invalid.
+     */
+    public static void validateTlog(Path tlogPath) throws IOException {
+        try (BufferedReader in = Files.newBufferedReader(tlogPath)) {
+            for (String l = in.readLine(); l != null; l = in.readLine()) {
+                Coerce.toObject(l, new TypeReference<Tlogline>() {});
+            }
+        }
+    }
+
+    /**
      * Create a Configuration based on a transaction log's path.
      *
      * @param context root context for the configuration

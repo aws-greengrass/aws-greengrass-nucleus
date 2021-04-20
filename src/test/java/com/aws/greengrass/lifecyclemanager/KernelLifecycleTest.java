@@ -59,6 +59,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -205,7 +206,9 @@ class KernelLifecycleTest {
 
         kernelLifecycle.initConfigAndTlog();
         verify(mockKernel.getConfig()).read(eq(configTlog.toPath()));
-        verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
+        // Since we read from the tlog, we don't need to re-write the same info
+        verify(mockKernel, never()).writeEffectiveConfigAsTransactionLog(
+                tempRootDir.resolve("config").resolve("config.tlog"));
         verify(mockKernel).writeEffectiveConfig();
     }
 

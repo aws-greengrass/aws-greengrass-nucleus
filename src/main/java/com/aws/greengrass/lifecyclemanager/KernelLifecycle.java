@@ -6,6 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
+import com.aws.greengrass.config.ConfigurationReader;
 import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
@@ -137,12 +138,14 @@ public class KernelLifecycle {
     void initConfigAndTlog() {
         try {
             Path transactionLogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_TLOG_FILE);
+            boolean readFromNonTlog = false;
 
             if (Objects.nonNull(kernelCommandLine.getProvidedConfigPathName())) {
                 // If a config file is provided, kernel will use the provided file as a new base
                 // and ignore existing config and tlog files.
                 // This is used by the nucleus bootstrap workflow
                 kernel.getConfig().read(kernelCommandLine.getProvidedConfigPathName());
+                readFromNonTlog = true;
             } else {
                 Path externalConfig = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_YAML_FILE_READ);
                 boolean externalConfigFromCmd = Utils.isNotEmpty(kernelCommandLine.getProvidedInitialConfigPath());
@@ -159,7 +162,23 @@ public class KernelLifecycle {
                 // if there's a bootstrap tlog, then read from that first so that we have something to fallback
                 // to if the main tlog is corrupt
                 if (bootstrapTlogExists) {
-                    kernel.getConfig().read(bootstrapTlogPath);
+                    boolean tlogValid = false;
+                    if (tlogExists) {
+                        try {
+                            ConfigurationReader.validateTlog(transactionLogPath);
+                            tlogValid = true;
+                        } catch (IOException e) {
+                            logger.atError()
+                                    .log("Transaction log {} is invalid, will attempt to load configuration from {}",
+                                            transactionLogPath, bootstrapTlogPath, e);
+                        }
+                    }
+
+                    // Read in the bootstrap if tlog doesn't exist or it is corrupt
+                    if (!tlogValid) {
+                        kernel.getConfig().read(bootstrapTlogPath);
+                        readFromNonTlog = true;
+                    }
                 }
 
                 // if tlog is present, read the tlog first because the yaml config file may not be up to date
@@ -170,6 +189,7 @@ public class KernelLifecycle {
                 // If there is no tlog, or the path was provided via commandline, read in that file
                 if ((externalConfigFromCmd || !tlogExists) && externalConfigExists) {
                     kernel.getConfig().read(externalConfig);
+                    readFromNonTlog = true;
                 }
 
                 // If no bootstrap was present, then write one out now that we've loaded our config so that we can
@@ -180,7 +200,10 @@ public class KernelLifecycle {
             }
 
             // write new tlog and config files
-            kernel.writeEffectiveConfigAsTransactionLog(transactionLogPath);
+            // only dump out the current config if we read from a source which was not the tlog
+            if (readFromNonTlog) {
+                kernel.writeEffectiveConfigAsTransactionLog(transactionLogPath);
+            }
             kernel.writeEffectiveConfig();
 
             // hook tlog to config so that changes over time are persisted to the tlog
