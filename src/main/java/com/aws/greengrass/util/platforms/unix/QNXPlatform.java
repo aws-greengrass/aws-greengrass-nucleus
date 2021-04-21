@@ -35,6 +35,12 @@ public class QNXPlatform extends UnixPlatform {
         return childPids;
     }
 
+    @Override
+    protected boolean canUseSetsid() {
+        // QNX does not have setsid command
+        return false;
+    }
+
     private void killUsingSlay(int pid, boolean force, UserDecorator userDecorator)
             throws IOException, InterruptedException {
         logger.atInfo().log("Slaying pid {} with signal {}", pid, force ? SIGKILL : SIGTERM);

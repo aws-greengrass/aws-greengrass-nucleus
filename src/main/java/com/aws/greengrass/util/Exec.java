@@ -400,6 +400,7 @@ public final class Exec implements Closeable {
         if (userDecorator != null) {
             decorated = userDecorator.decorate(decorated);
         }
+        decorated = Platform.getInstance().finalDecorateCommand(decorated);
         return decorated;
     }
 

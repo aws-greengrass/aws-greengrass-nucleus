@@ -74,6 +74,12 @@ public abstract class Platform implements UserPlatform {
 
     public abstract ShellDecorator getShellDecorator();
 
+    @SuppressWarnings("PMD.UseVarargs")
+    public String[] finalDecorateCommand(String[] command) {
+        // Default is no-op.
+        return command;
+    }
+
     public abstract int exitCodeWhenCommandDoesNotExist();
 
     public abstract UserDecorator getUserDecorator();

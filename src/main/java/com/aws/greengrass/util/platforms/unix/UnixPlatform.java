@@ -35,6 +35,7 @@ import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -78,6 +79,8 @@ public class UnixPlatform extends Platform {
     private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
 
     private final UnixRunWithGenerator runWithGenerator;
+    private boolean canUseSetsidSet = false;
+    private boolean canUseSetsid = false;
 
     /**
      * Construct a new instance.
@@ -271,35 +274,45 @@ public class UnixPlatform extends Platform {
         PidProcess pp = Processes.newPidProcess(process);
 
         logger.atInfo().log("Killing child processes of pid {}, force is {}", pp.getPid(), force);
-        Set<Integer> pids;
-        try {
-            pids = getChildPids(process);
-            logger.atDebug().log("Found children of {}. {}", pp.getPid(), pids);
-            if (additionalPids != null) {
-                pids.addAll(additionalPids);
-            }
 
-            for (Integer pid : pids) {
-                if (!Processes.newPidProcess(pid).isAlive()) {
-                    continue;
+        // If we launched using setsid then we can just kill the entire process group without doing any more work
+        if (canUseSetsid()) {
+            if (process.isAlive()) {
+                killProcess(force, decorator, Integer.valueOf("-" + pp.getPid()));
+            }
+            return new HashSet<>();
+        } else {
+            // If we didn't use setsid then we need to find the entire process tree and kill each process
+            Set<Integer> pids;
+            try {
+                pids = getChildPids(process);
+                logger.atDebug().log("Found children of {}. {}", pp.getPid(), pids);
+                if (additionalPids != null) {
+                    pids.addAll(additionalPids);
                 }
 
-                killProcess(force, decorator, pid);
-            }
-        } finally {
-            // calling process.destroy() here when force==false will cause the child process (component process) to be
-            // terminated immediately. This prevents the component process from shutting down gracefully.
-            if (force && process.isAlive()) {
-                process.destroyForcibly();
-                if (process.isAlive()) {
-                    // Kill parent process using privileged user since the parent process might be sudo which a
-                    // non-privileged user can't kill
-                    killProcess(true, getUserDecorator().withUser(getPrivilegedUser()), pp.getPid());
+                for (Integer pid : pids) {
+                    if (!Processes.newPidProcess(pid).isAlive()) {
+                        continue;
+                    }
+
+                    killProcess(force, decorator, pid);
+                }
+            } finally {
+                // calling process.destroy() here when force==false will cause the child process (component process)
+                // to be terminated immediately. This prevents the component process from shutting down gracefully.
+                if (force && process.isAlive()) {
+                    process.destroyForcibly();
+                    if (process.isAlive()) {
+                        // Kill parent process using privileged user since the parent process might be sudo which a
+                        // non-privileged user can't kill
+                        killProcess(true, getUserDecorator().withUser(getPrivilegedUser()), pp.getPid());
+                    }
                 }
             }
+
+            return pids;
         }
-
-        return pids;
     }
 
     private void killProcess(boolean force, UserDecorator decorator, Integer pid)
@@ -472,12 +485,11 @@ public class UnixPlatform extends Platform {
                         output.append(o);
                     }).withErr(error::append).exec();
             if (!exit.isPresent() || exit.get() != 0) {
-                throw new IOException(String.format(
-                        String.format("%s - command: %s, output: %s , error: %s ", msg, cmdStr, output.toString(),
-                                error.toString())));
+                throw new IOException(
+                        String.format("%s - command: %s, output: %s, error: %s ", msg, cmdStr, output, error));
             }
         } catch (InterruptedException | IOException e) {
-            throw new IOException(String.format("%s , command : %s", msg, cmdStr), e);
+            throw new IOException(String.format("%s, command : %s", msg, cmdStr), e);
         }
     }
 
@@ -641,6 +653,35 @@ public class UnixPlatform extends Platform {
 
     private enum IdOption {
         User, Group
+    }
+
+    protected boolean canUseSetsid() {
+        if (!canUseSetsidSet) {
+            canUseSetsid = false;
+            try {
+                // find out if setsid is on path somewhere
+                canUseSetsid = Runtime.getRuntime().exec(new String[]{"setsid", "echo"}).waitFor() == 0;
+            } catch (IOException ignored) {
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            canUseSetsidSet = true;
+            logger.atInfo().log("Use setsid state is {}", canUseSetsid);
+        }
+        return canUseSetsid;
+    }
+
+    @Override
+    public String[] finalDecorateCommand(String[] command) {
+        if (!canUseSetsid()) {
+            return super.finalDecorateCommand(command);
+        }
+        // Decorate the command with setsid so that the command will start its own process group.
+        // This way we can kill the entire process group at once without needing to find all the children.
+        String[] arr = new String[command.length + 1];
+        arr[0] = "setsid";
+        System.arraycopy(command, 0, arr, 1, command.length);
+        return arr;
     }
 
     /**
