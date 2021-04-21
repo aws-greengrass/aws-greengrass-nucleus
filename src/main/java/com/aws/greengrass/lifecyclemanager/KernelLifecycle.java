@@ -24,6 +24,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
+import com.aws.greengrass.util.CommitableFile;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -157,35 +158,59 @@ public class KernelLifecycle {
 
                 boolean bootstrapTlogExists = Files.exists(bootstrapTlogPath);
                 boolean tlogExists = Files.exists(transactionLogPath);
-                boolean externalConfigExists = Files.exists(externalConfig);
 
-                // if there's a bootstrap tlog, then read from that first so that we have something to fallback
-                // to if the main tlog is corrupt
-                if (bootstrapTlogExists) {
-                    boolean tlogValid = false;
-                    if (tlogExists) {
-                        try {
-                            ConfigurationReader.validateTlog(transactionLogPath);
-                            tlogValid = true;
-                        } catch (IOException e) {
-                            logger.atError()
-                                    .log("Transaction log {} is invalid, will attempt to load configuration from {}",
-                                            transactionLogPath, bootstrapTlogPath, e);
-                        }
-                    }
-
-                    // Read in the bootstrap if tlog doesn't exist or it is corrupt
-                    if (!tlogValid) {
-                        kernel.getConfig().read(bootstrapTlogPath);
-                        readFromNonTlog = true;
+                IOException tlogValidationError = null;
+                if (tlogExists) {
+                    try {
+                        ConfigurationReader.validateTlog(transactionLogPath);
+                    } catch (IOException e) {
+                        tlogValidationError = e;
                     }
                 }
 
                 // if tlog is present, read the tlog first because the yaml config file may not be up to date
-                if (tlogExists) {
+                if (tlogExists && tlogValidationError == null) {
                     kernel.getConfig().read(transactionLogPath);
                 }
 
+                // tlog recovery logic if the main tlog isn't valid
+                if (tlogValidationError != null) {
+                    // Attempt to load from backup tlog file
+                    Path backupTlogPath = CommitableFile.getBackupFile(transactionLogPath);
+                    boolean backupValid = false;
+                    if (Files.exists(backupTlogPath)) {
+                        try {
+                            ConfigurationReader.validateTlog(backupTlogPath);
+                            backupValid = true;
+                        } catch (IOException e) {
+                            logger.atError().log("Backup transaction log at {} is invalid", backupTlogPath, e);
+                        }
+                    }
+
+                    if (backupValid) {
+                        logger.atError()
+                                .log("Transaction log {} is invalid and so is the backup at {}, will attempt to "
+                                                + "load configuration from {}", transactionLogPath, backupTlogPath,
+                                        bootstrapTlogPath, tlogValidationError);
+                        kernel.getConfig().read(backupTlogPath);
+                        readFromNonTlog = true;
+                    } else if (bootstrapTlogExists) {
+                        // If no backup or if the backup was invalid, then try loading from bootstrap
+                        logger.atError()
+                                .log("Transaction log {} is invalid and no usable backup exists, will attempt to load "
+                                                + "configuration from {}", transactionLogPath, bootstrapTlogPath,
+                                        tlogValidationError);
+                        kernel.getConfig().read(bootstrapTlogPath);
+                        readFromNonTlog = true;
+                    } else {
+                        // There are no files to load from
+                        logger.atError()
+                                .log("Transaction log {} is invalid and no usable backup exists", transactionLogPath,
+                                        tlogValidationError);
+                    }
+                }
+
+                boolean externalConfigExists = Files.exists(externalConfig);
                 // If there is no tlog, or the path was provided via commandline, read in that file
                 if ((externalConfigFromCmd || !tlogExists) && externalConfigExists) {
                     kernel.getConfig().read(externalConfig);
