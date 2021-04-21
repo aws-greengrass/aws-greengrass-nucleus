@@ -21,6 +21,8 @@ import java.util.function.Predicate;
 
 public final class ConfigurationReader {
     private static final Logger logger = LogManager.getLogger(ConfigurationReader.class);
+    private static final TypeReference<Tlogline> TLOG_LINE_REF = new TypeReference<Tlogline>() {
+    };
 
     private ConfigurationReader() {
     }
@@ -42,7 +44,7 @@ public final class ConfigurationReader {
 
             for (l = in.readLine(); l != null; l = in.readLine()) {
                 try {
-                    Tlogline tlogline = Coerce.toObject(l, new TypeReference<Tlogline>() {});
+                    Tlogline tlogline = Coerce.toObject(l, TLOG_LINE_REF);
                     if (WhatHappened.changed.equals(tlogline.action)) {
 
                         Topic targetTopic = config.lookup(tlogline.timestamp, tlogline.topicPath);
@@ -97,6 +99,36 @@ public final class ConfigurationReader {
     private static void mergeTLogInto(Configuration c, Path p) throws IOException {
         try (BufferedReader bufferedReader = Files.newBufferedReader(p)) {
             mergeTLogInto(c, bufferedReader, false, null);
+        }
+    }
+
+    /**
+     * Validate the tlog contents at the given path. Throws an IOException if any entry is invalid.
+     *
+     * @param tlogPath path to the file to validate.
+     * @throws IOException if any entry is invalid.
+     */
+    public static void validateTlog(Path tlogPath) throws IOException {
+        try (BufferedReader in = Files.newBufferedReader(tlogPath)) {
+            // We have been seeing that very rarely the transaction log gets corrupted when a device (specifically
+            // raspberry pi using an SD card) has a power outage.
+            // The corruption is happening at the hardware level and there really isn't anything that we can do
+            // about it right now.
+            // The corruption that we see is that the tlog file is filled with kilobytes of null
+            // bytes, depending on how large the configuration was before dumping the entire config to disk.
+
+            // When parsing the tlog using a buffered reader, the corrupt section won't be parsable and so we will
+            // throw an exception here. This validate method is specifically targeting this type of corruption where
+            // the first line is corrupted.
+            // The other opportunity for corruption is when we write to the end of the
+            // file and we do not want to throw on that corruption because our reader is already setup to skip over that
+            // type of problem.
+
+            String l = in.readLine();
+            // null if EOF
+            if (l != null) {
+                Coerce.toObject(l, TLOG_LINE_REF);
+            }
         }
     }
 
