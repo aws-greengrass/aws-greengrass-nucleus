@@ -16,7 +16,6 @@ import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.NoArgsConstructor;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel;
 import software.amazon.awssdk.crt.eventstream.Header;
@@ -35,7 +34,6 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 
-@NoArgsConstructor
 public class IPCEventStreamService implements Startable, Closeable {
     public static final long DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS = 5;
     public static final int DEFAULT_PORT_NUMBER = 8033;
@@ -51,27 +49,26 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     private RpcServer rpcServer;
 
-    @Inject
-    private Kernel kernel;
+    private final Kernel kernel;
 
-    @Inject
-    private GreengrassCoreIPCService greengrassCoreIPCService;
+    private final GreengrassCoreIPCService greengrassCoreIPCService;
 
-    @Inject
-    private AuthenticationHandler authenticationHandler;
+    private final AuthenticationHandler authenticationHandler;
 
-    @Inject
-    private Configuration config;
+    private final Configuration config;
 
     private SocketOptions socketOptions;
     private EventLoopGroup eventLoopGroup;
 
+    @Inject
     IPCEventStreamService(Kernel kernel,
-                                 GreengrassCoreIPCService greengrassCoreIPCService,
-                                 Configuration config) {
+                          GreengrassCoreIPCService greengrassCoreIPCService,
+                          Configuration config,
+                          AuthenticationHandler authenticationHandler) {
         this.kernel = kernel;
         this.greengrassCoreIPCService = greengrassCoreIPCService;
         this.config = config;
+        this.authenticationHandler = authenticationHandler;
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.ExceptionAsFlowControl"})

@@ -1,7 +1,11 @@
 #!/bin/sh -x
 
+#Disable job control so that all child processes run in the same process group as the parent
+set +m
+
 PWD=$(dirname "$0")
 
+sigterm_received=0
 # Assuming loader is launched from "$GG_ROOT/alts/current/distro/bin/loader"
 GG_ROOT=$(cd $PWD/../../../..; pwd)
 
@@ -31,6 +35,7 @@ launch_kernel() {
   fi
   echo "JVM options: "${JVM_OPTIONS}
   echo "Nucleus options: "${OPTIONS}
+  trap "echo Received SIGTERM; sigterm_received=1" TERM
   java -Dlog.store=FILE ${JVM_OPTIONS} -jar "$LAUNCH_DIR/distro/lib/Greengrass.jar" ${OPTIONS}
   kernel_exit_code=$?
   echo "Nucleus exit at code: "${kernel_exit_code}
@@ -60,7 +65,7 @@ fi
 
 # Launch Nucleus with max 3 retries
 j=1
-while [ $j -le 3 ]; do
+while [ $j -le 3 ] && [ $sigterm_received -eq 0 ];  do
   launch_kernel
   case ${kernel_exit_code} in
   100|0)

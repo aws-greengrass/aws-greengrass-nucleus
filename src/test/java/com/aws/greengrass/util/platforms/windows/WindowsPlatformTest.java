@@ -17,12 +17,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.AclEntry;
 import java.nio.file.attribute.AclEntryType;
 import java.nio.file.attribute.AclFileAttributeView;
 import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.attribute.UserPrincipalLookupService;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,6 +36,7 @@ import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 @ExtendWith({GGExtension.class})
@@ -51,9 +54,10 @@ class WindowsPlatformTest {
     }
 
     @Test
-    void GIVEN_administrator_username_WHEN_check_user_exists_THEN_return_true() {
+    void GIVEN_the_current_user_WHEN_check_user_exists_THEN_return_true() throws IOException {
         WindowsPlatform windowsPlatform = new WindowsPlatform();
-        assertThat(windowsPlatform.userExists("Administrator"), is(true));
+        WindowsUserAttributes windowsUserAttributes = windowsPlatform.lookupCurrentUser();
+        assertThat(windowsPlatform.userExists(windowsUserAttributes.getPrincipalName()), is(true));
     }
 
     @Test
@@ -167,5 +171,20 @@ class WindowsPlatformTest {
         assertThat(aclEntryList.get(0).principal(), equalTo(everyone));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.EXECUTE_PERMS.toArray()));
+    }
+
+    @Test
+    void GIVEN_rootPath_of_different_length_WHEN_prepareIpcFilepath_THEN_less_than_max() {
+        final int MAX_NAMED_PIPE_LEN = 256;
+
+        WindowsPlatform windowsPlatform = new WindowsPlatform();
+
+        String rootPath = "short";
+        String namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath));
+        assertThat(namedPipe.length(), lessThanOrEqualTo(MAX_NAMED_PIPE_LEN));
+
+        rootPath = String.join("very", Collections.nCopies(300, "long"));
+        namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath));
+        assertThat(namedPipe.length(), lessThanOrEqualTo(MAX_NAMED_PIPE_LEN));
     }
 }

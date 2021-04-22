@@ -429,6 +429,11 @@ public class GreengrassSetup {
                     kernel.getContext().get(DeviceConfiguration.class).getNucleusVersion());
         }
 
+        // Dump config since we've just provisioned so that the bootstrap config will enable us to
+        // reach the cloud when needed. Must do this now because we normally would never overwrite the bootstrap
+        // file, however we need to do it since we've only just learned about our endpoints, certs, etc.
+        kernel.writeEffectiveConfigAsTransactionLog(kernel.getNucleusPaths().configPath()
+                .resolve(Kernel.DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE));
     }
 
     @SuppressWarnings("PMD.PreserveStackTrace")
