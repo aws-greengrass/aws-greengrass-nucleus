@@ -92,6 +92,7 @@ public class Kernel {
     static final String DEFAULT_CONFIG_YAML_FILE_READ = "config.yaml";
     static final String DEFAULT_CONFIG_YAML_FILE_WRITE = "effectiveConfig.yaml";
     static final String DEFAULT_CONFIG_TLOG_FILE = "config.tlog";
+    public static final String DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE = "bootstrap.tlog";
     public static final String SERVICE_DIGEST_TOPIC_KEY = "service-digest";
     private static final String DEPLOYMENT_STAGE_LOG_KEY = "stage";
     protected static final ObjectMapper CONFIG_YAML_WRITER =
