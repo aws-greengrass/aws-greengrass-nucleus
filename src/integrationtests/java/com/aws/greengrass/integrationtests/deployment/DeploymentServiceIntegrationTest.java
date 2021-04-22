@@ -44,6 +44,7 @@ import java.io.File;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -53,6 +54,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
@@ -63,6 +65,8 @@ import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_SERVICE_
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(GGExtension.class)
@@ -83,6 +87,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         NoOpPathOwnershipHandler.register(kernel);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml"));
+
         // ensure deployment service starts
         CountDownLatch deploymentServiceLatch = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -92,6 +97,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
             }
         });
         setDeviceConfig(kernel, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 1L);
+
         kernel.launch();
         assertTrue(deploymentServiceLatch.await(10, TimeUnit.SECONDS));
         deploymentQueue =  kernel.getContext().get(DeploymentQueue.class);
@@ -192,6 +198,69 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
     }
 
     @Test
+    void GIVEN_a_cloud_deployment_WHEN_receives_deployment_THEN_service_runs_and_deployment_succeeds() throws Exception {
+        CountDownLatch cdlDeployRedSignal = new CountDownLatch(1);
+        Consumer<GreengrassLogMessage> listener = m -> {
+
+            if (m.getMessage() != null) {
+                if (m.getMessage().contains("Current deployment finished") && m.getContexts().get("DeploymentId").equals("deployRedSignal")) {
+                    cdlDeployRedSignal.countDown();
+                }
+            }
+        };
+
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+
+
+            CountDownLatch redSignalServiceLatch = new CountDownLatch(1);
+            kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+                if (service.getName().equals("RedSignal") && newState.equals(State.RUNNING)) {
+                    redSignalServiceLatch.countDown();
+
+                }
+            });
+
+            submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
+                    .toURI(), "deployRedSignal", DeploymentType.SHADOW); // DeploymentType.SHADOW is used here and it
+            // is same for DeploymentType.IOT_JOBS
+            assertTrue(redSignalServiceLatch.await(30, TimeUnit.SECONDS));
+            assertTrue(cdlDeployRedSignal.await(30, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void GIVEN_cloud_deployment_has_required_capabilities_WHEN_receives_deployment_THEN_fail_with_proper_detailed_status() throws Exception {
+        CountDownLatch cdlDeployRedSignal = new CountDownLatch(1);
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null) {
+                if (m.getMessage().contains("Current deployment finished") && m.getContexts().get("DeploymentId").equals("deployRedSignal")) {
+                    cdlDeployRedSignal.countDown();
+                }
+            }
+        };
+
+        CountDownLatch deploymentCDL = new CountDownLatch(1);
+        DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.SHADOW, (status) -> {
+            if (status.get(DEPLOYMENT_ID_KEY_NAME).equals("deployRedSignal") &&
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("FAILED")) {
+                deploymentCDL.countDown();
+                assertThat(((Map) status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_FAILURE_CAUSE_KEY),
+                        equalTo("The current nucleus version doesn't support one or more capabilities that are required by "
+                    + "this deployment: LARGE_CONFIGURATION, ANOTHER_CAPABILITY"));
+            }
+            return true;
+        },"dummy");
+
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRequiredCapability.json")
+                    .toURI(), "deployRedSignal", DeploymentType.SHADOW);
+            assertTrue(cdlDeployRedSignal.await(30, TimeUnit.SECONDS));
+            assertTrue(deploymentCDL.await(10,TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
     void WHEN_multiple_local_deployment_scheduled_THEN_all_deployments_succeed() throws Exception {
 
         CountDownLatch firstDeploymentCDL = new CountDownLatch(1);
@@ -247,9 +316,9 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
 
         submitLocalDocument(request);
 
-        firstDeploymentCDL.await(10, TimeUnit.SECONDS);
-        secondDeploymentCDL.await(10, TimeUnit.SECONDS);
-        thirdDeploymentCDL.await(10, TimeUnit.SECONDS);
+        assertTrue(firstDeploymentCDL.await(10, TimeUnit.SECONDS), "First deployment did not succeed");
+        assertTrue(secondDeploymentCDL.await(10, TimeUnit.SECONDS), "Second deployment did not succeed");
+        assertTrue(thirdDeploymentCDL.await(10, TimeUnit.SECONDS), "Third deployment did not succeed");
     }
 
     @Test
@@ -286,6 +355,33 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         firstErroredCDL.await(10, TimeUnit.SECONDS);
     }
 
+    @Test
+    void GIVEN_local_deployment_WHEN_required_capabilities_not_present_THEN_deployments_fails_with_appropriate_error() throws Exception {
+        CountDownLatch deploymentCDL = new CountDownLatch(1);
+        DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.LOCAL, (status) -> {
+
+            if(status.get(DEPLOYMENT_ID_KEY_NAME).equals("requiredCapabilityNotPresent") &&
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("FAILED") &&
+                    ((Map)status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_FAILURE_CAUSE_KEY)
+                            .equals("The current nucleus version doesn't support one or more capabilities that are "
+                                    + "required by this deployment: NOT_SUPPORTED_1, NOT_SUPPORTED_2, LARGE_CONFIGURATION")){
+                deploymentCDL.countDown();
+            }
+            return true;
+        },"DeploymentServiceIntegrationTest3" );
+
+        Map<String, String> componentsToMerge = new HashMap<>();
+        componentsToMerge.put("YellowSignal", "1.0.0");
+        LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("requiredCapabilityNotPresent")
+                .componentsToMerge(componentsToMerge)
+                .requestTimestamp(System.currentTimeMillis())
+                .requiredCapabilities(Arrays.asList("NOT_SUPPORTED_1", "NOT_SUPPORTED_2", "LARGE_CONFIGURATION"))
+                .build();
+
+        submitLocalDocument(request);
+        assertTrue(deploymentCDL.await(10, TimeUnit.SECONDS));
+    }
 
     private void submitSampleJobDocument(URI uri, String arn, DeploymentType type) throws Exception {
         Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(uri), Configuration.class);

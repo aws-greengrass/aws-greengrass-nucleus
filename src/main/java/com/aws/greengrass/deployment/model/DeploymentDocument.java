@@ -56,6 +56,9 @@ public class DeploymentDocument {
     @JsonProperty("Packages")
     private List<DeploymentPackageConfiguration> deploymentPackageConfigurationList;
 
+    @JsonProperty("RequiredCapabilities")
+    private List<String> requiredCapabilities;
+
     @JsonProperty("GroupName")
     private String groupName;
 
