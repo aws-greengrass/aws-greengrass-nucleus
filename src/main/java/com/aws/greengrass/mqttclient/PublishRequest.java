@@ -10,16 +10,27 @@ import lombok.NonNull;
 import lombok.Value;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
-@Builder
+@SuppressWarnings("PMD.ClassWithOnlyPrivateConstructorsShouldBeFinal")
 @Value
 public class PublishRequest {
     @NonNull String topic;
-    @Builder.Default
-    @NonNull QualityOfService qos = QualityOfService.AT_LEAST_ONCE;
+    @NonNull QualityOfService qos;
     /**
      * Retain the message in the cloud MQTT broker (only last message with retain is actually kept).
      * Subscribers will immediately receive the last retained message when they first subscribe.
      */
     boolean retain;
-    @NonNull byte[] payload;
+    byte[] payload;
+
+    @Builder
+    protected PublishRequest(String topic, QualityOfService qos, boolean retain, byte[] payload) {
+        // Intern the string to deduplicate topic strings in memory
+        this.topic = topic.intern();
+        if (qos == null) {
+            qos = QualityOfService.AT_LEAST_ONCE;
+        }
+        this.qos = qos;
+        this.retain = retain;
+        this.payload = payload;
+    }
 }

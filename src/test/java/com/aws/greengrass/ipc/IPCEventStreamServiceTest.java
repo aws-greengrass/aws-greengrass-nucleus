@@ -8,12 +8,12 @@ package com.aws.greengrass.ipc;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.NucleusPaths;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,14 +22,10 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
-import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
-import software.amazon.awssdk.eventstreamrpc.Authorization;
-import software.amazon.awssdk.eventstreamrpc.AuthorizationHandler;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
 import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
@@ -39,25 +35,23 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
-import static com.aws.greengrass.util.platforms.unix.UnixPlatform.IPC_SERVER_DOMAIN_SOCKET_FILENAME;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class IPCEventStreamServiceTest {
     private IPCEventStreamService ipcEventStreamService;
-    protected static ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @TempDir
     Path mockRootPath;
+
+    @Mock
+    NucleusPaths nucleusPaths;
 
     @Mock
     private Kernel mockKernel;
@@ -75,35 +69,19 @@ class IPCEventStreamServiceTest {
     private Topic mockRelativePath;
 
     @Mock
-    private GreengrassCoreIPCService greengrassCoreIPCService;
-    @Mock
-    private software.amazon.awssdk.eventstreamrpc.AuthenticationHandler mockAuthenticationHandler;
-    @Mock
-    private AuthorizationHandler mockAuthorizationHandler;
+    private AuthenticationHandler mockAuthenticationHandler;
 
     @BeforeEach
-    public void setup() {
-        AuthenticationData authenticationData = new AuthenticationData() {
-            @Override
-            public String getIdentityLabel() {
-                return "EventStreamConnectionTest";
-            }
-        };
-        when(mockAuthenticationHandler.apply(any(), any())).thenReturn(authenticationData);
-        when(mockAuthorizationHandler.apply(eq(authenticationData))).thenReturn(Authorization.ACCEPT);
-        when(greengrassCoreIPCService.getAuthenticationHandler()).thenReturn(mockAuthenticationHandler);
-        when(greengrassCoreIPCService.getAuthorizationHandler()).thenReturn(mockAuthorizationHandler);
-        when(greengrassCoreIPCService.getServiceModel()).thenReturn(GreengrassCoreIPCServiceModel.getInstance());
-
-        ipcEventStreamService = new IPCEventStreamService(mockKernel, greengrassCoreIPCService, config);
-        NucleusPaths nucleusPaths = mock(NucleusPaths.class);
+    public void setup() throws UnauthenticatedException {
         when(mockKernel.getNucleusPaths()).thenReturn(nucleusPaths);
         when(nucleusPaths.rootPath()).thenReturn(mockRootPath);
         when(config.getRoot()).thenReturn(mockRootTopics);
-        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
-                eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
-        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE),
-                eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
+        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
+        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
+        when(mockAuthenticationHandler.doAuthentication(anyString())).thenReturn("SomeService");
+
+        ipcEventStreamService = new IPCEventStreamService(mockKernel, new GreengrassCoreIPCService(), config,
+                mockAuthenticationHandler);
         ipcEventStreamService.startup();
     }
 
@@ -121,7 +99,7 @@ class IPCEventStreamServiceTest {
              ClientBootstrap clientBootstrap = new ClientBootstrap(elg, new HostResolver(elg));
              SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC()) {
 
-            String ipcServerSocketPath = mockRootPath.resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+            String ipcServerSocketPath = Platform.getInstance().prepareIpcFilepathForComponent(mockRootPath);
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elg, socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER, GreengrassConnectMessageSupplier
                     .connectMessageSupplier("authToken"));
             connection = new EventStreamRPCConnection(config);

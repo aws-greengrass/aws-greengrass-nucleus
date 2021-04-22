@@ -23,9 +23,11 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
+import com.aws.greengrass.deployment.exceptions.MissingRequiredCapabilitiesException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
+import com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus;
 import com.aws.greengrass.deployment.model.DeploymentTask;
 import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
@@ -51,6 +53,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
@@ -280,11 +283,11 @@ public class DeploymentService extends GreengrassService {
             // if something is going wrong
             DeploymentResult result = currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
             if (result != null) {
-                DeploymentResult.DeploymentStatus deploymentStatus = result.getDeploymentStatus();
+                DeploymentStatus deploymentStatus = result.getDeploymentStatus();
 
                 Map<String, String> statusDetails = new HashMap<>();
                 statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, deploymentStatus.name());
-                if (DeploymentResult.DeploymentStatus.SUCCESSFUL.equals(deploymentStatus)) {
+                if (DeploymentStatus.SUCCESSFUL.equals(deploymentStatus)) {
                     //Add the root packages of successful deployment to the configuration
                     persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
 
@@ -437,41 +440,67 @@ public class DeploymentService extends GreengrassService {
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                                                                  JobStatus.IN_PROGRESS.toString(), new HashMap<>());
 
-        if (DEFAULT.equals(deployment.getDeploymentStage())
-                && DeploymentType.LOCAL.equals(deployment.getDeploymentType())) {
-            try {
-                copyRecipesAndArtifacts(deployment);
-            } catch (InvalidRequestException | IOException e) {
-                logger.atError().log("Error copying recipes and artifacts", e);
-                HashMap<String, String> statusDetails = new HashMap<>();
-                statusDetails.put("error", e.getMessage());
-                deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
-                        deployment.getDeploymentType(), JobStatus.FAILED.toString(), statusDetails);
-                return;
-            }
-        }
+        if (DEFAULT.equals(deployment.getDeploymentStage())) {
 
-        try {
-            if (DEFAULT.equals(deployment.getDeploymentStage())) {
+            try {
                 context.get(KernelAlternatives.class).cleanupLaunchDirectoryLinks();
                 deploymentDirectoryManager.createNewDeploymentDirectory(deployment.getDeploymentDocumentObj()
                         .getDeploymentId());
                 deploymentDirectoryManager.writeDeploymentMetadata(deployment);
+            } catch (IOException ioException) {
+                logger.atError().log("Unable to create deployment directory", ioException);
+                updateDeploymentResultAsFailed(deployment, deploymentTask, true,
+                        new DeploymentTaskFailureException(ioException));
+                return;
             }
-        } catch (IOException ioException) {
-            logger.atError().log("Unable to create deployment directory", ioException);
-            CompletableFuture<DeploymentResult> process = new CompletableFuture<>();
-            process.completeExceptionally(new DeploymentTaskFailureException(ioException));
-            currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(),
-                    deployment.getDeploymentType(), new AtomicInteger(1), deployment.getDeploymentDocumentObj(), false);
-            return;
+
+            List<String> requiredCapabilities = deployment.getDeploymentDocumentObj().getRequiredCapabilities();
+            if (requiredCapabilities != null && !requiredCapabilities.isEmpty()) {
+                List<String> missingCapabilities = requiredCapabilities.stream()
+                        .filter(reqCapabilities -> !kernel.getSupportedCapabilities().contains(reqCapabilities))
+                        .collect(Collectors.toList());
+                if (!missingCapabilities.isEmpty()) {
+                    updateDeploymentResultAsFailed(deployment, deploymentTask, false,
+                            new MissingRequiredCapabilitiesException("The current nucleus version doesn't support one "
+                                    + "or more capabilities that are required by this deployment: "
+                                    + String.join(", ", missingCapabilities)));
+                    return;
+                }
+            }
+
+            if (DeploymentType.LOCAL.equals(deployment.getDeploymentType())) {
+                try {
+                    copyRecipesAndArtifacts(deployment);
+                } catch (InvalidRequestException | IOException e) {
+                    logger.atError().log("Error copying recipes and artifacts", e);
+                    updateDeploymentResultAsFailed(deployment, deploymentTask, false, e);
+                    return;
+                }
+            }
         }
+
+
         Future<DeploymentResult> process = executorService.submit(deploymentTask);
         logger.atInfo().kv("deployment", deployment.getId()).log("Started deployment execution");
 
         currentDeploymentTaskMetadata =
                 new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(), deployment.getDeploymentType(),
                                            new AtomicInteger(1), deployment.getDeploymentDocumentObj(), cancellable);
+    }
+
+    private void updateDeploymentResultAsFailed(Deployment deployment, DeploymentTask deploymentTask,
+                                                boolean completeExceptionally, Exception e) {
+        DeploymentResult result = new DeploymentResult(DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
+        CompletableFuture<DeploymentResult> process;
+        if (completeExceptionally) {
+            process = new CompletableFuture<>();
+            process.completeExceptionally(e);
+        } else {
+            process = CompletableFuture.completedFuture(result);
+        }
+        currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(),
+                deployment.getDeploymentType(), new AtomicInteger(1),
+                deployment.getDeploymentDocumentObj(), false);
     }
 
     @SuppressWarnings("PMD.ExceptionAsFlowControl")

@@ -85,6 +85,7 @@ public final class DeploymentDocumentConverter {
         return DeploymentDocument.builder().timestamp(localOverrideRequest.getRequestTimestamp())
                 .deploymentId(localOverrideRequest.getRequestId())
                 .deploymentPackageConfigurationList(packageConfigurations)
+                .requiredCapabilities(localOverrideRequest.getRequiredCapabilities())
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)    // Can't rollback for local deployment
                 // Currently we skip update policy check for local deployment to not slow down testing for customers
                 // If we make this configurable in local development then we can plug that input in here
@@ -142,6 +143,7 @@ public final class DeploymentDocumentConverter {
 
         DeploymentDocument.DeploymentDocumentBuilder builder =
                 DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
+                        .requiredCapabilities(config.getRequiredCapabilities())
                         .deploymentPackageConfigurationList(convertComponents(config.getComponents()))
                         .groupName(parseGroupNameFromConfigurationArn(config)).timestamp(config.getCreationTimestamp());
         if (config.getFailureHandlingPolicy() == null) {
@@ -172,6 +174,7 @@ public final class DeploymentDocumentConverter {
                     config.getConfigurationValidationPolicy())
             );
         }
+
         return builder.build();
     }
 

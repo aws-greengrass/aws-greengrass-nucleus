@@ -47,7 +47,9 @@ import java.util.Set;
 import java.util.UUID;
 
 public class WindowsPlatform extends Platform {
-    private static final String NAMED_PIPE = "\\\\.\\pipe\\NucleusNamedPipe-" + UUID.randomUUID().toString();
+    private static final String NAMED_PIPE_PREFIX = "\\\\.\\pipe\\NucleusNamedPipe-";
+    private static final String NAMED_PIPE_UUID_SUFFIX = UUID.randomUUID().toString();
+    private static final int MAX_NAMED_PIPE_LEN = 256;
 
     static final Set<AclEntryPermission> READ_PERMS = new HashSet<>(Arrays.asList(
             AclEntryPermission.READ_DATA,
@@ -366,17 +368,22 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public String prepareIpcFilepath(Path rootPath) {
-        return NAMED_PIPE;
+        String absolutePath = rootPath.toAbsolutePath().toString();
+        if (NAMED_PIPE_PREFIX.length() + absolutePath.length() <= MAX_NAMED_PIPE_LEN) {
+            return NAMED_PIPE_PREFIX + absolutePath;
+        }
+
+        return NAMED_PIPE_PREFIX + NAMED_PIPE_UUID_SUFFIX;
     }
 
     @Override
     public String prepareIpcFilepathForComponent(Path rootPath) {
-        return NAMED_PIPE;
+        return prepareIpcFilepath(rootPath);
     }
 
     @Override
     public String prepareIpcFilepathForRpcServer(Path rootPath) {
-        return NAMED_PIPE;
+        return prepareIpcFilepath(rootPath);
     }
 
     @Override
