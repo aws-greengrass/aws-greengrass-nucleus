@@ -143,6 +143,7 @@ public final class DeploymentDocumentConverter {
 
         DeploymentDocument.DeploymentDocumentBuilder builder =
                 DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
+                        .requiredCapabilities(config.getRequiredCapabilities())
                         .deploymentPackageConfigurationList(convertComponents(config.getComponents()))
                         .groupName(parseGroupNameFromConfigurationArn(config)).timestamp(config.getCreationTimestamp());
         if (config.getFailureHandlingPolicy() == null) {
@@ -173,6 +174,7 @@ public final class DeploymentDocumentConverter {
                     config.getConfigurationValidationPolicy())
             );
         }
+
         return builder.build();
     }
 

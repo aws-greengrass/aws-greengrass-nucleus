@@ -1,5 +1,6 @@
 {
   "deploymentId": "3b86691d-4f81-408a-852e-edc14cd351a7",
+  "requiredCapabilities": ["LARGE_CONFIGURATION", "ANOTHER_CAPABILITY"],
   "configurationValidationPolicy": {
     "timeout": 120.0
   },
