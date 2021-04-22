@@ -461,7 +461,8 @@ public class DeploymentService extends GreengrassService {
                         .collect(Collectors.toList());
                 if (!missingCapabilities.isEmpty()) {
                     updateDeploymentResultAsFailed(deployment, deploymentTask, false,
-                            new MissingRequiredCapabilitiesException("The current nucleus version doesn't support one or more capabilities that are required by this deployment: "
+                            new MissingRequiredCapabilitiesException("The current nucleus version doesn't support one "
+                                    + "or more capabilities that are required by this deployment: "
                                     + String.join(", ", missingCapabilities)));
                     return;
                 }
