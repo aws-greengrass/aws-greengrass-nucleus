@@ -35,8 +35,11 @@ launch_kernel() {
   fi
   echo "JVM options: "${JVM_OPTIONS}
   echo "Nucleus options: "${OPTIONS}
-  trap "echo Received SIGTERM; sigterm_received=1" TERM
-  java -Dlog.store=FILE ${JVM_OPTIONS} -jar "$LAUNCH_DIR/distro/lib/Greengrass.jar" ${OPTIONS}
+  child_pid=""
+  trap 'echo Received SIGTERM; sigterm_received=1; kill -TERM ${child_pid}' TERM
+  java -Dlog.store=FILE ${JVM_OPTIONS} -jar "$LAUNCH_DIR/distro/lib/Greengrass.jar" ${OPTIONS} &
+  child_pid="$!"
+  wait "${child_pid}"
   kernel_exit_code=$?
   echo "Nucleus exit at code: "${kernel_exit_code}
 }
