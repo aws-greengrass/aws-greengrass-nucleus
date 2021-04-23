@@ -49,7 +49,7 @@ import org.mockito.internal.util.collections.Sets;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.exception.SdkClientException;
-import software.amazon.awssdk.services.greengrassv2.model.ResolvedComponentVersion;
+import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
 
 import java.io.File;
 import java.net.URI;

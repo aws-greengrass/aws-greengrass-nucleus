@@ -6,13 +6,13 @@
 package com.aws.greengrass.componentmanager.builtins;
 
 import com.aws.greengrass.componentmanager.ComponentStore;
-import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.MissingRequiredComponentsException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.S3SdkClientFactory;
 import com.vdurmont.semver4j.Semver;
 import org.hamcrest.core.IsInstanceOf;
@@ -46,7 +46,7 @@ class ArtifactDownloaderFactoryTest {
     S3SdkClientFactory s3SdkClientFactory;
 
     @Mock
-    GreengrassComponentServiceClientFactory greengrassComponentServiceClientFactory;
+    GreengrassServiceClientFactory greengrassServiceClientFactory;
 
     @Mock
     ComponentStore componentStore;
@@ -59,7 +59,7 @@ class ArtifactDownloaderFactoryTest {
     @BeforeEach
     public void setup() {
         artifactDownloaderFactory =
-                new ArtifactDownloaderFactory(s3SdkClientFactory, greengrassComponentServiceClientFactory,
+                new ArtifactDownloaderFactory(s3SdkClientFactory, greengrassServiceClientFactory,
                         componentStore, context);
     }
 

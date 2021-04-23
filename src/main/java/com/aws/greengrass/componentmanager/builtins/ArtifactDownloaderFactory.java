@@ -6,7 +6,6 @@
 package com.aws.greengrass.componentmanager.builtins;
 
 import com.aws.greengrass.componentmanager.ComponentStore;
-import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.MissingRequiredComponentsException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
@@ -15,6 +14,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.plugins.docker.DockerImageDownloader;
 import com.aws.greengrass.componentmanager.plugins.docker.Image;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.S3SdkClientFactory;
 
 import java.net.URI;
@@ -40,7 +40,7 @@ public class ArtifactDownloaderFactory {
 
     private final S3SdkClientFactory s3ClientFactory;
 
-    private final GreengrassComponentServiceClientFactory greengrassComponentServiceClientFactory;
+    private final GreengrassServiceClientFactory clientFactory;
 
     private final ComponentStore componentStore;
 
@@ -50,17 +50,17 @@ public class ArtifactDownloaderFactory {
      * ArtifactDownloaderFactory constructor.
      *
      * @param s3SdkClientFactory                      s3SdkClientFactory
-     * @param greengrassComponentServiceClientFactory greengrassComponentServiceClientFactory
+     * @param greengrassServiceClientFactory greengrassComponentServiceClientFactory
      * @param componentStore                          componentStore
      * @param context                                 context
      */
     @Inject
     public ArtifactDownloaderFactory(S3SdkClientFactory s3SdkClientFactory,
-                                     GreengrassComponentServiceClientFactory greengrassComponentServiceClientFactory,
+                                     GreengrassServiceClientFactory greengrassServiceClientFactory,
                                      ComponentStore componentStore,
                                      Context context) {
         this.s3ClientFactory = s3SdkClientFactory;
-        this.greengrassComponentServiceClientFactory = greengrassComponentServiceClientFactory;
+        this.clientFactory = greengrassServiceClientFactory;
         this.componentStore = componentStore;
         this.context = context;
     }
@@ -80,8 +80,7 @@ public class ArtifactDownloaderFactory {
         URI artifactUri = artifact.getArtifactUri();
         String scheme = artifactUri.getScheme() == null ? null : artifactUri.getScheme().toUpperCase();
         if (GREENGRASS_SCHEME.equals(scheme)) {
-            return new GreengrassRepositoryDownloader(
-                    greengrassComponentServiceClientFactory, identifier, artifact, artifactDir, componentStore);
+            return new GreengrassRepositoryDownloader(clientFactory, identifier, artifact, artifactDir, componentStore);
         }
         if (S3_SCHEME.equals(scheme)) {
             return new S3Downloader(s3ClientFactory, identifier, artifact, artifactDir);

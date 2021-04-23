@@ -8,6 +8,7 @@ package com.aws.greengrass.componentmanager;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.codec.Charsets;
@@ -19,12 +20,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.core.SdkBytes;
-import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
-import software.amazon.awssdk.services.greengrassv2.model.ComponentCandidate;
-import software.amazon.awssdk.services.greengrassv2.model.ResolveComponentCandidatesRequest;
-import software.amazon.awssdk.services.greengrassv2.model.ResolveComponentCandidatesResponse;
-import software.amazon.awssdk.services.greengrassv2.model.ResolvedComponentVersion;
-import software.amazon.awssdk.services.greengrassv2.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
+import software.amazon.awssdk.services.greengrassv2data.model.ComponentCandidate;
+import software.amazon.awssdk.services.greengrassv2data.model.ResolveComponentCandidatesRequest;
+import software.amazon.awssdk.services.greengrassv2data.model.ResolveComponentCandidatesResponse;
+import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
+import software.amazon.awssdk.services.greengrassv2data.model.ResourceNotFoundException;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,17 +50,17 @@ class ComponentServiceHelperTest {
     private static final String COMPONENT_A = "A";
 
     @Mock
-    private GreengrassV2Client client;
+    private GreengrassV2DataClient client;
 
     @Mock
-    private GreengrassComponentServiceClientFactory clientFactory;
+    private GreengrassServiceClientFactory clientFactory;
 
     private ComponentServiceHelper helper;
 
     @BeforeEach
     void beforeEach() {
         PlatformResolver platformResolver = new PlatformResolver(null);
-        lenient().when(clientFactory.getCmsClient()).thenReturn(client);
+        lenient().when(clientFactory.getGreengrassV2DataClient()).thenReturn(client);
         this.helper = spy(new ComponentServiceHelper(clientFactory, platformResolver));
     }
 

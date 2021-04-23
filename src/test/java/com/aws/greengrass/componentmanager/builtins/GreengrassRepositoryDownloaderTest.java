@@ -7,12 +7,12 @@ package com.aws.greengrass.componentmanager.builtins;
 
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.ComponentTestResourceHelper;
-import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.RetryUtils;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,9 +29,9 @@ import software.amazon.awssdk.http.ExecutableHttpRequest;
 import software.amazon.awssdk.http.HttpExecuteResponse;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.SdkHttpResponse;
-import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
-import software.amazon.awssdk.services.greengrassv2.model.GetComponentVersionArtifactRequest;
-import software.amazon.awssdk.services.greengrassv2.model.GetComponentVersionArtifactResponse;
+import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
+import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactRequest;
+import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactResponse;
 
 import java.io.IOException;
 import java.net.URI;
@@ -70,15 +70,15 @@ class GreengrassRepositoryDownloaderTest {
     @Mock
     private SdkHttpClient httpClient;
     @Mock
-    private GreengrassV2Client client;
+    private GreengrassV2DataClient client;
     @Mock
-    private GreengrassComponentServiceClientFactory clientFactory;
+    private GreengrassServiceClientFactory clientFactory;
     @Mock
     private ComponentStore componentStore;
 
     @BeforeEach
     void beforeEach() {
-        lenient().when(clientFactory.getCmsClient()).thenReturn(client);
+        lenient().when(clientFactory.getGreengrassV2DataClient()).thenReturn(client);
     }
 
     @Test

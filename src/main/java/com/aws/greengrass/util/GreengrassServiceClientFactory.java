@@ -3,23 +3,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.componentmanager;
+package com.aws.greengrass.util;
 
+import com.aws.greengrass.componentmanager.ClientConfigurationUtils;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Utils;
 import lombok.Getter;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
-import software.amazon.awssdk.services.greengrassv2.GreengrassV2ClientBuilder;
+import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
+import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClientBuilder;
 
 import java.net.URI;
 import java.nio.file.Files;
@@ -34,10 +33,10 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROO
 
 @Getter
 @SuppressWarnings("PMD.ConfusingTernary")
-public class GreengrassComponentServiceClientFactory {
+public class GreengrassServiceClientFactory {
 
-    private static final Logger logger = LogManager.getLogger(GreengrassComponentServiceClientFactory.class);
-    private GreengrassV2Client cmsClient;
+    private static final Logger logger = LogManager.getLogger(GreengrassServiceClientFactory.class);
+    private GreengrassV2DataClient greengrassV2DataClient;
     private String configValidationError;
 
     /**
@@ -46,7 +45,7 @@ public class GreengrassComponentServiceClientFactory {
      * @param deviceConfiguration       Device configuration
      */
     @Inject
-    public GreengrassComponentServiceClientFactory(DeviceConfiguration deviceConfiguration) {
+    public GreengrassServiceClientFactory(DeviceConfiguration deviceConfiguration) {
         try {
             deviceConfiguration.validate(true);
         } catch (DeviceConfigurationException e) {
@@ -74,12 +73,13 @@ public class GreengrassComponentServiceClientFactory {
     private void configureClient(DeviceConfiguration deviceConfiguration) {
 
         ApacheHttpClient.Builder httpClient = ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
-        GreengrassV2ClientBuilder clientBuilder = GreengrassV2Client.builder()
+        GreengrassV2DataClientBuilder clientBuilder = GreengrassV2DataClient.builder()
                 // Use an empty credential provider because our requests don't need SigV4
                 // signing, as they are going through IoT Core instead
                 .credentialsProvider(AnonymousCredentialsProvider.create())
                 .httpClient(httpClient.build())
                 .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(RetryMode.STANDARD).build());
+
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
 
         if (!Utils.isEmpty(region)) {
@@ -98,6 +98,6 @@ public class GreengrassComponentServiceClientFactory {
                 clientBuilder.region(Region.of(region));
             }
         }
-        this.cmsClient = clientBuilder.build();
+        this.greengrassV2DataClient = clientBuilder.build();
     }
 }

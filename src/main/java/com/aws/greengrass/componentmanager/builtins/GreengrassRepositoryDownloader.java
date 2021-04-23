@@ -6,11 +6,11 @@
 package com.aws.greengrass.componentmanager.builtins;
 
 import com.aws.greengrass.componentmanager.ComponentStore;
-import com.aws.greengrass.componentmanager.GreengrassComponentServiceClientFactory;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RetryUtils;
 import lombok.AccessLevel;
@@ -23,8 +23,8 @@ import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
-import software.amazon.awssdk.services.greengrassv2.model.GetComponentVersionArtifactRequest;
-import software.amazon.awssdk.services.greengrassv2.model.GetComponentVersionArtifactResponse;
+import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactRequest;
+import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactResponse;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,7 +41,7 @@ import java.util.Optional;
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     static final String CONTENT_LENGTH_HEADER = "content-length";
     private final ComponentStore componentStore;
-    private final GreengrassComponentServiceClientFactory clientFactory;
+    private final GreengrassServiceClientFactory clientFactory;
     private Long artifactSize = null;
     // Setter for unit test
     @Setter(AccessLevel.PACKAGE)
@@ -50,7 +50,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                     .maxRetryInterval(Duration.ofMinutes(1L)).maxAttempt(Integer.MAX_VALUE)
                     .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class)).build();
 
-    protected GreengrassRepositoryDownloader(GreengrassComponentServiceClientFactory clientFactory,
+    protected GreengrassRepositoryDownloader(GreengrassServiceClientFactory clientFactory,
                                              ComponentIdentifier identifier, ComponentArtifact artifact,
                                              Path artifactDir, ComponentStore componentStore) {
         super(identifier, artifact, artifactDir);
@@ -119,8 +119,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         try {
             return RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
                 try (SdkHttpClient client = getSdkHttpClient()) {
-                    HttpExecuteRequest executeRequest = HttpExecuteRequest.builder()
-                            .request(SdkHttpFullRequest.builder().uri(URI.create(url)).method(SdkHttpMethod.GET)
+                    HttpExecuteRequest executeRequest = HttpExecuteRequest.builder().request(
+                            SdkHttpFullRequest.builder().uri(URI.create(url)).method(SdkHttpMethod.GET)
                                     .putHeader(HTTP_RANGE_HEADER_KEY,
                                             String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd)).build())
                             .build();
@@ -166,8 +166,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                             }
                         }
                     } else {
-                        throw new PackageDownloadException(getErrorString(
-                                "Unable to download Greengrass artifact. HTTP Error: " + responseCode));
+                        throw new PackageDownloadException(
+                                getErrorString("Unable to download Greengrass artifact. HTTP Error: " + responseCode));
                     }
                 }
             }, "download-artifact", logger);
@@ -199,7 +199,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                 GetComponentVersionArtifactRequest getComponentArtifactRequest =
                         GetComponentVersionArtifactRequest.builder().artifactName(artifactName).arn(arn).build();
                 GetComponentVersionArtifactResponse getComponentArtifactResult =
-                        clientFactory.getCmsClient().getComponentVersionArtifact(getComponentArtifactRequest);
+                        clientFactory.getGreengrassV2DataClient()
+                                .getComponentVersionArtifact(getComponentArtifactRequest);
                 return getComponentArtifactResult.preSignedUrl();
             }, "get-artifact-size", logger);
         } catch (InterruptedException e) {
