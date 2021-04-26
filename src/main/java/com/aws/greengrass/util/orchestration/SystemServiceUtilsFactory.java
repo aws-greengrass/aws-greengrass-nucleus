@@ -16,7 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import javax.inject.Inject;
 
-@AllArgsConstructor(onConstructor_ = {@Inject})
+@AllArgsConstructor(onConstructor = @__(@Inject))
 public class SystemServiceUtilsFactory {
     protected static final Logger logger = LogManager.getLogger(SystemServiceUtilsFactory.class);
 
