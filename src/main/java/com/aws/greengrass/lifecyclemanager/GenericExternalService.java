@@ -15,6 +15,7 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.AuthenticationHandler;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceException;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
@@ -342,6 +343,29 @@ public class GenericExternalService extends GreengrassService {
                 && State.STARTING.equals(getState())) {
             handleRunScript();
         }
+    }
+
+    /**
+     * Paused a running component.
+     *
+     * @throws ServiceException Error processing pause request.
+     */
+    public void pause() throws ServiceException {
+        // TODO impl
+    }
+
+    /**
+     * Resume a paused component.
+     *
+     * @throws ServiceException Error processing resume request.
+     */
+    public void resume() throws ServiceException {
+        // TODO impl
+    }
+
+    public boolean isPaused() {
+        // TODO impl
+        return false;
     }
 
     @SuppressWarnings("PMD.CloseResource")
