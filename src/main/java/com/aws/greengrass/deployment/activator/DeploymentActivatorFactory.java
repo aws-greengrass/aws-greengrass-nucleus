@@ -15,9 +15,8 @@ import lombok.AllArgsConstructor;
 import java.util.Map;
 import javax.inject.Inject;
 
-@AllArgsConstructor
+@AllArgsConstructor(onConstructor = @__(@Inject))
 public class DeploymentActivatorFactory {
-    @Inject
     private final Kernel kernel;
 
     /**
