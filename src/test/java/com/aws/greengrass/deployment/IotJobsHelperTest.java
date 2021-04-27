@@ -5,7 +5,11 @@
 
 package com.aws.greengrass.deployment;
 
+import com.aws.greengrass.config.ChildChanged;
+import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.config.WhatHappened;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -51,6 +55,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_ACCEPTED_TOPIC;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_REJECTED_TOPIC;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
@@ -61,6 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -120,26 +126,27 @@ class IotJobsHelperTest {
                 deploymentStatusKeeper, executorService,mockKernel, mockWrapperMqttConnectionFactory, mockMqttClient,
                 mockFleetStatusService);
         Topic mockThingNameTopic = mock(Topic.class);
-        when(mockThingNameTopic.getOnce()).thenReturn(TEST_THING_NAME);
-        when(deviceConfiguration.getThingName()).thenReturn(mockThingNameTopic);
-        when(mockIotJobsClientFactory.getIotJobsClientWrapper(any())).thenReturn(mockIotJobsClientWrapper);
-        when(mockWrapperMqttConnectionFactory.getAwsIotMqttConnection(any()))
+        lenient().when(mockThingNameTopic.getOnce()).thenReturn(TEST_THING_NAME);
+        lenient().when(deviceConfiguration.getThingName()).thenReturn(mockThingNameTopic);
+        lenient().when(mockIotJobsClientFactory.getIotJobsClientWrapper(any())).thenReturn(mockIotJobsClientWrapper);
+        lenient().when(mockWrapperMqttConnectionFactory.getAwsIotMqttConnection(any()))
                 .thenReturn(mockWrapperMqttClientConnection);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
 
-        when(mockIotJobsClientWrapper.SubscribeToJobExecutionsChangedEvents(any(), any(), any()))
+        lenient().when(mockIotJobsClientWrapper.SubscribeToJobExecutionsChangedEvents(any(), any(), any()))
                 .thenReturn(integerCompletableFuture);
-        when(mockIotJobsClientWrapper.SubscribeToDescribeJobExecutionAccepted(any(), any(), any()))
+        lenient().when(mockIotJobsClientWrapper.SubscribeToDescribeJobExecutionAccepted(any(), any(), any()))
                 .thenReturn(integerCompletableFuture);
-        when(mockIotJobsClientWrapper.SubscribeToDescribeJobExecutionRejected(any(), any(), any()))
+        lenient().when(mockIotJobsClientWrapper.SubscribeToDescribeJobExecutionRejected(any(), any(), any()))
                 .thenReturn(integerCompletableFuture);
 
         lenient().when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
-        iotJobsHelper.postInject();
+
      }
 
     @Test
     void GIVEN_device_configured_WHEN_connecting_to_iot_cloud_THEN_connection_successful() throws Exception {
+        iotJobsHelper.postInject();
         verify(mockMqttClient).addToCallbackEvents(any());
         verify(mockIotJobsClientWrapper).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(mockIotJobsClientWrapper).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
@@ -148,8 +155,36 @@ class IotJobsHelperTest {
     }
 
     @Test
+    void GIVEN_device_configured_WHEN_connecting_to_iot_cloud_THEN_connection_unsuccessful() throws Exception {
+        doThrow(new DeviceConfigurationException("Error")).when(deviceConfiguration).validate();
+        iotJobsHelper.postInject();
+        verify(mockMqttClient, times(0)).addToCallbackEvents(any());
+        verify(mockIotJobsClientWrapper, times(0)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
+        verify(mockIotJobsClientWrapper, times(0)).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
+        verify(mockIotJobsClientWrapper, times(0)).SubscribeToDescribeJobExecutionRejected(any(), any(), any());
+        verify(mockFleetStatusService, times(0)).updateFleetStatusUpdateForAllComponents();
+    }
+
+    @Test
+    void GIVEN_device_configured_WHEN_connecting_to_iot_cloud_THEN_connection_retry_on_provisioning() throws Exception {
+        doThrow(new DeviceConfigurationException("Error")).doNothing().when(deviceConfiguration).validate();
+        iotJobsHelper.postInject();
+        ArgumentCaptor<ChildChanged> ccCaptor = ArgumentCaptor.forClass(ChildChanged.class);
+        verify(deviceConfiguration).onAnyChange(ccCaptor.capture());
+        Node mockNode = mock(Node.class);
+        lenient().doReturn(true).when(mockNode).childOf(eq(DEVICE_PARAM_IOT_DATA_ENDPOINT));
+        ccCaptor.getValue().childChanged(WhatHappened.childChanged, mockNode);
+        verify(mockMqttClient, times(1)).addToCallbackEvents(any());
+        verify(mockIotJobsClientWrapper, times(1)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
+        verify(mockIotJobsClientWrapper, times(1)).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
+        verify(mockIotJobsClientWrapper, times(1)).SubscribeToDescribeJobExecutionRejected(any(), any(), any());
+        verify(mockFleetStatusService, times(1)).updateFleetStatusUpdateForAllComponents();
+    }
+
+    @Test
     void GIVEN_connected_to_iot_WHEN_subscribe_to_jobs_topics_THEN_get_notification_for_queued_jobs()
             throws Exception {
+        iotJobsHelper.postInject();
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
         when(mockIotJobsClientWrapper.SubscribeToJobExecutionsChangedEvents(any()
                 , eq(QualityOfService.AT_LEAST_ONCE), any())).thenReturn(integerCompletableFuture);
@@ -172,6 +207,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_connected_to_iot_WHEN_subscribe_to_jobs_topics_THEN_get_notification_for_in_progress_jobs()
             throws Exception {
+        iotJobsHelper.postInject();
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
         when(mockIotJobsClientWrapper.SubscribeToJobExecutionsChangedEvents(any()
                 , eq(QualityOfService.AT_LEAST_ONCE), any())).thenReturn(integerCompletableFuture);
@@ -194,6 +230,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_not_connected_to_iot_WHEN_subscribe_to_eventnotifications_topic_timesout_THEN_retry(ExtensionContext context)
             throws Exception {
+        iotJobsHelper.postInject();
         ignoreExceptionOfType(context, TimeoutException.class);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
         CompletableFuture<Integer> exceptionallyCompletedFuture = new CompletableFuture<>();
@@ -223,6 +260,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_not_connected_to_iot_WHEN_subscribe_to_jobDescriptions_topic_timesout_THEN_retry(ExtensionContext context)
             throws Exception {
+        iotJobsHelper.postInject();
         ignoreExceptionOfType(context, TimeoutException.class);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
         CompletableFuture<Integer> exceptionallyCompletedFuture = new CompletableFuture<>();
@@ -254,6 +292,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_ongoing_job_deployment_with_queued_job_in_cloud_WHEN_cancel_notification_THEN_cancel_current_deployment()
             throws Exception {
+        iotJobsHelper.postInject();
         String TEST_JOB_ID = "jobToBeCancelled";
 
 
@@ -297,6 +336,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_ongoing_job_deployment_WHEN_notification_with_empty_jobs_list_THEN_cancel_current_deployment()
             throws Exception {
+        iotJobsHelper.postInject();
         iotJobsHelper.setDeploymentQueue(mockDeploymentQueue);
         when(mockDeploymentQueue.isEmpty()).thenReturn(true);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
@@ -328,6 +368,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_ongoing_local_deployment_WHEN_notification_with_empty_jobs_list_THEN_do_nothing()
             throws Exception {
+        iotJobsHelper.postInject();
         iotJobsHelper.setDeploymentQueue(mockDeploymentQueue);
         when(mockDeploymentQueue.isEmpty()).thenReturn(true);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
@@ -356,6 +397,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_connected_to_iot_WHEN_subscribe_to_jobs_topics_THEN_get_job_description()
             throws Exception {
+        iotJobsHelper.postInject();
         String TEST_JOB_ID = "jobToReceive";
         iotJobsHelper.setDeploymentQueue(mockDeploymentQueue);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
@@ -391,6 +433,7 @@ class IotJobsHelperTest {
 
     @Test
     void GIVEN_iot_job_notifications_WHEN_duplicate_or_outdated_THEN_ignore_jobs() {
+        iotJobsHelper.postInject();
         String TEST_JOB_ID = "duplicateJob";
         iotJobsHelper.setDeploymentQueue(mockDeploymentQueue);
         CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
@@ -443,6 +486,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_subscribe_to_eventNotifications()
              throws Exception {
+        iotJobsHelper.postInject();
          CompletableFuture<Integer> integerCompletableFuture = CompletableFuture.completedFuture(1);
          when(mockIotJobsClientWrapper.SubscribeToJobExecutionsChangedEvents(any(JobExecutionsChangedSubscriptionRequest.class)
                  , eq(QualityOfService.AT_LEAST_ONCE), eq(eventConsumer))).thenReturn(integerCompletableFuture);
@@ -458,6 +502,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_subscribe_to_getNextJobDescription()
             throws Exception {
+        iotJobsHelper.postInject();
         CompletableFuture<Integer> integerCompletableFuture = new CompletableFuture<>();
         integerCompletableFuture.complete(1);
         when(mockIotJobsClientWrapper.SubscribeToDescribeJobExecutionAccepted(
@@ -484,7 +529,7 @@ class IotJobsHelperTest {
 
     @Test
     void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_request_next_pending_jobDoc() {
-
+        iotJobsHelper.postInject();
         iotJobsHelper.requestNextPendingJobDocument();
         ArgumentCaptor<DescribeJobExecutionRequest> requestArgumentCaptor =
                 ArgumentCaptor.forClass(DescribeJobExecutionRequest.class);
@@ -499,6 +544,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_update_jobStatus_successfully()
     throws Exception {
+        iotJobsHelper.postInject();
         String TEST_JOB_ID = "statusUpdateSuccess";
 
         HashMap<String, String> statusDetails = new HashMap<>();
@@ -541,6 +587,7 @@ class IotJobsHelperTest {
     @Test
     void GIVEN_jobsClient_and_mqttConnection_WHEN_mqtt_connected_THEN_update_jobStatus_failed()
             throws Exception {
+        iotJobsHelper.postInject();
         String TEST_JOB_ID = "statusUpdateFailure";
         CompletableFuture cf = new CompletableFuture();
         cf.complete(null);
@@ -585,6 +632,7 @@ class IotJobsHelperTest {
 
     @Test
     void WHEN_mqttConnection_resumes_THEN_jobsclient_doesnt_resub_and_call_publish_persisted_deployment_status() {
+        iotJobsHelper.postInject();
         verify(mockIotJobsClientWrapper, times(1)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         iotJobsHelper.getCallbacks().onConnectionResumed(false);
         verify(mockIotJobsClientWrapper, times(1)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());

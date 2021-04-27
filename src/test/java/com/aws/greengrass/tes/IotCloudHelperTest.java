@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.tes;
 
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.iot.IotCloudHelper;
 import com.aws.greengrass.iot.IotConnectionManager;
 import com.aws.greengrass.iot.model.IotCloudResponse;
@@ -26,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -94,5 +96,15 @@ class IotCloudHelperTest {
                 CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, null);
         assertArrayEquals(CLOUD_RESPONSE, response.getResponseBody());
         assertEquals(STATUS_CODE, response.getStatusCode());
+    }
+
+    @Test
+    void GIVEN_error_code_once_WHEN_client_and_endpoint_null_THEN_unsuccessful() throws Exception {
+        when(mockConnectionManager.getURI()).thenThrow(new DeviceConfigurationException("Credentials endpoint not "
+                + "configured"));
+        IotCloudHelper cloudHelper = new IotCloudHelper();
+        assertThrows(DeviceConfigurationException.class, () -> cloudHelper.sendHttpRequest(mockConnectionManager, null,
+                IOT_CREDENTIALS_PATH,
+                CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, null));
     }
 }

@@ -46,20 +46,32 @@ public class GreengrassServiceClientFactory {
      */
     @Inject
     public GreengrassServiceClientFactory(DeviceConfiguration deviceConfiguration) {
-        try {
-            deviceConfiguration.validate(true);
-        } catch (DeviceConfigurationException e) {
-            configValidationError = e.getMessage();
-            return;
-        }
-        configureClient(deviceConfiguration);
         deviceConfiguration.onAnyChange((what, node) -> {
             if (validString(node, DEVICE_PARAM_AWS_REGION) || validPath(node, DEVICE_PARAM_ROOT_CA_PATH) || validPath(
                     node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validPath(node, DEVICE_PARAM_PRIVATE_KEY_PATH)
                     || validString(node, DEVICE_PARAM_GG_DATA_PLANE_PORT)) {
-                configureClient(deviceConfiguration);
+                try {
+                   validateAndConfigure(deviceConfiguration);
+                } catch (DeviceConfigurationException ex) {
+                    configValidationError = ex.getMessage();
+                    return;
+                }
             }
         });
+
+        try {
+            validateAndConfigure(deviceConfiguration);
+        } catch (DeviceConfigurationException e) {
+            configValidationError = e.getMessage();
+            return;
+        }
+    }
+
+    @SuppressWarnings("PMD.NullAssignment")
+    private void validateAndConfigure(DeviceConfiguration deviceConfiguration) throws DeviceConfigurationException {
+        deviceConfiguration.validate(true);
+        configureClient(deviceConfiguration);
+        configValidationError = null;
     }
 
     private boolean validString(Node node, String key) {
@@ -71,7 +83,7 @@ public class GreengrassServiceClientFactory {
     }
 
     private void configureClient(DeviceConfiguration deviceConfiguration) {
-
+        logger.atDebug().log("Configuring GGV2 client");
         ApacheHttpClient.Builder httpClient = ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
         GreengrassV2DataClientBuilder clientBuilder = GreengrassV2DataClient.builder()
                 // Use an empty credential provider because our requests don't need SigV4

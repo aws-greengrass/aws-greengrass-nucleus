@@ -15,6 +15,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
+import lombok.SneakyThrows;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
@@ -131,6 +132,7 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
         }
     }
 
+    @SneakyThrows
     @Override
     public AwsCredentials resolveCredentials() {
         return credentialRequestHandler.getAwsCredentials();

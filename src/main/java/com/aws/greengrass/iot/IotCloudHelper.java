@@ -6,6 +6,7 @@
 package com.aws.greengrass.iot;
 
 import com.aws.greengrass.deployment.exceptions.AWSIotException;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.iot.model.IotCloudResponse;
 import com.aws.greengrass.util.BaseRetryableAccessor;
 import com.aws.greengrass.util.CrashableSupplier;
@@ -46,9 +47,11 @@ public class IotCloudHelper {
      * @param body        Http body for the request
      * @return Http response corresponding to http request for path
      * @throws AWSIotException when unable to send the request successfully
+     * @throws DeviceConfigurationException when device is not configured with credential endpoint
      */
     public IotCloudResponse sendHttpRequest(final IotConnectionManager connManager, String thingName, final String path,
-                                            final String verb, final byte[] body) throws AWSIotException {
+                                            final String verb, final byte[] body)
+                                            throws AWSIotException, DeviceConfigurationException {
         SdkHttpRequest.Builder innerRequestBuilder = SdkHttpRequest.builder().method(SdkHttpMethod.fromValue(verb));
 
         URI uri = connManager.getURI();

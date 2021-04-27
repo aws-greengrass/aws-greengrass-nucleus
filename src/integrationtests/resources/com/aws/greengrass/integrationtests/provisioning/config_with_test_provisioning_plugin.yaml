@@ -1,0 +1,28 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+
+      logging:
+        level: DEBUG
+
+  main:
+    lifecycle:
+      install:
+        all: echo All installed
+    dependencies:
+      - aws.greengrass.Nucleus
+
+  aws.greengrass.TestProvisioningPlugin:
+    configuration:
+      awsRegion: us-east-1
+      iotDataEndpoint: test.us-east-1.iot.data.endpoint
+      iotCredentialsEndpoint: test.us-east-1.iot.cred.endpoint
+      certificateFilePath: $certfilepath
+      privateKeyPath: $privatekeypath
+      rootCAPath: $rootcapath
+      thingName: integTest
+      waitTime: $waittimems
+

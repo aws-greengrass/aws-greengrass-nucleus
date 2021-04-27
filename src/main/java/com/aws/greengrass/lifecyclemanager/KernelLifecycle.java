@@ -8,6 +8,8 @@ package com.aws.greengrass.lifecyclemanager;
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.config.ConfigurationReader;
 import com.aws.greengrass.config.ConfigurationWriter;
+import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -23,9 +25,16 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogConfig;
+import com.aws.greengrass.provisioning.DeviceIdentityInterface;
+import com.aws.greengrass.provisioning.ProvisionConfiguration;
+import com.aws.greengrass.provisioning.ProvisionContext;
+import com.aws.greengrass.provisioning.ProvisioningConfigUpdateHelper;
+import com.aws.greengrass.provisioning.ProvisioningPluginFactory;
+import com.aws.greengrass.provisioning.exceptions.RetryableProvisioningException;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.util.CommitableFile;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
@@ -36,7 +45,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -53,18 +64,30 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.util.Utils.close;
 import static com.aws.greengrass.util.Utils.deepToString;
 
 public class KernelLifecycle {
     private static final Logger logger = LogManager.getLogger(KernelLifecycle.class);
     private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 30;
+    // Enum for provision policy will exist in common library package
+    // This will be done as part of re-provisioning
+    private static final String DEFAULT_PROVISIONING_POLICY = "PROVISION_IF_NOT_PROVISIONED";
+    private static final int MAX_PROVISIONING_PLUGIN_RETRY_ATTEMPTS = 3;
 
     private final Kernel kernel;
     private final KernelCommandLine kernelCommandLine;
     private final Map<String, Class<?>> serviceImplementors = new HashMap<>();
     private final NucleusPaths nucleusPaths;
+    @Setter
+    private ProvisioningConfigUpdateHelper provisioningConfigUpdateHelper;
+    @Setter
+    @Inject
+    private ProvisioningPluginFactory provisioningPluginFactory;
     // setter for unit testing
     @Setter(AccessLevel.PACKAGE)
     private List<Class<? extends Startable>> startables = Arrays.asList(IPCEventStreamService.class,
@@ -86,6 +109,7 @@ public class KernelLifecycle {
         this.kernel = kernel;
         this.kernelCommandLine = kernelCommandLine;
         this.nucleusPaths = nucleusPaths;
+        this.provisioningConfigUpdateHelper = new ProvisioningConfigUpdateHelper(kernel);
     }
 
     /**
@@ -103,9 +127,16 @@ public class KernelLifecycle {
             kernel.getContext().get(c).startup();
         }
 
+        final List<DeviceIdentityInterface> provisioningPlugins = findProvisioningPlugins();
         // Must be called before everything else so that these are available to be
         // referenced by main/dependencies of main
         final Queue<String> autostart = findBuiltInServicesAndPlugins(); //NOPMD
+        loadPlugins();
+        // run the provisioning if device is not provisioned
+        if (!kernel.getContext().get(DeviceConfiguration.class).isDeviceConfiguredToTalkToCloud()
+                && !provisioningPlugins.isEmpty()) {
+            executeProvisioningPlugins(provisioningPlugins);
+        }
 
         mainService = kernel.locateIgnoreError(KernelCommandLine.MAIN_SERVICE_NAME);
 
@@ -123,6 +154,63 @@ public class KernelLifecycle {
 
         logger.atInfo().setEventType("system-start").addKeyValue("main", kernel.getMain()).log();
         startupAllServices();
+
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void executeProvisioningPlugins(List<DeviceIdentityInterface> provisioningPlugins) {
+        logger.atDebug().log("Found provisioning plugins to run");
+        RetryUtils.RetryConfig retryConfig = RetryUtils.RetryConfig.builder()
+                .maxAttempt(MAX_PROVISIONING_PLUGIN_RETRY_ATTEMPTS)
+                .retryableExceptions(Collections.singletonList(RetryableProvisioningException.class))
+                .build();
+        ExecutorService executorService = kernel.getContext().get(ExecutorService.class);
+        executorService.execute(() -> {
+            provisioningPlugins.stream().forEach((plugin) -> {
+                String pluginName = plugin.name();
+                logger.atInfo().log("Running provisioning plugin: " + pluginName);
+                Topics pluginConfig = kernel.getConfig()
+                        .findTopics(SERVICES_NAMESPACE_TOPIC, pluginName, CONFIGURATION_CONFIG_KEY);
+                ProvisionConfiguration provisionConfiguration = null;
+                try {
+                    provisionConfiguration = RetryUtils.runWithRetry(retryConfig,
+                            () -> plugin.updateIdentityConfiguration(new ProvisionContext(
+                                    DEFAULT_PROVISIONING_POLICY, pluginConfig == null
+                                    ? Collections.emptyMap() : pluginConfig.toPOJO())),
+                            "Running provisioning plugin", logger);
+                } catch (Exception e) {
+                    logger.atError().setCause(e).log("Caught exception while running provisioning plugin. "
+                            + "Moving on to run Greengrass without provisioning");
+                    return;
+                }
+
+                provisioningConfigUpdateHelper.updateSystemConfiguration(provisionConfiguration
+                        .getSystemConfiguration(), UpdateBehaviorTree.UpdateBehavior.MERGE);
+                provisioningConfigUpdateHelper.updateNucleusConfiguration(provisionConfiguration
+                        .getNucleusConfiguration(), UpdateBehaviorTree.UpdateBehavior.MERGE);
+                logger.atInfo().kv("PluginName", pluginName).log("Updated provisioning configuration");
+            });
+        });
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
+    private List<DeviceIdentityInterface> findProvisioningPlugins() {
+        List<DeviceIdentityInterface> provisioningPlugins = new ArrayList<>();
+        EZPlugins ezPlugins = kernel.getContext().get(EZPlugins.class);
+        try {
+            ezPlugins.withCacheDirectory(nucleusPaths.pluginPath());
+            ezPlugins.implementing(DeviceIdentityInterface.class, (c) -> {
+                try {
+                    provisioningPlugins.add(provisioningPluginFactory.getPluginInstance(c));
+                } catch (InstantiationException | IllegalAccessException e) {
+                    logger.atError().kv("Plugin", c.getName()).setCause(e.getCause())
+                            .log("Error instantiating a provisioning plugin");
+                }
+            });
+        } catch (IOException t) {
+            logger.atError().log("Error finding provisioning plugins", t);
+        }
+        return provisioningPlugins;
     }
 
     void initConfigAndTlog(String configFilePath) {
@@ -238,7 +326,6 @@ public class KernelLifecycle {
             logger.atError().setEventType("nucleus-read-config-error").setCause(ioe).log();
             throw new RuntimeException(ioe);
         }
-
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -260,16 +347,24 @@ public class KernelLifecycle {
                 serviceImplementors.put(is.name(), cl);
                 logger.atInfo().log("Found Plugin: {}", cl.getSimpleName());
             });
+        } catch (IOException t) {
+            logger.atError().log("Error finding built in service plugins", t);
+        }
+        return autostart;
+    }
 
+    @SuppressWarnings("PMD.CloseResource")
+    private void loadPlugins() {
+        EZPlugins pim = kernel.getContext().get(EZPlugins.class);
+        try {
             pim.loadCache();
             if (!serviceImplementors.isEmpty()) {
                 kernel.getContext().put(Kernel.CONTEXT_SERVICE_IMPLEMENTERS, serviceImplementors);
             }
             logger.atInfo().log("serviceImplementors: {}", deepToString(serviceImplementors));
-        } catch (IOException t) {
-            logger.atError().log("Error launching plugins", t);
+        } catch (IOException e) {
+            logger.atError().log("Error launching plugins", e);
         }
-        return autostart;
     }
 
     /**

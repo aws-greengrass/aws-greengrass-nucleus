@@ -9,6 +9,7 @@ import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.deployment.exceptions.AWSIotException;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.iot.IotCloudHelper;
 import com.aws.greengrass.iot.IotConnectionManager;
 import com.aws.greengrass.iot.model.IotCloudResponse;
@@ -157,7 +158,7 @@ public class CredentialRequestHandler implements HttpHandler {
      *
      * @return credentials
      */
-    private byte[] getCredentialsBypassCache() {
+    private byte[] getCredentialsBypassCache() throws DeviceConfigurationException {
         byte[] response;
         LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath).log("Got request for credentials, querying iot");
 
@@ -241,8 +242,9 @@ public class CredentialRequestHandler implements HttpHandler {
      * authN/authZ, so should be used carefully.
      *
      * @return AWS credentials from cloud.
+     * @throws DeviceConfigurationException When device is not configured to get credentials
      */
-    public byte[] getCredentials() {
+    public byte[] getCredentials() throws DeviceConfigurationException {
         TESCache cacheEntry = tesCache.get(iotCredentialsPath);
         if (areCredentialsValid(cacheEntry)) {
             return cacheEntry.credentials;
@@ -258,8 +260,9 @@ public class CredentialRequestHandler implements HttpHandler {
      * API for kernel to directly fetch credentials from TES instead of using HTTP server.
      *
      * @return AwsCredentials instance compatible with the AWS SDK for credentials received from cloud.
+     * @throws DeviceConfigurationException When device is not configured to get credentials
      */
-    public AwsCredentials getAwsCredentials() {
+    public AwsCredentials getAwsCredentials() throws DeviceConfigurationException {
         return getCredentialsFromByte(getCredentials());
     }
 
@@ -267,8 +270,9 @@ public class CredentialRequestHandler implements HttpHandler {
      * API for kernel to directly fetch credentials from TES instead of using HTTP server.
      *
      * @return AwsCredentials instance compatible with the AWS SDK for credentials received from cloud.
+     * @throws DeviceConfigurationException When device is not configured to get credentials
      */
-    public AwsCredentials getAwsCredentialsBypassCache() {
+    public AwsCredentials getAwsCredentialsBypassCache() throws DeviceConfigurationException {
         return getCredentialsFromByte(getCredentialsBypassCache());
     }
 

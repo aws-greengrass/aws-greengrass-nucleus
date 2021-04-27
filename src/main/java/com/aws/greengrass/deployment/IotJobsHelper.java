@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.deployment;
 
+import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.exceptions.AWSIotException;
 import com.aws.greengrass.deployment.exceptions.ConnectionUnavailableException;
@@ -66,6 +68,12 @@ import javax.inject.Inject;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_DESCRIBE_ACCEPTED_TOPIC;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_DESCRIBE_REJECTED_TOPIC;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_EXECUTIONS_CHANGED_TOPIC;
@@ -268,17 +276,46 @@ public class IotJobsHelper implements InjectionActions {
     }
 
     @Override
-    @SuppressFBWarnings
     public void postInject() {
+        deviceConfiguration.onAnyChange((what, node) -> {
+            if (node != null && what.equals(WhatHappened.childChanged) && relevantNodeChanged(node)) {
+                try {
+                    connectToIotJobs(deviceConfiguration);
+                } catch (DeviceConfigurationException e) {
+                    logger.atWarn().log("Device not configured to talk to AWS Iot cloud. "
+                            + "IOT job deployment is offline: {}", e.getMessage());
+                    return;
+                }
+            }
+        });
+
         try {
-            // Not using isDeviceConfiguredToTalkToCloud() in order to provide the detailed error message to user
-            deviceConfiguration.validate();
+            connectToIotJobs(deviceConfiguration);
         } catch (DeviceConfigurationException e) {
             logger.atWarn().log("Device not configured to talk to AWS Iot cloud. IOT job deployment is offline: {}",
                     e.getMessage());
             return;
         }
+    }
 
+    private boolean relevantNodeChanged(Node node) {
+        // List of configuration nodes that we need to reconfigure for if they change
+        return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
+                || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
+                || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
+                || node.childOf(DEVICE_PARAM_AWS_REGION);
+    }
+
+    private void connectToIotJobs(DeviceConfiguration deviceConfiguration)
+            throws DeviceConfigurationException {
+
+        // Not using isDeviceConfiguredToTalkToCloud() in order to provide the detailed error message to user
+        deviceConfiguration.validate();
+        setupCommWithIotJobs();
+    }
+
+    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
+    private void setupCommWithIotJobs() {
         mqttClient.addToCallbackEvents(callbacks);
         this.connection = wrapperMqttConnectionFactory.getAwsIotMqttConnection(mqttClient);
 
@@ -412,6 +449,7 @@ public class IotJobsHelper implements InjectionActions {
      */
     public void subscribeToJobsTopics() {
 
+        logger.atDebug().log("Subscribing to Iot Jobs Topics");
         subscribeToGetNextJobDescription(describeJobExecutionResponseConsumer, rejectedError -> {
             logger.error("Job subscription got rejected", rejectedError);
         });
