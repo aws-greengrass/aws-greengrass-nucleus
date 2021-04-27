@@ -51,6 +51,8 @@ public class WindowsPlatform extends Platform {
     private static final String NAMED_PIPE_UUID_SUFFIX = UUID.randomUUID().toString();
     private static final int MAX_NAMED_PIPE_LEN = 256;
 
+    private static WindowsUserAttributes CURRENT_USER;
+
     static final Set<AclEntryPermission> READ_PERMS = new HashSet<>(Arrays.asList(
             AclEntryPermission.READ_DATA,
             AclEntryPermission.READ_NAMED_ATTRS,
@@ -110,7 +112,7 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public UserDecorator getUserDecorator() {
-        throw new UnsupportedOperationException("cannot run as another user");
+        return new RunasDecorator();
     }
 
     @Override
@@ -332,6 +334,14 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public WindowsUserAttributes lookupCurrentUser() throws IOException {
+        return loadCurrentUser();
+    }
+
+    private static synchronized WindowsUserAttributes loadCurrentUser() throws IOException {
+        if (CURRENT_USER != null) {
+            return CURRENT_USER;
+        }
+
         String user = System.getProperty("user.name");
         if (Utils.isEmpty(user)) {
             throw new IOException("No user to lookup");
@@ -344,8 +354,11 @@ public class WindowsPlatform extends Platform {
             throw new IOException("Unrecognized user: " + user, e);
         }
 
-        return WindowsUserAttributes.builder().principalName(account.name).principalIdentifier(account.sidString)
+        CURRENT_USER = WindowsUserAttributes.builder()
+                .principalName(account.name)
+                .principalIdentifier(account.sidString)
                 .build();
+        return CURRENT_USER;
     }
 
     @NoArgsConstructor
@@ -392,5 +405,49 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public void cleanupIpcFiles(Path rootPath) {
+    }
+
+    /**
+     * Decorator for running a command as a different user with `runas`.
+     */
+    @NoArgsConstructor
+    public static class RunasDecorator implements UserDecorator {
+        private String user;
+
+        @Override
+        public String[] decorate(String... command) {
+            // do nothing if no user set
+            if (user == null) {
+                return command;
+            }
+
+            try {
+                loadCurrentUser();
+            } catch (IOException e) {
+                // ignore error here - it shouldn't happen and in worst case it will runas to current user
+            }
+
+            // no runas necessary if running as current user
+            if (CURRENT_USER != null
+                    && (CURRENT_USER.getPrincipalName().equals(user)
+                    || CURRENT_USER.getPrincipalIdentifier().equals(user))) {
+                return command;
+            }
+
+            // Real runas implementation not done yet.
+            throw new UnsupportedOperationException("cannot run as another user");
+        }
+
+        @Override
+        public UserDecorator withUser(String user) {
+            this.user = user;
+            return this;
+        }
+
+        @Override
+        public UserDecorator withGroup(String group) {
+            // Windows runas does not support group
+            return this;
+        }
     }
 }
