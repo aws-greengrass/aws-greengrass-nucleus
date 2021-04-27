@@ -16,4 +16,14 @@
         <isMultiline>true</isMultiline>
         <padLines>false</padLines>
     </java_style>
+    <batch>
+        <firstLine>@REM -------------------------------</firstLine>
+        <beforeEachLine>@REM </beforeEachLine>
+        <endLine>@REM -------------------------------</endLine>
+        <firstLineDetectionPattern>@REM(\\s|\\t)*.*$</firstLineDetectionPattern>
+        <lastLineDetectionPattern>@REM(\\s|\\t)*.*$</lastLineDetectionPattern>
+        <allowBlankLines>false</allowBlankLines>
+        <isMultiline>true</isMultiline>
+        <padLines>false</padLines>
+    </batch>
 </additionalHeaders>

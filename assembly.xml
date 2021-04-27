@@ -17,6 +17,7 @@
             <directory>${basedir}/scripts</directory>
             <outputDirectory>/bin</outputDirectory>
             <includes>
+                <include>loader.cmd</include>
                 <include>loader</include>
                 <include>greengrass.service.template</include>
             </includes>
