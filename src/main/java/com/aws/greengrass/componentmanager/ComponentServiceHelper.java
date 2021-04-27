@@ -9,15 +9,16 @@ import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersio
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.lang3.Validate;
-import software.amazon.awssdk.services.greengrassv2.model.ComponentCandidate;
-import software.amazon.awssdk.services.greengrassv2.model.ComponentPlatform;
-import software.amazon.awssdk.services.greengrassv2.model.ResolveComponentCandidatesRequest;
-import software.amazon.awssdk.services.greengrassv2.model.ResolveComponentCandidatesResponse;
-import software.amazon.awssdk.services.greengrassv2.model.ResolvedComponentVersion;
-import software.amazon.awssdk.services.greengrassv2.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.greengrassv2data.model.ComponentCandidate;
+import software.amazon.awssdk.services.greengrassv2data.model.ComponentPlatform;
+import software.amazon.awssdk.services.greengrassv2data.model.ResolveComponentCandidatesRequest;
+import software.amazon.awssdk.services.greengrassv2data.model.ResolveComponentCandidatesResponse;
+import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
+import software.amazon.awssdk.services.greengrassv2data.model.ResourceNotFoundException;
 
 import java.util.Collections;
 import java.util.Map;
@@ -28,11 +29,11 @@ public class ComponentServiceHelper {
 
     protected static final Logger logger = LogManager.getLogger(ComponentServiceHelper.class);
 
-    private final GreengrassComponentServiceClientFactory clientFactory;
+    private final GreengrassServiceClientFactory clientFactory;
     private final PlatformResolver platformResolver;
 
     @Inject
-    public ComponentServiceHelper(GreengrassComponentServiceClientFactory clientFactory,
+    public ComponentServiceHelper(GreengrassServiceClientFactory clientFactory,
                                   PlatformResolver platformResolver) {
         this.clientFactory = clientFactory;
         this.platformResolver = platformResolver;
@@ -64,7 +65,7 @@ public class ComponentServiceHelper {
 
         ResolveComponentCandidatesResponse result;
         try {
-            result = clientFactory.getCmsClient().resolveComponentCandidates(request);
+            result = clientFactory.getGreengrassV2DataClient().resolveComponentCandidates(request);
         } catch (ResourceNotFoundException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
                     .log("No applicable version found in cloud registry");

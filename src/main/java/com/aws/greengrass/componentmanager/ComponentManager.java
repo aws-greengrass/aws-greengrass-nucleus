@@ -42,7 +42,7 @@ import com.vdurmont.semver4j.SemverException;
 import lombok.AccessLevel;
 import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
-import software.amazon.awssdk.services.greengrassv2.model.ResolvedComponentVersion;
+import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
 
 import java.io.File;
 import java.io.IOException;
