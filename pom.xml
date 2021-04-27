@@ -338,6 +338,7 @@
                     </licenseSets>
                     <mapping>
                         <java>JAVA_STYLE</java>
+                        <cmd>BATCH</cmd>
                     </mapping>
                 </configuration>
                 <executions>
