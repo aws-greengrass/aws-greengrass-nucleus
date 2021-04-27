@@ -46,7 +46,7 @@ import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentRespon
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentPolicies;
-import software.amazon.awssdk.services.greengrassv2.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.greengrassv2data.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
