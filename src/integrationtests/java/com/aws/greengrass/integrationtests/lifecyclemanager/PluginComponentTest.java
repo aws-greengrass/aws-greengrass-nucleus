@@ -10,6 +10,7 @@ import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
@@ -221,8 +222,7 @@ class PluginComponentTest extends BaseITCase {
 
     @Test
     void GIVEN_plugin_added_and_removed_WHEN_plugin_added_again_THEN_plugin_is_loaded_into_JVM(ExtensionContext context) throws Exception {
-        ignoreExceptionOfType(context, PackageDownloadException.class);
-        ignoreExceptionOfType(context, SdkClientException.class);
+        ignoreExceptionOfType(context, PackageLoadingException.class);
 
         // launch Nucleus
         kernel.parseArgs();
