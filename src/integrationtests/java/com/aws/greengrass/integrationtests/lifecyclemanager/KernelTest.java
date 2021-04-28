@@ -380,32 +380,33 @@ class KernelTest extends BaseITCase {
         Files.createDirectories(configPath);
 
         kernel.writeEffectiveConfigAsTransactionLog(configPath.resolve("full.tlog"));
-        ConfigurationWriter.logTransactionsTo(config, configPath.resolve("full.tlog")).flushImmediately(true);
-        kernel.parseArgs().launch();
+        try (ConfigurationWriter configurationWriter = ConfigurationWriter.logTransactionsTo(config, configPath.resolve("full.tlog")).flushImmediately(true)) {
+            kernel.parseArgs().launch();
 
-        Topic testTopic = config.lookup("testTopic").withValue("initial");
-        KernelLifecycle kernelLifecycle = context.get(KernelLifecycle.class);
-        context.runOnPublishQueueAndWait(() -> {
-            // make truncate run by setting a small limit
-            kernelLifecycle.getTlog().withMaxEntries(1);
-            testTopic.withValue("triggering truncate");
-            // immediately queue a task to increase max size to prevent repeated truncation
-            context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxEntries(10000));
-        });
-        // wait for things to complete
-        CountDownLatch startupCdl = new CountDownLatch(1);
-        context.addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
-                startupCdl.countDown();
-            }
-        });
-        startupCdl.await(30, TimeUnit.SECONDS);
-        // shutdown to stop config/tlog changes
-        kernel.shutdown();
-        Configuration fullConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("full.tlog"));
-        Configuration compressedConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog"));
-        assertEquals("triggering truncate", compressedConfig.find("testTopic").getOnce());
-        assertThat(fullConfig.toPOJO(), is(compressedConfig.toPOJO()));
+            Topic testTopic = config.lookup("testTopic").withValue("initial");
+            KernelLifecycle kernelLifecycle = context.get(KernelLifecycle.class);
+            context.runOnPublishQueueAndWait(() -> {
+                // make truncate run by setting a small limit
+                kernelLifecycle.getTlog().withMaxEntries(1);
+                testTopic.withValue("triggering truncate");
+                // immediately queue a task to increase max size to prevent repeated truncation
+                context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxEntries(10000));
+            });
+            // wait for things to complete
+            CountDownLatch startupCdl = new CountDownLatch(1);
+            context.addGlobalStateChangeListener((service, oldState, newState) -> {
+                if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
+                    startupCdl.countDown();
+                }
+            });
+            startupCdl.await(30, TimeUnit.SECONDS);
+            // shutdown to stop config/tlog changes
+            kernel.shutdown();
+            Configuration fullConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("full.tlog"));
+            Configuration compressedConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog"));
+            assertEquals("triggering truncate", compressedConfig.find("testTopic").getOnce());
+            assertThat(fullConfig.toPOJO(), is(compressedConfig.toPOJO()));
+        }
     }
 
     /**
