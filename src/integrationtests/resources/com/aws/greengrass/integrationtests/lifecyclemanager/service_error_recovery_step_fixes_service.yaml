@@ -24,6 +24,19 @@ services:
           script: |-
             echo Fixing ServiceA
             rm ErrorIndicator
+      windows:
+        install:
+          requiresPrivilege: true
+          script: |-
+            powershell -command "& echo $null > ErrorIndicator"
+        startup:
+          requiresPrivilege: true
+          script: |-
+            powershell -command "& { if (Test-Path ErrorIndicator) { echo "Startup Failed"; exit 1; } }"
+        recover:
+          requiresPrivilege: true
+          script: |-
+            powershell -command "& echo Fixing ServiceA; del ErrorIndicator"
 
   main:
     dependencies:
