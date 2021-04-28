@@ -18,7 +18,7 @@ public class QNXPlatform extends UnixPlatform {
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                UserDecorator decorator)
             throws IOException, InterruptedException {
-        Set<Integer> childPids = getChildPids(process);
+        Set<Integer> childPids = getChildPids(Processes.newPidProcess(process));
         for (Integer childPid : childPids) {
             if (Processes.newPidProcess(childPid).isAlive()) {
                 continue;

@@ -8,7 +8,6 @@ package com.aws.greengrass.util.platforms.unix;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -20,11 +19,12 @@ import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.GroupPrincipal;
@@ -32,16 +32,13 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -269,11 +266,14 @@ public class UnixPlatform extends Platform {
                                                UserDecorator decorator)
             throws IOException, InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
+        if (!pp.isAlive()) {
+            return Collections.emptySet();
+        }
 
         logger.atInfo().log("Killing child processes of pid {}, force is {}", pp.getPid(), force);
         Set<Integer> pids;
         try {
-            pids = getChildPids(process);
+            pids = getChildPids(pp);
             logger.atDebug().log("Found children of {}. {}", pp.getPid(), pids);
             if (additionalPids != null) {
                 pids.addAll(additionalPids);
@@ -481,45 +481,37 @@ public class UnixPlatform extends Platform {
         }
     }
 
-    Set<Integer> getChildPids(Process process) throws IOException, InterruptedException {
-        PidProcess pp = Processes.newPidProcess(process);
+    Set<Integer> getChildPids(PidProcess pp) throws IOException, InterruptedException {
+        logger.atDebug().log("Identifying child processes of pid {}", pp.getPid());
 
-        // Use PS to list process PID and parent PID so that we can identify the process tree
-        logger.atDebug().log("Running ps to identify child processes of pid {}", pp.getPid());
-        Process proc = Runtime.getRuntime().exec(new String[]{"ps", "-ax", "-o", "pid,ppid"});
-        proc.waitFor();
-        if (proc.exitValue() != 0) {
-            logger.atWarn().kv("pid", pp.getPid()).kv("exit-code", proc.exitValue())
-                    .kv(STDOUT, inputStreamToString(proc.getInputStream()))
-                    .kv(STDERR, inputStreamToString(proc.getErrorStream())).log("ps exited non-zero");
-            throw new IOException("ps exited with " + proc.exitValue());
-        }
-
-        try (InputStreamReader reader = new InputStreamReader(proc.getInputStream(), StandardCharsets.UTF_8);
-             BufferedReader br = new BufferedReader(reader)) {
-            Stream<String> lines = br.lines();
-            Map<String, String> pidToParent = lines.map(s -> {
-                Matcher matches = PS_PID_PATTERN.matcher(s.trim());
-                if (matches.matches()) {
-                    return new Pair<>(matches.group(1), matches.group(2));
+        Set<Integer> childPids = new HashSet<>();
+        // Find all tasks (threads) of the process
+        try (Stream<File> tasks = Files.list(Paths.get("/proc", String.valueOf(pp.getPid()), "task"))
+                .map(Path::toFile)
+                .filter(File::isDirectory)) {
+            // For each task, find its children
+            for (File task : tasks.collect(Collectors.toSet())) {
+                String children = new String(Files.readAllBytes(task.toPath().resolve("children")),
+                        StandardCharsets.UTF_8);
+                Set<Integer> childPid =
+                        Arrays.stream(children.split("\\s+"))
+                                .filter(s -> !s.isEmpty())
+                                .map(Integer::parseInt)
+                                .collect(Collectors.toSet());
+                // Add direct children
+                childPids.addAll(childPid);
+                // Find and add grandchildren and so on
+                for (Integer pid : childPid) {
+                    childPids.addAll(getChildPids(Processes.newPidProcess(pid)));
                 }
-                return null;
-            }).filter(Objects::nonNull).collect(Collectors.toMap(Pair::getLeft, Pair::getRight));
-
-            Map<String, List<String>> parentToChildren = Utils.inverseMap(pidToParent);
-            List<String> childProcesses = children(Integer.toString(pp.getPid()), parentToChildren);
-
-            return childProcesses.stream().map(Integer::parseInt).collect(Collectors.toSet());
+            }
+        } catch (NoSuchFileException e) {
+            logger.atDebug()
+                    .log("Task list or children could not be found for pid {}. Probably the process is dead already.",
+                    pp.getPid(), e);
         }
-    }
 
-    private List<String> children(String parent, Map<String, List<String>> procMap) {
-        ArrayList<String> ret = new ArrayList<>();
-        if (procMap.containsKey(parent)) {
-            ret.addAll(procMap.get(parent));
-            procMap.get(parent).forEach(p -> ret.addAll(children(p, procMap)));
-        }
-        return ret;
+        return childPids;
     }
 
     private String getIpcServerSocketAbsolutePath(Path rootPath) {
