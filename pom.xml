@@ -97,15 +97,6 @@
             <version>2.1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>greengrassv2</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>greengrassv2-data</artifactId>
-            <version>2.15.x-SNAPSHOT</version>
-        </dependency>
-        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>1.18.10</version>
@@ -127,24 +118,75 @@
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
+            <artifactId>greengrassv2</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>greengrassv2-data</artifactId>
+            <version>2.15.x-SNAPSHOT</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
             <artifactId>iot</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>iam</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>sts</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!-- Temporary, need to remove when docker image downloading moves out of the Nucleus -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>ecr</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.zeroturnaround</groupId>
@@ -621,6 +663,12 @@
                                     <artifact>software.amazon.awssdk:apache-client:jar:*</artifact>
                                     <excludes>
                                         <exclude>software.amazon.awssdk.http.apache.internal.conn.SdkTlsSocketFactory.class</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:jar:*</artifact>
+                                    <excludes>
+                                        <exclude>*.a</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

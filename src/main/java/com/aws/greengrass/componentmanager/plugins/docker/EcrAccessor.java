@@ -11,7 +11,6 @@ import com.aws.greengrass.tes.LazyCredentialProvider;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.ProxyUtils;
 import lombok.AllArgsConstructor;
-import org.apache.commons.codec.binary.Base64;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ecr.EcrClient;
@@ -21,6 +20,7 @@ import software.amazon.awssdk.services.ecr.model.GetAuthorizationTokenRequest;
 import software.amazon.awssdk.services.ecr.model.ServerException;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import javax.inject.Inject;
 
@@ -67,8 +67,8 @@ public class EcrAccessor {
                     .authorizationData().get(0);
             // Decoded auth token is of the format <username>:<password>
             String[] authTokenParts =
-                    new String(Base64.decodeBase64(authorizationData.authorizationToken()), StandardCharsets.UTF_8)
-                            .split(":");
+                    new String(Base64.getDecoder().decode(authorizationData.authorizationToken()),
+                            StandardCharsets.UTF_8).split(":");
             return new Registry.Credentials(authTokenParts[0], authTokenParts[1],
                     authorizationData.expiresAt());
         } catch (ServerException | SdkClientException e) {
