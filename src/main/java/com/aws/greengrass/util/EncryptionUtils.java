@@ -5,8 +5,6 @@
 
 package com.aws.greengrass.util;
 
-import org.apache.commons.codec.binary.Base64;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +18,7 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 
@@ -65,13 +64,13 @@ public final class EncryptionUtils {
         if (keyString.contains(PKCS_1_PEM_HEADER)) {
             keyString = keyString.replace(PKCS_1_PEM_HEADER, "");
             keyString = keyString.replace(PKCS_1_PEM_FOOTER, "");
-            return readPkcs1PrivateKey(Base64.decodeBase64(keyString));
+            return readPkcs1PrivateKey(Base64.getMimeDecoder().decode(keyString));
         }
 
         if (keyString.contains(PKCS_8_PEM_HEADER)) {
             keyString = keyString.replace(PKCS_8_PEM_HEADER, "");
             keyString = keyString.replace(PKCS_8_PEM_FOOTER, "");
-            return readPkcs8PrivateKey(Base64.decodeBase64(keyString));
+            return readPkcs8PrivateKey(Base64.getMimeDecoder().decode(keyString));
         }
 
         return readPkcs8PrivateKey(keyBytes);
