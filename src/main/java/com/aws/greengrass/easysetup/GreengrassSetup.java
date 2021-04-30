@@ -173,7 +173,7 @@ public class GreengrassSetup {
     private final String[] setupArgs;
     private final List<String> kernelArgs = new ArrayList<>();
     @Setter
-    DeviceProvisioningHelper deviceProvisioningHelper;
+    private DeviceProvisioningHelper deviceProvisioningHelper;
     private final PrintStream outStream;
     private final PrintStream errStream;
     private int argpos = 0;
@@ -287,10 +287,9 @@ public class GreengrassSetup {
             throw new RuntimeException(e);
         }
 
-        //initialize the device provisioning helper
-        this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, environmentStage, this.outStream);
-
         if (needProvisioning) {
+            // initialize the device provisioning helper only if we're doing provisioning
+            this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, environmentStage, this.outStream);
             provision(kernel);
         }
 
