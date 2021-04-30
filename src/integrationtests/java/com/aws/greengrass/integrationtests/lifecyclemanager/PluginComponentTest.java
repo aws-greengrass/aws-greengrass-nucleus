@@ -54,6 +54,7 @@ import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfiguratio
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -221,9 +222,6 @@ class PluginComponentTest extends BaseITCase {
 
     @Test
     void GIVEN_plugin_added_and_removed_WHEN_plugin_added_again_THEN_plugin_is_loaded_into_JVM(ExtensionContext context) throws Exception {
-        ignoreExceptionOfType(context, PackageDownloadException.class);
-        ignoreExceptionOfType(context, SdkClientException.class);
-
         // launch Nucleus
         kernel.parseArgs();
         setupPackageStoreAndConfigWithDigest();
@@ -236,6 +234,13 @@ class PluginComponentTest extends BaseITCase {
         GreengrassService eg = kernel.locate(componentName);
         assertNotNull(kernel.getContext().getvIfExists(componentName));
         assertNotNull(kernel.getContext().getvIfExists(eg.getClass()));
+
+        // The class loader is holding on to the jar file. This creates an error when deployment tries to delete the
+        // jar file. This code is a workaround for such problem.
+        ClassLoader cl = eg.getClass().getClassLoader();
+        if (cl instanceof URLClassLoader) {
+            ((URLClassLoader)cl).close();
+        }
 
         //remove plugin
         DeploymentDocument doc = getPluginDeploymentDocument(System.currentTimeMillis(), "1.0.0",
