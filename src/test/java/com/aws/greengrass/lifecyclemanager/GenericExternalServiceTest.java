@@ -13,6 +13,8 @@ import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.mockito.Mock;
 
 import java.util.Collections;
@@ -179,6 +181,7 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void GIVEN_runwith_info_WHEN_exec_add_group_THEN_use_runwith() throws Exception {
         ges.runWith = RunWith.builder().user("foo").group("bar").build();
 

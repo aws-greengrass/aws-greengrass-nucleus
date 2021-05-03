@@ -14,6 +14,8 @@ import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -101,6 +103,7 @@ class GreengrassSetupTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void GIVEN_no_default_user_WHEN_script_is_used_THEN_default_user_created_and_added_to_config() throws Exception {
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
@@ -121,6 +124,7 @@ class GreengrassSetupTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void GIVEN_ggc_user_as_arg_WHEN_script_is_used_THEN_default_user_created_and_added_to_config() throws Exception {
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
@@ -144,6 +148,7 @@ class GreengrassSetupTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void GIVEN_no_default_user_arg_but_user_present_in_config_WHEN_script_is_used_THEN_user_from_config_used()
             throws Exception {
         greengrassSetup =
@@ -164,6 +169,7 @@ class GreengrassSetupTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void GIVEN_default_user_arg_and_user_present_in_config_WHEN_script_is_used_THEN_default_user_arg_used()
             throws Exception {
         greengrassSetup =
@@ -188,6 +194,7 @@ class GreengrassSetupTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void GIVEN_default_user_WHEN_script_is_used_THEN_default_user_created() throws Exception {
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
@@ -211,6 +218,7 @@ class GreengrassSetupTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void GIVEN_existing_default_user_WHEN_script_is_used_THEN_default_user_not_created() throws Exception {
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
@@ -233,6 +241,7 @@ class GreengrassSetupTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void GIVEN_existing_non_default_user_WHEN_script_is_used_THEN_user_not_created_and_passed_to_kernel()
             throws Exception {
         greengrassSetup =
@@ -256,6 +265,7 @@ class GreengrassSetupTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void GIVEN_existing_non_default_user_no_group_WHEN_script_is_used_THEN_user_passed_to_kernel() throws Exception {
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
@@ -279,6 +289,7 @@ class GreengrassSetupTest {
 
     @ParameterizedTest
     @MethodSource("invalidUsers")
+    @DisabledOnOs(OS.WINDOWS)
     void GIVEN_invalid_user_WHEN_script_is_used_THEN_error(String user, ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, IOException.class);
         Kernel realKernel = new Kernel();
