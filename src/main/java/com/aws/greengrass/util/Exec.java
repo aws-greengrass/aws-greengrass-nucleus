@@ -404,6 +404,15 @@ public final class Exec implements Closeable {
     }
 
     /**
+     * Get associated process instance representing underlying OS process.
+     *
+     * @return process object.
+     */
+    public Process getProcess() {
+        return process;
+    }
+
+    /**
      * Execute a command.
      *
      * @returns the process exit code if it is not a background process.

@@ -40,11 +40,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
@@ -67,6 +69,8 @@ public class GenericExternalService extends GreengrassService {
     @Inject
     protected RunWithPathOwnershipHandler ownershipHandler;
     protected RunWith runWith;
+
+    private final AtomicBoolean paused = new AtomicBoolean();
 
     /**
      * Create a new GenericExternalService.
@@ -363,12 +367,24 @@ public class GenericExternalService extends GreengrassService {
     }
 
     /**
-     * Paused a running component.
+     * Pause a running component.
      *
      * @throws ServiceException Error processing pause request.
      */
-    public void pause() throws ServiceException {
-        // TODO impl
+    public synchronized void pause() throws ServiceException {
+        logger.atDebug().log("Pausing running component");
+        if (paused.get()) {
+            return;
+        }
+        try {
+            List<Process> processes = lifecycleProcesses.stream().map(Exec::getProcess).collect(Collectors.toList());
+            systemResourceController.pauseComponentProcesses(this, processes);
+            paused.set(true);
+            logger.atDebug().log("Paused component");
+        } catch (IOException e) {
+            logger.atDebug().log("Error pausing component");
+            throw new ServiceException(String.format("Error pausing component %s", getServiceName()), e);
+        }
     }
 
     /**
@@ -376,13 +392,45 @@ public class GenericExternalService extends GreengrassService {
      *
      * @throws ServiceException Error processing resume request.
      */
-    public void resume() throws ServiceException {
-        // TODO impl
+    public synchronized void resume() throws ServiceException {
+        resume(true, true);
     }
 
+    private synchronized void resume(boolean restartOnFail, boolean retryOnFail) throws ServiceException {
+        logger.atDebug().log("Resuming component");
+        if (paused.get()) {
+            int retryAttempts = 3;
+            while (true) {
+                retryAttempts--;
+                try {
+                    systemResourceController.resumeComponentProcesses(this);
+                    paused.set(false);
+                    logger.atDebug().log("Resumed component");
+                    return;
+                } catch (IOException e) {
+                    if (retryOnFail && retryAttempts > 0) {
+                        logger.atDebug().log("Error resuming component, retrying");
+                    } else {
+                        logger.atDebug().log("Error resuming component and all retried exhausted, restarting");
+                        if (restartOnFail) {
+                            // Reset tracking flag
+                            paused.set(false);
+                            requestRestart();
+                        }
+                        throw new ServiceException(String.format("Error resuming component %s",
+                                getServiceName()), e);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if component is paused.
+     * @return true if paused
+     */
     public boolean isPaused() {
-        // TODO impl
-        return false;
+        return paused.get();
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -443,12 +491,29 @@ public class GenericExternalService extends GreengrassService {
     @Override
     protected synchronized void shutdown() {
         logger.atInfo().log("Shutdown initiated");
+
+        if (isPaused()) {
+            // Resume if paused for a graceful shutdown
+            try {
+                resume(false, false);
+            } catch (ServiceException e) {
+                // Reset tracking flag
+                paused.set(false);
+                logger.atError().setCause(e).log("Could not resume service before shutdown, process will be killed");
+            }
+        }
+
         try {
             run(Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, null, lifecycleProcesses);
         } catch (InterruptedException ex) {
             logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
         } finally {
             stopAllLifecycleProcesses();
+
+            // Clean up any resource manager entities (can be OS specific) that might have been created for this
+            // component.
+            systemResourceController.removeResourceController(this);
+
             logger.atInfo().setEventType("generic-service-shutdown").log();
         }
         resetRunWith(); // reset runWith - a deployment can change user info
