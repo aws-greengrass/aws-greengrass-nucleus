@@ -427,32 +427,46 @@ public class DeviceConfiguration {
     /**
      * Handle logging configuration changes.
      *
-     * @param what         What changed.
-     * @param loggingParam which logging param changed topic.
+     * @param what What changed.
+     * @param node which logging topic changed.
      */
     @SuppressWarnings("PMD.UselessParentheses")
-    public synchronized void handleLoggingConfigurationChanges(WhatHappened what, Node loggingParam) {
-        LoggerConfiguration configuration;
-        try {
-            configuration = fromPojo(loggingTopics.toPOJO());
-            LogManager.setEffectiveConfig(configuration);
-        } catch (IllegalArgumentException e) {
-            logger.atError().kv("logging-config", loggingTopics).cause(e).log("Unable to parse logging config.");
-            return;
-        }
-        if (currentConfiguration == null || !currentConfiguration.equals(configuration)) {
-            if (configuration.getOutputDirectory() != null
-                    && (currentConfiguration == null || !Objects.equals(currentConfiguration.getOutputDirectory(),
-                    configuration.getOutputDirectory()))) {
+    public synchronized void handleLoggingConfigurationChanges(WhatHappened what, Node node) {
+        logger.atDebug().kv("logging-change-what", what).kv("logging-change-node", node).log();
+        switch (what) {
+            case childChanged:
+                LoggerConfiguration configuration;
                 try {
-                    kernel.getNucleusPaths().setLoggerPath(Paths.get(configuration.getOutputDirectory()));
-                } catch (IOException e) {
-                    logger.atError().cause(e).log("Unable to initialize logger output directory path");
+                    configuration = fromPojo(loggingTopics.toPOJO());
+                } catch (IllegalArgumentException e) {
+                    logger.atError().kv("logging-config", loggingTopics).cause(e)
+                            .log("Unable to parse logging config.");
+                    return;
                 }
-            }
-            currentConfiguration = configuration;
-            LogManager.reconfigureAllLoggers(configuration);
+                if (currentConfiguration == null || !currentConfiguration.equals(configuration)) {
+                    reconfigureLogging(configuration);
+                }
+                break;
+            case childRemoved:
+                LogManager.resetAllLoggers(node.getName());
+                break;
+            case removed:
+                LogManager.resetAllLoggers(null);
+                break;
         }
+    }
+
+    private void reconfigureLogging(LoggerConfiguration configuration) {
+        if (configuration.getOutputDirectory() != null && (currentConfiguration == null || !Objects
+                .equals(currentConfiguration.getOutputDirectory(), configuration.getOutputDirectory()))) {
+            try {
+                kernel.getNucleusPaths().setLoggerPath(Paths.get(configuration.getOutputDirectory()));
+            } catch (IOException e) {
+                logger.atError().cause(e).log("Unable to initialize logger output directory path");
+            }
+        }
+        currentConfiguration = configuration;
+        LogManager.reconfigureAllLoggers(configuration);
     }
 
     private String getComponentType(String serviceName) {
