@@ -8,19 +8,21 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
-import com.aws.greengrass.componentmanager.exceptions.MissingRequiredComponentsException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentTask;
 import com.aws.greengrass.logging.api.Logger;
+import com.vdurmont.semver4j.Semver;
 import lombok.Getter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -30,12 +32,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 
 /**
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
  */
 public class DefaultDeploymentTask implements DeploymentTask {
     private static final String DEPLOYMENT_TASK_EVENT_TYPE = "deployment-task-execution";
+    public static final String DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX = "thing/";
     private final DependencyResolver dependencyResolver;
     private final ComponentManager componentManager;
     private final KernelConfigResolver kernelConfigResolver;
@@ -45,6 +49,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
     @Getter
     private final Deployment deployment;
     private final Topics deploymentServiceConfig;
+
+    private final ThingGroupHelper thingGroupHelper;
 
     /**
      * Constructor for DefaultDeploymentTask.
@@ -57,11 +63,13 @@ public class DefaultDeploymentTask implements DeploymentTask {
      * @param deployment              Deployment instance
      * @param deploymentServiceConfig Deployment service configuration Topics
      * @param executorService         Executor service
+     * @param thingGroupHelper         Executor service
      */
     public DefaultDeploymentTask(DependencyResolver dependencyResolver, ComponentManager componentManager,
                                  KernelConfigResolver kernelConfigResolver,
                                  DeploymentConfigMerger deploymentConfigMerger, Logger logger, Deployment deployment,
-                                 Topics deploymentServiceConfig, ExecutorService executorService) {
+                                 Topics deploymentServiceConfig, ExecutorService executorService,
+                                 ThingGroupHelper thingGroupHelper) {
         this.dependencyResolver = dependencyResolver;
         this.componentManager = componentManager;
         this.kernelConfigResolver = kernelConfigResolver;
@@ -70,6 +78,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         this.deployment = deployment;
         this.deploymentServiceConfig = deploymentServiceConfig;
         this.executorService = executorService;
+        this.thingGroupHelper = thingGroupHelper;
     }
 
     @Override
@@ -85,18 +94,34 @@ public class DefaultDeploymentTask implements DeploymentTask {
                     .log("Starting deployment task");
 
             Set<String> rootPackages = new HashSet<>(deploymentDocument.getRootPackages());
-
             Topics groupsToRootPackages =
                     deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
+
+            Map<String, Set<ComponentIdentifier>> otherGroupsToRootPackagesMap = new HashMap<>();
+            Set<String> thingGroupNames = thingGroupHelper.listThingGroupsForDevice();
             groupsToRootPackages.iterator().forEachRemaining(node -> {
                 Topics groupTopics = (Topics) node;
-                if (!groupTopics.getName().equals(deploymentDocument.getGroupName())) {
-                    groupTopics.forEach(pkgTopic -> rootPackages.add(pkgTopic.getName()));
+                if (!groupTopics.getName().equals(deploymentDocument.getGroupName())
+                        && (thingGroupNames.contains(groupTopics.getName())
+                        || groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX))) {
+                    groupTopics.forEach(pkgNode -> {
+                        Topics pkgTopics = (Topics) pkgNode;
+                        Semver version = new Semver((String) pkgTopics.lookup(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY)
+                                .getOnce());
+                        otherGroupsToRootPackagesMap.putIfAbsent(groupTopics.getName(), new HashSet<>());
+                        otherGroupsToRootPackagesMap.get(groupTopics.getName())
+                                .add(new ComponentIdentifier(pkgTopics.getName(), version));
+                        rootPackages.add(pkgTopics.getName());
+                    });
                 }
             });
 
-            resolveDependenciesFuture = executorService
-                    .submit(() -> dependencyResolver.resolveDependencies(deploymentDocument, groupsToRootPackages));
+            Topics groupMembership =
+                    deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS);
+            thingGroupNames.forEach(groupName -> groupMembership.createLeafChild(groupName));
+
+            resolveDependenciesFuture = executorService.submit(() ->
+                    dependencyResolver.resolveDependencies(deploymentDocument, otherGroupsToRootPackagesMap));
 
             List<ComponentIdentifier> desiredPackages = resolveDependenciesFuture.get();
 
@@ -124,7 +149,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
             componentManager.cleanupStaleVersions();
             return result;
-        } catch (PackageLoadingException | MissingRequiredComponentsException | IOException e) {
+        } catch (PackageLoadingException | NonRetryableDeploymentTaskFailureException | IOException e) {
             return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
         } catch (ExecutionException e) {
             logger.atError().setCause(e).log("Error occurred while processing deployment");

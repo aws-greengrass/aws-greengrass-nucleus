@@ -11,7 +11,6 @@ import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersio
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
-import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -39,8 +38,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
-
 @NoArgsConstructor
 public class DependencyResolver {
     static final String NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT = "The deployment attempts to update the "
@@ -66,15 +63,16 @@ public class DependencyResolver {
      * conflicts between the components specified in the deployment document and the existing running components on the
      * device.
      *
-     * @param document                      deployment document
-     * @param groupToTargetComponentDetails {@link Topics} providing component details for each group
+     * @param document                    deployment document
+     * @param otherGroupsToRootComponents root components associated with other groups
      * @return a list of components to be run on the device
      * @throws NoAvailableComponentVersionException no version of the component can fulfill the deployment
      * @throws PackagingException                   for other component operation errors
      * @throws InterruptedException                 InterruptedException
      */
     public List<ComponentIdentifier> resolveDependencies(DeploymentDocument document,
-                                                         Topics groupToTargetComponentDetails)
+                                                         Map<String, Set<ComponentIdentifier>>
+                                                                 otherGroupsToRootComponents)
             throws NoAvailableComponentVersionException, PackagingException, InterruptedException {
 
         // A map of component version constraints {componentName => {dependentComponentName => versionConstraint}} to be
@@ -91,8 +89,7 @@ public class DependencyResolver {
         Map<String, ComponentMetadata> resolvedComponents = new HashMap<>();
 
         Set<String> otherGroupTargetComponents =
-                getOtherGroupsTargetComponents(groupToTargetComponentDetails, document.getGroupName(),
-                        componentNameToVersionConstraints);
+                getOtherGroupsTargetComponents(otherGroupsToRootComponents, componentNameToVersionConstraints);
         logger.atDebug().kv("otherGroupTargets", otherGroupTargetComponents)
                 .log("Found the other group target components");
         // populate other groups target components dependencies
@@ -186,24 +183,18 @@ public class DependencyResolver {
         }
     }
 
-    private Set<String> getOtherGroupsTargetComponents(Topics groupToTargetComponentDetails, String deploymentGroupName,
+    private Set<String> getOtherGroupsTargetComponents(Map<String, Set<ComponentIdentifier>> otherGroupsRootComponents,
                                                        Map<String, Map<String, Requirement>>
                                                                componentNameToVersionConstraints) {
         Set<String> targetComponents = new HashSet<>();
-        groupToTargetComponentDetails.forEach(node -> {
-            Topics groupTopics = (Topics) node;
-            String groupName = groupTopics.getName();
-            if (!groupName.equals(deploymentGroupName)) {
-                groupTopics.forEach(componentTopic -> {
-                    targetComponents.add(componentTopic.getName());
-                    componentNameToVersionConstraints.putIfAbsent(componentTopic.getName(), new HashMap<>());
-                    Map<Object, Object> componentDetails = (Map) componentTopic.toPOJO();
-                    componentNameToVersionConstraints.get(componentTopic.getName()).put(groupName, Requirement
-                            .buildNPM(componentDetails.get(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY).toString()));
-                });
-            }
+        otherGroupsRootComponents.forEach((groupName, rootPackages) -> {
+            rootPackages.forEach(component -> {
+                targetComponents.add(component.getName());
+                componentNameToVersionConstraints.putIfAbsent(component.getName(), new HashMap<>());
+                componentNameToVersionConstraints.get(component.getName()).put(groupName, Requirement
+                        .buildNPM(component.getVersion().toString()));
+            });
         });
-
         return targetComponents;
     }
 

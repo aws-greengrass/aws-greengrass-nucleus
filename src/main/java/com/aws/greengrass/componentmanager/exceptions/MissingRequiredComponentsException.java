@@ -6,7 +6,9 @@
 
 package com.aws.greengrass.componentmanager.exceptions;
 
-public class MissingRequiredComponentsException extends Exception {
+import com.aws.greengrass.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
+
+public class MissingRequiredComponentsException extends NonRetryableDeploymentTaskFailureException {
     static final long serialVersionUID = -3387516993124229948L;
 
     public MissingRequiredComponentsException(String message) {

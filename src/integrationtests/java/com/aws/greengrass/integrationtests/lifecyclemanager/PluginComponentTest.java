@@ -19,6 +19,7 @@ import com.aws.greengrass.deployment.DefaultDeploymentTask;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.deployment.ThingGroupHelper;
 import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
@@ -101,6 +102,7 @@ class PluginComponentTest extends BaseITCase {
     static final ComponentIdentifier brokenComponentId = new ComponentIdentifier(brokenComponentName,
             new Semver("1.0.0"));
     private Kernel kernel;
+    private static ThingGroupHelper thingGroupHelper;
 
     private static Future<DeploymentResult> submitSampleJobDocument(DeploymentDocument sampleJobDocument,
                                                                     Kernel kernel) {
@@ -113,7 +115,7 @@ class PluginComponentTest extends BaseITCase {
                         deploymentConfigMerger, LogManager.getLogger("Deployer"),
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
                         Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null),
-                        kernel.getContext().get(ExecutorService.class));
+                        kernel.getContext().get(ExecutorService.class), thingGroupHelper);
         return kernel.getContext().get(ExecutorService.class).submit(deploymentTask);
     }
 
@@ -135,7 +137,7 @@ class PluginComponentTest extends BaseITCase {
             }
         });
         kernel.launch();
-
+        thingGroupHelper = kernel.getContext().get(ThingGroupHelper.class);
         assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
     }
 
