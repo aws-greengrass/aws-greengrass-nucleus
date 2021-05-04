@@ -126,7 +126,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
         // Wait for some time for the publish request to have all the components update.
-        assertTrue(allComponentsInFssUpdate.await(30, TimeUnit.SECONDS), "component publish requests");
+        assertTrue(allComponentsInFssUpdate.await(45, TimeUnit.SECONDS), "component publish requests");
         assertNotNull(fleetStatusDetails);
         assertNotNull(fleetStatusDetails.get());
         assertEquals("ThingName", fleetStatusDetails.get().getThing());
