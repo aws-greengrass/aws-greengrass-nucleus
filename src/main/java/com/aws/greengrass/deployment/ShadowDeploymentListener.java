@@ -8,6 +8,10 @@ package com.aws.greengrass.deployment;
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
@@ -67,6 +71,8 @@ public class ShadowDeploymentListener implements InjectionActions {
     public static final String GGC_VERSION_KEY = "ggcVersion";
     public static final String DESIRED_STATUS_CANCELED = "CANCELED";
     public static final String DEPLOYMENT_SHADOW_NAME = "AWSManagedGreengrassV2Deployment";
+    @Inject
+    private Kernel kernel;
     @Inject
     private DeploymentQueue deploymentQueue;
     @Inject
@@ -307,6 +313,24 @@ public class ShadowDeploymentListener implements InjectionActions {
                     logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
                             .log("Deployment result already reported. Ignoring shadow update at startup");
                     return;
+                }
+                // Ignore if it's the ongoing deployment. This can happen if the last shadow deployment caused restart
+                try {
+                    // Using locate instead of injection here because DeploymentService lacks usable injection
+                    // constructor. Same as in IotJobsHelper.evaluateCancellationAndCancelDeploymentIfNeeded
+                    GreengrassService deploymentServiceLocateResult =
+                            kernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
+                    if (deploymentServiceLocateResult instanceof DeploymentService) {
+                        DeploymentTaskMetadata currentDeployment =
+                                ((DeploymentService) deploymentServiceLocateResult).getCurrentDeploymentTaskMetadata();
+                        if (currentDeployment != null && currentDeployment.getDeploymentId().equals(configurationArn)) {
+                            logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
+                                    .log("Ongoing deployment. Ignoring shadow update at startup");
+                            return;
+                        }
+                    }
+                } catch (ServiceLoadException e) {
+                    logger.atError().setCause(e).log("Failed to find deployment service");
                 }
             } else {
                 if (lastConfigurationArn.equals(configurationArn) && !cancelDeployment) {
