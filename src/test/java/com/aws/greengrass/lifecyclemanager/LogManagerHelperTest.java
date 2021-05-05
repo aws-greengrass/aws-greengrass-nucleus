@@ -19,7 +19,7 @@ import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.logging.impl.config.LogFormat;
 import com.aws.greengrass.logging.impl.config.LogStore;
 import com.aws.greengrass.logging.impl.config.PersistenceConfig;
-import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
+import com.aws.greengrass.logging.impl.config.model.LogConfigUpdate;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
@@ -141,7 +141,7 @@ class LogManagerHelperTest {
         Logger componentLogger = LogManagerHelper.getComponentLogger(mockGreengrassService);
 
         // change log file size
-        LoggerConfiguration newConfig = LoggerConfiguration.builder().fileSizeKB(1L).build();
+        LogConfigUpdate newConfig = LogConfigUpdate.builder().fileSizeKB(1L).build();
         LogManager.reconfigureAllLoggers(newConfig);
 
         // should apply change to all loggers
@@ -160,7 +160,7 @@ class LogManagerHelperTest {
         assertTrue(getLogFileCount(testLogConfig, mockServiceName) > 1);
 
         // change format and log directory
-        newConfig = LoggerConfiguration.builder().format(LogFormat.JSON)
+        newConfig = LogConfigUpdate.builder().format(LogFormat.JSON)
                 .outputDirectory(tempRootDir2.toAbsolutePath().toString()).build();
         LogManager.reconfigureAllLoggers(newConfig);
         logRandomMessages(componentLogger, 50, 20);
@@ -184,7 +184,7 @@ class LogManagerHelperTest {
         });
 
         // change totalLogsSizeKB, also change to another directory so it's cleaner
-        newConfig = LoggerConfiguration.builder().totalLogsSizeKB(2L).format(LogFormat.TEXT)
+        newConfig = LogConfigUpdate.builder().totalLogsSizeKB(2L).format(LogFormat.TEXT)
                 .outputDirectory(tempRootDir3.toAbsolutePath().toString()).build();
         LogManager.reconfigureAllLoggers(newConfig);
         // Get over the total limit. Must be separate calls. If log all at once, log may not rotate in time
@@ -208,7 +208,7 @@ class LogManagerHelperTest {
         PersistenceConfig defaultConfig = new PersistenceConfig(LOG_FILE_EXTENSION, LOGS_DIRECTORY);
 
         // first set a few non-default configs
-        LoggerConfiguration newConfig = LoggerConfiguration.builder().format(LogFormat.JSON)
+        LogConfigUpdate newConfig = LogConfigUpdate.builder().format(LogFormat.JSON)
                 .outputDirectory(tempRootDir2.toAbsolutePath().toString()).outputType(LogStore.CONSOLE).fileSizeKB(10L)
                 .build();
         LogManager.reconfigureAllLoggers(newConfig);
@@ -329,7 +329,7 @@ class LogManagerHelperTest {
     @Test
     void GIVEN_nondefault_options_on_root_logger_WHEN_create_component_logger_THEN_inherits_options() {
         LogManager
-                .reconfigureAllLoggers(LoggerConfiguration.builder().level(Level.TRACE).format(LogFormat.JSON).build());
+                .reconfigureAllLoggers(LogConfigUpdate.builder().level(Level.TRACE).format(LogFormat.JSON).build());
         when(mockGreengrassService.getServiceName()).thenReturn("MockService2");
 
         Logger logger = LogManagerHelper.getComponentLogger(mockGreengrassService);

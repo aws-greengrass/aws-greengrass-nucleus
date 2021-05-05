@@ -7,7 +7,7 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
+import com.aws.greengrass.logging.impl.config.model.LogConfigUpdate;
 
 /**
  * Helper function to get a logger with configurations separate from the root logger.
@@ -40,7 +40,7 @@ public final class LogManagerHelper {
      */
     private static Logger getComponentLogger(String name, String fileName) {
         // Explicitly set the output file. Other configs will inherit the root logger
-        LoggerConfiguration config = LoggerConfiguration.builder().fileName(fileName).build();
+        LogConfigUpdate config = LogConfigUpdate.builder().fileName(fileName).build();
         return LogManager.getLogger(name, config);
     }
 }

@@ -28,7 +28,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogFormat;
 import com.aws.greengrass.logging.impl.config.LogStore;
-import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
+import com.aws.greengrass.logging.impl.config.model.LogConfigUpdate;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.NucleusPaths;
@@ -141,7 +141,7 @@ public class DeviceConfiguration {
     private final AtomicReference<Boolean> deviceConfigValidateCachedResult = new AtomicReference();
 
     private Topics loggingTopics;
-    private LoggerConfiguration currentConfiguration;
+    private LogConfigUpdate currentConfiguration;
     private String nucleusComponentNameCache;
 
     /**
@@ -435,16 +435,16 @@ public class DeviceConfiguration {
         logger.atDebug().kv("logging-change-what", what).kv("logging-change-node", node).log();
         switch (what) {
             case childChanged:
-                LoggerConfiguration configuration;
+                LogConfigUpdate logConfigUpdate;
                 try {
-                    configuration = fromPojo(loggingTopics.toPOJO());
+                    logConfigUpdate = fromPojo(loggingTopics.toPOJO());
                 } catch (IllegalArgumentException e) {
                     logger.atError().kv("logging-config", loggingTopics).cause(e)
                             .log("Unable to parse logging config.");
                     return;
                 }
-                if (currentConfiguration == null || !currentConfiguration.equals(configuration)) {
-                    reconfigureLogging(configuration);
+                if (currentConfiguration == null || !currentConfiguration.equals(logConfigUpdate)) {
+                    reconfigureLogging(logConfigUpdate);
                 }
                 break;
             case childRemoved:
@@ -459,17 +459,17 @@ public class DeviceConfiguration {
         }
     }
 
-    private void reconfigureLogging(LoggerConfiguration configuration) {
-        if (configuration.getOutputDirectory() != null && (currentConfiguration == null || !Objects
-                .equals(currentConfiguration.getOutputDirectory(), configuration.getOutputDirectory()))) {
+    private void reconfigureLogging(LogConfigUpdate logConfigUpdate) {
+        if (logConfigUpdate.getOutputDirectory() != null && (currentConfiguration == null || !Objects
+                .equals(currentConfiguration.getOutputDirectory(), logConfigUpdate.getOutputDirectory()))) {
             try {
-                kernel.getNucleusPaths().setLoggerPath(Paths.get(configuration.getOutputDirectory()));
+                kernel.getNucleusPaths().setLoggerPath(Paths.get(logConfigUpdate.getOutputDirectory()));
             } catch (IOException e) {
                 logger.atError().cause(e).log("Unable to initialize logger output directory path");
             }
         }
-        currentConfiguration = configuration;
-        LogManager.reconfigureAllLoggers(configuration);
+        currentConfiguration = logConfigUpdate;
+        LogManager.reconfigureAllLoggers(logConfigUpdate);
     }
 
     private String getComponentType(String serviceName) {
@@ -820,8 +820,8 @@ public class DeviceConfiguration {
      * @return the logger configuration.
      * @throws IllegalArgumentException if the POJO map has an invalid argument.
      */
-    private LoggerConfiguration fromPojo(Map<String, Object> pojoMap) {
-        LoggerConfiguration configuration = LoggerConfiguration.builder().build();
+    private LogConfigUpdate fromPojo(Map<String, Object> pojoMap) {
+        LogConfigUpdate configuration = LogConfigUpdate.builder().build();
         pojoMap.forEach((s, o) -> {
             switch (s) {
                 case "level":
