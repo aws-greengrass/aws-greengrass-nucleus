@@ -15,6 +15,7 @@ import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.unix.DarwinPlatform;
 import com.aws.greengrass.util.platforms.unix.QNXPlatform;
 import com.aws.greengrass.util.platforms.unix.UnixPlatform;
+import com.aws.greengrass.util.platforms.unix.linux.LinuxPlatform;
 import com.aws.greengrass.util.platforms.windows.WindowsPlatform;
 
 import java.io.IOException;
@@ -31,6 +32,7 @@ import java.util.EnumSet;
 import java.util.Set;
 
 import static com.aws.greengrass.config.PlatformResolver.OS_DARWIN;
+import static com.aws.greengrass.config.PlatformResolver.OS_LINUX;
 
 public abstract class Platform implements UserPlatform {
 
@@ -39,9 +41,6 @@ public abstract class Platform implements UserPlatform {
     public static final String PATH = "path";
 
     private static Platform INSTANCE;
-
-    protected static class FileSystemPermissionView {
-    }
 
     /**
      * Get the appropriate instance of Platform for the current platform.
@@ -59,6 +58,8 @@ public abstract class Platform implements UserPlatform {
             INSTANCE = new DarwinPlatform();
         } else if (System.getProperty("os.name").toLowerCase().contains("qnx")) {
             INSTANCE = new QNXPlatform();
+        } else if (OS_LINUX.equals(PlatformResolver.getOSInfo())) {
+            INSTANCE = new LinuxPlatform();
         } else {
             INSTANCE = new UnixPlatform();
         }
@@ -90,12 +91,14 @@ public abstract class Platform implements UserPlatform {
 
     public abstract void addUserToGroup(String user, String group) throws IOException;
 
+    public abstract SystemResourceController getSystemResourceController();
+
     /**
      * Set permissions on a path.
      *
      * @param permission permissions to set
-     * @param path path to apply to
-     * @param options options for how to apply the permission to the path - if none, then the mode is set
+     * @param path       path to apply to
+     * @param options    options for how to apply the permission to the path - if none, then the mode is set
      * @throws IOException if any exception occurs while changing permissions
      */
     public void setPermissions(FileSystemPermission permission, Path path,
@@ -199,4 +202,7 @@ public abstract class Platform implements UserPlatform {
     public abstract void setIpcFilePermissions(Path rootPath);
 
     public abstract void cleanupIpcFiles(Path rootPath);
+
+    protected static class FileSystemPermissionView {
+    }
 }
