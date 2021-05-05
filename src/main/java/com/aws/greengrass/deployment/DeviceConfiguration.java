@@ -453,6 +453,9 @@ public class DeviceConfiguration {
             case removed:
                 LogManager.resetAllLoggers(null);
                 break;
+            default:
+                // do nothing
+                break;
         }
     }
 
