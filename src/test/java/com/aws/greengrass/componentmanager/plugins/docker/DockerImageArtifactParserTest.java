@@ -141,13 +141,23 @@ public class DockerImageArtifactParserTest {
                 Registry.RegistryType.PUBLIC,
                 Registry.RegistrySource.OTHER);
 
-        assertAll(getImage("docker:image_name"),
-                "image_name",
-                "latest",
+        assertAll(getImage(
+                "docker:1234567890.dkr.ecr.us-east-1.amazonaws.com/dockerimagerepository@sha256:"
+                    + "c4ffb87b09eba99383ee89b309d6d521"),
+                "dockerimagerepository",
                 null,
-                "registry.hub.docker.com/library",
-                Registry.RegistryType.PUBLIC,
-                Registry.RegistrySource.OTHER);
+                "sha256:c4ffb87b09eba99383ee89b309d6d521",
+                "1234567890.dkr.ecr.us-east-1.amazonaws.com",
+                Registry.RegistryType.PRIVATE,
+                Registry.RegistrySource.ECR);
+
+        assertAll(getImage("docker:1234567890.dkr.ecr.us-east-1.amazonaws.com/dockerimagerepository:v2.3.4"),
+                "dockerimagerepository",
+                "v2.3.4",
+                null,
+                "1234567890.dkr.ecr.us-east-1.amazonaws.com",
+                Registry.RegistryType.PRIVATE,
+                Registry.RegistrySource.ECR);
 
     }
 
@@ -235,6 +245,23 @@ public class DockerImageArtifactParserTest {
         // domain component has invalid char $
         assertThrows(InvalidArtifactUriException.class,
                 () -> getImage("docker:www.$amazon.com:8080/image:v1.10"));
+
+        // has both tag and digest
+        assertThrows(InvalidArtifactUriException.class,
+                () -> getImage("docker:1234567890.dkr.ecr.us-east-1.amazonaws"
+                        + ".com/dockerimagerepository:v2.3.4@sha256:c4ffb87b09eba99383ee89b309d6d521"));
+
+        // has both tag and digest in a wrong format
+        assertThrows(InvalidArtifactUriException.class,
+                () -> getImage("docker:1234567890.dkr.ecr.us-east-1.amazonaws"
+                        +".com/dockerimagerepository:latest/sha256"
+                        + ":c4ffb87b09eba99383ee89b309d6d521"));
+
+        // has both tag and a longer than allowed digest in a wrong format
+        assertThrows(InvalidArtifactUriException.class,
+                () -> getImage("docker:1234567890.dkr.ecr.us-east-1.amazonaws"
+                        +".com/dockerimagerepository:latest/sha256"
+                        + ":4d5f703cbcf9d4db75b923e5c5cc8b72479766cd1b1da77c28f8e4a059feff38"));
     }
 
 }
