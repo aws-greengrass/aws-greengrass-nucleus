@@ -27,6 +27,7 @@ public final class LogManagerHelper {
      * @return a logger with configuration to log to a log file with the same name.
      */
     public static Logger getComponentLogger(GreengrassService service) {
+        // TODO: [P41214167]: Dynamically reconfigure service loggers individually
         return getComponentLogger(service.getServiceName(), service.getServiceName() + LOG_FILE_EXTENSION);
     }
 

@@ -84,6 +84,8 @@ class LogManagerHelperTest {
     @Captor
     ArgumentCaptor<ChildChanged> childChangedArgumentCaptor;
 
+    private static final Base64.Encoder base64Encoder = Base64.getEncoder();
+
     @BeforeEach
     void setup() {
         LogManager.setRoot(tempRootDir);
@@ -133,8 +135,8 @@ class LogManagerHelperTest {
 
     @Test
     void GIVEN_mock_service_logger_WHEN_reconfigure_THEN_change_applied_correctly() throws IOException {
-        Path tempRootDir2 = tempRootDir.resolve("2");
-        Path tempRootDir3 = tempRootDir.resolve("3");
+        Path tempRootDir2 = tempRootDir.resolve("test_logs_" + Utils.generateRandomString(8));
+        Path tempRootDir3 = tempRootDir.resolve("test_logs_" + Utils.generateRandomString(8));
         String mockServiceName = "MockService001";
         when(mockGreengrassService.getServiceName()).thenReturn(mockServiceName);
         LogConfig.getInstance().setStore(LogStore.FILE);
@@ -198,8 +200,8 @@ class LogManagerHelperTest {
     }
 
     @Test
-    void GIVEN_mock_service_logger_WHEN_reset_THEN_reset_applied_correctly() throws IOException {
-        Path tempRootDir2 = tempRootDir.resolve("2");
+    void GIVEN_mock_service_logger_WHEN_reset_THEN_reset_applied_correctly() {
+        Path tempRootDir2 = tempRootDir.resolve("test_logs" + Utils.generateRandomString(8));
         String mockServiceName = "MockService001";
         when(mockGreengrassService.getServiceName()).thenReturn(mockServiceName);
 
@@ -372,7 +374,6 @@ class LogManagerHelperTest {
     private static void logRandomMessages(Logger logger, int messageSize, int messageCount) {
         Random random = new Random();
         byte[] message = new byte[messageSize];
-        Base64.Encoder base64Encoder = Base64.getEncoder();
         for (int i = 0; i < messageCount; i++) {
             random.nextBytes(message);
             logger.info(base64Encoder.encodeToString(message));
