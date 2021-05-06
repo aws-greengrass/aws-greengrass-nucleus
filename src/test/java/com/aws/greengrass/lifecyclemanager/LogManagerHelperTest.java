@@ -93,8 +93,8 @@ class LogManagerHelperTest {
 
     @AfterEach
     void cleanup() {
-        LogConfig.getInstance().reset();
-        LogConfig.getInstance().closeContext();
+        LogConfig.getRootLogConfig().reset();
+        LogConfig.getRootLogConfig().closeContext();
         for (LogConfig logConfig : LogManager.getLogConfigurations().values()) {
             logConfig.reset();
             logConfig.closeContext();
@@ -117,7 +117,7 @@ class LogManagerHelperTest {
     void GIVEN_mock_service_WHEN_getComponentLogger_THEN_logs_to_correct_log_file() throws IOException {
         when(mockGreengrassService.getServiceName()).thenReturn("MockService");
 
-        LogConfig.getInstance().setStore(LogStore.FILE);
+        LogConfig.getRootLogConfig().setStore(LogStore.FILE);
         Logger componentLogger = LogManagerHelper.getComponentLogger(mockGreengrassService);
 
         componentLogger.atInfo().log("Something");
@@ -139,7 +139,7 @@ class LogManagerHelperTest {
         Path tempRootDir3 = tempRootDir.resolve("test_logs_" + Utils.generateRandomString(8));
         String mockServiceName = "MockService001";
         when(mockGreengrassService.getServiceName()).thenReturn(mockServiceName);
-        LogConfig.getInstance().setStore(LogStore.FILE);
+        LogConfig.getRootLogConfig().setStore(LogStore.FILE);
         Logger componentLogger = LogManagerHelper.getComponentLogger(mockGreengrassService);
 
         // change log file size

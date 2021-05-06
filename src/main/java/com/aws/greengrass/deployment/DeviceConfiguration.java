@@ -821,31 +821,31 @@ public class DeviceConfiguration {
      * @throws IllegalArgumentException if the POJO map has an invalid argument.
      */
     private LogConfigUpdate fromPojo(Map<String, Object> pojoMap) {
-        LogConfigUpdate configuration = LogConfigUpdate.builder().build();
+        LogConfigUpdate.LogConfigUpdateBuilder configUpdate = LogConfigUpdate.builder();
         pojoMap.forEach((s, o) -> {
             switch (s) {
                 case "level":
-                    configuration.setLevel(Level.valueOf(Coerce.toString(o)));
+                    configUpdate.level(Level.valueOf(Coerce.toString(o)));
                     break;
                 case "fileSizeKB":
-                    configuration.setFileSizeKB(Coerce.toLong(o));
+                    configUpdate.fileSizeKB(Coerce.toLong(o));
                     break;
                 case "totalLogsSizeKB":
-                    configuration.setTotalLogsSizeKB(Coerce.toLong(o));
+                    configUpdate.totalLogsSizeKB(Coerce.toLong(o));
                     break;
                 case "format":
-                    configuration.setFormat(LogFormat.valueOf(Coerce.toString(o)));
+                    configUpdate.format(LogFormat.valueOf(Coerce.toString(o)));
                     break;
                 case "outputDirectory":
-                    configuration.setOutputDirectory(Coerce.toString(o));
+                    configUpdate.outputDirectory(Coerce.toString(o));
                     break;
                 case "outputType":
-                    configuration.setOutputType(LogStore.valueOf(Coerce.toString(o)));
+                    configUpdate.outputType(LogStore.valueOf(Coerce.toString(o)));
                     break;
                 default:
                     throw new IllegalArgumentException("Unexpected value: " + s);
             }
         });
-        return configuration;
+        return configUpdate.build();
     }
 }
