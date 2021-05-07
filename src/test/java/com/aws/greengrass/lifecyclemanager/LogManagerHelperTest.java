@@ -380,7 +380,8 @@ class LogManagerHelperTest {
     }
 
     /**
-     * Write log messages of approximate size.
+     * Write log messages of given size.
+     * Minimum size of one log message estimated as follows:
      *
      * TEXT logs follow this format:
      * 2021-05-07T15:56:54.912Z [INFO] (main)  :. {}
@@ -391,10 +392,8 @@ class LogManagerHelperTest {
      * "timestamp":1620403177433,"cause":null}
      * ~132 bytes without service name and message body
      *
-     * 2021-05-07T16:47:06.193Z [INFO] (main) MockService001: hIto1cCs54zPc55TatPa44kJwdwuKMYvwzI1H7RfeAFBQVC4iv3QNaKvKmiK. {}
-     * 2021-05-07T16:47:06.249Z [INFO] (main) MockService001: {}
      * @param logger logger to use
-     * @param size approximate size of logs to write, this will be a lower bound
+     * @param size bytes of logs to write
      */
     private static void logRandomMessages(Logger logger, int size, LogFormat format) {
         int minLogLength =
