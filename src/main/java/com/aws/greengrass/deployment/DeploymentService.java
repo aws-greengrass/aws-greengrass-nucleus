@@ -170,12 +170,12 @@ public class DeploymentService extends GreengrassService {
     @Override
     public void postInject() {
         super.postInject();
+        deploymentStatusKeeper.setDeploymentService(this);
         // Informing kernel about IotJobsHelper and ShadowDeploymentListener,
         // so kernel can instantiate, inject dependencies and call post inject.
         // This is required because both the classes are independent and not Greengrass services
         context.get(IotJobsHelper.class);
         context.get(ShadowDeploymentListener.class);
-        deploymentStatusKeeper.setDeploymentService(this);
         subscribeToPollingFrequencyAndGet();
     }
 

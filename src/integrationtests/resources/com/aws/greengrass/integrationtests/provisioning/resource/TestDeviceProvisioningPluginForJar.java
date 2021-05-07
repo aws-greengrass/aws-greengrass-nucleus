@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.integrationtests.provisioning;
+package com.aws.greengrass.integrationtests.provisioning.resource;
 
 import com.aws.greengrass.provisioning.DeviceIdentityInterface;
 import com.aws.greengrass.provisioning.ProvisionConfiguration;
@@ -12,8 +12,8 @@ import com.aws.greengrass.provisioning.exceptions.RetryableProvisioningException
 
 import java.util.Map;
 
-public class TestDeviceProvisioningPlugin implements DeviceIdentityInterface {
-    private static final String SERVICE_NAME = "aws.greengrass.TestProvisioningPlugin";
+public class TestDeviceProvisioningPluginForJar implements DeviceIdentityInterface {
+    private static final String SERVICE_NAME = "aws.greengrass.TestProvisioningPluginForJar";
 
     @Override
     public ProvisionConfiguration updateIdentityConfiguration(ProvisionContext provisionContext) throws RetryableProvisioningException {

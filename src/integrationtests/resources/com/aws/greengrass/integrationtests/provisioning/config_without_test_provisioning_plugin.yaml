@@ -2,9 +2,6 @@
 services:
   aws.greengrass.Nucleus:
     configuration:
-      runWithDefault:
-        posixUser: nobody
-
       logging:
         level: DEBUG
 

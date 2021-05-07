@@ -7,9 +7,13 @@ package com.aws.greengrass.easysetup;
 
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +31,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.stream.Stream;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
@@ -34,12 +41,16 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -321,24 +332,12 @@ class GreengrassSetupTest {
     }
 
     @Test
-    void GIVEN_setup_script_WHEN_no_region_provided_THEN_fail() {
-        GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper,
-                platform, kernel, "-i",
-                "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
-                "-ss", "false");
-        greengrassSetup.parseArgs();
-        Exception e = assertThrows(RuntimeException.class, greengrassSetup::performSetup);
-        assertThat(e.getMessage(), containsString("aws region not provided"));
-    }
-
-    @Test
     void GIVEN_setup_script_WHEN_bad_region_provided_THEN_fail() {
         GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper,
                 platform, kernel, "-i",
                 "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
                 "-ss", "false", "--aws-region", "nowhere");
-        greengrassSetup.parseArgs();
-        Exception e = assertThrows(RuntimeException.class, greengrassSetup::performSetup);
+        Exception e = assertThrows(RuntimeException.class, () -> greengrassSetup.parseArgs());
         assertThat(e.getMessage(), containsString("is invalid AWS region"));
     }
 
@@ -409,4 +408,66 @@ class GreengrassSetupTest {
         greengrassSetup.performSetup();
         verify(kernel, times(0)).launch();
     }
+
+    @Test
+    void GIVEN_setup_script_WHEN_trusted_nonjar_plugin_provided_THEN_exception() {
+        GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper,
+                platform, kernel, "-i",
+                "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
+                "-ss", "false", "--aws-region", "us-east-1", "--trusted-plugin", "/invalidpath/nonjar.txt");
+        Exception e = assertThrows(RuntimeException.class, () -> greengrassSetup.parseArgs());
+        assertThat(e.getMessage(), containsString("path should point to a jar file"));
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_setup_script_WHEN_trusted_plugin_provided_THEN_jar_copied_to_trusted_plugin_path() throws Exception {
+        Path pluginJarPath = Files.createTempFile(null, ".jar");
+        Path mockTrustedDirectory = Files.createTempDirectory(null);
+        GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper,
+                platform, kernel, "-i",
+                "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
+                "-ss", "false", "--aws-region", "us-east-1", "--trusted-plugin", pluginJarPath.toString());
+
+        NucleusPaths mockNucleusPaths = mock(NucleusPaths.class);
+        Path mockPluginPath = mock(Path.class);
+        when(mockNucleusPaths.pluginPath()).thenReturn(mockPluginPath);
+        when(kernel.getNucleusPaths()).thenReturn(mockNucleusPaths);
+        EZPlugins mockEZPlugin = mock(EZPlugins.class);
+        when(mockEZPlugin.withCacheDirectory(eq(mockPluginPath))).thenReturn(mockEZPlugin);
+        when(mockEZPlugin.getTrustedCacheDirectory()).thenReturn(mockTrustedDirectory);
+
+        when(context.get(eq(EZPlugins.class))).thenReturn(mockEZPlugin);
+        greengrassSetup.parseArgs();
+        greengrassSetup.performSetup();
+        assertTrue(Files.exists(mockTrustedDirectory.resolve(Utils.namePart(pluginJarPath.toString()))));
+    }
+
+    @Test
+    @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_setup_script_WHEN_trusted_plugin_provided_AND_insufficient_file_permissions_THEN_exception(ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionUltimateCauseOfType(extensionContext, AccessDeniedException.class);
+        Path pluginJarPath = Files.createTempFile(null, ".jar");
+        Platform.getInstance().setPermissions(FileSystemPermission.builder()
+                .ownerRead(false).build(), pluginJarPath);
+        Path mockTrustedDirectory = Files.createTempDirectory(null);
+        GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper,
+                platform, kernel, "-i",
+                "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-trn", "mock_tes_role_name",
+                "-ss", "false", "--aws-region", "us-east-1", "--trusted-plugin", pluginJarPath.toString());
+        NucleusPaths mockNucleusPaths = mock(NucleusPaths.class);
+        Path mockPluginPath = mock(Path.class);
+        when(mockNucleusPaths.pluginPath()).thenReturn(mockPluginPath);
+        when(kernel.getNucleusPaths()).thenReturn(mockNucleusPaths);
+        EZPlugins mockEZPlugin = mock(EZPlugins.class);
+        when(mockEZPlugin.withCacheDirectory(eq(mockPluginPath))).thenReturn(mockEZPlugin);
+        when(mockEZPlugin.getTrustedCacheDirectory()).thenReturn(mockTrustedDirectory);
+        when(context.get(eq(EZPlugins.class))).thenReturn(mockEZPlugin);
+
+        greengrassSetup.parseArgs();
+        Exception e = assertThrows(RuntimeException.class, () -> greengrassSetup.performSetup());
+        assertThat(e.getCause(), instanceOf(AccessDeniedException.class));
+        assertFalse(Files.exists(mockTrustedDirectory.resolve(Utils.namePart(pluginJarPath.toString()))));
+    }
+
 }

@@ -14,7 +14,6 @@ import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.integrationtests.provisioning.TestDeviceProvisioningPlugin;
 import com.aws.greengrass.ipc.IPCEventStreamService;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
@@ -33,6 +32,7 @@ import com.aws.greengrass.util.Pair;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -103,13 +103,32 @@ class KernelLifecycleTest {
     private DeviceConfiguration mockDeviceConfiguration;
     private ProvisioningConfigUpdateHelper mockProvisioningConfigUpdateHelper;
     private ProvisioningPluginFactory mockProvisioningPluginFactory;
-    private TestDeviceProvisioningPlugin mockProvisioningPlugin;
+    private DeviceIdentityInterface mockProvisioningPlugin;
     private Topics mockServicesConfig;
     private ExecutorService executorService;
+
+
+    private static Class mockPluginClass;
 
     @TempDir
     protected Path tempRootDir;
     private NucleusPaths mockPaths;
+
+    @BeforeAll
+    public static void createMockProvisioningPlugin() {
+        DeviceIdentityInterface mockDeviceIdentityInterfaceImpl = new DeviceIdentityInterface() {
+            @Override
+            public ProvisionConfiguration updateIdentityConfiguration(ProvisionContext provisionContext) throws RetryableProvisioningException {
+                return null;
+            }
+
+            @Override
+            public String name() {
+                return null;
+            }
+        };
+        mockPluginClass = mockDeviceIdentityInterfaceImpl.getClass();
+    }
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -227,7 +246,7 @@ class KernelLifecycleTest {
         when(mockContext.get(EZPlugins.class)).thenReturn(pluginMock);
         doAnswer((i) -> {
             ImplementingClassMatchProcessor func = i.getArgument(1);
-            func.processMatch(TestDeviceProvisioningPlugin.class);
+            func.processMatch(mockPluginClass);
             return null;
         }).when(pluginMock).implementing(eq(DeviceIdentityInterface.class), any());
 
@@ -249,7 +268,7 @@ class KernelLifecycleTest {
         when(mockContext.get(EZPlugins.class)).thenReturn(pluginMock);
         doAnswer((i) -> {
             ImplementingClassMatchProcessor func = i.getArgument(1);
-            func.processMatch(TestDeviceProvisioningPlugin.class);
+            func.processMatch(mockPluginClass);
             return null;
         }).when(pluginMock).implementing(eq(DeviceIdentityInterface.class), any());
 
@@ -284,7 +303,7 @@ class KernelLifecycleTest {
         when(mockContext.get(EZPlugins.class)).thenReturn(pluginMock);
         doAnswer((i) -> {
             ImplementingClassMatchProcessor func = i.getArgument(1);
-            func.processMatch(TestDeviceProvisioningPlugin.class);
+            func.processMatch(mockPluginClass);
             return null;
         }).when(pluginMock).implementing(eq(DeviceIdentityInterface.class), any());
 
@@ -323,7 +342,7 @@ class KernelLifecycleTest {
         when(mockContext.get(EZPlugins.class)).thenReturn(pluginMock);
         doAnswer((i) -> {
             ImplementingClassMatchProcessor func = i.getArgument(1);
-            func.processMatch(TestDeviceProvisioningPlugin.class);
+            func.processMatch(mockPluginClass);
             return null;
         }).when(pluginMock).implementing(eq(DeviceIdentityInterface.class), any());
 
@@ -350,7 +369,7 @@ class KernelLifecycleTest {
         when(mockContext.get(EZPlugins.class)).thenReturn(pluginMock);
         doAnswer((i) -> {
             ImplementingClassMatchProcessor func = i.getArgument(1);
-            func.processMatch(TestDeviceProvisioningPlugin.class);
+            func.processMatch(mockPluginClass);
             return null;
         }).when(pluginMock).implementing(eq(DeviceIdentityInterface.class), any());
 
@@ -365,10 +384,12 @@ class KernelLifecycleTest {
     }
 
     private void mockProvisioning() throws InstantiationException, IllegalAccessException {
+
+
         executorService = Executors.newSingleThreadExecutor();
         when(mockContext.get(eq(ExecutorService.class))).thenReturn(executorService);
         when(mockDeviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(false);
-        mockProvisioningPlugin = mock(TestDeviceProvisioningPlugin.class);
+        mockProvisioningPlugin = (DeviceIdentityInterface) mock(mockPluginClass);
         when(mockProvisioningPluginFactory.getPluginInstance(any()))
                 .thenReturn(mockProvisioningPlugin);
         mockServicesConfig = mock(Topics.class);

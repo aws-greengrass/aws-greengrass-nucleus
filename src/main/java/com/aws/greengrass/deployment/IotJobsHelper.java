@@ -25,7 +25,6 @@ import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.SerializerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -314,7 +313,6 @@ public class IotJobsHelper implements InjectionActions {
         setupCommWithIotJobs();
     }
 
-    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
     private void setupCommWithIotJobs() {
         mqttClient.addToCallbackEvents(callbacks);
         this.connection = wrapperMqttConnectionFactory.getAwsIotMqttConnection(mqttClient);
@@ -326,8 +324,7 @@ public class IotJobsHelper implements InjectionActions {
 
         logger.dfltKv("ThingName", (Supplier<String>) () ->
                 Coerce.toString(deviceConfiguration.getThingName()));
-
-        executorService.submit(() -> {
+        executorService.execute(() -> {
             subscribeToJobsTopics();
             logger.atInfo().log("Connection established to IoT cloud");
             deploymentStatusKeeper.publishPersistedStatusUpdates(DeploymentType.IOT_JOBS);

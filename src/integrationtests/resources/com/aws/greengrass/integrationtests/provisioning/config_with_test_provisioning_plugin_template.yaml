@@ -15,7 +15,8 @@ services:
     dependencies:
       - aws.greengrass.Nucleus
 
-  aws.greengrass.TestProvisioningPlugin:
+  aws.greengrass.TestProvisioningPluginForJar:
+    ComponentType: Plugin
     configuration:
       awsRegion: us-east-1
       iotDataEndpoint: test.us-east-1.iot.data.endpoint
@@ -25,4 +26,5 @@ services:
       rootCAPath: $rootcapath
       thingName: integTest
       waitTime: $waittimems
+
 

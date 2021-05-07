@@ -49,12 +49,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -76,8 +78,12 @@ public class KernelLifecycle {
     private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 30;
     // Enum for provision policy will exist in common library package
     // This will be done as part of re-provisioning
+    // TODO:  Use the enum from common library when available
     private static final String DEFAULT_PROVISIONING_POLICY = "PROVISION_IF_NOT_PROVISIONED";
     private static final int MAX_PROVISIONING_PLUGIN_RETRY_ATTEMPTS = 3;
+
+    public static final String MULTIPLE_PROVISIONING_PLUGINS_FOUND_EXCEPTION = "Multiple provisioning plugins found "
+            + "[%s]. Greengrass expects only one provisioning plugin";
 
     private final Kernel kernel;
     private final KernelCommandLine kernelCommandLine;
@@ -135,6 +141,13 @@ public class KernelLifecycle {
         // run the provisioning if device is not provisioned
         if (!kernel.getContext().get(DeviceConfiguration.class).isDeviceConfiguredToTalkToCloud()
                 && !provisioningPlugins.isEmpty()) {
+            // Multiple provisioning plugins may need plugin ordering. We do not support plugin ordering right now
+            // There is also no compelling use case right now for multiple provisioning plugins.
+            if (provisioningPlugins.size() > 1) {
+                String errorString = String.format(MULTIPLE_PROVISIONING_PLUGINS_FOUND_EXCEPTION,
+                        provisioningPlugins.toString());
+                throw new RuntimeException(errorString);
+            }
             executeProvisioningPlugins(provisioningPlugins);
         }
 
@@ -188,7 +201,9 @@ public class KernelLifecycle {
                         .getSystemConfiguration(), UpdateBehaviorTree.UpdateBehavior.MERGE);
                 provisioningConfigUpdateHelper.updateNucleusConfiguration(provisionConfiguration
                         .getNucleusConfiguration(), UpdateBehaviorTree.UpdateBehavior.MERGE);
-                logger.atInfo().kv("PluginName", pluginName).log("Updated provisioning configuration");
+                kernel.writeEffectiveConfig();
+                logger.atDebug().kv("PluginName", pluginName)
+                        .log("Updated provisioning configuration");
             });
         });
     }
@@ -196,12 +211,16 @@ public class KernelLifecycle {
     @SuppressWarnings("PMD.CloseResource")
     private List<DeviceIdentityInterface> findProvisioningPlugins() {
         List<DeviceIdentityInterface> provisioningPlugins = new ArrayList<>();
+        Set<String> provisioningPluginNames = new HashSet<>();
         EZPlugins ezPlugins = kernel.getContext().get(EZPlugins.class);
         try {
             ezPlugins.withCacheDirectory(nucleusPaths.pluginPath());
             ezPlugins.implementing(DeviceIdentityInterface.class, (c) -> {
                 try {
-                    provisioningPlugins.add(provisioningPluginFactory.getPluginInstance(c));
+                    if (!provisioningPluginNames.contains(c.getName())) {
+                        provisioningPlugins.add(provisioningPluginFactory.getPluginInstance(c));
+                        provisioningPluginNames.add(c.getName());
+                    }
                 } catch (InstantiationException | IllegalAccessException e) {
                     logger.atError().kv("Plugin", c.getName()).setCause(e.getCause())
                             .log("Error instantiating a provisioning plugin");
