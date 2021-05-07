@@ -24,9 +24,8 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.AfterAll;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,11 +42,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Random;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
@@ -56,7 +53,6 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.SYSTEM_NAMESPACE
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.logging.impl.config.LogConfig.LOGS_DIRECTORY;
 import static com.aws.greengrass.logging.impl.config.LogConfig.LOG_FILE_EXTENSION;
-import static com.aws.greengrass.telemetry.impl.MetricFactory.METRIC_LOGGER_PREFIX;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
@@ -84,7 +80,9 @@ class LogManagerHelperTest {
     @Captor
     ArgumentCaptor<ChildChanged> childChangedArgumentCaptor;
 
-    private static final Base64.Encoder base64Encoder = Base64.getEncoder();
+    private static final int TEXT_LOG_MIN_LEN = 46;
+    private static final int JSON_LOG_MIN_LEN = 132;
+    private static final int DEFAULT_TEST_MSG_LEN = 60;
 
     @BeforeEach
     void setup() {
@@ -100,17 +98,6 @@ class LogManagerHelperTest {
             logConfig.closeContext();
         }
         LogManager.getTelemetryConfig().reset();
-    }
-
-    @BeforeAll
-    static void setupLogger() {
-        LogManager.getRootLogConfiguration().setStore(LogStore.FILE);
-        LogManager.getTelemetryLogger(METRIC_LOGGER_PREFIX + "test");
-    }
-    @AfterAll
-    static void cleanupLogger() {
-        LogManager.getTelemetryConfig().setStore(LogStore.CONSOLE);
-        LogManager.getRootLogConfiguration().setStore(LogStore.CONSOLE);
     }
 
     @Test
@@ -134,13 +121,13 @@ class LogManagerHelperTest {
     }
 
     @Test
-    void GIVEN_mock_service_logger_WHEN_reconfigure_THEN_change_applied_correctly() throws IOException {
-        Path tempRootDir2 = tempRootDir.resolve("test_logs_" + Utils.generateRandomString(8));
-        Path tempRootDir3 = tempRootDir.resolve("test_logs_" + Utils.generateRandomString(8));
+    void GIVEN_mock_service_logger_WHEN_file_size_limit_reached_THEN_rollover() throws InterruptedException {
         String mockServiceName = "MockService001";
         when(mockGreengrassService.getServiceName()).thenReturn(mockServiceName);
         LogConfig.getRootLogConfig().setStore(LogStore.FILE);
+
         Logger componentLogger = LogManagerHelper.getComponentLogger(mockGreengrassService);
+        Logger greengrassLogger = LogManager.getLogger("test");
 
         // change log file size
         LogConfigUpdate newConfig = LogConfigUpdate.builder().fileSizeKB(1L).build();
@@ -152,21 +139,44 @@ class LogManagerHelperTest {
         assertEquals(1, LogManager.getRootLogConfiguration().getFileSizeKB());
         assertEquals(1, LogManager.getTelemetryConfig().getFileSizeKB());
 
-        // log less than 1k bytes, should not rotate
-        // 1 message of size 50 is about 128 bytes in TEXT format
-        logRandomMessages(componentLogger, 50, 1);
+        // log less than 1KB, should not rotate
+        logRandomMessages(componentLogger, 500, LogFormat.TEXT);
+        logRandomMessages(greengrassLogger, 500, LogFormat.TEXT);
         assertEquals(1, getLogFileCount(testLogConfig, mockServiceName));
+        assertEquals(1, getLogFileCount(testLogConfig, PersistenceConfig.DEFAULT_STORE_NAME));
 
-        // log more than 2k bytes. Should rotate this time
-        logRandomMessages(componentLogger, 50, 20);
+        // Should rotate this time
+        logRandomMessages(componentLogger, 525, LogFormat.TEXT);
+        logRandomMessages(greengrassLogger, 525, LogFormat.TEXT);
+        // Rollover is guarded by ch.qos.logback.core.util.DefaultInvocationGate so that it's not invoked too soon/often
+        // This is the minimum delay since startup for it to allow log rollover.
+        Thread.sleep(800);
+        componentLogger.atInfo().log();  // log once more to trigger roll over
+        greengrassLogger.atInfo().log();  // log once more to trigger roll over
+
         assertTrue(getLogFileCount(testLogConfig, mockServiceName) > 1);
+        assertTrue(getLogFileCount(testLogConfig, PersistenceConfig.DEFAULT_STORE_NAME) > 1);
+    }
+
+    @Test
+    void GIVEN_mock_service_logger_WHEN_reconfigure_multiple_configs_THEN_change_applied_correctly()
+            throws IOException {
+        Path tempRootDir2 = tempRootDir.resolve("test_logs_" + Utils.generateRandomString(8));
+        Path tempRootDir3 = tempRootDir.resolve("test_logs_" + Utils.generateRandomString(8));
+        String mockServiceName = "MockService002";
+        when(mockGreengrassService.getServiceName()).thenReturn(mockServiceName);
+        LogConfig.getRootLogConfig().setStore(LogStore.FILE);
+
+        Logger componentLogger = LogManagerHelper.getComponentLogger(mockGreengrassService);
+        Logger greengrassLogger = LogManager.getLogger("test");
+        LogConfig testLogConfig = LogManager.getLogConfigurations().get(mockServiceName);
 
         // change format and log directory
-        newConfig = LogConfigUpdate.builder().format(LogFormat.JSON)
+        LogConfigUpdate newConfig = LogConfigUpdate.builder().format(LogFormat.JSON)
                 .outputDirectory(tempRootDir2.toAbsolutePath().toString()).build();
         LogManager.reconfigureAllLoggers(newConfig);
-        logRandomMessages(componentLogger, 50, 20);
-        logRandomMessages(LogManager.getLogger("test"), 50, 20);
+        logRandomMessages(componentLogger, 1025, LogFormat.JSON);
+        logRandomMessages(greengrassLogger, 1025, LogFormat.JSON);
         // should output to new directory and still preserve log file size config
         assertEquals(tempRootDir2.toAbsolutePath(), testLogConfig.getStoreDirectory().toAbsolutePath());
         assertEquals(tempRootDir2.toAbsolutePath(),
@@ -174,8 +184,7 @@ class LogManagerHelperTest {
         assertEquals(LogFormat.JSON, testLogConfig.getFormat());
         assertEquals(LogFormat.JSON, LogManager.getRootLogConfiguration().getFormat());
         assertEquals(LogFormat.JSON, LogManager.getTelemetryConfig().getFormat());
-        assertTrue(getLogFileCount(testLogConfig, mockServiceName) > 1);
-        assertTrue(getLogFileCount(LogManager.getRootLogConfiguration(), PersistenceConfig.DEFAULT_STORE_NAME) > 1);
+
         // check log format is actually JSON
         File logFile = new File(testLogConfig.getStoreName());
         assertThat(logFile, aFileNamed(equalToIgnoringCase(mockServiceName + ".log")));
@@ -185,22 +194,21 @@ class LogManagerHelperTest {
             objectMapper.readValue(lines.get(0), Map.class);
         });
 
-        // change totalLogsSizeKB, also change to another directory so it's cleaner
-        newConfig = LogConfigUpdate.builder().totalLogsSizeKB(2L).format(LogFormat.TEXT)
+        // change file size, total size, also change to another directory so it's clean
+        newConfig = LogConfigUpdate.builder().fileSizeKB(1L).totalLogsSizeKB(5L).format(LogFormat.TEXT)
                 .outputDirectory(tempRootDir3.toAbsolutePath().toString()).build();
         LogManager.reconfigureAllLoggers(newConfig);
-        // Get over the total limit. Must be separate calls. If log all at once, log may not rotate in time
-        logRandomMessages(componentLogger, 50, 10);
-        logRandomMessages(componentLogger, 50, 10);
-        logRandomMessages(componentLogger, 50, 10);
+        logRandomMessages(componentLogger, 8000, LogFormat.TEXT);
+        componentLogger.atInfo().log();
         long numLogFilesBefore = getLogFileCount(testLogConfig, mockServiceName);
-        logRandomMessages(componentLogger, 50, 20);
+        logRandomMessages(componentLogger, 8000, LogFormat.TEXT);
+        componentLogger.atInfo().log();
         // older rotated file should be deleted. Log file count should not change
         assertEquals(numLogFilesBefore, getLogFileCount(testLogConfig, mockServiceName));
     }
 
     @Test
-    void GIVEN_mock_service_logger_WHEN_reset_THEN_reset_applied_correctly() {
+    void GIVEN_mock_service_logger_WHEN_reset_THEN_applied_correctly() {
         Path tempRootDir2 = tempRootDir.resolve("test_logs" + Utils.generateRandomString(8));
         String mockServiceName = "MockService001";
         when(mockGreengrassService.getServiceName()).thenReturn(mockServiceName);
@@ -371,12 +379,37 @@ class LogManagerHelperTest {
                 logDirectory.listFiles(file -> file.isFile() && file.getName().startsWith(serviceName)))).count();
     }
 
-    private static void logRandomMessages(Logger logger, int messageSize, int messageCount) {
-        Random random = new Random();
-        byte[] message = new byte[messageSize];
-        for (int i = 0; i < messageCount; i++) {
-            random.nextBytes(message);
-            logger.info(base64Encoder.encodeToString(message));
+    /**
+     * Write log messages of approximate size.
+     *
+     * TEXT logs follow this format:
+     * 2021-05-07T15:56:54.912Z [INFO] (main)  :. {}
+     * ~46 bytes without service name and message body
+     *
+     * JSON logs follow this format:
+     * {"thread":"main","level":"INFO","eventType":null,"message":"","contexts":{},"loggerName":"",
+     * "timestamp":1620403177433,"cause":null}
+     * ~132 bytes without service name and message body
+     *
+     * 2021-05-07T16:47:06.193Z [INFO] (main) MockService001: hIto1cCs54zPc55TatPa44kJwdwuKMYvwzI1H7RfeAFBQVC4iv3QNaKvKmiK. {}
+     * 2021-05-07T16:47:06.249Z [INFO] (main) MockService001: {}
+     * @param logger logger to use
+     * @param size approximate size of logs to write, this will be a lower bound
+     */
+    private static void logRandomMessages(Logger logger, int size, LogFormat format) {
+        int minLogLength =
+                logger.getName().length() + (LogFormat.TEXT.equals(format) ? TEXT_LOG_MIN_LEN : JSON_LOG_MIN_LEN);
+        int currMsgSize;
+        while (size > 0) {
+            if (size <= minLogLength) {
+                currMsgSize = 0;
+            } else if (size <= 2 * minLogLength + DEFAULT_TEST_MSG_LEN) {
+                currMsgSize = size - minLogLength;
+            } else {
+                currMsgSize = DEFAULT_TEST_MSG_LEN;
+            }
+            logger.info(RandomStringUtils.randomAlphanumeric(currMsgSize));
+            size -= currMsgSize + minLogLength;
         }
     }
 }
