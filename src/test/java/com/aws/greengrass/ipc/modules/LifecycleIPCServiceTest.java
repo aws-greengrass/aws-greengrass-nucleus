@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.ipc.modules;
 
+import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractDeferComponentUpdateOperationHandler;
+import software.amazon.awssdk.aws.greengrass.GeneratedAbstractPauseComponentOperationHandler;
+import software.amazon.awssdk.aws.greengrass.GeneratedAbstractResumeComponentOperationHandler;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractSubscribeToComponentUpdatesOperationHandler;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractUpdateStateOperationHandler;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
@@ -38,11 +41,15 @@ class LifecycleIPCServiceTest {
     @Mock
     OperationContinuationHandlerContext mockContext;
 
+    @Mock
+    private AuthorizationHandler authorizationHandler;
+
     @BeforeEach
     public void setup() {
         lifecycleIPCService = new LifecycleIPCService();
         lifecycleIPCService.setEventStreamAgent(eventStreamAgent);
         lifecycleIPCService.setGreengrassCoreIPCService(greengrassCoreIPCService);
+        lifecycleIPCService.setAuthorizationHandler(authorizationHandler);
     }
 
     @Test
@@ -70,5 +77,19 @@ class LifecycleIPCServiceTest {
                         GeneratedAbstractDeferComponentUpdateOperationHandler>)argumentCaptor.getValue();
         deferHandler.apply(mockContext);
         verify(eventStreamAgent).getDeferComponentHandler(mockContext);
+
+        verify(greengrassCoreIPCService).setPauseComponentHandler(argumentCaptor.capture());
+        Function<OperationContinuationHandlerContext, GeneratedAbstractPauseComponentOperationHandler> pauseHandler =
+                (Function<OperationContinuationHandlerContext,
+                        GeneratedAbstractPauseComponentOperationHandler>)argumentCaptor.getValue();
+        pauseHandler.apply(mockContext);
+        verify(eventStreamAgent).getPauseComponentHandler(mockContext);
+
+        verify(greengrassCoreIPCService).setResumeComponentHandler(argumentCaptor.capture());
+        Function<OperationContinuationHandlerContext, GeneratedAbstractResumeComponentOperationHandler> resumeHandler =
+                (Function<OperationContinuationHandlerContext,
+                        GeneratedAbstractResumeComponentOperationHandler>)argumentCaptor.getValue();
+        resumeHandler.apply(mockContext);
+        verify(eventStreamAgent).getResumeComponentHandler(mockContext);
     }
 }
