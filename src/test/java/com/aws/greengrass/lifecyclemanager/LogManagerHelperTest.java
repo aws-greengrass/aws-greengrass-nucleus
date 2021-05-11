@@ -71,6 +71,10 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class LogManagerHelperTest {
+    private static final int TEXT_LOG_MIN_LEN = 46;
+    private static final int JSON_LOG_MIN_LEN = 132;
+    private static final int DEFAULT_TEST_MSG_LEN = 60;
+
     @TempDir
     protected Path tempRootDir;
     @Mock
@@ -79,10 +83,6 @@ class LogManagerHelperTest {
     private Kernel kernel;
     @Captor
     ArgumentCaptor<ChildChanged> childChangedArgumentCaptor;
-
-    private static final int TEXT_LOG_MIN_LEN = 46;
-    private static final int JSON_LOG_MIN_LEN = 132;
-    private static final int DEFAULT_TEST_MSG_LEN = 60;
 
     @BeforeEach
     void setup() {
