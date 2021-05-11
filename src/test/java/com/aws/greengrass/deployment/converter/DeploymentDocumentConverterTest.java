@@ -33,6 +33,7 @@ import java.util.Map;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -121,27 +122,27 @@ class DeploymentDocumentConverterTest {
 
         // verify deploymentConfigs
         DeploymentPackageConfiguration existingRootComponentConfig =
-                deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(EXISTING_ROOT_COMPONENT))
+                deploymentPackageConfigurations.stream().filter(e -> e.getName().equals(EXISTING_ROOT_COMPONENT))
                         .findAny().get();
 
         assertThat(existingRootComponentConfig.getResolvedVersion(), is("2.0.0"));
-        assertThat(existingRootComponentConfig.getConfigurationUpdateOperation(),
+        assertThat(existingRootComponentConfig.getConfigurationUpdate(),
                 is(mapper.readValue(existingUpdateConfigString, ConfigurationUpdateOperation.class)));
 
         DeploymentPackageConfiguration newRootComponentConfig =
-                deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(NEW_ROOT_COMPONENT))
+                deploymentPackageConfigurations.stream().filter(e -> e.getName().equals(NEW_ROOT_COMPONENT))
                         .findAny().get();
 
         assertThat(newRootComponentConfig.getResolvedVersion(), is("2.0.0"));
-        assertNull(newRootComponentConfig.getConfigurationUpdateOperation());
+        assertNull(newRootComponentConfig.getConfigurationUpdate());
         assertEquals("foo:bar", newRootComponentConfig.getRunWith().getPosixUser());
 
 
         DeploymentPackageConfiguration DependencyComponentConfig =
-                deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(DEPENDENCY_COMPONENT))
+                deploymentPackageConfigurations.stream().filter(e -> e.getName().equals(DEPENDENCY_COMPONENT))
                         .findAny().get();
 
-        assertEquals(DependencyComponentConfig.getConfigurationUpdateOperation(),
+        assertEquals(DependencyComponentConfig.getConfigurationUpdate(),
                 mapper.readValue(dependencyUpdateConfigString, ConfigurationUpdateOperation.class));
         assertThat(DependencyComponentConfig.getResolvedVersion(), is("*"));
     }
@@ -171,20 +172,27 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentDocument.getRequiredCapabilities(), equalTo(Arrays.asList("LARGE_CONFIGURATION",
                 "ANOTHER_CAPABILITY")));
 
-        assertThat(deploymentDocument.getDeploymentPackageConfigurationList(), hasSize(1));
+        assertThat(deploymentDocument.getDeploymentPackageConfigurationList(), hasSize(2));
 
         DeploymentPackageConfiguration componentConfiguration =
                 deploymentDocument.getDeploymentPackageConfigurationList().get(0);
 
-        assertThat(componentConfiguration.getPackageName(), equalTo("CustomerApp"));
+        assertThat(componentConfiguration.getName(), equalTo("CustomerApp"));
         assertThat(componentConfiguration.getResolvedVersion(), equalTo("1.0.0"));
         assertThat(componentConfiguration.getRunWith(), is(notNullValue()));
         assertThat(componentConfiguration.getRunWith().getPosixUser(), equalTo("foo"));
-        assertThat(componentConfiguration.getConfigurationUpdateOperation().getPathsToReset(),
+        assertThat(componentConfiguration.getConfigurationUpdate().getPathsToReset(),
                    equalTo(Arrays.asList("/sampleText", "/path")));
-        assertThat(componentConfiguration.getConfigurationUpdateOperation().getValueToMerge(),
+        assertThat(componentConfiguration.getConfigurationUpdate().getValueToMerge(),
                    equalTo(ImmutableMap.of("key", "val")));
 
+        componentConfiguration =
+                deploymentDocument.getDeploymentPackageConfigurationList().get(1);
+
+        assertThat(componentConfiguration.getName(), equalTo("CustomerApp2"));
+        assertThat(componentConfiguration.getRunWith(), is(notNullValue()));
+        assertThat(componentConfiguration.getRunWith().getPosixUser(), is(nullValue()));
+        assertThat(componentConfiguration.getRunWith().hasPosixUserValue(), is(true));
     }
 
     @Test
@@ -214,9 +222,9 @@ class DeploymentDocumentConverterTest {
         DeploymentPackageConfiguration componentConfiguration =
                 deploymentDocument.getDeploymentPackageConfigurationList().get(0);
 
-        assertThat(componentConfiguration.getPackageName(), equalTo("CustomerApp"));
+        assertThat(componentConfiguration.getName(), equalTo("CustomerApp"));
         assertThat(componentConfiguration.getResolvedVersion(), equalTo("1.0.0"));
-        assertNull(componentConfiguration.getConfigurationUpdateOperation());
+        assertNull(componentConfiguration.getConfigurationUpdate());
 
         // The following fields are not provided in the json so default values should be used.
         // Default for FailureHandlingPolicy should be ROLLBACK
