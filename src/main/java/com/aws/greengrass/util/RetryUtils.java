@@ -12,8 +12,11 @@ import lombok.Getter;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Random;
 
 public class RetryUtils {
+
+    private static final Random RANDOM = new Random();
 
     // Need this to make spotbug check happy
     private RetryUtils() {
@@ -57,8 +60,8 @@ public class RetryUtils {
                     logBuild.kv("task-attempt", attempt).setCause(e)
                             .log("task failed and will be retried");
                     lastException = e;
-                    // TODO: [P45052340]: Add jitter to avoid clients retrying concurrently
-                    Thread.sleep(retryInterval);
+                    // Backoff with jitter strategy from EqualJitterBackoffStrategy in AWS SDK
+                    Thread.sleep(retryInterval / 2 + RANDOM.nextInt((int) (retryInterval / 2 + 1)));
                     if (retryInterval < retryConfig.getMaxRetryInterval().toMillis()) {
                         retryInterval = retryInterval * 2;
                     } else {
