@@ -39,6 +39,7 @@ import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
 import org.hamcrest.Matchers;
@@ -134,7 +135,8 @@ class DeploymentTaskIntegrationTest {
     private static final String TEST_MOSQUITTO_STRING = "Hello this is mosquitto getting started";
     private static final String TEST_TICK_TOCK_STRING = "Go ahead with 2 approvals";
     private static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+            new ObjectMapper().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
+                    .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     @TempDir
     static Path rootDir;
     private static Logger logger;
