@@ -216,7 +216,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
-        CountDownLatch fssPublishLatch = new CountDownLatch(2);
+        CountDownLatch fssPublishLatch = new CountDownLatch(1);
         logListener = eslm -> {
             if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
                     && eslm.getMessage().equals("Status update published to FSS")) {
