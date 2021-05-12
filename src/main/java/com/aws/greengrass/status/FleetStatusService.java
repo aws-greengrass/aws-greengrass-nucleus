@@ -367,8 +367,8 @@ public class FleetStatusService extends GreengrassService {
                 return;
             }
 
-            //When a component version is bumped up, FSS may have pointers to both GreengrassService
-            //Filtering out the service instance of the old version and only sending the update for the new version
+            //When a component version is bumped up, FSS may have pointers to both old and new service instances
+            //Filtering out the old version and only sending the update for the new version
             Set<GreengrassService> filteredServices = new HashSet<>();
             greengrassServiceSet.forEach(service -> {
                 try {
