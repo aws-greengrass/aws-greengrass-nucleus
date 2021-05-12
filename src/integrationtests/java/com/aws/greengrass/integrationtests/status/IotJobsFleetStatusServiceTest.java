@@ -15,6 +15,7 @@ import com.aws.greengrass.deployment.IotJobsClientWrapper;
 import com.aws.greengrass.deployment.IotJobsHelper;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
@@ -29,6 +30,7 @@ import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.OverallStatus;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
+import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
@@ -51,6 +53,8 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +64,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
@@ -116,6 +121,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             return cf;
         });
         kernel = new Kernel();
+
         NoOpPathOwnershipHandler.register(kernel);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
@@ -169,7 +175,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         };
         Slf4jLogAdapter.addGlobalListener(logListener);
 
-        offerSampleIoTJobsDeployment();
+        offerSampleIoTJobsDeployment("FleetStatusServiceConfig.json", TEST_JOB_ID_1);
         assertTrue(fssPublishLatch.await(60, TimeUnit.SECONDS));
         verify(mqttClient, atLeastOnce()).publish(captor.capture());
 
@@ -206,11 +212,86 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         assertEquals(0, componentNamesToCheck.size());
     }
 
-    private void offerSampleIoTJobsDeployment() throws Exception {
+    @Test
+    void WHEN_deployment_bumps_up_component_version_THEN_status_of_new_version_is_updated_to_cloud() throws Exception {
+        ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
+                GreengrassService.class.getName());
+        assertNotNull(deviceConfiguration.getThingName());
+        CountDownLatch fssPublishLatch = new CountDownLatch(2);
+        logListener = eslm -> {
+            if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
+                    && eslm.getMessage().equals("Status update published to FSS")) {
+                fssPublishLatch.countDown();
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(logListener);
+        // First local deployment adds SimpleApp v1
+        Map<String, String> componentsToMerge = new HashMap<>();
+        componentsToMerge.put("SimpleApp", "1.0.0");
+        LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("SimpleApp1")
+                .componentsToMerge(componentsToMerge)
+                .requestTimestamp(System.currentTimeMillis())
+                .build();
+        submitLocalDocument(request);
+        // Second local deployment removes SimpleApp v1
+        request = LocalOverrideRequest.builder().requestId("removeSimpleApp")
+                .componentsToRemove(Arrays.asList("SimpleApp"))
+                .requestTimestamp(System.currentTimeMillis())
+                .build();
+        submitLocalDocument(request);
+        // Cloud deployment adds SimpleApp v2. First two deployments are local because this edge case is hit when device is
+        // offline after receiving the deployment and cannot emit FSS update. Since local deployment do not emit FSS update,
+        // this test simulates the device being offline by using local deployments.
+        offerSampleIoTJobsDeployment("FleetConfigSimpleApp2.json", "simpleApp2");
+        assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
+        verify(mqttClient, atLeastOnce()).publish(captor.capture());
+
+        List<PublishRequest> prs = captor.getAllValues();
+        // Get the last FSS publish request which should have component info of simpleApp v2 and other built in services
+        PublishRequest pr = prs.get(prs.size() - 1);
+        try {
+            FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(),
+                    FleetStatusDetails.class);
+            assertEquals("ThingName", fleetStatusDetails.getThing());
+            assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+            assertNotNull(fleetStatusDetails.getComponentStatusDetails());
+            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
+            fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
+                componentNamesToCheck.remove(componentStatusDetails.getComponentName());
+                if (componentStatusDetails.getComponentName().equals("SimpleApp")) {
+                    assertEquals("2.0.0", componentStatusDetails.getVersion());
+                    assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
+                    assertEquals(MOCK_FLEET_CONFIG_ARN, componentStatusDetails.getFleetConfigArns().get(0));
+                    assertEquals(State.FINISHED, componentStatusDetails.getState());
+                    assertTrue(componentStatusDetails.isRoot());
+                } else {
+                    assertFalse(componentStatusDetails.isRoot());
+                }
+            });
+        } catch (UnrecognizedPropertyException ignored) {
+        }
+        assertEquals(0, componentNamesToCheck.size());
+    }
+
+
+    private void offerSampleIoTJobsDeployment(String fileName, String deploymentId) throws Exception {
+
+        Path localStoreContentPath =
+                Paths.get(IotJobsFleetStatusServiceTest.class.getResource("local_store_content").toURI());
+        PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"), kernel.getNucleusPaths().recipePath());
+        copyFolderRecursively(localStoreContentPath.resolve("artifacts"), kernel.getNucleusPaths().artifactPath(), REPLACE_EXISTING);
+
         DeploymentQueue deploymentQueue =
                 (DeploymentQueue) kernel.getContext().getvIfExists(DeploymentQueue.class).get();
-        Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(getClass().getResource("FleetStatusServiceConfig.json").toURI()), Configuration.class);
+        Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(getClass().getResource(fileName).toURI()), Configuration.class);
         deploymentQueue.offer(new Deployment(OBJECT_MAPPER.writeValueAsString(deploymentConfiguration),
-                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+                DeploymentType.IOT_JOBS, deploymentId));
+    }
+
+    private void submitLocalDocument(LocalOverrideRequest request) throws Exception {
+        DeploymentQueue deploymentQueue =
+                (DeploymentQueue) kernel.getContext().getvIfExists(DeploymentQueue.class).get();
+        Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(request), DeploymentType.LOCAL, request.getRequestId());
+        deploymentQueue.offer(deployment);
     }
 }
