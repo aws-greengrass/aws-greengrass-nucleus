@@ -25,6 +25,7 @@ import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -83,6 +84,12 @@ class LogManagerHelperTest {
     private Kernel kernel;
     @Captor
     ArgumentCaptor<ChildChanged> childChangedArgumentCaptor;
+
+    @AfterAll
+    static void cleanupLogger() {
+        LogManager.getTelemetryConfig().setStore(LogStore.CONSOLE);
+        LogManager.getRootLogConfiguration().setStore(LogStore.CONSOLE);
+    }
 
     @BeforeEach
     void setup() {
@@ -150,7 +157,7 @@ class LogManagerHelperTest {
         logRandomMessages(greengrassLogger, 525, LogFormat.TEXT);
         // Rollover is guarded by ch.qos.logback.core.util.DefaultInvocationGate so that it's not invoked too soon/often
         // This is the minimum delay since startup for it to allow log rollover.
-        Thread.sleep(800);
+        Thread.sleep(850);
         componentLogger.atInfo().log();  // log once more to trigger roll over
         greengrassLogger.atInfo().log();  // log once more to trigger roll over
 
@@ -195,7 +202,7 @@ class LogManagerHelperTest {
         });
 
         // change file size, total size, also change to another directory so it's clean
-        newConfig = LogConfigUpdate.builder().fileSizeKB(1L).totalLogsSizeKB(5L).format(LogFormat.TEXT)
+        newConfig = LogConfigUpdate.builder().fileSizeKB(1L).totalLogsSizeKB(2L).format(LogFormat.TEXT)
                 .outputDirectory(tempRootDir3.toAbsolutePath().toString()).build();
         LogManager.reconfigureAllLoggers(newConfig);
         logRandomMessages(componentLogger, 8000, LogFormat.TEXT);
@@ -212,37 +219,67 @@ class LogManagerHelperTest {
         Path tempRootDir2 = tempRootDir.resolve("test_logs" + Utils.generateRandomString(8));
         String mockServiceName = "MockService001";
         when(mockGreengrassService.getServiceName()).thenReturn(mockServiceName);
+        Context context = mock(Context.class);
+        Configuration configuration = mock(Configuration.class);
+        NucleusPaths nucleusPaths = mock(NucleusPaths.class);
+        Topics rootConfigTopics = mock(Topics.class);
+        when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString())).thenReturn(new ArrayList<>());
+        when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
+        when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
+        when(configuration.getRoot()).thenReturn(rootConfigTopics);
+        when(kernel.getConfig()).thenReturn(configuration);
+        when(kernel.getNucleusPaths()).thenReturn(nucleusPaths);
 
+        // Start with non-default configs
+        Topics loggingConfig = Topics.of(context, NUCLEUS_CONFIG_LOGGING_TOPICS, null);
+        loggingConfig.createLeafChild("fileSizeKB").withValue("10");
+        loggingConfig.createLeafChild("format").withValue("JSON");
+        loggingConfig.createLeafChild("outputType").withValue("CONSOLE");
+        loggingConfig.createLeafChild("outputDirectory").withValue(tempRootDir2.toAbsolutePath().toString());
+        Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
+        when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(loggingConfig);
+        when(configuration.lookupTopics(anyString())).thenReturn(topics);
+        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
+        when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
+        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel);
         LogManagerHelper.getComponentLogger(mockGreengrassService);
         LogConfig testLogConfig = LogManager.getLogConfigurations().get(mockServiceName);
         PersistenceConfig defaultConfig = new PersistenceConfig(LOG_FILE_EXTENSION, LOGS_DIRECTORY);
 
-        // first set a few non-default configs
-        LogConfigUpdate newConfig = LogConfigUpdate.builder().format(LogFormat.JSON)
-                .outputDirectory(tempRootDir2.toAbsolutePath().toString()).outputType(LogStore.CONSOLE).fileSizeKB(10L)
-                .build();
-        LogManager.reconfigureAllLoggers(newConfig);
+        // apply non-default configs
+        deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.childChanged, loggingConfig);
+
+        // assert non-default configs
+        assertEquals(LogStore.CONSOLE, testLogConfig.getStore());
+        assertEquals(LogFormat.JSON, testLogConfig.getFormat());
+        assertEquals(10, testLogConfig.getFileSizeKB());
+        assertEquals(tempRootDir2.toAbsolutePath(), testLogConfig.getStoreDirectory().toAbsolutePath());
 
         // reset individual configs
-        LogManager.resetAllLoggers("format");
+        deviceConfiguration
+                .handleLoggingConfigurationChanges(WhatHappened.childRemoved, loggingConfig.findNode("format"));
         assertEquals(defaultConfig.getFormat(), testLogConfig.getFormat());
         assertEquals(defaultConfig.getFormat(), LogManager.getRootLogConfiguration().getFormat());
 
-        LogManager.resetAllLoggers("outputDirectory");
+        deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.childRemoved,
+                loggingConfig.findNode("outputDirectory"));
         assertEquals(defaultConfig.getStoreDirectory(), testLogConfig.getStoreDirectory());
         assertEquals(defaultConfig.getStoreDirectory(), LogManager.getRootLogConfiguration().getStoreDirectory());
 
-        LogManager.resetAllLoggers("outputType");
+        deviceConfiguration
+                .handleLoggingConfigurationChanges(WhatHappened.childRemoved, loggingConfig.findNode("outputType"));
         assertEquals(defaultConfig.getStore(), testLogConfig.getStore());
         assertEquals(defaultConfig.getStore(), LogManager.getRootLogConfiguration().getStore());
 
-        LogManager.resetAllLoggers("fileSizeKB");
+        deviceConfiguration
+                .handleLoggingConfigurationChanges(WhatHappened.childRemoved, loggingConfig.findNode("fileSizeKB"));
         assertEquals(defaultConfig.getFileSizeKB(), testLogConfig.getFileSizeKB());
         assertEquals(defaultConfig.getFileSizeKB(), LogManager.getRootLogConfiguration().getFileSizeKB());
 
         // reset all configs together
-        LogManager.reconfigureAllLoggers(newConfig);
-        LogManager.resetAllLoggers(null);
+        deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.childChanged, loggingConfig);
+        deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.removed, null);
+
         assertEquals(defaultConfig.getFormat(), testLogConfig.getFormat());
         assertEquals(defaultConfig.getFormat(), LogManager.getRootLogConfiguration().getFormat());
         assertEquals(defaultConfig.getStoreDirectory(), testLogConfig.getStoreDirectory());
