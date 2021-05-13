@@ -66,7 +66,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -75,7 +74,7 @@ import static com.aws.greengrass.util.Utils.deepToString;
 
 public class KernelLifecycle {
     private static final Logger logger = LogManager.getLogger(KernelLifecycle.class);
-    private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 30;
+    private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 40;
     // Enum for provision policy will exist in common library package
     // This will be done as part of re-provisioning
     // TODO:  Use the enum from common library when available
@@ -89,10 +88,9 @@ public class KernelLifecycle {
     private final KernelCommandLine kernelCommandLine;
     private final Map<String, Class<?>> serviceImplementors = new HashMap<>();
     private final NucleusPaths nucleusPaths;
-    @Setter
+    @Setter (AccessLevel.PACKAGE)
     private ProvisioningConfigUpdateHelper provisioningConfigUpdateHelper;
-    @Setter
-    @Inject
+    @Setter (AccessLevel.PACKAGE)
     private ProvisioningPluginFactory provisioningPluginFactory;
     // setter for unit testing
     @Setter(AccessLevel.PACKAGE)
@@ -116,6 +114,7 @@ public class KernelLifecycle {
         this.kernelCommandLine = kernelCommandLine;
         this.nucleusPaths = nucleusPaths;
         this.provisioningConfigUpdateHelper = new ProvisioningConfigUpdateHelper(kernel);
+        this.provisioningPluginFactory = new ProvisioningPluginFactory();
     }
 
     /**
@@ -491,9 +490,13 @@ public class KernelLifecycle {
                 logger.atInfo().setEventType("executor-service-shutdown-initiated").log();
             });
             logger.atInfo().log("Waiting for executors to shutdown");
-            executorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            scheduledExecutorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            logger.atInfo("executor-service-shutdown-complete").log();
+            boolean executorTerminated = executorService.awaitTermination(timeoutSeconds,
+                    TimeUnit.SECONDS);
+            boolean scheduledExecutorTerminated = scheduledExecutorService.awaitTermination(timeoutSeconds,
+                    TimeUnit.SECONDS);
+            logger.atInfo("executor-service-shutdown-complete")
+                    .kv("executor terminated", executorTerminated)
+                    .kv("ScheduledExecutor terminated", scheduledExecutorTerminated).log();
             //Stop the telemetry logger context after each test so we can delete the telemetry log files that are
             // created during the test.
             TelemetryConfig.getInstance().closeContext();
