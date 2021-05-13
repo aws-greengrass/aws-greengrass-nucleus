@@ -174,7 +174,7 @@ class LogManagerHelperTest {
 
     @Test
     void GIVEN_mock_service_logger_WHEN_reconfigure_multiple_configs_THEN_change_applied_correctly()
-            throws IOException {
+            throws IOException, InterruptedException {
         Path tempRootDir2 = tempRootDir.resolve("test_logs_" + Utils.generateRandomString(8));
         Path tempRootDir3 = tempRootDir.resolve("test_logs_" + Utils.generateRandomString(8));
         String mockServiceName = "MockService002";
@@ -214,11 +214,9 @@ class LogManagerHelperTest {
         LogManager.reconfigureAllLoggers(newConfig);
         logRandomMessages(componentLogger, 4000, LogFormat.TEXT);
         componentLogger.atInfo().log();
-        long numLogFilesBefore = getLogFileCount(testLogConfig, mockServiceName);
-        logRandomMessages(componentLogger, 4000, LogFormat.TEXT);
-        componentLogger.atInfo().log();
         // older rotated file should be deleted. Log file count should not change
-        assertEquals(numLogFilesBefore, getLogFileCount(testLogConfig, mockServiceName));
+        Thread.sleep(850);
+        assertEquals(1, getLogFileCount(testLogConfig, mockServiceName));
     }
 
     @Test
