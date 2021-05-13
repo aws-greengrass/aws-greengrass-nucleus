@@ -82,6 +82,13 @@ class LogManagerHelperTest {
     private GreengrassService mockGreengrassService;
     @Mock
     private Kernel kernel;
+    @Mock
+    private Context context;
+    @Mock
+    private Configuration configuration;
+    @Mock
+    private NucleusPaths nucleusPaths;
+
     @Captor
     ArgumentCaptor<ChildChanged> childChangedArgumentCaptor;
 
@@ -219,9 +226,6 @@ class LogManagerHelperTest {
         Path tempRootDir2 = tempRootDir.resolve("test_logs" + Utils.generateRandomString(8));
         String mockServiceName = "MockService001";
         when(mockGreengrassService.getServiceName()).thenReturn(mockServiceName);
-        Context context = mock(Context.class);
-        Configuration configuration = mock(Configuration.class);
-        NucleusPaths nucleusPaths = mock(NucleusPaths.class);
         Topics rootConfigTopics = mock(Topics.class);
         when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString())).thenReturn(new ArrayList<>());
         when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
@@ -294,9 +298,6 @@ class LogManagerHelperTest {
     @Test
     void GIVEN_all_fields_logger_config_WHEN_subscribe_THEN_correctly_reconfigures_all_loggers() throws IOException {
         Path tempRootDir2 = tempRootDir.resolve("2");
-        Context context = mock(Context.class);
-        Configuration configuration = mock(Configuration.class);
-        NucleusPaths nucleusPaths = mock(NucleusPaths.class);
         Topics rootConfigTopics = mock(Topics.class);
         when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString())).thenReturn(new ArrayList<>());
         when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
@@ -337,8 +338,6 @@ class LogManagerHelperTest {
 
     @Test
     void GIVEN_null_logger_config_WHEN_subscribe_THEN_correctly_reconfigures_all_loggers() throws IOException {
-        Configuration configuration = mock(Configuration.class);
-        NucleusPaths nucleusPaths = mock(NucleusPaths.class);
         Topics rootConfigTopics = mock(Topics.class);
         when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString())).thenReturn(new ArrayList<>());
         when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
