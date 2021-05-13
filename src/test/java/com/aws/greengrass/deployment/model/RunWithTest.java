@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment.model;
 
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,7 +24,7 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 @ExtendWith(GGExtension.class)
 class RunWithTest {
-    static final ObjectMapper MAPPER = new ObjectMapper();
+    static final ObjectMapper MAPPER = new ObjectMapper().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES);
 
     @ParameterizedTest
     @MethodSource("runWithValues")

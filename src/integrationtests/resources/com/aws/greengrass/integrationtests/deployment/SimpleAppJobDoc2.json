@@ -1,6 +1,6 @@
 {
     "DeploymentId": "f7fe5b16-574a-11ea-82b4-0242ac130004",
-    "Packages": [
+    "DeploymentPackageConfigurationList": [
       {
         "Name": "SimpleApp",
         "ResolvedVersion": "2.0.0",
