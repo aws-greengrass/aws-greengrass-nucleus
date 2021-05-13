@@ -209,13 +209,13 @@ class LogManagerHelperTest {
         });
 
         // change file size, total size, also change to another directory so it's clean
-        newConfig = LogConfigUpdate.builder().fileSizeKB(1L).totalLogsSizeKB(2L).format(LogFormat.TEXT)
+        newConfig = LogConfigUpdate.builder().fileSizeKB(1L).totalLogsSizeKB(1L).format(LogFormat.TEXT)
                 .outputDirectory(tempRootDir3.toAbsolutePath().toString()).build();
         LogManager.reconfigureAllLoggers(newConfig);
-        logRandomMessages(componentLogger, 8000, LogFormat.TEXT);
+        logRandomMessages(componentLogger, 4000, LogFormat.TEXT);
         componentLogger.atInfo().log();
         long numLogFilesBefore = getLogFileCount(testLogConfig, mockServiceName);
-        logRandomMessages(componentLogger, 8000, LogFormat.TEXT);
+        logRandomMessages(componentLogger, 4000, LogFormat.TEXT);
         componentLogger.atInfo().log();
         // older rotated file should be deleted. Log file count should not change
         assertEquals(numLogFilesBefore, getLogFileCount(testLogConfig, mockServiceName));
