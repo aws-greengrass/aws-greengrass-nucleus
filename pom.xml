@@ -671,6 +671,12 @@
                                         <exclude>*.a</exclude>
                                     </excludes>
                                 </filter>
+                                <filter>
+                                    <artifact>software.amazon.awssdk.crt:aws-crt:jar:*</artifact>
+                                    <excludes>
+                                        <exclude>*.a</exclude>
+                                    </excludes>
+                                </filter>
                             </filters>
                         </configuration>
                     </execution>

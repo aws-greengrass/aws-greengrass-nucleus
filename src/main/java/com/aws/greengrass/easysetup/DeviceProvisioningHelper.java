@@ -25,7 +25,6 @@ import software.amazon.awssdk.http.HttpExecuteResponse;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
 import software.amazon.awssdk.services.greengrassv2.model.ComponentDeploymentSpecification;
@@ -314,8 +313,7 @@ public class DeviceProvisioningHelper {
     }
 
     private SdkHttpClient getSdkHttpClient() {
-        SdkHttpClient proxyClient = ProxyUtils.getSdkHttpClient();
-        return proxyClient == null ? ApacheHttpClient.builder().build() : proxyClient;
+        return ProxyUtils.getSdkHttpClient();
     }
 
     /**
