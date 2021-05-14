@@ -108,12 +108,12 @@ public class DependencyResolver {
         List<String> targetComponentsToResolve = new ArrayList<>();
         document.getDeploymentPackageConfigurationList().stream()
                 .filter(DeploymentPackageConfiguration::isRootComponent).forEach(e -> {
-            logger.atDebug().kv(COMPONENT_NAME_KEY, e.getPackageName()).kv(VERSION_KEY, e.getResolvedVersion())
+            logger.atDebug().kv(COMPONENT_NAME_KEY, e.getName()).kv(VERSION_KEY, e.getResolvedVersion())
                     .log("Found component configuration");
-            componentNameToVersionConstraints.putIfAbsent(e.getPackageName(), new HashMap<>());
-            componentNameToVersionConstraints.get(e.getPackageName())
+            componentNameToVersionConstraints.putIfAbsent(e.getName(), new HashMap<>());
+            componentNameToVersionConstraints.get(e.getName())
                     .put(document.getGroupName(), Requirement.buildNPM(e.getResolvedVersion()));
-            targetComponentsToResolve.add(e.getPackageName());
+            targetComponentsToResolve.add(e.getName());
         });
 
         logger.atInfo().setEventType("resolve-group-dependencies-start")

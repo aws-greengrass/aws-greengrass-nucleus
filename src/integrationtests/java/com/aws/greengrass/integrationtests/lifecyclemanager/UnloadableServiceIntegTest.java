@@ -12,6 +12,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,7 @@ public class UnloadableServiceIntegTest extends BaseITCase {
     @BeforeEach
     void beforeEach() {
         kernel = new Kernel();
+        NoOpPathOwnershipHandler.register(kernel);
     }
 
     @AfterEach

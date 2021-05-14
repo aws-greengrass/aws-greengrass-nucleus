@@ -6,8 +6,6 @@
 package com.aws.greengrass.deployment.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonSerializer;
@@ -40,7 +38,6 @@ import java.util.stream.Collectors;
  * <p>JSON Annotations are only in tests to easily generate this model from a JSON file. They are not part of business
  * logic.
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
 @Setter
 @Builder
@@ -50,31 +47,23 @@ import java.util.stream.Collectors;
 @EqualsAndHashCode
 public class DeploymentDocument {
 
-    @JsonProperty("DeploymentId")
     private String deploymentId;
 
-    @JsonProperty("Packages")
     private List<DeploymentPackageConfiguration> deploymentPackageConfigurationList;
 
-    @JsonProperty("RequiredCapabilities")
     private List<String> requiredCapabilities;
 
-    @JsonProperty("GroupName")
     private String groupName;
 
     @Setter
-    @JsonProperty("Timestamp")
     private Long timestamp;
 
-    @JsonProperty("FailureHandlingPolicy")
     @Builder.Default
     private FailureHandlingPolicy failureHandlingPolicy = FailureHandlingPolicy.ROLLBACK;
 
-    @JsonProperty("ComponentUpdatePolicy")
     @Builder.Default
     private ComponentUpdatePolicy componentUpdatePolicy = new ComponentUpdatePolicy();
 
-    @JsonProperty("ConfigurationValidationPolicy")
     @Builder.Default
     @JsonSerialize(using = SDKSerializer.class)
     @JsonDeserialize(converter = SDKDeserializer.class)
@@ -92,7 +81,7 @@ public class DeploymentDocument {
             return Collections.emptyList();
         }
         return deploymentPackageConfigurationList.stream().filter(DeploymentPackageConfiguration::isRootComponent)
-                .map(DeploymentPackageConfiguration::getPackageName).collect(Collectors.toList());
+                .map(DeploymentPackageConfiguration::getName).collect(Collectors.toList());
     }
 
     // Custom serializer for AWS SDK model since Jackson can't figure it out itself

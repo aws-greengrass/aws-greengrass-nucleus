@@ -170,6 +170,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockGreengrassService2.getState()).thenReturn(State.RUNNING);
         when(mockGreengrassService2.isBuiltin()).thenReturn(true);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
+        when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
+        when(mockKernel.locate("MockService2")).thenReturn(mockGreengrassService2);
         when(mockKernel.orderedDependencies()).thenReturn(Arrays.asList(mockGreengrassService1, mockGreengrassService2));
         when(mockDeploymentService.getConfig()).thenReturn(config);
         when(mockDeploymentService.isComponentRoot("MockService")).thenReturn(true);
@@ -257,6 +259,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getState()).thenReturn(State.BROKEN);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
+        when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
         when(mockKernel.orderedDependencies()).thenReturn(Collections.singleton(mockGreengrassService1));
 
         when(mockDeploymentService.getConfig()).thenReturn(config);
@@ -400,6 +403,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
+        when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
         when(mockKernel.orderedDependencies()).thenReturn(Collections.singleton(mockGreengrassService1));
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
@@ -504,7 +508,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
-        when(mockKernel.locate(anyString())).thenReturn(mockDeploymentService);
+        when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
+        when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
         when(mockKernel.orderedDependencies()).thenReturn(Collections.singletonList(mockDeploymentService));
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
@@ -578,9 +583,11 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         // Set up all the mocks
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getState()).thenReturn(State.BROKEN);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
+        when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
 
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
@@ -667,7 +674,10 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockGreengrassService2.getName()).thenReturn("MockService2");
         when(mockGreengrassService2.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService2.getState()).thenReturn(State.RUNNING);
+        when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
+        when(mockKernel.locate("MockService2")).thenReturn(mockGreengrassService2);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
+
         when(mockKernel.orderedDependencies()).thenReturn(Arrays.asList(mockGreengrassService1, mockGreengrassService2));
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
@@ -749,9 +759,11 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         // Set up all the mocks
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
+        when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
         when(mockKernel.orderedDependencies()).thenReturn(Collections.singleton(mockGreengrassService1));
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
@@ -810,9 +822,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
             when(greengrassService.getName()).thenReturn(serviceName);
             when(greengrassService.getState()).thenReturn(State.RUNNING);
             when(greengrassService.getServiceConfig()).thenReturn(config);
-
             greengrassServices.add(greengrassService);
             serviceNamesToCheck.add(serviceName);
+            when(mockKernel.locate(serviceName)).thenReturn(greengrassService);
         }
         lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 

@@ -19,6 +19,13 @@
           "/path"
         ]
       }
+    },
+    "CustomerApp2": {
+      "version": "1.0.0",
+      "runWith": {
+      },
+      "configurationUpdate": {
+      }
     }
   },
   "componentUpdatePolicy": {

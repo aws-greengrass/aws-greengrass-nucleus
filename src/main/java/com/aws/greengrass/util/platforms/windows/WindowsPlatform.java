@@ -14,6 +14,8 @@ import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.RunWithGenerator;
 import com.aws.greengrass.util.platforms.ShellDecorator;
+import com.aws.greengrass.util.platforms.StubResourceController;
+import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
 import com.sun.jna.platform.win32.Advapi32Util;
 import com.sun.jna.platform.win32.Win32Exception;
@@ -51,6 +53,7 @@ public class WindowsPlatform extends Platform {
     private static final String NAMED_PIPE_UUID_SUFFIX = UUID.randomUUID().toString();
     private static final int MAX_NAMED_PIPE_LEN = 256;
 
+    private final SystemResourceController systemResourceController = new StubResourceController();
     private static WindowsUserAttributes CURRENT_USER;
 
     static final Set<AclEntryPermission> READ_PERMS = new HashSet<>(Arrays.asList(
@@ -160,6 +163,11 @@ public class WindowsPlatform extends Platform {
     @Override
     public void addUserToGroup(String user, String group) throws IOException {
         // TODO: [P41452086]: Windows support - create user/group, add user to group
+    }
+
+    @Override
+    public SystemResourceController getSystemResourceController() {
+        return systemResourceController;
     }
 
     @Override
