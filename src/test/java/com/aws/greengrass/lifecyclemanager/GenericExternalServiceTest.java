@@ -28,6 +28,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.SERVICE_CONFIG_LOGGING_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -222,7 +223,9 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_service_paused_WHEN_pause_fails_THEN_service_exception_thrown() throws Exception {
+    void GIVEN_service_paused_WHEN_pause_fails_THEN_service_exception_thrown(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionWithMessage(context, "Could not pause");
         doThrow(new IOException("Could not pause")).when(resourceController).pauseComponentProcesses(any(), any());
         ges.install();
         ges.startup();
@@ -258,7 +261,8 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_service_paused_WHEN_resume_fails_THEN_retry_and_succeed() throws Exception {
+    void GIVEN_service_paused_WHEN_resume_fails_THEN_retry_and_succeed(ExtensionContext context) throws Exception {
+        ignoreExceptionWithMessage(context, "Could not resume");
         doThrow(new IOException("Could not resume")).doThrow(new IOException("Could not resume")).doNothing()
                 .when(resourceController).resumeComponentProcesses(ges);
         ges.install();
@@ -280,8 +284,9 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_service_paused_WHEN_resume_fails_all_attempts_THEN_service_exception_thrown_service_restarted()
-            throws Exception {
+    void GIVEN_service_paused_WHEN_resume_fails_all_attempts_THEN_service_exception_thrown_service_restarted(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionWithMessage(context, "Could not resume");
         doThrow(new IOException("Could not resume")).doThrow(new IOException("Could not resume"))
                 .doThrow(new IOException("Could not resume")).when(resourceController).resumeComponentProcesses(ges);
         ges.install();
@@ -299,9 +304,10 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_service_paused_WHEN_shutdown_requested_and_resume_fails_THEN_service_force_stopped(ExtensionContext context)
-            throws Exception {
+    void GIVEN_service_paused_WHEN_shutdown_requested_and_resume_fails_THEN_service_force_stopped(
+            ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, ServiceException.class);
+        ignoreExceptionWithMessage(context, "Could not resume");
         doThrow(new IOException("Could not resume")).when(resourceController).resumeComponentProcesses(ges);
 
         ges.install();

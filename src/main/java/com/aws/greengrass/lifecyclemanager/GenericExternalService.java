@@ -382,7 +382,7 @@ public class GenericExternalService extends GreengrassService {
             paused.set(true);
             logger.atDebug().log("Paused component");
         } catch (IOException e) {
-            logger.atDebug().log("Error pausing component");
+            logger.atError().setCause(e).log("Error pausing component");
             throw new ServiceException(String.format("Error pausing component %s", getServiceName()), e);
         }
     }
@@ -409,9 +409,10 @@ public class GenericExternalService extends GreengrassService {
                     return;
                 } catch (IOException e) {
                     if (retryOnFail && retryAttempts > 0) {
-                        logger.atDebug().log("Error resuming component, retrying");
+                        logger.atInfo().setCause(e).log("Error resuming component, retrying");
                     } else {
-                        logger.atDebug().log("Error resuming component and all retried exhausted, restarting");
+                        logger.atError().setCause(e).log("Error resuming component and all retried exhausted, "
+                                + "restarting");
                         if (restartOnFail) {
                             // Reset tracking flag
                             paused.set(false);

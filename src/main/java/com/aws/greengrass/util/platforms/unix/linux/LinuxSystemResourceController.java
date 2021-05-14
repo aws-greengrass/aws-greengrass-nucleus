@@ -11,6 +11,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.SystemResourceController;
+import org.zeroturnaround.process.PidUtil;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -142,7 +143,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
                 StandardOpenOption.TRUNCATE_EXISTING);
     }
 
-    void addComponentProcessToCgroup(String component, Process process, Cgroup cg)
+    private void addComponentProcessToCgroup(String component, Process process, Cgroup cg)
             throws IOException {
 
         if (!Files.exists(cg.getSubsystemComponentPath(component))) {
@@ -154,16 +155,18 @@ public class LinuxSystemResourceController implements SystemResourceController {
         try {
             if (process != null) {
                 Set<Integer> childProcesses = platform.getChildPids(process);
+                childProcesses.add(PidUtil.getPid(process));
 
                 // Writing pid to cgroup.procs file should auto add the pid to tasks file
-                // Once a process is added to a cgroup, its forked child processes inherit its (parent's) cgroup settings
+                // Once a process is added to a cgroup, its forked child processes inherit its (parent's) settings
                 for (Integer pid : childProcesses) {
                     if (pid == null) {
                         logger.atError().log("The process doesn't exist and is skipped");
                         continue;
                     }
 
-                    Files.write(cg.getCgroupProcsPath(component), Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
+                    Files.write(cg.getCgroupProcsPath(component),
+                            Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
                 }
             }
         } catch (InterruptedException e) {
