@@ -13,9 +13,10 @@ import java.nio.file.Paths;
 /**
  * Represents Linux cgroup v1 subsystems.
  */
-@SuppressFBWarnings("DMI_HARDCODED_ABSOLUTE_FILENAME")
+@SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME", justification = "Cgroup virtual filesystem path "
+        + "cannot be relative")
 public enum Cgroup {
-    Memory("memory"), CPU("cpu,cpuacct");
+    Memory("memory"), CPU("cpu,cpuacct"), Freezer("freezer", "freezer");
 
     private static final String CGROUP_ROOT = "/sys/fs/cgroup";
     private static final String GG_NAMESPACE = "greengrass";
@@ -23,11 +24,19 @@ public enum Cgroup {
     private static final String CPU_CFS_PERIOD_US = "cpu.cfs_period_us";
     private static final String CPU_CFS_QUOTA_US = "cpu.cfs_quota_us";
     private static final String CGROUP_PROCS = "cgroup.procs";
+    private static final String FREEZER_STATE_FILE = "freezer.state";
 
     private final String osString;
+    private final String mountSrc;
 
     Cgroup(String str) {
         osString = str;
+        mountSrc = "cgroup";
+    }
+
+    Cgroup(String str, String mountSrc) {
+        this.osString = str;
+        this.mountSrc = mountSrc;
     }
 
     public static Path getRootPath() {
@@ -39,7 +48,7 @@ public enum Cgroup {
     }
 
     public String subsystemMountCmd() {
-        return String.format("mount -t cgroup -o %s cgroup %s", osString, getSubsystemRootPath());
+        return String.format("mount -t cgroup -o %s %s %s", osString, mountSrc, getSubsystemRootPath());
     }
 
     public Path getSubsystemRootPath() {
@@ -68,5 +77,9 @@ public enum Cgroup {
 
     public Path getCgroupProcsPath(String componentName) {
         return getSubsystemComponentPath(componentName).resolve(CGROUP_PROCS);
+    }
+
+    public Path getCgroupFreezerStateFilePath(String componentName) {
+        return getSubsystemComponentPath(componentName).resolve(FREEZER_STATE_FILE);
     }
 }
