@@ -12,16 +12,22 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.RetryUtils;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.greengrassv2data.model.ListThingGroupsForCoreDeviceRequest;
+import software.amazon.awssdk.services.greengrassv2data.model.ListThingGroupsForCoreDeviceResponse;
 
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
 public class ThingGroupHelper {
     protected static final Logger logger = LogManager.getLogger(ComponentServiceHelper.class);
-
+    // Maximum number of thing groups a thing can belong to is 10
+    // Maximum depth of a thing group hierarchy is 7
+    // Total direct and parent thing groups a thing can belong to is 10*7
+    private static final int MAX_THING_GROUPS_A_THING_BELONG_TO = 70;
     private final GreengrassServiceClientFactory clientFactory;
 
     private final RetryUtils.RetryConfig clientExceptionRetryConfig =
@@ -43,11 +49,30 @@ public class ThingGroupHelper {
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     public Set<String> listThingGroupsForDevice()
             throws InterruptedException, NonRetryableDeploymentTaskFailureException {
-        //TODO: implement method when cloud api is available
+
+        Set<String> thingGroupNames = new HashSet<>();
         try {
-            RetryUtils.runWithRetry(clientExceptionRetryConfig,
+            AtomicReference<String> nextToken = new AtomicReference<>();
+            return RetryUtils.runWithRetry(clientExceptionRetryConfig,
                     () -> {
-                        return clientFactory.getGreengrassV2DataClient();
+                        do {
+                            ListThingGroupsForCoreDeviceRequest request = ListThingGroupsForCoreDeviceRequest.builder()
+                                    .maxResults(MAX_THING_GROUPS_A_THING_BELONG_TO)
+                                    .coreDeviceThingName("Thin")
+                                    .nextToken(nextToken.get()).build();
+                            ListThingGroupsForCoreDeviceResponse response = clientFactory.getGreengrassV2DataClient()
+                                    .listThingGroupsForCoreDevice(request);
+                            response.thingGroups().forEach(thingGroup -> {
+                                //adding direct thing group
+                                thingGroupNames.add(thingGroup.thingGroupName());
+                                //adding parent thing group
+                                thingGroup.rootToParentThingGroups().forEach(parentThingGroup ->
+                                        thingGroupNames.add(parentThingGroup.thingGroupName()));
+                            });
+                            nextToken.set(response.nextToken());
+                        } while (nextToken.get() != null);
+
+                        return thingGroupNames;
                     },
                     "get-thing-group-hierarchy", logger);
         } catch (InterruptedException e) {
@@ -56,7 +81,5 @@ public class ThingGroupHelper {
             logger.atError("Error").log();
             throw new NonRetryableDeploymentTaskFailureException("Error fetching thing group information", e);
         }
-
-        return new HashSet<>();
     }
 }
