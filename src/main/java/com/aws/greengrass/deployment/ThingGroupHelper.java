@@ -26,10 +26,6 @@ import javax.inject.Inject;
 
 public class ThingGroupHelper {
     protected static final Logger logger = LogManager.getLogger(ComponentServiceHelper.class);
-    // Maximum number of thing groups a thing can belong to is 10
-    // Maximum depth of a thing group hierarchy is 7
-    // Total direct and parent thing groups a thing can belong to is 10*7
-    private static final int MAX_THING_GROUPS_A_THING_BELONG_TO = 70;
     private final GreengrassServiceClientFactory clientFactory;
     private final DeviceConfiguration deviceConfiguration;
 
@@ -60,11 +56,7 @@ public class ThingGroupHelper {
             return RetryUtils.runWithRetry(clientExceptionRetryConfig,
                     () -> {
                         do {
-//                            Arn.builder().service("testService").region(Coerce.toString(deviceConfiguration.getAWSRegion()))
-//                                    .accountId("12345").partition("testPartition").resource("testResoruce")
-//                                    .build().toString();
                             ListThingGroupsForCoreDeviceRequest request = ListThingGroupsForCoreDeviceRequest.builder()
-                                    .maxResults(MAX_THING_GROUPS_A_THING_BELONG_TO)
                                     .coreDeviceThingName(Coerce.toString(deviceConfiguration.getThingName()))
                                     .nextToken(nextToken.get()).build();
                             ListThingGroupsForCoreDeviceResponse response = clientFactory.getGreengrassV2DataClient()
